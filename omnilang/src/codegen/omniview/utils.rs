@@ -26,24 +26,21 @@ pub(super) fn map_tag(tag: &str) -> String {
 }
 
 /// Map omni event names to DOM event names.
-pub(super) fn map_event(name: &str) -> String {
-    match name {
-        "onPress" | "onClick" | "onTap" => "click".into(),
-        "onChange" | "onInput" => "input".into(),
-        "onFocus" => "focus".into(),
-        "onBlur" => "blur".into(),
-        "onKeyDown" => "keydown".into(),
-        "onKeyUp" => "keyup".into(),
-        "onSubmit" => "submit".into(),
-        "onScroll" => "scroll".into(),
-        "onMouseEnter" => "mouseenter".into(),
-        "onMouseLeave" => "mouseleave".into(),
-        "onMouseMove" => "mousemove".into(),
+///
+/// Alias resolution happens in the ONE shared table
+/// (`shared::event::canonical_event_name`) — a misspelled alias
+/// (onDoubleClick/onDblClick/doubleclick/...) can never wire a different
+/// DOM event. The only backend-specific rule left here is the documented
+/// merge of `change` into the `input` DOM event (per-keystroke semantics,
+/// matching React's onChange shim for text fields).
+pub(crate) fn map_event(name: &str) -> String {
+    match crate::codegen::shared::event::canonical_event_name(name) {
         // The DOM event is `dblclick` — naive on-prefix lowering gives
-        // `doubleclick`, which never fires.
-        "onDoubleClick" | "onDblClick" => "dblclick".into(),
-        n if n.starts_with("on") => n[2..].to_lowercase(),
-        n => n.to_string(),
+        // `doubleclick`, which never fires (historical drift bug).
+        Some("change") => "input".into(),
+        Some(canonical) => canonical.to_string(),
+        None if name.starts_with("on") => name[2..].to_lowercase(),
+        None => name.to_string(),
     }
 }
 

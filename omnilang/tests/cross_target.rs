@@ -227,6 +227,101 @@ fn cross_target_component_files_produce_output() {
     );
 }
 
+/// Task 2.4 fixture: keyboard/clipboard/drag-drop event FIELDS must not be
+/// silently dropped on any target. React and OmniView map them for real
+/// (e.code, clipboard text, dataTransfer files); Flutter must produce
+/// warnings (never silent stubs — ADR-054 honest degradation) and must
+/// never emit the debug-oriented KeyEvent code mapping (debugName).
+#[test]
+fn event_fields_stubs_warn_on_flutter_not_silent() {
+    let source = r#"
+import omniview;
+component EventFields {
+    signal lastKey: String = "";
+    signal clipText: String = "";
+    signal dropCount: i32 = 0;
+
+    fn handleKey(e) { lastKey = e.code; }
+    fn handleCopy(e) { clipText = e.text; }
+    fn handleDrop(e) { dropCount = e.files.len(); }
+
+    view {
+        <input
+            @onKeyDown={handleKey}
+            @onCopy={handleCopy}
+            @onDrop={handleDrop} />
+    }
+}
+"#;
+
+    for (target, target_name) in p0_backends() {
+        let output = compile_source(source, target);
+        assert!(
+            output.errors.is_empty(),
+            "{target_name}: fixture must compile without errors: {:?}",
+            output
+                .errors
+                .iter()
+                .map(|e| &e.message)
+                .collect::<Vec<_>>()
+        );
+        let event_warnings: Vec<&String> = output
+            .warnings
+            .iter()
+            .filter(|w| {
+                w.contains("onKeyDown")
+                    || w.contains("onCopy")
+                    || w.contains("onDrop")
+                    || w.contains("KeyEvent")
+                    || w.contains("ClipboardEvent")
+                    || w.contains("DropEvent")
+            })
+            .collect();
+        match target_name {
+            "OmniView" | "React" => assert!(
+                event_warnings.is_empty(),
+                "{target_name}: keyboard/clipboard/drop fields are mapped for real — \
+                 warnings would mean silent degradation: {:?}",
+                event_warnings
+            ),
+            "Flutter" => assert!(
+                !event_warnings.is_empty(),
+                "Flutter: keyboard/clipboard/drop events must never compile silently"
+            ),
+            _ => {}
+        }
+    }
+
+    // Flutter output must never contain the debug-only KeyEvent mapping —
+    // the stable physicalKey.keyId mapping is the only legal code mapping.
+    // (Flutter-only: the target is not compiled without codegen-flutter.)
+    #[cfg(feature = "codegen-flutter")]
+    {
+        let flutter_out = compile_source(source, Target::Flutter);
+        assert!(
+            flutter_out.errors.is_empty(),
+            "Flutter fixture must compile: {:?}",
+            flutter_out
+                .errors
+                .iter()
+                .map(|e| &e.message)
+                .collect::<Vec<_>>()
+        );
+        for f in &flutter_out.files {
+            assert!(
+                !f.content.contains("debugName"),
+                "debugName must never be emitted as event data in {}",
+                f.path
+            );
+            assert!(
+                !f.content.contains("logicalKey.debugName"),
+                "stale debugName mapping in {}",
+                f.path
+            );
+        }
+    }
+}
+
 /// Cross-target parity assertions for the 4 features identified in ADR-021:
 /// class_map_bindings, empty_body, slot, key_expr.
 ///

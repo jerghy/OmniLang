@@ -2,6 +2,8 @@
 // Flutter-specific helpers
 // ═══════════════════════════════════════════════════════════════
 
+use super::capitalize_first;
+
 /// Lowercase the first character of a string ("TodoStore" → "todoStore").
 pub(crate) fn lower_first(s: &str) -> String {
     let mut c = s.chars();
@@ -47,31 +49,38 @@ pub(crate) fn tag_to_flutter_widget(tag: &str) -> &str {
 }
 
 /// Map OmniView event names to Flutter callback parameter names.
-pub(crate) fn event_to_flutter_callback(event_name: &str) -> &str {
-    // Strip any existing "on" prefix to normalize (IR may carry "onPress" etc.)
-    let stem = event_name
-        .strip_prefix("on")
-        .unwrap_or(event_name)
-        .to_lowercase();
-    match stem.as_str() {
-        "click" | "tap" | "press" => "onPressed",
-        "change" | "input" => "onChanged",
-        "submit" => "onSubmitted",
-        "focus" => "onFocus",
-        "blur" => "onBlur",
-        "keydown" => "onKeyDown",
-        "keyup" => "onKeyUp",
-        "longpress" => "onLongPress",
-        "doubleclick" | "dblclick" => "onDoubleTap",
-        "hover" | "mouseenter" => "onHover",
-        "scroll" => "onScroll",
-        "drag" | "dragstart" => "onDragStart",
-        "dragend" => "onDragEnd",
-        "dragover" => "onDrag",
-        "drop" => "onDrop",
-        "toggle" => "onChanged",
-        "select" => "onSelected",
-        _ => event_name,
+///
+/// Alias resolution happens in the ONE shared table
+/// (`shared::event::canonical_event_name`) — this adapter only applies the
+/// Flutter callback-name convention on top of the canonical DOM name.
+pub(crate) fn event_to_flutter_callback(event_name: &str) -> String {
+    match crate::codegen::shared::event::canonical_event_name(event_name) {
+        Some(canonical) => flutter_callback_for_canonical(canonical),
+        // Unknown / custom event — legacy fallback: keep the name unchanged.
+        None => event_name.to_string(),
+    }
+}
+
+/// Flutter widget callback parameter name for a canonical DOM event name.
+fn flutter_callback_for_canonical(canonical: &str) -> String {
+    match canonical {
+        "click" => "onPressed".into(),
+        "change" | "input" | "toggle" => "onChanged".into(),
+        "submit" => "onSubmitted".into(),
+        "focus" => "onFocus".into(),
+        "blur" => "onBlur".into(),
+        "keydown" => "onKeyDown".into(),
+        "keyup" => "onKeyUp".into(),
+        "longpress" => "onLongPress".into(),
+        "dblclick" => "onDoubleTap".into(),
+        "hover" | "mouseenter" => "onHover".into(),
+        "scroll" => "onScroll".into(),
+        "drag" | "dragstart" => "onDragStart".into(),
+        "dragend" => "onDragEnd".into(),
+        "dragover" => "onDrag".into(),
+        "drop" => "onDrop".into(),
+        "select" => "onSelected".into(),
+        other => format!("on{}", capitalize_first(other)),
     }
 }
 

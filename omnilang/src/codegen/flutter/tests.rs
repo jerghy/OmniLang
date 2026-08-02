@@ -5502,3 +5502,168 @@ component Badge {
         content
     );
 }
+
+// ═══════════════════════════════════════════════════════════════
+// Event field extraction diagnostics (Task 2.4 — Phase 2 Domain 7)
+// ═══════════════════════════════════════════════════════════════
+
+/// Extract a single field with a fresh warnings channel.
+fn extract_with_warnings(kind: &EventDataKind, field: &str) -> (String, Vec<String>) {
+    let mut warnings = Vec::new();
+    let expr = field_extract_flutter(kind, field, "e", &mut warnings);
+    (expr, warnings)
+}
+
+/// Silent-stub contract (ADR-054 honest degradation): every unmapped or
+/// dropped event field must emit a warning naming the field AND the event
+/// kind, and the generated code must keep a degradation comment.
+#[test]
+fn unmapped_event_fields_warn_not_silent() {
+    // ClipboardEvent.text was a silent '' stub.
+    let (expr, warnings) = extract_with_warnings(&EventDataKind::ClipboardEvent, "text");
+    assert!(
+        warnings
+            .iter()
+            .any(|w| w.contains("text") && w.contains("ClipboardEvent")),
+        "clipboard text stub must warn with field + kind, got: {:?}",
+        warnings
+    );
+    assert!(
+        expr.contains("/*") && expr.contains("*/"),
+        "degradation comment missing from generated code: {expr}"
+    );
+
+    // DropEvent.files / text — same contract.
+    let (files_expr, files_warnings) = extract_with_warnings(&EventDataKind::DropEvent, "files");
+    assert!(
+        files_warnings
+            .iter()
+            .any(|w| w.contains("files") && w.contains("DropEvent")),
+        "drop files stub must warn with field + kind, got: {:?}",
+        files_warnings
+    );
+    assert!(files_expr.contains("/*"), "degradation comment: {files_expr}");
+    let (text_expr, text_warnings) = extract_with_warnings(&EventDataKind::DropEvent, "text");
+    assert!(
+        text_warnings
+            .iter()
+            .any(|w| w.contains("text") && w.contains("DropEvent")),
+        "drop text stub must warn with field + kind, got: {:?}",
+        text_warnings
+    );
+    assert!(text_expr.contains("/*"), "degradation comment: {text_expr}");
+
+    // The remaining silent-constant stubs.
+    let (tilt_y, tilt_warnings) = extract_with_warnings(&EventDataKind::PointerEvent, "tiltY");
+    assert!(
+        tilt_warnings
+            .iter()
+            .any(|w| w.contains("tiltY") && w.contains("PointerEvent")),
+        "tiltY stub must warn, got: {:?}",
+        tilt_warnings
+    );
+    assert!(tilt_y.contains("/*"), "degradation comment: {tilt_y}");
+    let (touches, touch_warnings) = extract_with_warnings(&EventDataKind::TouchEvent, "touches");
+    assert!(
+        touch_warnings
+            .iter()
+            .any(|w| w.contains("touches") && w.contains("TouchEvent")),
+        "touches stub must warn, got: {:?}",
+        touch_warnings
+    );
+    assert!(touches.contains("/*"), "degradation comment: {touches}");
+    let (delta_mode, dm_warnings) = extract_with_warnings(&EventDataKind::WheelEvent, "deltaMode");
+    assert!(
+        dm_warnings
+            .iter()
+            .any(|w| w.contains("deltaMode") && w.contains("WheelEvent")),
+        "deltaMode stub must warn, got: {:?}",
+        dm_warnings
+    );
+    assert!(delta_mode.contains("/*"), "degradation comment: {delta_mode}");
+    let (values, values_warnings) = extract_with_warnings(&EventDataKind::SubmitEvent, "values");
+    assert!(
+        values_warnings
+            .iter()
+            .any(|w| w.contains("values") && w.contains("SubmitEvent")),
+        "submit values stub must warn, got: {:?}",
+        values_warnings
+    );
+    assert!(values.contains("/*"), "degradation comment: {values}");
+}
+
+/// Real mappings must stay silent — no warning, no degradation comment.
+#[test]
+fn mapped_event_fields_do_not_warn() {
+    for (kind, field) in [
+        (EventDataKind::PointerEvent, "x"),
+        (EventDataKind::PointerEvent, "y"),
+        (EventDataKind::PointerEvent, "button"),
+        (EventDataKind::PointerEvent, "pressure"),
+        (EventDataKind::KeyEvent, "key"),
+        (EventDataKind::InputEvent, "value"),
+        (EventDataKind::MediaEvent, "currentTime"),
+        (EventDataKind::DragEvent, "x"),
+    ] {
+        let (expr, warnings) = extract_with_warnings(&kind, field);
+        assert!(
+            warnings.is_empty(),
+            "mapped field '{field}' of {kind:?} must not warn: {:?}",
+            warnings
+        );
+        assert!(
+            !expr.contains("/*"),
+            "mapped field '{field}' must not carry a degradation comment: {expr}"
+        );
+    }
+}
+
+/// KeyEvent.code must use a STABLE mapping — the DOM-analogue physical key
+/// id — never debugName (a debug-oriented string that changes with the
+/// Flutter engine and is not stable data).
+#[test]
+fn key_code_uses_stable_mapping() {
+    let (expr, warnings) = extract_with_warnings(&EventDataKind::KeyEvent, "code");
+    assert!(
+        expr.contains("physicalKey.keyId"),
+        "code must map to the stable physical key id, got: {expr}"
+    );
+    assert!(
+        !expr.contains("debugName"),
+        "debugName must never be emitted as event data: {expr}"
+    );
+    assert!(
+        warnings.is_empty(),
+        "keyCode is a real mapping — no warning expected: {:?}",
+        warnings
+    );
+}
+
+/// The map-literal emitter threads the warnings channel too: a handler that
+/// uses stubbed fields emits field + kind warnings, and the generated map
+/// carries degradation comments while mapped fields stay silent.
+#[test]
+fn emit_event_object_flutter_warns_for_dropped_fields() {
+    let mut warnings = Vec::new();
+    let obj = emit_event_object_flutter(
+        &Some(EventDataKind::DropEvent),
+        &Some(vec!["files".to_string(), "x".to_string()]),
+        "event",
+        &mut warnings,
+    );
+    assert!(
+        warnings
+            .iter()
+            .any(|w| w.contains("files") && w.contains("DropEvent")),
+        "dropped 'files' must warn through the map emitter: {:?}",
+        warnings
+    );
+    assert!(
+        !warnings.iter().any(|w| w.contains("field 'x'")),
+        "mapped 'x' must not warn: {:?}",
+        warnings
+    );
+    assert!(obj.contains("'files':"), "map must still emit the field key");
+    assert!(obj.contains("'x':"), "map must still emit mapped fields");
+    assert!(obj.contains("/*"), "degradation comment in map: {obj}");
+}

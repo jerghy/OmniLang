@@ -4,7 +4,7 @@
 //! `<template>`, `<script setup lang="ts">`, and `<style scoped>` sections.
 //! Each store generates a `useXxx.ts` composable using Vue's Composition API.
 
-mod expr;
+pub(super) mod expr;
 mod template;
 #[cfg(test)]
 mod tests;

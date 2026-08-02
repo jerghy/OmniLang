@@ -419,9 +419,35 @@ pub(crate) fn emit_drag_widget_class(w: &mut CodeWriter) {
 // Flutter event data extraction
 // ═══════════════════════════════════════════════════════════════
 
+/// Warn that an event field cannot be mapped on the Flutter target and that
+/// the generated code carries a degradation placeholder (ADR-054 honest
+/// degradation — silent stubs are forbidden).
+fn warn_event_field_stub(
+    warnings: &mut Vec<String>,
+    kind: &EventDataKind,
+    field: &str,
+    reason: &str,
+) {
+    warnings.push(format!(
+        "[flutter] event field '{field}' of {} is not mappable: {reason}; \
+         emitting a degradation placeholder",
+        event_data_kind_label(kind)
+    ));
+}
+
 /// Flutter target field extraction — maps schema fields to Dart expressions.
 /// Modifier keys use HardwareKeyboard.instance, button uses bitmask conversion.
-pub(crate) fn field_extract_flutter(kind: &EventDataKind, field: &str, raw: &str) -> String {
+///
+/// Contract (ADR-054): every unmapped/dropped field emits a warning naming
+/// the field AND the event kind through the warnings channel, and the
+/// generated expression carries an inline degradation comment — a stub must
+/// never be silent.
+pub(crate) fn field_extract_flutter(
+    kind: &EventDataKind,
+    field: &str,
+    raw: &str,
+    warnings: &mut Vec<String>,
+) -> String {
     match (kind, field) {
         // PointerEvent — from pointer event details (TapDownDetails, etc.)
         (EventDataKind::PointerEvent, "x") => format!("{}.localPosition.dx", raw),
@@ -431,8 +457,21 @@ pub(crate) fn field_extract_flutter(kind: &EventDataKind, field: &str, raw: &str
         }
         (EventDataKind::PointerEvent, "pressure") => format!("{}.pressure", raw),
         (EventDataKind::PointerEvent, "tiltX") => format!("{}.tilt", raw),
-        (EventDataKind::PointerEvent, "tiltY") => "0.0".to_string(),
-        (EventDataKind::PointerEvent, "pointerType") => "'pointer'".to_string(),
+        (EventDataKind::PointerEvent, "tiltY") => {
+            warn_event_field_stub(
+                warnings,
+                kind,
+                field,
+                "Flutter PointerEvent exposes only a single tilt angle",
+            );
+            "0.0 /* tiltY: Flutter exposes tilt as a single angle, no per-axis component */"
+                .to_string()
+        }
+        // pointerType: real mapping — PointerDeviceKind is the stable
+        // analogue of DOM pointerType ("mouse"/"touch"/"stylus"/...).
+        (EventDataKind::PointerEvent, "pointerType") => {
+            format!("{}.kind.name /* pointerType: PointerDeviceKind analogue of DOM pointerType */", raw)
+        }
         (EventDataKind::PointerEvent, m @ ("alt" | "ctrl" | "shift" | "meta")) => {
             let prop = match m {
                 "alt" => "isAltPressed",
@@ -443,8 +482,18 @@ pub(crate) fn field_extract_flutter(kind: &EventDataKind, field: &str, raw: &str
             format!("HardwareKeyboard.instance.{}", prop)
         }
 
-        // TouchEvent
-        (EventDataKind::TouchEvent, "touches") => "<Map<String,dynamic>>[]".to_string(),
+        // TouchEvent — the touch point list is not exposed by Flutter
+        // gesture callbacks → degraded constant, warned.
+        (EventDataKind::TouchEvent, "touches") => {
+            warn_event_field_stub(
+                warnings,
+                kind,
+                field,
+                "Flutter gesture callbacks do not expose the touch point list",
+            );
+            "<Map<String,dynamic>>[] /* touches: not exposed by Flutter gesture callbacks */"
+                .to_string()
+        }
         (EventDataKind::TouchEvent, m @ ("alt" | "ctrl" | "shift" | "meta")) => {
             let prop = match m {
                 "alt" => "isAltPressed",
@@ -460,8 +509,29 @@ pub(crate) fn field_extract_flutter(kind: &EventDataKind, field: &str, raw: &str
         (EventDataKind::WheelEvent, "y") => format!("{}.localPosition.dy", raw),
         (EventDataKind::WheelEvent, "deltaX") => format!("{}.scrollDelta.dx", raw),
         (EventDataKind::WheelEvent, "deltaY") => format!("{}.scrollDelta.dy", raw),
-        (EventDataKind::WheelEvent, "deltaZ") => format!("{}.scrollDelta.dy", raw),
-        (EventDataKind::WheelEvent, "deltaMode") => "0".to_string(),
+        // deltaZ: PointerScrollEvent is 2D — the z-axis has no source; the
+        // vertical delta is a degraded fallback, warned.
+        (EventDataKind::WheelEvent, "deltaZ") => {
+            warn_event_field_stub(
+                warnings,
+                kind,
+                field,
+                "PointerScrollEvent has no z-axis; vertical delta used as fallback",
+            );
+            format!(
+                "{}.scrollDelta.dy /* deltaZ: no z-axis in PointerScrollEvent; vertical delta fallback */",
+                raw
+            )
+        }
+        (EventDataKind::WheelEvent, "deltaMode") => {
+            warn_event_field_stub(
+                warnings,
+                kind,
+                field,
+                "no DOM-style delta mode in Flutter scroll events",
+            );
+            "0 /* deltaMode: no DOM-style delta mode in Flutter */".to_string()
+        }
         (EventDataKind::WheelEvent, m @ ("alt" | "ctrl" | "shift" | "meta")) => {
             let prop = match m {
                 "alt" => "isAltPressed",
@@ -474,7 +544,12 @@ pub(crate) fn field_extract_flutter(kind: &EventDataKind, field: &str, raw: &str
 
         // KeyEvent — from KeyEvent
         (EventDataKind::KeyEvent, "key") => format!("{}.logicalKey.keyLabel", raw),
-        (EventDataKind::KeyEvent, "code") => format!("{}.logicalKey.debugName", raw),
+        // code: STABLE mapping — physicalKey.keyId is the hardware key id
+        // (layout-independent, the DOM 'code' analogue). debugName is
+        // debug-oriented and must never be emitted as event data.
+        (EventDataKind::KeyEvent, "code") => {
+            format!("{}.physicalKey.keyId /* code: stable physical key id (DOM 'code' analogue) */", raw)
+        }
         (EventDataKind::KeyEvent, m @ ("alt" | "ctrl" | "shift" | "meta")) => {
             let prop = match m {
                 "alt" => "isAltPressed",
@@ -496,16 +571,30 @@ pub(crate) fn field_extract_flutter(kind: &EventDataKind, field: &str, raw: &str
         // ToggleEvent
         (EventDataKind::ToggleEvent, "checked") => raw.to_string(),
 
-        // SubmitEvent
+        // SubmitEvent — no FormData equivalent in Flutter callbacks.
         (EventDataKind::SubmitEvent, "values") => {
-            "{} /* FormData not available in Flutter */".to_string()
+            warn_event_field_stub(
+                warnings,
+                kind,
+                field,
+                "no FormData equivalent in Flutter callbacks",
+            );
+            "{} /* values: FormData not available in Flutter */".to_string()
         }
 
         // FocusEvent
         (EventDataKind::FocusEvent, "value") => raw.to_string(),
 
-        // ClipboardEvent
-        (EventDataKind::ClipboardEvent, "text") => "''".to_string(),
+        // ClipboardEvent — no clipboard access from a Flutter event callback.
+        (EventDataKind::ClipboardEvent, "text") => {
+            warn_event_field_stub(
+                warnings,
+                kind,
+                field,
+                "no clipboard access from a Flutter event callback",
+            );
+            "'' /* text: no clipboard access in Flutter events */".to_string()
+        }
 
         // DragEvent — from DragUpdateDetails
         (EventDataKind::DragEvent, "x") => format!("{}.localPosition.dx", raw),
@@ -523,8 +612,24 @@ pub(crate) fn field_extract_flutter(kind: &EventDataKind, field: &str, raw: &str
         // DropEvent
         (EventDataKind::DropEvent, "x") => format!("{}.localPosition.dx", raw),
         (EventDataKind::DropEvent, "y") => format!("{}.localPosition.dy", raw),
-        (EventDataKind::DropEvent, "files") => "<String>[]".to_string(),
-        (EventDataKind::DropEvent, "text") => "''".to_string(),
+        (EventDataKind::DropEvent, "files") => {
+            warn_event_field_stub(
+                warnings,
+                kind,
+                field,
+                "no file payload in Flutter drop callbacks",
+            );
+            "<String>[] /* files: no file payload in Flutter drop callbacks */".to_string()
+        }
+        (EventDataKind::DropEvent, "text") => {
+            warn_event_field_stub(
+                warnings,
+                kind,
+                field,
+                "no clipboard access from a Flutter event callback",
+            );
+            "'' /* text: no clipboard access in Flutter events */".to_string()
+        }
         (EventDataKind::DropEvent, m @ ("alt" | "ctrl" | "shift" | "meta")) => {
             let prop = match m {
                 "alt" => "isAltPressed",
@@ -548,10 +653,20 @@ pub(crate) fn field_extract_flutter(kind: &EventDataKind, field: &str, raw: &str
             format!("HardwareKeyboard.instance.{}", prop)
         }
 
-        // SelectEvent
-        (EventDataKind::SelectEvent, "start") => "0".to_string(),
-        (EventDataKind::SelectEvent, "end") => "0".to_string(),
-        (EventDataKind::SelectEvent, "text") => "''".to_string(),
+        // SelectEvent — text selection is not exposed by Flutter events.
+        (EventDataKind::SelectEvent, m @ ("start" | "end" | "text")) => {
+            warn_event_field_stub(
+                warnings,
+                kind,
+                field,
+                "text selection is not exposed by Flutter event callbacks",
+            );
+            match m {
+                "start" => "0 /* start: no selection data in Flutter events */".to_string(),
+                "end" => "0 /* end: no selection data in Flutter events */".to_string(),
+                _ => "'' /* text: no selection data in Flutter events */".to_string(),
+            }
+        }
 
         // ResizeEvent — Flutter uses MediaQuery or LayoutBuilder
         (EventDataKind::ResizeEvent, "width") => "MediaQuery.of(context).size.width".to_string(),
@@ -561,31 +676,81 @@ pub(crate) fn field_extract_flutter(kind: &EventDataKind, field: &str, raw: &str
         (EventDataKind::MediaEvent, "currentTime") => format!("{}.position.inSeconds", raw),
         (EventDataKind::MediaEvent, "duration") => format!("{}.duration?.inSeconds ?? 0.0", raw),
 
-        // MediaLoadEvent
-        (EventDataKind::MediaLoadEvent, "naturalWidth") => "0.0".to_string(),
-        (EventDataKind::MediaLoadEvent, "naturalHeight") => "0.0".to_string(),
+        // MediaLoadEvent — Image.network reports dimensions only via its
+        // ImageStream, not through a load event.
+        (EventDataKind::MediaLoadEvent, "naturalWidth") => {
+            warn_event_field_stub(
+                warnings,
+                kind,
+                field,
+                "Image.network reports dimensions only via its ImageStream, not an event",
+            );
+            "0.0 /* naturalWidth: not exposed by Flutter load events */".to_string()
+        }
+        (EventDataKind::MediaLoadEvent, "naturalHeight") => {
+            warn_event_field_stub(
+                warnings,
+                kind,
+                field,
+                "Image.network reports dimensions only via its ImageStream, not an event",
+            );
+            "0.0 /* naturalHeight: not exposed by Flutter load events */".to_string()
+        }
 
-        // MediaErrorEvent
-        (EventDataKind::MediaErrorEvent, "message") => "''".to_string(),
+        // MediaErrorEvent — Flutter's errorBuilder receives an exception
+        // object, not an event message.
+        (EventDataKind::MediaErrorEvent, "message") => {
+            warn_event_field_stub(
+                warnings,
+                kind,
+                field,
+                "Flutter errorBuilder receives an exception object, not an event message",
+            );
+            "'' /* message: Flutter errorBuilder receives an exception, not an event message */"
+                .to_string()
+        }
 
         // AnimationEvent
-        (EventDataKind::AnimationEvent, "animationName") => "''".to_string(),
+        (EventDataKind::AnimationEvent, "animationName") => {
+            warn_event_field_stub(
+                warnings,
+                kind,
+                field,
+                "AnimationController exposes no name",
+            );
+            "'' /* animationName: AnimationController exposes no name */".to_string()
+        }
         (EventDataKind::AnimationEvent, "elapsedTime") => format!("{}.value", raw),
 
         // TransitionEvent
-        (EventDataKind::TransitionEvent, "propertyName") => "''".to_string(),
+        (EventDataKind::TransitionEvent, "propertyName") => {
+            warn_event_field_stub(
+                warnings,
+                kind,
+                field,
+                "implicit animations do not report a property name",
+            );
+            "'' /* propertyName: implicit animations report no property name */".to_string()
+        }
         (EventDataKind::TransitionEvent, "elapsedTime") => format!("{}.value", raw),
 
-        _ => format!("null /* {} */", field),
+        _ => {
+            warn_event_field_stub(warnings, kind, field, "field is not in the event schema");
+            format!("null /* {field}: unknown field */")
+        }
     }
 }
 
 /// Emit a Dart Map literal for Flutter event data extraction.
 /// Only emits fields in `used_fields` (or all fields from schema if None).
+///
+/// Threads the compiler warnings channel into per-field extraction so
+/// dropped/unmapped fields surface diagnostics (ADR-054) — never silence.
 pub(crate) fn emit_event_object_flutter(
     event_data: &Option<EventDataKind>,
     used_fields: &Option<Vec<String>>,
     raw_var: &str,
+    warnings: &mut Vec<String>,
 ) -> String {
     let kind = match event_data {
         Some(k) => k,
@@ -598,7 +763,7 @@ pub(crate) fn emit_event_object_flutter(
             .iter()
             .filter(|f| fields.contains(&f.name))
             .map(|f| {
-                let extract = field_extract_flutter(kind, &f.name, raw_var);
+                let extract = field_extract_flutter(kind, &f.name, raw_var, warnings);
                 format!("'{}': {}", f.name, extract)
             })
             .collect(),
@@ -606,7 +771,7 @@ pub(crate) fn emit_event_object_flutter(
         None => schema
             .iter()
             .map(|f| {
-                let extract = field_extract_flutter(kind, &f.name, raw_var);
+                let extract = field_extract_flutter(kind, &f.name, raw_var, warnings);
                 format!("'{}': {}", f.name, extract)
             })
             .collect(),

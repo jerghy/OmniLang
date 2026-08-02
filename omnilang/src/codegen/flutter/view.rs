@@ -560,7 +560,7 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
     // Events -> callback parameters (C6: per-widget event whitelist)
     for (name, handler) in &el.events {
         let callback_name = event_to_flutter_callback(name);
-        if !widget_allows_event(widget, callback_name) {
+        if !widget_allows_event(widget, &callback_name) {
             ctx.warnings.push(format!(
                 "[flutter] event '{name}' → callback '{callback_name}' is not supported on '{widget}'; skipped"
             ));
@@ -569,7 +569,7 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
         // VoidCallback-family params (onPressed/onLongPress/...) receive NO
         // event argument in Flutter — the closure must be parameterless or
         // the generated Dart fails to compile (argument_type_not_assignable).
-        let is_void = callback_is_void(callback_name);
+        let is_void = callback_is_void(&callback_name);
         let body = match handler {
             EventHandlerIR::FnRef {
                 r#ref, event_data, ..
@@ -579,6 +579,7 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                         handler.event_data(),
                         handler.used_fields(),
                         "event",
+                        ctx.warnings,
                     );
                     format!("(event) {{ {}({}); }}", r#ref, event_obj)
                 } else {
@@ -594,7 +595,7 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                         warn_dropped_event_fields(
                             ctx.warnings,
                             name,
-                            callback_name,
+                            &callback_name,
                             &format!("'{ref}'"),
                         );
                     }
@@ -605,8 +606,12 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                 body, event_data, ..
             } => {
                 if event_data.is_some() && !is_void {
-                    let _event_obj =
-                        emit_event_object_flutter(handler.event_data(), handler.used_fields(), "e");
+                    let _event_obj = emit_event_object_flutter(
+                        handler.event_data(),
+                        handler.used_fields(),
+                        "e",
+                        ctx.warnings,
+                    );
                     let fields: Vec<String> = match handler.used_fields() {
                         Some(ref f) if !f.is_empty() => f.clone(),
                         _ => vec![],
@@ -621,6 +626,7 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                             handler.event_data().as_ref().unwrap(),
                             field,
                             "e",
+                            ctx.warnings,
                         );
                         hw.emit_fmt(format_args!("final {} = {};", field, extract));
                     }
@@ -647,7 +653,7 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                             .as_ref()
                             .is_some_and(|f| !f.is_empty())
                     {
-                        warn_dropped_event_fields(ctx.warnings, name, callback_name, "the handler");
+                        warn_dropped_event_fields(ctx.warnings, name, &callback_name, "the handler");
                     }
                     format_inline_handler_flutter(body, ctx)
                 }

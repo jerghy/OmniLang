@@ -12,7 +12,7 @@ mod motion_widgets;
 mod r#ref;
 mod stmt;
 mod types;
-mod utils;
+pub(super) mod utils;
 mod view;
 
 pub(crate) use super::capitalize_first;

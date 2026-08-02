@@ -25,7 +25,7 @@ mod motion_triggers;
 mod runtime;
 mod stmt;
 mod store;
-mod utils;
+pub(super) mod utils;
 mod view;
 pub use utils::{build_file_output, wrap_debug_html};
 mod debug;

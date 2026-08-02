@@ -46,45 +46,21 @@ pub(super) fn to_dioxus_attr(prop_name: &str) -> String {
 }
 
 /// Map OmniView event names to Dioxus event handler prop names.
-pub(super) fn to_dioxus_event(event_name: &str) -> String {
-    // Strip any existing "on" prefix and lowercase to normalize
-    // (IR may carry PascalCase "onClick", "onPress" etc.)
-    let stem = event_name
-        .strip_prefix("on")
-        .unwrap_or(event_name)
-        .to_lowercase();
-    match stem.as_str() {
-        "click" | "tap" | "press" => "onclick".into(),
-        "change" => "onchange".into(),
-        "input" => "oninput".into(),
-        "submit" => "onsubmit".into(),
-        "focus" => "onfocus".into(),
-        "blur" => "onblur".into(),
-        "keydown" => "onkeydown".into(),
-        "keyup" => "onkeyup".into(),
-        "keypress" => "onkeypress".into(),
-        "mouseenter" => "onmouseenter".into(),
-        "mouseleave" => "onmouseleave".into(),
-        "mousedown" => "onmousedown".into(),
-        "mouseup" => "onmouseup".into(),
-        "mousemove" => "onmousemove".into(),
-        "mouseover" => "onmouseover".into(),
-        "mouseout" => "onmouseout".into(),
-        "dblclick" => "ondblclick".into(),
-        "scroll" => "onscroll".into(),
-        "wheel" => "onwheel".into(),
-        "touchstart" => "ontouchstart".into(),
-        "touchend" => "ontouchend".into(),
-        "touchmove" => "ontouchmove".into(),
-        "contextmenu" => "oncontextmenu".into(),
-        "drag" => "ondrag".into(),
-        "dragstart" => "ondragstart".into(),
-        "dragend" => "ondragend".into(),
-        "dragover" => "ondragover".into(),
-        "dragleave" => "ondragleave".into(),
-        "drop" => "ondrop".into(),
+///
+/// Alias resolution happens in the ONE shared table
+/// (`shared::event::canonical_event_name`) — this adapter only applies the
+/// Dioxus convention (`on` + lowercase canonical DOM name).
+pub(crate) fn to_dioxus_event(event_name: &str) -> String {
+    match crate::codegen::shared::event::canonical_event_name(event_name) {
+        Some(canonical) => format!("on{}", canonical),
         // Custom / unmatched events: prefix with "on"
-        _ => format!("on{}", stem),
+        None => {
+            let stem = event_name
+                .strip_prefix("on")
+                .unwrap_or(event_name)
+                .to_lowercase();
+            format!("on{}", stem)
+        }
     }
 }
 

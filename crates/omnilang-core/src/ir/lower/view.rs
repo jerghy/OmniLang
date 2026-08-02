@@ -1025,6 +1025,182 @@ mod tests {
         }
     }
 
+    // ═══════════════════════════════════════════════════════
+    // FnRef stopPropagation/preventDefault scan regression
+    // (7330e783 — the IR-level scan for fn_ref bodies; this path
+    // previously had ZERO regression tests)
+    // ═══════════════════════════════════════════════════════
+
+    /// Lower a component source and return the first (only) component.
+    fn lower_first_component(source: &str) -> ComponentIR {
+        let tokens = crate::lexer::tokenize(source);
+        let (program, errors) = crate::parser::parse(tokens, source);
+        assert!(
+            errors.is_empty(),
+            "unexpected parse errors: {:?}",
+            errors.iter().map(|e| &e.message).collect::<Vec<_>>()
+        );
+        let mut semantics = SemanticResult {
+            symbols: SymbolTable::default(),
+            dependencies: FxHashMap::default(),
+            diagnostics: vec![],
+            event_param_name: None,
+        };
+        let ir = crate::ir::lower(&program, &mut semantics, None);
+        let module = ir.modules.get("input.omni").expect("should have module");
+        let (_, comp) = module
+            .components
+            .iter()
+            .next()
+            .expect("should have a component");
+        comp.clone()
+    }
+
+    #[test]
+    fn fnref_stop_propagation_scan_regression() {
+        // A FnRef handler that calls e.stopPropagation() must set the
+        // needs_stop_propagation flag on the lowered handler — without it
+        // the listener never emits the flag and the handler receives `{}`
+        // with no such method (TypeError on click-through). Regression for
+        // the 7330e783 fix (the scan used to only see inline bodies).
+        let source = r#"
+import omniview;
+component FnRefSpDemo {
+    fn stopIt(e) {
+        e.stopPropagation();
+    }
+    view {
+        <div @onClick={stopIt}>x</div>
+    }
+}
+"#;
+        let comp = lower_first_component(source);
+        let view = comp.view.expect("should have view");
+        match &view {
+            ViewTree::Element(el) => {
+                let handler = el.events.get("onClick").expect("should have onClick event");
+                match handler {
+                    EventHandlerIR::FnRef {
+                        needs_stop_propagation,
+                        needs_prevent_default,
+                        ..
+                    } => {
+                        assert!(
+                            needs_stop_propagation,
+                            "FnRef handler calling e.stopPropagation() must set needs_stop_propagation"
+                        );
+                        assert!(
+                            !needs_prevent_default,
+                            "no preventDefault call in body — flag must stay unset"
+                        );
+                    }
+                    other => panic!("expected FnRef handler, got {:?}", other),
+                }
+            }
+            other => panic!("expected Element, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn fnref_without_event_methods_flags_unset() {
+        // Handlers with neither stopPropagation nor preventDefault must
+        // leave both flags unset.
+        let source = r#"
+import omniview;
+component FnRefPlainDemo {
+    fn plainHandler(e) {
+    }
+    view {
+        <div @onKeyDown={plainHandler}>x</div>
+    }
+}
+"#;
+        let comp = lower_first_component(source);
+        let view = comp.view.expect("should have view");
+        match &view {
+            ViewTree::Element(el) => {
+                let handler = el
+                    .events
+                    .get("onKeyDown")
+                    .expect("should have onKeyDown event");
+                match handler {
+                    EventHandlerIR::FnRef {
+                        needs_stop_propagation,
+                        needs_prevent_default,
+                        ..
+                    } => {
+                        assert!(
+                            !needs_stop_propagation,
+                            "flag must stay unset without e.stopPropagation()"
+                        );
+                        assert!(
+                            !needs_prevent_default,
+                            "flag must stay unset without e.preventDefault()"
+                        );
+                    }
+                    other => panic!("expected FnRef handler, got {:?}", other),
+                }
+            }
+            other => panic!("expected Element, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn scan_ir_event_methods_detects_stop_propagation_directly() {
+        let block = BlockIR {
+            statements: vec![StatementIR::ExprStmtIR {
+                expr: ExprIR::MethodCallExpr {
+                    object: Box::new(ExprIR::IdentifierExpr {
+                        name: "e".into(),
+                        type_ann: None,
+                    }),
+                    method: "stopPropagation".into(),
+                    args: vec![],
+                    is_optional: false,
+                },
+            }],
+        };
+        let (needs_pd, needs_sp) = scan_ir_event_methods(&block, "e");
+        assert!(needs_sp, "stopPropagation call must set the flag");
+        assert!(!needs_pd, "preventDefault flag must stay unset");
+    }
+
+    #[test]
+    fn scan_ir_event_methods_ignores_other_params_and_methods() {
+        let block = BlockIR {
+            statements: vec![
+                StatementIR::ExprStmtIR {
+                    expr: ExprIR::MethodCallExpr {
+                        object: Box::new(ExprIR::IdentifierExpr {
+                            name: "e".into(),
+                            type_ann: None,
+                        }),
+                        method: "preventDefault".into(),
+                        args: vec![],
+                        is_optional: false,
+                    },
+                },
+                StatementIR::ExprStmtIR {
+                    expr: ExprIR::MethodCallExpr {
+                        object: Box::new(ExprIR::IdentifierExpr {
+                            name: "other".into(),
+                            type_ann: None,
+                        }),
+                        method: "stopPropagation".into(),
+                        args: vec![],
+                        is_optional: false,
+                    },
+                },
+            ],
+        };
+        let (needs_pd, needs_sp) = scan_ir_event_methods(&block, "e");
+        assert!(needs_pd, "preventDefault on e must set the flag");
+        assert!(
+            !needs_sp,
+            "stopPropagation on a different object must NOT set the flag"
+        );
+    }
+
     /// Regression: a view block with multiple top-level nodes must lower ALL
     /// of them (previously only `children.first()` was lowered, silently
     /// dropping every node after the first element).

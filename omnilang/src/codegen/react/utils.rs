@@ -204,13 +204,27 @@ pub(super) fn to_react_tag(tag: &str) -> String {
 }
 
 /// Map OmniView event names to React event handler prop names.
-/// Event names from the IR may or may not have an "on" prefix — we normalize first.
-pub(super) fn to_react_event(event_name: &str) -> String {
-    // Strip any existing "on" prefix to normalize (IR may carry "onPress" etc.)
-    let stem = event_name.strip_prefix("on").unwrap_or(event_name);
-    // Lowercase for case-insensitive matching
-    let stem_lower = stem.to_lowercase();
-    match stem_lower.as_str() {
+///
+/// Alias resolution happens in the ONE shared table
+/// (`shared::event::canonical_event_name`) — this adapter only applies the
+/// React handler-name convention (onXxx) on top of the canonical DOM name.
+/// A misspelled alias (dblclick/doubleclick/onDblClick/...) can therefore
+/// never wire a different React prop.
+pub(crate) fn to_react_event(event_name: &str) -> String {
+    match crate::codegen::shared::event::canonical_event_name(event_name) {
+        Some(canonical) => react_prop_for_canonical(canonical),
+        None => {
+            // Unknown / custom event — legacy fallback convention
+            // (capitalize the first letter only: "customEvent" → "onCustomEvent").
+            let stem = event_name.strip_prefix("on").unwrap_or(event_name);
+            format!("on{}", capitalize_first(stem))
+        }
+    }
+}
+
+/// React handler prop name for a canonical DOM event name.
+fn react_prop_for_canonical(canonical: &str) -> String {
+    match canonical {
         "click" => "onClick".into(),
         "change" => "onChange".into(),
         "input" => "onInput".into(),
@@ -227,12 +241,17 @@ pub(super) fn to_react_event(event_name: &str) -> String {
         "mousemove" => "onMouseMove".into(),
         "mouseover" => "onMouseOver".into(),
         "mouseout" => "onMouseOut".into(),
+        "pointerdown" => "onPointerDown".into(),
+        "pointerup" => "onPointerUp".into(),
+        "pointermove" => "onPointerMove".into(),
+        "pointercancel" => "onPointerCancel".into(),
         "dblclick" => "onDoubleClick".into(),
         "scroll" => "onScroll".into(),
         "wheel" => "onWheel".into(),
         "touchstart" => "onTouchStart".into(),
         "touchend" => "onTouchEnd".into(),
         "touchmove" => "onTouchMove".into(),
+        "touchcancel" => "onTouchCancel".into(),
         "contextmenu" => "onContextMenu".into(),
         "drag" => "onDrag".into(),
         "dragstart" => "onDragStart".into(),
@@ -240,8 +259,7 @@ pub(super) fn to_react_event(event_name: &str) -> String {
         "dragover" => "onDragOver".into(),
         "dragleave" => "onDragLeave".into(),
         "drop" => "onDrop".into(),
-        "press" => "onClick".into(),
-        _ => format!("on{}", capitalize_first(stem)),
+        other => format!("on{}", capitalize_first(other)),
     }
 }
 

@@ -4,7 +4,7 @@
 //! using Dioxus's `rsx!` macro for the view layer. Each store generates
 //! a module with a `use_X_store()` hook function.
 
-mod expr;
+pub(super) mod expr;
 #[cfg(test)]
 mod tests;
 mod view;
