@@ -4,6 +4,7 @@ use super::{generate_statement_vue, to_vue_attr, to_vue_event, CodeWriter};
 use crate::codegen::emit_event_object as emit_event_object_js;
 use crate::codegen::shared::expr::FormatExpr;
 use crate::codegen::shared::inline_handler::{build_inline_handler, InlineHandlerConfig};
+use crate::codegen::shared::style::{format_style_prop_key, format_style_value_expr};
 use crate::codegen::shared::types::{FormatType, JsTypeFormatter};
 use crate::ir::*;
 use rustc_hash::FxHashSet;
@@ -124,11 +125,8 @@ pub(crate) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &impl 
                 if let Some(obj) = style_json.as_object() {
                     let mut pairs: Vec<String> = Vec::new();
                     for (prop, val) in obj {
-                        let js_prop = crate::codegen::react::view::format_style_prop_key(prop);
-                        let js_val = crate::codegen::react::view::format_style_value_expr(
-                            val,
-                            &FxHashSet::default(),
-                        );
+                        let js_prop = format_style_prop_key(prop);
+                        let js_val = format_style_value_expr(val, &FxHashSet::default());
                         pairs.push(format!("{}: {}", js_prop, js_val));
                     }
                     if !pairs.is_empty() {

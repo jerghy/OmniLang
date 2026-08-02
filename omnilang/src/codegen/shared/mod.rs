@@ -5,6 +5,7 @@
 
 pub mod design;
 pub mod drag;
+pub mod style;
 
 use rustc_hash::FxHashMap;
 
