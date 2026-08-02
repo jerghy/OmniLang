@@ -266,21 +266,16 @@ pub(crate) fn gen_view_node_dioxus(w: &mut CodeWriter, node: &ViewTree, is_root:
         }
         ViewTree::Text(text) => {
             let comma = if is_root { "" } else { "," };
-            if text.starts_with('{') && text.ends_with('}') {
-                // Legacy `{expr}`-shaped text: only reachable via IR-produced
-                // text nodes — the .omni parser never emits `{`-leading Text
-                // nodes (brace content becomes ViewTree::Interpolation), so
-                // no parser-input payload can reach this path (Task 3.1
-                // review LOW-4: documented, intentionally not re-escaped).
-                let inner = &text[1..text.len() - 1];
-                w.emit_fmt(format_args!("\"{{{}}}\"{}", inner, comma));
-            } else {
-                // Plain text — escape for a Rust string literal. Raw emission
-                // let `"` terminate the literal and the rest become code
-                // (`x", alert(1); //` executes) — Task 3.1 corpus finding.
-                let escaped = escape_literal_str(text, '"');
-                w.emit_fmt(format_args!("\"{}\"{}", escaped, comma));
-            }
+            // NOTE: `{`-leading text is NOT special-cased — legit
+            // interpolations arrive as ViewTree::Interpolation nodes; a
+            // `{`-shaped TEXT node only survives parsing via the parser's
+            // malformed-interpolation fallback (parser/view/mod.rs), and
+            // treating it as code was a live injection vector
+            // (`"{x", std::process::exit(0), "}"` executed in rsx!, Task
+            // 3.1 review CRITICAL round 2). Such text is escaped as plain
+            // text and rendered literally.
+            let escaped = escape_literal_str(text, '"');
+            w.emit_fmt(format_args!("\"{}\"{}", escaped, comma));
         }
         ViewTree::Interpolation(expr) => {
             let comma = if is_root { "" } else { "," };

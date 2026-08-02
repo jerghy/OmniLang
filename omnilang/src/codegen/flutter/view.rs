@@ -63,22 +63,20 @@ pub(crate) fn format_view_tree(
     match node {
         ViewTree::Element(el) => format_element(el, motions, ctx),
         ViewTree::Text(text) => {
-            if text.starts_with('{') && text.ends_with('}') {
-                // OmniView interpolation: {name} -> Text('$name')
-                let inner = &text[1..text.len() - 1];
-                if inner.chars().all(|c| c.is_alphanumeric() || c == '_') {
-                    format!("Text('${}')", inner)
-                } else {
-                    format!("Text('${{{}}}')", inner)
-                }
-            } else {
-                // Plain text — Dart string escaping. `$` must be escaped too:
-                // `$var` / `${expr}` inside a Dart string is interpolation,
-                // so an unescaped `$` from text content executes code
-                // (injection corpus finding, Task 3.1).
-                let escaped = escape_literal_str(text, '\'');
-                format!("Text('{}')", escaped.replace('$', "\\$"))
-            }
+            // NOTE: `{`-leading text is NOT special-cased — legit
+            // interpolations arrive as ViewTree::Interpolation nodes; a
+            // `{`-shaped TEXT node only survives parsing via the parser's
+            // malformed-interpolation fallback (parser/view/mod.rs), and
+            // treating it as `${{…}}` Dart interpolation was a live
+            // injection vector (`Text('${{print(1), "x"}}')` executes,
+            // Task 3.1 review CRITICAL round 2). Such text is escaped as
+            // plain text and rendered literally.
+            // Plain text — Dart string escaping. `$` must be escaped too:
+            // `$var` / `${expr}` inside a Dart string is interpolation,
+            // so an unescaped `$` from text content executes code
+            // (injection corpus finding, Task 3.1).
+            let escaped = escape_literal_str(text, '\'');
+            format!("Text('{}')", escaped.replace('$', "\\$"))
         }
         ViewTree::Interpolation(expr) => {
             let dart_expr = ctx.format_expr(expr);

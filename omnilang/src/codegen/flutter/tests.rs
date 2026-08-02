@@ -361,9 +361,13 @@ fn test_format_text_node() {
 
 #[test]
 fn test_format_text_with_interpolation() {
+    // `{`-leading TEXT is malformed-input fallback (parser interpolation
+    // fallback) — rendered literally as plain text, never as Dart
+    // interpolation code (Task 3.1 review CRITICAL round 2). Legit
+    // interpolations arrive as ViewTree::Interpolation nodes.
     let node = ViewTree::Text("{name}".into());
     let (expr, _) = fmt_view(&node);
-    assert_eq!(expr, "Text('$name')");
+    assert_eq!(expr, "Text('{name}')");
 }
 
 #[test]

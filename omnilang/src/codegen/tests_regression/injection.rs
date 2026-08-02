@@ -36,6 +36,10 @@ const EXPLOIT_PAYLOADS: &[&str] = &[
     // `show("x";alert(1)//")` — executable if `&` is not escaped first.
     "x&#34;;alert(1)//",
     "x&quot;;alert(1)//",
+    // Bare call in an unquoted position — exercises the parser's
+    // interpolation-parse fallback (`{`-leading Text nodes), which
+    // backends must escape as plain text (review CRITICAL round 2).
+    "alert(1)",
 ];
 
 /// Executable-code patterns that must never survive in generated output.
@@ -401,6 +405,31 @@ fn rawtext_src(payload: &str) -> String {
     format!("component App {{\n    view {{\n        <div>x{payload}</div>\n    }}\n}}\n")
 }
 
+/// Malformed-interpolation fallback, LBrace shape (review CRITICAL round 2):
+/// the parser emits `{`-leading TEXT nodes when interpolation parsing fails
+/// (parser/view/mod.rs:111-194) — the payload lands UNQUOTED in the token
+/// stream (empty-string tokens contribute nothing), so a backend that treats
+/// the `{`-shaped text as code emits it executable (React JSX comma
+/// operator: `{,,alert(1),,}`).
+fn fallback_src(payload: &str) -> String {
+    format!(
+        "component App {{\n    view {{\n        <div>{{\"\" , {payload} , \"\"}}</div>\n    }}\n}}\n"
+    )
+}
+
+/// Malformed-interpolation fallback, StringLiteral shape
+/// (parser/view/mod.rs:87-88): the lexer decodes `\"` → `"` into the string
+/// token and the fallback pushes the WHOLE string — braces AND decoded
+/// quotes — as a Text node. A backend that treats `{`-shaped text as code
+/// emits the decoded quotes intact, which is what makes the payload
+/// executable (Dioxus `"{x", std::process::exit(0), "}"`, Vue
+/// `{{ "", alert(document.cookie), "" }}`, React `{"", alert(1), ""}`).
+fn fallback_str_src(payload: &str) -> String {
+    format!(
+        "component App {{\n    view {{\n        <div>\"{{\"\", {payload}, \"\"}}\"</div>\n    }}\n}}\n"
+    )
+}
+
 fn attr_src(payload: &str) -> String {
     format!("component App {{\n    view {{\n        <div title=\"x{payload}\"/>\n    }}\n}}\n")
 }
@@ -435,6 +464,14 @@ const POINTS: &[Point] = &[
     Point {
         name: "rawtext",
         make_src: rawtext_src,
+    },
+    Point {
+        name: "fallback",
+        make_src: fallback_src,
+    },
+    Point {
+        name: "fallback_str",
+        make_src: fallback_str_src,
     },
 ];
 

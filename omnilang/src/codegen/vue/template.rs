@@ -294,21 +294,21 @@ pub(crate) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &VueFo
         }
 
         ViewTree::Text(text) => {
-            if text.starts_with('{') && text.ends_with('}') {
-                // Interpolation expression like {name} or {param:xxx}
-                // In Vue, use {{ }} for interpolation
-                let inner = &text[1..text.len() - 1];
-                w.emit_fmt(format_args!("{{{{ {} }}}}", inner));
-            } else {
-                // Plain text — escape Vue template delimiters and HTML-significant chars
-                let safe = text
-                    .replace('&', "&amp;")
-                    .replace('<', "&lt;")
-                    .replace('>', "&gt;")
-                    .replace("{{", "\\{\\{")
-                    .replace("}}", "\\}\\}");
-                w.emit(&safe);
-            }
+            // NOTE: `{`-leading text is NOT special-cased — legit
+            // interpolations arrive as ViewTree::Interpolation nodes; a
+            // `{`-shaped TEXT node only survives parsing via the parser's
+            // malformed-interpolation fallback (parser/view/mod.rs), and
+            // treating it as `{{ }}` code was a live injection vector
+            // (`{{ "", alert(document.cookie), "" }}` executed, Task 3.1
+            // review CRITICAL round 2). Such text is escaped as plain text
+            // and rendered literally.
+            let safe = text
+                .replace('&', "&amp;")
+                .replace('<', "&lt;")
+                .replace('>', "&gt;")
+                .replace("{{", "\\{\\{")
+                .replace("}}", "\\}\\}");
+            w.emit(&safe);
         }
         ViewTree::Interpolation(expr) => {
             let formatted = fmt.format_expr(expr);
