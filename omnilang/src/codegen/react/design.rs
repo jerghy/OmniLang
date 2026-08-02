@@ -13,9 +13,10 @@
 //!   `TokenValueIR::Dynamic` token values to
 //!   `document.documentElement.style` via `useEffect` (one effect per
 //!   dynamic token, deps = the store signal expression)
-//! - `useThemeStore.ts` — a Zustand store for theme switching
-//!   (`theme`/`setTheme`) that applies `data-theme` to `<html>` whenever
-//!   the theme changes, mirroring the `[data-theme="..."]` CSS scoping
+//! - `useThemeStore.ts` — the theme runtime: when a store signal is marked
+//!   `@theme` (v2 D1), a hook that subscribes to the USER's store and
+//!   applies `data-theme` to `<html>` (CSS scoping); without `@theme`, the
+//!   legacy standalone Zustand store (see `emit_theme_store`)
 
 use crate::codegen::json::escape_literal_str;
 use crate::codegen::react::{relative_import_path, source_dir_prefix};
@@ -36,6 +37,16 @@ pub(super) struct DesignGroup {
     pub has_dynamic_tokens: bool,
     /// Whether any design in the group declares `@themes`.
     pub has_themes: bool,
+    /// The program's `@theme`-marked store signal (`"StoreName.signal"`,
+    /// DesignIR.theme_signal) — when present the theme runtime subscribes
+    /// to the USER's store instead of the legacy standalone store (Task 4.2,
+    /// design D1).
+    pub theme_signal: Option<String>,
+    /// Whether the theme runtime can be emitted for this group: false when
+    /// the design group and the @theme store share an output directory (both
+    /// outputs are named `useThemeStore.ts` — the Task 4.4 naming conflict).
+    /// The runtime is then skipped so the store hook file survives.
+    pub theme_runtime_ok: bool,
 }
 
 /// Group the program's design blocks by output directory (designs from the
@@ -62,10 +73,37 @@ pub(super) fn design_groups(ir: &IRProgram) -> Vec<DesignGroup> {
                         .any(|t| matches!(t.value, TokenValueIR::Dynamic(_)))
                 }),
                 has_themes: designs.iter().any(|d| !d.themes.is_empty()),
+                theme_signal: designs.iter().find_map(|d| d.theme_signal.clone()),
+                theme_runtime_ok: !theme_runtime_collides_with_store_hook(designs, ir),
                 dir_prefix,
             }
         })
         .collect()
+}
+
+/// Whether emitting the theme runtime for this group would OVERWRITE the
+/// `@theme` store's own hook file: both outputs are named `useThemeStore.ts`
+/// and land in the same directory when the design and the `@theme` store
+/// share a source directory (single-file projects / flat layouts). This is
+/// the Task 4.4 naming conflict — here the runtime is skipped so the store
+/// hook file survives (components keep compiling); the data-theme
+/// subscription is then not emitted for that layout.
+fn theme_runtime_collides_with_store_hook(designs: &[&DesignIR], ir: &IRProgram) -> bool {
+    let Some(path) = designs.iter().find_map(|d| d.theme_signal.as_deref()) else {
+        return false;
+    };
+    let Some((store_name, _)) = path.split_once('.') else {
+        return false;
+    };
+    let all_stores = ir.all_stores();
+    let Some(store) = all_stores.get(store_name) else {
+        return false;
+    };
+    let design_dir = match designs.first().and_then(|d| d.source_file.as_deref()) {
+        Some(f) => source_dir_prefix(Some(f)),
+        None => String::new(),
+    };
+    source_dir_prefix(store.source_file.as_deref()) == design_dir
 }
 
 /// Group the program's design blocks by source file and emit all design
@@ -96,8 +134,8 @@ pub fn gen_design_files(ir: &IRProgram) -> Vec<crate::codegen::CompiledFile> {
                 });
             }
         }
-        if group.has_themes {
-            if let Some(content) = emit_theme_store(&designs) {
+        if group.has_themes && group.theme_runtime_ok {
+            if let Some(content) = emit_theme_store(&designs, ir) {
                 files.push(crate::codegen::CompiledFile {
                     path: format!("{}useThemeStore.ts", group.dir_prefix),
                     content,
@@ -215,8 +253,10 @@ pub(super) fn is_root_component(name: &str, ir: &IRProgram) -> bool {
 ///   body — the hook effects apply dynamic token values to
 ///   `document.documentElement.style` (HIGH #2: the hook is dead code unless
 ///   something calls it).
-/// - Side-effect imports of every `useThemeStore` — the module-level
-///   `data-theme` subscription runs on import.
+/// - A named import + call of every `useThemeStore` hook when the program
+///   wires a `@theme` signal (the useEffect subscription lives in a
+///   component), or a side-effect import of the legacy store otherwise
+///   (its module-level `data-theme` subscription runs on import).
 pub(super) struct DesignWiring {
     /// Import lines to emit at the top of the root component file.
     pub import_lines: Vec<String>,
@@ -229,6 +269,7 @@ pub(super) fn root_design_wiring(ir: &IRProgram, source_file: Option<&str>) -> D
     let mut import_lines = Vec::new();
     let mut hook_calls = Vec::new();
     let mut hook_idx = 0usize;
+    let mut theme_hook_idx = 0usize;
     for group in &groups {
         let to_source = format!("{}design.omni", group.dir_prefix);
         if group.has_dynamic_tokens {
@@ -255,9 +296,29 @@ pub(super) fn root_design_wiring(ir: &IRProgram, source_file: Option<&str>) -> D
             hook_calls.push(local_name);
             hook_idx += 1;
         }
-        if group.has_themes {
+        if group.has_themes && group.theme_runtime_ok {
             let import_path = relative_import_path(source_file, Some(&to_source), "useThemeStore");
-            import_lines.push(format!("import '{}';", import_path));
+            if group.theme_signal.is_some() {
+                // v2 D1: the theme runtime is a real hook (useEffect inside
+                // a component) — import it NAMED and call it, like
+                // useDesignTokens. Aliased so it cannot collide with the
+                // @theme store's own hook (`use{StoreName}`), which the root
+                // component may import for its own store refs.
+                let local_name = if theme_hook_idx == 0 {
+                    "useThemeStoreDesign".to_string()
+                } else {
+                    format!("useThemeStoreDesign{}", theme_hook_idx + 1)
+                };
+                import_lines.push(format!(
+                    "import {{ useThemeStore as {} }} from '{}';",
+                    local_name, import_path
+                ));
+                hook_calls.push(local_name);
+                theme_hook_idx += 1;
+            } else {
+                // Legacy shape: module-level subscription runs on import.
+                import_lines.push(format!("import '{}';", import_path));
+            }
         }
     }
     DesignWiring {
@@ -391,16 +452,24 @@ fn emit_sanitize_css(w: &mut CodeWriter) {
     }
 }
 
-/// Emit `useThemeStore.ts` — a Zustand store for theme switching.
+/// Emit `useThemeStore.ts` — the theme runtime for the design group.
 ///
-/// Emitted when any design in the group declares `@themes`.  The store
-/// carries `theme` + `setTheme`; a module-level `subscribe` applies
-/// `data-theme` to `<html>` on every change, and the initial theme is
-/// applied at import time so the `[data-theme="..."]` CSS overrides work
-/// immediately.
+/// Emitted when any design in the group declares `@themes`. Two shapes
+/// (Task 4.2, design D1):
+///
+/// 1. **Wired** (`DesignIR.theme_signal` present): a `useThemeStore()` hook
+///    that subscribes to the USER's store (the store owning the `@theme`
+///    signal) with a T3.3 slice selector and writes `data-theme` to `<html>`
+///    in a `useEffect` deps on the slice — clicking the theme switcher (an
+///    ordinary store action) changes the attribute and the
+///    `[data-theme="..."]` CSS overrides apply. The root component imports
+///    the hook (aliased) and calls it.
+/// 2. **Legacy** (no `@theme` signal): the pre-v2 standalone Zustand store
+///    (`theme`/`setTheme` + module-level `subscribe`). Kept for backward
+///    compatibility; the file-name collision is Task 4.4's scope.
 ///
 /// Returns `None` when no design declares themes.
-fn emit_theme_store(designs: &[&DesignIR]) -> Option<String> {
+fn emit_theme_store(designs: &[&DesignIR], ir: &IRProgram) -> Option<String> {
     // Union of theme names across all designs in the group (sorted).
     let mut theme_names: Vec<String> = Vec::new();
     for design in designs {
@@ -413,6 +482,10 @@ fn emit_theme_store(designs: &[&DesignIR]) -> Option<String> {
     theme_names.sort();
     if theme_names.is_empty() {
         return None;
+    }
+
+    if let Some(signal_path) = designs.iter().find_map(|d| d.theme_signal.clone()) {
+        return emit_theme_subscription(&signal_path, designs, ir);
     }
 
     // Default theme: the first design's @default-theme, else the first
@@ -460,6 +533,56 @@ fn emit_theme_store(designs: &[&DesignIR]) -> Option<String> {
     w.emit("useThemeStore.getState().theme,");
     w.dedent();
     w.emit(");");
+    Some(w.into_string())
+}
+
+/// Emit the WIRED theme runtime: a hook that subscribes to the `@theme`
+/// signal's store with a slice selector (T3.3 machinery) and writes
+/// `data-theme` in a `useEffect` deps on the slice.
+///
+/// Returns `None` when the signal path is malformed or the store/signal is
+/// unknown (defensive — validate_theme guarantees the pairing).
+fn emit_theme_subscription(
+    signal_path: &str,
+    designs: &[&DesignIR],
+    ir: &IRProgram,
+) -> Option<String> {
+    let (store_name, signal_name) = signal_path.split_once('.')?;
+    let all_stores = ir.all_stores();
+    let store = all_stores.get(store_name)?;
+    if !store.signals.contains_key(signal_name) {
+        return None;
+    }
+    let source_file = designs.first().and_then(|d| d.source_file.as_deref());
+    let hook_name = format!("use{}", store_name);
+    let import_path = relative_import_path(source_file, store.source_file.as_deref(), &hook_name);
+
+    let mut w = CodeWriter::new();
+    w.emit("// Generated by OmniLang — theme data-theme subscription");
+    w.emit("// (wired to the @theme-marked store signal — switching the store's");
+    w.emit("// theme signal changes <html data-theme=\"...\"> and the CSS overrides)");
+    w.emit("import { useEffect } from 'react';");
+    w.emit_fmt(format_args!(
+        "import {{ {} as useAppThemeStore }} from '{}';",
+        hook_name, import_path
+    ));
+    w.emit("");
+    w.emit("export function useThemeStore() {");
+    w.indent();
+    w.emit_fmt(format_args!(
+        "const {} = useAppThemeStore((s) => s.{});",
+        signal_name, signal_name
+    ));
+    w.emit("useEffect(() => {");
+    w.indent();
+    w.emit_fmt(format_args!(
+        "document.documentElement.setAttribute('data-theme', {});",
+        signal_name
+    ));
+    w.dedent();
+    w.emit_fmt(format_args!("}}, [{}]);", signal_name));
+    w.dedent();
+    w.emit("}");
     Some(w.into_string())
 }
 
@@ -928,6 +1051,38 @@ mod tests {
         assert!(content.contains("useThemeStore.getState().theme"));
     }
 
+    /// Build an IR program containing the design plus a `ThemeStore` whose
+    /// `mode` signal is marked `@theme` (the v2 D1 wiring shape).
+    fn make_theme_ir(design: DesignIR) -> IRProgram {
+        let theme_store = StoreIR {
+            name: "ThemeStore".to_string(),
+            signals: vec![(
+                "mode".to_string(),
+                crate::ir::TypeIR {
+                    kind: "String".into(),
+                    type_args: vec![],
+                    is_nullable: false,
+                },
+            )]
+            .into_iter()
+            .collect(),
+            signal_defaults: vec![("mode".to_string(), serde_json::json!("light"))]
+                .into_iter()
+                .collect(),
+            getters: FxHashMap::default(),
+            actions: vec![],
+            source_file: Some("src/stores/ThemeStore.omni".to_string()),
+            ..Default::default()
+        };
+        let mut ir = make_ir(design);
+        ir.modules
+            .get_mut("main")
+            .expect("main module")
+            .stores
+            .insert("ThemeStore".into(), theme_store);
+        ir
+    }
+
     #[test]
     fn no_designs_emits_no_files() {
         let ir = IRProgram {
@@ -939,6 +1094,95 @@ mod tests {
             motion_index: FxHashMap::default(),
         };
         assert!(gen_design_files(&ir).is_empty());
+    }
+
+    /// Task 4.2 (review HIGH-2): when a store signal is marked `@theme`
+    /// (DesignIR.theme_signal), the emitted theme runtime subscribes to the
+    /// USER's store with a slice selector (T3.3 machinery) and writes
+    /// `data-theme` in a useEffect — no more orphan Zustand store.
+    #[test]
+    fn emits_theme_subscription_when_signal_wired() {
+        let mut design = make_design();
+        design.theme_signal = Some("ThemeStore.mode".to_string());
+        let ir = make_theme_ir(design);
+        let files = gen_design_files(&ir);
+        let store = files
+            .iter()
+            .find(|f| f.path == "useThemeStore.ts")
+            .expect("useThemeStore.ts should be emitted");
+        let content = &store.content;
+        assert!(content.contains("import { useEffect } from 'react';"));
+        assert!(
+            content.contains(
+                "import { useThemeStore as useAppThemeStore } from './stores/useThemeStore';"
+            ),
+            "must import the user's theme store hook. Got:\n{}",
+            content
+        );
+        assert!(
+            content.contains("const mode = useAppThemeStore((s) => s.mode);"),
+            "must subscribe with a slice selector. Got:\n{}",
+            content
+        );
+        assert!(
+            content.contains("document.documentElement.setAttribute('data-theme', mode);"),
+            "must write data-theme from the slice. Got:\n{}",
+            content
+        );
+        assert!(
+            content.contains("}, [mode]);"),
+            "useEffect deps must be the theme slice. Got:\n{}",
+            content
+        );
+        assert!(
+            !content.contains("create"),
+            "the orphan Zustand store must NOT be emitted when a @theme signal is wired. \
+             Got:\n{}",
+            content
+        );
+    }
+
+    /// Task 4.2: when the design group and the @theme store share a source
+    /// directory (single-file layouts), both outputs would be named
+    /// `useThemeStore.ts` — the Task 4.4 naming conflict. The theme runtime
+    /// is then skipped so the store hook file survives.
+    #[test]
+    fn theme_runtime_skipped_on_store_hook_collision() {
+        let mut design = make_design();
+        design.theme_signal = Some("ThemeStore.mode".to_string());
+        design.source_file = Some("src/stores/ThemeStore.omni".to_string());
+        let mut ir = make_theme_ir(design);
+        // Move the store into the SAME source file as the design.
+        ir.modules
+            .get_mut("main")
+            .expect("main module")
+            .stores
+            .get_mut("ThemeStore")
+            .expect("ThemeStore")
+            .source_file = Some("src/stores/ThemeStore.omni".to_string());
+        let files = gen_design_files(&ir);
+        assert!(
+            !files.iter().any(|f| f.path == "useThemeStore.ts"),
+            "the theme runtime must not overwrite the store hook file. Got:\n{:#?}",
+            files.iter().map(|f| &f.path).collect::<Vec<_>>()
+        );
+    }
+
+    /// Task 4.2: projects WITHOUT a @theme signal keep the previous theme
+    /// store shape (backward compatible) — the orphan store is only a
+    /// fallback until Task 4.4 renames the design runtime file.
+    #[test]
+    fn emits_legacy_theme_store_without_theme_signal() {
+        let ir = make_theme_ir(make_design());
+        let files = gen_design_files(&ir);
+        let store = files
+            .iter()
+            .find(|f| f.path == "useThemeStore.ts")
+            .expect("useThemeStore.ts should be emitted");
+        let content = &store.content;
+        assert!(content.contains("import { create } from 'zustand';"));
+        assert!(content.contains("export const useThemeStore = create<ThemeState>()"));
+        assert!(!content.contains("useEffect"), "no hook form without a @theme signal");
     }
 
     #[test]

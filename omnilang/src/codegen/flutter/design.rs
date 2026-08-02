@@ -12,9 +12,13 @@
 //! - `{Design}ThemeVariant` — a `ThemeExtension` per design (with variants):
 //!   nullable fields per mappable variant property, `copyWith` + `lerp`, and
 //!   a `static const` per variant branch value (base ∪ matching branches).
-//! - Theme switching — a `StateProvider<ThemeMode>` (`themeModeProvider`)
-//!   plus one `ThemeData` builder per declared theme. Color tokens map to
-//!   `ColorScheme` slots by exact token name.
+//! - Theme switching — a Riverpod 3.0 `ThemeModeNotifier` +
+//!   `NotifierProvider<ThemeMode>` (`themeModeProvider`) plus one
+//!   `ThemeData` builder per declared theme. When a store signal is marked
+//!   `@theme` (v2 D1) the notifier watches that store, and a generated
+//!   `main.dart` app shell wires `MaterialApp(themeMode:)` (see
+//!   `gen_theme_app_shell`). Color tokens map to `ColorScheme` slots by
+//!   exact token name.
 //! - Dynamic tokens — a `Provider<Map<String, Object>>`
 //!   (`dynamicTokensProvider`) mirroring the React `useDesignTokens()` hook:
 //!   store signal values keyed by token name, plus `applyDynamicTokens`,
@@ -61,12 +65,10 @@ fn emit_design_dart(designs: &[&DesignIR], ir: &IRProgram) -> String {
             .values()
             .any(|t| matches!(t.value, TokenValueIR::Dynamic(_)))
     });
-    // StateProvider lives behind the Riverpod 3 legacy entrypoint; the plain
-    // entrypoint still provides `Provider` for the dynamic token bridge.
-    if has_themes {
-        w.emit("import 'package:flutter_riverpod/legacy.dart';");
-    }
-    if has_dynamic_tokens {
+    // Riverpod 3.0: `Provider` (dynamic token bridge) and
+    // `Notifier`/`NotifierProvider` (ThemeModeNotifier) live on the plain
+    // entrypoint — the legacy.dart StateProvider import is gone (Task 4.2).
+    if has_themes || has_dynamic_tokens {
         w.emit("import 'package:flutter_riverpod/flutter_riverpod.dart';");
     }
     // lerpDouble is used by ThemeExtension `lerp` implementations (only when
@@ -82,11 +84,11 @@ fn emit_design_dart(designs: &[&DesignIR], ir: &IRProgram) -> String {
     if needs_lerp_double {
         w.emit("import 'dart:ui' show lerpDouble;");
     }
+    // Store imports: stores referenced by dynamic token expressions plus the
+    // @theme-marked store (Task 4.2 D1 — the ThemeModeNotifier watches it).
+    let all_stores = ir.all_stores();
+    let mut store_names: FxHashSet<String> = FxHashSet::default();
     if has_dynamic_tokens {
-        // Import the stores referenced by dynamic token expressions (only
-        // stores the program actually compiles).
-        let all_stores = ir.all_stores();
-        let mut store_names: FxHashSet<String> = FxHashSet::default();
         for design in designs {
             for token in design.tokens.values() {
                 if let TokenValueIR::Dynamic(expr) = &token.value {
@@ -94,15 +96,25 @@ fn emit_design_dart(designs: &[&DesignIR], ir: &IRProgram) -> String {
                 }
             }
         }
-        let mut known_stores: Vec<String> = store_names
-            .iter()
-            .filter(|n| all_stores.contains_key(n.as_str()))
-            .cloned()
-            .collect();
-        known_stores.sort();
-        for store in &known_stores {
-            w.emit_fmt(format_args!("import './{}_store.dart';", store));
+    }
+    if let Some(path) = designs.iter().find_map(|d| d.theme_signal.as_deref()) {
+        if let Some((store_name, signal_name)) = path.split_once('.') {
+            if all_stores
+                .get(store_name)
+                .is_some_and(|s| s.signals.contains_key(signal_name))
+            {
+                store_names.insert(store_name.to_string());
+            }
         }
+    }
+    let mut known_stores: Vec<String> = store_names
+        .iter()
+        .filter(|n| all_stores.contains_key(n.as_str()))
+        .cloned()
+        .collect();
+    known_stores.sort();
+    for store in &known_stores {
+        w.emit_fmt(format_args!("import './{}_store.dart';", store));
     }
     w.emit("");
 
@@ -112,7 +124,7 @@ fn emit_design_dart(designs: &[&DesignIR], ir: &IRProgram) -> String {
         emit_theme_variant_class(&mut w, design);
     }
     if has_themes {
-        emit_theme_switch(&mut w, designs);
+        emit_theme_switch(&mut w, designs, ir);
     }
     if has_dynamic_tokens {
         emit_dynamic_token_provider(&mut w, designs, ir);
@@ -811,51 +823,206 @@ fn theme_builder_name(design: &DesignIR, theme: &str) -> String {
     format!("build{}{}Theme", design.name, capitalize_first(theme))
 }
 
-/// Emit the theme switching runtime: `themeModeProvider` (a Riverpod
-/// `StateProvider<ThemeMode>`) plus one `ThemeData` builder per declared
+/// Emit the theme switching runtime: a Riverpod 3.0 `ThemeModeNotifier` +
+/// `NotifierProvider<ThemeMode>` plus one `ThemeData` builder per declared
 /// theme. Emitted only when at least one design declares `@themes`.
-fn emit_theme_switch(w: &mut CodeWriter, designs: &[&DesignIR]) {
+///
+/// v2 (design D1): when a store signal is marked `@theme`, the notifier
+/// watches the USER's store (`ref.watch(<store>Provider.select(...))`) — an
+/// ordinary store action switches the theme on Flutter too, and the
+/// generated app shell (see `gen_theme_app_shell`) wires
+/// `MaterialApp(themeMode: ref.watch(themeModeProvider))`. Flutter's
+/// `ThemeMode` expresses light/dark only; non-dark themes map to
+/// `ThemeMode.light` (honest platform floor). Without a `@theme` signal the
+/// notifier holds the `@default-theme` mode and the app-shell wiring stays
+/// manual (pre-v2 behavior).
+fn emit_theme_switch(w: &mut CodeWriter, designs: &[&DesignIR], ir: &IRProgram) {
     let Some(first) = designs.iter().find(|d| !d.themes.is_empty()) else {
         return;
     };
-    let default_mode = match first.default_theme.as_deref() {
+    let mut default_mode = match first.default_theme.as_deref() {
         Some("dark") => "ThemeMode.dark",
         _ => "ThemeMode.light",
     };
-    let light_theme = first
-        .themes
-        .iter()
-        .find(|t| *t == "light")
-        .or_else(|| first.themes.first())
-        .cloned()
-        .unwrap_or_else(|| "light".to_string());
-    let dark_theme = first.themes.iter().find(|t| *t == "dark").cloned();
-
-    w.emit("/// Theme switching. Wire into your app shell:");
-    w.emit("///");
-    w.emit("///   Consumer(builder: (context, ref, _) => MaterialApp(");
-    w.emit("///     themeMode: ref.watch(themeModeProvider),");
-    w.emit_fmt(format_args!(
-        "///     theme: {}(),",
-        theme_builder_name(first, &light_theme)
-    ));
-    if let Some(dark) = &dark_theme {
-        w.emit_fmt(format_args!(
-            "///     darkTheme: {}(),",
-            theme_builder_name(first, dark)
-        ));
+    // The @theme signal's own initial value is authoritative when wired.
+    let mut store_watch: Option<(String, String, String)> = None;
+    if let Some(path) = designs.iter().find_map(|d| d.theme_signal.as_deref()) {
+        if let Some((store_name, signal_name)) = path.split_once('.') {
+            if let Some(store) = ir.all_stores().get(store_name) {
+                if store.signals.contains_key(signal_name) {
+                    if store
+                        .signal_defaults
+                        .get(signal_name)
+                        .and_then(|v| v.as_str())
+                        == Some("dark")
+                    {
+                        default_mode = "ThemeMode.dark";
+                    }
+                    store_watch = Some((
+                        store_name.to_string(),
+                        format!("{}Provider", lower_first(store_name)),
+                        signal_name.to_string(),
+                    ));
+                }
+            }
+        }
     }
-    w.emit("///   ))");
-    w.emit_fmt(format_args!(
-        "final themeModeProvider = StateProvider<ThemeMode>((ref) => {});",
-        default_mode
-    ));
+    w.emit("/// Theme switching (v2 D1): the @theme-marked store signal is THE");
+    w.emit("/// current theme mode. The generated app shell (main.dart) wires");
+    w.emit("/// `MaterialApp(themeMode: ref.watch(themeModeProvider))`.");
+    w.emit("final themeModeProvider = NotifierProvider<ThemeModeNotifier, ThemeMode>(ThemeModeNotifier.new);");
+    w.emit("");
+    w.emit("class ThemeModeNotifier extends Notifier<ThemeMode> {");
+    w.indent();
+    if let Some((store_name, provider_name, signal_name)) = &store_watch {
+        w.emit_fmt(format_args!(
+            "/// Watches `{provider_name}` (the `{store_name}` store) — an"
+        ));
+        w.emit("/// ordinary store action on the @theme signal switches the");
+        w.emit("/// theme.");
+        w.emit("@override");
+        w.emit("ThemeMode build() {");
+        w.indent();
+        w.emit_fmt(format_args!(
+            "final {} = ref.watch({}.select((s) => s.{}));",
+            signal_name, provider_name, signal_name
+        ));
+        w.emit("return mode == 'dark' ? ThemeMode.dark : ThemeMode.light;");
+        w.dedent();
+        w.emit("}");
+    } else {
+        w.emit("/// No @theme signal — the notifier holds the default mode;");
+        w.emit("/// wire `MaterialApp(themeMode: ref.watch(themeModeProvider))`");
+        w.emit("/// manually (pre-v2 behavior).");
+        w.emit("@override");
+        w.emit_fmt(format_args!("ThemeMode build() => {};", default_mode));
+    }
+    w.dedent();
+    w.emit("}");
     w.emit("");
     for design in designs {
         for theme in &design.themes {
             emit_theme_data_builder(w, design, theme);
         }
     }
+}
+
+/// Emit `main.dart` — the app shell wiring `MaterialApp` to the theme
+/// runtime (Task 4.2, design D1).
+///
+/// Emitted only when the program declares `@themes` AND a store signal is
+/// marked `@theme` — the wiring target (`themeModeProvider`, the light/dark
+/// `ThemeData` builders, the root component) is then fully determined by
+/// the IR:
+///
+/// ```dart
+/// void main() {
+///   runApp(const ProviderScope(child: OmniApp()));
+/// }
+///
+/// class OmniApp extends ConsumerWidget {
+///   ...
+///   Widget build(BuildContext context, WidgetRef ref) {
+///     return MaterialApp(
+///       themeMode: ref.watch(themeModeProvider),
+///       theme: buildAppLightTheme(),
+///       darkTheme: buildAppDarkTheme(),
+///       home: const App(),
+///     );
+///   }
+/// }
+/// ```
+///
+/// Projects without a `@theme` signal keep their own main.dart (pre-v2
+/// behavior — the notifier holds the default mode and the wiring stays
+/// manual).
+pub fn gen_theme_app_shell(ir: &IRProgram) -> Option<CompiledFile> {
+    let first = ir
+        .modules
+        .values()
+        .flat_map(|m| &m.designs)
+        .find(|d| !d.themes.is_empty() && d.theme_signal.is_some())?;
+    let theme_signal = first.theme_signal.as_deref()?;
+    let (store_name, signal_name) = theme_signal.split_once('.')?;
+    let all_stores = ir.all_stores();
+    let store = all_stores.get(store_name)?;
+    if !store.signals.contains_key(signal_name) {
+        return None;
+    }
+
+    // Root component: App → Main → last sorted (mirrors the React backend).
+    let all_components = ir.all_components();
+    let mut all_comp_names: Vec<&str> = all_components.keys().copied().collect();
+    let root_name = if all_comp_names.iter().any(|n| *n == "App") {
+        "App".to_string()
+    } else if all_comp_names.iter().any(|n| *n == "Main") {
+        "Main".to_string()
+    } else {
+        all_comp_names.sort_unstable();
+        all_comp_names.last().map(|n| n.to_string())?
+    };
+    let root = all_components.get(root_name.as_str())?;
+    // Const-instance when the root takes no props/slots, so the generated
+    // shell stays lint-clean (`prefer_const_constructors`).
+    let home = if root.props.is_empty() && root.slots.is_empty() {
+        format!("const {}()", root_name)
+    } else {
+        format!("{}()", root_name)
+    };
+
+    let light_theme = first
+        .themes
+        .iter()
+        .find(|t| *t == "light")
+        .or_else(|| first.themes.first())
+        .cloned()?;
+    let light_builder = theme_builder_name(first, &light_theme);
+    let dark_builder = first
+        .themes
+        .iter()
+        .find(|t| *t == "dark")
+        .map(|t| theme_builder_name(first, t));
+
+    let mut w = CodeWriter::new();
+    w.emit("// Generated by OmniLang \u{2014} app shell with @theme wiring");
+    w.emit("");
+    w.emit("import 'package:flutter/material.dart';");
+    w.emit("import 'package:flutter_riverpod/flutter_riverpod.dart';");
+    w.emit("");
+    w.emit_fmt(format_args!("import '{}.dart';", root_name));
+    w.emit("import 'design.dart';");
+    w.emit("");
+    w.emit("void main() {");
+    w.indent();
+    w.emit("runApp(const ProviderScope(child: OmniApp()));");
+    w.dedent();
+    w.emit("}");
+    w.emit("");
+    w.emit("class OmniApp extends ConsumerWidget {");
+    w.indent();
+    w.emit("const OmniApp({super.key});");
+    w.emit("");
+    w.emit("@override");
+    w.emit("Widget build(BuildContext context, WidgetRef ref) {");
+    w.indent();
+    w.emit("return MaterialApp(");
+    w.indent();
+    w.emit("themeMode: ref.watch(themeModeProvider),");
+    w.emit_fmt(format_args!("theme: {}(),", light_builder));
+    if let Some(dark_builder) = &dark_builder {
+        w.emit_fmt(format_args!("darkTheme: {}(),", dark_builder));
+    }
+    w.emit_fmt(format_args!("home: {},", home));
+    w.dedent();
+    w.emit(");");
+    w.dedent();
+    w.emit("}");
+    w.dedent();
+    w.emit("}");
+    Some(CompiledFile {
+        path: "main.dart".to_string(),
+        content: w.into_string(),
+    })
 }
 
 /// One `ThemeData` builder for a declared theme. Color tokens map to
@@ -2311,17 +2478,71 @@ mod tests {
         assert!(content.contains("fontSize: 14.0,"));
     }
 
+    /// Build an IR program containing the design plus a `ThemeStore` whose
+    /// `mode` signal is marked `@theme` and an `App` root component (the v2
+    /// D1 wiring shape — Flutter app shell).
+    fn make_theme_ir(design: DesignIR) -> IRProgram {
+        let theme_store = StoreIR {
+            name: "ThemeStore".to_string(),
+            signals: vec![(
+                "mode".to_string(),
+                TypeIR {
+                    kind: "String".into(),
+                    type_args: vec![],
+                    is_nullable: false,
+                },
+            )]
+            .into_iter()
+            .collect(),
+            signal_defaults: vec![("mode".to_string(), serde_json::json!("light"))]
+                .into_iter()
+                .collect(),
+            getters: FxHashMap::default(),
+            actions: vec![],
+            source_file: Some("src/stores/ThemeStore.omni".to_string()),
+            ..Default::default()
+        };
+        let mut module = ModuleIR {
+            name: "main".to_string(),
+            stores: vec![("ThemeStore".into(), theme_store)]
+                .into_iter()
+                .collect(),
+            designs: vec![design],
+            ..Default::default()
+        };
+        module.components.insert(
+            "App".to_string(),
+            crate::ir::ComponentIR {
+                name: "App".to_string(),
+                view: None,
+                ..Default::default()
+            },
+        );
+        IRProgram {
+            version: "0.1".to_string(),
+            modules: vec![("main".into(), module)].into_iter().collect(),
+            source_map: FxHashMap::default(),
+            stdlib_imports: FxHashSet::default(),
+            source_span: None,
+            motion_index: FxHashMap::default(),
+        }
+    }
+
     #[test]
     fn emits_theme_switch_and_builders() {
         let ir = make_ir(make_design());
         let files = gen_design_files(&ir);
         let content = &files[0].content;
-        // StateProvider lives behind the Riverpod 3 legacy entrypoint.
-        assert!(content.contains("import 'package:flutter_riverpod/legacy.dart';"));
+        // Riverpod 3.0: Notifier<ThemeMode> + NotifierProvider — the legacy
+        // StateProvider import is gone (Task 4.2).
+        assert!(!content.contains("legacy.dart"), "no legacy import. Got:\n{}", content);
+        assert!(content.contains("import 'package:flutter_riverpod/flutter_riverpod.dart';"));
         assert!(content.contains("import 'dart:ui' show lerpDouble;"));
         assert!(content.contains(
-            "final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.light);"
+            "final themeModeProvider = NotifierProvider<ThemeModeNotifier, ThemeMode>(ThemeModeNotifier.new);"
         ));
+        assert!(content.contains("class ThemeModeNotifier extends Notifier<ThemeMode> {"));
+        assert!(content.contains("ThemeMode build() => ThemeMode.light;"));
         assert!(content.contains("ThemeData buildAppLightTheme() {"));
         assert!(content.contains("colorScheme: ColorScheme.light("));
         assert!(content.contains("primary: AppTokens.primary,"));
@@ -2337,6 +2558,78 @@ mod tests {
         assert!(
             !content.contains("tertiary: AppTokens"),
             "dynamic color tokens have no const and must not appear in ThemeData"
+        );
+    }
+
+    /// Task 4.2: with a @theme signal the ThemeModeNotifier watches the
+    /// USER's store (ordinary store action = theme switch on Flutter too).
+    #[test]
+    fn emits_theme_notifier_watching_theme_signal() {
+        let mut design = make_design();
+        design.theme_signal = Some("ThemeStore.mode".to_string());
+        let ir = make_theme_ir(design);
+        let files = gen_design_files(&ir);
+        let content = &files[0].content;
+        assert!(
+            content.contains("import './ThemeStore_store.dart';"),
+            "must import the @theme store. Got:\n{}",
+            content
+        );
+        assert!(content.contains(
+            "final themeModeProvider = NotifierProvider<ThemeModeNotifier, ThemeMode>(ThemeModeNotifier.new);"
+        ));
+        assert!(content.contains("class ThemeModeNotifier extends Notifier<ThemeMode> {"));
+        assert!(
+            content.contains("final mode = ref.watch(themeStoreProvider.select((s) => s.mode));"),
+            "the notifier must watch the @theme signal. Got:\n{}",
+            content
+        );
+        assert!(
+            content.contains("return mode == 'dark' ? ThemeMode.dark : ThemeMode.light;"),
+            "the notifier must map the signal value to ThemeMode. Got:\n{}",
+            content
+        );
+        assert!(!content.contains("legacy.dart"), "no legacy import. Got:\n{}", content);
+    }
+
+    /// Task 4.2: when themes + a @theme signal are declared, an app shell
+    /// (main.dart) wires MaterialApp to the themeModeProvider.
+    #[test]
+    fn emits_app_shell_with_theme_wiring() {
+        let mut design = make_design();
+        design.theme_signal = Some("ThemeStore.mode".to_string());
+        let ir = make_theme_ir(design);
+        let shell = gen_theme_app_shell(&ir)
+            .expect("main.dart should be emitted when themes + @theme signal exist");
+        assert_eq!(shell.path, "main.dart");
+        let content = &shell.content;
+        assert!(content.contains("void main() {"));
+        assert!(content.contains("runApp(const ProviderScope(child: OmniApp()));"));
+        assert!(content.contains("class OmniApp extends ConsumerWidget {"));
+        assert!(content.contains("MaterialApp("));
+        assert!(content.contains("themeMode: ref.watch(themeModeProvider),"));
+        assert!(content.contains("theme: buildAppLightTheme(),"));
+        assert!(content.contains("darkTheme: buildAppDarkTheme(),"));
+        assert!(content.contains("home: const App(),"));
+    }
+
+    /// Task 4.2: no app shell without a @theme signal (existing projects
+    /// keep their own main.dart) and none without themes at all.
+    #[test]
+    fn no_app_shell_without_theme_signal() {
+        let ir = make_theme_ir(make_design());
+        assert!(
+            gen_theme_app_shell(&ir).is_none(),
+            "no main.dart when no @theme signal is wired"
+        );
+        let mut design = make_design();
+        design.themes = vec![];
+        design.default_theme = None;
+        design.theme_signal = None;
+        let ir = make_theme_ir(design);
+        assert!(
+            gen_theme_app_shell(&ir).is_none(),
+            "no main.dart without @themes"
         );
     }
 

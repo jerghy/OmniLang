@@ -380,31 +380,41 @@ pub fn generate(
         // Emit theme runtime JS if any design block declares @themes
         gen.emit_theme_runtime();
 
-        // ── Sync store "mode" signals to __omni_theme ──
-        // When a design block declares @themes, __omni_theme manages data-theme on <html>.
-        // Stores with a "mode" signal (common naming for theme switching) must sync bidirectionally:
-        //   1. Init: if __omni_theme.current (from localStorage/prefers-color-scheme) differs from the
-        //      store default, override the store to respect the saved/preferred theme.
-        //   2. Reactive: any store "mode" change propagates to __omni_theme, updating data-theme.
-        let has_themes = gen.design_map.values().any(|d| !d.themes.is_empty());
-        if has_themes {
-            for (store_name, store) in ir.all_stores() {
-                if store.signals.contains_key("mode") {
-                    let var_name = format!("{}_{}", store_name, "mode");
-                    let _ = writeln!(
-                        gen.mount_js,
-                        "\
-        // ── Theme mode sync: {var_name} ↔ __omni_theme ──
+        // ── Sync the @theme-marked store signal to __omni_theme ──
+        // When a design block declares @themes, __omni_theme manages
+        // data-theme on <html>. The store signal marked `@theme` (v2 域 5,
+        // design D1 — DesignIR.theme_signal, "StoreName.signalName") is THE
+        // current theme mode and syncs bidirectionally:
+        //   1. Init: if __omni_theme.current (from localStorage/prefers-color-scheme) differs
+        //      from the store default, override the store to respect the saved/preferred theme.
+        //   2. Reactive: any @theme signal change propagates to __omni_theme, updating data-theme.
+        // Recognition is by IR only — the former `mode` magic-name matching is gone.
+        let theme_signal: Option<String> = gen
+            .design_map
+            .values()
+            .find_map(|d| d.theme_signal.clone());
+        if let Some((store_name, signal_name)) =
+            theme_signal.as_deref().and_then(|p| p.split_once('.'))
+        {
+            if ir
+                .all_stores()
+                .get(store_name)
+                .is_some_and(|s| s.signals.contains_key(signal_name))
+            {
+                let var_name = format!("{}_{}", store_name, signal_name);
+                let _ = writeln!(
+                    gen.mount_js,
+                    "\
+        // ── Theme mode sync: {var_name} ↔ __omni_theme (declared @theme signal) ──
         (function() {{
           // 1. Init: respect saved/preferred theme from __omni_theme.init()
           if ({var_name}.value !== __omni_theme.current) {{
             __omni_subs.get(\"{var_name}\").set(__omni_theme.current);
           }}
-          // 2. Reactive: store mode changes propagate to __omni_theme
+          // 2. Reactive: store {signal_name} changes propagate to __omni_theme
           __omni_effect(function () {{ __omni_theme.set({var_name}.value); }});
         }})();\n"
-                    );
-                }
+                );
             }
         }
 

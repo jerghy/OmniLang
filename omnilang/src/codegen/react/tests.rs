@@ -2210,6 +2210,111 @@ design AppDesign {
     );
 }
 
+/// Task 4.2 (review HIGH-2): with a `@theme`-marked store signal the
+/// generated useThemeStore.ts subscribes to the USER's store (slice selector)
+/// and writes `data-theme` in a useEffect; the root component imports the
+/// hook (aliased to avoid colliding with the store hook) and calls it.
+///
+/// Multi-file (the real demo shape): the store, design, and App component
+/// live in separate source files so the store hook
+/// (`stores/useThemeStore.ts`) and the design runtime (`useThemeStore.ts`)
+/// land in different directories.
+#[test]
+fn react_design_theme_signal_wires_subscription() {
+    let store_source = r##"
+store ThemeStore {
+    signal mode: String @theme = "light";
+}
+"##;
+    let design_source = r##"
+design AppDesign {
+    @themes { light, dark }
+    @default-theme light;
+    token primary: color = "#6366f1" dark "#a5b4fc";
+}
+"##;
+    let comp_source = r#"
+import { ThemeStore } from "./stores/ThemeStore";
+
+component App {
+    @store ThemeStore;
+    view {
+        <div>{ThemeStore.mode}</div>
+    }
+}
+"#;
+    let mut sources = FxHashMap::default();
+    sources.insert(
+        "src/stores/ThemeStore.omni".to_string(),
+        store_source.to_string(),
+    );
+    sources.insert("src/design.omni".to_string(), design_source.to_string());
+    sources.insert("src/main.omni".to_string(), comp_source.to_string());
+    let pm = path_mapping::derive_path_mapping(&sources);
+    let output = crate::compile_multi_internal(
+        sources,
+        crate::codegen::Target::React,
+        pm,
+        false,
+        false,
+        None,
+    );
+    assert!(
+        output.success,
+        "theme-signal compilation must succeed. Errors: {:?}",
+        output.errors
+    );
+    let theme_file = output
+        .files
+        .get("useThemeStore.ts")
+        .expect("useThemeStore.ts should be emitted when @themes is declared");
+    assert!(
+        theme_file.contains("import { useEffect } from 'react';"),
+        "the wired theme runtime must use useEffect. Got:\n{}",
+        theme_file
+    );
+    assert!(
+        theme_file.contains("(s) => s.mode"),
+        "the wired theme runtime must subscribe with a slice selector. Got:\n{}",
+        theme_file
+    );
+    assert!(
+        theme_file.contains("document.documentElement.setAttribute('data-theme', mode);"),
+        "the wired theme runtime must write data-theme. Got:\n{}",
+        theme_file
+    );
+    assert!(
+        theme_file.contains("import { useThemeStore as useAppThemeStore } from './stores/useThemeStore';"),
+        "the wired theme runtime must import the user's store hook. Got:\n{}",
+        theme_file
+    );
+    assert!(
+        !theme_file.contains("create"),
+        "the orphan Zustand store must not be emitted when a @theme signal is wired. Got:\n{}",
+        theme_file
+    );
+    let app = output
+        .files
+        .get("App.tsx")
+        .expect("App.tsx should be emitted");
+    assert!(
+        app.contains("import { useThemeStore as useThemeStoreDesign } from './useThemeStore';"),
+        "root component must import the wired theme hook (aliased). Got:\n{}",
+        app
+    );
+    assert!(
+        app.contains("useThemeStoreDesign();"),
+        "root component must CALL the wired theme hook. Got:\n{}",
+        app
+    );
+    // The user's own store hook must still be imported for the component.
+    assert!(
+        app.contains("import { useThemeStore } from './stores/useThemeStore';"),
+        "the store hook import must stay. Got:\n{}",
+        app
+    );
+}
+
 /// Test: dynamic tokens referencing store signals emit a useDesignTokens.ts
 /// hook with per-token useEffect setProperty calls and the store hook import.
 #[test]

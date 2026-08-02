@@ -71,6 +71,11 @@ impl Codegen for FlutterCodegen {
         // constants, BoxDecoration factories, ThemeExtension variants,
         // theme switching, and the dynamic token provider (Task 5.5).
         files.extend(design::gen_design_files(ir));
+        // App shell (main.dart) — MaterialApp wired to the theme runtime
+        // when @themes + a @theme signal are declared (Task 4.2 D1).
+        if let Some(shell) = design::gen_theme_app_shell(ir) {
+            files.push(shell);
+        }
         // Dedupe per-ref pointer-capture errors by message (multiple refs /
         // multiple components surface one diagnostic, matching the warning
         // dedup below).

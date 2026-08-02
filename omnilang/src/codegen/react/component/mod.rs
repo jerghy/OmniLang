@@ -246,9 +246,11 @@ impl ReactCodegen {
 
         // ── Design runtime wiring (root component only) ──
         // The root component mounts the design system: it imports and calls
-        // the `useDesignTokens` hooks (dynamic token effects) and imports
-        // `useThemeStore` (side effect: data-theme subscription) so design
-        // runtime behavior activates with the app (HIGH #2).
+        // the `useDesignTokens` hooks (dynamic token effects) and the
+        // `useThemeStore` hook when a @theme signal is wired (v2 D1 —
+        // useEffect data-theme subscription), or side-effect-imports the
+        // legacy store otherwise, so design runtime behavior activates with
+        // the app (HIGH #2).
         let is_root = super::design::is_root_component(name, ir);
         let design_wiring = if is_root {
             super::design::root_design_wiring(ir, comp.source_file.as_deref())

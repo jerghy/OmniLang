@@ -6,14 +6,19 @@
 // ║  (var(--surface)) 自动切换，不在 store 中维护颜色 getter。    ║
 // ║  本 store 仅管理 mode 信号和切换计数。                        ║
 // ║                                                              ║
-// ║  ADR-044 自动同步 mode ↔ __omni_theme.set() 到 data-theme。  ║
+// ║  v2 D1：`mode` 信号标记 @theme —— 它就是「当前主题模式」。     ║
+// ║  三目标自动接线：React 订阅本 store → 写 data-theme 属性；     ║
+// ║  Flutter 生成 ThemeModeNotifier + MaterialApp(themeMode:)；   ║
+// ║  OmniView 按 @theme 信号同步 __omni_theme（不再有 mode 魔法名）。║
+// ║  切换主题 = 普通 store action（setMode / toggle）。            ║
 // ╚══════════════════════════════════════════════════════════════╝
 
 import omniview;
 
 store ThemeStore {
     // 当前主题模式："light" / "dark" / "sepia" / "highContrast"
-    signal mode: String = "light";
+    // @theme 标记：本信号是 design 块 @themes 声明的当前主题模式
+    signal mode: String @theme = "light";
 
     // 切换次数追踪
     signal toggleCount: i32 = 0;

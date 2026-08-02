@@ -1674,6 +1674,100 @@ fn test_theme_runtime_not_emitted_without_themes() {
     );
 }
 
+// ── Theme signal bridge (Task 4.2, design D1) ──────────────
+
+/// Build an IR program with a `ThemeStore` carrying a `mode` signal plus a
+/// themed design. `theme_signal` controls whether the signal is marked
+/// `@theme` (wired into DesignIR.theme_signal by validate_theme).
+fn make_theme_signal_ir(theme_signal: Option<String>) -> IRProgram {
+    let store = StoreIR {
+        name: "ThemeStore".to_string(),
+        signals: vec![(
+            "mode".to_string(),
+            TypeIR {
+                kind: "String".into(),
+                type_args: vec![],
+                is_nullable: false,
+            },
+        )]
+        .into_iter()
+        .collect(),
+        signal_defaults: vec![("mode".to_string(), serde_json::json!("light"))]
+            .into_iter()
+            .collect(),
+        getters: FxHashMap::default(),
+        actions: vec![],
+        source_file: None,
+        ..Default::default()
+    };
+    let design = DesignIR {
+        name: "AppDesign".to_string(),
+        themes: vec!["light".to_string(), "dark".to_string()],
+        theme_signal,
+        default_theme: Some("light".to_string()),
+        tokens: FxHashMap::default(),
+        classes: vec![],
+        variants: vec![],
+        source_span: None,
+        source_file: None,
+    };
+    let mut module = make_module("main");
+    module.designs = vec![design];
+    module.stores.insert("ThemeStore".to_string(), store);
+    module.components.insert(
+        "App".to_string(),
+        ComponentIR {
+            view: Some(ViewTree::Element(Box::new(make_element("div")))),
+            ..make_component("App")
+        },
+    );
+    make_program(FxHashMap::from_iter([("main".into(), module)]))
+}
+
+/// Task 4.2 (design D1): the @theme-marked store signal syncs to
+/// __omni_theme (which writes data-theme) — recognized by IR, not by name.
+#[test]
+fn theme_signal_drives_omni_theme_sync_bridge() {
+    let ir = make_theme_signal_ir(Some("ThemeStore.mode".to_string()));
+    let output = generate(&ir, false, false, false);
+    assert!(
+        output.js.contains("__omni_theme"),
+        "theme runtime must be emitted"
+    );
+    assert!(
+        output.js.contains("__omni_subs.get(\"ThemeStore_mode\")"),
+        "the @theme signal must sync to __omni_theme. Got:\n{}",
+        output.js
+    );
+    assert!(
+        output.js.contains("__omni_theme.set(ThemeStore_mode.value)"),
+        "store changes must propagate to __omni_theme (data-theme). Got:\n{}",
+        output.js
+    );
+}
+
+/// Task 4.2 (design D1): a store signal named "mode" WITHOUT the @theme
+/// marker must NOT be bridged — the `mode` magic name is gone.
+#[test]
+fn mode_magic_name_bridge_removed_without_theme_signal() {
+    let ir = make_theme_signal_ir(None);
+    let output = generate(&ir, false, false, false);
+    assert!(
+        output.js.contains("__omni_theme"),
+        "theme runtime must be emitted"
+    );
+    assert!(
+        !output.js.contains("__omni_subs.get(\"ThemeStore_mode\")"),
+        "no magic-name bridge without a declared @theme signal. Got:\n{}",
+        output.js
+    );
+    assert!(
+        !output.js.contains("Theme mode sync"),
+        "no magic-name bridge without a declared @theme signal. Got:\n{}",
+        output.js
+    );
+}
+
 // ── Slot Projection (Content Injection) ─────────────────
 
 #[test]
