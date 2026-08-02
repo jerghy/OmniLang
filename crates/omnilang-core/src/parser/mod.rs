@@ -1402,6 +1402,72 @@ mod roundtrip_tests {
         assert_eq!(comp.store_refs, vec!["External"]);
     }
 
+    // ── Task 3.5: store BNF 统一（顶层/内联成员集一致） ────
+
+    /// 顶层 store 内 `fn` 成员必须报错（设计文档域 5：用 getter 或 action）。
+    #[test]
+    fn top_level_store_fn_member_is_error() {
+        let source = "store S { fn helper() {} }";
+        let tokens = tokenize(source);
+        let (_, errors) = parse(tokens, source);
+        assert!(
+            !errors.is_empty(),
+            "fn member in top-level store must error"
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.message.contains("store 内 fn 成员不允许")),
+            "expected the store-fn diagnostic, got: {:?}",
+            errors.iter().map(|e| &e.message).collect::<Vec<_>>()
+        );
+    }
+
+    /// 内联 store（component 内 `store Name { ... }`）内 `fn` 成员同样必须
+    /// 报错——顶层与内联 BNF 统一为 signal|getter|action。
+    #[test]
+    fn inline_store_fn_member_is_error() {
+        let source = "component X { store Local { fn helper() {} } view { <div/> } }";
+        let tokens = tokenize(source);
+        let (_, errors) = parse(tokens, source);
+        assert!(!errors.is_empty(), "fn member in inline store must error");
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.message.contains("store 内 fn 成员不允许")),
+            "expected the store-fn diagnostic, got: {:?}",
+            errors.iter().map(|e| &e.message).collect::<Vec<_>>()
+        );
+    }
+
+    /// 统一后的成员集 signal|getter|action 在顶层与内联都合法。
+    #[test]
+    fn store_member_set_uniform_at_both_levels() {
+        // 顶层 store：signal + getter + action
+        let source =
+            "store S { signal n: i32 = 0; getter g: i32 = n + 1; action a() { n = n + 1; } }";
+        let tokens = tokenize(source);
+        let (program, errors) = parse(tokens, source);
+        assert!(
+            errors.is_empty(),
+            "top-level store with signal/getter/action must parse clean, got: {:?}",
+            errors.iter().map(|e| &e.message).collect::<Vec<_>>()
+        );
+        let module = program.modules.get("input.omni").unwrap();
+        assert_eq!(module.stores.len(), 1);
+        assert_eq!(module.stores[0].signals.len(), 1);
+        assert_eq!(module.stores[0].getters.len(), 1);
+        assert_eq!(module.stores[0].actions.len(), 1);
+
+        // 内联 store：signal + getter + action（flatten 进 component）
+        let comp = component_def(
+            "component X { store Local { signal n: i32 = 0; getter g: i32 = n + 1; action a() { n = n + 1; } } view { <div>{n}</div> } }",
+        );
+        assert_eq!(comp.signals.len(), 1, "inline signal flattened");
+        assert_eq!(comp.getters.len(), 1, "inline getter flattened");
+        assert_eq!(comp.actions.len(), 1, "inline action flattened");
+    }
+
     // ── Consumer named-prop slot projection (ADR-053 D5) ────
 
     #[test]

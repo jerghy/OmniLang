@@ -262,11 +262,13 @@ fn node_array_sort_two_arg_comparator_sorts() {
         out
     );
 
-    // Extract `([...items]).sort(...)` from `setItems(EXPR);`. The
-    // expression starts at `([...items])` (whose own close paren is NOT the
-    // end), so scan from the `sort(` call's open paren to its match.
+    // Extract `([...i]).sort(...)` from the functional-updater emission
+    // `setItems((i) => ([...i]).sort(...))` (Task 3.5 M2: the mutation
+    // reads the signal it writes, so the value goes through the updater
+    // param). The expression starts at `([...i])` (whose own close paren is
+    // NOT the end), so scan from the `sort(` call's open paren to its match.
     let start = out
-        .find("([...items]).sort(")
+        .find("([...i]).sort(")
         .unwrap_or_else(|| panic!("no sort expression in React output:\n{}", out));
     let sort_paren = out[start..]
         .find("sort(")
@@ -292,6 +294,7 @@ fn node_array_sort_two_arg_comparator_sorts() {
     let script = format!(
         r##"
 const items = [{{ name: "b" }}, {{ name: "a" }}, {{ name: "c" }}, {{ name: "f" }}, {{ name: "e" }}, {{ name: "d" }}];
+const i = items; // the M2 functional-updater param bound to the array
 const sorted = ({expr}).map(i => i.name);
 const expected = ["a", "b", "c", "d", "e", "f"];
 console.log("SORTED=" + JSON.stringify(sorted));
@@ -1037,6 +1040,220 @@ fn computed_prop_read_lands_in_memo_deps() {
     assert!(
         out.contains("}, [label]);"),
         "a computed reading a prop must list the prop in its useMemo deps. Got:\n{}",
+        out
+    );
+}
+
+// ── Task 3.5: store BNF 统一 + React mutation 质量批次 ─────────
+//
+// (A) 顶层与内联 store 成员集统一为 signal|getter|action（设计文档域 5
+//     BNF v2）；`fn` 成员两层都是错误（「store 内 fn 成员不允许；用
+//     getter 或 action」）。
+// (B) M2: 同一 signal 自读的赋值（`count = count + 1`）发射函数式更新
+//     （`setCount((c) => c + 1)`），消除批处理/StrictMode 下的闭包陈旧
+//     读（评审 M2）。
+// (C) M4: action 内连续 set() 合并为单次 set({ k1: v1, k2: v2 })（评审
+//     M4——三次顺序 set 对一次逻辑更新产生三次订阅通知）。
+// (D) M3: 空事件对象不再发射 `Object.assign(e, {})` 噪音；不再需要
+//     事件数据时发射无参箭头 `() => {...}`（评审 M3）。
+
+/// (A) The BNF fixture: clean stores (signal/getter/action at both levels)
+/// must parse; `fn` members at both levels must produce the verbatim
+/// diagnostic. Each bad block also emits one stray-brace recovery error —
+/// filtered out by message matching.
+const STORE_BNF_FIXTURE: &str = include_str!("../fixtures/store_bnf.omni");
+
+#[test]
+fn store_bnf_fixture_fn_members_error_at_both_levels() {
+    let tokens = tokenize(STORE_BNF_FIXTURE);
+    let (program, errors) = parser::parse(tokens, STORE_BNF_FIXTURE);
+    let fn_errors: Vec<&omnilang::error::ParseError> = errors
+        .iter()
+        .filter(|e| e.message.contains("store 内 fn 成员不允许"))
+        .collect();
+    assert_eq!(
+        fn_errors.len(),
+        2,
+        "top-level AND inline store fn members must each error, got: {:?}",
+        errors.iter().map(|e| &e.message).collect::<Vec<_>>()
+    );
+    assert!(
+        errors
+            .iter()
+            .all(|e| e.message.contains("store 内 fn 成员不允许")
+                || e.message.contains("Unexpected token at top level")),
+        "only the fn diagnostic + recovery noise expected, got: {:?}",
+        errors.iter().map(|e| &e.message).collect::<Vec<_>>()
+    );
+
+    let module = program.modules.get("input.omni").unwrap();
+    assert_eq!(module.stores.len(), 1, "clean top-level store must parse");
+    assert_eq!(module.stores[0].signals.len(), 1);
+    assert_eq!(module.stores[0].getters.len(), 1);
+    assert_eq!(module.stores[0].actions.len(), 1);
+    assert_eq!(
+        module.components.len(),
+        1,
+        "clean inline-store component must parse"
+    );
+    assert_eq!(
+        module.components[0].signals.len(),
+        1,
+        "inline signal flattened"
+    );
+    assert_eq!(
+        module.components[0].getters.len(),
+        1,
+        "inline getter flattened"
+    );
+    assert_eq!(
+        module.components[0].actions.len(),
+        1,
+        "inline action flattened"
+    );
+}
+
+/// (B) Full-pipeline M2: `count = count + step` must emit the functional
+/// updater; `count = 0` (no self-read) must keep the direct setter form.
+const M2_SELF_READ_FIXTURE: &str = r##"
+import omniview;
+
+component Counter {
+    signal count: i32 = 0;
+    signal step: i32 = 1;
+
+    fn inc() { count = count + step; }
+    fn reset() { count = 0; }
+
+    view {
+        <div>
+            {count}
+            <button @onPress={inc}>+</button>
+            <button @onPress={reset}>R</button>
+        </div>
+    }
+}
+"##;
+
+#[test]
+fn react_component_mutation_self_read_emits_functional_updater() {
+    let out = compile_react(M2_SELF_READ_FIXTURE);
+    assert!(
+        out.contains("setCount((c) => c + step);"),
+        "self-reading mutation must use the functional updater. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("setCount(0);"),
+        "non-self-reading mutation must keep the direct setter form. Got:\n{}",
+        out
+    );
+    assert!(
+        !out.contains("setCount(count + step)"),
+        "the stale-closure direct form must not appear. Got:\n{}",
+        out
+    );
+}
+
+/// (C) Full-pipeline M4: three consecutive store mutations in one action
+/// coalesce into ONE `set({ ... })` call.
+const M4_COALESCE_FIXTURE: &str = r##"
+import omniview;
+
+store TodoStore {
+    signal items: Array<String> = [];
+    signal nextId: i32 = 0;
+    signal lastAction: String = "none";
+    signal filterStatus: String = "all";
+
+    action add(text: String) {
+        items = [...items, text];
+        nextId = nextId + 1;
+        lastAction = "added";
+    }
+
+    action setFilter(status: String) {
+        filterStatus = status;
+        lastAction = "filter: " + status;
+    }
+}
+"##;
+
+#[test]
+fn react_store_action_consecutive_sets_coalesce_into_one() {
+    let out = compile_react(M4_COALESCE_FIXTURE);
+    let add_idx = out.find("add: (text) => {").expect("add action emitted");
+    let add_end = out[add_idx..]
+        .find(
+            "
+    },",
+        )
+        .expect("add action closing brace");
+    let add_block = &out[add_idx..add_idx + add_end];
+    let set_count = add_block.matches("set(").count();
+    assert_eq!(
+        set_count, 1,
+        "three consecutive mutations must coalesce into ONE set() call, got:\n{}",
+        add_block
+    );
+    assert!(
+        add_block.contains("nextId: state.nextId + 1")
+            && add_block.contains("lastAction: \"added\""),
+        "coalesced set() must carry all three keys, got:\n{}",
+        add_block
+    );
+}
+
+/// (D) Full-pipeline M3: a handler whose body needs no event fields must
+/// NOT emit `Object.assign(e, {})`, and the now-unused implicit event param
+/// is dropped entirely — the handler becomes a paramless `() => {...}`.
+const M3_EMPTY_EVENT_FIXTURE: &str = r##"
+import omniview;
+
+component App {
+    signal log: String = "";
+
+    view {
+        <button @onPress={() => { log = "hi"; }}>Hi</button>
+    }
+}
+"##;
+
+#[test]
+fn react_inline_handler_empty_event_skips_object_assign() {
+    let out = compile_react(M3_EMPTY_EVENT_FIXTURE);
+    assert!(
+        !out.contains("Object.assign(e, {})"),
+        "empty event objects must not emit Object.assign noise. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("onClick={() => {"),
+        "a handler needing no event data must emit a paramless arrow. Got:\n{}",
+        out
+    );
+}
+
+/// (D) Positive control: a handler that DOES read event fields keeps the
+/// extraction and the plain `e` param.
+const M3_EVENT_FIELDS_FIXTURE: &str = r##"
+import omniview;
+
+component App {
+    signal lastX: f64 = 0.0;
+
+    view {
+        <button @onPress={(e) => { lastX = e.x; }}>X</button>
+    }
+}
+"##;
+
+#[test]
+fn react_inline_handler_with_event_fields_keeps_extraction() {
+    let out = compile_react(M3_EVENT_FIELDS_FIXTURE);
+    assert!(
+        out.contains("Object.assign(e, { x:") || out.contains("onClick={(e) => {"),
+        "used event fields must keep the extraction path. Got:\n{}",
         out
     );
 }

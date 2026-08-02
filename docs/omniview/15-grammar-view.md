@@ -554,13 +554,15 @@ store AppStore {
 
 ### 4.2 Store Field Access
 
-In expressions, store fields accessed via `$` prefix or store alias:
+Store fields are accessed via the store-qualified form only (`Store.field`):
 ```
-$counter           // direct signal access
-$store.counter     // store-qualified access
+AppStore.counter    // read a store signal
+AppStore.greeting   // read a store getter
+AppStore.setName(x) // call a store action
 ```
 
-AST type: `Expr::StoreFieldAccess { store_alias: String, field_name: String }`
+(The `$counter` / `$store.counter` access syntax is doc-fiction — removed;
+see design 域 5「`$counter`/`$store.counter` 存取语法删除」.)
 
 ### 4.3 Store AST Types
 

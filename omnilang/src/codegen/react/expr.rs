@@ -17,6 +17,7 @@ use rustc_hash::FxHashSet;
 ///
 /// Uses JS-family syntax with `translate_builtin_call` for stdlib calls
 /// and `translate_method_call` for method dispatch.
+#[derive(Clone)]
 pub(crate) struct ReactFormatExpr {
     pub ref_names: FxHashSet<String>,
     /// Identifier → replacement map (e.g. store signal `count` → `state.count`
@@ -372,20 +373,75 @@ impl FormatStmt for ReactStmtFormatter {
         match intent {
             MutationIntent::DirectAssign { target, value, .. } => {
                 let target_str = &target.name;
-                let amount = value
-                    .as_ref()
-                    .map(|v| self.expr.format_expr(v))
-                    .unwrap_or_else(|| "0".into());
                 // Store signal → Zustand setState on the imported store hook (C7)
                 if let Some(owner) = self.store_signal_owners.get(target_str.as_str()) {
+                    // M2: a mutation whose value reads the SAME store signal
+                    // it writes must use the functional updater form —
+                    // `setState({ count: AppStore.count + 1 })` closes over
+                    // the slice/snapshot and loses updates under React
+                    // batching / StrictMode double-invoke.
+                    if let Some(v) = value {
+                        if expr_reads_store_field(v, owner, target_str) {
+                            let param = pick_updater_param("s", v);
+                            let mut fmt = self.expr.clone();
+                            fmt.renames.insert(
+                                format!("{}.{}", owner, target_str),
+                                format!("{}.{}", param, target_str),
+                            );
+                            let val = fmt.format_expr(v);
+                            w.emit_fmt(format_args!(
+                                "use{}.setState(({}) => ({{ {}: {} }}));",
+                                owner, param, target_str, val
+                            ));
+                            return;
+                        }
+                    }
+                    let amount = value
+                        .as_ref()
+                        .map(|v| self.expr.format_expr(v))
+                        .unwrap_or_else(|| "0".into());
                     w.emit_fmt(format_args!(
                         "use{}.setState({{ {}: {} }});",
                         owner, target_str, amount
                     ));
                 } else if self.signal_names.contains(target_str.as_str()) {
                     let setter = format!("set{}", capitalize_first(target_str));
+                    // M2: same-signal self-read (`count = count + 1`) emits
+                    // the functional updater `setCount((c) => c + 1)` —
+                    // `setCount(count + 1)` reads a stale closure value under
+                    // batching (review M2). Other values keep the direct form.
+                    if let Some(v) = value {
+                        // Same-signal read detection: collect every identifier
+                        // the value references (target's own occurrences are
+                        // replaced by the param, so they are not collisions).
+                        let mut read_ids = FxHashSet::default();
+                        super::component::collect_expr_identifiers(v, &mut read_ids);
+                        if read_ids.contains(target_str) {
+                            let param = pick_updater_param(
+                                &target_str
+                                    .chars()
+                                    .next()
+                                    .map(|c| c.to_string())
+                                    .unwrap_or_else(|| "v".into()),
+                                v,
+                            );
+                            let mut fmt = self.expr.clone();
+                            fmt.renames.insert(target_str.clone(), param.clone());
+                            let val = fmt.format_expr(v);
+                            w.emit_fmt(format_args!("{}(({}) => {});", setter, param, val));
+                            return;
+                        }
+                    }
+                    let amount = value
+                        .as_ref()
+                        .map(|v| self.expr.format_expr(v))
+                        .unwrap_or_else(|| "0".into());
                     w.emit_fmt(format_args!("{}({});", setter, amount));
                 } else {
+                    let amount = value
+                        .as_ref()
+                        .map(|v| self.expr.format_expr(v))
+                        .unwrap_or_else(|| "0".into());
                     w.emit_fmt(format_args!("{} = {};", target_str, amount));
                 }
             }
@@ -510,6 +566,244 @@ impl ReactStmtFormatter {
             _ => {}
         }
     }
+}
+
+// ═══════════════════════════════════════════════════════════
+// Task 3.5 M2: functional-updater detection & param naming
+// ═══════════════════════════════════════════════════════════
+
+/// Whether the expression tree reads the store signal `store.field` (M2
+/// store-signal detection — covers the property form and the semantic
+/// field-access form).
+fn expr_reads_store_field(expr: &ExprIR, store: &str, field: &str) -> bool {
+    match expr {
+        ExprIR::FieldAccessExpr {
+            object, field: f, ..
+        } => {
+            (f == field
+                && matches!(object.as_ref(), ExprIR::IdentifierExpr { name, .. } if name == store))
+                || expr_reads_store_field(object, store, field)
+        }
+        ExprIR::StoreFieldAccessExpr {
+            store_alias,
+            field_name,
+            call_args,
+        } => {
+            (store_alias == store && field_name == field)
+                || call_args
+                    .iter()
+                    .any(|a| expr_reads_store_field(a, store, field))
+        }
+        ExprIR::IdentifierExpr { .. } => false,
+        ExprIR::BinaryOpExpr { left, right, .. } => {
+            expr_reads_store_field(left, store, field)
+                || expr_reads_store_field(right, store, field)
+        }
+        ExprIR::UnaryOpExpr { operand, .. } | ExprIR::AwaitExpr { operand } => {
+            expr_reads_store_field(operand, store, field)
+        }
+        ExprIR::CallExpr { args, .. } => {
+            args.iter().any(|a| expr_reads_store_field(a, store, field))
+        }
+        ExprIR::MethodCallExpr { object, args, .. } => {
+            expr_reads_store_field(object, store, field)
+                || args.iter().any(|a| expr_reads_store_field(a, store, field))
+        }
+        ExprIR::OptionalChainExpr { object, .. } => expr_reads_store_field(object, store, field),
+        ExprIR::IndexExpr { object, index } => {
+            expr_reads_store_field(object, store, field)
+                || expr_reads_store_field(index, store, field)
+        }
+        ExprIR::TernaryIR {
+            cond,
+            then_expr,
+            else_expr,
+        } => {
+            expr_reads_store_field(cond, store, field)
+                || expr_reads_store_field(then_expr, store, field)
+                || expr_reads_store_field(else_expr, store, field)
+        }
+        ExprIR::ArrayExpr { elements } => elements
+            .iter()
+            .any(|e| expr_reads_store_field(e, store, field)),
+        ExprIR::MapExpr { entries } => entries.iter().any(|(k, v)| {
+            expr_reads_store_field(k, store, field) || expr_reads_store_field(v, store, field)
+        }),
+        ExprIR::ClosureExpr { body, .. } => expr_reads_store_field(body, store, field),
+        ExprIR::BlockExpr { statements, tail } => {
+            statements
+                .iter()
+                .any(|s| stmts_read_store_field(s, store, field))
+                || expr_reads_store_field(tail, store, field)
+        }
+        ExprIR::MatchExpr { matched, arms } => {
+            expr_reads_store_field(matched, store, field)
+                || arms.iter().any(|arm| {
+                    arm.body
+                        .statements
+                        .iter()
+                        .any(|s| stmts_read_store_field(s, store, field))
+                })
+        }
+        ExprIR::VariantLiteral { fields, .. } => fields
+            .iter()
+            .any(|(_, v)| expr_reads_store_field(v, store, field)),
+        ExprIR::StructExpr { fields, .. } => fields
+            .iter()
+            .any(|(_, v)| expr_reads_store_field(v, store, field)),
+        ExprIR::SpreadExpr { operand } => expr_reads_store_field(operand, store, field),
+        ExprIR::ArrayMethod {
+            subject, predicate, ..
+        } => {
+            expr_reads_store_field(subject, store, field)
+                || expr_reads_store_field(predicate, store, field)
+        }
+        ExprIR::RefOpExpr { op, .. } => expr_ref_op_reads_store_field(op, store, field),
+        ExprIR::LiteralExpr { .. } => false,
+        #[allow(unreachable_patterns)]
+        _ => false,
+    }
+}
+
+fn stmts_read_store_field(stmt: &StatementIR, store: &str, field: &str) -> bool {
+    match stmt {
+        StatementIR::ExprStmtIR { expr } => expr_reads_store_field(expr, store, field),
+        StatementIR::LetStmtIR { value, .. } => value
+            .as_ref()
+            .is_some_and(|v| expr_reads_store_field(v, store, field)),
+        StatementIR::ReturnStmtIR { value } => value
+            .as_ref()
+            .is_some_and(|v| expr_reads_store_field(v, store, field)),
+        StatementIR::IfStmtIR {
+            condition,
+            then_body,
+            else_ifs,
+            else_body,
+        } => {
+            expr_reads_store_field(condition, store, field)
+                || then_body
+                    .statements
+                    .iter()
+                    .any(|s| stmts_read_store_field(s, store, field))
+                || else_ifs.iter().any(|(c, b)| {
+                    expr_reads_store_field(c, store, field)
+                        || b.statements
+                            .iter()
+                            .any(|s| stmts_read_store_field(s, store, field))
+                })
+                || else_body.as_ref().is_some_and(|b| {
+                    b.statements
+                        .iter()
+                        .any(|s| stmts_read_store_field(s, store, field))
+                })
+        }
+        StatementIR::WhileStmtIR { condition, body } => {
+            expr_reads_store_field(condition, store, field)
+                || body
+                    .statements
+                    .iter()
+                    .any(|s| stmts_read_store_field(s, store, field))
+        }
+        StatementIR::ForInStmtIR { iterable, body, .. } => {
+            expr_reads_store_field(iterable, store, field)
+                || body
+                    .statements
+                    .iter()
+                    .any(|s| stmts_read_store_field(s, store, field))
+        }
+        StatementIR::BlockStmtIR { body } => body
+            .statements
+            .iter()
+            .any(|s| stmts_read_store_field(s, store, field)),
+        StatementIR::TryCatchStmtIR {
+            try_body,
+            catch_body,
+            finally_body,
+            ..
+        } => {
+            try_body
+                .statements
+                .iter()
+                .any(|s| stmts_read_store_field(s, store, field))
+                || catch_body.as_ref().is_some_and(|b| {
+                    b.statements
+                        .iter()
+                        .any(|s| stmts_read_store_field(s, store, field))
+                })
+                || finally_body.as_ref().is_some_and(|b| {
+                    b.statements
+                        .iter()
+                        .any(|s| stmts_read_store_field(s, store, field))
+                })
+        }
+        StatementIR::ThrowStmtIR { expr } => expr_reads_store_field(expr, store, field),
+        StatementIR::EventEmitStmtIR { args, .. } => {
+            args.iter().any(|a| expr_reads_store_field(a, store, field))
+        }
+        StatementIR::MutationStmt { intent } => intent
+            .as_ref()
+            .is_some_and(|i| mutation_reads_store_field(i, store, field)),
+        StatementIR::BreakStmtIR | StatementIR::ContinueStmtIR => false,
+        #[allow(unreachable_patterns)]
+        _ => false,
+    }
+}
+
+fn mutation_reads_store_field(intent: &MutationIntent, store: &str, field: &str) -> bool {
+    match intent {
+        MutationIntent::DirectAssign { value, .. } => value
+            .as_ref()
+            .is_some_and(|v| expr_reads_store_field(v, store, field)),
+        MutationIntent::Increment { amount, .. }
+        | MutationIntent::Decrement { amount, .. }
+        | MutationIntent::Multiply { amount, .. }
+        | MutationIntent::Divide { amount, .. }
+        | MutationIntent::Modulo { amount, .. } => amount
+            .as_ref()
+            .is_some_and(|v| expr_reads_store_field(v, store, field)),
+        MutationIntent::Push { item, .. } => item
+            .as_ref()
+            .is_some_and(|v| expr_reads_store_field(v, store, field)),
+        MutationIntent::Pop { .. } => false,
+        #[allow(unreachable_patterns)]
+        _ => false,
+    }
+}
+
+fn expr_ref_op_reads_store_field(op: &RefOpIR, store: &str, field: &str) -> bool {
+    match op {
+        RefOpIR::Focus | RefOpIR::Blur | RefOpIR::CapturePointer | RefOpIR::ReleasePointer => false,
+        RefOpIR::ScrollTo { x, y } | RefOpIR::ScrollBy { dx: x, dy: y } => {
+            x.as_ref()
+                .is_some_and(|e| expr_reads_store_field(e, store, field))
+                || y.as_ref()
+                    .is_some_and(|e| expr_reads_store_field(e, store, field))
+        }
+        RefOpIR::SetSelection { start, end } => {
+            expr_reads_store_field(start, store, field) || expr_reads_store_field(end, store, field)
+        }
+        #[allow(unreachable_patterns)]
+        _ => false,
+    }
+}
+
+/// Pick the functional-updater parameter name: start from `base` and bump
+/// (`c1`, `c2`, ...) while it collides with identifiers the value
+/// expression keeps. The written signal itself is replaced by the param, so
+/// its own occurrences never count as collisions.
+fn pick_updater_param(base: &str, value: &ExprIR) -> String {
+    let mut used = FxHashSet::default();
+    super::component::collect_expr_identifiers(value, &mut used);
+    if !used.contains(base) {
+        return base.to_string();
+    }
+    for i in 1.. {
+        let cand = format!("{}{}", base, i);
+        if !used.contains(&cand) {
+            return cand;
+        }
+    }
+    unreachable!("updater param search always terminates")
 }
 
 /// Statement generation with store-field renames (`"Store.field"` → slice

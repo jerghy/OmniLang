@@ -692,7 +692,8 @@ store_def ::= 'store' <ident> '{' store_member* '}'
 store_member ::= signal_decl
                | getter_decl
                | action_decl
-               | function_def
+               // 域 5 BNF v2: 删除 function_def 分支差异——顶层与内联 store
+               // 成员集统一为 signal|getter|action；fn 成员报「用 getter 或 action」
 
 signal_decl  ::= 'signal' <ident> ':' type_annotation '=' expr ';'?
 getter_decl  ::= 'getter' <ident> ':' type_annotation '=' expr ';'?

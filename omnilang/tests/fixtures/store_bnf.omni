@@ -1,0 +1,40 @@
+// store_bnf.omni — Task 3.5: 顶层与内联 store 成员集统一（signal|getter|action）。
+//
+// 合法成员（getter/action）在两层都必须解析成功；`fn` 成员在两层都必须
+// 报「store 内 fn 成员不允许；用 getter 或 action」（设计文档域 5 诊断表）。
+// 布局：非法定义在前——错误恢复（skip_to_top_level）遇合法顶层关键字即
+// 停止，前置非法块 + 后续合法块保证两类错误与两类合法成员都在同一文件
+// 内被覆盖（恢复噪音：每个出错块产生一条 stray-brace 顶层错误，断言按
+// 消息过滤只数 fn 诊断）。
+//
+// 顶层 store 内 fn 成员 → error
+store BadStore {
+    fn helper() {}
+}
+
+// 内联 store（component 内）内 fn 成员 → error
+component BadInline {
+    store Bad {
+        fn helper() {}
+    }
+}
+
+// 合法：顶层 store —— signal + getter + action
+store CleanStore {
+    signal n: i32 = 0;
+    getter g: i32 = n + 1;
+    action a() { n = n + 1; }
+}
+
+// 合法：内联 store —— signal + getter + action
+component CleanInline {
+    store Local {
+        signal n: i32 = 0;
+        getter g: i32 = n + 1;
+        action a() { n = n + 1; }
+    }
+
+    view {
+        <div>{n}</div>
+    }
+}

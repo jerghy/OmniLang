@@ -21,6 +21,16 @@ impl<'a> Parser<'a> {
                 TokenKind::Signal => signals.push(self.parse_signal_decl()?),
                 TokenKind::Getter => getters.push(self.parse_getter_decl()?),
                 TokenKind::Action => actions.push(self.parse_action_def()?),
+                // Task 3.5 (域 5 BNF v2): 顶层与内联 store 成员集统一为
+                // signal|getter|action——`fn` 成员两层都报错（设计文档
+                // 诊断表原文：「用 getter 或 action」）。
+                TokenKind::Fn => {
+                    return Err(ParseError {
+                        kind: None,
+                        message: "store 内 fn 成员不允许；用 getter 或 action".into(),
+                        span: self.peek_span(),
+                    });
+                }
                 _ => {
                     let t = self.advance();
                     return Err(ParseError {

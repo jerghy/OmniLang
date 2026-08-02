@@ -452,6 +452,141 @@ fn test_tsx_stmt_mutation_assign_store() {
     assert_eq!(w.into_string(), "name = \"alice\";\n");
 }
 
+// ── Task 3.5 M2: functional updaters (setCount((c) => c + 1)) ──
+
+/// `count = count + 1` on a component signal must emit the functional
+/// updater form — the direct `setCount(count + 1)` closes over a snapshot
+/// and loses updates under React batching / StrictMode double-invoke.
+#[test]
+fn test_tsx_stmt_mutation_assign_signal_self_read_functional_updater() {
+    let mut w = CodeWriter::new();
+    let stmt = StatementIR::MutationStmt {
+        intent: Some(MutationIntent::DirectAssign {
+            target: SignalRefIR {
+                name: "count".into(),
+            },
+            value: Some(Box::new(ExprIR::BinaryOpExpr {
+                op: BinaryOpIR::Add,
+                left: Box::new(ExprIR::ident("count")),
+                right: Box::new(ExprIR::LiteralExpr {
+                    value: serde_json::json!(1),
+                }),
+            })),
+            field_object: None,
+        }),
+    };
+    let mut sig_names = FxHashSet::default();
+    sig_names.insert("count".to_string());
+    generate_statement_tsx(
+        &mut w,
+        &stmt,
+        &sig_names,
+        &FxHashMap::default(),
+        &FxHashSet::default(),
+        &FxHashMap::default(),
+    );
+    assert_eq!(w.into_string(), "setCount((c) => c + 1);\n");
+}
+
+/// The same-signal read must only trigger the functional form — a value
+/// that does NOT read the target keeps the direct setter form.
+#[test]
+fn test_tsx_stmt_mutation_assign_signal_external_value_keeps_direct() {
+    let mut w = CodeWriter::new();
+    let stmt = StatementIR::MutationStmt {
+        intent: Some(MutationIntent::DirectAssign {
+            target: SignalRefIR {
+                name: "count".into(),
+            },
+            value: Some(Box::new(ExprIR::ident("step"))),
+            field_object: None,
+        }),
+    };
+    let mut sig_names = FxHashSet::default();
+    sig_names.insert("count".to_string());
+    generate_statement_tsx(
+        &mut w,
+        &stmt,
+        &sig_names,
+        &FxHashMap::default(),
+        &FxHashSet::default(),
+        &FxHashMap::default(),
+    );
+    assert_eq!(w.into_string(), "setCount(step);\n");
+}
+
+/// `AppStore.count = AppStore.count + 1` on a store signal must emit the
+/// functional `useAppStore.setState((s) => ({ count: s.count + 1 }))` —
+/// the object form `setState({ count: AppStore.count + 1 })` reads a stale
+/// slice/snapshot under batching.
+#[test]
+fn test_tsx_stmt_mutation_assign_store_signal_self_read_functional() {
+    let mut w = CodeWriter::new();
+    let stmt = StatementIR::MutationStmt {
+        intent: Some(MutationIntent::DirectAssign {
+            target: SignalRefIR {
+                name: "count".into(),
+            },
+            value: Some(Box::new(ExprIR::BinaryOpExpr {
+                op: BinaryOpIR::Add,
+                left: Box::new(ExprIR::FieldAccessExpr {
+                    object: Box::new(ExprIR::ident("AppStore")),
+                    field: "count".into(),
+                }),
+                right: Box::new(ExprIR::LiteralExpr {
+                    value: serde_json::json!(1),
+                }),
+            })),
+            field_object: None,
+        }),
+    };
+    let mut owners = FxHashMap::default();
+    owners.insert("count".to_string(), "AppStore".to_string());
+    generate_statement_tsx(
+        &mut w,
+        &stmt,
+        &FxHashSet::default(),
+        &owners,
+        &FxHashSet::default(),
+        &FxHashMap::default(),
+    );
+    assert_eq!(
+        w.into_string(),
+        "useAppStore.setState((s) => ({ count: s.count + 1 }));\n"
+    );
+}
+
+/// The functional-updater parameter must not collide with identifiers the
+/// value expression keeps (`count = count + c` → param `c` is taken → `c1`).
+#[test]
+fn test_tsx_stmt_mutation_assign_signal_updater_param_avoids_collision() {
+    let mut w = CodeWriter::new();
+    let stmt = StatementIR::MutationStmt {
+        intent: Some(MutationIntent::DirectAssign {
+            target: SignalRefIR {
+                name: "count".into(),
+            },
+            value: Some(Box::new(ExprIR::BinaryOpExpr {
+                op: BinaryOpIR::Add,
+                left: Box::new(ExprIR::ident("count")),
+                right: Box::new(ExprIR::ident("c")),
+            })),
+            field_object: None,
+        }),
+    };
+    let mut sig_names = FxHashSet::default();
+    sig_names.insert("count".to_string());
+    generate_statement_tsx(
+        &mut w,
+        &stmt,
+        &sig_names,
+        &FxHashMap::default(),
+        &FxHashSet::default(),
+        &FxHashMap::default(),
+    );
+    assert_eq!(w.into_string(), "setCount((c1) => c1 + c);\n");
+}
+
 #[test]
 fn test_tsx_stmt_if() {
     let mut w = CodeWriter::new();
@@ -1160,6 +1295,198 @@ fn test_zustand_store_array_literal_mutation_emits_prologue() {
     );
 }
 
+// ── Task 3.5 M4: consecutive set() calls coalesce into one object ──
+
+/// Three consecutive store-signal mutations in one action body must
+/// coalesce into a SINGLE `set({ k1: v1, k2: v2, k3: v3 });` call — three
+/// sequential sets trigger three subscriber notifications for one logical
+/// update (review M4).
+#[test]
+fn test_zustand_store_consecutive_mutations_coalesce_into_single_set() {
+    let codegen = ReactCodegen::default();
+    let mut signals = FxHashMap::default();
+    signals.insert(
+        "items".into(),
+        TypeIR {
+            kind: "Vec".into(),
+            type_args: vec![TypeIR {
+                kind: "string".into(),
+                type_args: vec![],
+                is_nullable: false,
+            }],
+            is_nullable: false,
+        },
+    );
+    signals.insert(
+        "nextId".into(),
+        TypeIR {
+            kind: "i32".into(),
+            type_args: vec![],
+            is_nullable: false,
+        },
+    );
+    signals.insert(
+        "lastAction".into(),
+        TypeIR {
+            kind: "string".into(),
+            type_args: vec![],
+            is_nullable: false,
+        },
+    );
+    let mut defaults = FxHashMap::default();
+    defaults.insert("items".into(), serde_json::json!([]));
+    defaults.insert("nextId".into(), serde_json::json!(0));
+    defaults.insert("lastAction".into(), serde_json::json!("none"));
+    let store = StoreIR {
+        name: "TodoStore".into(),
+        signals,
+        signal_defaults: defaults,
+        getters: FxHashMap::default(),
+        actions: vec![FunctionIR {
+            name: "add".into(),
+            visibility: Visibility::Public,
+            params: vec![],
+            return_type: None,
+            body: BlockIR {
+                statements: vec![
+                    StatementIR::MutationStmt {
+                        intent: Some(MutationIntent::DirectAssign {
+                            target: SignalRefIR {
+                                name: "items".into(),
+                            },
+                            value: Some(Box::new(ExprIR::ArrayExpr {
+                                elements: vec![
+                                    ExprIR::SpreadExpr {
+                                        operand: Box::new(ExprIR::ident("items")),
+                                    },
+                                    ExprIR::LiteralExpr {
+                                        value: serde_json::json!("new"),
+                                    },
+                                ],
+                            })),
+                            field_object: None,
+                        }),
+                    },
+                    StatementIR::MutationStmt {
+                        intent: Some(MutationIntent::Increment {
+                            target: SignalRefIR {
+                                name: "nextId".into(),
+                            },
+                            amount: Some(Box::new(ExprIR::LiteralExpr {
+                                value: serde_json::json!(1),
+                            })),
+                        }),
+                    },
+                    StatementIR::MutationStmt {
+                        intent: Some(MutationIntent::DirectAssign {
+                            target: SignalRefIR {
+                                name: "lastAction".into(),
+                            },
+                            value: Some(Box::new(ExprIR::LiteralExpr {
+                                value: serde_json::json!("added"),
+                            })),
+                            field_object: None,
+                        }),
+                    },
+                ],
+            },
+            is_async: false,
+            source_span: None,
+        }],
+        ..Default::default()
+    };
+    let result = codegen.gen_zustand_store("TodoStore", &store);
+    let add_idx = result.find("add: () => {").expect("action emitted");
+    let add_block = &result[add_idx..];
+    assert!(
+        add_block.contains("set({ items: [...state.items, \"new\"], nextId: state.nextId + 1, lastAction: \"added\" });"),
+        "three consecutive mutations must coalesce into ONE set() with all keys, got:\n{}",
+        add_block
+    );
+    assert_eq!(
+        add_block.matches("set(").count(),
+        1,
+        "exactly one set() call expected after coalescing, got:\n{}",
+        add_block
+    );
+}
+
+/// A repeated target in a run must NOT be coalesced — two keys of the same
+/// name in one object literal would silently drop the earlier write.
+#[test]
+fn test_zustand_store_duplicate_target_mutations_not_coalesced() {
+    let codegen = ReactCodegen::default();
+    let mut signals = FxHashMap::default();
+    signals.insert(
+        "items".into(),
+        TypeIR {
+            kind: "Vec".into(),
+            type_args: vec![TypeIR {
+                kind: "string".into(),
+                type_args: vec![],
+                is_nullable: false,
+            }],
+            is_nullable: false,
+        },
+    );
+    let mut defaults = FxHashMap::default();
+    defaults.insert("items".into(), serde_json::json!([]));
+    let store = StoreIR {
+        name: "TodoStore".into(),
+        signals,
+        signal_defaults: defaults,
+        getters: FxHashMap::default(),
+        actions: vec![FunctionIR {
+            name: "addTwo".into(),
+            visibility: Visibility::Public,
+            params: vec![],
+            return_type: None,
+            body: BlockIR {
+                statements: vec![
+                    StatementIR::MutationStmt {
+                        intent: Some(MutationIntent::Push {
+                            target: SignalRefIR {
+                                name: "items".into(),
+                            },
+                            item: Some(Box::new(ExprIR::LiteralExpr {
+                                value: serde_json::json!("a"),
+                            })),
+                        }),
+                    },
+                    StatementIR::MutationStmt {
+                        intent: Some(MutationIntent::Push {
+                            target: SignalRefIR {
+                                name: "items".into(),
+                            },
+                            item: Some(Box::new(ExprIR::LiteralExpr {
+                                value: serde_json::json!("b"),
+                            })),
+                        }),
+                    },
+                ],
+            },
+            is_async: false,
+            source_span: None,
+        }],
+        ..Default::default()
+    };
+    let result = codegen.gen_zustand_store("TodoStore", &store);
+    let add_idx = result.find("addTwo: () => {").expect("action emitted");
+    let add_block = &result[add_idx..];
+    assert_eq!(
+        add_block.matches("set(").count(),
+        2,
+        "duplicate-target mutations must stay separate set() calls, got:\n{}",
+        add_block
+    );
+    assert!(
+        add_block.contains("set({ items: [...state.items, \"a\"] });")
+            && add_block.contains("set({ items: [...state.items, \"b\"] });"),
+        "each push keeps its own set() call, got:\n{}",
+        add_block
+    );
+}
+
 /// Regression (HIGH #1): getter references inside action bodies must be
 /// renamed to `state.<getter>` and trigger the prologue.
 #[test]
@@ -1592,13 +1919,20 @@ component App {
     );
     let messages: Vec<&str> = result.errors.iter().map(|d| d.message.as_str()).collect();
     assert!(
-        messages.iter().any(|m| m.contains("类名仅允许字母数字下划线连字符")),
+        messages
+            .iter()
+            .any(|m| m.contains("类名仅允许字母数字下划线连字符")),
         "expected charset-validation error, got: {:?}",
         messages
     );
     // Defense in depth: even the (failed) codegen output must not carry the
     // executable payload.
-    let all_output: String = result.files.values().cloned().collect::<Vec<_>>().join("\n");
+    let all_output: String = result
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
     assert!(
         !all_output.contains("alert("),
         "generated output must not contain the payload even on failed compiles:\n{}",
@@ -1863,9 +2197,7 @@ design AppDesign {
         theme_store
     );
     assert!(
-        theme_store.contains(
-            "document.documentElement.setAttribute('data-theme', state.theme);"
-        ),
+        theme_store.contains("document.documentElement.setAttribute('data-theme', state.theme);"),
         "data-theme subscription must be emitted. Got:\n{}",
         theme_store
     );
@@ -1957,7 +2289,10 @@ component App {
 }
 "#;
     let mut sources = FxHashMap::default();
-    sources.insert("src/stores/DynamicTokenStore.omni".to_string(), store_source.to_string());
+    sources.insert(
+        "src/stores/DynamicTokenStore.omni".to_string(),
+        store_source.to_string(),
+    );
     sources.insert("src/design.omni".to_string(), design_source.to_string());
     sources.insert("src/main.omni".to_string(), comp_source.to_string());
     let pm = path_mapping::derive_path_mapping(&sources);
@@ -2223,8 +2558,14 @@ component App {
 }
 "#;
     let mut sources = FxHashMap::default();
-    sources.insert("src/stores/DynamicTokenStore.omni".to_string(), store_source.to_string());
-    sources.insert("src/designs/theme.omni".to_string(), design_source.to_string());
+    sources.insert(
+        "src/stores/DynamicTokenStore.omni".to_string(),
+        store_source.to_string(),
+    );
+    sources.insert(
+        "src/designs/theme.omni".to_string(),
+        design_source.to_string(),
+    );
     sources.insert("src/main.omni".to_string(), comp_source.to_string());
     let pm = path_mapping::derive_path_mapping(&sources);
     let result = crate::compile_multi_internal(
@@ -2802,8 +3143,10 @@ component BadRefOps {
     assert!(!result.success, "illegal ref ops must fail compilation");
     let messages: Vec<&str> = result.errors.iter().map(|e| e.message.as_str()).collect();
     assert!(
-        messages.iter().any(|m| m.contains("ref.innerHTML is not allowed")
-            || m.contains("unknown ref field: ref.innerHTML")),
+        messages
+            .iter()
+            .any(|m| m.contains("ref.innerHTML is not allowed")
+                || m.contains("unknown ref field: ref.innerHTML")),
         "expected innerHTML migration error, got: {:?}",
         messages
     );
@@ -3092,9 +3435,7 @@ component FadeStatus {
         .map(|(_, content)| content.clone())
         .collect::<Vec<_>>()
         .join("\n");
-    let wrappers = tsx
-        .matches("className={styles['omni-if-fade']}")
-        .count();
+    let wrappers = tsx.matches("className={styles['omni-if-fade']}").count();
     assert_eq!(
         wrappers, 3,
         "Expected all 3 ternary branches wrapped in the fade div, got {}:\n{}",

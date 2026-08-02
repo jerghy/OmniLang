@@ -314,9 +314,7 @@ impl ReactCodegen {
             // signals or getters (C8)
             emit_zustand_action_prologue(&mut w, action, &store_signal_names, &store_getter_names);
 
-            for stmt in &action.body.statements {
-                gen_zustand_action_stmt(&mut w, stmt, &action_renames);
-            }
+            gen_zustand_action_stmts(&mut w, &action.body.statements, &action_renames);
             w.dedent();
             w.emit("},");
         }
@@ -402,25 +400,19 @@ fn gen_zustand_action_stmt(
             let cond = fmt_expr(condition, renames);
             w.emit_fmt(format_args!("if ({}) {{", cond));
             w.indent();
-            for s in &then_body.statements {
-                gen_zustand_action_stmt(w, s, renames);
-            }
+            gen_zustand_action_stmts(w, &then_body.statements, renames);
             w.dedent();
             for (elif_cond, elif_body) in else_ifs {
                 let elif = fmt_expr(elif_cond, renames);
                 w.emit_fmt(format_args!("}} else if ({}) {{", elif));
                 w.indent();
-                for s in &elif_body.statements {
-                    gen_zustand_action_stmt(w, s, renames);
-                }
+                gen_zustand_action_stmts(w, &elif_body.statements, renames);
                 w.dedent();
             }
             if let Some(ref eb) = else_body {
                 w.emit("} else {");
                 w.indent();
-                for s in &eb.statements {
-                    gen_zustand_action_stmt(w, s, renames);
-                }
+                gen_zustand_action_stmts(w, &eb.statements, renames);
                 w.dedent();
             }
             w.emit("}");
@@ -436,9 +428,7 @@ fn gen_zustand_action_stmt(
             let cond = fmt_expr(condition, renames);
             w.emit_fmt(format_args!("while ({}) {{", cond));
             w.indent();
-            for s in &body.statements {
-                gen_zustand_action_stmt(w, s, renames);
-            }
+            gen_zustand_action_stmts(w, &body.statements, renames);
             w.dedent();
             w.emit("}");
         }
@@ -450,18 +440,14 @@ fn gen_zustand_action_stmt(
             let iter = fmt_expr(iterable, renames);
             w.emit_fmt(format_args!("for (const {} of {}) {{", var_name, iter));
             w.indent();
-            for s in &body.statements {
-                gen_zustand_action_stmt(w, s, renames);
-            }
+            gen_zustand_action_stmts(w, &body.statements, renames);
             w.dedent();
             w.emit("}");
         }
         StatementIR::BlockStmtIR { body } => {
             w.emit("{");
             w.indent();
-            for s in &body.statements {
-                gen_zustand_action_stmt(w, s, renames);
-            }
+            gen_zustand_action_stmts(w, &body.statements, renames);
             w.dedent();
             w.emit("}");
         }
@@ -477,9 +463,7 @@ fn gen_zustand_action_stmt(
         } => {
             w.emit("try {");
             w.indent();
-            for s in &try_body.statements {
-                gen_zustand_action_stmt(w, s, renames);
-            }
+            gen_zustand_action_stmts(w, &try_body.statements, renames);
             w.dedent();
             if let Some(ref cv) = catch_var {
                 w.emit_fmt(format_args!("}} catch ({}) {{", cv));
@@ -488,17 +472,13 @@ fn gen_zustand_action_stmt(
             }
             if let Some(ref cb) = catch_body {
                 w.indent();
-                for s in &cb.statements {
-                    gen_zustand_action_stmt(w, s, renames);
-                }
+                gen_zustand_action_stmts(w, &cb.statements, renames);
                 w.dedent();
             }
             if let Some(ref fb) = finally_body {
                 w.emit("} finally {");
                 w.indent();
-                for s in &fb.statements {
-                    gen_zustand_action_stmt(w, s, renames);
-                }
+                gen_zustand_action_stmts(w, &fb.statements, renames);
                 w.dedent();
             }
             w.emit("}");
@@ -814,6 +794,161 @@ fn ref_op_references_store_name(op: &RefOpIR, store_names: &FxHashSet<String>) -
         #[allow(unreachable_patterns)]
         _ => false,
     }
+}
+
+/// Emit a statement list, coalescing consecutive store-signal mutations
+/// into ONE `set({ ... })` call (Task 3.5 M4): a multi-field action update
+/// triggers a single Zustand subscriber notification instead of one per
+/// write. The run breaks at non-mutation statements, bare (non-store)
+/// assignments, and a repeated target — duplicate keys in one object
+/// literal would silently drop the earlier write.
+fn gen_zustand_action_stmts(
+    w: &mut CodeWriter,
+    stmts: &[StatementIR],
+    renames: &FxHashMap<String, String>,
+) {
+    let mut i = 0;
+    while i < stmts.len() {
+        if let StatementIR::MutationStmt {
+            intent: Some(intent),
+        } = &stmts[i]
+        {
+            if let Some(first_part) = format_zustand_mutation_part(intent, renames) {
+                let mut parts: Vec<String> = vec![first_part];
+                let mut targets: FxHashSet<String> = FxHashSet::default();
+                targets.insert(mutation_target_name(intent));
+                let mut j = i + 1;
+                while j < stmts.len() {
+                    if let StatementIR::MutationStmt { intent: Some(next) } = &stmts[j] {
+                        let next_target = mutation_target_name(next);
+                        if targets.contains(&next_target) {
+                            break;
+                        }
+                        if let Some(part) = format_zustand_mutation_part(next, renames) {
+                            targets.insert(next_target);
+                            parts.push(part);
+                            j += 1;
+                            continue;
+                        }
+                    }
+                    break;
+                }
+                w.emit_fmt(format_args!("set({{ {} }});", parts.join(", ")));
+                i = j;
+                continue;
+            }
+        }
+        gen_zustand_action_stmt(w, &stmts[i], renames);
+        i += 1;
+    }
+}
+
+/// The signal name a mutation writes — used to keep coalesced runs free of
+/// duplicate keys.
+fn mutation_target_name(intent: &MutationIntent) -> String {
+    match intent {
+        MutationIntent::DirectAssign { target, .. }
+        | MutationIntent::Increment { target, .. }
+        | MutationIntent::Decrement { target, .. }
+        | MutationIntent::Multiply { target, .. }
+        | MutationIntent::Divide { target, .. }
+        | MutationIntent::Modulo { target, .. }
+        | MutationIntent::Push { target, .. }
+        | MutationIntent::Pop { target } => target.name.clone(),
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown MutationIntent variant — update codegen for new variant"),
+    }
+}
+
+/// Format one store-signal mutation as a `key: value` pair for a coalesced
+/// `set({ ... })` call; `None` for bare (non-store) assignments, which must
+/// stay plain statements outside the merge run.
+fn format_zustand_mutation_part(
+    intent: &MutationIntent,
+    renames: &FxHashMap<String, String>,
+) -> Option<String> {
+    let fmt = |e: &ExprIR| expr::format_expr_ir_tsx_renamed(e, &FxHashSet::default(), renames);
+    let (target, value_str) = match intent {
+        MutationIntent::DirectAssign { target, value, .. } => {
+            if !renames.contains_key(target.name.as_str()) {
+                return None;
+            }
+            let val = value
+                .as_ref()
+                .map(|v| fmt(v))
+                .unwrap_or_else(|| "null".into());
+            (target, val)
+        }
+        MutationIntent::Increment { target, amount } => {
+            if !renames.contains_key(target.name.as_str()) {
+                return None;
+            }
+            let amt = amount
+                .as_ref()
+                .map(|v| fmt(v))
+                .unwrap_or_else(|| "0".into());
+            (target, format!("state.{} + {}", target.name, amt))
+        }
+        MutationIntent::Decrement { target, amount } => {
+            if !renames.contains_key(target.name.as_str()) {
+                return None;
+            }
+            let amt = amount
+                .as_ref()
+                .map(|v| fmt(v))
+                .unwrap_or_else(|| "0".into());
+            (target, format!("state.{} - {}", target.name, amt))
+        }
+        MutationIntent::Multiply { target, amount } => {
+            if !renames.contains_key(target.name.as_str()) {
+                return None;
+            }
+            let amt = amount
+                .as_ref()
+                .map(|v| fmt(v))
+                .unwrap_or_else(|| "1".into());
+            (target, format!("state.{} * {}", target.name, amt))
+        }
+        MutationIntent::Divide { target, amount } => {
+            if !renames.contains_key(target.name.as_str()) {
+                return None;
+            }
+            let amt = amount
+                .as_ref()
+                .map(|v| fmt(v))
+                .unwrap_or_else(|| "1".into());
+            (target, format!("state.{} / {}", target.name, amt))
+        }
+        MutationIntent::Modulo { target, amount } => {
+            if !renames.contains_key(target.name.as_str()) {
+                return None;
+            }
+            let amt = amount
+                .as_ref()
+                .map(|v| fmt(v))
+                .unwrap_or_else(|| "1".into());
+            (target, format!("state.{} % {}", target.name, amt))
+        }
+        MutationIntent::Push { target, item } => {
+            if !renames.contains_key(target.name.as_str()) {
+                return None;
+            }
+            let it = item
+                .as_ref()
+                .map(|v| fmt(v))
+                .unwrap_or_else(|| "undefined".into());
+            (target, format!("[...state.{}, {}]", target.name, it))
+        }
+        MutationIntent::Pop { target } => {
+            if !renames.contains_key(target.name.as_str()) {
+                return None;
+            }
+            (target, format!("state.{}.slice(0, -1)", target.name))
+        }
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown MutationIntent variant — update codegen for new variant"),
+    };
+    Some(format!("{}: {}", target.name, value_str))
 }
 
 /// Format a single mutation into a Zustand `set()` call.

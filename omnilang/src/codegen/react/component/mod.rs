@@ -646,7 +646,7 @@ fn component_has_fade_conditional(comp: &ComponentIR) -> bool {
 // ═══════════════════════════════════════════════════════════
 
 /// Collect identifier references from an ExprIR.
-fn collect_expr_identifiers(expr: &ExprIR, acc: &mut FxHashSet<String>) {
+pub(super) fn collect_expr_identifiers(expr: &ExprIR, acc: &mut FxHashSet<String>) {
     match expr {
         ExprIR::IdentifierExpr { name, .. } => {
             acc.insert(name.clone());
@@ -988,7 +988,7 @@ fn view_has_pointer_ops(node: &ViewTree) -> bool {
 }
 
 /// Collect identifier references from a StatementIR.
-fn collect_stmt_identifiers(stmt: &StatementIR, acc: &mut FxHashSet<String>) {
+pub(super) fn collect_stmt_identifiers(stmt: &StatementIR, acc: &mut FxHashSet<String>) {
     match stmt {
         StatementIR::ExprStmtIR { expr } => {
             collect_expr_identifiers(expr, acc);

@@ -68,9 +68,16 @@ impl<'a> Parser<'a> {
                                     let getter = self.parse_getter_decl()?;
                                     getters.push(getter);
                                 }
+                                // Task 3.5 (域 5 BNF v2): 内联 store 与顶层
+                                // store 成员集统一——`fn` 成员是错误（用
+                                // getter 或 action），不再静默转为组件 fn。
                                 TokenKind::Fn => {
-                                    let f = self.parse_function_def(Visibility::Private)?;
-                                    fns.push(f);
+                                    return Err(ParseError {
+                                        kind: None,
+                                        message: "store 内 fn 成员不允许；用 getter 或 action"
+                                            .into(),
+                                        span: self.peek_span(),
+                                    });
                                 }
                                 _ => {
                                     // Skip unknown items inside inline store

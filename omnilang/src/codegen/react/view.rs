@@ -93,7 +93,8 @@ pub(super) fn gen_view_node_tsx(
                 }
                 let mut comp_attrs: Vec<String> = Vec::new();
                 for (prop_name, prop_value) in &el.props {
-                    let js_val = format_expr_ir_tsx_renamed(prop_value, ref_names, store_field_renames);
+                    let js_val =
+                        format_expr_ir_tsx_renamed(prop_value, ref_names, store_field_renames);
                     comp_attrs.push(format!("{}={{{}}}", prop_name, js_val));
                 }
                 for (event_name, handler) in &el.events {
@@ -121,7 +122,8 @@ pub(super) fn gen_view_node_tsx(
                                 .get(r#ref)
                                 .cloned()
                                 .unwrap_or_else(|| r#ref.clone());
-                            comp_attrs.push(format!("{}={{() => {{ {}(); }}}}", jsx_event, action_ref));
+                            comp_attrs
+                                .push(format!("{}={{() => {{ {}(); }}}}", jsx_event, action_ref));
                         }
                     }
                 }
@@ -297,10 +299,7 @@ pub(super) fn gen_view_node_tsx(
                         let setter = if let Some((owner, field)) =
                             split_qualified_signal(&signal_ref.name, store_signal_owners)
                         {
-                            format!(
-                                "use{}.setState({{ {}: {} }})",
-                                owner, field, event_value
-                            )
+                            format!("use{}.setState({{ {}: {} }})", owner, field, event_value)
                         } else {
                             format!(
                                 "{}({})",
@@ -399,11 +398,16 @@ pub(super) fn gen_view_node_tsx(
                             let mut merged_hw = CodeWriter::new();
                             merged_hw.emit_fmt(format_args!("{};", setter_call));
                             // Emit event data extraction for InlineFn with event_data
+                            // (M3: skip the Object.assign when no event fields
+                            // are actually needed — `Object.assign(e, {})` is
+                            // pure noise; the setter below still uses `e`).
                             if event_data.is_some() {
                                 let event_obj =
                                     emit_event_object_react(event_data, used_fields, "e");
-                                merged_hw
-                                    .emit_fmt(format_args!("Object.assign(e, {});", event_obj));
+                                if event_obj != "{}" {
+                                    merged_hw
+                                        .emit_fmt(format_args!("Object.assign(e, {});", event_obj));
+                                }
                             }
                             for stmt in &body.statements {
                                 generate_statement_tsx(
@@ -432,9 +436,19 @@ pub(super) fn gen_view_node_tsx(
                             if event_data.is_some() {
                                 let event_obj =
                                     emit_event_object_react(event_data, used_fields, "e");
+                                // M3: with no event fields needed, skip the
+                                // `Object.assign(e, {})` noise AND drop the
+                                // now-unused implicit event param entirely —
+                                // a paramless `() => { ... }` carries no
+                                // unused-param lint. A body that calls
+                                // e.preventDefault() / e.stopPropagation()
+                                // keeps `e` (the scan below covers that case
+                                // conservatively).
                                 let mut merged_hw = CodeWriter::new();
-                                merged_hw
-                                    .emit_fmt(format_args!("Object.assign(e, {});", event_obj));
+                                if event_obj != "{}" {
+                                    merged_hw
+                                        .emit_fmt(format_args!("Object.assign(e, {});", event_obj));
+                                }
                                 for stmt in &body.statements {
                                     generate_statement_tsx(
                                         &mut merged_hw,
@@ -446,8 +460,23 @@ pub(super) fn gen_view_node_tsx(
                                     );
                                 }
                                 let content = merged_hw.into_string();
+                                let mut body_ids = FxHashSet::default();
+                                for stmt in &body.statements {
+                                    super::component::collect_stmt_identifiers(stmt, &mut body_ids);
+                                }
+                                // With the extraction skipped, no event data
+                                // is needed — emit a paramless arrow (`() =>
+                                // { ... }`) instead of a dangling `(e)`, so
+                                // the generated handler carries no unused
+                                // param at all (the eslint config flags even
+                                // `_e`). A body that calls e.preventDefault()
+                                // / e.stopPropagation() still keeps `e`.
                                 let params_str = if params.is_empty() {
-                                    "e".to_string()
+                                    if event_obj == "{}" && !body_ids.contains("e") {
+                                        String::new()
+                                    } else {
+                                        "e".to_string()
+                                    }
                                 } else {
                                     params.join(", ")
                                 };
@@ -550,7 +579,8 @@ pub(super) fn gen_view_node_tsx(
                             // skip — class not applied
                         }
                         _ => {
-                            let cond = format_expr_ir_tsx_renamed(expr, ref_names, store_field_renames);
+                            let cond =
+                                format_expr_ir_tsx_renamed(expr, ref_names, store_field_renames);
                             let class_ref = design_ctx.format_class_ref(cls);
                             dynamic_parts.push(format!("${{{cond} ? {class_ref} : ''}}"));
                         }
@@ -723,8 +753,11 @@ pub(super) fn gen_view_node_tsx(
             if branches.len() == 1 && fallback.is_none() {
                 w.emit("{");
                 w.indent();
-                let cond_str =
-                    format_expr_ir_tsx_renamed(&branches[0].condition, ref_names, store_field_renames);
+                let cond_str = format_expr_ir_tsx_renamed(
+                    &branches[0].condition,
+                    ref_names,
+                    store_field_renames,
+                );
                 w.emit_fmt(format_args!("{} && (", cond_str));
                 w.indent();
                 emit_fade_branch_open(w, is_fade, "0");
@@ -758,9 +791,9 @@ pub(super) fn gen_view_node_tsx(
 
             // branches.is_empty() returned above, so split_first() cannot
             // fail here — the nested-ternary path always has a first branch.
-            let (first_branch, rest) = branches
-                .split_first()
-                .unwrap_or_else(|| unreachable!("branches is non-empty — the empty case returned above"));
+            let (first_branch, rest) = branches.split_first().unwrap_or_else(|| {
+                unreachable!("branches is non-empty — the empty case returned above")
+            });
 
             // First branch: `cond ? ( body )`
             let cond_str =
