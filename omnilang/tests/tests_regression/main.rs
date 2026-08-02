@@ -1011,3 +1011,32 @@ fn computed_closure_signal_read_lands_in_memo_deps() {
         out
     );
 }
+
+/// Review F1 repro: a computed reading a component prop — the React
+/// useMemo deps MUST include the prop name. Props were missing from the
+/// known-names set used for computed deps, so the memo silently went stale
+/// when the parent re-rendered with a new prop value (same bug class as
+/// perf HIGH-3).
+const COMPUTED_PROP_READ_FIXTURE: &str = r##"
+import omniview;
+
+component App {
+    prop label: String = "";
+
+    computed display: String = label + "!";
+
+    view {
+        <div>{display}</div>
+    }
+}
+"##;
+
+#[test]
+fn computed_prop_read_lands_in_memo_deps() {
+    let out = compile_react(COMPUTED_PROP_READ_FIXTURE);
+    assert!(
+        out.contains("}, [label]);"),
+        "a computed reading a prop must list the prop in its useMemo deps. Got:\n{}",
+        out
+    );
+}

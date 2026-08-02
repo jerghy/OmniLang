@@ -48,6 +48,18 @@ pub(super) fn gen_computed_values(
                 }
             }
         }
+        // Component props are memo deps too (review F1): a computed reading a
+        // prop must re-derive when the parent re-renders with a new value.
+        // Props were missing from the known-names set, so the memo silently
+        // went stale — same bug class as perf HIGH-3. `comp.props` is
+        // directly accessible here (no threading needed).
+        for prop_name in comp.props.keys() {
+            if utils::getter_expr_contains_ident(&computed.body, prop_name)
+                && dep_names.insert(prop_name.clone())
+            {
+                deps_list.push(prop_name.clone());
+            }
+        }
 
         // Function-form computed: `computed name() -> Type { ... }` → useCallback
         // (detected by BlockExpr with ReturnStmtIR in statements)
