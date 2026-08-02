@@ -100,15 +100,13 @@ fn record_ref_op(ref_name: &str, op: &RefOpIR, usage: &mut FxHashMap<String, Ref
     match op {
         RefOpIR::Focus | RefOpIR::Blur => u.needs_focus = true,
         RefOpIR::ScrollTo { .. } | RefOpIR::ScrollBy { .. } => u.needs_scroll = true,
-        RefOpIR::Value
-        | RefOpIR::SetValue { .. }
-        | RefOpIR::Select
-        | RefOpIR::SetSelection { .. } => u.needs_text = true,
+        RefOpIR::Value | RefOpIR::Select | RefOpIR::SetSelection { .. } => u.needs_text = true,
         RefOpIR::Measure { .. } => u.needs_measure = true,
         RefOpIR::CapturePointer { .. } | RefOpIR::ReleasePointer { .. } => {
             // Pointer capture is not yet supported on Flutter — no controller
             // needed (formatting emits a placeholder).
         }
+        // RefOpIR is #[non_exhaustive] — cross-crate matches need a wildcard.
         #[allow(unreachable_patterns)]
         _ => {}
     }
@@ -130,8 +128,8 @@ fn scan_ref_op_args(op: &RefOpIR, usage: &mut FxHashMap<String, RefUsage>) {
             scan_expr(start, usage);
             scan_expr(end, usage);
         }
-        RefOpIR::SetValue { value } => scan_expr(value, usage),
         RefOpIR::CapturePointer { id } | RefOpIR::ReleasePointer { id } => scan_expr(id, usage),
+        // No-arg ops (Focus/Blur/Measure/Select/Value) carry no child expressions.
         _ => {}
     }
 }
@@ -994,7 +992,6 @@ fn format_ref_op_flutter(ref_name: &str, op: &RefOpIR, fmt: &impl FormatExpr) ->
         RefOpIR::Value => format!("{}.text", text),
         // No trailing `;` — statement contexts append their own terminator
         // (an embedded `;` would double-terminate in ExprStmtIR position).
-        RefOpIR::SetValue { value } => format!("{}.text = {}", text, fmt.format_expr(value)),
         RefOpIR::CapturePointer { id } => format!(
             "/* TODO(flutter): ref.capturePointer({}) — pointer capture needs a RenderPointerListener-based wrapper */",
             fmt.format_expr(id)
@@ -1003,6 +1000,7 @@ fn format_ref_op_flutter(ref_name: &str, op: &RefOpIR, fmt: &impl FormatExpr) ->
             "/* TODO(flutter): ref.releasePointer({}) — pointer capture needs a RenderPointerListener-based wrapper */",
             fmt.format_expr(id)
         ),
+        // RefOpIR is #[non_exhaustive] — cross-crate matches need a wildcard.
         #[allow(unreachable_patterns)]
         _ => format!("/* RefOp::{op:?} on {ref_name} */"),
     }

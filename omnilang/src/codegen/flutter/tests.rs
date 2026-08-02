@@ -5059,21 +5059,10 @@ fn test_format_ref_op_flutter_variants() {
         "(_boxKey.currentContext?.findRenderObject() as RenderBox?)?.localToGlobal(Offset.zero)"
     );
 
-    // Value read / write
+    // Value read (the imperative write op was removed — bind:value covers it)
     assert_eq!(
         format_expr_ir_flutter(&op("box", RefOpIR::Value)),
         "_boxText.text"
-    );
-    assert_eq!(
-        format_expr_ir_flutter(&op(
-            "box",
-            RefOpIR::SetValue {
-                value: Box::new(ExprIR::LiteralExpr {
-                    value: serde_json::json!("hi"),
-                }),
-            }
-        )),
-        "_boxText.text = 'hi'"
     );
 
     // Select / SetSelection

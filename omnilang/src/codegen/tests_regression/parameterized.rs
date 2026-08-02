@@ -350,8 +350,14 @@ fn assert_slots_body_flutter(files: &FxHashMap<String, String>) {
 
 fn assert_refs_omniview(files: &FxHashMap<String, String>) {
     // Ref ops lower to guarded DOM calls on the ref wrapper.
-    assert_contains(files, "index.js", "if (input) { input.value = \"\"; }");
     assert_contains(files, "index.js", "input.focus()");
+    // The clear action writes the bound signal (the imperative ref write
+    // `input.value = ""` was removed in favor of the value binding).
+    assert_contains(
+        files,
+        "index.js",
+        "__omni_subs.get(\"SearchBox_query\").set(\"\");",
+    );
     // Semantic binding effects drive focus()/blur() from the boolean signal.
     assert_contains(files, "index.js", "el.focus(); } else { el.blur(); }");
 }

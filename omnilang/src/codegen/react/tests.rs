@@ -2428,7 +2428,6 @@ component RefOps {
     box.select()
     box.setSelection(0, 3)
     box.value
-    box.value = text
     box.capturePointer(ptr)
     box.releasePointer(ptr)
   }
@@ -2456,7 +2455,6 @@ component RefOps {
         "boxRef.current?.select();",
         "boxRef.current?.setSelectionRange(0, 3);",
         "boxRef.current?.value;",
-        "if (boxRef.current) { boxRef.current.value = text; };",
         "boxRef.current?.setPointerCapture(ptr);",
         "boxRef.current?.releasePointerCapture(ptr);",
     ];

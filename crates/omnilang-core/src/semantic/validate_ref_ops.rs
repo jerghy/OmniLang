@@ -11,8 +11,10 @@
 //! `ExprIR::RefOpExpr { ref_name, op }` so codegen backends know the intent and
 //! can emit target-appropriate code (React refs, OmniView `__omni_el` wrappers,
 //! Flutter GlobalKeys). Legal field reads (`ref.width`/`ref.height`/`ref.position`
-//! → `RefOpIR::Measure { what }`, `ref.value` → `RefOpIR::Value`) and field
-//! writes (`ref.value = x` → `RefOpIR::SetValue`) are rewritten the same way.
+//! → `RefOpIR::Measure { what }`, `ref.value` → `RefOpIR::Value`) are rewritten
+//! the same way. Imperative writes (`ref.value = x` / `ref.setValue(x)`) are
+//! hard-diagnosed: the `RefOpIR::SetValue` op was removed (11 → 10 ops) — the
+//! two-way `bind:value` binding covers the write intent.
 //!
 //! Identifiers bound as parameters, locals, closure params, loop variables, or
 //! match-pattern bindings shadow a same-named ref and are never rewritten.
@@ -27,6 +29,11 @@ use crate::ir::{
     StatementIR, ViewTree,
 };
 use rustc_hash::FxHashSet;
+
+/// Migration hint for the removed imperative ref write (`ref.value = x` /
+/// `ref.setValue(x)`) — verbatim from the v2 design doc 域 1 诊断表. The
+/// two-way `bind:value` binding is the supported write path.
+const SETVALUE_REMOVED_HINT: &str = "命令式写已删除，用 bind:value 双向绑定";
 
 /// Constructor for a legal ref operation from the source call's argument list.
 /// Returns `None` when required arguments are missing (e.g. `setSelection()`
@@ -445,7 +452,6 @@ fn walk_ref_op_children_mut(op: &mut RefOpIR, ctx: &mut RefOpCtx) {
             walk_expr_mut(start, ctx);
             walk_expr_mut(end, ctx);
         }
-        RefOpIR::SetValue { value } => walk_expr_mut(value, ctx),
         RefOpIR::CapturePointer { id } => walk_expr_mut(id, ctx),
         RefOpIR::ReleasePointer { id } => walk_expr_mut(id, ctx),
     }
@@ -485,12 +491,14 @@ fn walk_stmt_exprs_mut(stmt: &mut StatementIR, ctx: &mut RefOpCtx) {
             }
         }
         StatementIR::MutationStmt { intent } => {
-            // Ref field writes and direct ref writes are intercepted here:
-            // `myRef.value = x` / `myRef.setValue(x)` become
-            // `ExprIR::RefOpExpr { op: SetValue }`. Non-ref targets (signals,
-            // store fields, locals) are left untouched — `field_object` is
-            // ignored by codegen, so behavior is unchanged for them.
-            let mut rewrite: Option<(String, RefOpIR)> = None;
+            // Ref field writes and direct ref writes are hard-diagnosed here:
+            // `myRef.value = x` / `myRef.setValue(x)` / `myRef = x` once
+            // lowered to `RefOpIR::SetValue`, but the imperative write op was
+            // removed (11 → 10 ops) — the two-way `bind:value` binding covers
+            // the write intent, so each write form emits the migration hint.
+            // Non-ref targets (signals, store fields, locals) are left
+            // untouched — `field_object` is ignored by codegen, so behavior
+            // is unchanged for them.
             if let Some(intent) = intent {
                 match intent {
                     MutationIntent::DirectAssign {
@@ -499,20 +507,19 @@ fn walk_stmt_exprs_mut(stmt: &mut StatementIR, ctx: &mut RefOpCtx) {
                         field_object,
                     } => {
                         // Walk the assigned value first — it may contain
-                        // nested ref ops that must be rewritten before the
-                        // value is moved into the SetValue op.
+                        // nested ref reads/ops that must still be rewritten
+                        // or diagnosed.
                         if let Some(value) = value.as_deref_mut() {
                             walk_expr_mut(value, ctx);
                         }
+                        let mut diagnosed = false;
                         // `owner.field = x` writes with a declared ref owner.
                         if let Some(obj) = field_object.as_ref() {
                             if ctx.ref_names.contains(obj) && !ctx.is_shadowed(obj) {
                                 match target.name.as_str() {
                                     "value" => {
-                                        if let Some(value) = value.take() {
-                                            rewrite =
-                                                Some((obj.clone(), RefOpIR::SetValue { value }));
-                                        }
+                                        ctx.error(SETVALUE_REMOVED_HINT.to_string());
+                                        diagnosed = true;
                                     }
                                     field_name => {
                                         let illegal_fields = get_illegal_ref_fields();
@@ -529,6 +536,7 @@ fn walk_stmt_exprs_mut(stmt: &mut StatementIR, ctx: &mut RefOpCtx) {
                                                 field_name
                                             ));
                                         }
+                                        diagnosed = true;
                                     }
                                 }
                             }
@@ -536,13 +544,11 @@ fn walk_stmt_exprs_mut(stmt: &mut StatementIR, ctx: &mut RefOpCtx) {
                         // Direct writes targeting the ref itself: `myRef = x`
                         // (lowered from ref.setValue(x) / ref.set(x) method
                         // calls and bare assigns).
-                        if rewrite.is_none()
+                        if !diagnosed
                             && ctx.ref_names.contains(&target.name)
                             && !ctx.is_shadowed(&target.name)
                         {
-                            if let Some(value) = value.take() {
-                                rewrite = Some((target.name.clone(), RefOpIR::SetValue { value }));
-                            }
+                            ctx.error(SETVALUE_REMOVED_HINT.to_string());
                         }
                     }
                     MutationIntent::Increment { amount, .. }
@@ -561,11 +567,6 @@ fn walk_stmt_exprs_mut(stmt: &mut StatementIR, ctx: &mut RefOpCtx) {
                     }
                     MutationIntent::Pop { .. } => {}
                 }
-            }
-            if let Some((ref_name, op)) = rewrite {
-                *stmt = StatementIR::ExprStmtIR {
-                    expr: ExprIR::RefOpExpr { ref_name, op },
-                };
             }
         }
         StatementIR::EventEmitStmtIR { args, .. } => {
@@ -1173,8 +1174,11 @@ mod tests {
     }
 
     #[test]
-    fn ref_value_field_write_becomes_set_value() {
+    fn ref_value_field_write_is_diagnosed() {
         // myRef.value = x — lowered with the owner preserved in field_object.
+        // The imperative write op (RefOpIR::SetValue) was removed (11 → 10
+        // ops); two-way bind:value covers the write intent, so this must be
+        // a hard error with the migration hint.
         let mut comp = make_component();
         push_mutation_stmt(
             &mut comp,
@@ -1187,18 +1191,27 @@ mod tests {
             ),
         );
         let diags = run_pass(&mut comp);
-        assert!(diags.is_empty(), "expected no diagnostics: {:?}", diags);
-        match stmt_expr(&comp) {
-            ExprIR::RefOpExpr { ref_name, op } => {
-                assert_eq!(ref_name, "box");
-                assert!(matches!(op, RefOpIR::SetValue { .. }));
-            }
-            other => panic!("expected RefOpExpr, got: {:?}", other),
-        }
+        assert_eq!(diags.len(), 1);
+        assert!(
+            diags[0].message.contains("命令式写已删除"),
+            "expected migration hint, got: {:?}",
+            diags[0].message
+        );
+        assert!(
+            diags[0].message.contains("bind:value"),
+            "expected bind:value hint, got: {:?}",
+            diags[0].message
+        );
+        // The mutation is not rewritten — it stays a mutation (the compile
+        // fails on the error, so no codegen output is produced).
+        assert!(matches!(
+            &comp.fns[0].body.statements[0],
+            StatementIR::MutationStmt { .. }
+        ));
     }
 
     #[test]
-    fn ref_set_value_method_call_becomes_set_value() {
+    fn ref_set_value_method_call_is_diagnosed() {
         // myRef.setValue(x) / myRef.set(x) — lowered to a DirectAssign whose
         // target name is the ref itself.
         let mut comp = make_component();
@@ -1213,14 +1226,21 @@ mod tests {
             ),
         );
         let diags = run_pass(&mut comp);
-        assert!(diags.is_empty(), "expected no diagnostics: {:?}", diags);
-        match stmt_expr(&comp) {
-            ExprIR::RefOpExpr { ref_name, op } => {
-                assert_eq!(ref_name, "box");
-                assert!(matches!(op, RefOpIR::SetValue { .. }));
-            }
-            other => panic!("expected RefOpExpr, got: {:?}", other),
-        }
+        assert_eq!(diags.len(), 1);
+        assert!(
+            diags[0].message.contains("命令式写已删除"),
+            "expected migration hint, got: {:?}",
+            diags[0].message
+        );
+        assert!(
+            diags[0].message.contains("bind:value"),
+            "expected bind:value hint, got: {:?}",
+            diags[0].message
+        );
+        assert!(matches!(
+            &comp.fns[0].body.statements[0],
+            StatementIR::MutationStmt { .. }
+        ));
     }
 
     #[test]

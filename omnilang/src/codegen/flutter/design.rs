@@ -1693,9 +1693,9 @@ fn collect_ref_op_store_refs(
             collect_store_refs(start, all_stores, acc);
             collect_store_refs(end, all_stores, acc);
         }
-        crate::ir::RefOpIR::SetValue { value } => collect_store_refs(value, all_stores, acc),
         crate::ir::RefOpIR::CapturePointer { id } => collect_store_refs(id, all_stores, acc),
         crate::ir::RefOpIR::ReleasePointer { id } => collect_store_refs(id, all_stores, acc),
+        // RefOpIR is #[non_exhaustive] — cross-crate matches need a wildcard.
         #[allow(unreachable_patterns)]
         _ => {}
     }

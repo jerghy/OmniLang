@@ -54,8 +54,8 @@ pub enum MutationIntent {
         value: Option<Box<ExprIR>>,
         /// The owner identifier for `owner.field = value` writes (e.g. the ref
         /// name in `myRef.value = x`). `None` for plain signal/name writes.
-        /// Populated by lowering so the semantic ref pass can rewrite ref field
-        /// assignments to `RefOpIR::SetValue`; ignored by codegen.
+        /// Populated by lowering so the semantic ref pass can diagnose ref
+        /// field writes with the bind:value migration hint; ignored by codegen.
         #[serde(default)]
         field_object: Option<String>,
     },

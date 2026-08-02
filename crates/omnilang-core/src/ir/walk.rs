@@ -135,7 +135,6 @@ fn walk_ref_op(op: &RefOpIR, f: &mut impl FnMut(&ExprIR)) {
             walk_expr(start, f);
             walk_expr(end, f);
         }
-        RefOpIR::SetValue { value } => walk_expr(value, f),
         RefOpIR::CapturePointer { id } => walk_expr(id, f),
         RefOpIR::ReleasePointer { id } => walk_expr(id, f),
     }

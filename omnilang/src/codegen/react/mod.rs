@@ -263,9 +263,10 @@ impl ReactCodegen {
 
         // Check if any getter or action body needs get()
         let needs_get = !store.getters.is_empty()
-            || store.actions.iter().any(|a| {
-                action_needs_zustand_state(a, &store_signal_names, &store_getter_names)
-            });
+            || store
+                .actions
+                .iter()
+                .any(|a| action_needs_zustand_state(a, &store_signal_names, &store_getter_names));
         let create_params = if needs_get { "(set, get)" } else { "(set)" };
 
         // create() call — v5 curried form
@@ -287,8 +288,11 @@ impl ReactCodegen {
 
         // Getters as accessor properties — use get() for store references
         for (getter_name, getter_expr) in &store.getters {
-            let final_expr =
-                expr::format_expr_ir_tsx_renamed(getter_expr, &FxHashSet::default(), &getter_renames);
+            let final_expr = expr::format_expr_ir_tsx_renamed(
+                getter_expr,
+                &FxHashSet::default(),
+                &getter_renames,
+            );
             w.emit_fmt(format_args!(
                 "get {}() {{ return {}; }},",
                 getter_name, final_expr
@@ -503,8 +507,7 @@ fn gen_zustand_action_stmt(
             let arg_str = if args.is_empty() {
                 "()".to_string()
             } else {
-                let formatted: Vec<String> =
-                    args.iter().map(|a| fmt_expr(a, renames)).collect();
+                let formatted: Vec<String> = args.iter().map(|a| fmt_expr(a, renames)).collect();
                 format!("({})", formatted.join(", "))
             };
             w.emit_fmt(format_args!("{}{};", event_name, arg_str));
@@ -710,9 +713,7 @@ fn block_references_store_name(block: &BlockIR, store_names: &FxHashSet<String>)
 /// check matches exactly what the AST rename touches (CRITICAL fix).
 fn expr_references_store_name(expr: &ExprIR, store_names: &FxHashSet<String>) -> bool {
     match expr {
-        ExprIR::IdentifierExpr { name, .. } => {
-            store_names.contains(name.trim_start_matches('$'))
-        }
+        ExprIR::IdentifierExpr { name, .. } => store_names.contains(name.trim_start_matches('$')),
         ExprIR::BinaryOpExpr { left, right, .. } => {
             expr_references_store_name(left, store_names)
                 || expr_references_store_name(right, store_names)
@@ -747,8 +748,7 @@ fn expr_references_store_name(expr: &ExprIR, store_names: &FxHashSet<String>) ->
             .iter()
             .any(|e| expr_references_store_name(e, store_names)),
         ExprIR::MapExpr { entries } => entries.iter().any(|(k, v)| {
-            expr_references_store_name(k, store_names)
-                || expr_references_store_name(v, store_names)
+            expr_references_store_name(k, store_names) || expr_references_store_name(v, store_names)
         }),
         ExprIR::ClosureExpr { body, .. } => expr_references_store_name(body, store_names),
         ExprIR::BlockExpr { statements, tail } => {
@@ -759,9 +759,9 @@ fn expr_references_store_name(expr: &ExprIR, store_names: &FxHashSet<String>) ->
         }
         ExprIR::MatchExpr { matched, arms } => {
             expr_references_store_name(matched, store_names)
-                || arms.iter().any(|arm| {
-                    block_references_store_name(&arm.body, store_names)
-                })
+                || arms
+                    .iter()
+                    .any(|arm| block_references_store_name(&arm.body, store_names))
         }
         ExprIR::VariantLiteral { fields, .. } | ExprIR::StructExpr { fields, .. } => fields
             .iter()
@@ -793,20 +793,25 @@ fn ref_op_references_store_name(op: &RefOpIR, store_names: &FxHashSet<String>) -
         | RefOpIR::Select
         | RefOpIR::Value => false,
         RefOpIR::ScrollTo { x, y } => {
-            x.as_ref().is_some_and(|e| expr_references_store_name(e, store_names))
-                || y.as_ref().is_some_and(|e| expr_references_store_name(e, store_names))
+            x.as_ref()
+                .is_some_and(|e| expr_references_store_name(e, store_names))
+                || y.as_ref()
+                    .is_some_and(|e| expr_references_store_name(e, store_names))
         }
         RefOpIR::ScrollBy { dx, dy } => {
-            dx.as_ref().is_some_and(|e| expr_references_store_name(e, store_names))
-                || dy.as_ref().is_some_and(|e| expr_references_store_name(e, store_names))
+            dx.as_ref()
+                .is_some_and(|e| expr_references_store_name(e, store_names))
+                || dy
+                    .as_ref()
+                    .is_some_and(|e| expr_references_store_name(e, store_names))
         }
         RefOpIR::SetSelection { start, end } => {
             expr_references_store_name(start, store_names)
                 || expr_references_store_name(end, store_names)
         }
-        RefOpIR::SetValue { value } => expr_references_store_name(value, store_names),
         RefOpIR::CapturePointer { id } => expr_references_store_name(id, store_names),
         RefOpIR::ReleasePointer { id } => expr_references_store_name(id, store_names),
+        // RefOpIR is #[non_exhaustive] — cross-crate matches need a wildcard.
         #[allow(unreachable_patterns)]
         _ => false,
     }

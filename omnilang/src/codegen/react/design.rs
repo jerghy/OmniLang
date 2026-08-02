@@ -249,8 +249,7 @@ pub(super) fn root_design_wiring(ir: &IRProgram, source_file: Option<&str>) -> D
             hook_idx += 1;
         }
         if group.has_themes {
-            let import_path =
-                relative_import_path(source_file, Some(&to_source), "useThemeStore");
+            let import_path = relative_import_path(source_file, Some(&to_source), "useThemeStore");
             import_lines.push(format!("import '{}';", import_path));
         }
     }
@@ -597,9 +596,9 @@ fn collect_ref_op_store_refs(
             collect_store_refs(start, all_stores, acc);
             collect_store_refs(end, all_stores, acc);
         }
-        crate::ir::RefOpIR::SetValue { value } => collect_store_refs(value, all_stores, acc),
         crate::ir::RefOpIR::CapturePointer { id } => collect_store_refs(id, all_stores, acc),
         crate::ir::RefOpIR::ReleasePointer { id } => collect_store_refs(id, all_stores, acc),
+        // RefOpIR is #[non_exhaustive] — cross-crate matches need a wildcard.
         #[allow(unreachable_patterns)]
         _ => {}
     }

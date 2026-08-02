@@ -68,8 +68,8 @@ impl ReactCodegen {
             });
         }
         // @hover/@press emit useCallback handlers wired into the JSX
-        let has_interactive_motion = view
-            .is_some_and(|v| super::motion::view_has_interactive_triggers(v, component_map));
+        let has_interactive_motion =
+            view.is_some_and(|v| super::motion::view_has_interactive_triggers(v, component_map));
 
         // Scan all code paths for signal mutations and function calls
         let called_fns = function::collect_called_local_fns(comp);
@@ -442,12 +442,7 @@ impl ReactCodegen {
             &signal_names,
             &ref_names,
         );
-        state::gen_semantic_binding_effects(
-            &mut w,
-            view,
-            &store_signal_map,
-            &ref_names,
-        );
+        state::gen_semantic_binding_effects(&mut w, view, &store_signal_map, &ref_names);
 
         // Computed values (useMemo / useCallback)
         let mut known_signal_names: Vec<String> =
@@ -675,7 +670,7 @@ fn collect_expr_identifiers(expr: &ExprIR, acc: &mut FxHashSet<String>) {
 }
 
 /// Collect identifier references from a `RefOpIR`'s child expressions
-/// (e.g. ScrollTo/ScrollBy/SetSelection/SetValue arguments).
+/// (e.g. ScrollTo/ScrollBy/SetSelection arguments).
 fn collect_ref_op_identifiers(op: &RefOpIR, acc: &mut FxHashSet<String>) {
     match op {
         RefOpIR::Focus
@@ -703,9 +698,9 @@ fn collect_ref_op_identifiers(op: &RefOpIR, acc: &mut FxHashSet<String>) {
             collect_expr_identifiers(start, acc);
             collect_expr_identifiers(end, acc);
         }
-        RefOpIR::SetValue { value } => collect_expr_identifiers(value, acc),
         RefOpIR::CapturePointer { id } => collect_expr_identifiers(id, acc),
         RefOpIR::ReleasePointer { id } => collect_expr_identifiers(id, acc),
+        // RefOpIR is #[non_exhaustive] — cross-crate matches need a wildcard.
         #[allow(unreachable_patterns)]
         _ => {}
     }

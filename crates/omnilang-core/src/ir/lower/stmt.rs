@@ -138,7 +138,8 @@ pub(super) fn lower_stmt(
         },
         Stmt::Assign { target, value, .. } => {
             // Preserve the owner identifier for `owner.field = x` writes so the
-            // semantic ref pass can rewrite ref field assignments to SetValue.
+            // semantic ref pass can diagnose ref field writes (bind:value
+            // migration hint).
             let (name, field_object) = match target {
                 AssignTarget::Name(n) => (n.clone(), None),
                 AssignTarget::Field { object, field } => (field.clone(), Some(object.clone())),

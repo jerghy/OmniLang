@@ -249,7 +249,6 @@ component RefOps {
     box.select()
     box.setSelection(0, 3)
     box.value
-    box.value = text
     box.capturePointer(ptr)
     box.releasePointer(ptr)
   }
@@ -281,7 +280,6 @@ component RefOps {
         "box.select();",
         "box.setSelectionRange(0, 3);",
         "box.value;",
-        "if (box) { box.value = RefOps_text.value; };",
         "box.capturePointer(RefOps_ptr.value);",
         "box.releasePointerCapture(RefOps_ptr.value);",
     ];
@@ -322,6 +320,87 @@ component RefOps {
             js
         );
     }
+}
+
+/// Test: imperative ref writes (`ref.value = x`, `ref.setValue(x)`) are
+/// hard-diagnosed with the bind:value migration hint (SetValue removed,
+/// 11 → 10 ops — two-way `bind:value` covers the write intent, D2).
+#[test]
+fn test_ref_value_write_forms_are_diagnosed() {
+    for write in ["box.value = text", "box.setValue(text)"] {
+        let source = format!(
+            r#"
+component RefOps {{
+  signal text: String = ""
+  ref box: Element
+  fn runAll() {{
+    {write}
+  }}
+  view {{
+    <div ref:box @onClick={{runAll}}>click</div>
+  }}
+}}
+"#
+        );
+        let result = crate::compile_omniview(&source, false, false);
+        assert!(
+            !result.success,
+            "write form `{}` must fail to compile",
+            write
+        );
+        let errors: String = result
+            .errors
+            .iter()
+            .map(|d| d.message.as_str())
+            .collect::<Vec<_>>()
+            .join(" | ");
+        assert!(
+            errors.contains("命令式写已删除") && errors.contains("bind:value"),
+            "write form `{}` must diagnose with the bind:value hint. Got: {}",
+            write,
+            errors
+        );
+    }
+}
+
+/// Test: the two-way `bind:value` binding (the replacement for the removed
+/// imperative write) still compiles on a ref-bound element and emits the
+/// two-way sync machinery.
+#[test]
+fn test_bind_value_two_way_binding_unaffected() {
+    let source = r#"
+component SearchBox {
+  signal text: String = ""
+  ref field: Element
+  view {
+    <input ref:field bind:value={text} />
+  }
+}
+"#;
+    let result = crate::compile_omniview(source, false, false);
+    assert!(
+        result.success,
+        "bind:value must still compile: {:?}",
+        result.errors
+    );
+    let js = result
+        .files
+        .as_ref()
+        .expect("Expected JS output")
+        .js
+        .clone();
+    // The two-way sync emits the guarded value write-back (signal → element)
+    // and the "input" event listener (element → signal).
+    assert!(
+        js.contains("__omni_subs.get(\"SearchBox_text\")"),
+        "bind:value must wire the bound signal. Got:\n{}",
+        js
+    );
+    assert!(
+        js.contains("addEventListener(\"input\"") || js.contains("\"input\""),
+        "bind:value must wire the input event listener. Got:\n{}",
+        js
+    );
 }
 
 // ═════════════════════════════════════════════════════════════════════════════

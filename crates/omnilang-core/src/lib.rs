@@ -286,13 +286,42 @@ mod pipeline_tests {
     #[test]
     fn compile_accepts_legal_ref_ops() {
         let result = compile(
-            "component App {\n    ref box: Element;\n    view {\n        <div @ref={box} />\n    }\n    fn go() {\n        box.focus();\n        let w = box.width;\n        box.value = \"x\";\n    }\n}",
+            "component App {\n    ref box: Element;\n    view {\n        <div @ref={box} />\n    }\n    fn go() {\n        box.focus();\n        let w = box.width;\n        let v = box.value;\n    }\n}",
         );
         assert!(
             result.success,
             "expected success for legal ref ops, got errors: {:?}",
             result.errors
         );
+    }
+
+    /// Regression: the imperative ref write (`ref.value = x` / `ref.setValue(x)`)
+    /// was removed (RefOpIR 11 → 10 ops) — the write forms must hard-diagnose
+    /// with the bind:value migration hint and fail the compile.
+    #[test]
+    fn compile_diagnoses_ref_value_writes_with_bind_value_hint() {
+        for write in ["box.value = \"x\"", "box.setValue(\"x\")"] {
+            let source = format!(
+                "component App {{\n    ref box: Element;\n    view {{\n        <div @ref={{box}} />\n    }}\n    fn go() {{\n        {};\n    }}\n}}",
+                write
+            );
+            let result = compile(&source);
+            assert!(
+                !result.success,
+                "write form `{}` must fail to compile",
+                write
+            );
+            assert!(
+                result
+                    .errors
+                    .iter()
+                    .any(|e| e.message.contains("命令式写已删除")
+                        && e.message.contains("bind:value")),
+                "write form `{}` must diagnose with the bind:value hint, got: {:?}",
+                write,
+                result.errors
+            );
+        }
     }
 
     /// Task 0.6 — lint rules must run in the shared single-file pipeline

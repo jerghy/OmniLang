@@ -1,6 +1,7 @@
 // refs.omni — element refs, semantic bindings (value/focus), and ref ops
-// (.value write, .focus()). Exercises the Element Reference System across
-// all P0 backends.
+// (.focus() reads; the imperative .value write was removed — the clear
+// action writes the bound signal instead). Exercises the Element Reference
+// System across all P0 backends.
 
 import omniview;
 
@@ -14,7 +15,7 @@ component SearchBox {
     signal boxColor: string = "red";
 
     action clearInput() {
-        input.value = "";
+        query = "";
     }
 
     action focusInput() {

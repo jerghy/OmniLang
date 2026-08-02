@@ -149,21 +149,13 @@ impl FormatExpr for ReactFormatExpr {
                 self.format_expr(end)
             ),
             RefOpIR::Value => format!("{base}?.value"),
-            // Assignment needs an explicit guard — `?.` is illegal on an
-            // assignment LHS, and a setValue from @mount runs before the
-            // ref attaches (would otherwise throw TypeError).
-            RefOpIR::SetValue { value } => {
-                format!(
-                    "if ({base}) {{ {base}.value = {}; }}",
-                    self.format_expr(value)
-                )
-            }
             RefOpIR::CapturePointer { id } => {
                 format!("{base}?.setPointerCapture({})", self.format_expr(id))
             }
             RefOpIR::ReleasePointer { id } => {
                 format!("{base}?.releasePointerCapture({})", self.format_expr(id))
             }
+            // RefOpIR is #[non_exhaustive] — cross-crate matches need a wildcard.
             #[allow(unreachable_patterns)]
             _ => format!("/* RefOp::{op:?} on {ref_name} */"),
         }

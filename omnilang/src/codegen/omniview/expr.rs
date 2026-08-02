@@ -53,9 +53,13 @@ impl OmniViewGenerator {
                         format!("{}.value", name)
                     }
                 } else if self.scope.in_for_template
-                    && self.name_resolver.for_state_names.contains_key(resolved.as_str())
+                    && self
+                        .name_resolver
+                        .for_state_names
+                        .contains_key(resolved.as_str())
                 {
-                    let (orig_name, default_js) = &self.name_resolver.for_state_names[resolved.as_str()];
+                    let (orig_name, default_js) =
+                        &self.name_resolver.for_state_names[resolved.as_str()];
                     format!("__omni_forGetState(el, '{}', {})", orig_name, default_js)
                 } else if self.scope.rewrite_for_item {
                     // Event handler / rebind fn emitted to top-level JS: the
@@ -201,11 +205,17 @@ impl OmniViewGenerator {
                     String::new()
                 };
                 let base = self.expr_to_js(object);
-                if self.name_resolver.store_names.contains(&raw_store_name) || self.name_resolver.store_names.contains(&base) {
+                if self.name_resolver.store_names.contains(&raw_store_name)
+                    || self.name_resolver.store_names.contains(&base)
+                {
                     // First try: resolve the method through name_renames (handles inline stores
                     // where the store action is merged as a component function, e.g.
                     // CartStore.addItem → InlineStoreDemo_addItem)
-                    if let Some(resolved_fn) = self.name_resolver.name_renames.get(method.as_str()).cloned()
+                    if let Some(resolved_fn) = self
+                        .name_resolver
+                        .name_renames
+                        .get(method.as_str())
+                        .cloned()
                     {
                         let arg_strs: Vec<String> =
                             args.iter().map(|a| self.expr_to_js(a)).collect();
@@ -436,15 +446,6 @@ impl OmniViewGenerator {
                 self.expr_to_js(end)
             ),
             RefOpIR::Value => format!("{base}.value"),
-            // Assignment needs an explicit guard — `?.` is illegal on an
-            // assignment LHS, and a setValue from @mount runs before the
-            // ref attaches (would otherwise throw TypeError).
-            RefOpIR::SetValue { value } => {
-                format!(
-                    "if ({base}) {{ {base}.value = {}; }}",
-                    self.expr_to_js(value)
-                )
-            }
             RefOpIR::CapturePointer { id } => {
                 format!("{base}.capturePointer({})", self.expr_to_js(id))
             }
@@ -453,6 +454,7 @@ impl OmniViewGenerator {
                 // is named accordingly (matches the React backend convention).
                 format!("{base}.releasePointerCapture({})", self.expr_to_js(id))
             }
+            // RefOpIR is #[non_exhaustive] — cross-crate matches need a wildcard.
             #[allow(unreachable_patterns)]
             _ => format!("/* RefOp::{op:?} on {ref_name} */"),
         }
@@ -525,7 +527,9 @@ impl OmniViewGenerator {
         };
         let obj = self.expr_to_js(object);
         let check_name = raw_obj_name.as_deref().unwrap_or(&obj);
-        if self.name_resolver.store_names.contains(check_name) || self.name_resolver.store_names.contains(&obj) {
+        if self.name_resolver.store_names.contains(check_name)
+            || self.name_resolver.store_names.contains(&obj)
+        {
             let renamed_obj = self
                 .name_resolver
                 .name_renames

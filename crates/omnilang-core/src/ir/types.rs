@@ -786,8 +786,6 @@ pub enum RefOpIR {
     },
     /// `ref.value` — read the element's current value (input/textarea).
     Value,
-    /// `ref.setValue(value)` — set the element's value.
-    SetValue { value: Box<ExprIR> },
     /// `ref.capturePointer(id)` — capture a pointer on the element.
     CapturePointer { id: Box<ExprIR> },
     /// `ref.releasePointer(id)` — release a captured pointer.
