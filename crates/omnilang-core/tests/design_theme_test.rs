@@ -656,6 +656,190 @@ store ThemeStore {
     );
 }
 
+// ═══════════════════════════════════════════════════════════════
+// 修复轮 1/5（review F1-F4）:
+// F1 @theme 字面量初始值必须是 @themes 枚举之一
+// F2 String? @theme 拒绝（可空 String 不是 String）
+// F3 @themes 重复声明 → 错误
+// F4 诊断锚定 source_span（line/col 非 0）
+// ═══════════════════════════════════════════════════════════════
+
+#[test]
+fn theme_initial_value_must_be_declared_theme() {
+    // F1: literal initializer not in the @themes enum → error.
+    let source = r##"
+import omniview;
+
+design AppDesign {
+    @themes { dark, light }
+}
+
+store ThemeStore {
+    signal mode: String @theme = "sepia";
+}
+"##;
+    let (diags, _) = compile_multi(&[("app.omni", source)]);
+    let errs = errors(&diags);
+    assert_eq!(errs.len(), 1, "got: {:?}", diags);
+    assert!(
+        errs[0].message.contains("必须是 @themes 枚举之一"),
+        "F1 message expected, got: {}",
+        errs[0].message
+    );
+    assert!(
+        errs[0].message.contains("dark, light"),
+        "message must list the declared themes, got: {}",
+        errs[0].message
+    );
+}
+
+#[test]
+fn theme_initial_value_in_enum_is_clean() {
+    // F1 happy path: literal is a declared theme.
+    let source = r##"
+import omniview;
+
+design AppDesign {
+    @themes { dark, light }
+}
+
+store ThemeStore {
+    signal mode: String @theme = "dark";
+}
+"##;
+    let (diags, _) = compile_multi(&[("app.omni", source)]);
+    assert!(
+        errors(&diags).is_empty(),
+        "declared theme literal must be clean, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn theme_runtime_initializer_not_statically_checked() {
+    // F1 boundary (documented): non-literal initializers are runtime values —
+    // the membership check only applies to statically-known literals.
+    let source = r##"
+import omniview;
+
+design AppDesign {
+    @themes { dark, light }
+}
+
+store ThemeStore {
+    signal fallback: String = "sepia";
+    signal mode: String @theme = fallback;
+}
+"##;
+    let (diags, _) = compile_multi(&[("app.omni", source)]);
+    assert!(
+        errors(&diags).is_empty(),
+        "runtime initializer must be unchecked, got: {:?}",
+        diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn theme_nullable_string_signal_rejected() {
+    // F2: `String? @theme` — nullability is TypeIR.is_nullable, not a
+    // TypeKind variant; a nullable String is not a valid theme mode.
+    let source = r##"
+import omniview;
+
+design AppDesign {
+    @themes { dark, light }
+}
+
+store ThemeStore {
+    signal mode: String? @theme = "light";
+}
+"##;
+    let (diags, _) = compile_multi(&[("app.omni", source)]);
+    let errs = errors(&diags);
+    assert_eq!(errs.len(), 1, "got: {:?}", diags);
+    assert!(
+        errs[0].message.contains("必须是 String"),
+        "F2 message expected, got: {}",
+        errs[0].message
+    );
+}
+
+#[test]
+fn duplicate_themes_declaration_is_error() {
+    // F3: repeated @themes { ... } in one design block → error.
+    let source = r##"
+import omniview;
+
+design AppDesign {
+    @themes { dark }
+    @themes { light }
+}
+"##;
+    let map: FxHashMap<String, String> = [("app.omni".to_string(), source.to_string())]
+        .into_iter()
+        .collect();
+    let path_mapping = FxHashMap::default();
+    let out = analyse_multi(&map, &path_mapping);
+    assert!(!out.success, "duplicate @themes must fail compilation");
+    let errs: Vec<_> = out
+        .diagnostics
+        .iter()
+        .filter(|d| d.severity == omnilang_core::error::Severity::Error)
+        .collect();
+    assert!(
+        errs.iter().any(|d| d.message.contains("@themes 重复声明")),
+        "F3 message expected, got: {:?}",
+        errs.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn theme_diagnostics_anchor_at_source_span() {
+    // F4: theme diagnostics must carry the store/design source span
+    // (validate_effect_deps precedent), not line:0/col:0.
+    let source = r##"
+import omniview;
+
+design AppDesign {
+    @themes { dark, light }
+}
+
+store ThemeStore {
+    signal mode: Int @theme = 1;
+}
+"##;
+    let (diags, _) = compile_multi(&[("app.omni", source)]);
+    let errs = errors(&diags);
+    assert_eq!(errs.len(), 1, "got: {:?}", diags);
+    assert!(
+        errs[0].line > 0 && errs[0].col > 0,
+        "store-level theme diagnostic must anchor at the store span, got line={} col={}",
+        errs[0].line,
+        errs[0].col
+    );
+}
+
+#[test]
+fn theme_duplicate_name_diagnostic_anchors_at_design_span() {
+    // F4: design-level @themes diagnostics anchor at the design block span.
+    let source = r##"
+import omniview;
+
+design AppDesign {
+    @themes { dark, dark }
+}
+"##;
+    let (diags, _) = compile_multi(&[("app.omni", source)]);
+    let errs = errors(&diags);
+    assert_eq!(errs.len(), 1, "got: {:?}", diags);
+    assert!(
+        errs[0].line > 0 && errs[0].col > 0,
+        "design-level theme diagnostic must anchor, got line={} col={}",
+        errs[0].line,
+        errs[0].col
+    );
+}
+
 #[test]
 fn semantic_accepts_literal_int_for_opacity_token() {
     // A literal int in an expression is compatible with Opacity

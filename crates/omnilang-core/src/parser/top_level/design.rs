@@ -63,6 +63,7 @@ impl<'a> Parser<'a> {
                 },
             })?;
         def.name = name;
+        def.span = start;
 
         // Advance the parser position past the closing '}'
         self.pos = rbrace_pos + 1;

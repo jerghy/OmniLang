@@ -86,7 +86,7 @@ pub fn lower_design_with_consts(
         classes,
         variants,
         source_file: None,
-        source_span: None,
+        source_span: Some(ast.span),
     }
 }
 
@@ -449,6 +449,13 @@ mod tests {
             name: "App".to_string(),
             themes: vec!["light".to_string(), "dark".to_string()],
             default_theme: Some("light".to_string()),
+
+            span: Span {
+                start: 0,
+                end: 0,
+                line: 0,
+                col: 0,
+            },
             tokens: vec![TokenDef {
                 name: "primary".to_string(),
                 token_type: TokenType::Color,
@@ -513,6 +520,13 @@ mod tests {
             name: "Test".to_string(),
             themes: vec!["light".to_string(), "dark".to_string()],
             default_theme: Some("light".to_string()),
+
+            span: Span {
+                start: 0,
+                end: 0,
+                line: 0,
+                col: 0,
+            },
             tokens: vec![TokenDef {
                 name: "primary".to_string(),
                 token_type: TokenType::Color,
@@ -540,6 +554,13 @@ mod tests {
             name: "Test".to_string(),
             themes: vec!["light".to_string(), "dark".to_string()],
             default_theme: Some("highContrast".to_string()),
+
+            span: Span {
+                start: 0,
+                end: 0,
+                line: 0,
+                col: 0,
+            },
             tokens: vec![],
             classes: vec![],
             variants: vec![],
@@ -562,6 +583,13 @@ mod tests {
             name: "Test".to_string(),
             themes: vec!["light".to_string(), "dark".to_string()],
             default_theme: Some("light".to_string()),
+
+            span: Span {
+                start: 0,
+                end: 0,
+                line: 0,
+                col: 0,
+            },
             tokens: vec![TokenDef {
                 name: "primary".to_string(),
                 token_type: TokenType::Color,
@@ -581,6 +609,13 @@ mod tests {
             name: "Test".to_string(),
             themes: vec![],
             default_theme: None,
+
+            span: Span {
+                start: 0,
+                end: 0,
+                line: 0,
+                col: 0,
+            },
             tokens: vec![TokenDef {
                 name: "primary".to_string(),
                 token_type: TokenType::Color,
@@ -604,6 +639,13 @@ mod tests {
             name: "Test".to_string(),
             themes: vec![],
             default_theme: None,
+
+            span: Span {
+                start: 0,
+                end: 0,
+                line: 0,
+                col: 0,
+            },
             tokens: vec![TokenDef {
                 name: "primary".to_string(),
                 token_type: TokenType::Color,
@@ -631,6 +673,13 @@ mod tests {
             name: "Test".to_string(),
             themes: vec![],
             default_theme: None,
+
+            span: Span {
+                start: 0,
+                end: 0,
+                line: 0,
+                col: 0,
+            },
             tokens: vec![TokenDef {
                 name: "primary".to_string(),
                 token_type: TokenType::Color,
@@ -655,6 +704,13 @@ mod tests {
             name: "Test".to_string(),
             themes: vec![],
             default_theme: None,
+
+            span: Span {
+                start: 0,
+                end: 0,
+                line: 0,
+                col: 0,
+            },
             tokens: vec![TokenDef {
                 name: "primary".to_string(),
                 token_type: TokenType::Color,
@@ -698,6 +754,13 @@ mod tests {
             name: "Test".to_string(),
             themes: vec![],
             default_theme: None,
+
+            span: Span {
+                start: 0,
+                end: 0,
+                line: 0,
+                col: 0,
+            },
             tokens: vec![TokenDef {
                 name: "spacing".to_string(),
                 token_type: TokenType::Size,

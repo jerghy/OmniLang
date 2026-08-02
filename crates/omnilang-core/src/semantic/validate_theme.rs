@@ -11,12 +11,23 @@
 //! - (a) `@theme` signal used but no design in the program declares
 //!   `@themes` → error「未声明 @themes」
 //! - (b) `@theme` on a non-String signal → error「@theme 信号必须是 String」
-//!   (verbatim from the design doc 域 5 diagnostic table)
+//!   (verbatim from the design doc 域 5 diagnostic table). `String?` is
+//!   rejected too — nullability is `TypeIR.is_nullable`, not a TypeKind
+//!   variant (fix round 1/5, F2).
 //! - (c) more than one `@theme` signal in the program → error
 //! - (e) duplicate theme names inside `@themes { ... }` → error
 //! - (f) empty `@themes { }` → parse error (in `parser/design.rs`) — the IR
 //!   cannot distinguish an explicit empty declaration (`themes: []`) from
 //!   no declaration, so the check lives where the source shape is visible.
+//! - (F1) a LITERAL string initializer of the `@theme` signal must be a
+//!   member of the declared `@themes` enum (design doc 域 3 BNF annotation:
+//!   「@theme 值必须是 @themes 枚举之一（语义验证）」). Runtime-assigned
+//!   values (non-literal initializers) are NOT statically checkable and are
+//!   deliberately left unchecked — the boundary is documented here and in
+//!   the spec §4.5.
+//!
+//! All diagnostics anchor at the source span of their store / design block
+//! (validate_effect_deps precedent, fix round 1/5 F4).
 //!
 //! Also populates `DesignIR.theme_signal = "StoreName.signalName"` for every
 //! design with a non-empty theme set (wiring-ready shape consumed by codegen
@@ -24,9 +35,16 @@
 
 use crate::error::{Diagnostic, DiagnosticKind, Severity};
 use crate::ir::{IRProgram, TypeKind};
+use crate::lexer::Span;
 
 /// (b) verbatim from the design doc 域 5 diagnostic table.
 const NON_STRING_MSG: &str = "必须是 String";
+
+/// Non-literal store-signal initializers serialize to this sentinel in
+/// `StoreIR.signal_defaults` (see `lower_store`, ir/lower/component.rs).
+/// The F1 membership check treats it as "runtime value — not statically
+/// checkable".
+const RUNTIME_EXPR_SENTINEL: &str = "<runtime expr>";
 
 /// A store signal marked `@theme`, collected across all modules.
 struct MarkedThemeSignal {
@@ -34,16 +52,22 @@ struct MarkedThemeSignal {
     signal: String,
     file: Option<String>,
     kind: TypeKind,
+    nullable: bool,
+    /// Literal string initializer, when statically known. `None` for
+    /// non-literal (runtime) initializers — those cannot be checked.
+    initial: Option<String>,
+    span: Option<Span>,
 }
 
-fn diag(message: String, file: Option<String>) -> Diagnostic {
+fn diag(message: String, file: Option<String>, span: Option<Span>) -> Diagnostic {
+    let (line, col) = span.map(|s| (s.line, s.col)).unwrap_or((0, 0));
     Diagnostic {
         severity: Severity::Error,
         kind: DiagnosticKind::E0006,
         message,
         file,
-        line: 0,
-        col: 0,
+        line,
+        col,
         end_line: None,
         end_col: None,
         suggestion: None,
@@ -57,15 +81,24 @@ pub fn validate_theme(ir: &mut IRProgram, diagnostics: &mut Vec<Diagnostic>) {
     for module in ir.modules.values() {
         for store in module.stores.values() {
             if let Some(sig) = &store.theme_signal {
+                let ty = store.signals.get(sig);
                 marked.push(MarkedThemeSignal {
                     store: store.name.clone(),
                     signal: sig.clone(),
                     file: store.source_file.clone(),
-                    kind: store.signals.get(sig).map(|t| t.kind.clone()).unwrap_or(
-                        TypeKind::Named {
-                            name: "<unknown>".into(),
-                        },
-                    ),
+                    span: store.source_span,
+                    nullable: ty.map(|t| t.is_nullable).unwrap_or(false),
+                    kind: ty.map(|t| t.kind.clone()).unwrap_or(TypeKind::Named {
+                        name: "<unknown>".into(),
+                    }),
+                    // F1: statically-known literal initializer only. The
+                    // "<runtime expr>" sentinel marks non-literal inits.
+                    initial: match store.signal_defaults.get(sig) {
+                        Some(serde_json::Value::String(v)) if v != RUNTIME_EXPR_SENTINEL => {
+                            Some(v.clone())
+                        }
+                        _ => None,
+                    },
                 });
             }
         }
@@ -90,18 +123,24 @@ pub fn validate_theme(ir: &mut IRProgram, diagnostics: &mut Vec<Diagnostic>) {
                 diagnostics.push(diag(
                     format!("[design '{}'] @themes 重复主题 '{}'", design.name, theme),
                     design.source_file.clone(),
+                    design.source_span,
                 ));
             }
         }
     }
 
-    // ── (b) @theme signal must be String ──
+    // ── (b) @theme signal must be String (F2: String? also rejected) ──
     for m in &marked {
-        if !matches!(m.kind, TypeKind::String) {
-            diagnostics.push(diag(
-                format!("@theme 信号 '{}.{}' {}", m.store, m.signal, NON_STRING_MSG),
-                m.file.clone(),
-            ));
+        if !matches!(m.kind, TypeKind::String) || m.nullable {
+            let msg = if m.nullable && matches!(m.kind, TypeKind::String) {
+                format!(
+                    "@theme 信号 '{}.{}' 必须是 String（String? 可空类型不允许）",
+                    m.store, m.signal
+                )
+            } else {
+                format!("@theme 信号 '{}.{}' {}", m.store, m.signal, NON_STRING_MSG)
+            };
+            diagnostics.push(diag(msg, m.file.clone(), m.span));
         }
     }
 
@@ -115,7 +154,44 @@ pub fn validate_theme(ir: &mut IRProgram, diagnostics: &mut Vec<Diagnostic>) {
                     m.store, m.signal
                 ),
                 m.file.clone(),
+                m.span,
             ));
+        }
+    }
+
+    // ── F1: literal initializer must be a member of the declared themes ──
+    // design doc 域 3 BNF annotation:「@theme 值必须是 @themes 枚举之一（语义验证）」.
+    // Only statically-known literals are checked — runtime-assigned values
+    // (non-literal initializers) cannot be validated statically and are
+    // deliberately left unchecked (boundary documented in spec §4.5).
+    // Skipped when no @themes exists anywhere — (a) already covers that.
+    if has_themes_declaration {
+        let mut all_themes: Vec<&str> = ir
+            .modules
+            .values()
+            .flat_map(|m| m.designs.iter())
+            .flat_map(|d| d.themes.iter().map(String::as_str))
+            .collect();
+        all_themes.sort_unstable();
+        all_themes.dedup();
+        for m in &marked {
+            if matches!(m.kind, TypeKind::String) && !m.nullable {
+                if let Some(initial) = &m.initial {
+                    if !all_themes.iter().any(|t| t == initial) {
+                        diagnostics.push(diag(
+                            format!(
+                                "@theme 信号 '{}.{}' 初始值 '{}' 必须是 @themes 枚举之一：{}",
+                                m.store,
+                                m.signal,
+                                initial,
+                                all_themes.join(", ")
+                            ),
+                            m.file.clone(),
+                            m.span,
+                        ));
+                    }
+                }
+            }
         }
     }
 
@@ -128,6 +204,7 @@ pub fn validate_theme(ir: &mut IRProgram, diagnostics: &mut Vec<Diagnostic>) {
                     m.store, m.signal
                 ),
                 m.file.clone(),
+                m.span,
             ));
         }
     }

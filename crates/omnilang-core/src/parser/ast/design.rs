@@ -6,6 +6,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::lexer::Span;
+
 use super::Expr;
 
 /// Top-level design block: `design AppDesign { ... }`
@@ -29,6 +31,9 @@ pub struct DesignDef {
     /// Optional default theme name set via `@default-theme ...;`.
     #[serde(default)]
     pub default_theme: Option<String>,
+    /// Source span of the whole `design ... { }` block — used to anchor
+    /// design-level diagnostics (e.g. duplicate @themes names).
+    pub span: Span,
 }
 
 /// Token type annotation — 13 recognized types for design tokens.

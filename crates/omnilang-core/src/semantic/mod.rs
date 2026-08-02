@@ -497,6 +497,13 @@ mod tests {
             name: "App".to_string(),
             themes: vec!["dark".to_string()],
             default_theme: None,
+
+            span: Span {
+                start: 0,
+                end: 0,
+                line: 0,
+                col: 0,
+            },
             tokens: vec![TokenDef {
                 name: "primary".to_string(),
                 token_type: TokenType::Color,
@@ -567,6 +574,13 @@ mod tests {
             name: "App".to_string(),
             themes: vec![],
             default_theme: None,
+
+            span: Span {
+                start: 0,
+                end: 0,
+                line: 0,
+                col: 0,
+            },
             tokens: vec![TokenDef {
                 name: "primary".to_string(),
                 token_type: TokenType::Color,
@@ -615,6 +629,13 @@ mod tests {
             name: "App".to_string(),
             themes: vec![],
             default_theme: None,
+
+            span: Span {
+                start: 0,
+                end: 0,
+                line: 0,
+                col: 0,
+            },
             tokens: vec![TokenDef {
                 name: "primary".to_string(),
                 token_type: TokenType::Color,
@@ -658,6 +679,13 @@ mod tests {
             name: "App".to_string(),
             themes: vec![],
             default_theme: None,
+
+            span: Span {
+                start: 0,
+                end: 0,
+                line: 0,
+                col: 0,
+            },
             tokens: vec![TokenDef {
                 name: "primary".to_string(),
                 token_type: TokenType::Color,
@@ -729,6 +757,13 @@ mod tests {
             name: "App".to_string(),
             themes: vec![],
             default_theme: None,
+
+            span: Span {
+                start: 0,
+                end: 0,
+                line: 0,
+                col: 0,
+            },
             tokens: vec![TokenDef {
                 name: "accent".to_string(),
                 token_type: TokenType::Color,

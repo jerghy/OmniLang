@@ -571,7 +571,7 @@ store ThemeStore {
 
 - 语义：**`@theme` 标记的信号 = 当前主题模式；切换它 = 切换主题**。编译器因此知道主题状态从哪来，并自动接线三目标（React 订阅该 store → 写 `data-theme` 属性；Flutter 生成 `ThemeModeNotifier` + `MaterialApp(themeMode:)`；OmniView 按 `@theme` 信号识别——不再有 `mode` 魔法名）。接线代码生成由 Task 4.2 实现；`DesignIR { themes, theme_signal: "ThemeStore.mode" }` 契约已在本阶段落地。
 - 已删除：`theme = "dark"` 语句（v1 文档虚构语法——编译器从未实现该语句）。遇此写法报错：「主题切换 = 设置 @theme 信号（ThemeStore.setMode("dark")）」。
-- 语义验证（本阶段实现）：`@theme` 无 `@themes` 声明 → 错误；`@theme` 非 String 信号 → 错误「@theme 信号必须是 String」；`@theme` 多于一个 → 错误；`@themes` 重复主题名 → 错误；空 `@themes { }` → 错误。
+- 语义验证（本阶段实现）：`@theme` 无 `@themes` 声明 → 错误；`@theme` 非 String 信号（含 `String?`）→ 错误「@theme 信号必须是 String」；`@theme` 多于一个 → 错误；`@themes` 重复主题名 → 错误；空 `@themes { }` 或同一 design 块内重复 `@themes` 声明 → 解析错误；`@theme` 信号的字面量初始值必须是 `@themes` 枚举之一 → 错误「@theme 初始值必须是 @themes 枚举之一：dark, light」（仅静态可知的字面量可验证；运行时赋值不检查——该边界为有意设计）。
 
 ### 4.6 平台映射
 

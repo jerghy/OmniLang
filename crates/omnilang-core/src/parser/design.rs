@@ -4,7 +4,7 @@
 //! design blocks.  Currently only token definitions are implemented
 //! (Task A2); class and variant parsing is deferred to Tasks A3/A4.
 
-use crate::lexer::{Token, TokenKind};
+use crate::lexer::{Span, Token, TokenKind};
 use crate::parser::ast::design::*;
 use crate::parser::ast::Expr;
 use crate::parser::Parser;
@@ -58,6 +58,11 @@ pub fn parse_design_body(input: &str, design_tokens: &[Token]) -> ParseResult<De
         remaining = skip_ws_and_comments(remaining);
 
         if remaining.starts_with("@themes") {
+            // (F3) a second `@themes { ... }` in the same design block was a
+            // silent last-win — hard error (one theme set per design).
+            if !themes.is_empty() {
+                return Err(err_at(input, remaining, "@themes 重复声明"));
+            }
             let (t, rest) = parse_themes_directive(remaining)?;
             themes = t;
             remaining = rest;
@@ -99,6 +104,13 @@ pub fn parse_design_body(input: &str, design_tokens: &[Token]) -> ParseResult<De
         tokens,
         classes,
         variants,
+        // Overridden by parse_design_def with the `design` keyword span.
+        span: Span {
+            start: 0,
+            end: 0,
+            line: 0,
+            col: 0,
+        },
     })
 }
 
@@ -1069,6 +1081,18 @@ mod tests {
         assert!(
             parse_design_body(src, &[]).is_err(),
             "theme names must be comma-separated"
+        );
+    }
+
+    #[test]
+    fn parse_themes_duplicate_declaration_rejected() {
+        // (F3) repeated `@themes { ... }` — last-win is a silent footgun.
+        let src = r#"@themes { dark } @themes { light }"#;
+        let err = parse_design_body(src, &[]).unwrap_err();
+        assert!(
+            err.message.contains("@themes 重复声明"),
+            "duplicate @themes must error, got: {}",
+            err.message
         );
     }
 
