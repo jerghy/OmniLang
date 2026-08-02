@@ -204,6 +204,12 @@ jobs:
       - name: Regenerate React codegen output
         working-directory: test/projects/learn-omniview
         run: ../../target/release/omnic build --target react -o build/react-test-app
+      # Real React gate: strict tsc --noEmit + eslint (react-hooks) over the
+      # freshly generated output. Known root-caused errors are documented in
+      # scripts/verify-react.exemptions (each entry references its fixing
+      # task T1.3/T1.6/T3.3); new errors and stale exemptions fail the gate.
+      - name: Real React gate (strict tsc + eslint react-hooks)
+        run: bash scripts/verify-react.sh
       - name: Install Playwright browsers
         working-directory: test/projects/learn-omniview/build/react-test-app
         run: npx playwright install chromium

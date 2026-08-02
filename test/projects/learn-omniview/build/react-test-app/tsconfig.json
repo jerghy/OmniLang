@@ -1,1 +1,22 @@
-{"compilerOptions":{"jsx":"react-jsx","target":"ES2020","module":"ESNext","moduleResolution":"bundler","strict":false,"noEmit":true,"skipLibCheck":true}}
+{
+  "compilerOptions": {
+    "strict": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "moduleResolution": "bundler",
+    "target": "ES2022",
+    "module": "ESNext",
+    "skipLibCheck": true
+  },
+  "include": [
+    "src",
+    "components",
+    "pages",
+    "stores",
+    "App.tsx",
+    "SimpleApp.tsx",
+    "useDesignTokens.ts",
+    "useThemeStore.ts",
+    "env.d.ts"
+  ]
+}

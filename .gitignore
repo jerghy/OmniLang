@@ -35,6 +35,32 @@ docs/screenshots/
 
 # Generated build output
 build/
+
+# --- Deliberately committed harness inside an otherwise-ignored output dir ---
+# test/projects/learn-omniview/build/react-test-app is a committed test
+# fixture (package.json / tsconfig / eslint.config.js / e2e tests) validated
+# by the real React gate: scripts/verify-react.sh. Its generated output
+# (src/react-output/, dist/, playwright artifacts) stays ignored — CI
+# regenerates it (see .github/workflows/ci.yml, e2e job). New harness
+# config files MUST be committed alongside the existing tracked ones.
+!test/projects/learn-omniview/build/
+test/projects/learn-omniview/build/*
+!test/projects/learn-omniview/build/react-test-app/
+test/projects/learn-omniview/build/react-test-app/src/react-output/
+test/projects/learn-omniview/build/react-test-app/components/
+test/projects/learn-omniview/build/react-test-app/pages/
+test/projects/learn-omniview/build/react-test-app/stores/
+test/projects/learn-omniview/build/react-test-app/App.tsx
+test/projects/learn-omniview/build/react-test-app/App.module.css
+test/projects/learn-omniview/build/react-test-app/SimpleApp.tsx
+test/projects/learn-omniview/build/react-test-app/SimpleApp.module.css
+test/projects/learn-omniview/build/react-test-app/design.css
+test/projects/learn-omniview/build/react-test-app/useDesignTokens.ts
+test/projects/learn-omniview/build/react-test-app/useThemeStore.ts
+test/projects/learn-omniview/build/react-test-app/dist/
+test/projects/learn-omniview/build/react-test-app/test-results/
+test/projects/learn-omniview/build/react-test-app/playwright-report/
+
 .claude/worktrees/
 
 # Demo project build artifacts (untracked — accidental-commit risk)

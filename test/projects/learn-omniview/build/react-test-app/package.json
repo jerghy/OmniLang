@@ -5,20 +5,24 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src App.tsx SimpleApp.tsx useDesignTokens.ts useThemeStore.ts components pages stores --max-warnings 0",
     "doctor": "npx react-doctor@latest"
   },
   "dependencies": {
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "zustand": "^4.5.0"
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.61.1",
-    "@types/react": "^18.3.0",
-    "@types/react-dom": "^18.3.0",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^4.3.0",
     "eslint": "^10.7.0",
+    "eslint-formatter-unix": "^9.0.1",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "react-doctor": "^0.9.0",
     "typescript": "^5.5.0",
     "typescript-eslint": "^8.65.0",
