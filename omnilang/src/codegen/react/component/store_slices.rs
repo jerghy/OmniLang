@@ -585,6 +585,17 @@ fn collect_expr_store_field_refs(
                 _ => collect_expr_store_field_refs(object, acc, bare),
             }
         }
+        ExprIR::OptionalChainExpr { object, field } => {
+            // `TodoStore?.items` reads the store field like a plain access —
+            // record it so the store slices (review NEW-1; this arm also
+            // prevents the unreachable! panic on ANY `?.` in a body).
+            match object.as_ref() {
+                ExprIR::IdentifierExpr { name, .. } => {
+                    acc.entry(name.clone()).or_default().insert(field.clone());
+                }
+                _ => collect_expr_store_field_refs(object, acc, bare),
+            }
+        }
         ExprIR::MethodCallExpr {
             object,
             method,

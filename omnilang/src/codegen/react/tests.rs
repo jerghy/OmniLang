@@ -4167,3 +4167,55 @@ component LibView {
         content
     );
 }
+
+// ═══════════════════════════════════════════════════════════
+// Task 3.3 review round 2: NEW-1 OptionalChainExpr collection
+// ═══════════════════════════════════════════════════════════
+
+/// NEW-1: `OptionalChainExpr` (`s?.items`) was missing from the store-field
+/// collection walker — any `?.` in a component body hit the `unreachable!`
+/// arm and PANICKED the React backend. The optional-chain must compile, and
+/// a store optional chain (`TodoStore?.items`) must slice like a plain read.
+#[test]
+fn react_store_optional_chain_no_panic_and_slices() {
+    let store_src = r#"
+store OptStore {
+    signal items: Array<String> = [];
+}
+"#;
+    let comp_src = r#"
+import { OptStore } from "./store";
+
+component OptView {
+    @store OptStore;
+    fn peek(s: String) {
+        let a = s?.items;
+    }
+    fn peekStore() {
+        let b = OptStore?.items;
+    }
+    view {
+        <p>{OptStore.items.len()}</p>
+        <button @onClick={peek}>go</button>
+        <button @onClick={peekStore}>store</button>
+    }
+}
+"#;
+    // Must not panic — the compile itself is the regression assertion.
+    let content = compile_react_store_pair(store_src, comp_src);
+    assert!(
+        content.contains("const items = useOptStore((s) => s.items);"),
+        "store field must subscribe via slice selector. Got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("const a = s?.items;"),
+        "non-store optional chain must stay qualified. Got:\n{}",
+        content
+    );
+    assert!(
+        !content.contains("OptStore?.items"),
+        "store optional chain must be rewritten to the slice local. Got:\n{}",
+        content
+    );
+}

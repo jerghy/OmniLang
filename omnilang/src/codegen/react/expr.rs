@@ -160,6 +160,15 @@ impl FormatExpr for ReactFormatExpr {
         format!("{}.{}", obj, field)
     }
 
+    /// `Store?.field` optional-chain reads → slice local too (the store hook
+    /// object is never null, so the `?.` is redundant once sliced).
+    fn format_optional_chain(&self, object: &str, field: &str) -> String {
+        if let Some(local) = store_field_rename(&self.renames, object, field) {
+            return local;
+        }
+        format!("{object}?.{field}")
+    }
+
     /// Semantic ref ops map to native DOM APIs on `nameRef.current`
     /// (ADR-036 Phase 2). All calls use optional chaining so a not-yet-mounted
     /// ref degrades to a no-op instead of throwing.
@@ -628,6 +637,20 @@ pub(super) fn format_expr_ir_tsx_renamed(
             }
             let obj_str = format_expr_ir_tsx_renamed(object, ref_names, renames);
             format!("{}.{}", obj_str, field)
+        }
+        ExprIR::OptionalChainExpr { object, field } => {
+            // Store optional-chain read (`TodoStore?.items`) → slice local
+            // (the `?.` is redundant once the field is sliced).
+            if let ExprIR::IdentifierExpr { name, .. } = object.as_ref() {
+                if let Some(local) = store_field_rename(renames, name, field) {
+                    return local;
+                }
+            }
+            ReactFormatExpr {
+                ref_names: ref_names.clone(),
+                renames: renames.clone(),
+            }
+            .format_expr(expr)
         }
         ExprIR::MethodCallExpr {
             object,
