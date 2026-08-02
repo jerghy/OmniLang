@@ -33,9 +33,12 @@ pub use target::Target;
 pub use traits::Codegen;
 pub use writer::{CodeWriter, CompileOutput, CompiledFile};
 
-// The `compile` dispatch function lives in the omnilang crate (facade).
-// omnilang-core only provides shared codegen infrastructure — backends
-// are implemented in separate crates (omnilang-codegen-omniview, etc.)
+// Multi-target codegen dispatch (`compile` at omnilang/src/codegen/mod.rs)
+// and all backend modules (omniview, react, flutter, vue, dioxus, javascript,
+// rust, dart, python) live in the omnilang crate (`omnilang/src/codegen/`).
+// omnilang-core's codegen module provides only the shared infrastructure
+// re-exported below; the `codegen-*` features gate DOM/CSS utilities for
+// backend crates (see crates/omnilang-core/Cargo.toml).
 
 #[cfg(test)]
 mod tests_property;

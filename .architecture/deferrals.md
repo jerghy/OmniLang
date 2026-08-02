@@ -88,7 +88,7 @@
 
 | # | 项目 | 触发条件 | 影响 |
 |---|------|---------|------|
-| 7 | Cross-target regression test matrix | New backend added or paused backend reactivated | ⚠️ 2026-08-01 部分实施：CI `codegen-validate` 对 11 个 React fixture 跑 `tsc --noEmit` + Flutter store 文件跑 `dart analyze`（工具链缺失时 SKIP，见 ci.yml）；全后端矩阵（Vue/Dioxus/JS 等）仍待完成 |
+| 7 | Cross-target regression test matrix | New backend added or paused backend reactivated | ⚠️ 2026-08-01 部分实施：CI `codegen-validate` 对 11 个 React fixture 跑 `tsc --noEmit` + Flutter store 文件跑 `dart analyze`（工具链缺失时 SKIP，见 ci.yml）；全后端矩阵（Vue/Dioxus/JS 等）仍待完成。2026-08-02 T0.3 新增编译级 per-backend `feature-matrix` CI job（`cargo check --no-default-features --features <backend>` × codegen-react/vue/dioxus/flutter/omniview）——fixture 级全后端矩阵仍待完成 |
 
 ### 来自 ADR-001 (Pipeline Architecture)
 
@@ -123,7 +123,7 @@
 | 19 | **[MEDIUM]** Drag 触发器无约束时失效 | 拖拽触发器恢复可用之前 | `parseConstraint("")` 返回 ±Infinity → `maxExtent=Infinity` → `progress=0` → 拖拽盒不位移（`react/motion/transforms.rs:276,301`）。旧 `@drag-constraints` 已按 ADR-053 移除；codegen 需从 keyframe 范围推导默认 extent，或演示文案软化（ElementRefDemo 已注明"当前拖动无位移"） |
 | 20 | **[MEDIUM]** Style 读取未计入 lint 信号读取 | 用户仅通过 `style:` 使用信号 | `semantic/lints/ast_collectors.rs` 死代码 lint 不把 `ElementProp::Style` 计入信号读取——style-only 信号被误报 "never used"（React useState 已修复缺口的镜像） |
 | 21 | **[MEDIUM]** 跨文件 slot 转发检测缺失 | 组件跨文件导入时转发 slot | E0006 slot 转发警告是模块局部的（`module_component_names` 只含当前文件组件）——导入的组件绕过该警告 |
-| 22 | **[MEDIUM]** `--all-features` 测试编译失败（历史遗留） | `cargo test --all-features` | javascript/rust/vue/dioxus 测试文件使用旧 IR 字段（`SignalRefIR.owner`、`MutationIntent.field_object`）；`vue/tests.rs` 缺括号；dioxus feature 接线缺失 |
+| 22 | ~~**[MEDIUM]** `--all-features` 测试编译失败（历史遗留）~~ | ~~`cargo test --all-features`~~ | ✅ 2026-08-02 已关闭（Task 0.7 实测证据）：`cargo check -p omnilang --features all-backends --tests` 通过（exit 0，仅 17 个既有 unused-variable 警告、无错误）。促成修复：T0.3/T0.3a `is_dangerous_url` 移入 shared + vue/dioxus sibling-backend 解耦（commits de48bcde/36ca42fe/dabdbf79，dioxus feature-matrix 实测 green），旧 IR 字段引用与 `vue/tests.rs` 括号问题随重构清理。注：CI `test-all-backends` job 仍为 `if: false`（禁用），编译级后端口由 T0.3 新增的 per-backend `feature-matrix` job 覆盖（见 #7） |
 | 23 | **[MEDIUM]** omni-animation TS 运行时缺口 | 使用 kebab 缓动名或 translateX/Y/Z 关键帧 | `easing.ts` 无 kebab 别名（`power1-in` 降级为 linear）；`keyframes.ts` `TRANSFORM_MAP` 缺 translateX/Y/Z |
 | 24 | ~~**[MEDIUM]** 文档陈旧（docs/omniview）~~ | ~~全面文档审计~~ | ✅ 2026-08-01 已关闭（commit 10f2af9c）：`14-grammar-lang.md`、`15-grammar-view.md`、`05-components.md`、`07-events-and-bindings.md` 全部审计并同步 ADR-052/053 语法（kebab 触发器、17 属性白名单、`over:`/`easing:` 冒号 timing、slot D5 体级声明 + 命名属性消费、ref 语义方法表、@if `mode:` 冒号形式等；删除内容均加 "removed per ADR-053" 注记）。`06-templates.md` / `11-motion-animation.md` 已于 Task 10.1 修复 |
 | 25 | ~~**[MEDIUM]** BNF 规范与 parser 语法分歧未同步~~ | ~~规范文档更新~~ | ✅ 2026-08-01 已关闭（commit 10f2af9c）：`2026-07-31-semantic-level-dsl-syntax-spec.md` 已按 parser 同步——`cubic(x1:...,y1:...,x2:...,y2:...)` 命名参数形式（替代 `cubic-bezier(num,...)`）、`delay <expr>` 空格形式（替代 `delay ':' expr`）、`direction` 规则补 `alternateReverse`；另修正 `loop`（无 `infinite` 关键字）、`steps()` 位置参数、per-stop `ease`、token_type 小写、computed 空括号等 9 处分歧；触发器子属性与内联动画体标注为未实现（见 #19） |
@@ -155,6 +155,17 @@
 | 32 | **[MEDIUM]** 非 pub 模块函数不被任何后端发射 | pub 函数调用同模块私有辅助函数 | `ir::all_functions()`（ir/types.rs）过滤 `Visibility::Public`，OmniView/React 等后端只发射 pub 函数——被 pub 函数调用的私有辅助函数编译产物中缺失 → 运行时 ReferenceError（async_demo.omni 的 task_a/task_b/slow_task/fast_task 已改 pub 规避）。修复：按调用图保留被引用函数，或后端发射全部模块函数 |
 | 33 | **[LOW]** OmniView 输出嵌套 `#root` 结构缺陷 | 编辑器/WASM 桥接层消费 `output.html` 的方式 | 静态 body.html 含 `<div id="root" data-component="App">` 包装，JS `document.getElementById("root").innerHTML` 模板又包一层 → 运行时 2 个嵌套 `#root`（`[data-component="App"]` 匹配 2 元素）。功能无碍（2026-08-02 两轮浏览器全量测试 0 errors），但结构不干净且 `[data-component="App"]` 查询命中 2 元素。修复方向：`emit_dom_and_bindings` 的 innerHTML 模板剥离外层 root 包装（或 body.html 不再含包装）——涉及 WASM/editor 共用输出，需先验证两端消费方式（2026-08-02 发现，ADR-055 记录） |
 | 34 | **[LOW]** `regex_match` 语义跨目标不一致 | 无锚点模式 | JS `RegExp.test` 部分匹配 vs Python `re.fullmatch` 全匹配——无 `^...$` 锚点结果不同（demo 模式均带锚点）。编号说明：原 #30 于 2026-08-02 让位给 match Flutter 变体臂（#30 见上——语义 DSL 时代记录 ADR-054/compilability 评审/design doc/Task 1.4 均以 #30 指 match 缺口），本条内容不变仅重编号 |
+| 35 | **[LOW]** 裸 `\`（字符串外反斜杠）lexer 报错中断流 | 用户源码出现字符串外裸 `\`（如 Windows 路径字面量） | 语义 DSL 时代已知残余（ADR-054:144 记录时代 #31，2026-08-02 补登台账）：`lexer/mod.rs` 回退臂（~L297-316）对字符串外 `\` 产生 `TokenKind::Error("Unexpected character")`，错误 token 中断后续词法流（解析层报 Unexpected token）。现为显式报错（非静默，符合诚实降级原则），修复属全局语义变化（定义裸 `\` 的合理语义或带 span 的错误恢复策略）。字符串内 `\` 转义（`read_unicode_escape` 等）与 Text 内 `\` 显式报错均正常，不受本条影响 |
+
+---
+
+## 2026-08-02 状态更新（语义语法 v2 Phase 0 治理同步）
+
+**已关闭**：#22（`--all-features` 测试编译失败——`cargo check -p omnilang --features all-backends --tests` 实测通过（exit 0）；促成修复：T0.3/T0.3a vue/dioxus 解耦 + `is_dangerous_url` 移入 shared，commits de48bcde/36ca42fe/dabdbf79 + per-backend feature-matrix CI job）。#17 已于 Task 0.5 关闭（见上表，未重复编辑）。
+
+**新增**：#35（裸 `\` lexer Error token 中断流——ADR-054 时代残余 #31 补登，见上表）。
+
+**验证**：本更新仅记录已验证事实（本地 cargo check 实测 + 既有行状态核对），未修改其他行。
 
 ---
 

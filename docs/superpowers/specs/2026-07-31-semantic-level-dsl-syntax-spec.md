@@ -1,9 +1,10 @@
 # OmniLang 语义级 DSL 语法规范
 
-**状态**: Draft
-**日期**: 2026-07-31
+**状态**: Approved — 与 parser 同步（2026-08-02）
+**日期**: 2026-07-31（v1 基线；2026-08-02 状态转 Approved）
 **依赖**: ADR-052 (Semantic-Level DSL Cross-Target Codegen)
 **关联设计文档**: `docs/superpowers/plans/2026-07-31-semantic-level-dsl-design.md`
+**当前生效设计**: `docs/superpowers/specs/2026-08-02-semantic-syntax-v2-design.md`（2026-08-02 起为活跃设计——v2 逐域重写实施中，本 v1 规范为已批准的历史基线，BNF 与 parser 的同步状态截至 2026-08-02）
 
 ---
 
