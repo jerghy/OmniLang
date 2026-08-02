@@ -9,4 +9,8 @@ export type OmniViewResult = { success: boolean, files: OmniViewFiles | null,
 /**
  * Per-component output for hot-replace (keyed by component name)
  */
-components: Record<string, { js: string; html: string; css: string }> | null, sourceMap: Array<{ node_id: string }> | null, errors: Array<Diagnostic>, };
+components: Record<string, { js: string; html: string; css: string }> | null, sourceMap: Array<{ node_id: string }> | null, errors: Array<Diagnostic>, 
+/**
+ * Codegen warnings (e.g. blocked dangerous URLs, unmapped features).
+ */
+warnings: Array<string>, };

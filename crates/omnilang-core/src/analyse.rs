@@ -29,7 +29,8 @@ pub struct AnalyseOutput {
 }
 
 /// Convert a lint diagnostic to a standard Diagnostic.
-fn lint_to_diag(d: &crate::semantic::lints::LintDiagnostic) -> Diagnostic {
+/// `pub(crate)` — reused by `run_pipeline` (single-file lint phase).
+pub(crate) fn lint_to_diag(d: &crate::semantic::lints::LintDiagnostic) -> Diagnostic {
     Diagnostic {
         severity: match d.severity {
             crate::semantic::lints::LintSeverity::Warning => crate::error::Severity::Warning,
@@ -48,7 +49,8 @@ fn lint_to_diag(d: &crate::semantic::lints::LintDiagnostic) -> Diagnostic {
 }
 
 /// Check whether a lint diagnostic has Error severity.
-fn is_lint_error(d: &crate::semantic::lints::LintDiagnostic) -> bool {
+/// `pub(crate)` — reused by `run_pipeline` (single-file lint phase).
+pub(crate) fn is_lint_error(d: &crate::semantic::lints::LintDiagnostic) -> bool {
     d.severity == crate::semantic::lints::LintSeverity::Error
 }
 

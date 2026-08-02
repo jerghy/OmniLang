@@ -4,7 +4,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::api;
-use crate::commands::common::{extract_error_messages, write_output_files};
+use crate::commands::common::{extract_error_messages, print_warnings, write_output_files};
 
 pub fn cmd_run(file: Option<String>, target: Option<String>) -> anyhow::Result<()> {
     // Auto-detect target — mirrors Python cli.py:312-316
@@ -88,6 +88,9 @@ fn compile_to_temp(file: &Option<String>, run_target: &str) -> anyhow::Result<(P
         let msg = extract_error_messages(&data["errors"]);
         anyhow::bail!("{msg}");
     }
+
+    // Surface warnings (lint rules + codegen) on stderr before running.
+    print_warnings(&data["warnings"]);
 
     // Output to build/debug/ — mirrors Python cli.py:327-336
     let output_dir = Path::new("build/debug");

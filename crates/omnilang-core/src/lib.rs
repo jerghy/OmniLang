@@ -23,6 +23,7 @@ pub mod validate;
 
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use ts_rs::TS;
 
 /// A single symbol from semantic analysis — variable, signal, prop, store, etc.
@@ -107,13 +108,34 @@ pub fn run_pipeline(source: &str) -> PipelineOutput {
     diagnostics.extend(std::mem::take(&mut semantics.diagnostics));
     let mut ir = ir::lower(&program, &mut semantics, None);
     // Re-collect diagnostics emitted during lowering (validate_required_props,
-    // validate_refs, validate_ref_ops, design validation) and recompute
-    // has_errors — lower-phase errors must surface through compile().
+    // validate_refs, validate_ref_ops, design validation).
     diagnostics.extend(std::mem::take(&mut semantics.diagnostics));
+    crate::ir::optimize::optimize(&mut ir);
+
+    // Phase: lint rules (same 10 rules as `analyse_multi`, so single-file
+    // paths — compile(), compile_omniview(), resolve_styles() — see the
+    // same diagnostics as multi-file analysis). Lint warnings fold into
+    // diagnostics at Warning severity (matching how semantic-analysis
+    // warnings already flow); lint errors fold in at Error severity and
+    // therefore flip has_errors. `analyse_multi` is a disjoint pipeline
+    // that never calls run_pipeline, so lints still run exactly once per
+    // compile regardless of entry point.
+    let mut lint_programs: FxHashMap<String, Arc<crate::parser::ast::Program>> =
+        FxHashMap::default();
+    lint_programs.insert("<input>".to_string(), Arc::new(program));
+    for d in &crate::semantic::lints::run_all(&lint_programs, &ir) {
+        let mut diag = crate::analyse::lint_to_diag(d);
+        if crate::analyse::is_lint_error(d) {
+            diag.severity = crate::error::Severity::Error;
+        }
+        diagnostics.push(diag);
+    }
+
+    // Recompute has_errors after the lint phase — lint errors must surface
+    // through compile().
     let has_errors = diagnostics
         .iter()
         .any(|d| matches!(d.severity, crate::error::Severity::Error));
-    crate::ir::optimize::optimize(&mut ir);
     PipelineOutput {
         ir,
         diagnostics,
@@ -269,6 +291,44 @@ mod pipeline_tests {
         assert!(
             result.success,
             "expected success for legal ref ops, got errors: {:?}",
+            result.errors
+        );
+    }
+
+    /// Task 0.6 — lint rules must run in the shared single-file pipeline
+    /// (lifted from analyse_multi) so that compile() surfaces them.
+    #[test]
+    fn compile_runs_lint_warnings() {
+        // `unused` signal is never referenced → dead-code lint warning.
+        let result = compile("component App { signal unused: i32 = 0; view { <div /> } }");
+        assert!(
+            result.success,
+            "lint warnings must not flip success, got: {:?}",
+            result.errors
+        );
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|e| e.message.contains("never used")),
+            "dead-code lint warning must surface through compile(), got: {:?}",
+            result.errors
+        );
+    }
+
+    /// Task 0.6 — lint-free inputs must stay diagnostic-free (no new
+    /// warnings from the lifted lint phase).
+    #[test]
+    fn compile_clean_input_stays_clean() {
+        let result = compile("component App { view { <div>ok</div> } }");
+        assert!(
+            result.success,
+            "expected success, got errors: {:?}",
+            result.errors
+        );
+        assert!(
+            result.errors.is_empty(),
+            "clean input must produce no diagnostics, got: {:?}",
             result.errors
         );
     }

@@ -81,6 +81,16 @@ pub fn cmd_watch(file: &str, target: &str, output_dir: &str) -> anyhow::Result<(
         );
 
         if result.success {
+            // Surface warnings (lint rules + codegen) on stderr without
+            // failing the build.
+            for w in &result.warnings {
+                let loc = match (&w.file, w.line) {
+                    (Some(f), 0) => format!(" ({f})"),
+                    (Some(f), l) => format!(" ({f}:{l}:{})", w.col),
+                    _ => String::new(),
+                };
+                eprintln!("[{timestamp}] #{build_count} warning: {}{}", w.message, loc);
+            }
             // Write output files
             std::fs::create_dir_all(output_dir)?;
             let file_count = result.files.len();

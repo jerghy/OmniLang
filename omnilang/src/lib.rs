@@ -65,6 +65,9 @@ pub struct OmniViewResult {
     pub source_map: Option<Vec<sourcemap::SourceMapEntry>>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub errors: Vec<error::Diagnostic>,
+    /// Codegen warnings (e.g. blocked dangerous URLs, unmapped features).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub warnings: Vec<String>,
 }
 
 #[cfg(feature = "codegen-omniview")]
@@ -95,6 +98,7 @@ pub fn compile_omniview(source: &str, editor_mode: bool, debug_mode: bool) -> Om
         },
         source_map: Some(gen_output.source_map),
         errors: pipeline.diagnostics,
+        warnings: gen_output.warnings,
     }
 }
 
@@ -123,6 +127,9 @@ pub struct OmniViewFullResult {
     pub source_map: Option<Vec<sourcemap::SourceMapEntry>>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub errors: Vec<error::Diagnostic>,
+    /// Codegen warnings (e.g. blocked dangerous URLs, unmapped features).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub warnings: Vec<String>,
 }
 
 /// Compile .omni -> OmniView + IR in one pass.
@@ -151,6 +158,7 @@ pub fn compile_omniview_full(
         },
         source_map: Some(gen_output.source_map),
         errors: pipeline.diagnostics,
+        warnings: gen_output.warnings,
     }
 }
 
@@ -251,6 +259,7 @@ pub fn compile_to_target_json(
         "success": output.errors.is_empty(),
         "files": files_map,
         "errors": output.errors,
+        "warnings": output.warnings,
         "sourceMap": output.source_map,
     }))
     .unwrap_or_else(|e| {
@@ -551,6 +560,96 @@ mod source_map_integration_tests {
             json.contains("\"sourceMap\""),
             "compile_to_target_json output should contain sourceMap key.\nGot: {}",
             json
+        );
+    }
+
+    #[test]
+    fn compile_to_target_json_contains_warnings_key() {
+        let ir = crate::ir::IRProgram::default();
+        let json = crate::compile_to_target_json(&ir, Target::Python, &FxHashMap::default());
+        assert!(
+            json.contains("\"warnings\""),
+            "compile_to_target_json output should contain warnings key.\nGot: {}",
+            json
+        );
+    }
+}
+
+/// Task 0.6 — warnings gateway closure.
+///
+/// Warnings produced internally (lint rules + codegen warnings) must be
+/// visible at every consumer gateway: CLI, WASM single-file, editor.
+#[cfg(test)]
+mod warnings_gateway_tests {
+    use crate::compile_omniview;
+    use crate::compile_omniview_full;
+
+    /// Codegen warnings (e.g. blocked dangerous static URLs) must surface
+    /// through the single-file compile_omniview path.
+    #[test]
+    fn compile_omniview_surfaces_codegen_warnings() {
+        let src = r#"component App { view { <img src="javascript:alert(1)" /> } }"#;
+        let out = compile_omniview(src, false, false);
+        assert!(
+            !out.warnings.is_empty(),
+            "codegen warnings must surface through compile_omniview, got: {:?}",
+            out.warnings
+        );
+        assert!(
+            out.warnings.iter().any(|w| w.contains("dangerous URL")),
+            "expected blocked-dangerous-URL warning, got: {:?}",
+            out.warnings
+        );
+    }
+
+    /// Brief's test input (syntax fixed: the brief's `view X {}` shorthand
+    /// is a parse error — components use `component X {}`). Triggers a known
+    /// codegen warning: undefined class reference in a class binding.
+    #[test]
+    fn compile_omniview_surfaces_brief_input_warning() {
+        let src = r#"component X { view { <div class: "{'x'}" > } }"#;
+        let out = compile_omniview(src, false, false);
+        assert!(
+            !out.warnings.is_empty(),
+            "brief input must produce a warning, got warnings: {:?}",
+            out.warnings
+        );
+        assert!(
+            out.warnings.iter().any(|w| w.contains("is not defined")),
+            "expected undefined-class warning, got: {:?}",
+            out.warnings
+        );
+    }
+
+    /// Lint warnings (10 lint rules lifted into run_pipeline) must surface
+    /// through the single-file compile_omniview path.
+    #[test]
+    fn compile_omniview_surfaces_lint_warnings() {
+        // `unused` signal is never referenced → dead-code lint warning.
+        let src = r#"component App { signal unused: i32 = 0; view { <div /> } }"#;
+        let out = compile_omniview(src, false, false);
+        let messages: Vec<&str> = out
+            .errors
+            .iter()
+            .map(|e| e.message.as_str())
+            .chain(out.warnings.iter().map(|w| w.as_str()))
+            .collect();
+        assert!(
+            messages.iter().any(|m| m.contains("never used")),
+            "lint warning must surface through compile_omniview, got: {:?}",
+            messages
+        );
+    }
+
+    /// The combined IR + codegen path must surface codegen warnings too.
+    #[test]
+    fn compile_omniview_full_surfaces_warnings() {
+        let src = r#"component App { view { <img src="javascript:alert(1)" /> } }"#;
+        let out = compile_omniview_full(src, false, false);
+        assert!(
+            !out.warnings.is_empty(),
+            "compile_omniview_full must surface codegen warnings, got: {:?}",
+            out.warnings
         );
     }
 }

@@ -33,6 +33,33 @@ pub fn validate_output_filename(name: &str) -> anyhow::Result<()> {
     }
 }
 
+/// Format a single structured warning diagnostic (JSON) as a display line.
+/// Warnings share the Diagnostic shape ({message, file, line, col, ...}).
+pub fn format_warning(w: &serde_json::Value) -> String {
+    let message = w.get("message").and_then(|m| m.as_str()).unwrap_or("?");
+    let file = w.get("file").and_then(|f| f.as_str()).unwrap_or("");
+    let line = w.get("line").and_then(|l| l.as_u64()).unwrap_or(0);
+    let col = w.get("col").and_then(|c| c.as_u64()).unwrap_or(0);
+    if !file.is_empty() && line > 0 {
+        format!("warning: {message} ({file}:{line}:{col})")
+    } else if !file.is_empty() {
+        format!("warning: {message} ({file})")
+    } else {
+        format!("warning: {message}")
+    }
+}
+
+/// Print all warnings from a JSON warnings array to stderr.
+/// Mirrors Python cli.py's behavior of surfacing warnings without failing the build.
+pub fn print_warnings(warnings: &serde_json::Value) {
+    let Some(arr) = warnings.as_array() else {
+        return;
+    };
+    for w in arr {
+        eprintln!("{}", format_warning(w));
+    }
+}
+
 /// Extract human-readable error messages from JSON errors array.
 /// Supports both structured Diagnostic objects ({message, ...}) and legacy plain-string errors.
 pub fn extract_error_messages(errors: &serde_json::Value) -> String {
@@ -137,6 +164,35 @@ mod tests {
         // Relative paths with subdirectories are fine
         assert!(validate_output_filename("src/output.js").is_ok());
         assert!(validate_output_filename("build/js/app.js").is_ok());
+    }
+
+    #[test]
+    fn format_warning_structured() {
+        let w = serde_json::json!({
+            "severity": "warning",
+            "code": "E_LINT",
+            "message": "Signal 'x' in component 'App' is never used",
+            "file": "src/main.omni",
+            "line": 3,
+            "col": 5,
+        });
+        let s = format_warning(&w);
+        assert!(s.starts_with("warning: "), "got: {s}");
+        assert!(s.contains("never used"), "got: {s}");
+        assert!(s.contains("src/main.omni:3:5"), "got: {s}");
+    }
+
+    #[test]
+    fn format_warning_without_location() {
+        let w = serde_json::json!({"message": "plain warning"});
+        assert_eq!(format_warning(&w), "warning: plain warning");
+    }
+
+    #[test]
+    fn print_warnings_tolerates_malformed_input() {
+        // Must not panic on empty arrays or non-array values.
+        print_warnings(&serde_json::json!([]));
+        print_warnings(&serde_json::json!({"not": "array"}));
     }
 
     #[test]

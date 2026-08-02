@@ -4,7 +4,7 @@
 use std::path::Path;
 
 use crate::api;
-use crate::commands::common::{extract_error_messages, write_output_files};
+use crate::commands::common::{extract_error_messages, print_warnings, write_output_files};
 
 pub fn cmd_build(
     files: Vec<String>,
@@ -29,6 +29,10 @@ pub fn cmd_build(
         anyhow::bail!("{msg}");
     }
 
+    // Surface warnings (lint rules + codegen) on stderr without failing the
+    // build — mirrors Python cli.py behavior.
+    print_warnings(&data["warnings"]);
+
     // Write output files — mirrors Python cli.py:179-187
     let output_path = Path::new(output_dir);
     std::fs::create_dir_all(output_path)?;
@@ -39,4 +43,42 @@ pub fn cmd_build(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A warning-producing project must build successfully and still emit
+    /// output files (warnings go to stderr, they must not fail the build).
+    #[test]
+    fn cmd_build_surfaces_warnings_without_failing() {
+        let tmp = std::env::temp_dir().join(format!("omnic-build-warnings-{}", std::process::id()));
+        let src_dir = tmp.join("src");
+        std::fs::create_dir_all(&src_dir).unwrap();
+        let main = src_dir.join("main.omni");
+        // `unused` signal is never referenced → dead-code lint warning.
+        // `import omniview;` is required for UI components.
+        std::fs::write(
+            &main,
+            "import omniview;\ncomponent App { signal unused: i32 = 0; view { <div /> } }",
+        )
+        .unwrap();
+
+        let out_dir = tmp.join("out");
+        let files = vec![main.to_string_lossy().to_string()];
+        let result = cmd_build(
+            files,
+            Some("omniview".to_string()),
+            &out_dir.to_string_lossy(),
+        );
+        assert!(
+            result.is_ok(),
+            "build with warnings must succeed, got: {result:?}"
+        );
+        let written = std::fs::read_dir(&out_dir).unwrap().count();
+        assert!(written > 0, "expected generated output files");
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
 }
