@@ -16,6 +16,20 @@ use std::rc::Rc;
 // Vue template node generation
 // ═══════════════════════════════════════════════════════════
 
+/// Escape a value embedded in a double-quoted Vue template attribute.
+///
+/// `&` FIRST, then `"` — the Vue template compiler decodes ALL character
+/// references in attribute values BEFORE parsing them as JS, so a payload
+/// containing `&quot;`/`&#34;`/`&#x22;` would survive a `"`-only replace
+/// and re-close the string in code position after decode
+/// (`show("x&#34;;alert(1)//")` → `show("x";alert(1)//")` — executable).
+/// Escaping `&` first turns entity text into inert `&amp;…` (decoded back
+/// to literal text, never re-decoded); `"` then becomes the quote the Vue
+/// decoder restores for the JS level. Mirrors the Vue text path's ordering.
+fn vue_attr_escape(s: &str) -> String {
+    s.replace('&', "&amp;").replace('"', "&quot;")
+}
+
 pub(crate) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &VueFormatExpr) {
     match node {
         ViewTree::Element(el) => {
@@ -37,13 +51,12 @@ pub(crate) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &VueFo
                             // Emit empty string to neutralize dangerous URLs at compile time
                             attrs.push(format!("{}=\"\"", vue_attr));
                         } else {
-                            let escaped = s.replace('"', "&quot;");
-                            attrs.push(format!("{}=\"{}\"", vue_attr, escaped));
+                            attrs.push(format!("{}=\"{}\"", vue_attr, vue_attr_escape(s)));
                         }
                     }
                     _ => {
                         let vue_val = fmt.format_expr(prop_value);
-                        attrs.push(format!(":{}={}", vue_attr, vue_val));
+                        attrs.push(format!(":{}={}", vue_attr, vue_attr_escape(&vue_val)));
                     }
                 }
             }
@@ -94,22 +107,19 @@ pub(crate) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &VueFo
                             }
                             result.push_str("      }");
                             // The handler is embedded in a double-quoted Vue
-                            // template attribute — `"` inside it would
-                            // terminate the attribute and break (or hijack)
-                            // the template. `&quot;` is decoded back to `"`
-                            // by the Vue template parser (Task 3.1 corpus
-                            // finding).
-                            attrs.push(format!(
-                                "@{}=\"{}\"",
-                                vue_event,
-                                result.replace('"', "&quot;")
-                            ));
+                            // template attribute — `&`-first + `"` escaping:
+                            // the template parser decodes character refs in
+                            // attribute values before parsing the JS, so
+                            // entity-encoded quotes in a payload must become
+                            // inert text, not re-closing quotes (Task 3.1
+                            // corpus finding, review HIGH-1).
+                            attrs.push(format!("@{}=\"{}\"", vue_event, vue_attr_escape(&result)));
                         } else {
                             let handler_str = format_inline_handler_vue(body, &fmt.diagnostics);
                             attrs.push(format!(
                                 "@{}=\"{}\"",
                                 vue_event,
-                                handler_str.replace('"', "&quot;")
+                                vue_attr_escape(&handler_str)
                             ));
                         }
                     }
@@ -119,12 +129,10 @@ pub(crate) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &VueFo
                 }
             }
 
-            // Style classes from view
-            if let Some(ref classes) = el.style_classes {
-                if let Some(classes_str) = classes.as_str() {
-                    attrs.push(format!(":class=\"{}\"", classes_str));
-                }
-            }
+            // Note: `el.style_classes` is always `None` — lowering never
+            // populates it (view classes flow through the "class" prop), so
+            // the old `:class="{}"` emission here was dead code and has been
+            // removed (Task 3.1 review LOW-5), same as the Dioxus backend.
 
             // Class map bindings -> :class="{ className: expr }"
             if !el.class_map_bindings.is_empty() {
@@ -133,10 +141,15 @@ pub(crate) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &VueFo
                     .iter()
                     .map(|(class_name, expr)| format!("{}: {}", class_name, fmt.format_expr(expr)))
                     .collect();
-                attrs.push(format!(":class=\"{{ {} }}\"", bindings.join(", ")));
+                attrs.push(format!(
+                    ":class=\"{{ {} }}\"",
+                    vue_attr_escape(&bindings.join(", "))
+                ));
             }
 
-            // Inline style
+            // Inline style — the object literal is JS embedded in a
+            // double-quoted attribute; escape for the attribute (review
+            // HIGH-1, same decode-then-code model as event handlers).
             if let Some(ref style_json) = el.inline_style {
                 if let Some(obj) = style_json.as_object() {
                     let mut pairs: Vec<String> = Vec::new();
@@ -146,7 +159,10 @@ pub(crate) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &VueFo
                         pairs.push(format!("{}: {}", js_prop, js_val));
                     }
                     if !pairs.is_empty() {
-                        attrs.push(format!(":style=\"{{ {} }}\"", pairs.join(", ")));
+                        attrs.push(format!(
+                            ":style=\"{{ {} }}\"",
+                            vue_attr_escape(&pairs.join(", "))
+                        ));
                     }
                 }
             }
@@ -202,7 +218,7 @@ pub(crate) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &VueFo
             //   </template>
             if branches.len() == 1 && fallback.is_none() {
                 let cond_str = fmt.format_expr(&branches[0].condition);
-                let cond_safe = cond_str.replace('"', "&quot;");
+                let cond_safe = vue_attr_escape(&cond_str);
                 w.emit_fmt(format_args!("<template v-if=\"{}\">", cond_safe));
                 w.indent();
                 if let Some(ref body) = branches[0].body {
@@ -216,7 +232,7 @@ pub(crate) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &VueFo
             // Multiple branches or with fallback
             for (i, branch) in branches.iter().enumerate() {
                 let cond_str = fmt.format_expr(&branch.condition);
-                let cond_safe = cond_str.replace('"', "&quot;");
+                let cond_safe = vue_attr_escape(&cond_str);
                 if i == 0 {
                     w.emit_fmt(format_args!("<template v-if=\"{}\">", cond_safe));
                 } else {

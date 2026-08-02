@@ -18,6 +18,13 @@ const CLASS_MSG: &str = "类名仅允许字母数字下划线连字符";
 /// insertion point.
 const CHAR_PAYLOADS: &[&str] = &["'", "\"", "\\", "`", "${", "</"];
 
+/// Entity-encoded quotes — the Vue template parser decodes ALL character
+/// references in attribute values BEFORE parsing them as JS, so an escaping
+/// layer that only handles `"` (not `&`) lets `&quot;`/`&#34;`/`&#x22;`
+/// survive the replace and re-close the string in code position
+/// (review HIGH-1). `&amp;` itself must survive as inert text too.
+const ENTITY_PAYLOADS: &[&str] = &["&quot;", "&#34;", "&#x22;", "&amp;"];
+
 /// Exploit-shaped payloads — each attempts a concrete breakout.
 const EXPLOIT_PAYLOADS: &[&str] = &[
     "x',alert(1),'",
@@ -25,6 +32,10 @@ const EXPLOIT_PAYLOADS: &[&str] = &[
     "x\" onmouseover=\"alert(1)",
     "`${alert(1)}`",
     "</script><script>alert(1)</script>",
+    // Entity-encoded breakout: after Vue's attribute decode this becomes
+    // `show("x";alert(1)//")` — executable if `&` is not escaped first.
+    "x&#34;;alert(1)//",
+    "x&quot;;alert(1)//",
 ];
 
 /// Executable-code patterns that must never survive in generated output.
@@ -195,11 +206,119 @@ fn compile_target(source: &str, target: Target) -> crate::InternalCompileResult 
     crate::compile_multi_internal(sources, target, pm, false, false, None)
 }
 
+/// Decode the HTML character references the Vue template compiler decodes in
+/// attribute values (single pass — `&amp;quot;` becomes literal `&quot;`
+/// text, never a quote; the result is not re-scanned, matching HTML entity
+/// semantics). Vue attribute values are CODE positions after this decode.
+fn decode_html_entities(input: &str) -> String {
+    input
+        .replace("&quot;", "\"")
+        .replace("&#34;", "\"")
+        .replace("&#x22;", "\"")
+        .replace("&#39;", "'")
+        .replace("&#x27;", "'")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&amp;", "&")
+}
+
+/// Scan a .vue file to its executable residual (review MEDIUM-2:
+/// `.vue` attribute code positions are decode-then-code).
+///
+/// A .vue SFC mixes three kinds of content; only two are code:
+/// - `<script …>…</script>` sections — raw JS, stripped as JS.
+/// - In the template: code-VALUED attribute spans (`@event`, `:binding`,
+///   `v-*`) are decode-then-code — the Vue compiler decodes all character
+///   references there BEFORE parsing the JS, so the span is entity-decoded
+///   and then string-stripped (the decoded `"`s are the JS-level quotes);
+///   `{{ … }}` interpolation spans are JS expressions, raw (never
+///   entity-decoded), stripped as JS.
+/// - Everything else — template markup and text (Vue renders it as escaped
+///   text, inert), plain DATA attributes (`title="…"`, `data-*`), comments,
+///   `<style>` — is dropped (cannot execute).
+fn scan_vue(content: &str) -> String {
+    let chars: Vec<char> = content.chars().collect();
+    let n = chars.len();
+    let mut out = String::with_capacity(content.len());
+    let mut i = 0;
+    while i < n {
+        // `<script …>` … `</script>` region — raw JS.
+        if i + 7 < n && chars[i..i + 7].iter().collect::<String>() == "<script" {
+            let mut j = i + 7;
+            while j < n && chars[j] != '>' {
+                j += 1;
+            }
+            let open_end = (j + 1).min(n);
+            let mut k = open_end;
+            while k + 8 < n
+                && chars[k..k + 9].iter().collect::<String>() != "</script>"
+            {
+                k += 1;
+            }
+            let region: String = chars[open_end..k].iter().collect();
+            out.push_str(&strip_strings_and_comments(&region, ScanLang::Js));
+            i = (k + 9).min(n);
+            continue;
+        }
+        // Template attribute value span: `="` … `"`. Only CODE-VALUED
+        // attributes are decode-then-code; plain attributes are DATA (the
+        // decoded content never executes — dropped).
+        if chars[i] == '=' && i + 1 < n && chars[i + 1] == '"' {
+            let mut name_start = i;
+            while name_start > 0
+                && (chars[name_start - 1].is_ascii_alphanumeric()
+                    || chars[name_start - 1] == '_'
+                    || chars[name_start - 1] == '-'
+                    || chars[name_start - 1] == '@'
+                    || chars[name_start - 1] == ':')
+            {
+                name_start -= 1;
+            }
+            let name: String = chars[name_start..i].iter().collect();
+            let code_valued =
+                name.starts_with('@') || name.starts_with(':') || name.starts_with("v-");
+            if code_valued {
+                i += 2;
+                let start = i;
+                while i < n && chars[i] != '"' {
+                    i += 1;
+                }
+                let value: String = chars[start..i].iter().collect();
+                let decoded = decode_html_entities(&value);
+                out.push_str(&strip_strings_and_comments(&decoded, ScanLang::Js));
+                if i < n {
+                    i += 1;
+                }
+                continue;
+            }
+        }
+        // `{{ … }}` interpolation span — JS expression, not entity-decoded.
+        if chars[i] == '{' && i + 1 < n && chars[i + 1] == '{' {
+            let mut j = i + 2;
+            while j + 1 < n && !(chars[j] == '}' && chars[j + 1] == '}') {
+                j += 1;
+            }
+            let inner: String = chars[i + 2..j].iter().collect();
+            out.push_str(&strip_strings_and_comments(&inner, ScanLang::Js));
+            i = (j + 2).min(n);
+            continue;
+        }
+        // Template text / markup / data attributes / comments — inert.
+        i += 1;
+    }
+    out
+}
+
 /// Assert a successfully-compiled output is free of executable patterns.
 ///
 /// - `.html` files are raw HTML: the event-handler attr / script-reopen
 ///   patterns are checked on the raw content (attribute values are not
-///   string literals in the code sense — a `"` there IS a parse boundary).
+///   string literals in the code sense — a `"` there IS a parse boundary;
+///   the HTML parser tokenizes attributes on RAW text, so entity-decoding
+///   does not create attribute boundaries).
+/// - `.vue` files are decode-then-code: the Vue template compiler decodes
+///   character references in attribute values BEFORE parsing them as JS,
+///   so the entity-decoded form is scanned (review HIGH-1 blind spot).
 /// - All other files are code: strings and comments are stripped first so a
 ///   payload legitimately rendered as text/string content does not trip the
 ///   check, while executable position (including template-literal
@@ -223,25 +342,32 @@ fn assert_no_executable_patterns(
                     "[{backend}/{point}] raw HTML breakout {pat:?} leaked into {path} for payload {payload:?}:\n{content}"
                 );
             }
+            continue;
+        }
+        let lang = scan_lang_for(path);
+        let code = if path.ends_with(".vue") {
+            scan_vue(content)
         } else {
-            let lang = scan_lang_for(path);
-            let code = strip_strings_and_comments(content, lang);
-            for pat in EXEC_PATTERNS {
-                assert!(
-                    !code.contains(pat),
-                    "[{backend}/{point}] executable pattern {pat:?} leaked into {path} for payload {payload:?}:\n{content}"
-                );
-            }
-            if matches!(lang, ScanLang::Js) {
-                // In JS, `${` in residual code position means a real
-                // template-literal breakout (Dart interpolations are
-                // legitimate and their content is scanned via the break-out
-                // rules above).
-                assert!(
-                    !code.contains(JS_TEMPLATE_PATTERN),
-                    "[{backend}/{point}] template-literal interpolation leaked into {path} for payload {payload:?}:\n{content}"
-                );
-            }
+            strip_strings_and_comments(content, lang)
+        };
+        for pat in EXEC_PATTERNS {
+            assert!(
+                !code.contains(pat),
+                "[{backend}/{point}] executable pattern {pat:?} leaked into {path} for payload {payload:?}:\n{content}"
+            );
+        }
+        if matches!(lang, ScanLang::Js) && !path.ends_with(".vue") {
+            // In JS, `${` in residual code position means a real
+            // template-literal breakout (Dart interpolations are
+            // legitimate and their content is scanned via the break-out
+            // rules above). Excluded for `.vue`: template attribute values
+            // are single expressions where a bare `${` is invalid JS
+            // (inert), and the Vue codegen never emits backtick literals
+            // there (strings format as `"…"`).
+            assert!(
+                !code.contains(JS_TEMPLATE_PATTERN),
+                "[{backend}/{point}] template-literal interpolation leaked into {path} for payload {payload:?}:\n{content}"
+            );
         }
     }
 }
@@ -265,6 +391,14 @@ fn style_src(payload: &str) -> String {
 
 fn text_src(payload: &str) -> String {
     format!("component App {{\n    view {{\n        <div>{{\"x{payload}\"}}</div>\n    }}\n}}\n")
+}
+
+/// RAW text node (no interpolation) — exercises the plain-text escaping
+/// paths (Dioxus/Flutter text emission), which the interpolation form does
+/// not reach (review LOW-3). Payloads containing `{` or `<` break the .omni
+/// parse — a compile error is an acceptable corpus outcome.
+fn rawtext_src(payload: &str) -> String {
+    format!("component App {{\n    view {{\n        <div>x{payload}</div>\n    }}\n}}\n")
 }
 
 fn attr_src(payload: &str) -> String {
@@ -298,6 +432,10 @@ const POINTS: &[Point] = &[
         name: "event",
         make_src: event_src,
     },
+    Point {
+        name: "rawtext",
+        make_src: rawtext_src,
+    },
 ];
 
 /// The five UI backends. The corpus runs only when all are enabled
@@ -330,7 +468,11 @@ fn injection_payload_corpus() {
                 point.name, control.errors
             );
 
-            for payload in CHAR_PAYLOADS.iter().chain(EXPLOIT_PAYLOADS) {
+            for payload in CHAR_PAYLOADS
+                .iter()
+                .chain(ENTITY_PAYLOADS)
+                .chain(EXPLOIT_PAYLOADS)
+            {
                 let embedded = embed(payload);
                 let result = compile_target(&(point.make_src)(&embedded), *target);
                 if point.name == "class" {

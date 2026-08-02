@@ -267,7 +267,11 @@ pub(crate) fn gen_view_node_dioxus(w: &mut CodeWriter, node: &ViewTree, is_root:
         ViewTree::Text(text) => {
             let comma = if is_root { "" } else { "," };
             if text.starts_with('{') && text.ends_with('}') {
-                // Interpolation: {name} -> "{name}"
+                // Legacy `{expr}`-shaped text: only reachable via IR-produced
+                // text nodes — the .omni parser never emits `{`-leading Text
+                // nodes (brace content becomes ViewTree::Interpolation), so
+                // no parser-input payload can reach this path (Task 3.1
+                // review LOW-4: documented, intentionally not re-escaped).
                 let inner = &text[1..text.len() - 1];
                 w.emit_fmt(format_args!("\"{{{}}}\"{}", inner, comma));
             } else {
