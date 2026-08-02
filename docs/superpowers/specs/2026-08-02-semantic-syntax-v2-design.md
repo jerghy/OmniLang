@@ -283,7 +283,7 @@ Container(decoration: AppDesign.cardDecoration(), child: ...)
 | @themes + @theme 信号 | 生成 `useThemeStore` 订阅用户 store → `data-theme` 属性（**接线**，当前无人写） | 生成 `ThemeModeNotifier` + `MaterialApp(themeMode:)` **自动接线**（当前只注释） | 识别 @theme 信号（消除 `mode` 魔法名） |
 | 切换主题 | 普通 action 写信号 | 同左 | 同左 |
 | class:Design.X | `styles['X']` + CSS modules | `AppDesign.X()` 装饰（**实现**，当前空桩） | CSS 类 |
-| variant:Design.Y | 同 class 机制 | ThemeExtension 查找（**实现**） | CSS 变体 |
+| variant:Design.Y | 同 class 机制 | **编译期合并**（base ∪ 选中分支，默认值应用；ThemeExtension 查找被否决——生成的 ThemeData 从不注册 extensions，`Theme.of(...).extension` 运行时为 null——见 T4.3 实施注记） | CSS 变体 |
 | class:active={cond} | 条件拼接（既有） | `decoration: cond ? X() : null`（**实现**，当前空 BoxDecoration） | 既有 |
 | 动态 token | CSS 变量 + `setProperty`（既有，消毒修复入域 9） | 运行时 Values（既有） | 既有 |
 | ZIndex | CSS z-index | **warning**：「Flutter z 序由 widget 顺序决定」 | CSS |
