@@ -295,6 +295,40 @@ mod pipeline_tests {
         );
     }
 
+    /// Design D3: `capturePointer(id)` / `releasePointer(id)` are parameterless
+    /// — any argument fails the compile with the 域 1 诊断表 hint; the zero-arg
+    /// forms stay legal.
+    #[test]
+    fn compile_rejects_capture_pointer_with_args_accepts_parameterless() {
+        for (call, expected) in [
+            ("box.capturePointer(1)", "capturePointer 无参数"),
+            ("box.releasePointer(1)", "releasePointer 无参数"),
+        ] {
+            let source = format!(
+                "component App {{\n    ref box: Element;\n    view {{\n        <div @ref={{box}} />\n    }}\n    fn go() {{\n        {};\n    }}\n}}",
+                call
+            );
+            let result = compile(&source);
+            assert!(!result.success, "`{}` must fail to compile", call);
+            assert!(
+                result.errors.iter().any(|e| {
+                    e.message.contains(expected) && e.message.contains("多指针锁定不支持")
+                }),
+                "`{}` must diagnose with the D3 hint, got: {:?}",
+                call,
+                result.errors
+            );
+        }
+        let result = compile(
+            "component App {\n    ref box: Element;\n    view {\n        <div @ref={box} />\n    }\n    fn go() {\n        box.capturePointer();\n        box.releasePointer();\n    }\n}",
+        );
+        assert!(
+            result.success,
+            "parameterless capturePointer()/releasePointer() must compile, got: {:?}",
+            result.errors
+        );
+    }
+
     /// Regression: the imperative ref write (`ref.value = x` / `ref.setValue(x)`)
     /// was removed (RefOpIR 11 → 10 ops) — the write forms must hard-diagnose
     /// with the bind:value migration hint and fail the compile.

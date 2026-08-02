@@ -35,6 +35,12 @@ use rustc_hash::FxHashSet;
 /// two-way `bind:value` binding is the supported write path.
 const SETVALUE_REMOVED_HINT: &str = "命令式写已删除，用 bind:value 双向绑定";
 
+/// Diagnostic for the removed `capturePointer(id)` / `releasePointer(id)`
+/// argument (design D3) — verbatim from the v2 design doc 域 1 诊断表. The
+/// id was a DOM pointerId platform-shape leak; both ops are parameterless
+/// and multi-pointer locking is unsupported.
+const POINTER_CAPTURE_NOARG_HINT: &str = "无参数；多指针锁定不支持";
+
 /// Constructor for a legal ref operation from the source call's argument list.
 /// Returns `None` when required arguments are missing (e.g. `setSelection()`
 /// without start/end) — the caller emits an arity diagnostic.
@@ -76,16 +82,9 @@ fn get_legal_ref_ops() -> Vec<(&'static str, &'static str, RefOpConstructor)> {
                 what: MeasureWhat::Position,
             })
         }),
-        ("capturePointer", "capturePointer(id)", |a| {
-            a.first()
-                .cloned()
-                .map(|id| RefOpIR::CapturePointer { id: Box::new(id) })
-        }),
-        ("releasePointer", "releasePointer(id)", |a| {
-            a.first()
-                .cloned()
-                .map(|id| RefOpIR::ReleasePointer { id: Box::new(id) })
-        }),
+        // capturePointer / releasePointer are NOT in the dispatch table: both
+        // are parameterless (design D3) and reject any argument with a
+        // dedicated diagnostic — see check_expr.
     ]
 }
 
@@ -231,6 +230,25 @@ fn check_expr(expr: &mut ExprIR, ctx: &mut RefOpCtx) {
         } => {
             if let ExprIR::IdentifierExpr { name: ref_name, .. } = object.as_ref() {
                 if ctx.ref_names.contains(ref_name) && !ctx.is_shadowed(ref_name) {
+                    // capturePointer / releasePointer are parameterless (D3):
+                    // any argument is a hard error — the id was a DOM
+                    // pointerId platform-shape leak and multi-pointer locking
+                    // is unsupported. The zero-arg form is legal and rewritten.
+                    if method == "capturePointer" || method == "releasePointer" {
+                        if !args.is_empty() {
+                            ctx.error(format!("{} {}", method, POINTER_CAPTURE_NOARG_HINT));
+                        } else {
+                            *expr = ExprIR::RefOpExpr {
+                                ref_name: ref_name.clone(),
+                                op: if method == "capturePointer" {
+                                    RefOpIR::CapturePointer
+                                } else {
+                                    RefOpIR::ReleasePointer
+                                },
+                            };
+                        }
+                        return;
+                    }
                     // Legal operations are rewritten so codegen knows the intent.
                     let legal_ops = get_legal_ref_ops();
                     if let Some((_, signature, constructor)) =
@@ -431,7 +449,9 @@ fn walk_ref_op_children_mut(op: &mut RefOpIR, ctx: &mut RefOpCtx) {
         | RefOpIR::Blur
         | RefOpIR::Measure { .. }
         | RefOpIR::Select
-        | RefOpIR::Value => {}
+        | RefOpIR::Value
+        | RefOpIR::CapturePointer
+        | RefOpIR::ReleasePointer => {}
         RefOpIR::ScrollTo { x, y } => {
             if let Some(x) = x {
                 walk_expr_mut(x, ctx);
@@ -452,8 +472,6 @@ fn walk_ref_op_children_mut(op: &mut RefOpIR, ctx: &mut RefOpCtx) {
             walk_expr_mut(start, ctx);
             walk_expr_mut(end, ctx);
         }
-        RefOpIR::CapturePointer { id } => walk_expr_mut(id, ctx),
-        RefOpIR::ReleasePointer { id } => walk_expr_mut(id, ctx),
     }
 }
 
@@ -842,6 +860,91 @@ mod tests {
         assert_eq!(diags.len(), 1);
         assert!(diags[0].message.contains("setSelection"));
         assert!(diags[0].message.contains("requires more arguments"));
+    }
+
+    #[test]
+    fn rewrites_parameterless_capture_pointer() {
+        // Design D3: capturePointer() is parameterless — zero args stay legal
+        // and rewrite to the unit RefOpIR.
+        let mut comp = make_component();
+        push_expr_stmt(&mut comp, method_call("box", "capturePointer", vec![]));
+        let diags = run_pass(&mut comp);
+        assert!(diags.is_empty(), "expected no diagnostics: {:?}", diags);
+        match stmt_expr(&comp) {
+            ExprIR::RefOpExpr { ref_name, op } => {
+                assert_eq!(ref_name, "box");
+                assert!(matches!(op, RefOpIR::CapturePointer));
+            }
+            other => panic!("expected RefOpExpr, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn rewrites_parameterless_release_pointer() {
+        let mut comp = make_component();
+        push_expr_stmt(&mut comp, method_call("box", "releasePointer", vec![]));
+        let diags = run_pass(&mut comp);
+        assert!(diags.is_empty(), "expected no diagnostics: {:?}", diags);
+        match stmt_expr(&comp) {
+            ExprIR::RefOpExpr { op, .. } => assert!(matches!(op, RefOpIR::ReleasePointer)),
+            other => panic!("expected RefOpExpr, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn capture_pointer_with_args_is_error() {
+        // Design D3: `capturePointer(1)` — any argument is a hard error with
+        // the verbatim hint from the 域 1 诊断表 (the id was a DOM pointerId
+        // platform-shape leak; multi-pointer locking is unsupported).
+        let mut comp = make_component();
+        push_expr_stmt(
+            &mut comp,
+            method_call(
+                "box",
+                "capturePointer",
+                vec![ExprIR::LiteralExpr {
+                    value: serde_json::json!(1),
+                }],
+            ),
+        );
+        let diags = run_pass(&mut comp);
+        assert_eq!(diags.len(), 1, "expected exactly one diagnostic");
+        assert!(
+            diags[0].message.contains("capturePointer 无参数"),
+            "expected 'capturePointer 无参数', got: {:?}",
+            diags[0].message
+        );
+        assert!(
+            diags[0].message.contains("多指针锁定不支持"),
+            "expected '多指针锁定不支持', got: {:?}",
+            diags[0].message
+        );
+        // The call is not rewritten — compile fails on the error.
+        assert!(matches!(stmt_expr(&comp), ExprIR::MethodCallExpr { .. }));
+    }
+
+    #[test]
+    fn release_pointer_with_args_is_error() {
+        let mut comp = make_component();
+        push_expr_stmt(
+            &mut comp,
+            method_call(
+                "box",
+                "releasePointer",
+                vec![ExprIR::LiteralExpr {
+                    value: serde_json::json!(1),
+                }],
+            ),
+        );
+        let diags = run_pass(&mut comp);
+        assert_eq!(diags.len(), 1, "expected exactly one diagnostic");
+        assert!(
+            diags[0].message.contains("releasePointer 无参数")
+                && diags[0].message.contains("多指针锁定不支持"),
+            "expected the parameterless hint, got: {:?}",
+            diags[0].message
+        );
+        assert!(matches!(stmt_expr(&comp), ExprIR::MethodCallExpr { .. }));
     }
 
     #[test]

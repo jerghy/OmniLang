@@ -235,7 +235,6 @@ component RefOps {
   signal x: Float = 0
   signal y: Float = 0
   signal text: String = ""
-  signal ptr: Float = 0
   ref box: Element
   fn runAll() {
     box.focus()
@@ -249,8 +248,8 @@ component RefOps {
     box.select()
     box.setSelection(0, 3)
     box.value
-    box.capturePointer(ptr)
-    box.releasePointer(ptr)
+    box.capturePointer()
+    box.releasePointer()
   }
   view {
     <div ref:box @onClick={runAll}>click</div>
@@ -280,8 +279,10 @@ component RefOps {
         "box.select();",
         "box.setSelectionRange(0, 3);",
         "box.value;",
-        "box.capturePointer(RefOps_ptr.value);",
-        "box.releasePointerCapture(RefOps_ptr.value);",
+        // Design D3: parameterless — the wrapper resolves the ACTIVE pointer
+        // from the runtime tracker (no id is passed at the call site).
+        "box.capturePointer();",
+        "box.releasePointerCapture();",
     ];
     for expected in expectations {
         assert!(
@@ -291,12 +292,15 @@ component RefOps {
             js
         );
     }
-    // Ref wrapper shape: releasePointer maps to the native releasePointerCapture
-    // API (releasePointer does not exist on DOM), and scrollTo/scrollBy forward
-    // the options object as ONE argument (the 2-arg (x, y) forwarding breaks the
+    // Ref wrapper shape: capturePointer/releasePointerCapture are
+    // parameterless and read the runtime's active-pointer tracker; the DSL
+    // releasePointer maps to the native releasePointerCapture API
+    // (releasePointer does not exist on DOM). scrollTo/scrollBy forward the
+    // options object as ONE argument (the 2-arg (x, y) forwarding breaks the
     // options-object call → NaN → no scroll).
     let wrapper_assertions = [
-        "releasePointerCapture(id) { const e = _el(); if (e) e.releasePointerCapture(id); },",
+        "capturePointer() { const e = _el(); if (e && __omni_activePointerId != null) e.setPointerCapture(__omni_activePointerId); },",
+        "releasePointerCapture() { const e = _el(); if (e && __omni_activePointerId != null) e.releasePointerCapture(__omni_activePointerId); },",
         "scrollTo(opts) { const e = _el(); if (e) e.scrollTo(opts); },",
         "scrollBy(opts) { const e = _el(); if (e) e.scrollBy(opts); },",
     ];
@@ -308,8 +312,17 @@ component RefOps {
             js
         );
     }
+    // The runtime's active-pointer tracker (D3) records the most recent
+    // pointerdown's id in the capture phase.
+    assert!(
+        js.contains("__omni_activePointerId = e.pointerId")
+            && js.contains("document.addEventListener('pointerdown'"),
+        "runtime must track the active pointer id. Got:\n{}",
+        js
+    );
     for broken in [
         "e.releasePointer(id)",
+        "capturePointer(id)",
         "e.scrollTo(x, y)",
         "e.scrollBy(dx, dy)",
     ] {
@@ -322,12 +335,13 @@ component RefOps {
     }
 }
 
-/// Test: imperative ref writes (`ref.value = x`, `ref.setValue(x)`) are
-/// hard-diagnosed with the bind:value migration hint (SetValue removed,
-/// 11 → 10 ops — two-way `bind:value` covers the write intent, D2).
+/// Test: imperative ref writes (`ref.value = x`, `ref.setValue(x)`, and the
+/// bare `ref = x` form) are hard-diagnosed with the bind:value migration hint
+/// (SetValue removed, 11 → 10 ops — two-way `bind:value` covers the write
+/// intent, D2).
 #[test]
 fn test_ref_value_write_forms_are_diagnosed() {
-    for write in ["box.value = text", "box.setValue(text)"] {
+    for write in ["box.value = text", "box.setValue(text)", "box = text"] {
         let source = format!(
             r#"
 component RefOps {{

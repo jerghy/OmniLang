@@ -633,10 +633,13 @@ impl OmniViewGenerator {
                  \x20\x20 set value(v) {{ const e = _el(); if (e) e.value = v; }},\n\
                  \x20\x20 get textContent() {{ const e = _el(); return e ? e.textContent : null; }},\n\
                  \x20\x20 set textContent(v) {{ const e = _el(); if (e) e.textContent = v; }},\n\
-                 \x20\x20 capturePointer(id) {{ const e = _el(); if (e) e.setPointerCapture(id); }},\n\
+                 \x20\x20 // Parameterless (design D3): capture/release the ACTIVE pointer
+                 \x20\x20 // recorded by the runtime (__omni_activePointerId — set on the
+                 \x20\x20 // most recent pointerdown, capture-phase).
+                 \x20\x20 capturePointer() {{ const e = _el(); if (e && __omni_activePointerId != null) e.setPointerCapture(__omni_activePointerId); }},\n\
                  \x20\x20 // DSL releasePointer maps to the native releasePointerCapture API
                  \x20\x20 // (releasePointer does not exist on DOM).
-                 \x20\x20 releasePointerCapture(id) {{ const e = _el(); if (e) e.releasePointerCapture(id); }},\n\
+                 \x20\x20 releasePointerCapture() {{ const e = _el(); if (e && __omni_activePointerId != null) e.releasePointerCapture(__omni_activePointerId); }},\n\
                  \x20\x20 // Zero-rect when unmounted so ref.measure() / ref.width / ref.height\n\
                  \x20\x20 // chains (getBoundingClientRect().width) never hit null.\n\
                  \x20\x20 getBoundingClientRect() {{ const e = _el(); return e ? e.getBoundingClientRect() : {{ left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0, x: 0, y: 0 }}; }},\n\

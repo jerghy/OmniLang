@@ -809,8 +809,7 @@ fn ref_op_references_store_name(op: &RefOpIR, store_names: &FxHashSet<String>) -
             expr_references_store_name(start, store_names)
                 || expr_references_store_name(end, store_names)
         }
-        RefOpIR::CapturePointer { id } => expr_references_store_name(id, store_names),
-        RefOpIR::ReleasePointer { id } => expr_references_store_name(id, store_names),
+        RefOpIR::CapturePointer | RefOpIR::ReleasePointer => false,
         // RefOpIR is #[non_exhaustive] — cross-crate matches need a wildcard.
         #[allow(unreachable_patterns)]
         _ => false,

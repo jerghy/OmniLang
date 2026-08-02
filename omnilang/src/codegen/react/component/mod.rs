@@ -260,6 +260,24 @@ impl ReactCodegen {
         );
         comp_imports.emit(&mut w, name, comp, has_props);
 
+        // ── Active-pointer tracker (design D3) ──
+        // `capturePointer()`/`releasePointer()` are parameterless — they act
+        // on the ACTIVE pointer. Ref ops can be called from fns/effects/
+        // lifecycles where no event object is in scope, so the module-scope
+        // tracker records the most recent pointerdown's id (capture-phase so
+        // it fires before element-level handlers). Emitted only when the
+        // component actually uses the pointer-capture ops.
+        if component_uses_pointer_ops(comp, view) {
+            w.emit("");
+            w.emit("// Active pointer tracking for ref.capturePointer()/releasePointer()");
+            w.emit("// (parameterless DSL form — the most recent pointerdown's id is retained,");
+            w.emit("// so a later releasePointer() can release it).");
+            w.emit("let __omni_activePointerId: number | null = null;");
+            w.emit("if (typeof window !== \"undefined\") {");
+            w.emit("  window.addEventListener(\"pointerdown\", (e) => { __omni_activePointerId = e.pointerId; }, true);");
+            w.emit("}");
+        }
+
         // ── Library functions ──
         let mut used_fn_names: FxHashSet<String> = FxHashSet::default();
         for computed in &comp.computeds {
@@ -698,11 +716,211 @@ fn collect_ref_op_identifiers(op: &RefOpIR, acc: &mut FxHashSet<String>) {
             collect_expr_identifiers(start, acc);
             collect_expr_identifiers(end, acc);
         }
-        RefOpIR::CapturePointer { id } => collect_expr_identifiers(id, acc),
-        RefOpIR::ReleasePointer { id } => collect_expr_identifiers(id, acc),
+        RefOpIR::CapturePointer | RefOpIR::ReleasePointer => {}
         // RefOpIR is #[non_exhaustive] — cross-crate matches need a wildcard.
         #[allow(unreachable_patterns)]
         _ => {}
+    }
+}
+
+/// True when the component calls the parameterless pointer-capture ref ops
+/// (`ref.capturePointer()` / `ref.releasePointer()`, design D3) anywhere —
+/// fns, effects, lifecycles, computeds, and the view tree. Gates the
+/// module-scope active-pointer tracker in the generated file (the ops
+/// themselves reference `__omni_activePointerId`).
+fn component_uses_pointer_ops(comp: &ComponentIR, view: Option<&ViewTree>) -> bool {
+    for f in &comp.fns {
+        if f.body.statements.iter().any(stmt_has_pointer_ops) {
+            return true;
+        }
+    }
+    for e in &comp.effects {
+        if e.body.statements.iter().any(stmt_has_pointer_ops) {
+            return true;
+        }
+    }
+    for lc in &comp.lifecycles {
+        if lc.body.statements.iter().any(stmt_has_pointer_ops) {
+            return true;
+        }
+    }
+    for c in &comp.computeds {
+        if expr_has_pointer_ops(&c.body) {
+            return true;
+        }
+    }
+    view.is_some_and(view_has_pointer_ops)
+}
+
+/// True when a statement subtree contains a CapturePointer/ReleasePointer op.
+fn stmt_has_pointer_ops(stmt: &StatementIR) -> bool {
+    match stmt {
+        StatementIR::ExprStmtIR { expr } | StatementIR::ThrowStmtIR { expr } => {
+            expr_has_pointer_ops(expr)
+        }
+        StatementIR::LetStmtIR { value, .. } | StatementIR::ReturnStmtIR { value } => {
+            value.as_ref().is_some_and(expr_has_pointer_ops)
+        }
+        StatementIR::IfStmtIR {
+            condition,
+            then_body,
+            else_ifs,
+            else_body,
+        } => {
+            expr_has_pointer_ops(condition)
+                || then_body.statements.iter().any(stmt_has_pointer_ops)
+                || else_ifs.iter().any(|(c, b)| {
+                    expr_has_pointer_ops(c) || b.statements.iter().any(stmt_has_pointer_ops)
+                })
+                || else_body
+                    .as_ref()
+                    .is_some_and(|b| b.statements.iter().any(stmt_has_pointer_ops))
+        }
+        StatementIR::WhileStmtIR { condition, body }
+        | StatementIR::ForInStmtIR {
+            iterable: condition,
+            body,
+            ..
+        } => expr_has_pointer_ops(condition) || body.statements.iter().any(stmt_has_pointer_ops),
+        StatementIR::BlockStmtIR { body } => body.statements.iter().any(stmt_has_pointer_ops),
+        StatementIR::MutationStmt { intent } => intent
+            .as_ref()
+            .is_some_and(|i| mutation_has_pointer_ops(i)),
+        StatementIR::TryCatchStmtIR {
+            try_body,
+            catch_body,
+            finally_body,
+            ..
+        } => {
+            try_body.statements.iter().any(stmt_has_pointer_ops)
+                || catch_body
+                    .as_ref()
+                    .is_some_and(|b| b.statements.iter().any(stmt_has_pointer_ops))
+                || finally_body
+                    .as_ref()
+                    .is_some_and(|b| b.statements.iter().any(stmt_has_pointer_ops))
+        }
+        StatementIR::EventEmitStmtIR { args, .. } => args.iter().any(expr_has_pointer_ops),
+        StatementIR::BreakStmtIR | StatementIR::ContinueStmtIR => false,
+        // StatementIR is #[non_exhaustive] — cross-crate matches need a wildcard.
+        #[allow(unreachable_patterns)]
+        _ => false,
+    }
+}
+
+/// True when a mutation intent carries a CapturePointer/ReleasePointer op.
+fn mutation_has_pointer_ops(intent: &MutationIntent) -> bool {
+    match intent {
+        MutationIntent::DirectAssign { value, .. } => {
+            value.as_deref().is_some_and(expr_has_pointer_ops)
+        }
+        MutationIntent::Increment { amount, .. }
+        | MutationIntent::Decrement { amount, .. }
+        | MutationIntent::Multiply { amount, .. }
+        | MutationIntent::Divide { amount, .. }
+        | MutationIntent::Modulo { amount, .. } => {
+            amount.as_deref().is_some_and(expr_has_pointer_ops)
+        }
+        MutationIntent::Push { item, .. } => item.as_deref().is_some_and(expr_has_pointer_ops),
+        MutationIntent::Pop { .. } => false,
+        // MutationIntent is #[non_exhaustive] — cross-crate matches need a wildcard.
+        #[allow(unreachable_patterns)]
+        _ => false,
+    }
+}
+
+/// True when an expression subtree contains a CapturePointer/ReleasePointer op.
+fn expr_has_pointer_ops(expr: &ExprIR) -> bool {
+    match expr {
+        ExprIR::RefOpExpr { op, .. } => matches!(op, RefOpIR::CapturePointer | RefOpIR::ReleasePointer),
+        ExprIR::FieldAccessExpr { object, .. }
+        | ExprIR::OptionalChainExpr { object, .. }
+        | ExprIR::UnaryOpExpr { operand: object, .. }
+        | ExprIR::AwaitExpr { operand: object } => expr_has_pointer_ops(object),
+        ExprIR::BinaryOpExpr { left, right, .. } => {
+            expr_has_pointer_ops(left) || expr_has_pointer_ops(right)
+        }
+        ExprIR::TernaryIR {
+            cond,
+            then_expr,
+            else_expr,
+        } => {
+            expr_has_pointer_ops(cond)
+                || expr_has_pointer_ops(then_expr)
+                || expr_has_pointer_ops(else_expr)
+        }
+        ExprIR::CallExpr { args, .. } | ExprIR::ArrayExpr { elements: args } => {
+            args.iter().any(expr_has_pointer_ops)
+        }
+        ExprIR::SpreadExpr { operand }
+        | ExprIR::IndexExpr {
+            object: _,
+            index: operand,
+        } => expr_has_pointer_ops(operand),
+        ExprIR::StructExpr { fields, .. } | ExprIR::VariantLiteral { fields, .. } => fields
+            .iter()
+            .any(|(_, v)| expr_has_pointer_ops(v)),
+        ExprIR::MapExpr { entries } => entries
+            .iter()
+            .any(|(k, v)| expr_has_pointer_ops(k) || expr_has_pointer_ops(v)),
+        ExprIR::StoreFieldAccessExpr { call_args, .. } => {
+            call_args.iter().any(expr_has_pointer_ops)
+        }
+        ExprIR::MethodCallExpr { object, args, .. } => {
+            expr_has_pointer_ops(object) || args.iter().any(expr_has_pointer_ops)
+        }
+        ExprIR::BlockExpr { statements, tail } => {
+            statements.iter().any(stmt_has_pointer_ops) || expr_has_pointer_ops(tail)
+        }
+        ExprIR::ClosureExpr { body, .. } => expr_has_pointer_ops(body),
+        ExprIR::MatchExpr { matched, arms } => {
+            expr_has_pointer_ops(matched)
+                || arms
+                    .iter()
+                    .any(|arm| arm.body.statements.iter().any(stmt_has_pointer_ops))
+        }
+        ExprIR::ArrayMethod {
+            subject, predicate, ..
+        } => expr_has_pointer_ops(subject) || expr_has_pointer_ops(predicate),
+        ExprIR::LiteralExpr { .. } | ExprIR::IdentifierExpr { .. } => false,
+        // ExprIR is #[non_exhaustive] — cross-crate matches need a wildcard.
+        #[allow(unreachable_patterns)]
+        _ => false,
+    }
+}
+
+/// True when the view tree contains a CapturePointer/ReleasePointer op.
+fn view_has_pointer_ops(node: &ViewTree) -> bool {
+    match node {
+        ViewTree::Element(el) => {
+            el.props.values().any(expr_has_pointer_ops)
+                || el.class_map_bindings.values().any(expr_has_pointer_ops)
+                || el.events.values().any(|handler| match handler {
+                    EventHandlerIR::InlineFn { body, .. } => {
+                        body.statements.iter().any(stmt_has_pointer_ops)
+                    }
+                    EventHandlerIR::StoreAction { .. } | EventHandlerIR::FnRef { .. } => false,
+                })
+                || el.children.iter().any(view_has_pointer_ops)
+        }
+        ViewTree::Conditional(cond) => {
+            cond.branches.iter().any(|b| {
+                expr_has_pointer_ops(&b.condition)
+                    || b.body.as_ref().is_some_and(|v| view_has_pointer_ops(v))
+            }) || cond.fallback.as_ref().is_some_and(|v| view_has_pointer_ops(v))
+        }
+        ViewTree::ListRendering(list) => {
+            expr_has_pointer_ops(&list.iterable)
+                || list.body.as_ref().is_some_and(|v| view_has_pointer_ops(v))
+                || list.empty_body.as_ref().is_some_and(|v| view_has_pointer_ops(v))
+        }
+        ViewTree::Interpolation(expr) => expr_has_pointer_ops(expr),
+        ViewTree::Slot { fallback, .. } => fallback.iter().any(view_has_pointer_ops),
+        ViewTree::Fragment(children) => children.iter().any(view_has_pointer_ops),
+        ViewTree::Text(_) => false,
+        // ViewTree is #[non_exhaustive] — cross-crate matches need a wildcard.
+        #[allow(unreachable_patterns)]
+        _ => false,
     }
 }
 

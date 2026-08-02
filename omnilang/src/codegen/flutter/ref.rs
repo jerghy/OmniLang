@@ -8,8 +8,9 @@
 //! |------------|------------|---------|
 //! | focus/blur | `FocusNode _nameFocus` | `ref.focus()`/`ref.blur()` or `focus={sig}` |
 //! | scroll     | `ScrollController _nameScroll` | `ref.scrollTo()`/`ref.scrollBy()` or `scroll-x/y={sig}` |
-//! | text       | `TextEditingController _nameText` | `ref.value`/`ref.setValue()`/`ref.select()`/`ref.setSelection()` or `value={sig}` |
+//! | text       | `TextEditingController _nameText` | `ref.value`/`ref.select()`/`ref.setSelection()` or `value={sig}` |
 //! | measure    | (none — inline `RenderBox` reads) | `ref.measure()` / `ref.width` / `ref.height` / `ref.position` |
+//! | pointer capture | (none — hard error) | `ref.capturePointer()`/`ref.releasePointer()` — unsupported on Flutter; compile error + generated `throw UnsupportedError` (design D3 / spec §10.3) |
 //!
 //! Semantic bindings (`focus={sig}`, `scroll-x/y={sig}`, `value={sig}`) are
 //! applied by a `_syncSemanticBindings()` State method registered as a
@@ -21,8 +22,15 @@
 
 use crate::codegen::shared::expr::{DartFormatExpr, FormatExpr};
 use crate::codegen::{CodeWriter, JsonFormatConfig, Target};
+use crate::error::{Diagnostic, DiagnosticKind, Severity};
 use crate::ir::*;
 use rustc_hash::FxHashMap;
+
+/// Compile-error hint for pointer capture on Flutter — verbatim from the v2
+/// design doc 域 1 诊断表 / spec §10.3. Pointer capture is floor-outside on
+/// Flutter; the generated code additionally throws `UnsupportedError` so
+/// failure is loud even if the diagnostic is bypassed.
+const FLUTTER_POINTER_CAPTURE_ERROR: &str = "Flutter 不支持指针捕获，用 GestureDetector";
 
 use super::capitalize_first;
 use super::expr::rewrite_store_accesses;
@@ -50,6 +58,9 @@ pub(crate) struct RefUsage {
     /// `value={sig}` binding present — installs a controller listener and a
     /// guard flag field.
     pub has_value_binding: bool,
+    /// `ref.capturePointer()`/`ref.releasePointer()` present — unsupported on
+    /// Flutter: drives the hard compile error (design D3 / spec §10.3).
+    pub needs_pointer_capture: bool,
 }
 
 impl RefUsage {
@@ -65,7 +76,13 @@ impl RefUsage {
 ///
 /// Every declared ref is seeded with an empty `RefUsage` so its GlobalKey is
 /// always emitted even when the ref is never exercised.
-pub(crate) fn collect_ref_usage(comp: &ComponentIR) -> FxHashMap<String, RefUsage> {
+///
+/// The second return value carries hard compile errors for ops the Flutter
+/// target does not support (`capturePointer()`/`releasePointer()`, design
+/// D3 / spec §10.3) — one error per ref that uses them.
+pub(crate) fn collect_ref_usage(
+    comp: &ComponentIR,
+) -> (FxHashMap<String, RefUsage>, Vec<Diagnostic>) {
     let mut usage: FxHashMap<String, RefUsage> = FxHashMap::default();
     for r in &comp.refs {
         usage.entry(r.name.clone()).or_default();
@@ -91,7 +108,23 @@ pub(crate) fn collect_ref_usage(comp: &ComponentIR) -> FxHashMap<String, RefUsag
     if let Some(view) = &comp.view {
         scan_view(view, &mut usage);
     }
-    usage
+    let (line, col) = comp.source_span.map(|s| (s.line, s.col)).unwrap_or((0, 0));
+    let errors: Vec<Diagnostic> = usage
+        .iter()
+        .filter(|(_, u)| u.needs_pointer_capture)
+        .map(|_| Diagnostic {
+            severity: Severity::Error,
+            kind: DiagnosticKind::ECodegen,
+            message: FLUTTER_POINTER_CAPTURE_ERROR.to_string(),
+            file: comp.source_file.clone(),
+            line,
+            col,
+            end_line: None,
+            end_col: None,
+            suggestion: None,
+        })
+        .collect();
+    (usage, errors)
 }
 
 /// Record a `RefOpExpr`'s capability flags.
@@ -102,9 +135,10 @@ fn record_ref_op(ref_name: &str, op: &RefOpIR, usage: &mut FxHashMap<String, Ref
         RefOpIR::ScrollTo { .. } | RefOpIR::ScrollBy { .. } => u.needs_scroll = true,
         RefOpIR::Value | RefOpIR::Select | RefOpIR::SetSelection { .. } => u.needs_text = true,
         RefOpIR::Measure { .. } => u.needs_measure = true,
-        RefOpIR::CapturePointer { .. } | RefOpIR::ReleasePointer { .. } => {
-            // Pointer capture is not yet supported on Flutter — no controller
-            // needed (formatting emits a placeholder).
+        RefOpIR::CapturePointer | RefOpIR::ReleasePointer => {
+            // Pointer capture is unsupported on Flutter (design D3): flagged
+            // here so collect_ref_usage emits the hard error diagnostic.
+            u.needs_pointer_capture = true;
         }
         // RefOpIR is #[non_exhaustive] — cross-crate matches need a wildcard.
         #[allow(unreachable_patterns)]
@@ -112,7 +146,7 @@ fn record_ref_op(ref_name: &str, op: &RefOpIR, usage: &mut FxHashMap<String, Ref
     }
 }
 
-/// Scan `RefOpIR` child expressions (args like x/y/dx/dy/start/end/value/id)
+/// Scan `RefOpIR` child expressions (args like x/y/dx/dy/start/end/value)
 /// for nested ref ops.
 fn scan_ref_op_args(op: &RefOpIR, usage: &mut FxHashMap<String, RefUsage>) {
     match op {
@@ -128,8 +162,8 @@ fn scan_ref_op_args(op: &RefOpIR, usage: &mut FxHashMap<String, RefUsage>) {
             scan_expr(start, usage);
             scan_expr(end, usage);
         }
-        RefOpIR::CapturePointer { id } | RefOpIR::ReleasePointer { id } => scan_expr(id, usage),
-        // No-arg ops (Focus/Blur/Measure/Select/Value) carry no child expressions.
+        // No-arg ops (Focus/Blur/Measure/Select/Value/CapturePointer/
+        // ReleasePointer) carry no child expressions.
         _ => {}
     }
 }
@@ -992,14 +1026,17 @@ fn format_ref_op_flutter(ref_name: &str, op: &RefOpIR, fmt: &impl FormatExpr) ->
         RefOpIR::Value => format!("{}.text", text),
         // No trailing `;` — statement contexts append their own terminator
         // (an embedded `;` would double-terminate in ExprStmtIR position).
-        RefOpIR::CapturePointer { id } => format!(
-            "/* TODO(flutter): ref.capturePointer({}) — pointer capture needs a RenderPointerListener-based wrapper */",
-            fmt.format_expr(id)
-        ),
-        RefOpIR::ReleasePointer { id } => format!(
-            "/* TODO(flutter): ref.releasePointer({}) — pointer capture needs a RenderPointerListener-based wrapper */",
-            fmt.format_expr(id)
-        ),
+        // Pointer capture is unsupported on Flutter (design D3 / spec §10.3):
+        // `throw` is a valid Dart expression everywhere a RefOpExpr lands, so
+        // the failure is loud at runtime even if the compile diagnostic above
+        // is bypassed. `throw` makes the containing statement unreachable —
+        // legal Dart, no trailing expression required.
+        RefOpIR::CapturePointer => {
+            "throw UnsupportedError('capturePointer not supported on Flutter')".to_string()
+        }
+        RefOpIR::ReleasePointer => {
+            "throw UnsupportedError('releasePointer not supported on Flutter')".to_string()
+        }
         // RefOpIR is #[non_exhaustive] — cross-crate matches need a wildcard.
         #[allow(unreachable_patterns)]
         _ => format!("/* RefOp::{op:?} on {ref_name} */"),

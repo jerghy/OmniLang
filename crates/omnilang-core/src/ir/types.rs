@@ -786,10 +786,13 @@ pub enum RefOpIR {
     },
     /// `ref.value` — read the element's current value (input/textarea).
     Value,
-    /// `ref.capturePointer(id)` — capture a pointer on the element.
-    CapturePointer { id: Box<ExprIR> },
-    /// `ref.releasePointer(id)` — release a captured pointer.
-    ReleasePointer { id: Box<ExprIR> },
+    /// `ref.capturePointer()` — capture subsequent pointer events to the
+    /// element. Parameterless (design D3): the id argument was a DOM
+    /// pointerId platform-shape leak; multi-pointer locking is a hard
+    /// diagnostic in the semantic pass.
+    CapturePointer,
+    /// `ref.releasePointer()` — release the captured pointer.
+    ReleasePointer,
 }
 
 // ═══════════════════════════════════════════════════════

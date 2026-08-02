@@ -1146,7 +1146,7 @@ fn test_empty_component() {
         .unwrap();
     let component_map = build_component_map(&ir);
     let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
-    let (dart, _warnings) =
+    let (dart, _warnings, _errors) =
         codegen.gen_component_dart("App", comp_ref, &ir, &component_map, &component_slots);
     assert!(dart.contains("import 'package:flutter/material.dart';"));
     assert!(dart.contains("class App extends StatefulWidget {"));
@@ -1225,7 +1225,7 @@ fn test_component_with_state() {
         .unwrap();
     let component_map = build_component_map(&ir);
     let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
-    let (dart, _warnings) =
+    let (dart, _warnings, _errors) =
         codegen.gen_component_dart("Counter", comp_ref, &ir, &component_map, &component_slots);
     assert!(dart.contains("int count = 0;"));
     assert!(dart.contains("increment() {"));
@@ -1285,7 +1285,7 @@ fn test_component_with_props() {
         .unwrap();
     let component_map = build_component_map(&ir);
     let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
-    let (dart, _warnings) =
+    let (dart, _warnings, _errors) =
         codegen.gen_component_dart("Greeting", comp_ref, &ir, &component_map, &component_slots);
     assert!(dart.contains("required this.name,"));
     assert!(dart.contains("required this.age,"));
@@ -1337,7 +1337,7 @@ fn test_component_with_mount_lifecycle() {
         .unwrap();
     let component_map = build_component_map(&ir);
     let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
-    let (dart, _warnings) =
+    let (dart, _warnings, _errors) =
         codegen.gen_component_dart("App", comp_ref, &ir, &component_map, &component_slots);
     assert!(dart.contains("@override"));
     assert!(dart.contains("void initState() {"));
@@ -1389,7 +1389,7 @@ fn test_component_with_unmount_lifecycle() {
         .unwrap();
     let component_map = build_component_map(&ir);
     let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
-    let (dart, _warnings) =
+    let (dart, _warnings, _errors) =
         codegen.gen_component_dart("App", comp_ref, &ir, &component_map, &component_slots);
     assert!(dart.contains("@override"));
     assert!(dart.contains("void dispose() {"));
@@ -1668,7 +1668,7 @@ fn test_motion_enter_controller_init() {
         .unwrap();
     let component_map = build_component_map(&ir);
     let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
-    let (dart, _warnings) =
+    let (dart, _warnings, _errors) =
         codegen.gen_component_dart("App", comp_ref, &ir, &component_map, &component_slots);
 
     // Field declarations
@@ -1955,7 +1955,7 @@ fn test_motion_inline_body_handling() {
         .unwrap();
     let component_map = build_component_map(&ir);
     let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
-    let (dart, _warnings) =
+    let (dart, _warnings, _errors) =
         codegen.gen_component_dart("App", comp_ref, &ir, &component_map, &component_slots);
 
     // Numeric duration init
@@ -2777,7 +2777,7 @@ fn test_motion_pipeline_warnings_and_playback() {
         .unwrap();
     let component_map = build_component_map(&ir);
     let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
-    let (dart, warnings) =
+    let (dart, warnings, _errors) =
         codegen.gen_component_dart("App", comp_ref, &ir, &component_map, &component_slots);
 
     // steps() easing → diagnostic warning
@@ -3776,7 +3776,7 @@ fn test_effect_emits_real_method_and_lifecycle_wiring() {
         .unwrap();
     let component_map = build_component_map(&ir);
     let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
-    let (dart, _warnings) =
+    let (dart, _warnings, _errors) =
         codegen.gen_component_dart("App", comp_ref, &ir, &component_map, &component_slots);
 
     // Real method body (was: undefined stub call + inline body + false comment)
@@ -3875,7 +3875,7 @@ fn test_component_constructor_includes_class_name() {
         .unwrap();
     let component_map = build_component_map(&ir);
     let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
-    let (dart, _warnings) =
+    let (dart, _warnings, _errors) =
         codegen.gen_component_dart("Greeting", comp_ref, &ir, &component_map, &component_slots);
     assert!(
         dart.contains("const Greeting({"),
@@ -3971,7 +3971,7 @@ fn test_view_store_field_read_uses_ref_watch() {
         .unwrap();
     let component_map = build_component_map(&ir);
     let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
-    let (dart, _warnings) =
+    let (dart, _warnings, _errors) =
         codegen.gen_component_dart("FilterBar", comp_ref, &ir, &component_map, &component_slots);
     assert!(
         dart.contains("ref.watch(todoStoreProvider.select(((s) => s.totalCount)))"),
@@ -4727,7 +4727,7 @@ fn test_ref_global_key_and_on_demand_controllers() {
         .unwrap();
     let component_map = build_component_map(&ir);
     let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
-    let (dart, _warnings) =
+    let (dart, _warnings, _errors) =
         codegen.gen_component_dart("RefDemo", comp_ref, &ir, &component_map, &component_slots);
 
     // GlobalKey for every declared ref
@@ -4929,7 +4929,7 @@ fn test_semantic_binding_post_frame_setup() {
         .unwrap();
     let component_map = build_component_map(&ir);
     let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
-    let (dart, _warnings) =
+    let (dart, _warnings, _errors) =
         codegen.gen_component_dart("BindDemo", comp_ref, &ir, &component_map, &component_slots);
 
     // Controllers + guard flag declared
@@ -5085,25 +5085,18 @@ fn test_format_ref_op_flutter_variants() {
         "_boxText.selection = TextSelection(baseOffset: 1, extentOffset: 5)"
     );
 
-    // Pointer capture — placeholder TODO for now
-    assert!(format_expr_ir_flutter(&op(
-        "box",
-        RefOpIR::CapturePointer {
-            id: Box::new(ExprIR::LiteralExpr {
-                value: serde_json::json!(1),
-            }),
-        }
-    ))
-    .contains("TODO(flutter)"));
-    assert!(format_expr_ir_flutter(&op(
-        "box",
-        RefOpIR::ReleasePointer {
-            id: Box::new(ExprIR::LiteralExpr {
-                value: serde_json::json!(1),
-            }),
-        }
-    ))
-    .contains("TODO(flutter)"));
+    // Pointer capture — unsupported on Flutter (design D3 / spec §10.3):
+    // the formatting emits a runtime `throw UnsupportedError` (loud even if
+    // the compile diagnostic is bypassed). `throw` is a valid Dart
+    // expression, so the no-trailing-semicolon convention holds.
+    assert_eq!(
+        format_expr_ir_flutter(&op("box", RefOpIR::CapturePointer)),
+        "throw UnsupportedError('capturePointer not supported on Flutter')"
+    );
+    assert_eq!(
+        format_expr_ir_flutter(&op("box", RefOpIR::ReleasePointer)),
+        "throw UnsupportedError('releasePointer not supported on Flutter')"
+    );
 }
 
 #[test]
@@ -5142,7 +5135,7 @@ fn test_ref_ops_in_effect_and_inline_handler_are_detected() {
         .unwrap();
     let component_map = build_component_map(&ir);
     let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
-    let (dart, _warnings) =
+    let (dart, _warnings, _errors) =
         codegen.gen_component_dart("EffectRef", comp_ref, &ir, &component_map, &component_slots);
     assert!(
         dart.contains("final ScrollController _listScroll = ScrollController();"),
@@ -5151,6 +5144,69 @@ fn test_ref_ops_in_effect_and_inline_handler_are_detected() {
     assert!(
         dart.contains("_listScroll.jumpTo(42)"),
         "missing scroll op in effect body: {dart}"
+    );
+}
+
+/// Test: `capturePointer()`/`releasePointer()` are a hard ERROR on Flutter
+/// (design D3 / spec §10.3) — the compile fails with the verbatim hint AND
+/// the emitted Dart contains a runtime `throw UnsupportedError` so failure
+/// stays loud even if the diagnostic is bypassed.
+#[test]
+fn test_pointer_capture_is_hard_error_on_flutter() {
+    let source = r#"
+component PtrBox {
+  ref box: Element
+  fn onDown() {
+    box.capturePointer()
+  }
+  fn onUp() {
+    box.releasePointer()
+  }
+  view {
+    <div ref:box @onPointerDown={onDown} @onPointerUp={onUp}>hold me</div>
+  }
+}
+"#;
+    let mut sources = FxHashMap::default();
+    sources.insert("input.omni".to_string(), source.to_string());
+    let pm = crate::path_mapping::derive_path_mapping(&sources);
+    let result = crate::compile_multi_internal(
+        sources,
+        crate::codegen::Target::Flutter,
+        pm,
+        false,
+        false,
+        None,
+    );
+    assert!(
+        !result.success,
+        "pointer capture must fail the Flutter compile, got success with: {:?}",
+        result.errors
+    );
+    let messages: Vec<&str> = result.errors.iter().map(|d| d.message.as_str()).collect();
+    assert!(
+        messages
+            .iter()
+            .any(|m| m.contains("Flutter 不支持指针捕获") && m.contains("GestureDetector")),
+        "expected the verbatim §10.3 hint, got: {:?}",
+        messages
+    );
+    let dart: String = result
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        dart.contains("throw UnsupportedError('capturePointer not supported on Flutter');")
+            && dart.contains("throw UnsupportedError('releasePointer not supported on Flutter');"),
+        "emitted Dart must throw UnsupportedError (not a TODO comment). Got:\n{}",
+        dart
+    );
+    assert!(
+        !dart.contains("TODO(flutter)"),
+        "no placeholder TODO comments may remain. Got:\n{}",
+        dart
     );
 }
 

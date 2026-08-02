@@ -446,13 +446,16 @@ impl OmniViewGenerator {
                 self.expr_to_js(end)
             ),
             RefOpIR::Value => format!("{base}.value"),
-            RefOpIR::CapturePointer { id } => {
-                format!("{base}.capturePointer({})", self.expr_to_js(id))
+            RefOpIR::CapturePointer => {
+                // Parameterless DSL form (design D3) — the wrapper uses the
+                // runtime's active-pointer tracking (__omni_activePointerId),
+                // so no event object needs to be in scope at the call site.
+                format!("{base}.capturePointer()")
             }
-            RefOpIR::ReleasePointer { id } => {
+            RefOpIR::ReleasePointer => {
                 // Native DOM API is `releasePointerCapture` — the wrapper method
                 // is named accordingly (matches the React backend convention).
-                format!("{base}.releasePointerCapture({})", self.expr_to_js(id))
+                format!("{base}.releasePointerCapture()")
             }
             // RefOpIR is #[non_exhaustive] — cross-crate matches need a wildcard.
             #[allow(unreachable_patterns)]

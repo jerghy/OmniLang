@@ -2414,7 +2414,6 @@ component RefOps {
   signal x: Float = 0
   signal y: Float = 0
   signal text: String = ""
-  signal ptr: Float = 0
   ref box: Element
   fn runAll() {
     box.focus()
@@ -2428,8 +2427,8 @@ component RefOps {
     box.select()
     box.setSelection(0, 3)
     box.value
-    box.capturePointer(ptr)
-    box.releasePointer(ptr)
+    box.capturePointer()
+    box.releasePointer()
   }
   view {
     <div ref:box @onClick={runAll}>click</div>
@@ -2455,8 +2454,10 @@ component RefOps {
         "boxRef.current?.select();",
         "boxRef.current?.setSelectionRange(0, 3);",
         "boxRef.current?.value;",
-        "boxRef.current?.setPointerCapture(ptr);",
-        "boxRef.current?.releasePointerCapture(ptr);",
+        // Design D3: parameterless ops capture the ACTIVE pointer via the
+        // module-scope tracker (no event object is in scope inside fns).
+        "boxRef.current?.setPointerCapture(__omni_activePointerId!);",
+        "boxRef.current?.releasePointerCapture(__omni_activePointerId!);",
     ];
     for expected in expectations {
         assert!(
@@ -2466,6 +2467,43 @@ component RefOps {
             content
         );
     }
+    // The module-scope active-pointer tracker is emitted only because the
+    // component uses the pointer-capture ops (D3 parameterless form).
+    assert!(
+        content.contains("let __omni_activePointerId: number | null = null;")
+            && content.contains("window.addEventListener(\"pointerdown\""),
+        "pointer ops must emit the active-pointer tracker. Got:\n{}",
+        content
+    );
+}
+
+/// Test: a component WITHOUT pointer-capture ops gets no active-pointer
+/// tracker (the emission is gated on actual usage).
+#[test]
+fn test_react_ref_ops_without_pointer_capture_emit_no_tracker() {
+    let source = r#"
+component RefOpsNoPtr {
+  ref box: Element
+  fn runAll() {
+    box.focus()
+  }
+  view {
+    <div ref:box @onClick={runAll}>click</div>
+  }
+}
+"#;
+    let output = compile_react(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        !content.contains("__omni_activePointerId"),
+        "no pointer ops \u{2192} no tracker expected. Got:\n{}",
+        content
+    );
 }
 
 /// Test: illegal DOM APIs on refs still produce compile errors with migration hints.

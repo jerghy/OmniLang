@@ -171,16 +171,17 @@ component ElementRefDemo {
         }
     }
 
-    // ── 指针捕获（.capturePointer / .releasePointer） ──
-    // PointerEvent 事件数据 schema 暂不暴露 pointerId（提供 x/y/button 等），
-    // 演示采用固定 id=1（等价 setPointerCapture(1)）。
+    // ── 指针捕获（.capturePointer / .releasePointer，无参形式） ──
+    // 语义 = 「锁定后续指针事件到本元素」（设计 D3）：无参调用，由各目标
+    // 运行时自动使用活动指针（pointerdown 的 pointerId）；有参调用（旧的
+    // capturePointer(1) 形式）是编译错误——多指针锁定不支持。
     fn onPtrDown() {
-        pointerBox.capturePointer(1);
+        pointerBox.capturePointer();
         pointerActive = true;
-        pointerStatus = "captured (id=1)";
+        pointerStatus = "captured";
     }
     fn onPtrUp() {
-        pointerBox.releasePointer(1);
+        pointerBox.releasePointer();
         pointerActive = false;
         pointerStatus = "released";
     }
@@ -346,7 +347,8 @@ component ElementRefDemo {
             <h4 class: LearnDesign.SectionTitle>指针捕获 (.capturePointer / .releasePointer)</h4>
             <p class: LearnDesign.Hint>
                 pointerdown 捕获、pointerup 释放；捕获后即使指针移出元素，后续事件仍定向到该元素。
-                PointerEvent 事件数据暂不暴露 pointerId，演示使用固定 id=1（等价 setPointerCapture(1)）。
+                capturePointer() / releasePointer() 为无参语义（设计 D3）：运行时自动使用活动指针，
+                多指针锁定不支持（有参调用为编译错误）。
             </p>
             <div class: demo-row>
                 <div

@@ -149,11 +149,16 @@ impl FormatExpr for ReactFormatExpr {
                 self.format_expr(end)
             ),
             RefOpIR::Value => format!("{base}?.value"),
-            RefOpIR::CapturePointer { id } => {
-                format!("{base}?.setPointerCapture({})", self.format_expr(id))
+            RefOpIR::CapturePointer => {
+                // Parameterless DSL form (design D3) — capture the ACTIVE
+                // pointer. Ref ops can be called from fns/effects/lifecycles
+                // where no event is in scope, so the module-scope tracker
+                // emitted by gen_component_tsx records the most recent
+                // pointerdown's id (capture-phase listener).
+                format!("{base}?.setPointerCapture(__omni_activePointerId!)")
             }
-            RefOpIR::ReleasePointer { id } => {
-                format!("{base}?.releasePointerCapture({})", self.format_expr(id))
+            RefOpIR::ReleasePointer => {
+                format!("{base}?.releasePointerCapture(__omni_activePointerId!)")
             }
             // RefOpIR is #[non_exhaustive] — cross-crate matches need a wildcard.
             #[allow(unreachable_patterns)]

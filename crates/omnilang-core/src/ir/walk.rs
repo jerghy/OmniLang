@@ -114,7 +114,9 @@ fn walk_ref_op(op: &RefOpIR, f: &mut impl FnMut(&ExprIR)) {
         | RefOpIR::Blur
         | RefOpIR::Measure { .. }
         | RefOpIR::Select
-        | RefOpIR::Value => {}
+        | RefOpIR::Value
+        | RefOpIR::CapturePointer
+        | RefOpIR::ReleasePointer => {}
         RefOpIR::ScrollTo { x, y } => {
             if let Some(x) = x {
                 walk_expr(x, f);
@@ -135,8 +137,6 @@ fn walk_ref_op(op: &RefOpIR, f: &mut impl FnMut(&ExprIR)) {
             walk_expr(start, f);
             walk_expr(end, f);
         }
-        RefOpIR::CapturePointer { id } => walk_expr(id, f),
-        RefOpIR::ReleasePointer { id } => walk_expr(id, f),
     }
 }
 

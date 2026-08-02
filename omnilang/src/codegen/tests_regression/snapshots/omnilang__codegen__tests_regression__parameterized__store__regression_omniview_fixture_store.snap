@@ -27,6 +27,15 @@ let __omni_forItemVar;
 // onXxx emit functions dispatch on the clicked instance rather than the
 // first matching [data-component] element in the document.
 let __omni_currentForEl;
+// Active pointer tracking for the parameterless ref.capturePointer() /
+// ref.releasePointer() ops (design D3). The id argument was a DOM
+// pointerId platform-shape leak, so the runtime records the most recent
+// pointerdown's id (capture-phase listener — fires before element-level
+// handlers). It is retained until the next pointerdown so a later
+// releasePointer() can release it; capture outside an active pointer
+// interaction throws NotFoundError from the DOM API (loud, spec-correct).
+let __omni_activePointerId = null;
+document.addEventListener('pointerdown', function(e) { __omni_activePointerId = e.pointerId; }, true);
 
 function __omni_signal(name, init) {
   let val = init, setting = false;

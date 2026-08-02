@@ -565,10 +565,22 @@ fn compile_learn_omniview_flutter(scratch: &ScratchDir) -> Option<PathBuf> {
         );
         return None;
     }
+    // The showcase project demonstrates the DOM-only pointer-capture ref
+    // ops (design D3). On Flutter those are a DELIBERATE hard error
+    // ("Flutter 不支持指针捕获，用 GestureDetector" — spec §10.3), so the
+    // project can never compile cleanly to Flutter while ElementRefDemo
+    // keeps its pointer-capture section. Filter that expected diagnostic
+    // out; any other error is a regression.
+    let unexpected: Vec<String> = result
+        .errors
+        .iter()
+        .filter(|d| !d.message.contains("Flutter 不支持指针捕获"))
+        .map(|d| d.message.clone())
+        .collect();
     assert!(
-        result.success,
+        unexpected.is_empty(),
         "learn-omniview compilation to Flutter failed: {:?}",
-        result.errors
+        unexpected
     );
 
     // Write every generated .dart file under out/learn-omniview/ (the same
