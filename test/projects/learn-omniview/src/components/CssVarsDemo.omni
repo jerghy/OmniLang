@@ -15,21 +15,10 @@
 
 import omniview;
 
-// ── @motion: 用于演示动态 CSS 变量变化的过渡效果 ────────────
-@motion pulseAccent {
-    from { --accent-h: 221 }
-    to   { --accent-h: 350 }
-    over: 600ms
-    easing: ease-in-out
-    direction alternate
-    loop
-}
-
 component CssVarsDemo {
     // 动态 CSS 变量用的信号
     signal accentColor: String = "#6366f1";
     signal accentHue: i32 = 221;
-    signal themeMode: String = "light";
 
     fn cycleAccent() {
         if accentColor == "#6366f1" {
@@ -38,14 +27,6 @@ component CssVarsDemo {
             accentColor = "#14b8a6";
         } else {
             accentColor = "#6366f1";
-        }
-    }
-
-    fn toggleMode() {
-        if themeMode == "light" {
-            themeMode = "dark";
-        } else {
-            themeMode = "light";
         }
     }
 
@@ -147,8 +128,8 @@ component CssVarsDemo {
             <div class: demo-card>
                 <h4 class: demo-label>④ CSS 变量级联 + Motion 驱动</h4>
                 <p class: demo-desc>
-                    外层设 <code>--accent-h</code>，内层用 <code>var(--accent-h)</code> 计算衍生色。
-                    配合 <code>@motion</code> 交替动画驱动 hue 值变化。
+                    外层设 <code>--accent-h</code>（由 accentHue 信号驱动），内层用
+                    <code>var(--accent-h)</code> 计算衍生色。hue 值随信号变化实时更新。
                 </p>
                 <div class: cascade-area
                     style: {

@@ -58,7 +58,7 @@ component BlockExprDemo {
             </div>
 
             <div class: card>
-                <h4 class: label>块表达式 computed: total = { a + b, then doubled }</h4>
+                <h4 class: label>{"块表达式 computed: total = { a + b, then doubled }"}</h4>
                 <p class: value-text>total = {total}</p>
             </div>
 

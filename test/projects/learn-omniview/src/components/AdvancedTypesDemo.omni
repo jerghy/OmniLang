@@ -166,7 +166,7 @@ component AdvancedTypesDemo {
                     <li>泛型：类型实参（Array、Map 形式）可用；泛型声明 fn foo / component Bar 的类型参数尚未支持（完整说明见文件头注释）</li>
                     <li>{"$signal"} / {"$concat"} / {"$call"}：这是 lowering 写入 style JSON 的<strong>内部标记</strong>（见 ir/lower/expr.rs），不是用户可写的源码语法</li>
                     <li>match 暂不支持：臂内 <code>if</code> 守卫、模式联合（1 | 2）</li>
-                    <li><strong>⚠ match 已知代码生成缺口（另行追踪，此处不演示）</strong>：a. 字面量臂（<code>0 =></code> 形式）在 JS 目标生成 <code>_v._variant === 0</code> 分派，对原始值运行时不命中；b. Flutter 不发射本地标签联合类型（Rating 类缺失），且字面量臂生成 <code>switch (n._variant)</code> —— 生成的 Dart 无法编译。本演示仅保留 React / OmniView 可工作的标签联合臂 + 通配符</li>
+                    <li><strong>⚠ match 已知代码生成缺口（另行追踪，此处不演示）</strong>：Flutter 不发射本地标签联合类型（Rating 类缺失），且字面量臂生成 <code>switch (n._variant)</code> —— 生成的 Dart 无法编译。JS 目标（React/OmniView）字面量臂已修复为 <code>_v === value</code> 直接比较，可正常工作。本演示仅保留 React / OmniView 可工作的标签联合臂 + 通配符</li>
                 </ul>
             </div>
         </div>

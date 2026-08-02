@@ -1,6 +1,13 @@
 import omniview;
 import { array_filter } from "std/array";
 // @pid:s1
+// Todo 条目类型——items 的类型注解此前引用未定义的 `Todo`（TS 后端无法通过）
+struct Todo {
+    id: i32,
+    text: String,
+    done: bool,
+}
+
 store TodoStore {
   signal items: Todo[] = [];
   signal filterStatus: String = "all";

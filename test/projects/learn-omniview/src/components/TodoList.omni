@@ -10,6 +10,7 @@ import { LearnDesign } from "../design";
 import { TodoItem } from "./TodoItem";
 import { TodoStore } from "../stores/TodoStore";
 import { AddTodo } from "./AddTodo";
+import { array_filter } from "std/array";
 
 component TodoList {
     // 引用全局 Store——列表数据以 Store 为唯一数据源
@@ -25,6 +26,10 @@ component TodoList {
         TodoStore.remove(id);
     }
 
+    // 按 filterStatus 过滤的可见列表——FilterBar 的搜索框写入 filterStatus，
+    // 此前 filterStatus 从未被消费，过滤只停留在标签层
+    computed visibleItems: Todo[] = array_filter(TodoStore.items, |item| TodoStore.filterStatus == "all" || item.text == TodoStore.filterStatus);
+
     view {
         <div>
             <h2 class: title>待办列表
@@ -34,7 +39,7 @@ component TodoList {
             <AddTodo @onAdd={handleAdd} />
 
             <div class: items>
-                @for item in TodoStore.items key={item.id} {
+                @for item in visibleItems key={item.id} {
                     <TodoItem id={item.id} text={item.text} @onDelete={handleDelete} />
                 }
                 @empty {

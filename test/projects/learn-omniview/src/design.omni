@@ -26,9 +26,8 @@ design LearnDesign {
 
     // ═══════════════════════════════════════════════════════════
     // 1. 设计令牌（DESIGN TOKENS）
-    //    18 种类型：Color, Size, Radius, Shadow, FontFamily, FontSize,
-    //    FontWeight, LineHeight, LetterSpacing, Duration, Easing,
-    //    Opacity, ZIndex
+    //    13 种类型：Color, Size, Radius, Shadow, FontFamily, FontSize,
+    //    FontWeight, Duration, Color（主题覆盖值）
     //    令牌值编译为 :root { --name: value; } CSS 变量
     //    在类/变体中引用：token(name) → var(--name)
     //    主题令牌："<light>" dark "<dark>" 生成 [data-theme="dark"] 作用域
@@ -82,28 +81,14 @@ design LearnDesign {
     token fontSizeMd: fontSize = "14px";
     token fontSizeLg: fontSize = "16px";
     token fontSizeXl: fontSize = "18px";
-    token fontSize2xl: fontSize = "20px";
     token fontSize3xl: fontSize = "22px";
     token fontSize4xl: fontSize = "28px";
-    token fontSize5xl: fontSize = "48px";
     token fontWeightNormal: fontWeight = "500";
     token fontWeightSemibold: fontWeight = "600";
     token fontWeightBold: fontWeight = "700";
-    token lineHeight: lineHeight = "1.5";
-    token letterSpacing: letterSpacing = "0px";
-    token easing: easing = "ease";
 
     // ── 过渡时长 ──
     token durationFast: duration = "150ms";
-    token durationNormal: duration = "300ms";
-
-    // ── 透明度 ──
-    token opacityDisabled: opacity = "0.5";
-
-    // ── 层级 ──
-    token zDropdown: zIndex = "50";
-    token zModal: zIndex = "100";
-    token zToast: zIndex = "150";
 
     // ── Phase 1: 编译时常量引用（const → token 值） ──
     token constRadius: radius = TOKEN_RADIUS;
@@ -147,26 +132,12 @@ design LearnDesign {
         min-width: 0;
     }
 
-    class Grid {
-        display: grid;
-        grid-template-columns: "1fr 1fr";
-        gap: token(spaceSm);
-    }
-
     class DemoSection {
         margin: "16px 0";
     }
 
     class DemoFull {
         margin-bottom: token(spaceSm);
-    }
-
-    class PageHeader {
-        padding-top: token(spaceMd);
-        padding-right: token(spaceMd);
-        padding-bottom: token(spaceSm);
-        padding-left: token(spaceMd);
-        margin: "0 0 8px 0";
     }
 
     class PageTitle {
@@ -273,31 +244,6 @@ design LearnDesign {
     }
 
     // ── 标签页导航 ──
-    class TabStrip {
-        display: flex;
-        gap: 0;
-        padding: "0 8px";
-        border-bottom: "1px solid " token(border);
-    }
-
-    class Tab {
-        padding: "10px 18px";
-        border: "1px solid transparent";
-        border-bottom: none;
-        background: transparent;
-        color: token(textSecondary);
-        font-size: token(fontSizeSm);
-        font-weight: token(fontWeightNormal);
-        cursor: pointer;
-        transition: "all " token(durationFast);
-        white-space: nowrap;
-        &:hover {
-            background: token(surfaceSubtle);
-            border-color: token(borderLight);
-            color: token(textPrimary);
-        }
-    }
-
     class TabContent {
         background: token(surface);
         border: "1px solid " token(border);

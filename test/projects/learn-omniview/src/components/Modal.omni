@@ -39,6 +39,7 @@ component Modal {
                 >
                     <div
                         class: { modalcontent: true, hover: isHovering }
+                        tabindex="0"
                         @onKeyDown={handleKeyDown}
                         @onMouseEnter={handleMouseEnter}
                         @onMouseLeave={handleMouseLeave}

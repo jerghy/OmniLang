@@ -12,7 +12,9 @@ component StatsDashboard {
     fn addFive() { counter += 5; }
     fn subThree() { counter -= 3; }
     fn double() { counter *= 2; }
-    fn halve() { counter /= 2; }
+    // i32 上做整数除法——JS 的 / 会产生小数（5 → 2.5），
+    // 破坏奇偶/mod3 判定与类型注解
+    fn halve() { counter = math_floor(counter / 2); }
     fn modThree() {
         let mut x = counter;
         x %= 3;

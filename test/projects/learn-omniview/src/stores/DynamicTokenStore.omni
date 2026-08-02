@@ -50,7 +50,10 @@ store DynamicTokenStore {
             liveColor = "#f59e0b";
             liveBg = "#fffbeb";
             liveAccent = "#d97706";
-        };
+        } else {
+            // 未知预设不改变颜色，也不计数（计数只统计真实切换）
+            return;
+        }
         switchCount = switchCount + 1;
     }
 }

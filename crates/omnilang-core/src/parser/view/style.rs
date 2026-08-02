@@ -100,7 +100,12 @@ impl<'a> Parser<'a> {
                 class_name = format!("{}:{}", class_name, pseudo);
             }
             // Handle compound class selectors: .var-card.alt, .btn.active.dark, etc.
-            while *self.peek_kind() == TokenKind::Dot {
+            // Only when the '.' directly abuts the previous ident — with
+            // whitespace it starts a descendant segment instead (".a .b").
+            while *self.peek_kind() == TokenKind::Dot
+                && self.pos > 0
+                && self.tokens[self.pos - 1].span.end == self.tokens[self.pos].span.start
+            {
                 self.advance(); // consume '.'
                 let extra = self.expect_ident("expected class name after '.'")?;
                 class_name = format!("{}.{}", class_name, extra);
@@ -116,6 +121,47 @@ impl<'a> Parser<'a> {
                     let pseudo = self.expect_ident("expected pseudo-class after ':'")?;
                     class_name = format!("{}:{}", class_name, pseudo);
                 }
+            }
+            // Descendant selectors: ".note-list li", ".note-list .item",
+            // ".child-box strong". The lexer drops whitespace, so a compound
+            // (".a.b") is distinguished from a descendant (".a .b") by token
+            // spans: whitespace means prev.span.end < next.span.start.
+            loop {
+                let has_space = self.pos > 0
+                    && self.tokens[self.pos - 1].span.end < self.tokens[self.pos].span.start;
+                if !has_space {
+                    break;
+                }
+                let mut segment = String::new();
+                let starts_class = *self.peek_kind() == TokenKind::Dot;
+                if starts_class {
+                    self.advance(); // consume '.'
+                    segment.push('.');
+                    let ident = self.expect_ident("expected class name after '.'")?;
+                    segment.push_str(&ident);
+                    // Hyphenated names in the descendant segment: .note-list .app-shell
+                    while *self.peek_kind() == TokenKind::Minus {
+                        self.advance();
+                        let next = self.expect_ident("expected identifier after '-'")?;
+                        segment.push('-');
+                        segment.push_str(&next);
+                    }
+                } else if matches!(self.peek_kind(), TokenKind::Ident(_)) {
+                    // Tag segment: "li", "strong", "p", ...
+                    let ident = self.expect_ident("expected tag name")?;
+                    segment.push_str(&ident);
+                } else {
+                    break;
+                }
+                // Pseudo-classes on the descendant segment: li:hover
+                while *self.peek_kind() == TokenKind::Colon {
+                    self.advance();
+                    let pseudo = self.expect_ident("expected pseudo-class after ':'")?;
+                    segment.push(':');
+                    segment.push_str(&pseudo);
+                }
+                class_name.push(' ');
+                class_name.push_str(&segment);
             }
             // Skip unsupported remaining selector parts (e.g., "input:checked + span")
             // until we find the opening brace

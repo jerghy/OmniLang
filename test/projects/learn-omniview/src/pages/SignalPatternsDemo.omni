@@ -184,7 +184,7 @@ component SignalPatternsDemo {
                 </button>
                 @if showPanel mode: "wait" {
                     <div class: panel>
-                        <p>这个面板在 mode: "wait" 下渲染——旧内容离开动画完成后才插入新内容</p>
+                        <p>这个面板在 mode: "wait" 下渲染——当前无离开动画注册，实际为立即切换（诚实降级）</p>
                     </div>
                 }
             </div>
