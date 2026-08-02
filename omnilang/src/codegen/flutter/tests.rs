@@ -1,5 +1,6 @@
 //! Unit tests for flutter codegen.
 
+use super::design::DesignResolver;
 use super::*;
 use crate::codegen::shared::build_component_map;
 use crate::codegen::{format_json_value, JSON_FLUTTER};
@@ -335,21 +336,170 @@ fn fmt_view(node: &ViewTree) -> (String, Vec<String>) {
 /// to compute the gesture extent from its keyframe range.
 fn fmt_view_with_motions(node: &ViewTree, motions: &[MotionIntent]) -> (String, Vec<String>) {
     let ir = empty_program();
+    fmt_view_in(node, motions, &ir)
+}
+
+/// Format a view tree with the given program (design blocks included) —
+/// class:/variant: resolution (Task 4.3) needs the design IR.
+fn fmt_view_with_program(node: &ViewTree, ir: &IRProgram) -> (String, Vec<String>) {
+    fmt_view_in(node, &[], ir)
+}
+
+/// Like [`fmt_view_with_program`] but with a component map (component
+/// instantiation tests need the map to take the component-element path).
+fn fmt_view_with_program_and_map<'a>(
+    node: &ViewTree,
+    ir: &'a IRProgram,
+    component_map: &'a FxHashMap<&'a str, &'a ComponentIR>,
+) -> (String, Vec<String>) {
+    let store_provider_map: FxHashMap<String, String> = FxHashMap::default();
+    let mut warnings = Vec::new();
+    let ref_usage: FxHashMap<String, RefUsage> = FxHashMap::default();
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let design_resolver = DesignResolver::new(ir);
+    let mut ctx = ViewContext {
+        component_map,
+        store_provider_map: &store_provider_map,
+        ref_usage: &ref_usage,
+        component_slots: &component_slots,
+        ir,
+        design: &design_resolver,
+        warnings: &mut warnings,
+    };
+    let result = format_view_tree(node, &[], &mut ctx);
+    (result, warnings)
+}
+
+fn fmt_view_in(node: &ViewTree, motions: &[MotionIntent], ir: &IRProgram) -> (String, Vec<String>) {
     let component_map: FxHashMap<&str, &ComponentIR> = FxHashMap::default();
     let store_provider_map: FxHashMap<String, String> = FxHashMap::default();
     let mut warnings = Vec::new();
     let ref_usage: FxHashMap<String, RefUsage> = FxHashMap::default();
     let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let design_resolver = DesignResolver::new(ir);
     let mut ctx = ViewContext {
         component_map: &component_map,
         store_provider_map: &store_provider_map,
         ref_usage: &ref_usage,
         component_slots: &component_slots,
-        ir: &ir,
+        ir,
+        design: &design_resolver,
         warnings: &mut warnings,
     };
     let result = format_view_tree(node, motions, &mut ctx);
     (result, warnings)
+}
+
+/// A small design IR for class:/variant: resolution tests (Task 4.3):
+/// tokens `primary`/`surface`/`radiusMd`, classes `Card` (background +
+/// border-radius) and `Active` (background), variant `Button`
+/// (color: primary|danger, base border-radius, branches set background).
+fn design_test_program() -> IRProgram {
+    use crate::ir::design::*;
+    let mut tokens = FxHashMap::default();
+    for (name, value, token_type) in [
+        ("primary", "#6366f1", TokenTypeIR::Color),
+        ("surface", "#ffffff", TokenTypeIR::Color),
+        ("radiusMd", "8px", TokenTypeIR::Radius),
+    ] {
+        tokens.insert(
+            name.to_string(),
+            TokenIR {
+                value: TokenValueIR::Static(value.to_string()),
+                token_type,
+                theme_values: FxHashMap::default(),
+                source_span: None,
+            },
+        );
+    }
+    let classes = vec![
+        ClassIR {
+            name: "Card".to_string(),
+            properties: vec![
+                ("background".to_string(), "var(--surface)".to_string()),
+                ("border-radius".to_string(), "var(--radiusMd)".to_string()),
+            ]
+            .into_iter()
+            .collect(),
+            pseudo_states: vec![],
+            source_span: None,
+        },
+        ClassIR {
+            name: "Active".to_string(),
+            properties: vec![("background".to_string(), "var(--primary)".to_string())]
+                .into_iter()
+                .collect(),
+            pseudo_states: vec![],
+            source_span: None,
+        },
+        ClassIR {
+            name: "RowLayout".to_string(),
+            properties: vec![("display".to_string(), "flex".to_string())]
+                .into_iter()
+                .collect(),
+            pseudo_states: vec![],
+            source_span: None,
+        },
+    ];
+    let variants = vec![VariantIR {
+        name: "Button".to_string(),
+        dimensions: vec![VariantDimIR {
+            name: "color".to_string(),
+            values: vec!["primary".to_string(), "danger".to_string()],
+            source_span: None,
+        }],
+        defaults: vec![("color".to_string(), "primary".to_string())]
+            .into_iter()
+            .collect(),
+        base: vec![("border-radius".to_string(), "var(--radiusMd)".to_string())]
+            .into_iter()
+            .collect(),
+        branches: vec![
+            VariantBranchIR {
+                dimension: "color".to_string(),
+                value: "primary".to_string(),
+                properties: vec![("background".to_string(), "var(--primary)".to_string())]
+                    .into_iter()
+                    .collect(),
+                source_span: None,
+            },
+            VariantBranchIR {
+                dimension: "color".to_string(),
+                value: "danger".to_string(),
+                properties: vec![("background".to_string(), "#ef4444".to_string())]
+                    .into_iter()
+                    .collect(),
+                source_span: None,
+            },
+        ],
+        source_span: None,
+    }];
+    let design = DesignIR {
+        name: "App".to_string(),
+        themes: vec![],
+        theme_signal: None,
+        default_theme: None,
+        tokens,
+        classes,
+        variants,
+        source_span: None,
+        source_file: Some("src/design.omni".to_string()),
+    };
+    IRProgram {
+        version: "1.0".into(),
+        modules: FxHashMap::from_iter([(
+            "main".to_string(),
+            ModuleIR {
+                name: "main".to_string(),
+                designs: vec![design],
+                ..Default::default()
+            },
+        )]),
+        stdlib_imports: Default::default(),
+        source_map: FxHashMap::default(),
+        motion_index: FxHashMap::default(),
+        source_span: None,
+    }
 }
 
 #[test]
@@ -850,7 +1000,10 @@ component ToggleDemo {
 }
 
 #[test]
-fn test_format_element_with_class_map_bindings() {
+fn test_format_element_with_class_map_bindings_warns_unknown_class() {
+    // A dynamic class that no design declares cannot resolve to a decoration
+    // — it must warn naming the class (spec §10.3) instead of silently
+    // toggling an empty BoxDecoration.
     let mut bindings = FxHashMap::default();
     bindings.insert(
         "active".to_string(),
@@ -876,27 +1029,28 @@ fn test_format_element_with_class_map_bindings() {
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
     };
-    let (expr, _) = fmt_view(&ViewTree::Element(Box::new(el)));
-    // Should emit conditional decoration that uses the binding expression
-    assert!(
-        expr.contains("isOpen"),
-        "should contain the condition expression: {}",
+    let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
+    assert_eq!(
+        expr, "Container()",
+        "unresolved class must not wrap: {}",
         expr
     );
     assert!(
-        expr.contains("BoxDecoration"),
-        "should contain conditional BoxDecoration: {}",
+        !expr.contains("BoxDecoration"),
+        "no empty BoxDecoration stub may be emitted: {}",
         expr
     );
     assert!(
-        expr.contains("Container("),
-        "should wrap in Container: {}",
-        expr
+        warnings
+            .iter()
+            .any(|w| w.contains("class 'active'") && w.contains("not declared by any design block")),
+        "unknown dynamic class must warn: {:?}",
+        warnings
     );
 }
 
 #[test]
-fn test_format_element_with_class_map_bindings_static_true() {
+fn test_format_element_with_class_map_bindings_static_true_warns_unknown_class() {
     let mut bindings = FxHashMap::default();
     bindings.insert(
         "active".to_string(),
@@ -921,9 +1075,15 @@ fn test_format_element_with_class_map_bindings_static_true() {
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
     };
-    let (expr, _) = fmt_view(&ViewTree::Element(Box::new(el)));
-    // Static true class bindings should not add wrapping Container
+    let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
+    // Static true class bindings resolve like static classes; an unknown
+    // class warns and adds no wrapping Container.
     assert_eq!(expr, "Container()");
+    assert!(
+        warnings.iter().any(|w| w.contains("class 'active'")),
+        "unknown always-on class must warn: {:?}",
+        warnings
+    );
 }
 
 #[test]
@@ -952,13 +1112,18 @@ fn test_format_element_with_class_map_bindings_static_false() {
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
     };
-    let (expr, _) = fmt_view(&ViewTree::Element(Box::new(el)));
-    // Static false class bindings should be skipped entirely
+    let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
+    // Static false class bindings are skipped entirely — no warning either.
     assert_eq!(expr, "Container()");
+    assert!(
+        warnings.is_empty(),
+        "never-applied classes must not warn: {:?}",
+        warnings
+    );
 }
 
 #[test]
-fn test_format_element_with_class_map_bindings_and_child() {
+fn test_format_element_with_class_map_bindings_and_child_warns_unknown_class() {
     let mut bindings = FxHashMap::default();
     bindings.insert(
         "active".to_string(),
@@ -984,26 +1149,310 @@ fn test_format_element_with_class_map_bindings_and_child() {
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
     };
-    let (expr, _) = fmt_view(&ViewTree::Element(Box::new(el)));
-    // Should wrap the child Container inside a conditional Container
-    assert!(
-        expr.contains("Container("),
-        "should contain outer Container: {}",
+    let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
+    // An unresolvable dynamic class leaves the element unwrapped (warned).
+    assert_eq!(
+        expr, "Container(child: Text('Hello'))",
+        "unresolved class must not wrap the child: {}",
         expr
     );
     assert!(
-        expr.contains("child: Container(child: Text('Hello'))"),
-        "should contain inner Container with child: {}",
+        warnings.iter().any(|w| w.contains("class 'active'")),
+        "unknown dynamic class must warn: {:?}",
+        warnings
+    );
+    assert!(
+        !expr.contains("isOpen") && !expr.contains("BoxDecoration"),
+        "unresolved dynamic classes must emit no conditional stub: {}",
+        expr
+    );
+}
+
+// ── Design class:/variant: resolution (Task 4.3) ──────────
+
+/// Element with a `class` prop holding a literal class list.
+fn el_with_class(classes: &str) -> ElementIR {
+    let mut props = FxHashMap::default();
+    props.insert(
+        "class".into(),
+        ExprIR::LiteralExpr {
+            value: serde_json::json!(classes),
+        },
+    );
+    ElementIR {
+        class_map_bindings: FxHashMap::default(),
+        tag: "div".into(),
+        props,
+        bindings: FxHashMap::default(),
+        events: FxHashMap::default(),
+        style_classes: None,
+        inline_style: None,
+        children: vec![],
+        construction_kind: ConstructionKind::Component,
+        source_span: None,
+        motion: None,
+        scroll: None,
+        drag: None,
+        ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
+    }
+}
+
+#[test]
+fn test_design_class_resolves_to_factory_decoration() {
+    // class: AppDesign.Card (lowered to the literal class prop "Card") must
+    // emit `Container(decoration: AppDesign.card(), ...)` — the design doc's
+    // hand-written form — NOT the old empty `BoxDecoration()` stub.
+    let ir = design_test_program();
+    let (expr, warnings) =
+        fmt_view_with_program(&ViewTree::Element(Box::new(el_with_class("Card"))), &ir);
+    assert!(
+        expr.contains("Container(decoration: AppDesign.card(), child: Container())"),
+        "static design class must resolve to the generated factory: {}",
         expr
     );
     assert!(
-        expr.contains("isOpen"),
-        "should contain condition expression: {}",
+        !expr.contains("BoxDecoration(") || expr.contains("AppDesign.card()"),
+        "no inline stub may replace the factory reference: {}",
         expr
     );
     assert!(
-        expr.contains("BoxDecoration"),
-        "should contain conditional decoration: {}",
+        warnings.is_empty(),
+        "a resolvable design class must not warn: {:?}",
+        warnings
+    );
+}
+
+#[test]
+fn test_design_class_dynamic_conditional_resolves_real_decoration() {
+    // class: { Active: isOpen } — the dynamic class resolves to REAL values
+    // (`AppDesign.active()`), toggled by the condition.
+    let mut bindings = FxHashMap::default();
+    bindings.insert(
+        "Active".to_string(),
+        ExprIR::IdentifierExpr {
+            name: "isOpen".to_string(),
+            type_ann: None,
+        },
+    );
+    let mut el = el_with_class("");
+    el.class_map_bindings = bindings;
+    let ir = design_test_program();
+    let (expr, warnings) = fmt_view_with_program(&ViewTree::Element(Box::new(el)), &ir);
+    assert!(
+        expr.contains("decoration: isOpen ? BoxDecoration(color: AppTokens.primary) : null"),
+        "dynamic class must toggle a REAL decoration (not an empty stub): {}",
+        expr
+    );
+    assert!(
+        !expr.contains("BoxDecoration()"),
+        "the empty stub is gone: {}",
+        expr
+    );
+    assert!(
+        warnings.is_empty(),
+        "a resolvable dynamic class must not warn: {:?}",
+        warnings
+    );
+}
+
+#[test]
+fn test_design_multi_class_merges_with_last_wins() {
+    // class: "Card Active" — the merged decoration keeps the Card radius and
+    // the Active background (later class wins on conflict).
+    let ir = design_test_program();
+    let (expr, _) = fmt_view_with_program(
+        &ViewTree::Element(Box::new(el_with_class("Card Active"))),
+        &ir,
+    );
+    assert!(
+        expr.contains("decoration: BoxDecoration("),
+        "multi-class must compose into one inline decoration: {}",
+        expr
+    );
+    assert!(
+        expr.contains("color: AppTokens.primary"),
+        "the later class must win the color field: {}",
+        expr
+    );
+    assert!(
+        expr.contains("borderRadius: BorderRadius.circular(AppTokens.radiusMd)"),
+        "the earlier class's radius must survive: {}",
+        expr
+    );
+    assert!(
+        !expr.contains("AppDesign.card") && !expr.contains("AppDesign.active"),
+        "composed decorations inline the fields instead of referencing a single factory: {}",
+        expr
+    );
+}
+
+#[test]
+fn test_design_variant_resolves_to_real_decoration() {
+    // variant: AppDesign.Button(color=primary) — lowered to the
+    // `_design_variant` prop — merges base + selected branch into a REAL
+    // inline BoxDecoration.
+    let mut props = FxHashMap::default();
+    props.insert(
+        "_design_variant".into(),
+        ExprIR::LiteralExpr {
+            value: serde_json::json!({
+                "design_name": "App",
+                "variant_name": "Button",
+                "dimension_values": { "color": "primary" },
+            }),
+        },
+    );
+    let mut el = el_with_class("");
+    el.props = props;
+    let ir = design_test_program();
+    let (expr, warnings) = fmt_view_with_program(&ViewTree::Element(Box::new(el)), &ir);
+    assert!(
+        expr.contains("decoration: BoxDecoration("),
+        "variant must resolve to an inline decoration: {}",
+        expr
+    );
+    assert!(
+        expr.contains("color: AppTokens.primary"),
+        "variant branch background must resolve: {}",
+        expr
+    );
+    assert!(
+        expr.contains("borderRadius: BorderRadius.circular(AppTokens.radiusMd)"),
+        "variant base border-radius must resolve: {}",
+        expr
+    );
+    assert!(
+        warnings.is_empty(),
+        "a resolvable variant must not warn: {:?}",
+        warnings
+    );
+}
+
+#[test]
+fn test_design_static_plus_dynamic_swaps_decorations() {
+    // class: "Card" + class: { Active: cond } — the decoration swaps between
+    // the static set and the full set while the condition holds.
+    let mut bindings = FxHashMap::default();
+    bindings.insert(
+        "Active".to_string(),
+        ExprIR::IdentifierExpr {
+            name: "isOpen".to_string(),
+            type_ann: None,
+        },
+    );
+    let mut el = el_with_class("Card");
+    el.class_map_bindings = bindings;
+    let ir = design_test_program();
+    let (expr, _) = fmt_view_with_program(&ViewTree::Element(Box::new(el)), &ir);
+    assert!(
+        expr.contains("decoration: isOpen ? "),
+        "static+dynamic must emit the ternary: {}",
+        expr
+    );
+    assert!(
+        expr.contains("BoxDecoration(color: AppTokens.primary, borderRadius: BorderRadius.circular(AppTokens.radiusMd))")
+            && expr.contains("BoxDecoration(color: AppTokens.surface, borderRadius: BorderRadius.circular(AppTokens.radiusMd))"),
+        "both branches carry REAL values: {}",
+        expr
+    );
+}
+
+#[test]
+fn test_design_layout_only_class_warns_and_skips() {
+    let ir = design_test_program();
+    let (expr, warnings) = fmt_view_with_program(
+        &ViewTree::Element(Box::new(el_with_class("RowLayout"))),
+        &ir,
+    );
+    assert_eq!(
+        expr, "Container()",
+        "layout-only class must not wrap: {}",
+        expr
+    );
+    assert!(
+        warnings.iter().any(|w| {
+            w.contains("class 'RowLayout'") && w.contains("no decoration-mappable properties")
+        }),
+        "layout-only class must warn: {:?}",
+        warnings
+    );
+}
+
+#[test]
+fn test_design_variant_unknown_warns() {
+    let mut props = FxHashMap::default();
+    props.insert(
+        "_design_variant".into(),
+        ExprIR::LiteralExpr {
+            value: serde_json::json!({
+                "design_name": "App",
+                "variant_name": "Nope",
+                "dimension_values": {},
+            }),
+        },
+    );
+    let mut el = el_with_class("");
+    el.props = props;
+    let ir = design_test_program();
+    let (expr, warnings) = fmt_view_with_program(&ViewTree::Element(Box::new(el)), &ir);
+    assert_eq!(expr, "Container()");
+    assert!(
+        warnings
+            .iter()
+            .any(|w| w.contains("variant 'Nope'") && w.contains("not found")),
+        "unknown variant must warn: {:?}",
+        warnings
+    );
+}
+
+#[test]
+fn test_design_class_on_component_element_wraps_in_decoration() {
+    // class: on a component instantiation resolves to a decoration on a
+    // wrapping Container — and the class prop never reaches the child
+    // constructor (invalid Dart).
+    let mut props = FxHashMap::default();
+    props.insert(
+        "class".into(),
+        ExprIR::LiteralExpr {
+            value: serde_json::json!("Card"),
+        },
+    );
+    let el = ElementIR {
+        class_map_bindings: FxHashMap::default(),
+        tag: "MyCard".into(),
+        props,
+        bindings: FxHashMap::default(),
+        events: FxHashMap::default(),
+        style_classes: None,
+        inline_style: None,
+        children: vec![],
+        construction_kind: ConstructionKind::Component,
+        source_span: None,
+        motion: None,
+        scroll: None,
+        drag: None,
+        ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
+    };
+    let ir = design_test_program();
+    let my_card = ComponentIR {
+        name: "MyCard".into(),
+        view: None,
+        ..Default::default()
+    };
+    let component_map: FxHashMap<&str, &ComponentIR> =
+        FxHashMap::from_iter([("MyCard".into(), &my_card)]);
+    let (expr, _) =
+        fmt_view_with_program_and_map(&ViewTree::Element(Box::new(el)), &ir, &component_map);
+    assert!(
+        expr.contains("Container(decoration: AppDesign.card(), child: MyCard())"),
+        "component element must be wrapped with the resolved decoration: {}",
+        expr
+    );
+    assert!(
+        !expr.contains("MyCard(class:"),
+        "class must not leak into the child constructor: {}",
         expr
     );
 }
@@ -3103,6 +3552,117 @@ fn compile_flutter(source: &str) -> Option<crate::InternalCompileResult> {
     }
 }
 
+/// Task 4.3 fixture: a component using `class: Design.Card`, a dynamic
+/// `class: { Active: cond }`, and `variant: Design.Button(color=primary)` —
+/// the Flutter output must carry REAL decoration values (the generated
+/// `AppDesign` factory / token constants), never the old empty
+/// `BoxDecoration()` stub, and the component must import design.dart.
+#[test]
+fn design_classes_and_variants_render_real_flutter_decorations() {
+    let source = r##"
+import omniview;
+
+design App {
+    token primary: color = "#6366f1";
+    token surface: color = "#ffffff";
+    token radiusMd: radius = "8px";
+
+    class Card {
+        background: token(surface);
+        border-radius: token(radiusMd);
+        border: "1px solid #d4d4d8";
+    }
+    class Active {
+        background: token(primary);
+    }
+
+    variant Button {
+        @dim color: primary | danger;
+        @default { color: primary; }
+        base {
+            border-radius: token(radiusMd);
+        }
+        color.primary { background: token(primary); }
+        color.danger { background: "#ef4444"; }
+    }
+}
+
+component DesignDemo {
+    signal isActive: bool = false;
+    view {
+        <div class: App.Card>
+            <div class: { Active: isActive }>Toggle</div>
+        </div>
+        <button variant: App.Button(color=primary)>Go</button>
+    }
+}
+"##;
+    let output = compile_flutter(source).unwrap();
+    let dart: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    // Static class → the generated factory, exactly as the design doc
+    // promises (`Container(decoration: AppDesign.card(), ...)`).
+    assert!(
+        dart.contains("Container(decoration: AppDesign.card(), child: Container("),
+        "static design class must resolve to the AppDesign factory. Got:\n{}",
+        dart
+    );
+    // Dynamic class → REAL values toggled by the condition.
+    assert!(
+        dart.contains("decoration: isActive ? BoxDecoration(color: AppTokens.primary) : null"),
+        "dynamic class must toggle real decoration values. Got:\n{}",
+        dart
+    );
+    // Variant → merged base + branch values.
+    assert!(
+        dart.contains("decoration: BoxDecoration(color: AppTokens.primary, borderRadius: BorderRadius.circular(AppTokens.radiusMd))"),
+        "variant must resolve to real values. Got:\n{}",
+        dart
+    );
+    // No empty stub, no TODO, no leftover `class`/`_design_variant` props.
+    assert!(
+        !dart.contains("BoxDecoration()"),
+        "the empty BoxDecoration stub is gone. Got:\n{}",
+        dart
+    );
+    assert!(
+        !dart.contains("TODO"),
+        "the TODO comment is gone. Got:\n{}",
+        dart
+    );
+    assert!(
+        !dart.contains("_design_variant") && !dart.contains(": 'Card'"),
+        "design props must not leak into generated widgets. Got:\n{}",
+        dart
+    );
+    // The component imports design.dart (the factories it references).
+    let demo = output
+        .files
+        .get("DesignDemo.dart")
+        .expect("DesignDemo.dart should be generated");
+    assert!(
+        demo.contains("import 'design.dart';"),
+        "components using design classes must import design.dart. Got:\n{}",
+        demo
+    );
+    // design.dart itself contains the factory.
+    let design_dart = output
+        .files
+        .get("design.dart")
+        .expect("design.dart should be generated");
+    assert!(
+        design_dart.contains("static BoxDecoration card() {")
+            && design_dart.contains("color: AppTokens.surface,"),
+        "design.dart must contain the card factory. Got:\n{}",
+        design_dart
+    );
+}
+
 /// Full-pipeline motion coverage (Task 5.4): real @motion syntax through
 /// parse → IR → Flutter codegen. Verifies per-property Tween/TweenSequence,
 /// playback properties, color mapping, and motion diagnostics.
@@ -4154,7 +4714,10 @@ fn test_unmapped_prop_warns_and_is_skipped() {
 }
 
 #[test]
-fn test_slug_props_skipped_silently() {
+fn test_class_prop_unknown_class_warns_and_skips() {
+    // `class: "card"` with no design declaring "card" resolves to nothing —
+    // the element stays unwrapped and a warning names the class (spec §10.3,
+    // Task 4.3: unknown classes must not vanish silently).
     let mut props = FxHashMap::default();
     props.insert(
         "class".into(),
@@ -4189,8 +4752,15 @@ fn test_slug_props_skipped_silently() {
     let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
     assert_eq!(expr, "Container()");
     assert!(
-        !warnings.iter().any(|w| w.contains("class")),
-        "slug props (class/style) are intentionally dropped without warnings: {:?}",
+        !expr.contains("BoxDecoration"),
+        "unknown classes must not emit any decoration stub: {}",
+        expr
+    );
+    assert!(
+        warnings
+            .iter()
+            .any(|w| w.contains("class 'card'") && w.contains("not declared by any design block")),
+        "unknown class must warn naming the class: {:?}",
         warnings
     );
 }
@@ -4508,12 +5078,14 @@ fn test_store_action_in_inline_handler_body() {
         FxHashMap::from_iter([("TodoStore".into(), "todoStoreProvider".into())]);
     let ref_usage: FxHashMap<String, RefUsage> = FxHashMap::default();
     let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let design_resolver = DesignResolver::new(&ir);
     let mut ctx = ViewContext {
         component_map: &component_map,
         store_provider_map: &store_provider_map,
         ref_usage: &ref_usage,
         component_slots: &component_slots,
         ir: &ir,
+        design: &design_resolver,
         warnings: &mut warnings,
     };
     let expr = format_view_tree(&view, &[], &mut ctx);
@@ -4604,12 +5176,14 @@ fn test_store_action_method_call_form_in_handler() {
         FxHashMap::from_iter([("TodoStore".into(), "todoStoreProvider".into())]);
     let ref_usage: FxHashMap<String, RefUsage> = FxHashMap::default();
     let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let design_resolver = DesignResolver::new(&ir);
     let mut ctx = ViewContext {
         component_map: &component_map,
         store_provider_map: &store_provider_map,
         ref_usage: &ref_usage,
         component_slots: &component_slots,
         ir: &ir,
+        design: &design_resolver,
         warnings: &mut warnings,
     };
     let expr = format_view_tree(&view, &[], &mut ctx);
@@ -4785,12 +5359,14 @@ fn test_ref_key_on_widget_and_controller_attachment() {
     let component_map: FxHashMap<&str, &ComponentIR> = FxHashMap::default();
     let store_provider_map: FxHashMap<String, String> = FxHashMap::default();
     let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let design_resolver = DesignResolver::new(&ir);
     let mut ctx = ViewContext {
         component_map: &component_map,
         store_provider_map: &store_provider_map,
         ref_usage,
         component_slots: &component_slots,
         ir: &ir,
+        design: &design_resolver,
         warnings: &mut warnings,
     };
     let view = ViewTree::Element(Box::new(el));
@@ -4818,12 +5394,14 @@ fn test_ref_key_on_widget_and_controller_attachment() {
     let ref_usage2: &FxHashMap<String, RefUsage> = &usage2;
     let mut warnings2 = Vec::new();
     let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let design_resolver2 = DesignResolver::new(&ir);
     let mut ctx2 = ViewContext {
         component_map: &component_map,
         store_provider_map: &store_provider_map,
         ref_usage: ref_usage2,
         component_slots: &component_slots,
         ir: &ir,
+        design: &design_resolver2,
         warnings: &mut warnings2,
     };
     let view2 = ViewTree::Element(Box::new(el2));
@@ -4846,12 +5424,14 @@ fn test_ref_key_on_widget_and_controller_attachment() {
     let ref_usage3: &FxHashMap<String, RefUsage> = &usage3;
     let mut warnings3 = Vec::new();
     let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let design_resolver3 = DesignResolver::new(&ir);
     let mut ctx3 = ViewContext {
         component_map: &component_map,
         store_provider_map: &store_provider_map,
         ref_usage: ref_usage3,
         component_slots: &component_slots,
         ir: &ir,
+        design: &design_resolver3,
         warnings: &mut warnings3,
     };
     let view3 = ViewTree::Element(Box::new(el3));
@@ -5546,7 +6126,10 @@ fn unmapped_event_fields_warn_not_silent() {
         "drop files stub must warn with field + kind, got: {:?}",
         files_warnings
     );
-    assert!(files_expr.contains("/*"), "degradation comment: {files_expr}");
+    assert!(
+        files_expr.contains("/*"),
+        "degradation comment: {files_expr}"
+    );
     let (text_expr, text_warnings) = extract_with_warnings(&EventDataKind::DropEvent, "text");
     assert!(
         text_warnings
@@ -5584,7 +6167,10 @@ fn unmapped_event_fields_warn_not_silent() {
         "deltaMode stub must warn, got: {:?}",
         dm_warnings
     );
-    assert!(delta_mode.contains("/*"), "degradation comment: {delta_mode}");
+    assert!(
+        delta_mode.contains("/*"),
+        "degradation comment: {delta_mode}"
+    );
     let (values, values_warnings) = extract_with_warnings(&EventDataKind::SubmitEvent, "values");
     assert!(
         values_warnings
@@ -5667,7 +6253,10 @@ fn emit_event_object_flutter_warns_for_dropped_fields() {
         "mapped 'x' must not warn: {:?}",
         warnings
     );
-    assert!(obj.contains("'files':"), "map must still emit the field key");
+    assert!(
+        obj.contains("'files':"),
+        "map must still emit the field key"
+    );
     assert!(obj.contains("'x':"), "map must still emit mapped fields");
     assert!(obj.contains("/*"), "degradation comment in map: {obj}");
 }

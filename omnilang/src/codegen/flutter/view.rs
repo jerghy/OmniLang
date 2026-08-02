@@ -9,6 +9,9 @@ use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 
 use super::capitalize_first;
+use super::design::DesignResolver;
+use super::design::{class_factory_expr, decoration_fields_to_expr, merge_decoration_fields};
+use super::design::{resolve_class_decoration, resolve_variant_decoration, DecorationFields};
 use super::expr::{format_expr_ir_flutter, rewrite_stmt_store_accesses, rewrite_store_accesses};
 use super::motion::wrap_with_motion_widgets;
 use super::motion_widgets::{emit_event_object_flutter, field_extract_flutter};
@@ -38,6 +41,8 @@ pub(crate) struct ViewContext<'a> {
     /// slot) — drives consumer-side slot projection (Task 5.3).
     pub(crate) component_slots: &'a FxHashMap<String, FxHashSet<String>>,
     pub(crate) ir: &'a IRProgram,
+    /// Design lookups for `class:`/`variant:` resolution (Task 4.3).
+    pub(crate) design: &'a DesignResolver<'a>,
     /// Compiler warnings accumulated during view formatting (C6).
     pub(crate) warnings: &'a mut Vec<String>,
 }
@@ -272,6 +277,55 @@ pub(crate) fn collect_view_slots(
     }
 }
 
+/// Whether any element in the view references design classes or variants
+/// (`class:` prop, `_design_variant` prop, or `class_map_bindings`) —
+/// drives the `import 'design.dart';` decision in the component generator.
+/// The scan is conservative: any usage (resolved or not) counts, so an
+/// unresolved reference leaves the import unused rather than a resolved one
+/// missing it.
+pub(crate) fn view_uses_design_classes(node: &ViewTree) -> bool {
+    match node {
+        ViewTree::Element(el) => {
+            let class_prop_used = match el.props.get("class") {
+                Some(ExprIR::LiteralExpr { value }) => {
+                    value.as_str().is_some_and(|s| !s.trim().is_empty())
+                }
+                Some(_) => true,
+                None => false,
+            };
+            if class_prop_used || el.props.contains_key("_design_variant") {
+                return true;
+            }
+            // Literal-false bindings emit nothing — they do not need design.dart.
+            if el.class_map_bindings.values().any(|e| match e {
+                ExprIR::LiteralExpr { value } => value.as_bool() != Some(false),
+                _ => true,
+            }) {
+                return true;
+            }
+            el.children.iter().any(view_uses_design_classes)
+        }
+        ViewTree::Conditional(cond) => {
+            cond.branches
+                .iter()
+                .any(|b| b.body.as_ref().is_some_and(view_uses_design_classes))
+                || cond.fallback.as_ref().is_some_and(view_uses_design_classes)
+        }
+        ViewTree::ListRendering(list) => {
+            list.body.as_ref().is_some_and(view_uses_design_classes)
+                || list
+                    .empty_body
+                    .as_ref()
+                    .is_some_and(view_uses_design_classes)
+        }
+        ViewTree::Fragment(children) => children.iter().any(view_uses_design_classes),
+        ViewTree::Slot { fallback, .. } => fallback.iter().any(view_uses_design_classes),
+        ViewTree::Text(_) | ViewTree::Interpolation(_) => false,
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
+    }
+}
+
 /// Collect the tags of all component instantiations in a view tree — the
 /// child components whose generated `.dart` files the generated component
 /// file must import (cross-file composition). Children of a component
@@ -383,6 +437,243 @@ fn css_prop_to_flutter_param(prop: &str) -> Option<&'static str> {
     }
 }
 
+/// Resolve one bare class name against the design IR. Class names arrive
+/// bare (the `Design.` prefix is dropped during lowering — `class:
+/// LearnDesign.Card` becomes the `class` prop "Card"). Returns the resolved
+/// decoration fields plus the `AppDesign.<class>()` factory reference (valid
+/// only when the decoration derives from exactly this one class). Unknown
+/// class names and layout-only classes warn and return `None`.
+fn resolve_static_class(
+    name: &str,
+    ctx: &mut ViewContext,
+) -> Option<(DecorationFields, Option<String>)> {
+    let Some((design, class)) = ctx.design.class_owner(name) else {
+        ctx.warnings.push(format!(
+            "[flutter] class '{name}' is not declared by any design block; \
+             skipped (no Flutter equivalent)"
+        ));
+        return None;
+    };
+    let (fields, skipped) = resolve_class_decoration(design, class);
+    warn_design_skipped(ctx, &format!("class '{name}'"), skipped);
+    if fields.is_empty() {
+        ctx.warnings.push(format!(
+            "[flutter] design class '{name}' has no decoration-mappable properties; \
+             skipped (layout/text-only classes have no Flutter decoration equivalent)"
+        ));
+        None
+    } else {
+        let factory = class_factory_expr(design, class);
+        Some((fields, factory))
+    }
+}
+
+/// Surface unmappable (property, value) pairs on the warnings channel,
+/// naming the resolved thing they belong to (class/variant).
+fn warn_design_skipped(ctx: &mut ViewContext, what: &str, skipped: Vec<(String, String)>) {
+    for (prop, value) in skipped {
+        ctx.warnings.push(format!(
+            "[flutter] {what} property '{prop}' value '{value}' is not mappable to a \
+             BoxDecoration field; skipped"
+        ));
+    }
+}
+
+/// Resolve the element's design classes/variants (`class:` prop,
+/// `_design_variant` prop, `class_map_bindings`) against the design IR and
+/// wrap `inner` in a `Container` carrying the resolved `BoxDecoration`
+/// (Task 4.3 — the review's HIGH: static class styles vanished and dynamic
+/// `class:active={cond}` toggled an empty `BoxDecoration()` stub).
+///
+/// Resolution rules:
+/// - A single static class resolves to its generated factory —
+///   `Container(decoration: AppDesign.card(), ...)` — the design doc's
+///   hand-written form, so the generated factories are actually referenced.
+/// - Composed decorations (multi-class, class+variant, static+dynamic)
+///   merge per `BoxDecoration` field with LATER classes winning on conflict
+///   (the CSS cascade analogue for multiple classes on one element).
+/// - Dynamic classes (`class: { active: cond }`) emit
+///   `decoration: cond ? <resolved> : null` with REAL resolved values;
+///   combined with static classes they emit
+///   `decoration: cond ? <all merged> : <static merged>`.
+/// - Unknown class names, layout-only classes, and unmappable values warn
+///   naming the class and the reason (spec §10.3 — no silent drops).
+fn wrap_design_decorations(el: &ElementIR, inner: String, ctx: &mut ViewContext) -> String {
+    // 1. Static classes from the `class` prop (`class: Design.Card` lowers to
+    //    a literal "Card"; `class: { X: true }` entries join it) and the
+    //    `style_classes` carrier (never populated by lowering today — view
+    //    classes flow through the `class` prop — but a hand-built IR could
+    //    carry it; resolving it closes the review's "style_classes is never
+    //    read by the Flutter backend").
+    let mut class_names: Vec<String> = Vec::new();
+    if let Some(ExprIR::LiteralExpr { value }) = el.props.get("class") {
+        if let Some(classes) = value.as_str() {
+            class_names.extend(classes.split_whitespace().map(str::to_string));
+        } else {
+            ctx.warnings.push(format!(
+                "[flutter] non-literal `class` prop values are not supported; \
+                 class styling skipped"
+            ));
+        }
+    }
+    if let Some(ref classes) = el.style_classes {
+        if let Some(classes) = classes.as_str() {
+            class_names.extend(classes.split_whitespace().map(str::to_string));
+        }
+    }
+    let mut static_entries: Vec<(String, DecorationFields, Option<String>)> = Vec::new();
+    let mut seen: FxHashSet<String> = FxHashSet::default();
+    for name in class_names {
+        if !seen.insert(name.clone()) {
+            continue; // same class listed twice — resolve once
+        }
+        if let Some(resolved) = resolve_static_class(&name, ctx) {
+            static_entries.push((name, resolved.0, resolved.1));
+        }
+    }
+
+    // 2. Variant binding (`variant: Design.Button(color=primary)` lowers to
+    //    the `_design_variant` prop). Resolved at compile time from the
+    //    merged base ∪ selected-branch properties — the generated
+    //    ThemeExtension consts are not used because the extension is never
+    //    registered in the generated ThemeData, so a Theme.of lookup would
+    //    return null at runtime (invisible decoration — the exact bug this
+    //    task removes).
+    let mut variant_fields: Option<DecorationFields> = None;
+    if let Some(ExprIR::LiteralExpr { value }) = el.props.get("_design_variant") {
+        if let (Some(design_name), Some(variant_name)) = (
+            value.get("design_name").and_then(|v| v.as_str()),
+            value.get("variant_name").and_then(|v| v.as_str()),
+        ) {
+            let dim_values: FxHashMap<String, String> = value
+                .get("dimension_values")
+                .and_then(|v| v.as_object())
+                .map(|o| {
+                    o.iter()
+                        .map(|(k, v)| (k.clone(), v.as_str().unwrap_or_default().to_string()))
+                        .collect()
+                })
+                .unwrap_or_default();
+            match ctx.design.design(design_name) {
+                Some(design) => match ctx.design.variant(design, variant_name) {
+                    Some(variant) => {
+                        let (fields, skipped) =
+                            resolve_variant_decoration(design, variant, &dim_values);
+                        warn_design_skipped(ctx, &format!("variant '{variant_name}'"), skipped);
+                        if fields.is_empty() {
+                            ctx.warnings.push(format!(
+                                "[flutter] variant '{variant_name}' of design \
+                                 '{design_name}' has no decoration-mappable properties; \
+                                 no visual effect on Flutter"
+                            ));
+                        } else {
+                            variant_fields = Some(fields);
+                        }
+                    }
+                    None => ctx.warnings.push(format!(
+                        "[flutter] variant '{variant_name}' not found in design \
+                         '{design_name}'"
+                    )),
+                },
+                None => ctx.warnings.push(format!(
+                    "[flutter] design '{design_name}' not found for variant binding"
+                )),
+            }
+        }
+    }
+
+    // 3. Dynamic class bindings (`class: { active: cond }`). Literal-true
+    //    entries are always-applied static classes; literal-false entries
+    //    are skipped entirely.
+    let mut dynamic: Vec<(String, DecorationFields)> = Vec::new(); // (cond, fields)
+    for (name, expr) in &el.class_map_bindings {
+        match expr {
+            ExprIR::LiteralExpr { value } if value.as_bool() == Some(true) => {
+                if let Some(resolved) = resolve_static_class(name, ctx) {
+                    static_entries.push((name.clone(), resolved.0, resolved.1));
+                }
+            }
+            ExprIR::LiteralExpr { value } if value.as_bool() == Some(false) => {}
+            _ => {
+                if let Some(resolved) = resolve_static_class(name, ctx) {
+                    dynamic.push((ctx.format_expr(expr), resolved.0));
+                }
+            }
+        }
+    }
+
+    // 4. Compose.
+    let mut merged_static = DecorationFields::default();
+    for (_, fields, _) in &static_entries {
+        merged_static = merge_decoration_fields(merged_static, fields.clone());
+    }
+    if let Some(vf) = &variant_fields {
+        merged_static = merge_decoration_fields(merged_static, vf.clone());
+    }
+    // Factory reference only when the decoration derives from exactly one
+    // static class — no composition involved.
+    let factory = if static_entries.len() == 1 && variant_fields.is_none() && dynamic.is_empty() {
+        static_entries[0].2.clone()
+    } else {
+        None
+    };
+
+    if dynamic.is_empty() {
+        if let Some(factory) = factory {
+            format!("Container(decoration: {}, child: {})", factory, inner)
+        } else if merged_static.is_empty() {
+            inner
+        } else {
+            format!(
+                "Container(decoration: {}, child: {})",
+                decoration_fields_to_expr(&merged_static),
+                inner
+            )
+        }
+    } else if merged_static.is_empty() {
+        // Only dynamic classes — the decoration is off (null) until the
+        // condition holds.
+        let cond = dynamic
+            .iter()
+            .map(|(c, _)| c.as_str())
+            .collect::<Vec<_>>()
+            .join(" && ");
+        let mut merged_all = DecorationFields::default();
+        for (_, fields) in &dynamic {
+            merged_all = merge_decoration_fields(merged_all, fields.clone());
+        }
+        if merged_all.is_empty() {
+            return inner; // all dynamic classes unresolved — warned above
+        }
+        format!(
+            "Container(\n  decoration: {} ? {} : null,\n  child: {},\n)",
+            cond,
+            decoration_fields_to_expr(&merged_all),
+            inner
+        )
+    } else {
+        // Static + dynamic — the decoration swaps between the static set and
+        // the full set (static classes always apply; dynamic classes layer on
+        // top and win per field while their condition holds).
+        let cond = dynamic
+            .iter()
+            .map(|(c, _)| c.as_str())
+            .collect::<Vec<_>>()
+            .join(" && ");
+        let mut merged_all = merged_static.clone();
+        for (_, fields) in &dynamic {
+            merged_all = merge_decoration_fields(merged_all, fields.clone());
+        }
+        format!(
+            "Container(\n  decoration: {} ? {} : {},\n  child: {},\n)",
+            cond,
+            decoration_fields_to_expr(&merged_all),
+            decoration_fields_to_expr(&merged_static),
+            inner
+        )
+    }
+}
+
 /// Format an ElementIR node as a Flutter widget constructor expression.
 /// Wraps with motion animation widgets (AnimatedBuilder, MouseRegion, GestureDetector)
 /// when the element has motion triggers.
@@ -395,8 +686,15 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
         if let Some(ref_name) = &el.ref_binding {
             child_args.push(format!("key: {}", ref_key_name(ref_name)));
         }
-        // Props become constructor parameters
+        // Props become constructor parameters. `class` and `_design_variant`
+        // are design-class/variant carriers resolved by
+        // `wrap_design_decorations` below — never constructor params (the
+        // child component declares no such field, and the generated Dart
+        // would not compile).
         for (prop_name, prop_value) in &el.props {
+            if prop_name == "class" || prop_name == "_design_variant" {
+                continue;
+            }
             child_args.push(format!("{}: {}", prop_name, ctx.format_expr(prop_value)));
         }
         // Events become callback parameters
@@ -452,23 +750,26 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
         // single `Widget?` — multi-node content is Column-wrapped (a bare
         // list literal would not match the parameter type).
         let args_str = child_args.join(", ");
-        if default_children.is_empty() {
-            return format!("{}({})", el.tag, args_str);
-        }
-        if target_slots.contains("children") {
+        let child_expr = if default_children.is_empty() {
+            format!("{}({})", el.tag, args_str)
+        } else if target_slots.contains("children") {
             let children_arg = if default_children.len() == 1 {
                 default_children[0].clone()
             } else {
                 wrap_multi_widget(&default_children)
             };
-            return format!("{}({}, children: {})", el.tag, args_str, children_arg);
-        }
-        ctx.warnings.push(format!(
-            "[flutter] component '{}' declares no default slot; {} child node(s) dropped",
-            el.tag,
-            default_children.len()
-        ));
-        return format!("{}({})", el.tag, args_str);
+            format!("{}({}, children: {})", el.tag, args_str, children_arg)
+        } else {
+            ctx.warnings.push(format!(
+                "[flutter] component '{}' declares no default slot; {} child node(s) dropped",
+                el.tag,
+                default_children.len()
+            ));
+            format!("{}({})", el.tag, args_str)
+        };
+        // Design classes/variants resolve to a decoration on a wrapping
+        // Container — real visual output on component instantiations too.
+        return wrap_design_decorations(el, child_expr, ctx);
     }
     // Otherwise, fall through to HTML tag mapping
     let widget = tag_to_flutter_widget(&el.tag);
@@ -480,6 +781,12 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
     // collected and merged into a single wrapper argument.
     let mut wrapped: Vec<(&'static str, Vec<String>)> = Vec::new();
     for (name, value) in &el.props {
+        // `_design_variant` is a design-class/variant carrier resolved by
+        // `wrap_design_decorations` — never a widget param (the `class` prop
+        // maps to "" via the slug table below and is dropped there).
+        if name == "_design_variant" {
+            continue;
+        }
         let formatted = ctx.format_expr(value);
         let param = widget_param_rename(widget, prop_to_flutter_param_name(name));
         if param.is_empty() {
@@ -657,7 +964,12 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                             .as_ref()
                             .is_some_and(|f| !f.is_empty())
                     {
-                        warn_dropped_event_fields(ctx.warnings, name, &callback_name, "the handler");
+                        warn_dropped_event_fields(
+                            ctx.warnings,
+                            name,
+                            &callback_name,
+                            "the handler",
+                        );
                     }
                     format_inline_handler_flutter(body, ctx)
                 }
@@ -820,49 +1132,14 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
         None => inner,
     };
 
-    // ── Dynamic class bindings (class_map_bindings) ──
-    // Map class:active={condition} syntax to conditional decoration in Flutter.
-    // For each (class_name, condition_expr), emit a conditional BoxDecoration
-    // on a wrapping Container. Literal true/false expressions are handled
-    // statically (always applied / never applied).
-    let inner = if !el.class_map_bindings.is_empty() {
-        let mut has_dynamic = false;
-        let mut dynamic_conditions: Vec<String> = Vec::new();
-
-        for expr in el.class_map_bindings.values() {
-            match expr {
-                ExprIR::LiteralExpr { value } if value.as_bool() == Some(true) => {
-                    // Always-applied class (literal true):
-                    // In a full implementation with style_classes resolution,
-                    // this would add static style properties.
-                }
-                ExprIR::LiteralExpr { value } if value.as_bool() == Some(false) => {
-                    // Never-applied class (literal false): skip entirely.
-                }
-                _ => {
-                    let cond = ctx.format_expr(expr);
-                    has_dynamic = true;
-                    dynamic_conditions.push(cond);
-                }
-            }
-        }
-
-        if has_dynamic {
-            let cond = dynamic_conditions.join(" && ");
-            // Wrap in a Container with conditional decoration.
-            // The decoration applies BoxDecoration when the condition is true.
-            // TODO: When style_classes resolution is implemented, use the
-            //       actual resolved class styles instead of BoxDecoration().
-            format!(
-                "Container(\n  decoration: {} ? BoxDecoration() : null,\n  child: {},\n)",
-                cond, inner
-            )
-        } else {
-            inner
-        }
-    } else {
-        inner
-    };
+    // ── Design classes/variants (Task 4.3) ──
+    // `class: Design.Card`, `variant: Design.Button(...)`, and
+    // `class: { active: cond }` resolve against the design IR to REAL
+    // BoxDecoration values (the AppDesign.<class>() factory for single
+    // classes; field-merged inline decorations for composed sets) — the
+    // review's HIGH (empty `BoxDecoration()` stub, invisible decorations) is
+    // gone. Unknown/layout-only classes and unmappable values warn.
+    let inner = wrap_design_decorations(el, inner, ctx);
 
     // Wrap with motion animation widgets if the element has triggers
     let has_inview = el

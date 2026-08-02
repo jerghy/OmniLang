@@ -70,7 +70,11 @@ impl Codegen for FlutterCodegen {
         // Module-level design blocks → design.dart with typed token
         // constants, BoxDecoration factories, ThemeExtension variants,
         // theme switching, and the dynamic token provider (Task 5.5).
-        files.extend(design::gen_design_files(ir));
+        // Unmappable token/class/variant values surface on the warnings
+        // channel (spec §10.3) — never silent drops.
+        let (design_files, design_warnings) = design::gen_design_files(ir);
+        warnings.extend(design_warnings);
+        files.extend(design_files);
         // App shell (main.dart) — MaterialApp wired to the theme runtime
         // when @themes + a @theme signal are declared (Task 4.2 D1).
         if let Some(shell) = design::gen_theme_app_shell(ir) {
@@ -136,6 +140,14 @@ impl FlutterCodegen {
         // the shared types.dart (deferral #30) — import it when used.
         if types::component_uses_unions(comp, ir) {
             w.emit("import './types.dart';");
+        }
+        // Design classes/variants resolve against design.dart (AppDesign
+        // factories, AppTokens constants) — import it when the view
+        // references them and the program declares at least one design.
+        if ir.modules.values().any(|m| !m.designs.is_empty())
+            && comp.view.as_ref().is_some_and(view::view_uses_design_classes)
+        {
+            w.emit("import 'design.dart';");
         }
         if !comp.store_refs.is_empty() {
             w.emit("import 'package:flutter_riverpod/flutter_riverpod.dart';");
@@ -598,12 +610,14 @@ impl FlutterCodegen {
                 .flat_map(|m| &m.motions)
                 .cloned()
                 .collect::<Vec<_>>();
+            let design_resolver = design::DesignResolver::new(ir);
             let mut ctx = view::ViewContext {
                 component_map,
                 store_provider_map: &store_provider_map,
                 ref_usage: &ref_usage,
                 component_slots,
                 ir,
+                design: &design_resolver,
                 warnings: &mut warnings,
             };
             // Multi-node root fragments are wrapped in a Column —
