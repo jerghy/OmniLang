@@ -27,6 +27,7 @@ pub(super) fn lower_view_block(
     variant_map: &FxHashMap<String, String>,
     semantics: &mut SemanticResult,
     fns: &[FunctionIR],
+    signal_like_names: &FxHashSet<String>,
 ) -> ViewTree {
     if view.children.is_empty() {
         return ViewTree::Text("".into());
@@ -40,6 +41,7 @@ pub(super) fn lower_view_block(
             variant_map,
             semantics,
             fns,
+            signal_like_names,
         ));
     }
     // A single child lowers to that child directly; multiple top-level view
@@ -198,22 +200,39 @@ pub(super) fn lower_view_node(
     variant_map: &FxHashMap<String, String>,
     semantics: &mut SemanticResult,
     fns: &[FunctionIR],
+    signal_like_names: &FxHashSet<String>,
 ) -> ViewTree {
     match node {
-        ViewNode::Element(el) => {
-            lower_element(el, string_signals, sig_idx, variant_map, semantics, fns)
-        }
+        ViewNode::Element(el) => lower_element(
+            el,
+            string_signals,
+            sig_idx,
+            variant_map,
+            semantics,
+            fns,
+            signal_like_names,
+        ),
         ViewNode::Text(s) => ViewTree::Text(s.clone()),
         ViewNode::Interpolation(expr) => {
             // Lower the inner expression to ExprIR so codegen can emit proper JS
             ViewTree::Interpolation(Box::new(lower_expr(expr, variant_map, None, semantics)))
         }
-        ViewNode::IfDirective(if_dir) => {
-            lower_if_directive(if_dir, string_signals, variant_map, semantics, fns)
-        }
-        ViewNode::ForDirective(for_dir) => {
-            lower_for_directive(for_dir, string_signals, variant_map, semantics, fns)
-        }
+        ViewNode::IfDirective(if_dir) => lower_if_directive(
+            if_dir,
+            string_signals,
+            variant_map,
+            semantics,
+            fns,
+            signal_like_names,
+        ),
+        ViewNode::ForDirective(for_dir) => lower_for_directive(
+            for_dir,
+            string_signals,
+            variant_map,
+            semantics,
+            fns,
+            signal_like_names,
+        ),
         ViewNode::SlotDirective {
             name,
             default_content,
@@ -224,8 +243,16 @@ pub(super) fn lower_view_node(
                 default_content,
                 type_constraint,
             };
-            lower_slot_common(&shape, string_signals, sig_idx, variant_map, semantics, fns)
-                .into_view_tree()
+            lower_slot_common(
+                &shape,
+                string_signals,
+                sig_idx,
+                variant_map,
+                semantics,
+                fns,
+                signal_like_names,
+            )
+            .into_view_tree()
         }
     }
 }
@@ -248,6 +275,7 @@ pub(super) fn lower_slot_common(
     variant_map: &FxHashMap<String, String>,
     semantics: &mut SemanticResult,
     fns: &[FunctionIR],
+    signal_like_names: &FxHashSet<String>,
 ) -> SlotDeclIR {
     let fallback = slot
         .default_content
@@ -255,7 +283,17 @@ pub(super) fn lower_slot_common(
         .map(|nodes| {
             nodes
                 .iter()
-                .map(|n| lower_view_node(n, string_signals, sig_idx, variant_map, semantics, fns))
+                .map(|n| {
+                    lower_view_node(
+                        n,
+                        string_signals,
+                        sig_idx,
+                        variant_map,
+                        semantics,
+                        fns,
+                        signal_like_names,
+                    )
+                })
                 .collect()
         })
         .unwrap_or_default();
@@ -287,6 +325,7 @@ fn lower_element(
     variant_map: &FxHashMap<String, String>,
     semantics: &mut SemanticResult,
     fns: &[FunctionIR],
+    signal_like_names: &FxHashSet<String>,
 ) -> ViewTree {
     let mut props: Option<FxHashMap<String, ExprIR>> = None;
     let mut bindings: Option<FxHashMap<String, SignalRefIR>> = None;
@@ -501,7 +540,11 @@ fn lower_element(
                     .iter()
                     .map(|(key, expr)| {
                         let ir_expr = lower_expr(expr, variant_map, None, semantics);
-                        let json_val = super::expr::lower_expr_to_json_from_ir(&ir_expr);
+                        let json_val = super::expr::lower_expr_to_json_from_ir(
+                            &ir_expr,
+                            semantics,
+                            signal_like_names,
+                        );
                         (key.clone(), json_val)
                     })
                     .collect();
@@ -594,7 +637,15 @@ fn lower_element(
                 let fallback = content
                     .iter()
                     .map(|n| {
-                        lower_view_node(n, string_signals, sig_idx, variant_map, semantics, fns)
+                        lower_view_node(
+                            n,
+                            string_signals,
+                            sig_idx,
+                            variant_map,
+                            semantics,
+                            fns,
+                            signal_like_names,
+                        )
                     })
                     .collect();
                 slot_projections.push(ViewTree::Slot {
@@ -650,7 +701,17 @@ fn lower_element(
     let mut children: Vec<ViewTree> = el
         .children
         .iter()
-        .map(|c| lower_view_node(c, string_signals, sig_idx, variant_map, semantics, fns))
+        .map(|c| {
+            lower_view_node(
+                c,
+                string_signals,
+                sig_idx,
+                variant_map,
+                semantics,
+                fns,
+                signal_like_names,
+            )
+        })
         .collect();
     // Slot projections are appended after regular children — codegen looks
     // them up by slot name, so relative order does not affect projection.
@@ -768,6 +829,7 @@ fn lower_if_directive(
     variant_map: &FxHashMap<String, String>,
     semantics: &mut SemanticResult,
     fns: &[FunctionIR],
+    signal_like_names: &FxHashSet<String>,
 ) -> ViewTree {
     let branches: Vec<ConditionalBranch> = std::iter::once(ConditionalBranch {
         condition: lower_expr(&if_dir.condition, variant_map, None, semantics),
@@ -775,7 +837,17 @@ fn lower_if_directive(
             if_dir
                 .body
                 .iter()
-                .map(|n| lower_view_node(n, string_signals, None, variant_map, semantics, fns))
+                .map(|n| {
+                    lower_view_node(
+                        n,
+                        string_signals,
+                        None,
+                        variant_map,
+                        semantics,
+                        fns,
+                        signal_like_names,
+                    )
+                })
                 .collect(),
             ConstructionKind::Conditional,
         )),
@@ -785,7 +857,17 @@ fn lower_if_directive(
             condition: lower_expr(cond, variant_map, None, semantics),
             body: Some(make_fragment_element(
                 body.iter()
-                    .map(|n| lower_view_node(n, string_signals, None, variant_map, semantics, fns))
+                    .map(|n| {
+                        lower_view_node(
+                            n,
+                            string_signals,
+                            None,
+                            variant_map,
+                            semantics,
+                            fns,
+                            signal_like_names,
+                        )
+                    })
                     .collect(),
                 ConstructionKind::Conditional,
             )),
@@ -796,7 +878,17 @@ fn lower_if_directive(
     let fallback = if_dir.else_body.as_ref().map(|body| {
         make_fragment_element(
             body.iter()
-                .map(|n| lower_view_node(n, string_signals, None, variant_map, semantics, fns))
+                .map(|n| {
+                    lower_view_node(
+                        n,
+                        string_signals,
+                        None,
+                        variant_map,
+                        semantics,
+                        fns,
+                        signal_like_names,
+                    )
+                })
                 .collect(),
             ConstructionKind::Conditional,
         )
@@ -819,6 +911,7 @@ fn lower_for_directive(
     variant_map: &FxHashMap<String, String>,
     semantics: &mut SemanticResult,
     fns: &[FunctionIR],
+    signal_like_names: &FxHashSet<String>,
 ) -> ViewTree {
     let lower_body = |nodes: &[ViewNode], s: &mut SemanticResult| -> Option<ViewTree> {
         if nodes.is_empty() {
@@ -827,7 +920,17 @@ fn lower_for_directive(
             Some(make_fragment_element(
                 nodes
                     .iter()
-                    .map(|n| lower_view_node(n, string_signals, None, variant_map, s, fns))
+                    .map(|n| {
+                        lower_view_node(
+                            n,
+                            string_signals,
+                            None,
+                            variant_map,
+                            s,
+                            fns,
+                            signal_like_names,
+                        )
+                    })
                     .collect(),
                 ConstructionKind::List,
             ))
@@ -952,7 +1055,15 @@ mod tests {
             diagnostics: vec![],
             event_param_name: None,
         };
-        let result = lower_element(&el, &[], None, &FxHashMap::default(), &mut semantics, &[]);
+        let result = lower_element(
+            &el,
+            &[],
+            None,
+            &FxHashMap::default(),
+            &mut semantics,
+            &[],
+            &FxHashSet::default(),
+        );
         match result {
             ViewTree::Element(el_ir) => {
                 assert_eq!(
@@ -996,7 +1107,15 @@ mod tests {
             diagnostics: vec![],
             event_param_name: None,
         };
-        let result = lower_element(&el, &[], None, &FxHashMap::default(), &mut semantics, &[]);
+        let result = lower_element(
+            &el,
+            &[],
+            None,
+            &FxHashMap::default(),
+            &mut semantics,
+            &[],
+            &FxHashSet::default(),
+        );
         match result {
             ViewTree::Element(el_ir) => {
                 assert!(
@@ -1053,6 +1172,7 @@ mod tests {
             &FxHashMap::default(),
             &mut semantics,
             &[],
+            &FxHashSet::default(),
         );
         match result {
             ViewTree::Element(el_ir) => {

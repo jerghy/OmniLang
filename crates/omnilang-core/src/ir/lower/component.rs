@@ -10,6 +10,7 @@ use crate::ir::types::*;
 use crate::parser::ast::*;
 use crate::semantic::SemanticResult;
 use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use std::cell::Cell;
 
 // Disambiguate conflicting names between parser AST and IR
@@ -171,6 +172,23 @@ pub(super) fn lower_component(
     // auto-binding in declaration order across both (ADR-053 D5).
     let sig_idx = Cell::new(0usize);
 
+    // Names of this component's signal-like symbols (signals, computeds,
+    // props, getters, refs). The style-channel lowering consults this set
+    // to decide whether `obj.field` is a genuine signal read (OmniView
+    // emits `obj.value.field`) or a plain local field access — the symbol
+    // table cannot answer this at lowering time: ir::lower pushes fresh
+    // empty `component:<name>` scopes, so the analysis-time component scope
+    // (which holds these symbols) is not on the resolve() parent chain.
+    let signal_like_names: FxHashSet<String> = comp
+        .signals
+        .iter()
+        .map(|s| s.name.clone())
+        .chain(comp.computeds.iter().map(|c| c.name.clone()))
+        .chain(comp.props.iter().map(|p| p.name.clone()))
+        .chain(comp.getters.iter().map(|g| g.name.clone()))
+        .chain(comp.refs.iter().map(|r| r.name.clone()))
+        .collect();
+
     // Body-level slot declarations (ADR-053 D5) lower through the same
     // shared logic as view-level `@slot` directives.
     let slots: Vec<SlotDeclIR> = comp
@@ -189,14 +207,22 @@ pub(super) fn lower_component(
                 variant_map,
                 semantics,
                 &fns,
+                &signal_like_names,
             )
         })
         .collect();
 
-    let view = comp
-        .view
-        .as_ref()
-        .map(|v| lower_view_block(v, &input_signals, &sig_idx, variant_map, semantics, &fns));
+    let view = comp.view.as_ref().map(|v| {
+        lower_view_block(
+            v,
+            &input_signals,
+            &sig_idx,
+            variant_map,
+            semantics,
+            &fns,
+            &signal_like_names,
+        )
+    });
 
     let styles: Vec<StyleRuleIR> = comp
         .styles

@@ -45,6 +45,10 @@ pub fn format_style_value_expr(
             }
         }
         // $signal: { "$signal": "name" } -> accentColor (bare identifier, no braces)
+        // $ident:  { "$ident": "name" } -> name (bare identifier; NOT a signal —
+        //           loop item vars, params, consts). Still resolves ref names.
+        // $field:  { "$field": [obj, "field"] } -> obj.field (REAL field access;
+        //           `$signal`/`$ident` in obj position are resolved recursively).
         // $call:   { "$call": { "name": "fnName", "args": [...] } } -> fnName(arg1, arg2)
         // $concat: { "$concat": [part1, part2, ...] } -> `part1${part2}`
         serde_json::Value::Object(obj) => {
@@ -53,6 +57,34 @@ pub fn format_style_value_expr(
                     return format!("{}Ref.current", sig_name);
                 }
                 return sig_name.to_string();
+            }
+            if let Some(ident) = obj.get("$ident").and_then(|v| v.as_str()) {
+                if ref_names.contains(ident) {
+                    return format!("{}Ref.current", ident);
+                }
+                return ident.to_string();
+            }
+            if let Some(field_arr) = obj.get("$field").and_then(|v| v.as_array()) {
+                if let (Some(obj_v), Some(field)) = (field_arr.first(), field_arr.get(1)) {
+                    let obj_str = format_style_value_expr(obj_v, ref_names);
+                    let field_str = field.as_str().unwrap_or_default();
+                    // Dot access for identifier-like field names; bracket
+                    // access otherwise (defensive — source fields are
+                    // identifiers, but never emit broken JS for odd names).
+                    let is_ident = !field_str.is_empty()
+                        && field_str
+                            .chars()
+                            .next()
+                            .map(|c| c.is_ascii_alphabetic() || c == '_' || c == '$')
+                            .unwrap_or(false)
+                        && field_str
+                            .chars()
+                            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '$');
+                    if is_ident {
+                        return format!("{}.{}", obj_str, field_str);
+                    }
+                    return format!("{}['{}']", obj_str, field_str);
+                }
             }
             // $call
             if let Some(call_obj) = obj.get("$call").and_then(|v| v.as_object()) {

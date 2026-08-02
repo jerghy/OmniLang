@@ -31,6 +31,11 @@ pub(super) struct ComponentScope {
     pub name_renames: FxHashMap<String, String>,
     pub for_text_bindings: Vec<(String, String)>,
     pub for_class_bindings: Vec<(String, String, String)>,
+    /// (nid, css_prop, js_expr) style bindings for elements inside an @for
+    /// template — emitted per-clone inside the loop's `forEach` (where the
+    /// loop variable is in scope and the cloned element exists), unlike
+    /// top-level `__omni_effect` style calls which run at mount time.
+    pub for_style_bindings: Vec<(String, String, String)>,
     pub for_attr_bindings: Vec<(String, String, Vec<AttrPart>)>,
     pub for_rebind_fn: Option<String>,
     pub in_for_template: bool,
@@ -67,6 +72,7 @@ impl ComponentScope {
             name_renames: std::mem::take(&mut gen.name_resolver.name_renames),
             for_text_bindings: std::mem::take(&mut gen.scope.for_text_bindings),
             for_class_bindings: std::mem::take(&mut gen.scope.for_class_bindings),
+            for_style_bindings: std::mem::take(&mut gen.scope.for_style_bindings),
             for_attr_bindings: std::mem::take(&mut gen.scope.for_attr_bindings),
             for_rebind_fn: gen.scope.for_rebind_fn.take(),
             in_for_template: gen.scope.in_for_template,
@@ -86,6 +92,7 @@ impl ComponentScope {
         gen.name_resolver.name_renames = self.name_renames;
         gen.scope.for_text_bindings = self.for_text_bindings;
         gen.scope.for_class_bindings = self.for_class_bindings;
+        gen.scope.for_style_bindings = self.for_style_bindings;
         gen.scope.for_attr_bindings = self.for_attr_bindings;
         gen.scope.for_rebind_fn = self.for_rebind_fn;
         gen.scope.in_for_template = self.in_for_template;
@@ -106,6 +113,7 @@ impl ComponentScope {
             name_renames: FxHashMap::default(),
             for_text_bindings: Vec::new(),
             for_class_bindings: Vec::new(),
+            for_style_bindings: Vec::new(),
             for_attr_bindings: Vec::new(),
             for_rebind_fn: None,
             in_for_template: false,

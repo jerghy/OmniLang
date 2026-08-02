@@ -49,6 +49,7 @@ impl OmniViewGenerator {
             // Clear per-@for-loop binding vectors so each loop gets its own fresh bindings
             self.scope.for_text_bindings.clear();
             self.scope.for_class_bindings.clear();
+            self.scope.for_style_bindings.clear();
             self.scope.for_attr_bindings.clear();
             self.name_resolver.for_state_names.clear();
             // Event-type collection: cleared only for the outermost @for loop
@@ -396,6 +397,35 @@ impl OmniViewGenerator {
                 let _ = writeln!(self.js, "      if (_el) try {{ _el.classList.toggle(\"{}\", !!({})); }} catch(e) {{ __omni_reportError(\"warn:for:class\", e); }}", class_name, js_expr);
             }
             self.js.push_str("    })();\n");
+        }
+
+        // Pre-compiled style bindings (no new Function) — emitted per clone
+        // INSIDE the forEach so the loop variable is in scope (a top-level
+        // __omni_effect would run before the clone exists and outside the
+        // iteration where `item`/`row` is undefined).
+        if !self.scope.for_style_bindings.is_empty() {
+            self.js.push_str("    // Pre-compiled style bindings
+");
+            self.js.push_str("    (function() {
+");
+            for (nid, prop, js_expr) in &self.scope.for_style_bindings {
+                // See for_text_bindings: prefix fallback for reused keyed clones.
+                let _ = writeln!(
+                    self.js,
+                    "      var _unid = \"{nid}_\" + _idx; var _el = _elCache.get(_unid); if (!_el) {{ _el = clone.querySelector('[data-nid^=\"{nid}_\"]') || clone.querySelector('[data-nid=\"' + _unid + '\"]'); if (_el) _elCache.set(_unid, _el); }}"
+                );
+                let assignment = super::view::style::style_assignment_js(
+                    prop,
+                    &format!("__omni_sanitizeCss({})", js_expr),
+                );
+                let _ = writeln!(
+                    self.js,
+                    "      if (_el) try {{ {} }} catch(e) {{ __omni_reportError(\"warn:for:style\", e); }}",
+                    assignment
+                );
+            }
+            self.js.push_str("    })();
+");
         }
 
         // Pre-compiled attribute bindings (no new Function)

@@ -5,6 +5,7 @@
 use super::stmt::{is_store_symbol, lower_block};
 use crate::ir::types::*;
 use crate::parser::ast::*;
+use crate::semantic::symbols::SymbolKind;
 use crate::semantic::SemanticResult;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
@@ -549,25 +550,80 @@ pub(crate) fn lower_expr(
     }
 }
 
+/// Whether a name resolves to a signal-like symbol — a value with its own
+/// reactive JS binding (signal, computed, prop, getter, ref). Such values
+/// are emitted as `.value`-backed objects (OmniView) or bare variables
+/// (React) and carry no `name_field` alias; field access on them is REAL
+/// field access on the value.
+///
+/// `signal_like_names` carries the current component's signal-like names:
+/// the symbol table alone cannot answer this at lowering time (ir::lower
+/// pushes fresh empty component scopes, so the analysis-time component
+/// scope holding these symbols is not on the resolve() parent chain).
+fn is_signal_like_symbol(
+    semantics: &SemanticResult,
+    signal_like_names: &FxHashSet<String>,
+    name: &str,
+) -> bool {
+    signal_like_names.contains(name)
+        || matches!(
+            semantics.symbols.resolve(name).map(|s| &s.kind),
+            Some(
+                SymbolKind::Signal
+                    | SymbolKind::Computed
+                    | SymbolKind::Prop
+                    | SymbolKind::Getter
+                    | SymbolKind::Ref
+            )
+        )
+}
+
 /// Convert an ExprIR back to a JSON value for inline_style serialization.
-pub(super) fn lower_expr_to_json_from_ir(expr: &ExprIR) -> serde_json::Value {
+///
+/// Channel contract (设计文档 域 8, review C2 root cause):
+/// - `Store.field` — the object resolves to a store symbol, so `Store_field`
+///   IS a real emitted signal variable in every backend — keep the `$signal`
+///   underscore form.
+/// - `obj.field` on a signal-like object → `$field` with a `$signal` object
+///   (React emits `obj.field`; OmniView emits `obj.value.field`).
+/// - `obj.field` on any other object (loop item, param, const, …) →
+///   `$field` with an `$ident` object (both targets emit `obj.field`).
+///   Never mangle `row.score` into the nonexistent identifier `row_score`.
+pub(super) fn lower_expr_to_json_from_ir(
+    expr: &ExprIR,
+    semantics: &SemanticResult,
+    signal_like_names: &FxHashSet<String>,
+) -> serde_json::Value {
     match expr {
         ExprIR::LiteralExpr { value } => value.clone(),
         ExprIR::IdentifierExpr { name, .. } => serde_json::json!({"$signal": name}),
         ExprIR::FieldAccessExpr { object, field } => {
-            // Resolve ThemeStore.currentBg → JS name ThemeStore_currentBg
             if let ExprIR::IdentifierExpr { name: obj_name, .. } = object.as_ref() {
-                serde_json::json!({"$signal": format!("{}_{}", obj_name, field)})
-            } else {
-                let obj = lower_expr_to_json_from_ir(object);
-                serde_json::json!({"$signal_concat": [obj, field.as_str()]})
+                // Genuine store signal alias (ThemeStore.currentBg →
+                // ThemeStore_currentBg): the `$signal` underscore form.
+                if is_store_symbol(semantics, obj_name) {
+                    return serde_json::json!({"$signal": format!("{}_{}", obj_name, field)});
+                }
+                let obj_marker = if is_signal_like_symbol(semantics, signal_like_names, obj_name) {
+                    // Signal-like value: backends read through `.value` /
+                    // bare variable — field access lands on the value.
+                    serde_json::json!({"$signal": obj_name})
+                } else {
+                    // Plain local (loop item, param, const): bare identifier.
+                    serde_json::json!({"$ident": obj_name})
+                };
+                return serde_json::json!({"$field": [obj_marker, field.as_str()]});
             }
+            // Complex object (nested field access, call result, index):
+            // the object is itself an expression — recurse.
+            let obj = lower_expr_to_json_from_ir(object, semantics, signal_like_names);
+            serde_json::json!({"$field": [obj, field.as_str()]})
         }
         ExprIR::BinaryOpExpr { op: _, left, right } => {
             serde_json::json!({
                 "$concat": [
-                    lower_expr_to_json_from_ir(left),
-                    lower_expr_to_json_from_ir(right)
+                    lower_expr_to_json_from_ir(left, semantics, signal_like_names),
+                    lower_expr_to_json_from_ir(right, semantics, signal_like_names)
                 ]
             })
         }
@@ -575,7 +631,10 @@ pub(super) fn lower_expr_to_json_from_ir(expr: &ExprIR) -> serde_json::Value {
             serde_json::json!({
                 "$call": {
                     "name": name,
-                    "args": args.iter().map(lower_expr_to_json_from_ir).collect::<Vec<_>>()
+                    "args": args
+                        .iter()
+                        .map(|a| lower_expr_to_json_from_ir(a, semantics, signal_like_names))
+                        .collect::<Vec<_>>()
                 }
             })
         }
@@ -598,7 +657,7 @@ pub(super) fn lower_expr_to_json_from_ir(expr: &ExprIR) -> serde_json::Value {
                     ExprIR::IdentifierExpr { name, .. } => name.clone(),
                     _ => format!("{:?}", k),
                 };
-                map.insert(key, lower_expr_to_json_from_ir(v));
+                map.insert(key, lower_expr_to_json_from_ir(v, semantics, signal_like_names));
             }
             serde_json::Value::Object(map)
         }
