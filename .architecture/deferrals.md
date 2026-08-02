@@ -1,6 +1,6 @@
 # 推迟项跟踪
 
-> 创建：2026-07-27 | 最后更新：2026-08-01
+> 创建：2026-07-27 | 最后更新：2026-08-02
 > 来源：`.architecture/reviews/implementation-plan-2026-07-26.md`
 > **⚠️ 注意：本文件中的推迟项已被 ADR-006 重新分类。详见下方各条目。**
 
@@ -118,7 +118,7 @@
 
 | # | 项目 | 触发条件 | 影响 |
 |---|------|---------|------|
-| 17 | **[HIGH]** Flutter widget codegen 生成不可编译 Dart（6 处） | `dart analyze` 门禁扩展到全部生成文件 | ① 多元素根逗号拼接（Fragment 场景）② `ElevatedButton` 缺必需 `onPressed` ③ slot 回退 `Text(child: ...)` 非法命名参数 + `List<Widget>` 未判空 ④ `onPressed: (e)` 与 VoidCallback 不匹配 ⑤ `ref.watch(...select(...))` 在 `Text()` 中 int vs String ⑥ design 断言失败。现有 Flutter 测试断言了错误模式（8+ 处），修复需同步更新测试；`generated_code_validation` 目前仅白名单 store 文件 |
+| 17 | ~~**[HIGH]** Flutter widget codegen 生成不可编译 Dart（6 处）~~ | ~~`dart analyze` 门禁扩展到全部生成文件~~ | ✅ 2026-08-02 已关闭（Task 0.5 附证据）：6 个原始 CRITICAL 已修复——commit a17e6e0d（多元素根/onPressed/slot 回退 Text(child:)/List 未判空/VoidCallback (e)/Text 内非 String/design 断言 + 门禁扩展至全部生成文件）、commit 5c1db2bc（slot 投影组件导入、bind:value 默认去重、VoidCallback 字段丢弃警告对称化）；门禁已从白名单改为**全量枚举**——`flutter_output_compiles_with_dart_analyze` 对每个 parameterized fixture 的**全部**生成 .dart 文件跑 `dart analyze`（`flutter_analyze_targets`，compilability 评审 systems-architect 实测确认）；展示项目 Flutter 门禁与 match 缺口见 #30 |
 | 18 | **[MEDIUM]** AtFocus/AtHero parser 缺口 | 用户使用 `@focus` 文本内容 / AtHero 元素属性 | `is_text_token`（`parser/view/style.rs:564-604`）未含 AtFocus——文本中的字面 `@focus` 静默截断子节点 + hard error；AtHero token 无元素属性解析臂（hard error）。AtHero demo 文件已不在活项目中 |
 | 19 | **[MEDIUM]** Drag 触发器无约束时失效 | 拖拽触发器恢复可用之前 | `parseConstraint("")` 返回 ±Infinity → `maxExtent=Infinity` → `progress=0` → 拖拽盒不位移（`react/motion/transforms.rs:276,301`）。旧 `@drag-constraints` 已按 ADR-053 移除；codegen 需从 keyframe 范围推导默认 extent，或演示文案软化（ElementRefDemo 已注明"当前拖动无位移"） |
 | 20 | **[MEDIUM]** Style 读取未计入 lint 信号读取 | 用户仅通过 `style:` 使用信号 | `semantic/lints/ast_collectors.rs` 死代码 lint 不把 `ElementProp::Style` 计入信号读取——style-only 信号被误报 "never used"（React useState 已修复缺口的镜像） |
@@ -150,10 +150,11 @@
 |---|------|---------|------|
 | 28 | **[MEDIUM]** `Map.set` 方法调用无后端实现 + `Map<String, T>` 返回注解未被类型检查器解析 | 用户代码需要 Map 就地变更 / 泛型 Map 返回注解 | ① `map.set(k, v)`：MethodCallExpr 无 `set` 翻译臂，OmniView/React 发射原生 `.set` → 运行时 `TypeError: map.set is not a function`。demo 已改写为字面量构建 `{ "key": value }`（datetime_demo/math_ext/string_ext/error_handling），Map 读取 `.get()` 正常。② `-> Map<String, i32>` 返回注解：`parse_type_string`（semantic/types.rs:73）不解析泛型、回退 `Named`，与字面量推断的 `Map<String, Any>` 不兼容 → E0010；demo 已去掉此类返回注解。修复方向：codegen 增加 `set` 方法臂（Object.assign/spread）+ `parse_type_string` 泛型解析 |
 | 29 | **[LOW]** encode hex/base64 仅覆盖 Latin1 | 非 ASCII 输入 | JS 臂 `charCodeAt`/`btoa` 对非 Latin1 字符失真（demo 仅用 ASCII——encode_demo 注释已注明）；修复需 TextEncoder/码点分片 |
-| 30 | **[LOW]** `regex_match` 语义跨目标不一致 | 无锚点模式 | JS `RegExp.test` 部分匹配 vs Python `re.fullmatch` 全匹配——无 `^...$` 锚点结果不同（demo 模式均带锚点） |
+| 30 | **[HIGH]** match Flutter 变体臂 + 本地类型发射（learn-omniview Flutter 输出不可编译） | 展示项目纳入 codegen-validate 门禁后 | ① match 变体臂无运行时字段支撑（`switch (n._variant)`）+ 本地类型（`Rating` 类）发射缺失——2026-08-02 实测 `MatchBreadthDemo.dart:649-666`：`Undefined class 'Rating'` / `Undefined name 'level'` / `return_of_invalid_type`（全项目 RED 共 1125 个 analyzer error，含 Curves 缓动名/重复 motion controller/stdlib 方法发射/String→Color 等其他已知缺口，见 compilability 评审）。② 语义 DSL 时代记录（ADR-054:88,144、compilability 评审 MEDIUM-10、design doc §7、Task 1.4）均以 **#30** 编号本条。✅ 2026-08-02 门禁已立（Task 0.5）：`learn_omniview_flutter_output_passes_dart_analyze` 编译全项目（92 `.omni` 文件）→ 全量 .dart 输出 `dart analyze`，当前 RED（`#[ignore]` 附本条注记）；修复归 **Task 1.4**（`flutter/expr.rs` match 臂 + 本地类型收集），修复后移除 `#[ignore]` 并关闭本条 |
 | 31 | **[LOW]** `math_random_int` 区间退化未防御 | `hi - lo + 1 == 0` | JS `Math.random()*(0)` 恒返回 lo；Rust `rem_euclid(0)` 与 Dart `nextInt(0)` 会 panic/抛错。修复：codegen 夹取最小区间 |
 | 32 | **[MEDIUM]** 非 pub 模块函数不被任何后端发射 | pub 函数调用同模块私有辅助函数 | `ir::all_functions()`（ir/types.rs）过滤 `Visibility::Public`，OmniView/React 等后端只发射 pub 函数——被 pub 函数调用的私有辅助函数编译产物中缺失 → 运行时 ReferenceError（async_demo.omni 的 task_a/task_b/slow_task/fast_task 已改 pub 规避）。修复：按调用图保留被引用函数，或后端发射全部模块函数 |
 | 33 | **[LOW]** OmniView 输出嵌套 `#root` 结构缺陷 | 编辑器/WASM 桥接层消费 `output.html` 的方式 | 静态 body.html 含 `<div id="root" data-component="App">` 包装，JS `document.getElementById("root").innerHTML` 模板又包一层 → 运行时 2 个嵌套 `#root`（`[data-component="App"]` 匹配 2 元素）。功能无碍（2026-08-02 两轮浏览器全量测试 0 errors），但结构不干净且 `[data-component="App"]` 查询命中 2 元素。修复方向：`emit_dom_and_bindings` 的 innerHTML 模板剥离外层 root 包装（或 body.html 不再含包装）——涉及 WASM/editor 共用输出，需先验证两端消费方式（2026-08-02 发现，ADR-055 记录） |
+| 34 | **[LOW]** `regex_match` 语义跨目标不一致 | 无锚点模式 | JS `RegExp.test` 部分匹配 vs Python `re.fullmatch` 全匹配——无 `^...$` 锚点结果不同（demo 模式均带锚点）。编号说明：原 #30 于 2026-08-02 让位给 match Flutter 变体臂（#30 见上——语义 DSL 时代记录 ADR-054/compilability 评审/design doc/Task 1.4 均以 #30 指 match 缺口），本条内容不变仅重编号 |
 
 ---
 

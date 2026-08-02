@@ -6,6 +6,11 @@
 //!
 //! - `react_output_compiles_with_tsc`: fixtures -> React TSX -> `tsc --noEmit`
 //! - `flutter_output_compiles_with_dart_analyze`: fixtures -> Dart -> `dart analyze`
+//! - `learn_omniview_flutter_output_passes_dart_analyze`: the showcase
+//!   project (`test/projects/learn-omniview`) -> Flutter -> full-output
+//!   `dart analyze` (currently `#[ignore]`d — deferral #30: match variant
+//!   arms emit uncompilable Dart; Task 1.4 fixes the root cause and removes
+//!   the ignore)
 //!
 //! Toolchain requirements (none are hard requirements — each test SKIPs
 //! gracefully when its toolchain is missing, mirroring the pattern in
@@ -45,6 +50,12 @@ use rustc_hash::FxHashMap;
 /// Fixture directories (relative to the omnilang crate root).
 const PARAMETERIZED_DIR: &str = "tests/fixtures/parameterized";
 const REACT_MOTION_DIR: &str = "tests/fixtures/react";
+
+/// Showcase project directory (relative to the omnilang crate root): the
+/// flagship demo compiled through the real pipeline, exercising real
+/// feature combinations (match / @for / theme / typed slots) that the
+/// synthetic fixtures above do not cover (compilability review MEDIUM-10).
+const LEARN_OMNIVIEW_PROJECT: &str = "../test/projects/learn-omniview";
 
 /// Compiler error emitted when the crate was built without the target's
 /// codegen-* feature (e.g. Flutter on a default-feature build).
@@ -488,5 +499,145 @@ fn flutter_output_compiles_with_dart_analyze() {
         failures.is_empty(),
         "generated Flutter Dart failed `dart analyze`:\n{}",
         failures.join("\n\n")
+    );
+}
+
+// ════════════════════════════════════════════════════════════════
+// Showcase project: learn-omniview — full-project Flutter gate
+// ════════════════════════════════════════════════════════════════
+//
+// The fixture gates above validate synthetic inputs; the flagship demo
+// project exercises real combinations the fixtures do not cover (match /
+// @for key / theme / typed slots — compilability review MEDIUM-10). This
+// gate compiles the WHOLE project to Flutter and runs `dart analyze` over
+// EVERY generated `.dart` file, reusing the exact full-enumeration pattern
+// of `flutter_output_compiles_with_dart_analyze` (the project's output is
+// written under `out/learn-omniview/` so `flutter_analyze_targets` picks
+// it up unchanged).
+
+// SKIPPED until Task 1.4 (semantic-syntax-v2) removes the ignore: the
+// showcase project's Flutter output does NOT pass `dart analyze` today.
+// The RED run (2026-08-02, this task) reported 1125 analyzer errors, the
+// tracked root cause being deferral #30 — match variant arms / local-type
+// emission: `Rating` class not emitted, `level` undeclared
+// (MatchBreadthDemo.dart:649+). The same run also surfaced other
+// pre-existing codegen gaps (Curves easing names, duplicated motion
+// controllers, stdlib method emission, String->Color props — all recorded
+// in .architecture/reviews/feature-omniview-semantic-syntax-compilability.md).
+// Task 1.4 fixes the match root cause and removes this attribute.
+#[test]
+#[ignore = "deferral #30: match variant arms / local-type emission make learn-omniview Flutter output uncompilable (see .architecture/deferrals.md #30) — Task 1.4 fixes and un-ignores"]
+fn learn_omniview_flutter_output_passes_dart_analyze() {
+    let Some(mut dart) = dart_command() else {
+        eprintln!("SKIP: dart not found on PATH");
+        return;
+    };
+
+    // Discover sources the same way `omnic build` does: Directory mode
+    // keys files by path relative to src/ ("./components/x" imports
+    // resolve through the same path mapping the CLI uses).
+    let project_root = Path::new(env!("CARGO_MANIFEST_DIR")).join(LEARN_OMNIVIEW_PROJECT);
+    assert!(
+        project_root.is_dir(),
+        "showcase project not found at {} — expected the learn-omniview \
+         demo under test/projects/",
+        project_root.display()
+    );
+    let sources = omnilang::discovery::discover_omni_sources(
+        &project_root.join("src"),
+        omnilang::discovery::DiscoveryMode::Directory,
+    )
+    .expect("discover learn-omniview sources");
+    assert!(
+        !sources.is_empty(),
+        "no .omni sources found under {}",
+        project_root.join("src").display()
+    );
+
+    let scratch = ScratchDir::new("learn-omniview");
+    let path_mapping = omnilang::path_mapping::derive_path_mapping(&sources);
+    let result = omnilang::compile_multi_internal(
+        sources,
+        Target::Flutter,
+        path_mapping,
+        false,
+        false,
+        None,
+    );
+    if backend_not_enabled(&result) {
+        eprintln!(
+            "SKIP: backend for Flutter not compiled into this build \
+             (run with `--features codegen-flutter`); cannot validate \
+             learn-omniview output"
+        );
+        return;
+    }
+    assert!(
+        result.success,
+        "learn-omniview compilation to Flutter failed: {:?}",
+        result.errors
+    );
+
+    // Write every generated .dart file under out/learn-omniview/ (the same
+    // out/<fixture>/ layout the fixture gate uses) so the shared
+    // `flutter_analyze_targets` enumeration covers the project unchanged.
+    let out_root = scratch.path().join("out");
+    let out_dir = out_root.join("learn-omniview");
+    std::fs::create_dir_all(&out_dir).expect("create project out dir");
+    let mut written = 0usize;
+    for (path, content) in &result.files {
+        if !path.ends_with(".dart") {
+            continue;
+        }
+        let dest = out_dir.join(Path::new(path).file_name().expect("output file name"));
+        std::fs::write(&dest, content).expect("write generated file");
+        written += 1;
+    }
+    assert!(
+        written > 0,
+        "no .dart files generated for learn-omniview ({written} written)"
+    );
+
+    std::fs::write(out_root.join("pubspec.yaml"), FLUTTER_PUBSPEC).expect("write pubspec");
+    std::fs::write(out_root.join("analysis_options.yaml"), "# minimal\n").expect("write options");
+
+    dart.args(["pub", "get"]).current_dir(&out_root);
+    let pub_get = run(&mut dart);
+    if !pub_get.status.success() {
+        print_output("dart pub get", &pub_get);
+        eprintln!(
+            "SKIP: `dart pub get` failed — is dart the Flutter-bundled SDK, \
+             and is pub.dev reachable? (flutter_riverpod must resolve)"
+        );
+        return;
+    }
+
+    // EVERY generated .dart file of the showcase project must analyze
+    // clean (warnings tolerated — unmapped semantic-DSL features degrade
+    // to warnings per ADR-052/053).
+    let targets = flutter_analyze_targets(&out_root);
+    assert!(
+        !targets.is_empty(),
+        "no generated .dart files found under {} — the compile-level \
+         validation above should have produced some",
+        out_dir.display()
+    );
+    let mut failures = Vec::new();
+    for path in targets {
+        if let Err(e) = analyze_dart(&out_root, &path) {
+            failures.push(e);
+        } else {
+            eprintln!("dart analyze: OK ({path})");
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "learn-omniview Flutter output failed `dart analyze` ({} files):\n{}",
+        written,
+        failures.join("\n\n")
+    );
+    eprintln!(
+        "learn-omniview Flutter output: dart analyze OK ({} files)",
+        written
     );
 }
