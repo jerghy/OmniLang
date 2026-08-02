@@ -123,6 +123,13 @@ impl OmniViewGenerator {
         self.js.push_str("  if (!tpl || !ctr) return;\n");
         self.js.push_str("  const parent = tpl.parentNode;\n");
         self.js.push_str("  if (!parent) return;\n");
+        // Stash the current data on the container so the (once-attached)
+        // delegated event listener can resolve the clicked clone's item from
+        // the LATEST render. A closure over `data` goes stale: with an empty
+        // state the listener attaches only on the first non-empty render and
+        // keeps resolving items from that snapshot forever (wrong item id on
+        // delete, wrong text on rebind).
+        self.js.push_str("  ctr._forData = data;\n");
 
         // Re-render loop
         // If key_expr is present, use key-based identity tracking for enter/leave animations.
@@ -131,13 +138,21 @@ impl OmniViewGenerator {
         if list.key_expr.is_some() {
             self.js.push_str("  Omni.flipBefore(parent);\n");
         }
-        // Clear existing rendered items (elements between tpl template and container marker)
-        self.js.push_str("  // Clear existing rendered items\n");
-        self.js
-            .push_str("  while (tpl.nextElementSibling && tpl.nextElementSibling !== ctr) {\n");
-        self.js
-            .push_str("    parent.removeChild(tpl.nextElementSibling);\n");
-        self.js.push_str("  }\n");
+        // Non-keyed lists: clear all rendered items (elements between tpl
+        // template and container marker) and re-clone from scratch.
+        // Keyed lists: existing clones stay in the DOM (identity tracked by
+        // key); emit_list_dom reuses them and the per-key cleanup below
+        // removes only keys that disappeared. Clearing here would detach
+        // surviving clones without re-appending them (append is isNew-only),
+        // making every re-render drop all pre-existing items.
+        if list.key_expr.is_none() {
+            self.js.push_str("  // Clear existing rendered items\n");
+            self.js
+                .push_str("  while (tpl.nextElementSibling && tpl.nextElementSibling !== ctr) {\n");
+            self.js
+                .push_str("    parent.removeChild(tpl.nextElementSibling);\n");
+            self.js.push_str("  }\n");
+        }
 
         // Key-based map
         if let Some(ref key_expr) = list.key_expr {
@@ -158,6 +173,16 @@ impl OmniViewGenerator {
         // Handle empty state: clone empty template and insert before container marker
         if list.empty_body.is_some() {
             self.js.push_str("  if (!data || data.length === 0) {\n");
+            // Keyed lists skip the top-level clear loop, so when the data
+            // becomes empty the surviving clones must be removed here before
+            // showing the empty state (the early return skips key cleanup).
+            // No-op for non-keyed lists (already cleared above).
+            self.js.push_str("    // Clear existing rendered items\n");
+            self.js
+                .push_str("    while (tpl.nextElementSibling && tpl.nextElementSibling !== ctr) {\n");
+            self.js
+                .push_str("      parent.removeChild(tpl.nextElementSibling);\n");
+            self.js.push_str("    }\n");
             self.js
                 .push_str("    // Clone empty state template and insert before container marker\n");
             let _ = writeln!(self.js, "    const emptyEl = __omni_el(\"{}\");", empty_nid);
@@ -174,9 +199,29 @@ impl OmniViewGenerator {
             self.js.push_str("    }\n");
             self.js.push_str("    return;\n");
             self.js.push_str("  }\n");
+            // Data is non-empty here: remove the empty-state clone inserted
+            // by a previous empty render. Non-keyed lists already clear it
+            // via the top-level loop above; keyed lists leave surviving
+            // clones in place, so the empty clone must be removed explicitly
+            // or it renders alongside the items.
+            self.js.push_str("  // Remove stale empty-state clone\n");
+            self.js.push_str(
+                "  const _staleEmpty = parent.querySelector('[data-for-empty]'); if (_staleEmpty) _staleEmpty.remove();\n",
+            );
         } else {
+            // No empty-state template: when the data becomes empty the
+            // previously rendered items must still be removed — a bare early
+            // return leaves them stuck in the DOM (e.g. NotificationsPanel
+            // Clear leaves stale notification items).
+            self.js.push_str("  if (!data || data.length === 0) {\n");
+            self.js.push_str("    // Clear existing rendered items\n");
             self.js
-                .push_str("  if (!data || data.length === 0) return;\n");
+                .push_str("    while (tpl.nextElementSibling && tpl.nextElementSibling !== ctr) {\n");
+            self.js
+                .push_str("      parent.removeChild(tpl.nextElementSibling);\n");
+            self.js.push_str("    }\n");
+            self.js.push_str("    return;\n");
+            self.js.push_str("  }\n");
         }
 
         out
@@ -249,8 +294,15 @@ impl OmniViewGenerator {
         // Assign unique nids per clone to avoid collisions with motion triggers
         // Without this, all clones share the template nid, and __omni_el()
         // (via querySelector) only finds the first clone.
+        // Keyed lists: only NEW clones get suffixed — reused clones keep the
+        // stable nid from creation. Re-suffixing on every render accumulates
+        // suffixes (el-x_1_0_0) and breaks the exact base+idx lookup used by
+        // the pre-compiled bindings below on reused clones.
         self.js
             .push_str("    // Assign unique nids per clone for motion trigger isolation\n");
+        if has_key {
+            self.js.push_str("    if (isNew) {\n");
+        }
         self.js
             .push_str("    (function assignUniqueNids(el, idx) {\n");
         self.js
@@ -271,6 +323,9 @@ impl OmniViewGenerator {
         self.js.push_str("        }\n");
         self.js.push_str("      });\n");
         self.js.push_str("    })(clone, _idx);\n");
+        if has_key {
+            self.js.push_str("    }\n");
+        }
 
         // Cache element references for O(1) lookup in bindings
         self.js.push_str("    var _elCache = new Map();\n");
@@ -290,9 +345,12 @@ impl OmniViewGenerator {
             self.js.push_str("    // Pre-compiled text bindings\n");
             self.js.push_str("    (function() {\n");
             for (nid, js_expr) in &self.scope.for_text_bindings {
+                // Exact base+idx lookup hits fresh clones; the prefix fallback
+                // ([data-nid^="base_"]) resolves reused keyed clones whose
+                // stable nid suffix comes from their creation-time index.
                 let _ = writeln!(
                     self.js,
-                    "      var _unid = \"{nid}_\" + _idx; var _el = _elCache.get(_unid); if (!_el) {{ _el = clone.querySelector('[data-nid=\"' + _unid + '\"]'); if (_el) _elCache.set(_unid, _el); }}",
+                    "      var _unid = \"{nid}_\" + _idx; var _el = _elCache.get(_unid); if (!_el) {{ _el = clone.querySelector('[data-nid^=\"{nid}_\"]') || clone.querySelector('[data-nid=\"' + _unid + '\"]'); if (_el) _elCache.set(_unid, _el); }}",
                 );
                 let _ = writeln!(self.js, "      if (_el) try {{ _el.textContent = String({}); }} catch(e) {{ __omni_reportError(\"warn:for:text\", e); }}", js_expr);
             }
@@ -330,9 +388,10 @@ impl OmniViewGenerator {
             self.js.push_str("    // Pre-compiled class bindings\n");
             self.js.push_str("    (function() {\n");
             for (nid, class_name, js_expr) in &self.scope.for_class_bindings {
+                // See for_text_bindings: prefix fallback for reused keyed clones.
                 let _ = writeln!(
                     self.js,
-                    "      var _unid = \"{nid}_\" + _idx; var _el = _elCache.get(_unid); if (!_el) {{ _el = clone.querySelector('[data-nid=\"' + _unid + '\"]'); if (_el) _elCache.set(_unid, _el); }}"
+                    "      var _unid = \"{nid}_\" + _idx; var _el = _elCache.get(_unid); if (!_el) {{ _el = clone.querySelector('[data-nid^=\"{nid}_\"]') || clone.querySelector('[data-nid=\"' + _unid + '\"]'); if (_el) _elCache.set(_unid, _el); }}"
                 );
                 let _ = writeln!(self.js, "      if (_el) try {{ _el.classList.toggle(\"{}\", !!({})); }} catch(e) {{ __omni_reportError(\"warn:for:class\", e); }}", class_name, js_expr);
             }
@@ -361,7 +420,7 @@ impl OmniViewGenerator {
                 } else {
                     format!("({})", val_parts.join(" + "))
                 };
-                let _ = writeln!(self.js, "      var _unid = \"{nid}_\" + _idx; var _el = _elCache.get(_unid); if (!_el) {{ _el = clone.querySelector('[data-nid=\"' + _unid + '\"]'); if (_el) _elCache.set(_unid, _el); }} if (_el) try {{ _el.setAttribute(\"{}\", {}); }} catch(e) {{ __omni_reportError(\"warn:for:attr\", e); }}", attr_name, resolved);
+                let _ = writeln!(self.js, "      var _unid = \"{nid}_\" + _idx; var _el = _elCache.get(_unid); if (!_el) {{ _el = clone.querySelector('[data-nid^=\"{nid}_\"]') || clone.querySelector('[data-nid=\"' + _unid + '\"]'); if (_el) _elCache.set(_unid, _el); }} if (_el) try {{ _el.setAttribute(\"{}\", {}); }} catch(e) {{ __omni_reportError(\"warn:for:attr\", e); }}", attr_name, resolved);
             }
             self.js.push_str("    })();\n");
         }
@@ -449,9 +508,17 @@ impl OmniViewGenerator {
                 "      const t = e.target.closest('[data-event-' + e.type + '], [data-emit-' + e.type + ']');\n",
             );
             self.js.push_str("      if (!t) return;\n");
+            // Distinguish element events (data-event-*) from inlined child
+            // component emit events (data-emit-*): emit handlers receive the
+            // CustomEvent payload (e.detail), element handlers the extracted
+            // native event fields.
             self.js.push_str(
-                "      const attr = t.getAttribute('data-event-' + e.type) || t.getAttribute('data-emit-' + e.type);\n",
+                "      const _evtAttr = t.getAttribute('data-event-' + e.type);\n",
             );
+            self.js.push_str(
+                "      const _emitAttr = t.getAttribute('data-emit-' + e.type);\n",
+            );
+            self.js.push_str("      const attr = _evtAttr || _emitAttr;\n");
             self.js.push_str("      if (!attr) return;\n");
             // Expose the current clone's component root to emit functions so
             // onXxx dispatches land on THIS instance, not the first match.
@@ -476,7 +543,7 @@ impl OmniViewGenerator {
             self.js
                 .push_str("        const _itEl = t.closest('[data-for-item]');\n");
             self.js
-                .push_str("        __omni_forItemVar = _itEl ? data[Number(_itEl.getAttribute('data-for-item'))] : undefined;\n");
+                .push_str("        __omni_forItemVar = _itEl ? (ctr._forData || data)[Number(_itEl.getAttribute('data-for-item'))] : undefined;\n");
             self.js.push_str(
                 "        // Before calling fn, restore per-instance state to global signal\n",
             );
@@ -507,7 +574,7 @@ impl OmniViewGenerator {
             self.js.push_str("            });\n");
             self.js.push_str("          }\n");
             self.js.push_str("        }\n");
-            self.js.push_str("        if (typeof fn === 'function') fn(_extractEvent(_eventKinds[e.type] || '', e));\n");
+            self.js.push_str("        if (typeof fn === 'function') fn(_emitAttr && !_evtAttr ? e.detail : _extractEvent(_eventKinds[e.type] || '', e));\n");
             self.js.push_str("        // Sync global signals back to element-scoped state for @for component instances\n");
             self.js.push_str("        if (_forComp) {\n");
             self.js

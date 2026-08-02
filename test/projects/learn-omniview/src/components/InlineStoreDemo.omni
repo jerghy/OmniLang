@@ -5,11 +5,14 @@
 
 import omniview;
 import { LearnDesign } from "../design";
+import { array_get } from "std/array";
 
 component InlineStoreDemo {
     // 内联 store 定义在 component 内部，不导出到外部
     store CartStore {
         signal items: Array<String> = [];
+        // 与 items 平行记录单价，removeLast 才能扣减正确金额
+        signal prices: Array<f64> = [];
         signal totalPrice: f64 = 0.0;
 
         getter itemCount: i32 = items.len();
@@ -21,13 +24,16 @@ component InlineStoreDemo {
 
         action addItem(name: String, price: f64) {
             items.push(name);
+            prices.push(price);
             totalPrice = totalPrice + price;
         }
 
         action removeLast() {
             if items.len() > 0 {
+                let lastPrice = array_get(prices, items.len() - 1);
                 items.pop();
-                totalPrice = totalPrice - 10.0;
+                prices.pop();
+                totalPrice = totalPrice - lastPrice;
             }
         }
 

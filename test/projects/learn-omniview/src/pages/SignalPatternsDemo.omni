@@ -149,7 +149,7 @@ component SignalPatternsDemo {
                     <input class: form-input bind:value={email} placeholder="Enter email" />
                 </div>
                 <p class: info>
-                    Name: "{name}" | Email: "{email}" |
+                    Name: {name} | Email: {email} |
                     {if isValid { "✅ Valid" } else { "❌ Fill both fields" }}
                 </p>
             </div>

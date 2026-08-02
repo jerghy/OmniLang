@@ -95,10 +95,16 @@ fn test_list_state_init_basic() {
         "should clear between tpl and ctr"
     );
 
-    // Empty data guard (no empty_body → early return)
+    // Empty data guard (no empty_body): previously rendered items must still
+    // be cleared before the early return — a bare `return;` leaves stale
+    // items stuck in the DOM when the data empties.
     assert!(
-        gen.js.contains("if (!data || data.length === 0) return;"),
-        "should early-return for empty data"
+        gen.js.contains("if (!data || data.length === 0) {"),
+        "should handle empty data"
+    );
+    assert!(
+        gen.js.contains("parent.removeChild(tpl.nextElementSibling)"),
+        "should clear rendered items when data becomes empty"
     );
 
     // Iteration
@@ -194,6 +200,30 @@ fn test_list_with_key_and_empty_state() {
     assert!(
         gen.js.contains("const newKeys = new Set()"),
         "should create new keys set"
+    );
+
+    // Keyed lists must NOT clear the DOM at the top level: surviving clones
+    // stay in place and are only appended when new (isNew). An unconditional
+    // clear here detaches every existing clone without re-appending it,
+    // dropping all pre-existing items on every re-render.
+    // (Indent-qualified to distinguish from the 4-space empty-branch loop —
+    // bare substring matching can't tell them apart.)
+    assert!(
+        !gen.js.contains("  // Clear existing rendered items\n  while (tpl.nextElementSibling"),
+        "keyed list must not clear all rendered items at the top level"
+    );
+    // But when data becomes empty, the empty-state branch must clear the
+    // surviving clones before showing the empty state (early return skips the
+    // per-key cleanup below).
+    assert!(
+        gen.js.contains("    // Clear existing rendered items\n    while (tpl.nextElementSibling"),
+        "empty-state branch should clear surviving clones for keyed lists"
+    );
+    // And when data becomes non-empty again, the stale empty-state clone
+    // (data-for-empty) must be removed or it renders alongside the items.
+    assert!(
+        gen.js.contains("parent.querySelector('[data-for-empty]')"),
+        "should remove stale empty-state clone when data is non-empty"
     );
 
     // Empty state handling
@@ -330,6 +360,30 @@ fn test_list_with_event_delegation() {
             "e.target.closest('[data-event-' + e.type + '], [data-emit-' + e.type + ']')"
         ),
         "should use event delegation via closest (incl. child emit events)"
+    );
+
+    // Emit events (data-emit-*) from inlined child components must receive
+    // the CustomEvent payload (e.detail); element events (data-event-*) get
+    // the extracted native event object. Passing _extractEvent for emit
+    // events delivers {} — the handler's id/payload parameter becomes a
+    // useless object and the store action removes nothing.
+    assert!(
+        gen.js.contains("_emitAttr && !_evtAttr ? e.detail : _extractEvent(_eventKinds[e.type] || '', e)"),
+        "emit events should dispatch with e.detail, element events with extracted event"
+    );
+
+    // The delegated listener is attached once but must resolve the clicked
+    // clone's item from the LATEST render data. A closure over the effect's
+    // `data` goes stale: with an empty state the listener attaches only on
+    // the first non-empty render and forever resolves items from that
+    // snapshot (wrong id on delete, wrong text on rebind).
+    assert!(
+        gen.js.contains("ctr._forData = data"),
+        "should stash current render data on the container"
+    );
+    assert!(
+        gen.js.contains("ctr._forData || data"),
+        "item lookup should prefer the latest render data"
     );
 
     // One-time attachment guard on container

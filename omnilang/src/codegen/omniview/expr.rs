@@ -220,6 +220,15 @@ impl OmniViewGenerator {
                         "((_a) => {{ _a.pop(); return _a.slice(); }})({} || [])",
                         obj
                     ),
+                    "contains" => {
+                        // Map literals compile to plain JS objects (no native
+                        // Map) — `.contains(key)` must not emit `obj.contains()`
+                        // (TypeError). Arrays → includes; objects → hasOwnProperty.
+                        let idx = args.first().map(|a| self.expr_to_js(a)).unwrap_or_default();
+                        format!(
+                            "((_c) => Array.isArray(_c) ? _c.includes({idx}) : Object.prototype.hasOwnProperty.call(_c, {idx}))({obj})"
+                        )
+                    }
                     _ => {
                         // Method-call form of std functions: `s.to_uppercase()`
                         // maps through the shared stdlib table with the receiver
@@ -472,7 +481,13 @@ impl OmniViewGenerator {
                 .cloned()
                 .unwrap_or_else(|| obj.clone());
             let var_name = format!("{}_{}", renamed_obj, field);
-            if self.name_resolver.signal_names.contains(&var_name) {
+            // Store signal names persist in store_signal_names even after
+            // generate_component clears signal_names (component-local) — a
+            // store field referenced late in codegen (e.g. dynamic token
+            // values) must still resolve to `.value`, not the signal object.
+            if self.name_resolver.signal_names.contains(&var_name)
+                || self.name_resolver.store_signal_names.contains(&var_name)
+            {
                 format!("{}{}", var_name, value_op)
             } else {
                 var_name

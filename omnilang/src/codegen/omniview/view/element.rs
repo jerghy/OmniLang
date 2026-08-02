@@ -721,9 +721,13 @@ impl OmniViewGenerator {
 
         self.emit_element_inline_style(el, &nid, &mut attrs);
 
-        self.emit_element_events(el, &nid, &mut attrs);
-
+        // Two-way bindings BEFORE user event handlers: on the same DOM event
+        // (e.g. select's bind:value + @onChange, both → "input") the listeners
+        // run in registration order, so a bind sync registered after the user
+        // handler would make the handler read the pre-update signal value.
         self.emit_element_bindings(el, &nid);
+
+        self.emit_element_events(el, &nid, &mut attrs);
 
         self.emit_semantic_bindings(el, &nid);
 
