@@ -140,11 +140,25 @@ pub trait FormatExpr {
     }
 
     /// Block expression (ExprIR::BlockExpr). Default: just the tail expression.
+    ///
+    /// Statement-bearing block expressions are dropped by targets that
+    /// cannot represent statements in expression position. Debug builds
+    /// assert (backends must override); release builds log a warning so the
+    /// drop is never fully invisible. Backends with a codegen-diagnostics
+    /// channel (Python, Vue) hard-diagnose instead of reaching this default.
     fn format_block_expr(&self, statements: &[StatementIR], tail: &ExprIR) -> String {
-        debug_assert!(
-            statements.is_empty(),
-            "format_block_expr with non-empty statements — backend must override"
-        );
+        if !statements.is_empty() {
+            log::warn!(
+                "format_block_expr: dropping {} statement(s) in expression position \
+                 on target {:?} — backend must override format_block_expr",
+                statements.len(),
+                self.codegen_target()
+            );
+            debug_assert!(
+                false,
+                "format_block_expr with non-empty statements — backend must override"
+            );
+        }
         self.format_expr(tail)
     }
 

@@ -7,6 +7,8 @@ use crate::codegen::shared::expr::FormatExpr;
 use crate::codegen::shared::types::{FormatType, PythonTypeFormatter};
 use crate::codegen::{try_format_stdlib_call, JsonFormatConfig, Target, JSON_PYTHON};
 use crate::ir::*;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 /// Python expression formatter.
 ///
@@ -16,7 +18,20 @@ use crate::ir::*;
 /// - `lambda {params}: {body}` for closures
 /// - `len(obj)` / `x in obj` for method calls
 /// - `TypeName(fields)` for struct construction
-pub(crate) struct PythonFormatExpr;
+pub(crate) struct PythonFormatExpr {
+    /// Codegen-message channel: statement-bearing block expressions in
+    /// expression position are reported here instead of being silently
+    /// dropped (Python cannot emit statements inside expressions).
+    pub(crate) diagnostics: Rc<RefCell<Vec<String>>>,
+}
+
+impl Default for PythonFormatExpr {
+    fn default() -> Self {
+        Self {
+            diagnostics: Rc::new(RefCell::new(Vec::new())),
+        }
+    }
+}
 
 impl FormatExpr for PythonFormatExpr {
     fn json_config(&self) -> &JsonFormatConfig {
@@ -51,8 +66,18 @@ impl FormatExpr for PythonFormatExpr {
         }
     }
 
-    fn format_block_expr(&self, _statements: &[StatementIR], tail: &ExprIR) -> String {
-        // Block statements not supported in expression context — drop them.
+    fn format_block_expr(&self, statements: &[StatementIR], tail: &ExprIR) -> String {
+        if !statements.is_empty() {
+            // Python cannot emit statements inside an expression — report an
+            // E_CODEGEN diagnostic (surfaced by PythonCodegen::generate)
+            // instead of silently dropping them.
+            self.diagnostics.borrow_mut().push(format!(
+                "[python] block expression with {} statement(s) in expression position \
+                 is not supported — the statements would be silently dropped; \
+                 move them out of the expression",
+                statements.len()
+            ));
+        }
         self.format_expr(tail)
     }
 

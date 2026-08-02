@@ -1,6 +1,6 @@
 //! Vue template node generation.
 
-use super::{generate_statement_vue, to_vue_attr, to_vue_event, CodeWriter};
+use super::{generate_statement_vue, to_vue_attr, to_vue_event, CodeWriter, VueFormatExpr};
 use crate::codegen::emit_event_object as emit_event_object_js;
 use crate::codegen::shared::expr::FormatExpr;
 use crate::codegen::shared::inline_handler::{build_inline_handler, InlineHandlerConfig};
@@ -8,13 +8,15 @@ use crate::codegen::shared::style::{format_style_prop_key, format_style_value_ex
 use crate::codegen::shared::types::{FormatType, JsTypeFormatter};
 use crate::ir::*;
 use rustc_hash::FxHashSet;
+use std::cell::RefCell;
 use std::fmt::Write;
+use std::rc::Rc;
 
 // ═══════════════════════════════════════════════════════════
 // Vue template node generation
 // ═══════════════════════════════════════════════════════════
 
-pub(crate) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &impl FormatExpr) {
+pub(crate) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &VueFormatExpr) {
     match node {
         ViewTree::Element(el) => {
             let mut attrs: Vec<String> = Vec::new();
@@ -83,7 +85,7 @@ pub(crate) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &impl 
                             let mut hw = CodeWriter::new();
                             hw.emit_fmt(format_args!("Object.assign(e, {});", event_obj));
                             for stmt in &body.statements {
-                                generate_statement_vue(&mut hw, stmt);
+                                generate_statement_vue(&mut hw, stmt, &fmt.diagnostics);
                             }
                             let content = hw.into_string();
                             let mut result = String::from("(e) => {\n");
@@ -93,7 +95,7 @@ pub(crate) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &impl 
                             result.push_str("      }");
                             attrs.push(format!("@{}=\"{}\"", vue_event, result));
                         } else {
-                            let handler_str = format_inline_handler_vue(body);
+                            let handler_str = format_inline_handler_vue(body, &fmt.diagnostics);
                             attrs.push(format!("@{}=\"{}\"", vue_event, handler_str));
                         }
                     }
@@ -297,7 +299,10 @@ pub(crate) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &impl 
 }
 
 /// Build an inline arrow function string from a BlockIR for Vue event handlers.
-pub(super) fn format_inline_handler_vue(body: &BlockIR) -> String {
+pub(super) fn format_inline_handler_vue(
+    body: &BlockIR,
+    diagnostics: &Rc<RefCell<Vec<String>>>,
+) -> String {
     let config = InlineHandlerConfig {
         opener: "() => {\n".into(),
         closer: "\n      }".into(),
@@ -305,14 +310,20 @@ pub(super) fn format_inline_handler_vue(body: &BlockIR) -> String {
         indent: "        ",
         use_writer: false,
     };
-    build_inline_handler(body, &config, generate_statement_vue)
+    build_inline_handler(body, &config, |w, stmt| {
+        generate_statement_vue(w, stmt, diagnostics)
+    })
 }
 
 // ═══════════════════════════════════════════════════════════
 // Function generation (Vue script setup)
 // ═══════════════════════════════════════════════════════════
 
-pub(super) fn generate_function_vue(w: &mut CodeWriter, func: &FunctionIR) {
+pub(super) fn generate_function_vue(
+    w: &mut CodeWriter,
+    func: &FunctionIR,
+    diagnostics: &Rc<RefCell<Vec<String>>>,
+) {
     let mut param_strs = Vec::new();
     for p in &func.params {
         let mut s = p.name.clone();
@@ -347,7 +358,7 @@ pub(super) fn generate_function_vue(w: &mut CodeWriter, func: &FunctionIR) {
     w.indent();
 
     for stmt in &func.body.statements {
-        generate_statement_vue(w, stmt);
+        generate_statement_vue(w, stmt, diagnostics);
     }
 
     w.dedent();

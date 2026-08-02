@@ -4,7 +4,9 @@ mod tests {
     use crate::codegen::camel_to_kebab;
     use crate::codegen::capitalize_first;
     use rustc_hash::FxHashMap;
+    use std::cell::RefCell;
     use std::collections::HashMap;
+    use std::rc::Rc;
 
     // ── Helper tests ─────────────────────────────────────────
 
@@ -253,7 +255,8 @@ mod tests {
             .components
             .get("Card")
             .unwrap();
-        let sfc = codegen.gen_component_sfc("Card", comp_ref, &ir);
+        let sfc =
+            codegen.gen_component_sfc("Card", comp_ref, &ir, &Rc::new(RefCell::new(Vec::new())));
         // Should contain :class with object syntax
         assert!(
             sfc.contains(":class=\"{ active: isOpen, highlighted: isSelected }\"")
@@ -321,7 +324,8 @@ mod tests {
             .components
             .get("Card")
             .unwrap();
-        let sfc = codegen.gen_component_sfc("Card", comp_ref, &ir);
+        let sfc =
+            codegen.gen_component_sfc("Card", comp_ref, &ir, &Rc::new(RefCell::new(Vec::new())));
         // Should contain both static class and :class binding
         assert!(sfc.contains("class=\"base\""));
         assert!(sfc.contains(":class=\"{ active: isOpen }\""));
@@ -339,7 +343,7 @@ mod tests {
             }),
             r#type: None,
         };
-        generate_statement_vue(&mut w, &stmt);
+        generate_statement_vue(&mut w, &stmt, &Rc::new(RefCell::new(Vec::new())));
         assert_eq!(w.into_string(), "const x = 42;\n");
     }
 
@@ -352,7 +356,7 @@ mod tests {
                 type_ann: None,
             }),
         };
-        generate_statement_vue(&mut w, &stmt);
+        generate_statement_vue(&mut w, &stmt, &Rc::new(RefCell::new(Vec::new())));
         assert_eq!(w.into_string(), "return result;\n");
     }
 
@@ -370,7 +374,7 @@ mod tests {
                 })),
             }),
         };
-        generate_statement_vue(&mut w, &stmt);
+        generate_statement_vue(&mut w, &stmt, &Rc::new(RefCell::new(Vec::new())));
         assert_eq!(w.into_string(), "count.value += 1;\n");
     }
 
@@ -389,7 +393,7 @@ mod tests {
                 field_object: None,
             }),
         };
-        generate_statement_vue(&mut w, &stmt);
+        generate_statement_vue(&mut w, &stmt, &Rc::new(RefCell::new(Vec::new())));
         assert_eq!(w.into_string(), "name.value = \"alice\";\n");
     }
 
@@ -413,7 +417,7 @@ mod tests {
             else_ifs: vec![],
             else_body: None,
         };
-        generate_statement_vue(&mut w, &stmt);
+        generate_statement_vue(&mut w, &stmt, &Rc::new(RefCell::new(Vec::new())));
         let out = w.into_string();
         assert!(out.contains("if (cond) {"));
         assert!(out.contains("const x = 1;"));
@@ -472,7 +476,8 @@ mod tests {
             .components
             .get("App")
             .unwrap();
-        let sfc = codegen.gen_component_sfc("App", comp_ref, &ir);
+        let sfc =
+            codegen.gen_component_sfc("App", comp_ref, &ir, &Rc::new(RefCell::new(Vec::new())));
         assert!(sfc.contains("<template>"));
         assert!(sfc.contains("</template>"));
         assert!(sfc.contains("<script setup lang=\"ts\">"));
@@ -526,7 +531,8 @@ mod tests {
             .components
             .get("Counter")
             .unwrap();
-        let sfc = codegen.gen_component_sfc("Counter", comp_ref, &ir);
+        let sfc =
+            codegen.gen_component_sfc("Counter", comp_ref, &ir, &Rc::new(RefCell::new(Vec::new())));
         assert!(sfc.contains("const count = ref<number>(0);"));
         assert!(sfc.contains("<template>"));
         assert!(sfc.contains("</template>"));
@@ -582,7 +588,12 @@ mod tests {
             .components
             .get("Greeting")
             .unwrap();
-        let sfc = codegen.gen_component_sfc("Greeting", comp_ref, &ir);
+        let sfc = codegen.gen_component_sfc(
+            "Greeting",
+            comp_ref,
+            &ir,
+            &Rc::new(RefCell::new(Vec::new())),
+        );
         assert!(sfc.contains("defineProps"));
         assert!(sfc.contains("name: string;"));
         assert!(sfc.contains("age: number;"));
@@ -630,7 +641,8 @@ mod tests {
             .components
             .get("Watcher")
             .unwrap();
-        let sfc = codegen.gen_component_sfc("Watcher", comp_ref, &ir);
+        let sfc =
+            codegen.gen_component_sfc("Watcher", comp_ref, &ir, &Rc::new(RefCell::new(Vec::new())));
         assert!(sfc.contains("watch([count], () => {"));
         assert!(sfc.contains("import { ref, watch } from 'vue';"));
     }
@@ -670,7 +682,8 @@ mod tests {
             .components
             .get("App")
             .unwrap();
-        let sfc = codegen.gen_component_sfc("App", comp_ref, &ir);
+        let sfc =
+            codegen.gen_component_sfc("App", comp_ref, &ir, &Rc::new(RefCell::new(Vec::new())));
         assert!(sfc.contains("onMounted(() => {"));
         assert!(sfc.contains("import { ref, onMounted } from 'vue';"));
     }
@@ -688,7 +701,7 @@ mod tests {
             actions: vec![],
             ..Default::default()
         };
-        let hook = codegen.gen_store_hook("AppStore", &store);
+        let hook = codegen.gen_store_hook("AppStore", &store, &Rc::new(RefCell::new(Vec::new())));
         assert!(hook.contains("export function useAppStore() {"));
         assert!(hook.contains("import { ref, computed } from 'vue';"));
     }
@@ -724,7 +737,7 @@ mod tests {
             actions: vec![],
             ..Default::default()
         };
-        let hook = codegen.gen_store_hook("AppStore", &store);
+        let hook = codegen.gen_store_hook("AppStore", &store, &Rc::new(RefCell::new(Vec::new())));
         assert!(hook.contains("const count = ref<number>(0);"));
         assert!(hook.contains("const name = ref<string>(\"world\");"));
         // HashMap ordering is non-deterministic, check both possibilities
@@ -769,7 +782,7 @@ mod tests {
             actions: vec![],
             ..Default::default()
         };
-        let hook = codegen.gen_store_hook("CalcStore", &store);
+        let hook = codegen.gen_store_hook("CalcStore", &store, &Rc::new(RefCell::new(Vec::new())));
         assert!(hook.contains("const count = ref<number>(0);"));
         assert!(hook.contains("const doubleCount = computed(() => {"));
         assert!(hook.contains("return count * 2;"));
@@ -910,7 +923,7 @@ mod tests {
     #[test]
     fn test_vue_list_rendering_basic() {
         let mut w = CodeWriter::new();
-        let fmt = VueFormatExpr;
+        let fmt = VueFormatExpr::default();
         let list = ListRenderingIntent {
             iterable: ExprIR::IdentifierExpr {
                 name: "items".into(),
@@ -941,7 +954,7 @@ mod tests {
     #[test]
     fn test_vue_list_rendering_with_empty_body() {
         let mut w = CodeWriter::new();
-        let fmt = VueFormatExpr;
+        let fmt = VueFormatExpr::default();
         let list = ListRenderingIntent {
             iterable: ExprIR::IdentifierExpr {
                 name: "items".into(),
@@ -975,7 +988,7 @@ mod tests {
     #[test]
     fn test_vue_dangerous_url_neutralized() {
         let mut w = CodeWriter::new();
-        let fmt = VueFormatExpr;
+        let fmt = VueFormatExpr::default();
         let el = ElementIR {
             tag: "a".into(),
             props: FxHashMap::from_iter([(
@@ -1008,7 +1021,7 @@ mod tests {
     #[test]
     fn test_vue_safe_url_passes_through() {
         let mut w = CodeWriter::new();
-        let fmt = VueFormatExpr;
+        let fmt = VueFormatExpr::default();
         let el = ElementIR {
             tag: "a".into(),
             props: FxHashMap::from_iter([(
@@ -1040,7 +1053,7 @@ mod tests {
     #[test]
     fn test_vue_src_attr_sanitized() {
         let mut w = CodeWriter::new();
-        let fmt = VueFormatExpr;
+        let fmt = VueFormatExpr::default();
         let el = ElementIR {
             tag: "img".into(),
             props: FxHashMap::from_iter([(
@@ -1073,7 +1086,7 @@ mod tests {
     #[test]
     fn test_vue_non_url_attr_not_affected() {
         let mut w = CodeWriter::new();
-        let fmt = VueFormatExpr;
+        let fmt = VueFormatExpr::default();
         let el = ElementIR {
             tag: "div".into(),
             props: FxHashMap::from_iter([(

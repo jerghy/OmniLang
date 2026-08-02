@@ -7,8 +7,15 @@
 use crate::codegen::shared::visitor::CodegenVisitor;
 use crate::codegen::CodeWriter;
 use crate::ir::*;
+use std::cell::RefCell;
+use std::rc::Rc;
 
-pub(crate) struct PythonVisitor;
+pub(crate) struct PythonVisitor {
+    /// Codegen-message channel shared with the expression formatters —
+    /// unsupported constructs (statement-bearing block expressions) are
+    /// reported here and surfaced as E_CODEGEN errors.
+    pub(crate) diagnostics: Rc<RefCell<Vec<String>>>,
+}
 
 impl CodegenVisitor for PythonVisitor {
     /// Generate type aliases with preceding module-level imports.
@@ -74,14 +81,14 @@ impl CodegenVisitor for PythonVisitor {
     }
 
     fn generate_function(&mut self, w: &mut CodeWriter, f: &FunctionIR) {
-        super::stmt::generate_function(w, f, true);
+        super::stmt::generate_function(w, f, true, &self.diagnostics);
     }
 
     fn generate_store(&mut self, w: &mut CodeWriter, name: &str, store: &StoreIR) {
-        super::stmt::generate_store(w, name, store);
+        super::stmt::generate_store(w, name, store, &self.diagnostics);
     }
 
     fn generate_component(&mut self, w: &mut CodeWriter, name: &str, comp: &ComponentIR) {
-        super::stmt::generate_component(w, name, comp);
+        super::stmt::generate_component(w, name, comp, &self.diagnostics);
     }
 }

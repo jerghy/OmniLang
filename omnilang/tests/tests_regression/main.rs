@@ -85,6 +85,246 @@ component App {
 }
 "##;
 
+// ── Task 1.5: statement-bearing BlockExpr must hard-diagnose on
+//    python/vue (previously silently dropped), and `array_sort` with a
+//    two-arg comparator must actually sort (review M1: "Toggle Sort"
+//    produced a permanent no-op). ─────────────────────────────────
+
+/// Fixture: a statement-bearing block expression in expression position.
+/// Python and Vue cannot emit statements inside expressions — they must
+/// report an E_CODEGEN error instead of silently dropping them (React
+/// supports them via IIFE and compiles clean).
+const BLOCK_EXPR_STMT_FIXTURE: &str = r##"
+import omniview;
+
+component BlockExprStmt {
+    signal result: i32 = 0;
+
+    fn compute() {
+        let y = { let x = 1; x + 1 };
+        result = y;
+    }
+
+    view {
+        <div>
+            <button @onPress={compute}>go</button>
+        </div>
+    }
+}
+"##;
+
+/// Fixture: the review's M1 repro — `array_sort` with a two-param
+/// (boolean) comparator. Must emit a real comparator and actually reorder.
+const SORT_TWO_ARG_COMPARATOR_FIXTURE: &str = r##"
+import omniview;
+import { array_sort } from "std/array";
+
+struct Item { name: string }
+
+component SortM1 {
+    signal items: Array<Item> = [];
+
+    fn sortIt() { items = array_sort(items, |a, b| a.name > b.name); }
+
+    view {
+        <div>
+            <button @onPress={sortIt}>sort</button>
+        </div>
+    }
+}
+"##;
+
+/// Compile without asserting error-freedom — returns the raw CompileOutput
+/// so tests can assert on the diagnostics.
+fn compile_source_output(source: &str, target: Target) -> omnilang::codegen::CompileOutput {
+    let tokens = tokenize(source);
+    let (program, parse_errors) = parser::parse(tokens, source);
+    assert!(
+        parse_errors.is_empty(),
+        "parse errors: {:?}",
+        parse_errors
+            .iter()
+            .map(|e| e.message.clone())
+            .collect::<Vec<_>>()
+    );
+    let mut semantics = omnilang::semantic::analyze(&program);
+    assert!(
+        semantics.diagnostics.is_empty(),
+        "semantic diagnostics: {:?}",
+        semantics
+            .diagnostics
+            .iter()
+            .map(|d| d.message.clone())
+            .collect::<Vec<_>>()
+    );
+    let ir = lower(&program, &mut semantics, None);
+    let source_files: FxHashMap<String, String> =
+        FxHashMap::from_iter([("input.omni".to_string(), source.to_string())]);
+    compile(&ir, target, &source_files)
+}
+
+/// Statement-bearing BlockExpr on Python → E_CODEGEN error, not a silent drop.
+#[cfg(feature = "codegen-python")]
+#[test]
+fn python_block_expr_statements_diagnosed_not_dropped() {
+    let output = compile_source_output(BLOCK_EXPR_STMT_FIXTURE, Target::Python);
+    assert!(
+        !output.errors.is_empty(),
+        "statement-bearing block expressions must hard-diagnose on Python — \
+         previously the statements were silently dropped"
+    );
+    let e = &output.errors[0];
+    assert_eq!(
+        e.kind,
+        omnilang::error::DiagnosticKind::ECodegen,
+        "expected an E_CODEGEN diagnostic, got: {:?}",
+        e
+    );
+    assert!(
+        e.message.contains("block expression"),
+        "diagnostic must explain the block expression, got: {}",
+        e.message
+    );
+}
+
+/// Statement-bearing BlockExpr on Vue → E_CODEGEN error, not a silent drop.
+#[cfg(feature = "codegen-vue")]
+#[test]
+fn vue_block_expr_statements_diagnosed_not_dropped() {
+    let output = compile_source_output(BLOCK_EXPR_STMT_FIXTURE, Target::Vue);
+    assert!(
+        !output.errors.is_empty(),
+        "statement-bearing block expressions must hard-diagnose on Vue — \
+         previously the statements were silently dropped"
+    );
+    let e = &output.errors[0];
+    assert_eq!(
+        e.kind,
+        omnilang::error::DiagnosticKind::ECodegen,
+        "expected an E_CODEGEN diagnostic, got: {:?}",
+        e
+    );
+    assert!(
+        e.message.contains("block expression"),
+        "diagnostic must explain the block expression, got: {}",
+        e.message
+    );
+}
+
+/// Positive control: React supports statement-bearing block expressions
+/// (IIFE) — the same fixture compiles clean there.
+#[test]
+fn react_block_expr_statements_compile_clean() {
+    let output = compile_source_output(BLOCK_EXPR_STMT_FIXTURE, Target::React);
+    assert!(
+        output.errors.is_empty(),
+        "React must compile statement-bearing block expressions cleanly: {:?}",
+        output
+            .errors
+            .iter()
+            .map(|e| e.message.clone())
+            .collect::<Vec<_>>()
+    );
+    let content = output
+        .files
+        .iter()
+        .map(|f| f.content.clone())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        content.contains("(() => {") && content.contains("const x = 1"),
+        "React must emit the block statements inside an IIFE. Got:\n{}",
+        content
+    );
+}
+
+/// The review's M1 repro: a two-arg comparator must be emitted as a real
+/// comparator and must actually reorder the array when executed in node.
+#[cfg(feature = "codegen-react")]
+#[test]
+fn node_array_sort_two_arg_comparator_sorts() {
+    // Skip if Node.js is not available (mirrors tests/js_runtime_tests.rs)
+    if std::process::Command::new("node")
+        .arg("--version")
+        .output()
+        .is_err()
+    {
+        eprintln!("SKIP: Node.js not found -- skipping node array_sort test");
+        return;
+    }
+
+    let out = compile_react(SORT_TWO_ARG_COMPARATOR_FIXTURE);
+    // The two-param closure must be emitted through the comparator path
+    // (`const $r=` with a numeric fast-path), NOT the $ka/$kb machinery.
+    assert!(
+        out.contains("const $r=") && !out.contains("const $ka="),
+        "two-arg closure must be emitted as a real comparator. Got:\n{}",
+        out
+    );
+
+    // Extract `([...items]).sort(...)` from `setItems(EXPR);`. The
+    // expression starts at `([...items])` (whose own close paren is NOT the
+    // end), so scan from the `sort(` call's open paren to its match.
+    let start = out
+        .find("([...items]).sort(")
+        .unwrap_or_else(|| panic!("no sort expression in React output:\n{}", out));
+    let sort_paren = out[start..]
+        .find("sort(")
+        .map(|i| start + i + 4)
+        .expect("sort( marker");
+    let mut depth = 0i32;
+    let mut end = sort_paren;
+    for (i, c) in out[sort_paren..].char_indices() {
+        match c {
+            '(' => depth += 1,
+            ')' => {
+                depth -= 1;
+                if depth == 0 {
+                    end = sort_paren + i + 1;
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+    let expr = &out[start..end];
+
+    let script = format!(
+        r##"
+const items = [{{ name: "b" }}, {{ name: "a" }}, {{ name: "c" }}, {{ name: "f" }}, {{ name: "e" }}, {{ name: "d" }}];
+const sorted = ({expr}).map(i => i.name);
+const expected = ["a", "b", "c", "d", "e", "f"];
+console.log("SORTED=" + JSON.stringify(sorted));
+if (JSON.stringify(sorted) !== JSON.stringify(expected)) {{
+    throw new Error("array_sort with a two-arg comparator did not sort: " + JSON.stringify(sorted));
+}}
+"##
+    );
+    let mut child = std::process::Command::new("node")
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("failed to spawn node");
+    use std::io::Write;
+    child
+        .stdin
+        .as_mut()
+        .expect("stdin")
+        .write_all(script.as_bytes())
+        .expect("write script");
+    let output = child.wait_with_output().expect("node output");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        output.status.success(),
+        "node array_sort eval failed:\nstdout: {}\nstderr: {}\nexpr: {}",
+        stdout,
+        stderr,
+        expr
+    );
+}
+
 /// Compile a source string to a target, returning all generated file
 /// contents concatenated. Panics on parse/compile errors.
 fn compile_source_all_files(source: &str, target: Target) -> String {

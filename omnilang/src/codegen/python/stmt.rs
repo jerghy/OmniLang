@@ -5,7 +5,9 @@ use crate::codegen::shared::expr::FormatExpr;
 use crate::codegen::shared::stmt::FormatStmt;
 use crate::codegen::CodeWriter;
 use crate::ir::*;
+use std::cell::RefCell;
 use std::fmt::Write;
+use std::rc::Rc;
 
 /// Python statement formatter — no semicolons, `elif` keyword, colon blocks.
 struct PythonStmtFormatter {
@@ -115,7 +117,12 @@ impl FormatStmt for PythonStmtFormatter {
 }
 
 /// Generate a function (standalone or method).
-pub(super) fn generate_function(w: &mut CodeWriter, func: &FunctionIR, is_standalone: bool) {
+pub(super) fn generate_function(
+    w: &mut CodeWriter,
+    func: &FunctionIR,
+    is_standalone: bool,
+    diagnostics: &Rc<RefCell<Vec<String>>>,
+) {
     // Build parameter list
     let mut param_strs = Vec::new();
     if !is_standalone {
@@ -149,7 +156,9 @@ pub(super) fn generate_function(w: &mut CodeWriter, func: &FunctionIR, is_standa
         w.emit("pass");
     } else {
         let fmt = PythonStmtFormatter {
-            expr: PythonFormatExpr,
+            expr: PythonFormatExpr {
+                diagnostics: Rc::clone(diagnostics),
+            },
         };
         for stmt in &func.body.statements {
             fmt.format_stmt(w, stmt);
@@ -160,7 +169,12 @@ pub(super) fn generate_function(w: &mut CodeWriter, func: &FunctionIR, is_standa
 }
 
 /// Generate a component class.
-pub(super) fn generate_component(w: &mut CodeWriter, name: &str, comp: &ComponentIR) {
+pub(super) fn generate_component(
+    w: &mut CodeWriter,
+    name: &str,
+    comp: &ComponentIR,
+    diagnostics: &Rc<RefCell<Vec<String>>>,
+) {
     w.emit_fmt(format_args!("class {}:", name));
     w.indent();
 
@@ -168,7 +182,9 @@ pub(super) fn generate_component(w: &mut CodeWriter, name: &str, comp: &Componen
     if !comp.signals.is_empty() || !comp.props.is_empty() {
         w.emit("def __init__(self):");
         w.indent();
-        let py_fmt = PythonFormatExpr;
+        let py_fmt = PythonFormatExpr {
+            diagnostics: Rc::clone(diagnostics),
+        };
         for prop in comp.props.keys() {
             w.emit_fmt(format_args!("self.{} = None  # prop", prop));
         }
@@ -182,7 +198,9 @@ pub(super) fn generate_component(w: &mut CodeWriter, name: &str, comp: &Componen
 
     // Computed properties as @property methods
     for computed in &comp.computeds {
-        let py_fmt = PythonFormatExpr;
+        let py_fmt = PythonFormatExpr {
+            diagnostics: Rc::clone(diagnostics),
+        };
         let body = py_fmt.format_expr(&computed.body);
         // Use @cached_property or simple @property for now
         w.emit("@property");
@@ -195,7 +213,7 @@ pub(super) fn generate_component(w: &mut CodeWriter, name: &str, comp: &Componen
 
     // Functions (methods)
     for func in &comp.fns {
-        generate_function(w, func, false);
+        generate_function(w, func, false, diagnostics);
         w.emit("");
     }
 
@@ -203,7 +221,12 @@ pub(super) fn generate_component(w: &mut CodeWriter, name: &str, comp: &Componen
 }
 
 /// Generate a store class.
-pub(super) fn generate_store(w: &mut CodeWriter, name: &str, store: &StoreIR) {
+pub(super) fn generate_store(
+    w: &mut CodeWriter,
+    name: &str,
+    store: &StoreIR,
+    diagnostics: &Rc<RefCell<Vec<String>>>,
+) {
     w.emit_fmt(format_args!("class {}:", name));
     w.indent();
 
@@ -221,7 +244,9 @@ pub(super) fn generate_store(w: &mut CodeWriter, name: &str, store: &StoreIR) {
     w.dedent();
 
     // Getters as properties
-    let py_fmt = PythonFormatExpr;
+    let py_fmt = PythonFormatExpr {
+        diagnostics: Rc::clone(diagnostics),
+    };
     for (getter_name, getter_expr) in &store.getters {
         w.emit("");
         w.emit("@property");
@@ -235,9 +260,15 @@ pub(super) fn generate_store(w: &mut CodeWriter, name: &str, store: &StoreIR) {
 }
 
 /// Generate a statement.
-pub(super) fn generate_statement(w: &mut CodeWriter, stmt: &StatementIR) {
+pub(super) fn generate_statement(
+    w: &mut CodeWriter,
+    stmt: &StatementIR,
+    diagnostics: &Rc<RefCell<Vec<String>>>,
+) {
     let fmt = PythonStmtFormatter {
-        expr: PythonFormatExpr,
+        expr: PythonFormatExpr {
+            diagnostics: Rc::clone(diagnostics),
+        },
     };
     fmt.format_stmt(w, stmt);
 }

@@ -250,6 +250,21 @@ pub(super) fn codegen_array_find(args: &[String], target: Target) -> String {
     }
 }
 
+/// Count the parameters of a formatted JS-family closure string, if the
+/// argument is one. JS-family closures follow the shared emission
+/// convention `((a, b) => body)`. Returns `None` for non-closure strings
+/// (identifiers, method calls, ...).
+fn closure_param_count(s: &str) -> Option<usize> {
+    let rest = s.strip_prefix("((")?;
+    let close = rest.find(')')?;
+    let params = rest[..close].trim();
+    if params.is_empty() {
+        Some(0)
+    } else {
+        Some(params.split(',').count())
+    }
+}
+
 pub(super) fn codegen_array_sort(args: &[String], target: Target) -> String {
     let arr = &args[0];
     let closure = args.get(1);
@@ -260,7 +275,20 @@ pub(super) fn codegen_array_sort(args: &[String], target: Target) -> String {
         | Target::Vue
         | Target::OmniView => {
             if let Some(c) = closure {
-                format!("([...{arr}]).sort(($0,$1) => {{ const $ka={c}($0,$1); const $kb={c}($1,$0); return $ka < $kb ? -1 : $ka > $kb ? 1 : 0; }})")
+                if closure_param_count(c) == Some(2) {
+                    // Two-param closure = REAL comparator (documented
+                    // contract `fn(T,T)->i32`). Numeric results are used
+                    // directly — the comparator runs once per pair. Boolean
+                    // results and key-style selectors (e.g. `|a, b| a.name`)
+                    // fall back to the swapped-call comparison so the sort
+                    // is never a silent no-op (a bare `(a, b) => a.name`
+                    // comparator coerces to NaN and reorders nothing).
+                    format!("([...{arr}]).sort(($0,$1) => {{ const $r={c}($0,$1); if (typeof $r === \"number\") {{ return $r; }} const $k={c}($1,$0); return $r < $k ? -1 : $r > $k ? 1 : 0; }})")
+                } else {
+                    // One-param closure (or a non-closure argument) = key
+                    // extractor: compare the extracted keys.
+                    format!("([...{arr}]).sort(($0,$1) => {{ const $ka={c}($0,$1); const $kb={c}($1,$0); return $ka < $kb ? -1 : $ka > $kb ? 1 : 0; }})")
+                }
             } else {
                 format!("([...{arr}]).sort()")
             }
@@ -319,5 +347,71 @@ pub(super) fn codegen_array_is_empty(args: &[String], target: Target) -> String 
         Target::Python => format!("len({arr}) == 0"),
         Target::Rust | Target::Dioxus => format!("({arr}).is_empty()"),
         Target::Dart | Target::Flutter => format!("({arr}).isEmpty"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::codegen::try_format_stdlib_call;
+
+    /// A two-param closure is a REAL comparator: it must be emitted through
+    /// the comparator path (numeric results used directly — single call),
+    /// NOT through the `$ka`/`$kb` key-extractor machinery.
+    #[test]
+    fn array_sort_two_param_closure_emits_comparator() {
+        let out = try_format_stdlib_call(
+            "array_sort",
+            &["arr".into(), "((a, b) => (a.name > b.name))".into()],
+            Target::JavaScript,
+        )
+        .expect("array_sort should format");
+        assert!(
+            out.contains("const $r=") && !out.contains("const $ka="),
+            "two-param closure must emit the comparator path, got: {out}"
+        );
+        assert!(
+            out.contains("typeof $r === \"number\""),
+            "comparator path must fast-path numeric results (single evaluation), got: {out}"
+        );
+    }
+
+    /// A one-param closure is a key extractor: the `$ka`/`$kb` machinery
+    /// (compare the extracted keys) must be preserved.
+    #[test]
+    fn array_sort_one_param_closure_keeps_key_extractor() {
+        let out = try_format_stdlib_call(
+            "array_sort",
+            &["arr".into(), "((x) => x.name)".into()],
+            Target::JavaScript,
+        )
+        .expect("array_sort should format");
+        assert!(
+            out.contains("const $ka="),
+            "one-param key extractor must keep the $ka/$kb machinery, got: {out}"
+        );
+    }
+
+    /// Non-closure arguments (named functions, etc.) keep the machinery.
+    #[test]
+    fn array_sort_non_closure_arg_keeps_machinery() {
+        let out = try_format_stdlib_call(
+            "array_sort",
+            &["arr".into(), "myCompare".into()],
+            Target::JavaScript,
+        )
+        .expect("array_sort should format");
+        assert!(
+            out.contains("const $ka="),
+            "non-closure args must keep the $ka/$kb machinery, got: {out}"
+        );
+    }
+
+    /// No closure: default sort.
+    #[test]
+    fn array_sort_without_closure_emits_default_sort() {
+        let out = try_format_stdlib_call("array_sort", &["arr".into()], Target::JavaScript)
+            .expect("array_sort should format");
+        assert_eq!(out, "([...arr]).sort()");
     }
 }

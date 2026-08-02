@@ -11,7 +11,7 @@ use crate::ir::*;
 
 /// Helper: format an ExprIR using the PythonFormatExpr trait.
 fn fmt(expr: &ExprIR) -> String {
-    PythonFormatExpr.format_expr(expr)
+    PythonFormatExpr::default().format_expr(expr)
 }
 
 #[test]

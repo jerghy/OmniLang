@@ -19,14 +19,21 @@ mod tests;
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
 use crate::codegen::shared::types::{FormatType, PythonTypeFormatter};
 use crate::codegen::shared::visitor::CodegenVisitor;
+use crate::error::{Diagnostic, DiagnosticKind, Severity};
 use crate::ir::*;
 use rustc_hash::FxHashMap;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 pub struct PythonCodegen;
 
 impl Codegen for PythonCodegen {
     fn generate(&self, ir: &IRProgram, _source_files: &FxHashMap<String, String>) -> CompileOutput {
         let mut files = Vec::new();
+        // Codegen-message channel: expression formatters report unsupported
+        // constructs (e.g. statement-bearing block expressions) here; each
+        // message becomes an E_CODEGEN error in the output.
+        let diagnostics = Rc::new(RefCell::new(Vec::<String>::new()));
 
         for (module_key, module) in &ir.modules {
             // Strip .omni suffix if present to derive module name
@@ -37,7 +44,9 @@ impl Codegen for PythonCodegen {
             w.emit_fmt(format_args!("# Generated from {}", source_path));
             w.emit("");
 
-            let mut visitor = visitor::PythonVisitor;
+            let mut visitor = visitor::PythonVisitor {
+                diagnostics: Rc::clone(&diagnostics),
+            };
             visitor.generate_module(&mut w, module);
 
             let out_path = format!("{}.py", module_name);
@@ -47,7 +56,27 @@ impl Codegen for PythonCodegen {
             });
         }
 
-        CompileOutput::success(files)
+        let errors = diagnostics
+            .borrow()
+            .iter()
+            .map(|message| Diagnostic {
+                severity: Severity::Error,
+                kind: DiagnosticKind::ECodegen,
+                message: message.clone(),
+                file: None,
+                line: 0,
+                col: 0,
+                end_line: None,
+                end_col: None,
+                suggestion: None,
+            })
+            .collect();
+        CompileOutput {
+            files,
+            errors,
+            source_map: vec![],
+            warnings: vec![],
+        }
     }
 }
 

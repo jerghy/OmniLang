@@ -6,11 +6,26 @@ use crate::codegen::shared::stmt::FormatStmt;
 use crate::codegen::shared::types::{FormatType, JsTypeFormatter};
 use crate::codegen::{JsonFormatConfig, Target, JSON_VUE};
 use crate::ir::*;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 /// Vue expression formatter.
 ///
 /// Uses JS-family syntax with expression-body closures.
-pub(crate) struct VueFormatExpr;
+pub(crate) struct VueFormatExpr {
+    /// Codegen-message channel: statement-bearing block expressions in
+    /// expression position are reported here instead of being silently
+    /// dropped (Vue template expressions cannot contain statements).
+    pub(crate) diagnostics: Rc<RefCell<Vec<String>>>,
+}
+
+impl Default for VueFormatExpr {
+    fn default() -> Self {
+        Self {
+            diagnostics: Rc::new(RefCell::new(Vec::new())),
+        }
+    }
+}
 
 impl FormatExpr for VueFormatExpr {
     fn json_config(&self) -> &JsonFormatConfig {
@@ -37,8 +52,18 @@ impl FormatExpr for VueFormatExpr {
         }
     }
 
-    fn format_block_expr(&self, _statements: &[StatementIR], tail: &ExprIR) -> String {
-        // Block statements not supported in expression context — drop them.
+    fn format_block_expr(&self, statements: &[StatementIR], tail: &ExprIR) -> String {
+        if !statements.is_empty() {
+            // Vue cannot emit statements inside an expression — report an
+            // E_CODEGEN diagnostic (surfaced by VueCodegen::generate)
+            // instead of silently dropping them.
+            self.diagnostics.borrow_mut().push(format!(
+                "[vue] block expression with {} statement(s) in expression position \
+                 is not supported — the statements would be silently dropped; \
+                 move them out of the expression",
+                statements.len()
+            ));
+        }
         self.format_expr(tail)
     }
 }
@@ -89,9 +114,15 @@ impl FormatStmt for VueStmtFormatter {
     }
 }
 
-pub(super) fn generate_statement_vue(w: &mut CodeWriter, stmt: &StatementIR) {
+pub(super) fn generate_statement_vue(
+    w: &mut CodeWriter,
+    stmt: &StatementIR,
+    diagnostics: &Rc<RefCell<Vec<String>>>,
+) {
     let fmt = VueStmtFormatter {
-        expr: VueFormatExpr,
+        expr: VueFormatExpr {
+            diagnostics: Rc::clone(diagnostics),
+        },
     };
     fmt.format_stmt(w, stmt);
 }
@@ -165,5 +196,5 @@ pub(super) fn to_vue_event(event_name: &str) -> String {
 /// Format a single expression IR node as a Vue expression string (test helper).
 #[cfg(test)]
 pub(super) fn format_expr_vue(expr: &ExprIR) -> String {
-    VueFormatExpr.format_expr(expr)
+    VueFormatExpr::default().format_expr(expr)
 }
