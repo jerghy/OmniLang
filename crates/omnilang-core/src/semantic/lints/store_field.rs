@@ -258,4 +258,84 @@ mod tests {
             "Local signal mutations should not be flagged"
         );
     }
+
+    #[test]
+    fn test_store_mutation_detected_inside_array_method_predicate() {
+        // Regression: ExprIR::ArrayMethod (from validate_array_methods
+        // rewriting `items.filter/map/count(...)`) used to fall through
+        // `_ => false` in expr_ir_contains_store_mutation, so a store
+        // mutation inside a filter predicate was silently missed.
+        let mut stores = FxHashMap::default();
+        stores.insert(
+            "MyStore".into(),
+            StoreIR {
+                name: "MyStore".into(),
+                signals: [(
+                    "count".into(),
+                    TypeIR {
+                        kind: "i32".into(),
+                        type_args: vec![],
+                        is_nullable: false,
+                    },
+                )]
+                .into_iter()
+                .collect(),
+                signal_defaults: FxHashMap::default(),
+                getters: FxHashMap::default(),
+                actions: vec![],
+                ..Default::default()
+            },
+        );
+        let mut components = FxHashMap::default();
+        components.insert(
+            "App".into(),
+            ComponentIR {
+                name: "App".into(),
+                computeds: vec![crate::ir::ComputedIntent {
+                    name: "evens".into(),
+                    r#type: TypeIR {
+                        kind: "Array".into(),
+                        type_args: vec![],
+                        is_nullable: false,
+                    },
+                    // items.filter(|i| MyStore.count.set(1))
+                    body: crate::ir::ExprIR::ArrayMethod {
+                        method: crate::ir::ArrayMethodIR::Filter,
+                        subject: Box::new(crate::ir::ExprIR::IdentifierExpr {
+                            name: "items".into(),
+                            type_ann: Some("Array<i32>".into()),
+                        }),
+                        predicate: Box::new(crate::ir::ExprIR::ClosureExpr {
+                            params: vec!["i".into()],
+                            body: Box::new(crate::ir::ExprIR::MethodCallExpr {
+                                object: Box::new(crate::ir::ExprIR::StoreFieldAccessExpr {
+                                    store_alias: "MyStore".into(),
+                                    field_name: "count".into(),
+                                    call_args: vec![],
+                                }),
+                                method: "set".into(),
+                                args: vec![crate::ir::ExprIR::LiteralExpr {
+                                    value: serde_json::Value::Number(1.into()),
+                                }],
+                                is_optional: false,
+                            }),
+                        }),
+                    },
+                    deps: vec![],
+                }],
+                store_refs: vec!["MyStore".into()],
+                ..Default::default()
+            },
+        );
+        let ir = make_test_ir(components, stores);
+
+        let diags = StoreFieldDirectMutation.check_ir(&ir, &FxHashMap::default());
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.message.contains("Computed 'evens' mutates store data")),
+            "store mutation inside an array-method predicate must be flagged, got: {:?}",
+            diags
+        );
+    }
 }

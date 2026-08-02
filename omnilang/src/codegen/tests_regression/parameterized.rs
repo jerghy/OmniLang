@@ -555,6 +555,10 @@ fn assert_array_methods_react(files: &FxHashMap<String, String>) {
         "ArrayMethodsDemo.tsx",
         "items.filter(((i) => (i % 2 === 0))).length",
     );
+    // The useMemo deps array must track the subject signal — regression
+    // guard: the computed-deps collector used to miss ExprIR::ArrayMethod
+    // (`_ => false`), emitting `useMemo(..., [])` and stale computeds.
+    assert_contains(files, "ArrayMethodsDemo.tsx", "}, [items]);");
 }
 
 fn assert_array_methods_flutter(files: &FxHashMap<String, String>) {

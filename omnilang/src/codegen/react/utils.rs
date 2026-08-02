@@ -142,6 +142,14 @@ pub(super) fn getter_expr_contains_ident(expr: &ExprIR, ident: &str) -> bool {
         ExprIR::StoreFieldAccessExpr { ref call_args, .. } => call_args
             .iter()
             .any(|a| getter_expr_contains_ident(a, ident)),
+        ExprIR::ArrayMethod {
+            ref subject,
+            ref predicate,
+            ..
+        } => {
+            getter_expr_contains_ident(subject, ident)
+                || getter_expr_contains_ident(predicate, ident)
+        }
         ExprIR::BlockExpr { statements, tail } => {
             statements
                 .iter()

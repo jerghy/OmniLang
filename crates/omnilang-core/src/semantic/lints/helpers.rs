@@ -326,6 +326,12 @@ pub(super) fn expr_ir_contains_store_mutation(
             .iter()
             .any(|(_, v)| expr_ir_contains_store_mutation(v, store_signals)),
         ExprIR::SpreadExpr { operand } => expr_ir_contains_store_mutation(operand, store_signals),
+        ExprIR::ArrayMethod {
+            subject, predicate, ..
+        } => {
+            expr_ir_contains_store_mutation(subject, store_signals)
+                || expr_ir_contains_store_mutation(predicate, store_signals)
+        }
         _ => false,
     }
 }
