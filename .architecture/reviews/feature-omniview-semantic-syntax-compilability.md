@@ -313,6 +313,7 @@
 - HIGH H2: 整 store 订阅 + 生成好的 selector hooks 死代码（mod.rs:394-403 vs 323-332）；useMemo 依赖 `[TodoStore]` 恒新。Fix: 切片 hooks。M
 - HIGH H3: 声称的门禁不存在——react-test-app 锁 React 18.3 + Zustand 4.5、strict: false、无 eslint、仓库无 tsc 脚本；Playwright 末次 180/180 failed。Fix: 真实门禁。M
 - MEDIUM M1: array_sort comparator 双调用 → 比较器恒 0（stdlib/array.rs:263）——**Toggle Sort 不排序**。Fix: JS 目标直接发射比较器。S
+  - ⚠️ **更正注记（2026-08-02, T1.5 实施验证）**：机制描述不准确——第二次调用是**交换参数**（`$kb=c($1,$0)`），$ka/$kb 互补而非恒等；修复前经 node 实证对布尔/键/数值形状均正确排序（仅常量闭包恒 0）。且计划建议的朴素修复「直接发射比较器」经 node 实证（V8 布尔比较器不重排）反而会制造该 bug——T1.5 实现的 swapped-call 回退 + 数值单次求值优于计划。demo 可见症状更可能来自 M2 stale-closure 排序，非 M1。本文件保留原发现作为历史记录，机制论证以更正为准。
 - MEDIUM M2: `setX(x+n)` 缺函数式更新（stale closure）。M3: 66 处 `Object.assign(e, {})` 噪音。M4: 每 action 多个顺序 set()。M5: effect deps 来自声明而非 body 读取。M6: computed deps 不含 props。M7: 局部函数参数无类型（implicit any）。M8: `useState([])` → never[]（类型被丢弃）。
 - LOW: 未用 React 默认导入、平凡值 useMemo、`__el_N`/`_M` 命名泄漏、`_props` 未用参数、React 19 组件 @ref 未测（有语义诊断，无静默破坏）。
 - 裁决: 输出 shape-地道（JSX/hooks/受控输入/类型化 props 对）但**不编译、不类型检查、含静默功能 bug**——ADR-052/054 核心断言 HEAD 未兑现。
