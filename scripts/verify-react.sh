@@ -42,7 +42,9 @@ cd "$HARNESS" || {
 }
 
 # Gate scope — generated output + the harness entry. Mirrors tsconfig include.
-LINT_SCOPE="src App.tsx SimpleApp.tsx useDesignTokens.ts useThemeStore.ts components pages stores"
+# The design runtime files live in the __design/ subdirectory (Task 4.4
+# naming isolation).
+LINT_SCOPE="src App.tsx SimpleApp.tsx __design/useDesignTokens.ts __design/useThemeStore.ts components pages stores"
 
 fail=0
 

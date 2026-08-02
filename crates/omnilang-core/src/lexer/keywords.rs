@@ -78,7 +78,6 @@ pub(super) fn at_keyword_to_token(kw: &str) -> Option<TokenKind> {
         "@for" => Some(TokenKind::AtFor),
         "@empty" => Some(TokenKind::AtEmpty),
         "@slot" => Some(TokenKind::AtSlot),
-        "@native" => Some(TokenKind::AtNative),
         "@fallback" => Some(TokenKind::AtFallback),
         "@error" => Some(TokenKind::AtError),
         "@mount" => Some(TokenKind::AtMount),

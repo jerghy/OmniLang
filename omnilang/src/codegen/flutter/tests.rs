@@ -6260,3 +6260,96 @@ fn emit_event_object_flutter_warns_for_dropped_fields() {
     assert!(obj.contains("'x':"), "map must still emit mapped fields");
     assert!(obj.contains("/*"), "degradation comment in map: {obj}");
 }
+
+/// Task 4.4: the spec §10.3 design diagnostics fire through the FULL
+/// pipeline (parse → semantic → IR → Flutter codegen): `display: grid` and
+/// `float` are hard errors, `cursor` and `zIndex` are warnings, and the
+/// ZIndex token no longer emits a meaningless `static const int`.
+#[test]
+fn design_spec_10_3_diagnostics_flow_through_full_pipeline() {
+    let source = r##"
+import omniview;
+
+design App {
+    token zModal: zIndex = "100";
+    token primary: color = "#6366f1";
+
+    class GridPanel {
+        display: grid;
+        background: token(primary);
+    }
+    class Floaty {
+        float: left;
+    }
+    class Clickable {
+        cursor: pointer;
+        background: token(primary);
+    }
+}
+
+component Demo {
+    view {
+        <div class: App.GridPanel>grid</div>
+        <div class: App.Clickable>click</div>
+    }
+}
+"##;
+    let mut sources = FxHashMap::default();
+    sources.insert("input.omni".to_string(), source.to_string());
+    let pm = crate::path_mapping::derive_path_mapping(&sources);
+    let result = crate::compile_multi_internal(
+        sources,
+        crate::codegen::Target::Flutter,
+        pm,
+        false,
+        false,
+        None,
+    );
+    // grid + float → hard errors (the compile must NOT be marked successful).
+    let grid_err = result
+        .errors
+        .iter()
+        .find(|e| e.message.contains("Flutter 不支持 CSS grid"));
+    assert!(
+        grid_err.is_some(),
+        "display:grid must hard-error through the pipeline. Got:\n{:?}",
+        result.errors
+    );
+    assert_eq!(grid_err.unwrap().severity, crate::error::Severity::Error);
+    assert!(
+        result
+            .errors
+            .iter()
+            .any(|e| e.message.contains("Flutter widget 布局无 float 概念")),
+        "float must hard-error through the pipeline. Got:\n{:?}",
+        result.errors
+    );
+    assert!(
+        result
+            .warnings
+            .iter()
+            .any(|w| w.message.contains("cursor 在 Flutter 中无效果")),
+        "cursor must warn through the pipeline. Got:\n{:?}",
+        result.warnings
+    );
+    assert!(
+        result
+            .warnings
+            .iter()
+            .any(|w| w.message.contains("token 'zModal'")
+                && w.message.contains("Flutter z 序由 widget 顺序决定")),
+        "zIndex must warn through the pipeline. Got:\n{:?}",
+        result.warnings
+    );
+    // The design runtime still emits (warnings do not block files), but the
+    // ZIndex constant is gone.
+    let design_dart = result
+        .files
+        .get("design.dart")
+        .expect("design.dart should still be emitted");
+    assert!(
+        !design_dart.contains("zModal"),
+        "no meaningless ZIndex constant may be emitted. Got:\n{}",
+        design_dart
+    );
+}

@@ -15,8 +15,8 @@
     "stores",
     "App.tsx",
     "SimpleApp.tsx",
-    "useDesignTokens.ts",
-    "useThemeStore.ts",
+    "__design/useDesignTokens.ts",
+    "__design/useThemeStore.ts",
     "env.d.ts"
   ]
 }

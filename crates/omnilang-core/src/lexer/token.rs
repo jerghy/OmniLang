@@ -69,7 +69,6 @@ pub enum TokenKind {
     AtFor,
     AtEmpty,
     AtSlot,
-    AtNative,
     AtFallback,
     AtError,
     AtMount,

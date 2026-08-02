@@ -3,18 +3,20 @@
 //! React renders plain HTML — there is no `[data-design~="..."]` wrapper
 //! element, so the shared design CSS emitter runs with an empty scope
 //! prefix.  Each source file that declares `design` blocks produces up to
-//! three outputs (all placed in the output directory mirroring the design's
-//! source file):
+//! three outputs (all placed in a dedicated `__design/` subdirectory of the
+//! output directory mirroring the design's source file — Task 4.4 naming
+//! isolation, so the runtime files can never collide with a user store's
+//! hook file):
 //!
-//! - `design.css` — CSS custom properties (`:root` + `[data-theme]`
+//! - `__design/design.css` — CSS custom properties (`:root` + `[data-theme]`
 //!   overrides), class rules, and variant combination classes via
 //!   `crate::codegen::shared::design::emit_design_css`
-//! - `useDesignTokens.ts` — a `useDesignTokens()` hook that applies
+//! - `__design/useDesignTokens.ts` — a `useDesignTokens()` hook that applies
 //!   `TokenValueIR::Dynamic` token values to
 //!   `document.documentElement.style` via `useEffect` (one effect per
 //!   dynamic token, deps = the store signal expression)
-//! - `useThemeStore.ts` — the theme runtime: when a store signal is marked
-//!   `@theme` (v2 D1), a hook that subscribes to the USER's store and
+//! - `__design/useThemeStore.ts` — the theme runtime: when a store signal is
+//!   marked `@theme` (v2 D1), a hook that subscribes to the USER's store and
 //!   applies `data-theme` to `<html>` (CSS scoping); without `@theme`, the
 //!   legacy standalone Zustand store (see `emit_theme_store`)
 
@@ -27,9 +29,17 @@ use crate::ir::{ExprIR, IRProgram};
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 
-/// One set of design outputs (`design.css`, `useDesignTokens.ts`,
-/// `useThemeStore.ts`) — the designs declared in one source file (or the
-/// output root for designs without a known source file).
+/// One set of design outputs (`__design/design.css`,
+/// `__design/useDesignTokens.ts`, `__design/useThemeStore.ts`) — the designs
+/// declared in one source file (or the output root for designs without a
+/// known source file).
+///
+/// All three files land in the group's dedicated `__design/` subdirectory
+/// (Task 4.4 naming isolation): the runtime basenames (`useThemeStore.ts`,
+/// `useDesignTokens.ts`) can never collide with a user store's hook file
+/// (e.g. `stores/useThemeStore.ts`), so the theme runtime is emitted
+/// unconditionally — no collision guard needed (the T4.2 guard was removed
+/// with the directory isolation, per YAGNI).
 pub(super) struct DesignGroup {
     /// Output directory prefix (`""` for the output root, `"components/"`…).
     pub dir_prefix: String,
@@ -42,11 +52,6 @@ pub(super) struct DesignGroup {
     /// to the USER's store instead of the legacy standalone store (Task 4.2,
     /// design D1).
     pub theme_signal: Option<String>,
-    /// Whether the theme runtime can be emitted for this group: false when
-    /// the design group and the @theme store share an output directory (both
-    /// outputs are named `useThemeStore.ts` — the Task 4.4 naming conflict).
-    /// The runtime is then skipped so the store hook file survives.
-    pub theme_runtime_ok: bool,
 }
 
 /// Group the program's design blocks by output directory (designs from the
@@ -74,42 +79,26 @@ pub(super) fn design_groups(ir: &IRProgram) -> Vec<DesignGroup> {
                 }),
                 has_themes: designs.iter().any(|d| !d.themes.is_empty()),
                 theme_signal: designs.iter().find_map(|d| d.theme_signal.clone()),
-                theme_runtime_ok: !theme_runtime_collides_with_store_hook(designs, ir),
                 dir_prefix,
             }
         })
         .collect()
 }
 
-/// Whether emitting the theme runtime for this group would OVERWRITE the
-/// `@theme` store's own hook file: both outputs are named `useThemeStore.ts`
-/// and land in the same directory when the design and the `@theme` store
-/// share a source directory (single-file projects / flat layouts). This is
-/// the Task 4.4 naming conflict — here the runtime is skipped so the store
-/// hook file survives (components keep compiling); the data-theme
-/// subscription is then not emitted for that layout.
-fn theme_runtime_collides_with_store_hook(designs: &[&DesignIR], ir: &IRProgram) -> bool {
-    let Some(path) = designs.iter().find_map(|d| d.theme_signal.as_deref()) else {
-        return false;
-    };
-    let Some((store_name, _)) = path.split_once('.') else {
-        return false;
-    };
-    let all_stores = ir.all_stores();
-    let Some(store) = all_stores.get(store_name) else {
-        return false;
-    };
-    let design_dir = match designs.first().and_then(|d| d.source_file.as_deref()) {
-        Some(f) => source_dir_prefix(Some(f)),
-        None => String::new(),
-    };
-    source_dir_prefix(store.source_file.as_deref()) == design_dir
+/// A synthetic source path whose output directory is the design group's
+/// `__design/` runtime subdirectory — the anchor for relative imports
+/// emitted INTO the runtime files. `relative_import_path` derives the
+/// `__design/` directory from it, so store-hook imports resolve as seen from
+/// inside the emitted runtime module (e.g. `src/__design/design.omni` for a
+/// root-level design → `../stores/useThemeStore`).
+fn design_runtime_source(dir_prefix: &str) -> Option<String> {
+    Some(format!("src/{}__design/design.omni", dir_prefix))
 }
 
 /// Group the program's design blocks by source file and emit all design
-/// outputs (`design.css`, `useDesignTokens.ts`, `useThemeStore.ts`) as
-/// `CompiledFile`s.  Returns an empty vector when the program has no
-/// designs.
+/// outputs (`__design/design.css`, `__design/useDesignTokens.ts`,
+/// `__design/useThemeStore.ts`) as `CompiledFile`s.  Returns an empty vector
+/// when the program has no designs.
 pub fn gen_design_files(ir: &IRProgram) -> Vec<crate::codegen::CompiledFile> {
     let mut files = Vec::new();
     for group in design_groups(ir) {
@@ -121,23 +110,24 @@ pub fn gen_design_files(ir: &IRProgram) -> Vec<crate::codegen::CompiledFile> {
             .collect();
         // Deterministic order: designs sorted by name within a file.
         designs.sort_by(|a, b| a.name.cmp(&b.name));
+        let dir_prefix = &group.dir_prefix;
 
         files.push(crate::codegen::CompiledFile {
-            path: format!("{}design.css", group.dir_prefix),
+            path: format!("{}__design/design.css", dir_prefix),
             content: emit_design_css_file(&designs),
         });
         if group.has_dynamic_tokens {
-            if let Some(content) = emit_use_design_tokens(&designs, ir) {
+            if let Some(content) = emit_use_design_tokens(&designs, dir_prefix, ir) {
                 files.push(crate::codegen::CompiledFile {
-                    path: format!("{}useDesignTokens.ts", group.dir_prefix),
+                    path: format!("{}__design/useDesignTokens.ts", dir_prefix),
                     content,
                 });
             }
         }
-        if group.has_themes && group.theme_runtime_ok {
-            if let Some(content) = emit_theme_store(&designs, ir) {
+        if group.has_themes {
+            if let Some(content) = emit_theme_store(&designs, dir_prefix, ir) {
                 files.push(crate::codegen::CompiledFile {
-                    path: format!("{}useThemeStore.ts", group.dir_prefix),
+                    path: format!("{}__design/useThemeStore.ts", dir_prefix),
                     content,
                 });
             }
@@ -271,7 +261,10 @@ pub(super) fn root_design_wiring(ir: &IRProgram, source_file: Option<&str>) -> D
     let mut hook_idx = 0usize;
     let mut theme_hook_idx = 0usize;
     for group in &groups {
-        let to_source = format!("{}design.omni", group.dir_prefix);
+        // The runtime files live in the group's dedicated `__design/`
+        // subdirectory (Task 4.4 naming isolation) — the import target is
+        // the synthetic source path whose output dir is that subdirectory.
+        let to_source = format!("{}__design/design.omni", group.dir_prefix);
         if group.has_dynamic_tokens {
             // Multiple design groups each get their own hook — alias the
             // imports so the names stay unique in one module.
@@ -296,7 +289,7 @@ pub(super) fn root_design_wiring(ir: &IRProgram, source_file: Option<&str>) -> D
             hook_calls.push(local_name);
             hook_idx += 1;
         }
-        if group.has_themes && group.theme_runtime_ok {
+        if group.has_themes {
             let import_path = relative_import_path(source_file, Some(&to_source), "useThemeStore");
             if group.theme_signal.is_some() {
                 // v2 D1: the theme runtime is a real hook (useEffect inside
@@ -360,7 +353,11 @@ fn emit_design_css_file(designs: &[&DesignIR]) -> String {
 /// store updates do not re-fire it.  Store hooks are instantiated once per
 /// referenced store (`const CartStore = useCartStore();`), matching the
 /// component codegen convention.
-fn emit_use_design_tokens(designs: &[&DesignIR], ir: &IRProgram) -> Option<String> {
+fn emit_use_design_tokens(
+    designs: &[&DesignIR],
+    dir_prefix: &str,
+    ir: &IRProgram,
+) -> Option<String> {
     let mut dynamic_tokens: Vec<(String, &ExprIR)> = Vec::new();
     for design in designs {
         let mut sorted: Vec<_> = design.tokens.iter().collect();
@@ -388,7 +385,9 @@ fn emit_use_design_tokens(designs: &[&DesignIR], ir: &IRProgram) -> Option<Strin
         .collect();
     known_stores.sort();
 
-    let source_file = designs.first().and_then(|d| d.source_file.as_deref());
+    // The hook is emitted into the group's `__design/` directory — imports
+    // resolve from there (Task 4.4 naming isolation).
+    let source_file = design_runtime_source(dir_prefix);
 
     let mut w = CodeWriter::new();
     w.emit("// Generated by OmniLang — dynamic design token hook");
@@ -397,7 +396,7 @@ fn emit_use_design_tokens(designs: &[&DesignIR], ir: &IRProgram) -> Option<Strin
         let hook_name = format!("use{}", store_name);
         let store = all_stores.get(store_name.as_str()).copied();
         let import_path = relative_import_path(
-            source_file,
+            source_file.as_deref(),
             store.and_then(|s| s.source_file.as_deref()),
             &hook_name,
         );
@@ -466,10 +465,15 @@ fn emit_sanitize_css(w: &mut CodeWriter) {
 ///    the hook (aliased) and calls it.
 /// 2. **Legacy** (no `@theme` signal): the pre-v2 standalone Zustand store
 ///    (`theme`/`setTheme` + module-level `subscribe`). Kept for backward
-///    compatibility; the file-name collision is Task 4.4's scope.
+///    compatibility.
+///
+/// The file lands in the group's `__design/` directory (Task 4.4 naming
+/// isolation) — since no user file can be named `__design/useThemeStore.ts`,
+/// the runtime is emitted even when the `@theme` store hook has the same
+/// basename elsewhere.
 ///
 /// Returns `None` when no design declares themes.
-fn emit_theme_store(designs: &[&DesignIR], ir: &IRProgram) -> Option<String> {
+fn emit_theme_store(designs: &[&DesignIR], dir_prefix: &str, ir: &IRProgram) -> Option<String> {
     // Union of theme names across all designs in the group (sorted).
     let mut theme_names: Vec<String> = Vec::new();
     for design in designs {
@@ -485,7 +489,7 @@ fn emit_theme_store(designs: &[&DesignIR], ir: &IRProgram) -> Option<String> {
     }
 
     if let Some(signal_path) = designs.iter().find_map(|d| d.theme_signal.clone()) {
-        return emit_theme_subscription(&signal_path, designs, ir);
+        return emit_theme_subscription(&signal_path, dir_prefix, ir);
     }
 
     // Default theme: the first design's @default-theme, else the first
@@ -542,20 +546,22 @@ fn emit_theme_store(designs: &[&DesignIR], ir: &IRProgram) -> Option<String> {
 ///
 /// Returns `None` when the signal path is malformed or the store/signal is
 /// unknown (defensive — validate_theme guarantees the pairing).
-fn emit_theme_subscription(
-    signal_path: &str,
-    designs: &[&DesignIR],
-    ir: &IRProgram,
-) -> Option<String> {
+fn emit_theme_subscription(signal_path: &str, dir_prefix: &str, ir: &IRProgram) -> Option<String> {
     let (store_name, signal_name) = signal_path.split_once('.')?;
     let all_stores = ir.all_stores();
     let store = all_stores.get(store_name)?;
     if !store.signals.contains_key(signal_name) {
         return None;
     }
-    let source_file = designs.first().and_then(|d| d.source_file.as_deref());
+    // The runtime is emitted into the group's `__design/` directory — the
+    // user store hook import resolves from there (Task 4.4 naming isolation).
+    let source_file = design_runtime_source(dir_prefix);
     let hook_name = format!("use{}", store_name);
-    let import_path = relative_import_path(source_file, store.source_file.as_deref(), &hook_name);
+    let import_path = relative_import_path(
+        source_file.as_deref(),
+        store.source_file.as_deref(),
+        &hook_name,
+    );
 
     let mut w = CodeWriter::new();
     w.emit("// Generated by OmniLang — theme data-theme subscription");
@@ -969,8 +975,8 @@ mod tests {
         let files = gen_design_files(&ir);
         let css = files
             .iter()
-            .find(|f| f.path == "design.css")
-            .expect("design.css should be emitted");
+            .find(|f| f.path == "__design/design.css")
+            .expect("__design/design.css should be emitted");
         assert!(css.content.contains("--surface: #ffffff;"));
         assert!(css.content.contains("--primary: #6366f1;"));
         assert!(css.content.contains("[data-theme=\"dark\"] {"));
@@ -992,14 +998,14 @@ mod tests {
         let files = gen_design_files(&ir);
         let hook = files
             .iter()
-            .find(|f| f.path == "useDesignTokens.ts")
-            .expect("useDesignTokens.ts should be emitted");
+            .find(|f| f.path == "__design/useDesignTokens.ts")
+            .expect("__design/useDesignTokens.ts should be emitted");
         let content = &hook.content;
         assert!(content.contains("import { useEffect } from 'react';"));
         assert!(
             content
-                .contains("import { useDynamicTokenStore } from './stores/useDynamicTokenStore';"),
-            "store hook import should use the relative path from the design file. Got:\n{}",
+                .contains("import { useDynamicTokenStore } from '../stores/useDynamicTokenStore';"),
+            "store hook import must resolve from inside __design/ (Task 4.4). Got:\n{}",
             content
         );
         assert!(content.contains("const DynamicTokenStore = useDynamicTokenStore();"));
@@ -1039,8 +1045,8 @@ mod tests {
         let files = gen_design_files(&ir);
         let store = files
             .iter()
-            .find(|f| f.path == "useThemeStore.ts")
-            .expect("useThemeStore.ts should be emitted");
+            .find(|f| f.path == "__design/useThemeStore.ts")
+            .expect("__design/useThemeStore.ts should be emitted");
         let content = &store.content;
         assert!(content.contains("import { create } from 'zustand';"));
         assert!(content.contains("theme: 'light',"));
@@ -1108,15 +1114,15 @@ mod tests {
         let files = gen_design_files(&ir);
         let store = files
             .iter()
-            .find(|f| f.path == "useThemeStore.ts")
-            .expect("useThemeStore.ts should be emitted");
+            .find(|f| f.path == "__design/useThemeStore.ts")
+            .expect("__design/useThemeStore.ts should be emitted");
         let content = &store.content;
         assert!(content.contains("import { useEffect } from 'react';"));
         assert!(
             content.contains(
-                "import { useThemeStore as useAppThemeStore } from './stores/useThemeStore';"
+                "import { useThemeStore as useAppThemeStore } from '../stores/useThemeStore';"
             ),
-            "must import the user's theme store hook. Got:\n{}",
+            "must import the user's theme store hook from inside __design/ (Task 4.4). Got:\n{}",
             content
         );
         assert!(
@@ -1142,12 +1148,14 @@ mod tests {
         );
     }
 
-    /// Task 4.2: when the design group and the @theme store share a source
-    /// directory (single-file layouts), both outputs would be named
-    /// `useThemeStore.ts` — the Task 4.4 naming conflict. The theme runtime
-    /// is then skipped so the store hook file survives.
+    /// Task 4.4 (naming isolation): the design group and the @theme store
+    /// sharing a source directory was the old `useThemeStore.ts` collision —
+    /// now the runtime lands in the group's `__design/` subdirectory, so
+    /// BOTH the user's store hook (`useThemeStore.ts`) and the design
+    /// runtime (`stores/__design/useThemeStore.ts`) are emitted and can
+    /// never overwrite each other. No guard needed.
     #[test]
-    fn theme_runtime_skipped_on_store_hook_collision() {
+    fn theme_runtime_and_store_hook_coexist_in_same_directory() {
         let mut design = make_design();
         design.theme_signal = Some("ThemeStore.mode".to_string());
         design.source_file = Some("src/stores/ThemeStore.omni".to_string());
@@ -1161,28 +1169,42 @@ mod tests {
             .expect("ThemeStore")
             .source_file = Some("src/stores/ThemeStore.omni".to_string());
         let files = gen_design_files(&ir);
+        let paths: Vec<&str> = files.iter().map(|f| f.path.as_str()).collect();
         assert!(
-            !files.iter().any(|f| f.path == "useThemeStore.ts"),
-            "the theme runtime must not overwrite the store hook file. Got:\n{:#?}",
-            files.iter().map(|f| &f.path).collect::<Vec<_>>()
+            paths.contains(&"stores/__design/useThemeStore.ts"),
+            "the design runtime must be emitted in __design/. Got:\n{:#?}",
+            paths
+        );
+        assert!(
+            paths.contains(&"stores/__design/design.css"),
+            "design.css must be emitted in __design/. Got:\n{:#?}",
+            paths
+        );
+        assert!(
+            !paths.contains(&"stores/useThemeStore.ts"),
+            "the design runtime must NOT claim the user store hook's path. Got:\n{:#?}",
+            paths
         );
     }
 
     /// Task 4.2: projects WITHOUT a @theme signal keep the previous theme
-    /// store shape (backward compatible) — the orphan store is only a
-    /// fallback until Task 4.4 renames the design runtime file.
+    /// store shape (backward compatible) — the standalone store is the
+    /// fallback when no @theme signal exists.
     #[test]
     fn emits_legacy_theme_store_without_theme_signal() {
         let ir = make_theme_ir(make_design());
         let files = gen_design_files(&ir);
         let store = files
             .iter()
-            .find(|f| f.path == "useThemeStore.ts")
-            .expect("useThemeStore.ts should be emitted");
+            .find(|f| f.path == "__design/useThemeStore.ts")
+            .expect("__design/useThemeStore.ts should be emitted");
         let content = &store.content;
         assert!(content.contains("import { create } from 'zustand';"));
         assert!(content.contains("export const useThemeStore = create<ThemeState>()"));
-        assert!(!content.contains("useEffect"), "no hook form without a @theme signal");
+        assert!(
+            !content.contains("useEffect"),
+            "no hook form without a @theme signal"
+        );
     }
 
     #[test]
@@ -1193,11 +1215,11 @@ mod tests {
         let ir = make_ir(design);
         let files = gen_design_files(&ir);
         assert!(
-            files.iter().any(|f| f.path == "design.css"),
-            "design.css should still be emitted"
+            files.iter().any(|f| f.path == "__design/design.css"),
+            "__design/design.css should still be emitted"
         );
         assert!(
-            !files.iter().any(|f| f.path == "useThemeStore.ts"),
+            !files.iter().any(|f| f.path == "__design/useThemeStore.ts"),
             "no theme store without @themes"
         );
     }
@@ -1209,7 +1231,9 @@ mod tests {
         let ir = make_ir(design);
         let files = gen_design_files(&ir);
         assert!(
-            !files.iter().any(|f| f.path == "useDesignTokens.ts"),
+            !files
+                .iter()
+                .any(|f| f.path == "__design/useDesignTokens.ts"),
             "no hook without dynamic tokens"
         );
     }
@@ -1220,12 +1244,14 @@ mod tests {
         design.source_file = Some("src/components/design.omni".to_string());
         let ir = make_ir(design);
         let files = gen_design_files(&ir);
-        assert!(files.iter().any(|f| f.path == "components/design.css"));
         assert!(files
             .iter()
-            .any(|f| f.path == "components/useDesignTokens.ts"));
+            .any(|f| f.path == "components/__design/design.css"));
         assert!(files
             .iter()
-            .any(|f| f.path == "components/useThemeStore.ts"));
+            .any(|f| f.path == "components/__design/useDesignTokens.ts"));
+        assert!(files
+            .iter()
+            .any(|f| f.path == "components/__design/useThemeStore.ts"));
     }
 }

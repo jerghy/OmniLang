@@ -71,9 +71,11 @@ impl Codegen for FlutterCodegen {
         // constants, BoxDecoration factories, ThemeExtension variants,
         // theme switching, and the dynamic token provider (Task 5.5).
         // Unmappable token/class/variant values surface on the warnings
-        // channel (spec §10.3) — never silent drops.
-        let (design_files, design_warnings) = design::gen_design_files(ir);
+        // channel; spec §10.3 layout rows split channels — ZIndex/cursor
+        // warn, display:grid/float hard-error (never silent drops).
+        let (design_files, design_warnings, design_errors) = design::gen_design_files(ir);
         warnings.extend(design_warnings);
+        errors.extend(design_errors);
         files.extend(design_files);
         // App shell (main.dart) — MaterialApp wired to the theme runtime
         // when @themes + a @theme signal are declared (Task 4.2 D1).
@@ -145,7 +147,10 @@ impl FlutterCodegen {
         // factories, AppTokens constants) — import it when the view
         // references them and the program declares at least one design.
         if ir.modules.values().any(|m| !m.designs.is_empty())
-            && comp.view.as_ref().is_some_and(view::view_uses_design_classes)
+            && comp
+                .view
+                .as_ref()
+                .is_some_and(view::view_uses_design_classes)
         {
             w.emit("import 'design.dart';");
         }

@@ -512,18 +512,19 @@ default slot):
 > the paren form `@slot(header)`; new code should use body-level
 > declarations.
 
-### 3.4 @empty / @native / @fallback / @error
+### 3.4 @empty / @fallback / @error
 
 ```
 @empty   // fallback for empty lists — implemented (@for ... @empty { ... })
-@native  // native platform fallback
 @fallback
 @error   // error boundary fallback
 ```
 
-`@empty` is fully implemented as the `@for` empty-state suffix. `@native`,
-`@fallback`, and `@error` remain reserved directive tokens — parser
-infrastructure exists but implementation is deferred.
+`@empty` is fully implemented as the `@for` empty-state suffix. `@fallback`
+and `@error` remain reserved directive tokens — parser infrastructure exists
+but implementation is deferred. `@native` was REMOVED as a dead lexer token
+(Task 4.4 — the spec §1.2 platform-layer escape hatch never had a compiler
+consumer); `@native(...)` now fails at parse time.
 
 ---
 
@@ -1130,7 +1131,6 @@ When `{expr}` parsing fails inside views, the parser collects all tokens up to t
 | `@for` | View | `@for item in expr key={expr} [scroll]? { ... }` |
 | `@empty` | View | `@empty { ... }` (suffix after `@for` block) |
 | `@slot` | Component body | `@slot name: Type? { fallback }?` (render: `{name}` / `{children}`) |
-| `@native` | View | `@native { ... }` (reserved — deferred) |
 | `@fallback` | View | `@fallback { ... }` (reserved — deferred) |
 | `@error` | View | `@error { ... }` (reserved — deferred) |
 | `@store` | Component | `@store Name;` |

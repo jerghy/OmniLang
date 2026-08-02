@@ -2115,8 +2115,48 @@ component App {
 
 // ── Design codegen integration tests ─────────────────────
 
-/// Test: a design block compiles to design.css (unscoped, plain HTML) plus
-/// useThemeStore.ts when @themes is declared.
+/// Task 4.4: the `@native` lexer token is REMOVED — the platform-layer
+/// escape hatch (spec §1.2) no longer exists, and `@native("dart") { ... }`
+/// fails with a clean parse error instead of lexing as a directive.
+#[test]
+fn native_escape_hatch_is_rejected() {
+    let source = r##"
+@native("dart") { ... }
+component App {
+    view { <div>hi</div> }
+}
+"##;
+    let mut sources = FxHashMap::default();
+    sources.insert("input.omni".to_string(), source.to_string());
+    let pm = path_mapping::derive_path_mapping(&sources);
+    let result = crate::compile_multi_internal(
+        sources,
+        crate::codegen::Target::React,
+        pm,
+        false,
+        false,
+        None,
+    );
+    assert!(
+        !result.success,
+        "@native must be rejected — the token was removed (Task 4.4)"
+    );
+    assert!(
+        result
+            .errors
+            .iter()
+            .any(|e| e.message.contains("Ident(\"@native\")")),
+        "the failure must be a clean parse error naming the @native identifier. Got:\n{:?}",
+        result.errors
+    );
+}
+
+// ── Design codegen integration tests ─────────────────────
+
+/// Test: a design block compiles to __design/design.css (unscoped, plain
+/// HTML) plus __design/useThemeStore.ts when @themes is declared (Task 4.4
+/// naming isolation — the runtime files live in the dedicated __design/
+/// subdirectory).
 #[test]
 fn react_design_emits_css_and_theme_store() {
     let source = r##"
@@ -2146,7 +2186,7 @@ design AppDesign {
     // design.css + useThemeStore.ts
     let css = output
         .files
-        .get("design.css")
+        .get("__design/design.css")
         .expect("design.css should be emitted");
     assert!(
         css.contains(":root {"),
@@ -2185,7 +2225,7 @@ design AppDesign {
 
     let theme_store = output
         .files
-        .get("useThemeStore.ts")
+        .get("__design/useThemeStore.ts")
         .expect("useThemeStore.ts should be emitted when @themes is declared");
     assert!(
         theme_store.contains("theme: 'light',"),
@@ -2205,7 +2245,7 @@ design AppDesign {
 
     // No dynamic tokens → no useDesignTokens.ts
     assert!(
-        !output.files.contains_key("useDesignTokens.ts"),
+        !output.files.contains_key("__design/useDesignTokens.ts"),
         "no hook without dynamic tokens"
     );
 }
@@ -2217,8 +2257,9 @@ design AppDesign {
 ///
 /// Multi-file (the real demo shape): the store, design, and App component
 /// live in separate source files so the store hook
-/// (`stores/useThemeStore.ts`) and the design runtime (`useThemeStore.ts`)
-/// land in different directories.
+/// (`stores/useThemeStore.ts`) and the design runtime
+/// (`__design/useThemeStore.ts`) coexist without a basename collision
+/// (Task 4.4 naming isolation).
 #[test]
 fn react_design_theme_signal_wires_subscription() {
     let store_source = r##"
@@ -2266,7 +2307,7 @@ component App {
     );
     let theme_file = output
         .files
-        .get("useThemeStore.ts")
+        .get("__design/useThemeStore.ts")
         .expect("useThemeStore.ts should be emitted when @themes is declared");
     assert!(
         theme_file.contains("import { useEffect } from 'react';"),
@@ -2284,7 +2325,7 @@ component App {
         theme_file
     );
     assert!(
-        theme_file.contains("import { useThemeStore as useAppThemeStore } from './stores/useThemeStore';"),
+        theme_file.contains("import { useThemeStore as useAppThemeStore } from '../stores/useThemeStore';"),
         "the wired theme runtime must import the user's store hook. Got:\n{}",
         theme_file
     );
@@ -2298,7 +2339,7 @@ component App {
         .get("App.tsx")
         .expect("App.tsx should be emitted");
     assert!(
-        app.contains("import { useThemeStore as useThemeStoreDesign } from './useThemeStore';"),
+        app.contains("import { useThemeStore as useThemeStoreDesign } from './__design/useThemeStore';"),
         "root component must import the wired theme hook (aliased). Got:\n{}",
         app
     );
@@ -2334,7 +2375,7 @@ design AppDesign {
     let output = compile_react(source).unwrap();
     let hook = output
         .files
-        .get("useDesignTokens.ts")
+        .get("__design/useDesignTokens.ts")
         .expect("useDesignTokens.ts should be emitted for dynamic tokens");
     assert!(
         hook.contains("import { useEffect } from 'react';"),
@@ -2415,11 +2456,11 @@ component App {
         "design compilation must succeed. Errors: {:?}",
         result.errors
     );
-    // design.css at the design file's level (src/ → output root)
+    // __design/design.css at the design file's level (src/ → output root)
     let css = result
         .files
-        .get("design.css")
-        .expect("design.css should be emitted at output root");
+        .get("__design/design.css")
+        .expect("__design/design.css should be emitted at output root");
     assert!(
         css.contains("Design: ADesign") && css.contains("Design: BDesign"),
         "both design blocks must be concatenated into one design.css. Got:\n{}",
@@ -2508,7 +2549,7 @@ component App {
     // design.css still emits the global rules the literals match
     let css = output
         .files
-        .get("design.css")
+        .get("__design/design.css")
         .expect("design.css should be emitted");
     assert!(css.contains("\n.Page {"), "global .Page rule missing");
     assert!(
@@ -2581,7 +2622,7 @@ component App {
         .get("App.tsx")
         .expect("App.tsx should be emitted");
     assert!(
-        app.contains("import { useDesignTokens } from './useDesignTokens';"),
+        app.contains("import { useDesignTokens } from './__design/useDesignTokens';"),
         "root component must import the design tokens hook. Got:\n{}",
         app
     );
@@ -2591,8 +2632,8 @@ component App {
         app
     );
     assert!(
-        app.contains("import './useThemeStore';"),
-        "root component must import the theme store (side effect). Got:\n{}",
+        app.contains("import './__design/useThemeStore';"),
+        "root component must import the theme store from __design/ (side effect). Got:\n{}",
         app
     );
     // Non-root components must not import the wiring
@@ -2692,7 +2733,7 @@ component App {
         .get("App.tsx")
         .expect("App.tsx should be emitted");
     assert!(
-        app.contains("import { useDesignTokens } from './designs/useDesignTokens';"),
+        app.contains("import { useDesignTokens } from './designs/__design/useDesignTokens';"),
         "hook import must resolve across directories. Got:\n{}",
         app
     );
@@ -2702,7 +2743,7 @@ component App {
         app
     );
     assert!(
-        result.files.contains_key("designs/useDesignTokens.ts"),
+        result.files.contains_key("designs/__design/useDesignTokens.ts"),
         "hook file must be emitted next to the design source"
     );
 }

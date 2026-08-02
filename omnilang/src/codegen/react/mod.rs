@@ -29,10 +29,12 @@ impl Codegen for ReactCodegen {
     fn generate(&self, ir: &IRProgram, source_files: &FxHashMap<String, String>) -> CompileOutput {
         let mut output = self.generate_per_component(ir, source_files);
         // Module-level design blocks → design.css + design runtime files
-        // (useDesignTokens.ts / useThemeStore.ts). Designs are grouped per
-        // source file (DesignIR.source_file), so multiple design blocks in
-        // one .omni file share a single set of outputs next to the other
-        // compiled files of that source directory.
+        // (useDesignTokens.ts / useThemeStore.ts) in a dedicated `__design/`
+        // subdirectory of the source file's output directory (Task 4.4
+        // naming isolation — the runtime basenames can never collide with a
+        // user store's hook file). Designs are grouped per source file
+        // (DesignIR.source_file), so multiple design blocks in one .omni
+        // file share a single set of outputs.
         output.files.extend(design::gen_design_files(ir));
         output
     }

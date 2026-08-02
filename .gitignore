@@ -57,6 +57,7 @@ test/projects/learn-omniview/build/react-test-app/SimpleApp.module.css
 test/projects/learn-omniview/build/react-test-app/design.css
 test/projects/learn-omniview/build/react-test-app/useDesignTokens.ts
 test/projects/learn-omniview/build/react-test-app/useThemeStore.ts
+test/projects/learn-omniview/build/react-test-app/__design/
 test/projects/learn-omniview/build/react-test-app/dist/
 test/projects/learn-omniview/build/react-test-app/test-results/
 test/projects/learn-omniview/build/react-test-app/playwright-report/

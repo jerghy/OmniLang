@@ -1193,9 +1193,13 @@ mod tests {
     fn test_at_slot() {
         assert_token("@slot", TokenKind::AtSlot);
     }
+    /// Task 4.4: the `@native` token is REMOVED (dead token — no spec §1.2
+    /// platform-layer syntax). An unknown @-word falls back to the
+    /// `Ident("@native")` shape (event-binding style), so `@native(...)`
+    /// fails at parse time instead of lexing as a directive.
     #[test]
-    fn test_at_native() {
-        assert_token("@native", TokenKind::AtNative);
+    fn test_at_native_removed() {
+        assert_token("@native", TokenKind::Ident("@native".into()));
     }
     #[test]
     fn test_at_fallback() {

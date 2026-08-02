@@ -25,7 +25,11 @@
 |----|------|-----------|
 | **语义原语层** | ref 绑定、动画触发器、design token、slot、store signal、@if/@for、生命周期 | 理解意图 → 按平台映射生成地道代码 |
 | **通用计算层** | 表达式、运算、函数、闭包、match、async/await、类型 | 语法糖展开（`?.`、`??=`、block IIFE），其余直接翻译为目标语言 |
-| **平台特有层** | `@native("dart") { ... }` | escape hatch，编译时直接透传 |
+
+> **2026-08-03（Task 4.4）**：平台特有层已删除——`@native` 是死 token（编译器
+> 无任何消费方），lexer 令牌已移除；`@native(...)` 现在产生干净解析错误
+> （`Unexpected token at top level: Ident("@native")`）。如未来确需 escape
+> hatch，1 天内可重新加入（pragmatic-enforcer 决策）。
 
 ### 1.3 语法惯例
 
@@ -1057,6 +1061,14 @@ Flutter: [...list], count += 1, await fn()
 | keyframe `width`/`height` | Flutter | warning | 动画布局属性触发重 layout，推荐用 scale |
 | @for 无 key_expr（对象 item）| React | warning | 建议加 key= 避免重复 key |
 | 非 P0 目标 + design block | 全部非 P0 | error | 该目标不支持 design block |
+
+> **实现状态（2026-08-03，Task 4.4）**：ZIndex token、CSS `display: grid`、
+> CSS `float`、CSS `cursor` 四行已在 Flutter design codegen 实现——ZIndex
+> 不再生成无意义的 `static const int`（token 跳过 + warning，消息
+> 「Flutter z 序由 widget 顺序决定」）；`display: grid` / `float` 走 codegen
+> error 通道（`ECodegen`，锚定 design 块 span）；`cursor` 走 warnings 通道
+> （「cursor 在 Flutter 中无效果」）。类（含伪状态）、变体 base 与分支统一
+> 扫描。其余行见各自任务。
 
 ---
 

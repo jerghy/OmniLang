@@ -239,11 +239,13 @@ fn assert_design_tokens_omniview(files: &FxHashMap<String, String>) {
 
 fn assert_design_tokens_react(files: &FxHashMap<String, String>) {
     // React emits unscaled selectors (module-scoped via CSS import) but keeps
-    // the same token/theme variable declarations as OmniView.
-    assert_contains(files, "design.css", "--primary: #6366F1;");
-    assert_contains(files, "design.css", ".Card {");
-    assert_contains(files, "design.css", "background: var(--bg);");
-    assert_contains(files, "useThemeStore.ts", "useThemeStore");
+    // the same token/theme variable declarations as OmniView. The design
+    // runtime files land in the dedicated __design/ subdirectory (Task 4.4
+    // naming isolation).
+    assert_contains(files, "__design/design.css", "--primary: #6366F1;");
+    assert_contains(files, "__design/design.css", ".Card {");
+    assert_contains(files, "__design/design.css", "background: var(--bg);");
+    assert_contains(files, "__design/useThemeStore.ts", "useThemeStore");
     // Consuming component emits design class references.
     assert_contains(files, "DesignTokensDemo.tsx", "Button primary");
     assert_contains(files, "DesignTokensDemo.tsx", "Button secondary");
