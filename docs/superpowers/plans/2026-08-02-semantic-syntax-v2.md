@@ -219,6 +219,28 @@ git add crates/omnilang-core/src/codegen/sanitize.rs omnilang/src/codegen/ .gith
 git commit -m "fix(codegen): move is_dangerous_url to shared sanitize; add per-backend feature matrix CI"
 ```
 
+### Task 0.3a: 解耦 vue/dioxus 跨后端导入（feature-matrix 门禁转绿）
+
+> 来源：T0.3 审查发现（Important-1）——计划缺口补丁。feature-matrix job 在 vue/dioxus 上 RED，因预存在耦合：`omnilang/src/codegen/vue/template.rs:127-128` 导入 `crate::codegen::react::view`（format_style_*）、`omnilang/src/codegen/dioxus/mod.rs:65,222,292` 导入 `super::rust::rs_type`。均为「非 P0 后端借共享格式化逻辑」的同构问题。
+
+**Files:**
+- Modify: `omnilang/src/codegen/vue/template.rs:127-128`（react::view 依赖 → 提取/复用 `codegen/shared/` 等价实现或本地内联小函数）
+- Modify: `omnilang/src/codegen/dioxus/mod.rs:65,222,292`（rust::rs_type 依赖 → 同法处理）
+
+**Interfaces:**
+- Consumes: 无新接口；仅消除对 sibling 后端的 `crate::codegen::<other>` 导入
+- Produces: `cargo check -p omnilang --no-default-features --features codegen-vue` 与 `--features codegen-dioxus` 全绿；feature-matrix job 全绿
+
+- [ ] **Step 1: 写失败测试**——`cargo check -p omnilang --no-default-features --features codegen-vue` / `--features codegen-dioxus`：确认当前 E0432（T0.3 后残余 2/3 错误）
+- [ ] **Step 2: 实现**——消除两处 sibling 后端导入：优先复用 `crates/omnilang-core/src/codegen/shared/` 或 `omnilang/src/codegen/shared/` 中的等价逻辑；无等价共享则在该后端模块内提取最小本地实现（复制不得超过 20 行，超出则上报 BLOCKED 由控制器定夺共享提取）
+- [ ] **Step 3: 验证**——两后端独立 check 全绿；`cargo check --workspace` 默认组合全绿；`cargo test -p omnilang --lib` 全绿
+- [ ] **Step 4: Commit**
+
+```bash
+git add omnilang/src/codegen/vue/ omnilang/src/codegen/dioxus/
+git commit -m "fix(codegen): decouple vue/dioxus from sibling backend imports — feature matrix green"
+```
+
 ### Task 0.4: react-test-app 真实化（React 19 + Zustand 5 + strict tsc + eslint）
 
 **Files:**
