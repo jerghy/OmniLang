@@ -18,6 +18,21 @@ impl OmniViewGenerator {
         match expr {
             ExprIR::LiteralExpr { value } => serde_value_to_js(value),
             ExprIR::IdentifierExpr { name, .. } => {
+                // Function locals (params + let) shadow store signal renames:
+                // a param named `items` must NOT resolve to "TodoStore_items".
+                // Accept the sanitized-ident rename (param `default` → `default_`)
+                // but never a rename that is itself a signal name.
+                if self.scope.fn_locals.contains(name.as_str()) {
+                    return match self.name_resolver.name_renames.get(name.as_str()) {
+                        Some(r)
+                            if !self.name_resolver.signal_names.contains(r.as_str())
+                                && !self.name_resolver.store_signal_names.contains(r.as_str()) =>
+                        {
+                            r.clone()
+                        }
+                        _ => name.clone(),
+                    };
+                }
                 let resolved = self
                     .name_resolver
                     .name_renames

@@ -71,21 +71,6 @@ component EmitKeywordDemo {
     signal emitLog: Array<String> = [];
     signal funcLog: Array<String> = [];
 
-    fn onEmitReceived(val: String) {
-        let newLog = emitLog.push(val);  // push 后需重新赋值（不可变）
-        // 用 var 重新赋值
-        emitLog = newLog;
-    }
-
-    fn onFuncReceived(val: String) {
-        let newLog = funcLog.push(val);
-        funcLog = newLog;
-    }
-
-    // 实际 push 语义：测试不可变性
-    // 注意：OmniLang 中 Array 操作返回新数组（不可变模式）
-    // 这里用拼接方式记录
-
     fn recordEmit(val: String) {
         // 模拟不可变追加
         emitLog = emitLog.concat([val]);

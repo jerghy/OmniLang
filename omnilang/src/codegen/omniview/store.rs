@@ -97,9 +97,14 @@ impl OmniViewGenerator {
             let func_name = prefix(&action.name);
             let params: Vec<String> = action.params.iter().map(|p| p.name.clone()).collect();
             let _ = writeln!(self.js, "function {}({}) {{", func_name, params.join(", "));
+            self.scope.fn_locals.clear();
+            for p in &action.params {
+                self.scope.fn_locals.insert(p.name.clone());
+            }
             for stmt in &action.body.statements {
                 self.emit_statement(stmt);
             }
+            self.scope.fn_locals.clear();
             self.js.push_str("}\n\n");
             self.name_resolver.store_field_names.insert(func_name.clone());
             // Map local action name → flat name for intra-store calls
@@ -677,6 +682,13 @@ impl OmniViewGenerator {
                     .insert(p.name.clone(), sanitized.clone());
             }
         }
+        // Track function locals so IdentifierExpr can shadow same-named store
+        // signal renames (e.g. a param `items` must not resolve to
+        // "TodoStore_items"). Cleared after the body is emitted.
+        self.scope.fn_locals.clear();
+        for p in &f.params {
+            self.scope.fn_locals.insert(p.name.clone());
+        }
         let async_kw = if f.is_async { "async " } else { "" };
         let has_ret = f.return_type.is_some();
         let _ = writeln!(
@@ -701,5 +713,6 @@ impl OmniViewGenerator {
             self.emit_statement(stmt);
         }
         self.js.push_str("}\n\n");
+        self.scope.fn_locals.clear();
     }
 }

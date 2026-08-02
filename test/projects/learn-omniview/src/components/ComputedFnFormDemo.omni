@@ -25,7 +25,7 @@ component ComputedFnFormDemo {
     // 已支持的：简单表达式形式
     computed simple: String = firstName + " " + lastName;
 
-    // ★ 未使用的：函数式形式（带 () 和 -> 及完整 block）
+    // 函数式形式（带 () 和 -> 及完整 block）——view 中 {fullName()} 调用
     computed fullName() -> String {
         if firstName == "" && lastName == "" {
             return "Anonymous";

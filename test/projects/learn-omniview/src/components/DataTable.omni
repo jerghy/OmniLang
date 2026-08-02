@@ -40,11 +40,6 @@ component DataTable {
     fn getSortIcon() -> String { if sortAsc { return "ASC"; } return "DESC"; }
     fn getActiveRows() -> Array<RowItem> { return array_filter(rows, |r| r.status == "Active"); }
 
-    fn getStatusClass(status: String) -> String {
-        if status == "Active" { return "badge active"; }
-        return "badge inactive";
-    }
-
     fn getScoreColor(score: i32) -> String {
         if score >= 90 { return "#16a34a"; }
         if score >= 75 { return "#6366f1"; }

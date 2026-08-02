@@ -14,6 +14,10 @@ impl OmniViewGenerator {
                         .name_renames
                         .insert(name.clone(), safe_name.clone());
                 }
+                // Track as a function local so it shadows same-named store
+                // signal renames (e.g. `let mut items` inside a fn whose
+                // store signal `items` maps to "Store_items").
+                self.scope.fn_locals.insert(name.clone());
                 let val = value
                     .as_ref()
                     .map(|e| self.expr_to_js(e))
@@ -336,11 +340,27 @@ impl OmniViewGenerator {
                     .as_ref()
                     .map(|v| self.expr_to_js(v))
                     .unwrap_or_else(|| "undefined".into());
-                let _ = writeln!(self.js, "  __omni_subs.get(\"{0}\").value.push({1}); __omni_subs.get(\"{0}\").set(__omni_subs.get(\"{0}\").value.slice());", t, it);
+                // Local variables (let mut arr) get plain JS push; signals
+                // get the reactive push + slice() re-set. Emitting
+                // __omni_subs.get("local") for a local always crashes
+                // (e.g. lib/transform.omni filter_positive).
+                let is_signal = self.name_resolver.signal_names.contains(&t)
+                    || self.name_resolver.store_signal_names.contains(&t);
+                if is_signal {
+                    let _ = writeln!(self.js, "  __omni_subs.get(\"{0}\").value.push({1}); __omni_subs.get(\"{0}\").set(__omni_subs.get(\"{0}\").value.slice());", t, it);
+                } else {
+                    let _ = writeln!(self.js, "  {}.push({});", t, it);
+                }
             }
             MutationIntent::Pop { target } => {
                 let t = resolve_target(target);
-                let _ = writeln!(self.js, "  __omni_subs.get(\"{0}\").value.pop(); __omni_subs.get(\"{0}\").set(__omni_subs.get(\"{0}\").value.slice());", t);
+                let is_signal = self.name_resolver.signal_names.contains(&t)
+                    || self.name_resolver.store_signal_names.contains(&t);
+                if is_signal {
+                    let _ = writeln!(self.js, "  __omni_subs.get(\"{0}\").value.pop(); __omni_subs.get(\"{0}\").set(__omni_subs.get(\"{0}\").value.slice());", t);
+                } else {
+                    let _ = writeln!(self.js, "  {}.pop();", t);
+                }
             }
             #[allow(unreachable_patterns)]
             _ => unreachable!("Unknown MutationIntent variant — update codegen for new variant"),

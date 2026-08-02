@@ -24,16 +24,6 @@ component TabPanel {
         return activeTab == tab;
     }
 
-    fn getBtnBg(tab: String) -> String {
-        if isActive(tab) { return "#6366f1"; }
-        return "#f3f4f6";
-    }
-
-    fn getBtnColor(tab: String) -> String {
-        if isActive(tab) { return "white"; }
-        return "#374151";
-    }
-
     view {
         <div class: LearnDesign.Card>
             <div class: tab-bar>

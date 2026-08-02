@@ -4,8 +4,6 @@ import { math_abs, math_random, math_ceil, math_floor, math_sqrt } from "std/mat
 
 component StatsDashboard {
     const MAX_ITEMS = 10;
-    const $iconUrl = "/assets/icon.png";
-    const $apiBase = "https://api.example.com";
 
     signal counter: i32 = 0;
     signal removed: bool = false;

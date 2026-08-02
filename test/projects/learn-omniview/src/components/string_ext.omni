@@ -1,5 +1,5 @@
 // ╔══════════════════════════════════════════════════════════════╗
-// ║  lib/string_ext.omni —— std/string 扩展函数演示               ║
+// ║  components/string_ext.omni —— std/string 扩展函数演示               ║
 // ║  演示：string_concat, split, join, replace, substring,       ║
 // ║        to_upper, to_lower, ends_with                         ║
 // ║  纯逻辑文件，不写 import omniview;                              ║

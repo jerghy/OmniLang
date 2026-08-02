@@ -4,7 +4,7 @@
 // ║  · event 声明（含返回值类型）                                       ║
 // ║  · event? 可选事件（nullable event）                               ║
 // ║  · 父组件 @onEvent 绑定 + 参数流转                                  ║
-// ║  · emit 语句（注：编译器 P2 保留语法，目前用直接调用代替）         ║
+// ║  · emit 语句与函数调用两种触发语法（见 EmitKeywordDemo）           ║
 // ╚══════════════════════════════════════════════════════════════════════╝
 import omniview;
 import { LearnDesign } from "../design";

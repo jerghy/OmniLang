@@ -22,6 +22,10 @@ use rustc_hash::{FxHashMap, FxHashSet};
 /// snapshotted here because they are per-component (cleared per inlining).
 #[derive(Debug, Clone, Default)]
 pub(super) struct ComponentScope {
+    /// Names of the currently-emitting function's params + `let` locals.
+    /// IdentifierExpr checks these FIRST so a local (e.g. `items` param)
+    /// shadows a same-named store signal rename ("items" → "TodoStore_items").
+    pub fn_locals: FxHashSet<String>,
     pub current_component: String,
     pub signal_names: FxHashSet<String>,
     pub name_renames: FxHashMap<String, String>,
@@ -57,6 +61,7 @@ impl ComponentScope {
     /// leaving default/empty values behind.
     pub(super) fn take(gen: &mut super::OmniViewGenerator) -> Self {
         ComponentScope {
+            fn_locals: std::mem::take(&mut gen.scope.fn_locals),
             current_component: std::mem::take(&mut gen.scope.current_component),
             signal_names: std::mem::take(&mut gen.name_resolver.signal_names),
             name_renames: std::mem::take(&mut gen.name_resolver.name_renames),
@@ -95,6 +100,7 @@ impl ComponentScope {
     /// Default scope — all fields in their zero/empty state.
     pub(super) fn new() -> Self {
         ComponentScope {
+            fn_locals: FxHashSet::default(),
             current_component: String::new(),
             signal_names: FxHashSet::default(),
             name_renames: FxHashMap::default(),
