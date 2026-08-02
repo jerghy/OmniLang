@@ -15,7 +15,10 @@ component NotificationsPanel {
     ref scrollContainer: HtmlElement;
     signal badgeVisible: bool = false;
 
-    @effect(notifications) {
+    // deps 必须覆盖 body 读取的 store 字段（Task 3.4 语义验证）——
+    // unreadCount 是 getter，随 notifications 联动，但仍需显式声明，
+    // 否则 effect 在该字段变化时静默不重跑（E_EFFECT_DEPS_MISSING）。
+    @effect(notifications, NotificationStore.unreadCount) {
         if NotificationStore.unreadCount > 0 {
             badgeVisible = true;
             // 新通知到达时滚动到列表底部，展示最新一条（RefOp: .scrollTo）

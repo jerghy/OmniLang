@@ -821,3 +821,193 @@ fn binding_driven_setters_emit_state_hook() {
         out
     );
 }
+
+// ── Task 3.4: @effect deps 语义验证 + 闭包依赖盲区修复 ─────────
+//
+// (A) `getter_expr_contains_ident` (React computed deps) never descended into
+//     ClosureExpr — FilterBar's `filteredFrameworks` reads `searchText` only
+//     inside `|f| ...` and emitted `useMemo(..., [demoFrameworks])`; typing
+//     never re-filtered. The closure arm fixes it (perf HIGH-3).
+// (B) `validate_effect_deps` (omnilang-core) — declared @effect(deps) must
+//     cover every store-field read in the effect body (including closure-
+//     internal reads), else E_EFFECT_DEPS_MISSING compile error (the
+//     NotificationsPanel class of silent bug).
+
+/// The task fixture: three components — one missing-dep (must error), two
+/// full-coverage (must pass). Loading it through the full pipeline must
+/// produce EXACTLY one diagnostic: the missing NotificationStore.unreadCount.
+const EFFECT_DEPS_FIXTURE: &str = include_str!("../fixtures/effect_deps.omni");
+
+/// Missing-dep variant where the unread store field is read ONLY inside a
+/// closure — the perf HIGH-3 blind spot at the effect level.
+const EFFECT_DEPS_CLOSURE_MISSING_FIXTURE: &str = r##"
+import omniview;
+import { array_filter } from "std/array";
+
+store NotificationStore {
+    signal notifications: Array<String> = [];
+    getter unreadCount: i32 = notifications.len();
+}
+
+component App {
+    @store NotificationStore;
+    signal label: Array<String> = [];
+
+    @effect(notifications) {
+        let check = array_filter(NotificationStore.notifications, |n| n == "x" || NotificationStore.unreadCount > 0);
+        label = check;
+    }
+
+    view {
+        <div>{label.len()}</div>
+    }
+}
+"##;
+
+/// Full-coverage variant of the same fixture — closure-internal read declared.
+const EFFECT_DEPS_CLOSURE_COVERED_FIXTURE: &str = r##"
+import omniview;
+import { array_filter } from "std/array";
+
+store NotificationStore {
+    signal notifications: Array<String> = [];
+    getter unreadCount: i32 = notifications.len();
+}
+
+component App {
+    @store NotificationStore;
+    signal label: Array<String> = [];
+
+    @effect(NotificationStore.unreadCount, NotificationStore.notifications) {
+        let check = array_filter(NotificationStore.notifications, |n| n == "x" || NotificationStore.unreadCount > 0);
+        label = check;
+    }
+
+    view {
+        <div>{label.len()}</div>
+    }
+}
+"##;
+
+/// The perf HIGH-3 repro: a computed whose only read of `searchText` is
+/// inside a pipe closure — the React useMemo deps MUST include searchText.
+const COMPUTED_CLOSURE_READ_FIXTURE: &str = r##"
+import omniview;
+import { array_filter } from "std/array";
+
+component App {
+    signal searchText: String = "";
+    signal demoFrameworks: Array<String> = ["React", "Vue"];
+
+    computed filteredFrameworks: Array<String> = array_filter(demoFrameworks, |f| f == searchText);
+
+    view {
+        <div>{filteredFrameworks}</div>
+    }
+}
+"##;
+
+/// Run lex → parse → semantic → lower and return the diagnostics emitted
+/// DURING lowering (where validate_effect_deps runs) — the real pipeline
+/// merges these into the compile output.
+fn lower_source_diagnostics(source: &str) -> Vec<omnilang::error::Diagnostic> {
+    let tokens = tokenize(source);
+    let (program, parse_errors) = parser::parse(tokens, source);
+    assert!(
+        parse_errors.is_empty(),
+        "parse errors: {:?}",
+        parse_errors
+            .iter()
+            .map(|e| e.message.clone())
+            .collect::<Vec<_>>()
+    );
+    let mut semantics = omnilang::semantic::analyze(&program);
+    assert!(
+        semantics.diagnostics.is_empty(),
+        "semantic diagnostics: {:?}",
+        semantics
+            .diagnostics
+            .iter()
+            .map(|d| d.message.clone())
+            .collect::<Vec<_>>()
+    );
+    let _ir = lower(&program, &mut semantics, None);
+    std::mem::take(&mut semantics.diagnostics)
+}
+
+#[test]
+fn effect_deps_fixture_missing_dep_is_compile_error() {
+    let diags = lower_source_diagnostics(EFFECT_DEPS_FIXTURE);
+    let errors: Vec<&omnilang::error::Diagnostic> = diags
+        .iter()
+        .filter(|d| d.severity == omnilang::error::Severity::Error)
+        .collect();
+    assert_eq!(
+        errors.len(),
+        1,
+        "the bad component must produce exactly one error (the two good \
+         components must stay clean), got: {:?}",
+        errors.iter().map(|d| d.message.clone()).collect::<Vec<_>>()
+    );
+    let e = errors[0];
+    assert_eq!(
+        e.kind,
+        omnilang::error::DiagnosticKind::EEffectDepsMissing,
+        "expected E_EFFECT_DEPS_MISSING, got: {:?}",
+        e.kind
+    );
+    assert_eq!(
+        e.message, "effect 依赖漏掉：NotificationStore.unreadCount",
+        "verbatim message required, got: {}",
+        e.message
+    );
+    assert!(
+        e.suggestion
+            .as_deref()
+            .is_some_and(|s| s.contains("NotificationStore.unreadCount")),
+        "suggestion must name the missing dep, got: {:?}",
+        e.suggestion
+    );
+}
+
+#[test]
+fn effect_deps_closure_internal_read_missing_errors() {
+    // perf HIGH-3 at the effect level: the read of unreadCount happens only
+    // inside the `|n| ...` closure — it must still require a dep.
+    let diags = lower_source_diagnostics(EFFECT_DEPS_CLOSURE_MISSING_FIXTURE);
+    let messages: Vec<&str> = diags
+        .iter()
+        .filter(|d| d.severity == omnilang::error::Severity::Error)
+        .map(|d| d.message.as_str())
+        .collect();
+    assert_eq!(
+        messages,
+        vec!["effect 依赖漏掉：NotificationStore.unreadCount"],
+        "closure-internal store read must be counted, got: {:?}",
+        messages
+    );
+}
+
+#[test]
+fn effect_deps_closure_internal_read_covered_compiles_clean() {
+    let diags = lower_source_diagnostics(EFFECT_DEPS_CLOSURE_COVERED_FIXTURE);
+    assert!(
+        diags.is_empty(),
+        "full coverage (including the closure-internal read) must compile \
+         clean, got: {:?}",
+        diags.iter().map(|d| d.message.clone()).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn computed_closure_signal_read_lands_in_memo_deps() {
+    // perf HIGH-3 repro (FilterBar case): before the ClosureExpr arm in
+    // getter_expr_contains_ident this emitted `}, [demoFrameworks]);` and
+    // typing never re-filtered the computed.
+    let out = compile_react(COMPUTED_CLOSURE_READ_FIXTURE);
+    assert!(
+        out.contains("}, [searchText, demoFrameworks]);"),
+        "the closure-internal searchText read must be a useMemo dep. Got:\n{}",
+        out
+    );
+}

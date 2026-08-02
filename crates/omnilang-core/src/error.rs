@@ -125,6 +125,8 @@ pub enum DiagnosticKind {
     EClosureArrow,
     #[error("array method error")]
     EArrayMethod,
+    #[error("effect dependency error")]
+    EEffectDepsMissing,
     #[error("omniview warning")]
     WOmniviewMarker,
     #[error("motion warning")]
@@ -156,6 +158,7 @@ impl DiagnosticKind {
             Self::ECodegen => "E_CODEGEN",
             Self::EClosureArrow => "E_CLOSURE_ARROW",
             Self::EArrayMethod => "E_ARRAY_METHOD",
+            Self::EEffectDepsMissing => "E_EFFECT_DEPS_MISSING",
             Self::WOmniviewMarker => "W_OMNIVIEW_MARKER",
             Self::WMotion => "W0001",
             Self::ELint(_) => "E_LINT",
@@ -200,6 +203,7 @@ impl<'de> Deserialize<'de> for DiagnosticKind {
                     "E_CODEGEN" => Ok(DiagnosticKind::ECodegen),
                     "E_CLOSURE_ARROW" => Ok(DiagnosticKind::EClosureArrow),
                     "E_ARRAY_METHOD" => Ok(DiagnosticKind::EArrayMethod),
+                    "E_EFFECT_DEPS_MISSING" => Ok(DiagnosticKind::EEffectDepsMissing),
                     "W_OMNIVIEW_MARKER" => Ok(DiagnosticKind::WOmniviewMarker),
                     "W0001" => Ok(DiagnosticKind::WMotion),
                     "E_LINT" => Ok(DiagnosticKind::ELint("E_LINT".into())),
@@ -627,6 +631,40 @@ mod tests {
         }
         .into();
         assert_eq!(plain.kind, DiagnosticKind::E0001);
+    }
+
+    #[test]
+    fn effect_deps_missing_code_registered_and_carried() {
+        // E_EFFECT_DEPS_MISSING must be a registered diagnostic code:
+        // code_str, serde round-trip, and Diagnostic construction.
+        assert_eq!(
+            DiagnosticKind::EEffectDepsMissing.code_str(),
+            "E_EFFECT_DEPS_MISSING"
+        );
+        let json = serde_json::to_value(DiagnosticKind::EEffectDepsMissing).unwrap();
+        assert_eq!(json, "E_EFFECT_DEPS_MISSING");
+        let back: DiagnosticKind = serde_json::from_value(json).unwrap();
+        assert_eq!(back, DiagnosticKind::EEffectDepsMissing);
+
+        let diag = Diagnostic::error(
+            DiagnosticKind::EEffectDepsMissing,
+            "effect 依赖漏掉：NotificationStore.unreadCount",
+            &Span {
+                start: 0,
+                end: 2,
+                line: 1,
+                col: 1,
+            },
+        );
+        assert_eq!(diag.kind, DiagnosticKind::EEffectDepsMissing);
+        assert_eq!(diag.severity, Severity::Error);
+        assert_eq!(
+            diag.message,
+            "effect 依赖漏掉：NotificationStore.unreadCount"
+        );
+        let json = serde_json::to_value(DiagnosticJson::from(&diag)).unwrap();
+        assert_eq!(json["code"], "E_EFFECT_DEPS_MISSING");
+        assert_eq!(json["severity"], "error");
     }
 
     #[test]

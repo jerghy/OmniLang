@@ -5,6 +5,7 @@ pub mod lints;
 pub mod symbols;
 pub mod types;
 pub mod validate_array_methods;
+pub mod validate_effect_deps;
 pub mod validate_props;
 pub mod validate_ref_ops;
 pub mod validate_refs;

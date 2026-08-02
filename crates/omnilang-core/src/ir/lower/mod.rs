@@ -361,6 +361,19 @@ pub fn lower(
         }
     }
 
+    // Validate @effect(deps): the declared deps must cover the store-field
+    // reads in the effect body (including closure-internal reads), else the
+    // effect silently never re-fires — E_EFFECT_DEPS_MISSING compile error.
+    for module in ir_program.modules.values() {
+        for component in module.components.values() {
+            crate::semantic::validate_effect_deps::validate_effect_deps(
+                component,
+                &ir_program,
+                &mut semantics.diagnostics,
+            );
+        }
+    }
+
     ir_program
 }
 

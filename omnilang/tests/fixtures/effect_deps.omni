@@ -1,0 +1,75 @@
+// effect_deps.omni —— @effect 依赖语义验证 fixture（Task 3.4，域 5）
+//
+// 三个组件覆盖三种场景：
+//   1. EffectDepsBad        —— deps 漏掉 body 读取的 store 字段
+//                              → E_EFFECT_DEPS_MISSING「effect 依赖漏掉：
+//                                NotificationStore.unreadCount」
+//   2. EffectDepsGood       —— 全覆盖（限定形式）→ 编译通过
+//   3. EffectDepsClosure    —— body 闭包内部读取计入依赖（perf HIGH-3
+//                              盲区修复），全覆盖 → 编译通过
+//
+// 测试断言：整个文件恰好产生 1 个错误（组件 2/3 不产生任何错误）。
+
+import omniview;
+import { array_filter } from "std/array";
+
+store NotificationStore {
+    signal notifications: Array<String> = [];
+    signal maxCount: i32 = 5;
+    getter unreadCount: i32 = notifications.len();
+
+    action clear() {
+        notifications = [];
+    }
+}
+
+component EffectDepsBad {
+    @store NotificationStore;
+    signal badgeVisible: bool = false;
+
+    // BUG：deps 声明了 notifications，但 body 实际读取
+    // NotificationStore.unreadCount —— effect 在该字段变化时静默不重跑。
+    // 必须编译错误：「effect 依赖漏掉：NotificationStore.unreadCount」
+    @effect(notifications) {
+        if NotificationStore.unreadCount > 0 {
+            badgeVisible = true;
+        }
+    }
+
+    view {
+        <div>{badgeVisible}</div>
+    }
+}
+
+component EffectDepsGood {
+    @store NotificationStore;
+    signal badgeVisible: bool = false;
+
+    // 全覆盖：body 读取的 NotificationStore.unreadCount 已在 deps 声明。
+    @effect(NotificationStore.unreadCount) {
+        if NotificationStore.unreadCount > 0 {
+            badgeVisible = true;
+        }
+    }
+
+    view {
+        <div>{badgeVisible}</div>
+    }
+}
+
+component EffectDepsClosure {
+    @store NotificationStore;
+    signal label: Array<String> = [];
+
+    // 闭包内部读取同样计入依赖：unreadCount 只在 |n| ... 闭包体内被读取，
+    // 也必须声明。此处两个读取（notifications 主体 + 闭包内 unreadCount）
+    // 均已声明 → 编译通过。
+    @effect(NotificationStore.unreadCount, NotificationStore.notifications) {
+        let check = array_filter(NotificationStore.notifications, |n| n == "x" || NotificationStore.unreadCount > 0);
+        label = check;
+    }
+
+    view {
+        <div>{label.len()}</div>
+    }
+}

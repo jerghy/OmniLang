@@ -150,6 +150,13 @@ pub(super) fn getter_expr_contains_ident(expr: &ExprIR, ident: &str) -> bool {
             getter_expr_contains_ident(subject, ident)
                 || getter_expr_contains_ident(predicate, ident)
         }
+        // perf HIGH-3 blind spot: a computed whose only read of a signal is
+        // inside a closure (e.g. `array_filter(demoFrameworks, |f| f == searchText)`)
+        // previously never descended here — the signal was missing from the
+        // useMemo deps and the computed silently went stale. Note: ArrayMethod
+        // predicates are walked by their own arm above; this arm fires for
+        // ClosureExpr nodes reached through CallExpr args and other paths.
+        ExprIR::ClosureExpr { ref body, .. } => getter_expr_contains_ident(body, ident),
         ExprIR::BlockExpr { statements, tail } => {
             statements
                 .iter()
