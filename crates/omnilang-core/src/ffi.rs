@@ -11,7 +11,7 @@ use std::os::raw::c_char;
 use serde::Deserialize;
 
 /// Convert a diagnostic to the unified FFI/WASM envelope shape
-/// (`DiagnosticJson` — all 10 fields always present, lowercase severity).
+/// (`DiagnosticJson` — all 9 fields always present, lowercase severity).
 fn diagnostic_to_json_value(d: &crate::error::Diagnostic) -> serde_json::Value {
     serde_json::to_value(crate::error::DiagnosticJson::from(d)).unwrap_or_else(|_| {
         serde_json::json!({
@@ -167,12 +167,16 @@ mod tests {
 
     #[test]
     fn diagnostic_to_json_value_matches_unified_shape() {
-        let d = Diagnostic::error(DiagnosticKind::E0001, "bad token", &Span {
-            start: 0,
-            end: 4,
-            line: 3,
-            col: 5,
-        })
+        let d = Diagnostic::error(
+            DiagnosticKind::E0001,
+            "bad token",
+            &Span {
+                start: 0,
+                end: 4,
+                line: 3,
+                col: 5,
+            },
+        )
         .with_file("main.omni")
         .with_suggestion("try again");
         let json = diagnostic_to_json_value(&d);
@@ -224,7 +228,10 @@ mod tests {
         ];
         let mut expected = expected.to_vec();
         expected.sort_unstable();
-        assert_eq!(keys, expected, "diagnostic envelope must have the unified 9-field shape");
+        assert_eq!(
+            keys, expected,
+            "diagnostic envelope must have the unified 9-field shape"
+        );
         // Severity is lowercase — the old "Error" capitalization is gone.
         assert_eq!(diagnostics[0]["severity"], "error");
         // Explicit nulls, not omitted keys, for missing optional fields.
@@ -256,7 +263,7 @@ mod tests {
     fn omni_analyse_warnings_use_unified_shape() {
         // An unused import triggers a lint-level warning — it must surface
         // in the diagnostics array with the unified shape (lowercase
-        // severity, all 10 fields present with explicit nulls).
+        // severity, all 9 fields present with explicit nulls).
         let request = serde_json::json!({
             "sources": {
                 "main.omni": "import { array_length } from \"std/array\";\ncomponent App { view { <div>hi</div> } }"
@@ -270,8 +277,20 @@ mod tests {
             "expected at least one warning diagnostic; got: {diagnostics:?}"
         );
         for d in diagnostics {
-            assert_eq!(d["severity"].as_str().unwrap().to_lowercase(), d["severity"]);
-            for field in ["code", "message", "file", "line", "col", "end_line", "end_col", "suggestion"] {
+            assert_eq!(
+                d["severity"].as_str().unwrap().to_lowercase(),
+                d["severity"]
+            );
+            for field in [
+                "code",
+                "message",
+                "file",
+                "line",
+                "col",
+                "end_line",
+                "end_col",
+                "suggestion",
+            ] {
                 assert!(d.get(field).is_some(), "missing field {field}: {d}");
             }
         }

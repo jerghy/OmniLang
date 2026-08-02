@@ -15,7 +15,7 @@ use omnilang::compile;
 use omnilang::compile_omniview;
 
 /// Build a JsValue error response for consistent error reporting.
-/// Errors use the unified `DiagnosticJson` envelope (all 10 fields present,
+/// Errors use the unified `DiagnosticJson` envelope (all 9 fields present,
 /// lowercase severity).
 fn js_error_value(message: &str) -> JsValue {
     let err = serde_json::json!({
@@ -145,7 +145,7 @@ fn parse_source_internal(source: &str) -> serde_json::Value {
     let tokens = omnilang::lexer::tokenize(source);
     let (program, parse_errors) = omnilang::parser::parse(tokens, source);
     let success = parse_errors.is_empty();
-    // Unified DiagnosticJson shape: all 10 fields present, explicit nulls.
+    // Unified DiagnosticJson shape: all 9 fields present, explicit nulls.
     let errors: Vec<omnilang::error::DiagnosticJson> = parse_errors
         .into_iter()
         .map(|err| {
@@ -390,10 +390,8 @@ pub fn resolve_styles_multi_cached(
     let result_value = match analysis_result.ir {
         Some(ref ir) => {
             let output = omnilang::codegen::omniview::generate(ir, true, true, false);
-            let success = errors
-                .iter()
-                .all(|d| d.severity != "error")
-                && output.warnings.is_empty();
+            let success =
+                errors.iter().all(|d| d.severity != "error") && output.warnings.is_empty();
             serde_json::json!({
                 "success": success,
                 "design_css": output.css,
@@ -604,7 +602,9 @@ impl OmniCompiler {
     }
 
     /// Run diagnostics on all registered sources without compiling to output.
-    /// Returns JsValue with `success` and `errors` arrays.
+    /// Returns JsValue with `success` and `errors` arrays (both error- and
+    /// warning-severity diagnostics, matching the pre-refactor single-file
+    /// path where lint warnings folded into `compile().errors`).
     ///
     /// Routes through the multi-file analysis path (`analyse_multi_cached`)
     /// so diagnostics are cross-file aware (import errors, cross-file type
@@ -620,9 +620,14 @@ impl OmniCompiler {
             let mut cache = cell.borrow_mut();
             omnilang::analyse::analyse_multi_cached(&sources_map, &path_mapping, &mut cache)
         });
+        // Lint/merge warnings live in `analysis.warnings` (the multi-file
+        // path separates them from `diagnostics`); fold them back in so
+        // editor warning markers keep surfacing (Phase 0 "warnings 三网关
+        // 可见" gate).
         let errors: Vec<omnilang::error::DiagnosticJson> = analysis
             .diagnostics
             .iter()
+            .chain(analysis.warnings.iter())
             .map(omnilang::error::DiagnosticJson::from)
             .collect();
         let result_value = serde_wasm_bindgen::to_value(&serde_json::json!({
@@ -642,7 +647,8 @@ impl OmniCompiler {
     /// diagnostics). Symbols/dependencies are extracted from the pre-parsed
     /// programs via a per-file semantic pass — parsing, cross-file
     /// validation, IR lowering and codegen all run once in the shared
-    /// multi-file path, not per-file in isolation.
+    /// multi-file path, not per-file in isolation. Lint/merge warnings are
+    /// folded into `diagnostics` like the pre-refactor single-file path.
     pub fn analyse_dependencies(&mut self) -> JsValue {
         let sources_map = self.sources.clone();
         let path_mapping = omnilang::path_mapping::derive_path_mapping(&sources_map);
@@ -678,6 +684,7 @@ impl OmniCompiler {
         let diagnostics: Vec<omnilang::error::DiagnosticJson> = analysis
             .diagnostics
             .iter()
+            .chain(analysis.warnings.iter())
             .map(omnilang::error::DiagnosticJson::from)
             .collect();
 
@@ -796,7 +803,7 @@ mod tests {
     #[wasm_bindgen_test]
     fn test_compile_multi_error_envelope_unified_shape() {
         // Synthetic boundary errors (E_INVALID_SOURCES) use the unified
-        // DiagnosticJson shape: all 10 fields present, lowercase severity.
+        // DiagnosticJson shape: all 9 fields present, lowercase severity.
         let sources = serde_wasm_bindgen::to_value("not a map").unwrap();
         let result = compile_multi_to_omniview(sources, false, false, JsValue::null());
         let parsed: serde_json::Value = serde_wasm_bindgen::from_value(result).unwrap();
@@ -850,6 +857,31 @@ mod tests {
         let parsed2: serde_json::Value = serde_wasm_bindgen::from_value(d2).unwrap();
         let errors = parsed2["errors"].as_array().unwrap();
         assert!(!errors.is_empty());
+        for e in errors {
+            assert_diagnostic_json_shape(e);
+        }
+    }
+
+    #[wasm_bindgen_test]
+    fn test_omni_compiler_diagnostics_includes_warnings() {
+        // Lint warnings (unused import) must surface through diagnostics()
+        // with their severity preserved — regression: routing through the
+        // multi-file analysis path dropped `analysis.warnings` (the old
+        // single-file path folded lint warnings into compile().errors, so
+        // poiesis lost Monaco warning markers after the refactor).
+        let mut c = OmniCompiler::new();
+        c.upsert_source(
+            "app.omni".into(),
+            "import { array_length } from \"std/array\";\ncomponent App { view { <div>hi</div> } }"
+                .into(),
+        );
+        let d = c.diagnostics();
+        let parsed: serde_json::Value = serde_wasm_bindgen::from_value(d).unwrap();
+        let errors = parsed["errors"].as_array().unwrap();
+        assert!(
+            errors.iter().any(|e| e["severity"] == "warning"),
+            "expected a lint warning diagnostic through diagnostics(); got: {errors:?}"
+        );
         for e in errors {
             assert_diagnostic_json_shape(e);
         }
@@ -980,7 +1012,7 @@ mod tests {
 
     // ── Unified DiagnosticJson shape ───────────────────────────
 
-    /// Assert a diagnostic object has the unified 10-field envelope:
+    /// Assert a diagnostic object has the unified 9-field envelope:
     /// severity (lowercase), code, message, file, line, col, end_line,
     /// end_col, suggestion — with explicit nulls for missing optionals.
     fn assert_diagnostic_json_shape(e: &serde_json::Value) {

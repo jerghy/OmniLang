@@ -558,29 +558,31 @@ fn assert_control_flow_flutter(files: &FxHashMap<String, String>) {
     assert_contains(files, "ListPage.dart", "hidden");
 }
 
-/// T5.5 TARGET contract for Flutter control flow: keyed @for + @if fade.
+/// T5.4/T5.5 TARGET contract for Flutter control flow: @if fade + keyed @for.
 ///
 /// Today the Flutter codegen ignores `key_expr` (unconditional
 /// ListView.builder with no ValueKey) and `@if mode:"fade"` is a silent
-/// no-op (no AnimatedSwitcher) — known #30-era gap owned by Task 5.5 of
-/// the 2026-08-02-semantic-syntax-v2 plan (§5.5; design doc mapping table:
-/// Flutter key_expr → `key: ValueKey(expr)`, `@if mode:"fade"` →
-/// AnimatedSwitcher). The assertions below are the TARGET shape and FAIL
-/// on the current codegen, so the test stays #[ignore]d until 5.5 lands.
-// TODO(T5.5): Flutter ValueKey/scroll dispatch — un-ignore when Task 5.5
-// lands (key_expr → key: ValueKey(expr); [scroll] → ListView.builder
+/// no-op (no AnimatedSwitcher) — known #30-era gaps owned by Task 5.4
+/// (`@if mode:"fade"` → AnimatedSwitcher) and Task 5.5 (key_expr →
+/// `key: ValueKey(expr)`; [scroll] → ListView.builder dispatch) of the
+/// 2026-08-02-semantic-syntax-v2 plan (§5.4/§5.5; design doc mapping
+/// table). The assertions below are the TARGET shape and FAIL on the
+/// current codegen, so the test stays #[ignore]d until 5.4/5.5 land.
+// TODO(T5.4/T5.5): Flutter @if fade AnimatedSwitcher + keyed @for
+// ValueKey/scroll dispatch — un-ignore when Tasks 5.4/5.5 land
+// (key_expr → key: ValueKey(expr); [scroll] → ListView.builder
 // dispatch; @if mode:"fade" → AnimatedSwitcher).
 #[cfg(feature = "codegen-flutter")]
 #[test]
-#[ignore = "T5.5: Flutter keyed @for ValueKey + @if fade AnimatedSwitcher — known gap, owned by Task 5.5"]
+#[ignore = "T5.4/T5.5: Flutter @if fade AnimatedSwitcher + keyed @for ValueKey — known gaps, owned by Tasks 5.4/5.5"]
 fn flutter_control_flow_contract() {
     let source = include_str!("../../../tests/fixtures/parameterized/control_flow.omni");
     let files = compile_source_fixture(source, crate::codegen::Target::Flutter);
     assert_flutter_files(&files);
-    // key_expr → key: ValueKey(expr) in the item builder.
+    // key_expr → key: ValueKey(expr) in the item builder (T5.5).
     assert_contains(&files, "ListPage.dart", "ValueKey");
     assert_contains(&files, "ListPage.dart", "ValueKey(item)");
-    // @if mode:"fade" → AnimatedSwitcher (currently a silent no-op).
+    // @if mode:"fade" → AnimatedSwitcher (currently a silent no-op) (T5.4).
     assert_contains(&files, "ListPage.dart", "AnimatedSwitcher");
 }
 

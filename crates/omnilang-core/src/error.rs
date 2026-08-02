@@ -337,7 +337,7 @@ pub fn diagnostics_to_json(diagnostics: &[Diagnostic]) -> Vec<serde_json::Value>
 
 /// Canonical diagnostic envelope for the FFI/WASM boundary.
 ///
-/// All 10 fields are always present (missing values serialize as explicit
+/// All 9 fields are always present (missing values serialize as explicit
 /// `null`), so every consumer sees ONE shape regardless of which code path
 /// produced the diagnostic. The `Diagnostic` type keeps its own manual
 /// `Serialize` impl for serde consumers (compile-result JSON etc.).
@@ -449,12 +449,16 @@ mod tests {
 
     #[test]
     fn diagnostic_json_full_shape() {
-        let d = Diagnostic::error(DiagnosticKind::E0001, "bad token", &Span {
-            start: 0,
-            end: 4,
-            line: 3,
-            col: 5,
-        })
+        let d = Diagnostic::error(
+            DiagnosticKind::E0001,
+            "bad token",
+            &Span {
+                start: 0,
+                end: 4,
+                line: 3,
+                col: 5,
+            },
+        )
         .with_file("main.omni")
         .with_suggestion("try again");
         let json = serde_json::to_value(DiagnosticJson::from(&d)).unwrap();
@@ -477,7 +481,7 @@ mod tests {
     #[test]
     fn diagnostic_json_explicit_nulls_when_absent() {
         // Missing optional fields serialize as explicit nulls — the unified
-        // 10-field shape is the same for every diagnostic on the boundary.
+        // 9-field shape is the same for every diagnostic on the boundary.
         // Built as a struct literal (not Diagnostic::warning, which always
         // fills end_line/end_col from the span) so the Nones are real.
         let d = Diagnostic {
@@ -502,7 +506,12 @@ mod tests {
         let full = DiagnosticJson::from(&Diagnostic::error(
             DiagnosticKind::E0002,
             "dup",
-            &Span { start: 0, end: 1, line: 1, col: 1 },
+            &Span {
+                start: 0,
+                end: 1,
+                line: 1,
+                col: 1,
+            },
         ));
         let full_json = serde_json::to_value(&full).unwrap();
         let null_json = serde_json::to_value(&DiagnosticJson::from(&d)).unwrap();
