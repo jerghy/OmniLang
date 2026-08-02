@@ -168,7 +168,7 @@ trigger_attr      ::= '@enter' | '@hover' | '@press' | '@focus' | '@in-view'
                     | '@drag-horizontal' drag_params? | '@drag-vertical' drag_params?
 scroll_params     ::= 'start:' expr 'end:' expr 'scrub:' bool      (* 恢复 *)
 drag_params       ::= 'constraints:' '[' expr ',' expr ']'
-                      'elastic:' expr 'threshold:' expr             (* 恢复 *)
+                      'elastic:' expr 'threshold:' expr ('velocity_max:' expr)?   (* 恢复 *)
 keyframe_body     ::= '{' prop ':' expr (';' prop ':' expr)* '}'   (* map 形式，保留 v1 *)
                     | '{' 'over:' duration 'from' '{...}' 'to' '{...}' '}'  (* 完整体 = 设计记录，未实现 *)
 playback          ::= 'loop:' | 'count:' | 'direction:' | 'delay:' | 'fill:' | 'duration:' | 'easing:' | 'steps:'   (* 保留 v1 *)
@@ -248,9 +248,10 @@ TweenAnimationBuilder<double>(
 #### BNF v2
 
 ```
-themes_decl        ::= '@themes' '{' ident (',' ident)* '}'        (* 新增，根级 *)
-theme_signal       ::= 'signal' ident ':' 'String' '@theme'       (* 新增标记 *)
-token_types        ::= 13 类型（保留 v1：Color/Dimension/...）
+themes_decl        ::= '@themes' '{' ident (',' ident)* '}'        (* 新增；位于 design 块内，与 token/class 同级 *)
+theme_signal       ::= 'signal' ident ':' 'String' '@theme'       (* 新增标记；值必须是 @themes 枚举之一（语义验证） *)
+token_types        ::= Color | Dimension | Duration | Easing | FontFamily | FontSize
+                     | FontWeight | LetterSpacing | LineHeight | Opacity | Radius | Shadow | ZIndex   (* 13 类型，保留 v1 *)
 class_decl         ::= 'class' ident '{' style_entries '}'        (* 保留 v1 + base 块 + &:: 伪元素补 BNF *)
 variant_decl       ::= 'variant' ident '{' ... '}'                (* 保留 v1 *)
 ```
