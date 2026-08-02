@@ -78,7 +78,7 @@ semantic_binding ::= 'focus' '=' <expr>
 
 // ── 双向值绑定（唯一双向形式，无需 @ref）──
 
-value_binding ::= 'bind:value' '=' <signal_path>   (* 双向 *)
+value_binding ::= 'bind:value' '=' expr             (* 双向 *)
 value_prop    ::= 'value' '=' <expr>               (* 普通单向 prop，无魔法 *)
 
 // ── 语义方法（在 action/expression 中对 ref 变量调用）──
@@ -165,6 +165,39 @@ component SearchPage {
 | `ref.querySelector` | 违反组件封装 |
 | `ref.classList` | `class:` 绑定 |
 | `ref.parentElement` | 违反组件封装 |
+
+### 2.6 同步注记（Phase 2，2026-08-02）
+
+> Phase 2（域 1 Ref + 域 7 Events）落地后的 parser 事实同步
+> （doc/spec/parser 三方一致；与 `2026-08-02-semantic-syntax-v2-design.md`
+> 域 1 / 域 7 的映射表一致）。本规范无独立事件域章节（事件绑定 `@on*`
+> 仅见 §2.5），事件同步注记就近附于此。
+
+**Ref 操作（域 1）**
+
+- `RefOpIR::SetValue` 已删除（11→10 ops）：`ref.setValue(x)` / `ref.value = x` / `ref = x`
+  命令式写 → error「命令式写已删除，用 bind:value 双向绑定」
+- `capturePointer(id)` → `capturePointer()` 无参数（语义：锁定后续指针事件到本元素；
+  多指针显式锁定 = floor 外诊断）；`releasePointer()` 同
+- `value={sig}` 语义绑定形式已删除——`bind:value` 是**唯一**双向绑定语法；
+  `value={expr}` = 普通单向 prop；隐式 auto-bind 已删除（value 永远是你写什么就是什么）
+
+| 输入 | 诊断 |
+|------|------|
+| `ref.value = x` / `ref.setValue(x)` / `ref = x` | error：「命令式写已删除，用 bind:value 双向绑定」 |
+| `capturePointer(任何参数)` | error：「capturePointer 无参数；多指针锁定不支持」 |
+| Flutter `capturePointer()` | error：「Flutter 不支持指针捕获，用 GestureDetector」 |
+
+**Events（域 7）**
+
+- `map_event` 别名表统一为**单表**（`omnilang/src/codegen/shared/event.rs`）——
+  单表共享，跨后端一致；各后端仅叠加各自的 handler 命名约定。历史各后端双写
+  （react/utils.rs、omniview/utils.rs）是 `dblclick` 类 bug 源头，已删除
+- `KeyEvent.code` → Flutter 稳定映射 `physicalKey.keyId`（layout 无关，DOM-code 类比）；
+  `debugName` 永不作为数据发射；类型注记：schema `code: String` vs Flutter keyId int
+  （已知运行时失配，per-target 字段类型化为终修）
+- 未映射事件字段（如 ClipboardEvent.text / SubmitEvent.values / deltaMode）→
+  warning + 降级默认值注释（不静默）
 
 ---
 
