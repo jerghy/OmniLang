@@ -13,7 +13,7 @@ use super::component::jsx::component_declared_slots;
 use super::design::DesignCtx;
 use super::expr::{format_expr_ir_tsx, generate_statement_tsx};
 use super::utils::{emit_event_object_react, to_jsx_attr, to_react_event, to_react_tag};
-use crate::codegen::omniview::is_dangerous_url;
+use crate::codegen::sanitize::is_dangerous_url;
 use omnilang_core::codegen::sanitize::sanitize_css_value;
 use std::fmt::Write;
 
@@ -225,7 +225,7 @@ pub(super) fn gen_view_node_tsx(
                             }
                         } else {
                             // Check URL attributes for dangerous schemes (javascript:, data:, vbscript:)
-                            // Mirrors the OmniView backend's compile-time is_dangerous_url() defense-in-depth
+                            // Mirrors the shared sanitizer's compile-time is_dangerous_url() defense-in-depth
                             // against supply-chain compromises where a third-party .omni component
                             // contains literal javascript:/data: URLs.
                             let url_attrs: &[&str] =

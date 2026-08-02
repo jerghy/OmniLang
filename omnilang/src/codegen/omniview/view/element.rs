@@ -11,6 +11,7 @@ use std::fmt::Write;
 use super::super::utils::{escape_html, map_tag, parse_attr_template};
 use super::super::ElementTreeNode;
 use super::super::OmniViewGenerator;
+use crate::codegen::sanitize::is_dangerous_url;
 use crate::ir::*;
 use crate::sourcemap::{SourceMapEntry, SourceSpan, TargetSpan, TargetSpanKind};
 
@@ -29,26 +30,6 @@ const HTML_BOOLEAN_ATTRS: &[&str] = &[
     "defer",
 ];
 const HTML_URL_ATTRS: &[&str] = &["href", "src", "srcset", "action", "formaction", "poster"];
-
-/// Check whether a static URL attribute value contains a dangerous protocol
-/// scheme. Returns `true` if the value should be blocked.
-///
-/// This mirrors `__omni_sanitizeUrl` in the generated JS runtime, catching
-/// dangerous URLs in literal attribute values at compile time as defense-in-depth
-/// against supply-chain compromises where a third-party .omni component
-/// contains literal `javascript:` or `data:` URLs.
-pub(crate) fn is_dangerous_url(value: &str) -> bool {
-    let trimmed = value.trim();
-    let lower = trimmed.to_ascii_lowercase();
-    // Strip CR, LF, TAB — browsers strip these before URL navigation
-    let stripped: String = lower
-        .chars()
-        .filter(|c| !matches!(c, '\n' | '\r' | '\t'))
-        .collect();
-    stripped.starts_with("javascript:")
-        || stripped.starts_with("data:")
-        || stripped.starts_with("vbscript:")
-}
 
 impl OmniViewGenerator {
     // ═══════════════════════════════════════════════════════════════

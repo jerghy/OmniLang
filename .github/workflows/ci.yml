@@ -279,3 +279,18 @@ jobs:
         if: always()
         run: rm -f package.json package-lock.json
         working-directory: omnilang/tests
+
+  feature-matrix:
+    runs-on: ubuntu-latest
+    needs: rust
+    strategy:
+      matrix:
+        feature: [codegen-react, codegen-vue, codegen-dioxus, codegen-flutter, codegen-omniview]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Check per-backend feature gate
+        run: cargo check -p omnilang --no-default-features --features ${{ matrix.feature }}

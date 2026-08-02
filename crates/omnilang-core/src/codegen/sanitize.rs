@@ -94,6 +94,27 @@ pub fn sanitize_css_value(value: &str) -> String {
     value.to_string()
 }
 
+/// Check whether a static URL attribute value contains a dangerous protocol
+/// scheme. Returns `true` if the value should be blocked.
+///
+/// This mirrors `__omni_sanitizeUrl` in the generated JS runtime, catching
+/// dangerous URLs in literal attribute values at compile time as defense-in-depth
+/// against supply-chain compromises where a third-party .omni component
+/// contains literal `javascript:` or `data:` URLs.
+#[must_use]
+pub fn is_dangerous_url(value: &str) -> bool {
+    let trimmed = value.trim();
+    let lower = trimmed.to_ascii_lowercase();
+    // Strip CR, LF, TAB — browsers strip these before URL navigation
+    let stripped: String = lower
+        .chars()
+        .filter(|c| !matches!(c, '\n' | '\r' | '\t'))
+        .collect();
+    stripped.starts_with("javascript:")
+        || stripped.starts_with("data:")
+        || stripped.starts_with("vbscript:")
+}
+
 /// Sanitize a module name for use as a file path component.
 ///
 /// Strips directory traversal sequences (`..`, `/`, `\`) and leading dots
@@ -184,5 +205,27 @@ pub fn sanitize_js_ident(name: &str) -> String {
         format!("{}_", name)
     } else {
         name.to_string()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_dangerous_url;
+
+    #[test]
+    fn test_is_dangerous_url() {
+        assert!(is_dangerous_url("javascript:alert(1)"));
+        assert!(is_dangerous_url("  javascript:void(0)"));
+        assert!(is_dangerous_url("data:text/html,<script>alert(1)</script>"));
+        assert!(is_dangerous_url("data:image/svg+xml,..."));
+        assert!(is_dangerous_url("vbscript:msgbox(1)"));
+        // Newline/tab/CR bypass: browsers strip these before URL navigation
+        assert!(is_dangerous_url("java\nscript:alert(1)"));
+        assert!(is_dangerous_url("java\tscript:alert(1)"));
+        assert!(is_dangerous_url("java\rscript:alert(1)"));
+        assert!(!is_dangerous_url("https://example.com"));
+        assert!(!is_dangerous_url("/relative/path"));
+        assert!(!is_dangerous_url("#anchor"));
+        assert!(!is_dangerous_url("mailto:user@example.com"));
     }
 }

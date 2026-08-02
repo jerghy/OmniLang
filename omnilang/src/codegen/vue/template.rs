@@ -29,7 +29,7 @@ pub(crate) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &impl 
                         const URL_ATTRS: &[&str] =
                             &["href", "src", "srcset", "action", "formaction", "poster"];
                         if URL_ATTRS.contains(&vue_attr.as_str())
-                            && crate::codegen::omniview::is_dangerous_url(s)
+                            && crate::codegen::sanitize::is_dangerous_url(s)
                         {
                             // Emit empty string to neutralize dangerous URLs at compile time
                             attrs.push(format!("{}=\"\"", vue_attr));

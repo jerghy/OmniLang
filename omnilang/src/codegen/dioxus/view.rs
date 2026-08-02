@@ -31,7 +31,7 @@ pub(crate) fn gen_view_node_dioxus(w: &mut CodeWriter, node: &ViewTree, is_root:
                         const URL_ATTRS: &[&str] =
                             &["href", "src", "srcset", "action", "formaction", "poster"];
                         if URL_ATTRS.contains(&attr_name.as_str())
-                            && crate::codegen::omniview::is_dangerous_url(s)
+                            && crate::codegen::sanitize::is_dangerous_url(s)
                         {
                             attrs.push(format!(r#"{}: "","#, attr_name));
                         } else {
