@@ -19,9 +19,17 @@ use crate::lexer::Span;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DesignIR {
     pub name: String,
-    /// Theme names declared via `@themes ...;` (e.g. `["light", "dark"]`).
+    /// Theme names declared via `@themes { ... }` (e.g. `["light", "dark"]`).
     #[serde(default)]
     pub themes: Vec<String>,
+    /// The program's current-theme-mode signal, as the dotted path
+    /// `"StoreName.signalName"` (e.g. `"ThemeStore.mode"`) — the store signal
+    /// marked `@theme` (v2 域 5, design D1). Populated by the program-level
+    /// `validate_theme` pass after IR merge; consumed by codegen (Task 4.2)
+    /// to wire theme switching (data-theme subscription / ThemeModeNotifier).
+    /// `None` when no signal is marked `@theme`.
+    #[serde(default)]
+    pub theme_signal: Option<String>,
     /// Optional default theme name set via `@default-theme ...;`.
     #[serde(default)]
     pub default_theme: Option<String>,

@@ -78,6 +78,9 @@ pub fn lower_design_with_consts(
     DesignIR {
         name: ast.name.clone(),
         themes: ast.themes.clone(),
+        // Populated by the program-level validate_theme pass (cross-file
+        // pairing with the @theme-marked store signal is only visible there).
+        theme_signal: None,
         default_theme: ast.default_theme.clone(),
         tokens,
         classes,

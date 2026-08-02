@@ -353,6 +353,11 @@ pub fn analyse_multi(
     // Phase 3c: IR optimization passes
     crate::ir::optimize::optimize(&mut merged_ir);
 
+    // Phase 3d: Program-level theme validation (@themes ↔ @theme pairing,
+    // design D1). Runs on the merged IR so cross-file pairing is visible;
+    // also populates DesignIR.theme_signal for every design.
+    crate::semantic::validate_theme::validate_theme(&mut merged_ir, &mut diags);
+
     // Phase 4: Run lint rules against ASTs and merged IR
     let lint_diags = crate::semantic::lints::run_all(&programs, &merged_ir);
     let mut warnings: Vec<Diagnostic> = merge_warnings;
@@ -613,6 +618,11 @@ pub fn analyse_multi_cached(
 
     // Phase 3c: IR optimization passes
     crate::ir::optimize::optimize(&mut merged_ir);
+
+    // Phase 3d: Program-level theme validation (@themes ↔ @theme pairing,
+    // design D1). Runs on the merged IR so cross-file pairing is visible;
+    // also populates DesignIR.theme_signal for every design.
+    crate::semantic::validate_theme::validate_theme(&mut merged_ir, &mut diags);
 
     // Phase 4: Run lint rules against ASTs and merged IR
     let lint_diags = crate::semantic::lints::run_all(&all_programs, &merged_ir);

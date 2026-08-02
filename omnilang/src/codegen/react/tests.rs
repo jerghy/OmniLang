@@ -2019,6 +2019,7 @@ fn react_format_class_ref_escapes_quotes_defense_in_depth() {
             variants: vec![],
             default_theme: None,
             themes: vec![],
+            theme_signal: None,
             source_span: None,
             source_file: None,
         };
@@ -2120,7 +2121,7 @@ component App {
 fn react_design_emits_css_and_theme_store() {
     let source = r##"
 design AppDesign {
-    @themes light, dark;
+    @themes { light, dark }
     @default-theme light;
 
     token primary: color = "#6366f1" dark "#a5b4fc";
@@ -2333,7 +2334,7 @@ component App {
 fn react_design_classes_emit_literal_class_names() {
     let source = r##"
 design LearnDesign {
-    @themes light, dark;
+    @themes { light, dark }
     token primary: color = "#6366f1";
 
     class Page {
@@ -2457,7 +2458,7 @@ store DynamicTokenStore {
 }
 
 design AppDesign {
-    @themes light, dark;
+    @themes { light, dark }
     @default-theme light;
     token dynColor: color = DynamicTokenStore.liveColor;
     token staticColor: color = "#ffffff";
@@ -2496,7 +2497,7 @@ store DynamicTokenStore {
 }
 
 design AppDesign {
-    @themes light, dark;
+    @themes { light, dark }
     token dynColor: color = DynamicTokenStore.liveColor;
 }
 
@@ -2546,7 +2547,7 @@ store DynamicTokenStore {
 import { DynamicTokenStore } from "./stores/DynamicTokenStore";
 
 design AppDesign {
-    @themes light, dark;
+    @themes { light, dark }
     token dynColor: color = DynamicTokenStore.liveColor;
 }
 "##;

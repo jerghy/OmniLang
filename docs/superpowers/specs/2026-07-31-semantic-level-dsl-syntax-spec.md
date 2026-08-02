@@ -385,10 +385,12 @@ Design block 的语义：**定义一组有名字的设计值，可以有主题�
 ```
 design_def ::= 'design' <ident> '{' design_body '}'
 
-design_body ::= ( themes_directive | default_theme_directive
+design_body ::= ( themes_decl | default_theme_directive
                 | token_decl | class_def | variant_def )*
 
-themes_directive      ::= '@themes' <ident> (',' <ident>)* ';'?
+// v2 域 3 (design D1, 2026-08-03): 花括号形式取代 v1 的 `@themes a, b;`
+// （分号形式解析失败并带迁移提示）；空 `@themes { }` 是解析错误。
+themes_decl ::= '@themes' '{' <ident> (',' <ident>)* '}'
 default_theme_directive ::= '@default-theme' <ident> ';'?
 
 // ── Token ──
@@ -456,7 +458,7 @@ variant_dim_value ::= <ident> '=' <ident>   // dimName=valueName
 
 ```omni
 design AppTheme {
-  @themes light, dark
+  @themes { light, dark }
   @default-theme light
 
   // ── 静态 token ──
@@ -548,17 +550,28 @@ component MyPage {
 | **单维度选择** | `variant: DesignName.VariantName.branch` | 选择 variant 的一个分支 | `variant: AppTheme.Size.lg` |
 | **多维度指定** | `variant: DesignName.VariantName(dim1=val1, dim2=val2)` | 为每个维度指定值，编译时查表选择对应分支 | `variant: AppTheme.Button(color=primary, size=sm)` |
 
-### 4.5 主题切换
+### 4.5 主题切换（v2，design D1，2026-08-03）
+
+主题系统由两部分组成——**主题集合声明** + **当前主题信号标记**：
 
 ```omni
-// action 中:
-theme = "dark"
+// design 块内声明主题集合（与 token/class 同级）：
+design AppTheme {
+  @themes { light, dark }
+}
 
-// 编译器生成:
-// React:   document.documentElement.setAttribute('data-theme', 'dark')
-// Flutter: ref.read(themeModeProvider.notifier).state = ThemeMode.dark
-// OmniView: document.documentElement.dataset.theme = "dark"
+// 顶层 store 中用 @theme 标记当前主题信号（仅 String，仅顶层 store）：
+store ThemeStore {
+  signal mode: String @theme = "light"
+
+  // 切换主题 = 普通 action 写该信号：
+  action setMode(m: String) { mode = m }
+}
 ```
+
+- 语义：**`@theme` 标记的信号 = 当前主题模式；切换它 = 切换主题**。编译器因此知道主题状态从哪来，并自动接线三目标（React 订阅该 store → 写 `data-theme` 属性；Flutter 生成 `ThemeModeNotifier` + `MaterialApp(themeMode:)`；OmniView 按 `@theme` 信号识别——不再有 `mode` 魔法名）。接线代码生成由 Task 4.2 实现；`DesignIR { themes, theme_signal: "ThemeStore.mode" }` 契约已在本阶段落地。
+- 已删除：`theme = "dark"` 语句（v1 文档虚构语法——编译器从未实现该语句）。遇此写法报错：「主题切换 = 设置 @theme 信号（ThemeStore.setMode("dark")）」。
+- 语义验证（本阶段实现）：`@theme` 无 `@themes` 声明 → 错误；`@theme` 非 String 信号 → 错误「@theme 信号必须是 String」；`@theme` 多于一个 → 错误；`@themes` 重复主题名 → 错误；空 `@themes { }` → 错误。
 
 ### 4.6 平台映射
 
@@ -577,7 +590,7 @@ theme = "dark"
 | Class | 全局 CSS class（`design.css`）| `BoxDecoration` 工厂方法 |
 | Variant | CSS 组合 class（`Size-sm`）| `ThemeExtension<T>` |
 | 动态 token | `useEffect` + `setProperty` | `Provider` + `ThemeData.copyWith` |
-| `theme = "dark"` | `setAttribute('data-theme', 'dark')` | `ThemeMode.dark` + `MaterialApp` 重建 |
+| `@themes` + `@theme` 信号（v2 D1） | 订阅 @theme store → `data-theme` 属性 | `ThemeModeNotifier` + `MaterialApp(themeMode:)` |
 
 ### 4.7 非 P0 目标 behavior
 
@@ -695,7 +708,9 @@ store_member ::= signal_decl
                // 域 5 BNF v2: 删除 function_def 分支差异——顶层与内联 store
                // 成员集统一为 signal|getter|action；fn 成员报「用 getter 或 action」
 
-signal_decl  ::= 'signal' <ident> ':' type_annotation '=' expr ';'?
+// v2 域 5 (design D1, 2026-08-03): @theme 标记仅允许顶层 store 的 signal
+// （组件/内联 store signal 带 @theme → 解析错误）；语义验证见 §4.5。
+signal_decl  ::= 'signal' <ident> ':' type_annotation ('@theme')? '=' expr ';'?
 getter_decl  ::= 'getter' <ident> ':' type_annotation '=' expr ';'?
 action_decl  ::= 'action' <ident> '(' params? ')' block
 

@@ -1674,6 +1674,37 @@ store CounterStore {
     }
 
     #[test]
+    fn lower_store_with_theme_signal() {
+        // v2 域 5: `signal mode: String @theme = "light";` — the @theme
+        // marker must survive into StoreIR.theme_signal.
+        let source = r#"
+import omniview;
+store ThemeStore {
+    signal mode: String @theme = "light";
+    signal toggleCount: i32 = 0;
+}
+"#;
+        let store = lower_first_store(source);
+        assert_eq!(
+            store.theme_signal.as_deref(),
+            Some("mode"),
+            "@theme marker must lower into StoreIR.theme_signal"
+        );
+    }
+
+    #[test]
+    fn lower_store_without_theme_signal_keeps_none() {
+        let source = r#"
+import omniview;
+store CounterStore {
+    signal count: i32 = 0;
+}
+"#;
+        let store = lower_first_store(source);
+        assert!(store.theme_signal.is_none());
+    }
+
+    #[test]
     fn lower_store_with_getters_and_actions() {
         let source = r#"
 import omniview;

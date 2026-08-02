@@ -117,6 +117,7 @@ fn design_block_css_values_are_sanitized() {
         variants: vec![],
         default_theme: None,
         themes: vec![],
+        theme_signal: None,
         source_span: None,
         source_file: None,
     };

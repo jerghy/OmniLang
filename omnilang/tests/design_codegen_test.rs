@@ -47,6 +47,7 @@ fn emit_class_with_multiple_pseudo_states() {
     let design = DesignIR {
         name: "FormDesign".to_string(),
         themes: vec![],
+        theme_signal: None,
         default_theme: None,
         tokens: FxHashMap::default(),
         classes,
@@ -147,6 +148,7 @@ fn css_output_skips_dynamic_tokens() {
     let design = DesignIR {
         name: "App".to_string(),
         themes: vec![],
+        theme_signal: None,
         default_theme: None,
         tokens,
         classes: vec![],

@@ -295,6 +295,7 @@ mod tests {
                             span: span.clone(),
                         },
                         init: Expr::Literal(Literal::Int(0), span.clone()),
+                        is_theme: false,
                     }],
                     computeds: vec![],
                     events: vec![],

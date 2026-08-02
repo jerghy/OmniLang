@@ -142,6 +142,7 @@ pub(crate) fn fixture_component() -> IRProgram {
 pub(crate) fn fixture_store() -> IRProgram {
     let store = StoreIR {
         name: "AppStore".into(),
+        theme_signal: None,
         signals: FxHashMap::from_iter([(
             "count".into(),
             TypeIR {
@@ -208,6 +209,7 @@ pub(crate) fn fixture_store() -> IRProgram {
 pub(crate) fn fixture_component_with_store() -> IRProgram {
     let store = StoreIR {
         name: "AppStore".into(),
+        theme_signal: None,
         signals: FxHashMap::from_iter([(
             "count".into(),
             TypeIR {

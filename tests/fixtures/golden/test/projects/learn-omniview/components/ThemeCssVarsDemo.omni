@@ -122,7 +122,7 @@ component ThemeCssVarsDemo {
                 <p class: hint>
                     Current: {ThemeStore.modeLabel} ·
                     Toggles: {ThemeStore.toggleCount} ·
-                    <code>@themes light, dark, sepia, highContrast</code>
+                    <code>@themes { light, dark, sepia, highContrast }</code>
                 </p>
             </div>
 

@@ -120,6 +120,7 @@ mod tests {
                             span: span.clone(),
                         },
                         init: Expr::Literal(Literal::Int(0), span.clone()),
+                        is_theme: false,
                     }],
                     computeds: vec![ComputedDecl {
                         name: "badComputed".into(),
@@ -206,6 +207,7 @@ mod tests {
                             span: span.clone(),
                         },
                         init: Expr::Literal(Literal::Int(0), span.clone()),
+                        is_theme: false,
                     }],
                     computeds: vec![ComputedDecl {
                         name: "doubled".into(),

@@ -10,17 +10,20 @@ use super::Expr;
 
 /// Top-level design block: `design AppDesign { ... }`
 ///
-/// Theme support:
-/// - `@themes light, dark;` declares theme names -> `themes`
+/// Theme support (v2 域 3, design D1):
+/// - `@themes { dark, light }` declares theme names -> `themes`
 /// - `@default-theme light;` sets the fallback -> `default_theme`
 /// - Tokens declare per-theme overrides via `TokenDef::theme_values`
+/// - A top-level store signal marked `@theme` is the current theme mode;
+///   the program-level `validate_theme` pass wires it into
+///   `DesignIR.theme_signal` (Task 4.1 → 4.2)
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct DesignDef {
     pub name: String,
     pub tokens: Vec<TokenDef>,
     pub classes: Vec<DesignClassDef>,
     pub variants: Vec<VariantDef>,
-    /// Themed variants declared via `@themes ...;` (e.g. `["light", "dark"]`).
+    /// Theme names declared via `@themes { ... }` (e.g. `["light", "dark"]`).
     #[serde(default)]
     pub themes: Vec<String>,
     /// Optional default theme name set via `@default-theme ...;`.

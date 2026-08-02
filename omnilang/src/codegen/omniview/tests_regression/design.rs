@@ -93,6 +93,7 @@ fn make_test_design() -> DesignIR {
     DesignIR {
         name: "AppDesign".to_string(),
         themes: vec![],
+        theme_signal: None,
         default_theme: None,
         tokens,
         classes,
@@ -157,6 +158,7 @@ fn emit_empty_design() {
     let design = DesignIR {
         name: "Empty".to_string(),
         themes: vec![],
+        theme_signal: None,
         default_theme: None,
         tokens: FxHashMap::default(),
         classes: vec![],
@@ -228,7 +230,10 @@ fn expand_variant_not_found() {
 fn emit_design_css_with_themes() {
     let mut tokens = FxHashMap::default();
     let mut theme_values_dark = FxHashMap::default();
-    theme_values_dark.insert("dark".to_string(), TokenValueIR::Static("#a5b4fc".to_string()));
+    theme_values_dark.insert(
+        "dark".to_string(),
+        TokenValueIR::Static("#a5b4fc".to_string()),
+    );
     tokens.insert(
         "primary".to_string(),
         TokenIR {
@@ -242,6 +247,7 @@ fn emit_design_css_with_themes() {
     let design = DesignIR {
         name: "AppDesign".to_string(),
         themes: vec!["light".to_string(), "dark".to_string()],
+        theme_signal: None,
         default_theme: Some("light".to_string()),
         tokens,
         classes: vec![],
@@ -278,6 +284,7 @@ fn emit_design_css_without_themes_unchanged() {
     let design = DesignIR {
         name: "Simple".to_string(),
         themes: vec![],
+        theme_signal: None,
         default_theme: None,
         tokens,
         classes: vec![],

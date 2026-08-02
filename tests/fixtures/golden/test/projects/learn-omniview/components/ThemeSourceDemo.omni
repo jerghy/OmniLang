@@ -26,7 +26,7 @@ component ThemeSourceDemo {
                 <div class: source-panel>
                     <h4 class: panel-title>Source</h4>
                     <pre class: code-block>
-                        @themes light, dark, sepia, highContrast;
+                        @themes { light, dark, sepia, highContrast }
                         @default-theme light;
                         token primary: color = "#6366f1"
                             dark "#a5b4fc"

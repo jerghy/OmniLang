@@ -1393,6 +1393,68 @@ mod roundtrip_tests {
         assert_eq!(comp.signals[0].name, "n");
     }
 
+    // ── @theme signal marker (v2 域 5: signal_decl ::= 'signal' ident ':' type ('@theme')? '=' expr) ──
+
+    #[test]
+    fn store_signal_theme_marker_parsed() {
+        let src = r#"store ThemeStore { signal mode: String @theme = "light"; }"#;
+        let tokens = tokenize(src);
+        let (program, errors) = parse(tokens, src);
+        assert!(
+            errors.is_empty(),
+            "expected clean parse, got: {:?}",
+            errors.iter().map(|e| &e.message).collect::<Vec<_>>()
+        );
+        let module = program.modules.get("input.omni").unwrap();
+        assert_eq!(module.stores.len(), 1);
+        let store = &module.stores[0];
+        assert_eq!(store.signals.len(), 1);
+        assert!(
+            store.signals[0].is_theme,
+            "mode signal should carry the @theme marker"
+        );
+    }
+
+    #[test]
+    fn store_signal_without_theme_marker_stays_false() {
+        let src = r#"store Counter { signal n: i32 = 0; }"#;
+        let tokens = tokenize(src);
+        let (program, errors) = parse(tokens, src);
+        assert!(errors.is_empty());
+        let module = program.modules.get("input.omni").unwrap();
+        assert!(!module.stores[0].signals[0].is_theme);
+    }
+
+    #[test]
+    fn component_signal_theme_marker_rejected() {
+        // @theme 仅允许顶层 store 的 signal —— 组件 signal 拒绝（解析期硬诊断）。
+        let src = r#"component X { signal mode: String @theme = "light"; view { <div/> } }"#;
+        let tokens = tokenize(src);
+        let (_, errors) = parse(tokens, src);
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.message.contains("@theme 标记仅允许顶层 store")),
+            "component signal with @theme must error, got: {:?}",
+            errors.iter().map(|e| &e.message).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn inline_store_signal_theme_marker_rejected() {
+        // 内联 store 的 signal 被扁平化为组件级声明，无法保留 @theme 语义 —— 拒绝。
+        let src = r#"component X { store Local { signal mode: String @theme = "light"; } view { <div/> } }"#;
+        let tokens = tokenize(src);
+        let (_, errors) = parse(tokens, src);
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.message.contains("@theme 标记仅允许顶层 store")),
+            "inline store signal with @theme must error, got: {:?}",
+            errors.iter().map(|e| &e.message).collect::<Vec<_>>()
+        );
+    }
+
     #[test]
     fn bare_store_reference_not_recorded_as_inline() {
         // `store Name;` without a body is a module-level store reference,

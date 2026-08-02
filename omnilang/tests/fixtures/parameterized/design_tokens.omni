@@ -5,7 +5,7 @@
 import omniview;
 
 design AppDesign {
-    @themes light, dark;
+    @themes { light, dark }
     @default-theme light;
 
     token primary: color = "#6366F1" dark "#A5B4FC";

@@ -1595,6 +1595,7 @@ fn test_theme_runtime_emitted_when_design_has_themes() {
     let design = DesignIR {
         name: "AppDesign".to_string(),
         themes: vec!["light".to_string(), "dark".to_string()],
+        theme_signal: None,
         default_theme: Some("light".to_string()),
         tokens,
         classes: vec![],
@@ -1646,6 +1647,7 @@ fn test_theme_runtime_not_emitted_without_themes() {
     let design = DesignIR {
         name: "SimpleDesign".to_string(),
         themes: vec![],
+        theme_signal: None,
         default_theme: None,
         tokens: FxHashMap::default(),
         classes: vec![],

@@ -57,7 +57,7 @@ pub fn parse_design_body(input: &str, design_tokens: &[Token]) -> ParseResult<De
     while !remaining.is_empty() {
         remaining = skip_ws_and_comments(remaining);
 
-        if remaining.starts_with("@themes ") {
+        if remaining.starts_with("@themes") {
             let (t, rest) = parse_themes_directive(remaining)?;
             themes = t;
             remaining = rest;
@@ -164,26 +164,57 @@ fn parse_token<'a>(
     ))
 }
 
-/// Parse `@themes light, dark;` — comma-separated theme name list.
+/// Parse `@themes { dark, light }` — comma-separated theme name list.
+///
+/// v2 BNF (设计文档 域 3): `themes_decl ::= '@themes' '{' ident (',' ident)* '}'`.
+/// The v1 `@themes light, dark;` (semicolon-terminated) form is replaced and
+/// hard-errors with a migration hint. An empty `@themes { }` hard-errors
+/// here (「@themes 声明不能为空」) because the IR cannot distinguish an
+/// explicit empty declaration from no declaration.
 fn parse_themes_directive(input: &str) -> ParseResult<(Vec<String>, &str)> {
     let rest = input
-        .strip_prefix("@themes ")
+        .strip_prefix("@themes")
         .ok_or_else(|| err("expected '@themes'"))?;
+    let rest = rest
+        .trim_start()
+        .strip_prefix('{')
+        .ok_or_else(|| err("expected '{' after '@themes'（v2 语法：@themes { light, dark }）"))?
+        .trim_start();
     let mut themes = Vec::new();
-    let mut remaining = rest.trim_start();
+    let mut remaining = rest;
+
+    // (f) empty `@themes { }` — hard error. The IR cannot distinguish an
+    // explicit empty declaration from no declaration (`themes: []` in both
+    // cases), so the check lives here where the source shape is visible.
+    if remaining.starts_with('}') {
+        return Err(err_at(input, remaining, "@themes 声明不能为空"));
+    }
 
     loop {
-        if remaining.starts_with(';') {
-            remaining = &remaining[1..];
+        if let Some(rest) = remaining.strip_prefix('}') {
+            remaining = rest;
             break;
         }
-        if remaining.starts_with(',') {
-            remaining = remaining[1..].trim_start();
+        let (name, after) = parse_ident(remaining)?;
+        themes.push(name);
+        let after = after.trim_start();
+        if let Some(rest) = after.strip_prefix(',') {
+            remaining = rest.trim_start();
+            if remaining.starts_with('}') {
+                // Trailing comma — not part of `ident (',' ident)*`.
+                return Err(err_at(input, remaining, "trailing ',' in @themes"));
+            }
             continue;
         }
-        let (name, rest) = parse_ident(remaining)?;
-        themes.push(name);
-        remaining = rest.trim_start();
+        if let Some(rest) = after.strip_prefix('}') {
+            remaining = rest;
+            break;
+        }
+        return Err(err_at(
+            input,
+            remaining,
+            "expected ',' or '}' in @themes declaration",
+        ));
     }
 
     Ok((themes, remaining))
@@ -979,9 +1010,10 @@ mod tests {
     }
 
     #[test]
-    fn parse_themes_directive() {
+    fn parse_themes_brace_form() {
+        // v2 BNF (设计文档 域 3): themes_decl ::= '@themes' '{' ident (',' ident)* '}'
         let src = r##"
-            @themes light, dark;
+            @themes { light, dark }
             token primary: color = "#6366f1";
         "##;
         let result = parse_design_body(src, &[]).unwrap();
@@ -990,9 +1022,69 @@ mod tests {
     }
 
     #[test]
+    fn parse_themes_single_theme() {
+        let src = r#"@themes { dark }"#;
+        let result = parse_design_body(src, &[]).unwrap();
+        assert_eq!(result.themes, vec!["dark"]);
+    }
+
+    #[test]
+    fn parse_themes_rejects_old_semicolon_form() {
+        // v1 `@themes light, dark;` is replaced by the brace form; the old
+        // form must hard-error (迁移提示 in the message).
+        let src = r#"@themes light, dark;"#;
+        let err = parse_design_body(src, &[]).unwrap_err();
+        assert!(
+            err.message.contains("@themes { light, dark }"),
+            "should carry the v2 migration hint, got: {}",
+            err.message
+        );
+    }
+
+    #[test]
+    fn parse_themes_empty_braces_rejected() {
+        // (f) empty @themes — hard parse error (the IR cannot distinguish an
+        // explicit empty declaration from no declaration).
+        let src = r#"@themes { }"#;
+        let err = parse_design_body(src, &[]).unwrap_err();
+        assert!(
+            err.message.contains("不能为空"),
+            "empty @themes must error, got: {}",
+            err.message
+        );
+    }
+
+    #[test]
+    fn parse_themes_trailing_comma_rejected() {
+        let src = r#"@themes { dark, }"#;
+        assert!(
+            parse_design_body(src, &[]).is_err(),
+            "trailing comma is not part of the BNF"
+        );
+    }
+
+    #[test]
+    fn parse_themes_missing_comma_rejected() {
+        let src = r#"@themes { dark light }"#;
+        assert!(
+            parse_design_body(src, &[]).is_err(),
+            "theme names must be comma-separated"
+        );
+    }
+
+    #[test]
+    fn parse_themes_missing_brace_rejected() {
+        let src = r#"@themes dark"#;
+        assert!(
+            parse_design_body(src, &[]).is_err(),
+            "@themes requires the {{ ... }} block"
+        );
+    }
+
+    #[test]
     fn parse_default_theme_directive() {
         let src = r##"
-            @themes light, dark;
+            @themes { light, dark }
             @default-theme light;
             token primary: color = "#6366f1";
         "##;

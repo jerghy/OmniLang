@@ -1,0 +1,24 @@
+// themes.omni — v2 域 3/域 5 (D1 语法层) 主题系统 fixture。
+//
+// 语义（设计文档 2026-08-02-semantic-syntax-v2-design.md 域 3）：
+//   1. `@themes { dark, light }` 在 design 块内声明主题集合
+//      (themes_decl ::= '@themes' '{' ident (',' ident)* '}')
+//   2. 顶层 store 的 `signal mode: String @theme` 标记 = 当前主题模式
+//      (theme_signal ::= 'signal' ident ':' 'String' '@theme')
+//
+// 编译产物契约（wiring-ready IR shape）：
+//   DesignIR { themes: ["dark", "light"], theme_signal: Some("ThemeStore.mode") }
+// 编译器接线（订阅 @theme 信号 → data-theme / ThemeMode）由 Task 4.2 实现。
+
+import omniview;
+
+design AppDesign {
+    @themes { dark, light }
+    @default-theme light;
+
+    token primary: color = "#6366f1" dark "#a5b4fc";
+}
+
+store ThemeStore {
+    signal mode: String @theme = "light";
+}

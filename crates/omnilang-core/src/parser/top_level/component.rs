@@ -31,7 +31,11 @@ impl<'a> Parser<'a> {
         while *self.peek_kind() != TokenKind::RBrace && *self.peek_kind() != TokenKind::Eof {
             match self.peek_kind() {
                 TokenKind::Prop => props.push(self.parse_prop_decl()?),
-                TokenKind::Signal => signals.push(self.parse_signal_decl()?),
+                TokenKind::Signal => {
+                    let sig = self.parse_signal_decl()?;
+                    self.reject_theme_marker(&sig)?;
+                    signals.push(sig);
+                }
                 TokenKind::Computed => computeds.push(self.parse_computed_decl()?),
                 TokenKind::Event => events.push(self.parse_event_decl()?),
                 TokenKind::Ref => refs.push(self.parse_ref_decl()?),
@@ -58,6 +62,7 @@ impl<'a> Parser<'a> {
                             match self.peek_kind() {
                                 TokenKind::Signal => {
                                     let sig = self.parse_signal_decl()?;
+                                    self.reject_theme_marker(&sig)?;
                                     signals.push(sig);
                                 }
                                 TokenKind::Action => {
@@ -146,6 +151,7 @@ impl<'a> Parser<'a> {
                             },
                         },
                         init: value,
+                        is_theme: false,
                     });
                 }
                 TokenKind::Async => {
@@ -250,6 +256,16 @@ impl<'a> Parser<'a> {
         let name = self.expect_ident("expected signal name")?;
         self.expect_token(TokenKind::Colon, "expected ':'")?;
         let type_ann = self.parse_type_annotation()?;
+        // v2 域 5 (design D1): `signal mode: String @theme = "light";`
+        // — the @theme marker sits between the type and the initializer
+        // (theme_signal ::= 'signal' ident ':' 'String' '@theme').
+        // The lexer produces Ident("@theme") for unknown @-words.
+        let is_theme = if matches!(self.peek_kind(), TokenKind::Ident(k) if k == "@theme") {
+            self.advance();
+            true
+        } else {
+            false
+        };
         self.expect_token(TokenKind::Eq, "expected '='")?;
         let init = self.parse_expr()?;
         if *self.peek_kind() == TokenKind::Semicolon {
@@ -259,7 +275,26 @@ impl<'a> Parser<'a> {
             name,
             type_ann,
             init,
+            is_theme,
         })
+    }
+
+    /// Reject the `@theme` marker outside top-level stores.
+    ///
+    /// v2 域 5 决策：@theme 是「当前主题模式」标记，语义上绑定到顶层 store
+    /// 的 signal（编译器需要按 store 查找并订阅）。组件 signal 与内联 store
+    /// signal（解析期扁平化为组件级声明，无法保留 @theme 语义）一律硬诊断。
+    fn reject_theme_marker(&self, sig: &SignalDecl) -> Result<(), ParseError> {
+        if sig.is_theme {
+            return Err(ParseError {
+                kind: None,
+                message: "@theme 标记仅允许顶层 store 的 signal——将主题信号放在顶层 store 中 \
+                     （store ThemeStore { signal mode: String @theme = \"light\"; }）"
+                    .to_string(),
+                span: self.peek_span(),
+            });
+        }
+        Ok(())
     }
 
     fn parse_computed_decl(&mut self) -> Result<ComputedDecl, ParseError> {

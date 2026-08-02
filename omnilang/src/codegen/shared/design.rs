@@ -324,6 +324,7 @@ mod tests {
         DesignIR {
             name: "AppDesign".to_string(),
             themes: vec![],
+            theme_signal: None,
             default_theme: None,
             tokens,
             classes,
@@ -376,6 +377,7 @@ mod tests {
         let design = DesignIR {
             name: "Empty".to_string(),
             themes: vec![],
+            theme_signal: None,
             default_theme: None,
             tokens: FxHashMap::default(),
             classes: vec![],

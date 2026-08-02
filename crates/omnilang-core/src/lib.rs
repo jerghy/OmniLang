@@ -112,6 +112,11 @@ pub fn run_pipeline(source: &str) -> PipelineOutput {
     diagnostics.extend(std::mem::take(&mut semantics.diagnostics));
     crate::ir::optimize::optimize(&mut ir);
 
+    // Program-level theme validation (@themes ↔ @theme pairing, design D1).
+    // Runs on the full IR so cross-file pairing (design.omni +
+    // ThemeStore.omni) is visible; also populates DesignIR.theme_signal.
+    crate::semantic::validate_theme::validate_theme(&mut ir, &mut diagnostics);
+
     // Phase: lint rules (same 10 rules as `analyse_multi`, so single-file
     // paths — compile(), compile_omniview(), resolve_styles() — see the
     // same diagnostics as multi-file analysis). Lint warnings fold into

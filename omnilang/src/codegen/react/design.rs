@@ -779,6 +779,7 @@ mod tests {
         DesignIR {
             name: "AppDesign".to_string(),
             themes: vec!["light".to_string(), "dark".to_string()],
+            theme_signal: None,
             default_theme: Some("light".to_string()),
             tokens,
             classes: vec![crate::ir::design::ClassIR {

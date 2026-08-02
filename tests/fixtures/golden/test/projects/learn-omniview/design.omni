@@ -21,7 +21,7 @@ const TOKEN_SPACING = "16px";
 
 design LearnDesign {
     // ── 主题声明 ──
-    @themes light, dark, sepia, highContrast;
+    @themes { light, dark, sepia, highContrast }
     @default-theme light;
 
     // ═══════════════════════════════════════════════════════════

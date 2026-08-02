@@ -354,6 +354,24 @@ pub(super) fn lower_store(
         })
         .collect();
 
+    // v2 域 5 (design D1): the @theme-marked signal is THE current theme mode.
+    // At most one per store by construction (single Option field); the
+    // program-level validate_theme pass enforces at most one per program.
+    // Same-store duplicates are invisible to that pass (the Option only
+    // carries one name), so they hard-error here during lowering.
+    let theme_signals: Vec<&SignalDecl> = store.signals.iter().filter(|s| s.is_theme).collect();
+    for dup in theme_signals.iter().skip(1) {
+        semantics.diagnostics.push(crate::error::Diagnostic::error(
+            crate::error::DiagnosticKind::E0006,
+            &format!(
+                "重复 @theme 信号：'{}.{}'（一个程序只能有一个当前主题；删除多余的 @theme 标记）",
+                store.name, dup.name
+            ),
+            &store.span,
+        ));
+    }
+    let theme_signal = theme_signals.first().map(|s| s.name.clone());
+
     let getters: FxHashMap<String, ExprIR> = store
         .getters
         .iter()
@@ -403,6 +421,7 @@ pub(super) fn lower_store(
     StoreIR {
         name: store.name.clone(),
         source_file: None,
+        theme_signal,
         signals,
         signal_defaults,
         getters,

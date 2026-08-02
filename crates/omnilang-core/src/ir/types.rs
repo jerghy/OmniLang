@@ -922,6 +922,13 @@ pub struct StoreIR {
     /// Populated during multi-file compilation; used by codegen for output directory structure.
     #[serde(default)]
     pub source_file: Option<String>,
+    /// Name of the signal marked `@theme` (v2 域 5, design D1) — THE current
+    /// theme mode of the program. `None` when no signal in this store carries
+    /// the marker. Populated during lowering from the AST marker; the
+    /// program-level `validate_theme` pass wires it into
+    /// `DesignIR.theme_signal` (`"StoreName.signalName"`).
+    #[serde(default)]
+    pub theme_signal: Option<String>,
     pub signals: FxHashMap<String, TypeIR>,
     pub signal_defaults: FxHashMap<String, serde_json::Value>,
     pub getters: FxHashMap<String, ExprIR>,

@@ -66,6 +66,12 @@ pub struct SignalDecl {
     pub name: String,
     pub type_ann: TypeAnnotation,
     pub init: Expr,
+    /// `@theme` marker (v2 域 5, design D1): the signal is THE current theme
+    /// mode — `signal mode: String @theme = "light";`. Only allowed on
+    /// top-level store signals (enforced at parse time); the program-level
+    /// `validate_theme` pass wires it into `DesignIR.theme_signal`.
+    #[serde(default)]
+    pub is_theme: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]

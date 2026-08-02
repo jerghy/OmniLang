@@ -1113,6 +1113,48 @@ fn store_bnf_fixture_fn_members_error_at_both_levels() {
     );
 }
 
+/// (T4.1) themes.omni — v2 域 3/域 5 (D1 语法层) 主题系统 fixture：
+/// `@themes { dark, light }` 声明 + `@theme` 信号标记，全管线编译后
+/// DesignIR.theme_signal 必须被接线（wiring-ready IR shape）。
+const THEMES_FIXTURE: &str = include_str!("../fixtures/themes.omni");
+
+#[test]
+fn themes_fixture_wires_theme_signal_through_pipeline() {
+    let mut sources = FxHashMap::default();
+    sources.insert("themes.omni".to_string(), THEMES_FIXTURE.to_string());
+    let path_mapping = FxHashMap::default();
+    let out = omnilang_core::analyse::analyse_multi(&sources, &path_mapping);
+    assert!(out.success, "themes.omni must compile cleanly");
+    assert!(
+        out.diagnostics.is_empty(),
+        "themes.omni must be diagnostic-free, got: {:?}",
+        out.diagnostics
+            .iter()
+            .map(|d| &d.message)
+            .collect::<Vec<_>>()
+    );
+
+    let ir = out.ir.expect("should have IR");
+    let module = ir.modules.get("input.omni").unwrap();
+    let design = module
+        .designs
+        .iter()
+        .find(|d| d.name == "AppDesign")
+        .expect("should have AppDesign");
+    assert_eq!(design.themes, vec!["dark", "light"]);
+    assert_eq!(
+        design.theme_signal.as_deref(),
+        Some("ThemeStore.mode"),
+        "the @theme-marked store signal must be wired into DesignIR.theme_signal"
+    );
+    assert_eq!(design.default_theme.as_deref(), Some("light"));
+    let store = module
+        .stores
+        .get("ThemeStore")
+        .expect("should have ThemeStore");
+    assert_eq!(store.theme_signal.as_deref(), Some("mode"));
+}
+
 /// (B) Full-pipeline M2: `count = count + step` must emit the functional
 /// updater; `count = 0` (no self-read) must keep the direct setter form.
 const M2_SELF_READ_FIXTURE: &str = r##"
