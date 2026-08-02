@@ -121,6 +121,8 @@ pub enum DiagnosticKind {
     ECycle,
     #[error("code generation error")]
     ECodegen,
+    #[error("closure syntax error")]
+    EClosureArrow,
     #[error("omniview warning")]
     WOmniviewMarker,
     #[error("motion warning")]
@@ -150,6 +152,7 @@ impl DiagnosticKind {
             Self::EBoundary => "E_BOUNDARY",
             Self::ECycle => "E_CYCLE",
             Self::ECodegen => "E_CODEGEN",
+            Self::EClosureArrow => "E_CLOSURE_ARROW",
             Self::WOmniviewMarker => "W_OMNIVIEW_MARKER",
             Self::WMotion => "W0001",
             Self::ELint(_) => "E_LINT",
@@ -192,6 +195,7 @@ impl<'de> Deserialize<'de> for DiagnosticKind {
                     "E_BOUNDARY" => Ok(DiagnosticKind::EBoundary),
                     "E_CYCLE" => Ok(DiagnosticKind::ECycle),
                     "E_CODEGEN" => Ok(DiagnosticKind::ECodegen),
+                    "E_CLOSURE_ARROW" => Ok(DiagnosticKind::EClosureArrow),
                     "W_OMNIVIEW_MARKER" => Ok(DiagnosticKind::WOmniviewMarker),
                     "W0001" => Ok(DiagnosticKind::WMotion),
                     "E_LINT" => Ok(DiagnosticKind::ELint("E_LINT".into())),
@@ -435,11 +439,29 @@ fn edit_distance(a: &str, b: &str) -> usize {
 pub struct ParseError {
     pub message: String,
     pub span: Span,
+    /// Typed diagnostic kind for this parse error (e.g. `EClosureArrow`).
+    /// `None` maps to `E0001` when converted to a `Diagnostic`.
+    #[serde(skip)]
+    pub kind: Option<DiagnosticKind>,
+}
+
+impl ParseError {
+    /// Construct a typed parse error — `kind` is carried into the
+    /// `Diagnostic` at conversion (untyped errors stay `E0001`).
+    #[must_use]
+    pub fn with_kind(kind: DiagnosticKind, message: impl Into<String>, span: Span) -> Self {
+        Self {
+            message: message.into(),
+            span,
+            kind: Some(kind),
+        }
+    }
 }
 
 impl From<ParseError> for Diagnostic {
     fn from(e: ParseError) -> Self {
-        Diagnostic::error(DiagnosticKind::E0001, &e.message, &e.span)
+        let kind = e.kind.unwrap_or(DiagnosticKind::E0001);
+        Diagnostic::error(kind, &e.message, &e.span)
     }
 }
 
@@ -555,6 +577,44 @@ mod tests {
             let json = serde_json::to_value(DiagnosticJson::from(&d)).unwrap();
             assert_eq!(json["severity"], expected);
         }
+    }
+
+    #[test]
+    fn closure_arrow_code_registered_and_carried() {
+        // E_CLOSURE_ARROW must be a registered diagnostic code: code_str,
+        // serde round-trip, and ParseError → Diagnostic propagation.
+        assert_eq!(DiagnosticKind::EClosureArrow.code_str(), "E_CLOSURE_ARROW");
+        let json = serde_json::to_value(DiagnosticKind::EClosureArrow).unwrap();
+        assert_eq!(json, "E_CLOSURE_ARROW");
+        let back: DiagnosticKind = serde_json::from_value(json).unwrap();
+        assert_eq!(back, DiagnosticKind::EClosureArrow);
+
+        let diag: Diagnostic = ParseError::with_kind(
+            DiagnosticKind::EClosureArrow,
+            "通用闭包用管道 |x|；箭头仅用于事件内联",
+            Span {
+                start: 0,
+                end: 2,
+                line: 1,
+                col: 1,
+            },
+        )
+        .into();
+        assert_eq!(diag.kind, DiagnosticKind::EClosureArrow);
+        assert!(diag.message.contains("|x|"));
+        // Untyped ParseErrors still map to E0001.
+        let plain: Diagnostic = ParseError {
+            message: "generic".into(),
+            span: Span {
+                start: 0,
+                end: 1,
+                line: 1,
+                col: 1,
+            },
+            kind: None,
+        }
+        .into();
+        assert_eq!(plain.kind, DiagnosticKind::E0001);
     }
 
     #[test]

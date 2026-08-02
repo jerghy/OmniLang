@@ -10,7 +10,7 @@
 //!   7  !, - (unary)                 prefix
 //!   8  .method(), [idx], () (call)  postfix
 
-use crate::error::ParseError;
+use crate::error::{DiagnosticKind, ParseError};
 use crate::lexer::{Span, TokenKind};
 use crate::parser::ast::*;
 use crate::parser::Parser;
@@ -68,6 +68,14 @@ impl<'a> Parser<'a> {
         let mut left = self.parse_prefix()?;
 
         loop {
+            // '=>' in a general expression position is rejected with a
+            // migration hint — pipe closures |x| are the only general
+            // closure form. Match-arm arrows and inline event handler
+            // arrows are consumed directly by their own parsers and never
+            // reach this loop (see parse_prefix Match / parse_event_handler_value).
+            if self.at(&TokenKind::FatArrow) {
+                return Err(self.closure_arrow_error(self.peek_span()));
+            }
             let bp = self.infix_bp();
             // (0, 0) means "not an infix operator" — break
             if bp == (0, 0) || bp.0 < min_bp {
@@ -76,6 +84,16 @@ impl<'a> Parser<'a> {
             left = self.parse_infix(left, bp)?;
         }
         Ok(left)
+    }
+
+    /// E_CLOSURE_ARROW: '=>' found in a general expression position
+    /// (design doc 域 8 — `closure_expr ::= '|' params '|' expr`).
+    fn closure_arrow_error(&self, span: Span) -> ParseError {
+        ParseError::with_kind(
+            DiagnosticKind::EClosureArrow,
+            "通用闭包用管道 |x|；箭头仅用于事件内联",
+            span,
+        )
     }
 
     /// Parse struct literal fields after `TypeName {`.
@@ -91,6 +109,7 @@ impl<'a> Parser<'a> {
                     TokenKind::Ident(name) => name,
                     other => {
                         return Err(ParseError {
+                            kind: None,
                             message: format!(
                                 "Expected field name in struct literal, got {:?}",
                                 other
@@ -145,6 +164,7 @@ impl<'a> Parser<'a> {
                                 bindings.push(b);
                             } else {
                                 return Err(ParseError {
+                                    kind: None,
                                     message: "expected binding name in pattern".into(),
                                     span: self.peek().span,
                                 });
@@ -196,6 +216,7 @@ impl<'a> Parser<'a> {
                 span,
             }),
             other => Err(ParseError {
+                kind: None,
                 message: format!("unexpected token in match pattern: {:?}", other),
                 span,
             }),
@@ -237,6 +258,7 @@ impl<'a> Parser<'a> {
         let t = self.peek();
         if t.kind != expected {
             return Err(ParseError {
+                kind: None,
                 message: format!("{} — found {:?}", msg, t.kind),
                 span: t.span,
             });

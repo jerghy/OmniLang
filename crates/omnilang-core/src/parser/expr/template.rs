@@ -44,6 +44,7 @@ pub(super) fn parse_template_parts(
             }
             if depth != 0 {
                 return Err(ParseError {
+                    kind: None,
                     message: "Unterminated template expression".into(),
                     span: Span {
                         start: base_span.start + expr_start,
@@ -56,6 +57,7 @@ pub(super) fn parse_template_parts(
             let expr_str = s[expr_start..i].trim();
             if expr_str.is_empty() {
                 return Err(ParseError {
+                    kind: None,
                     message: "Empty template expression".into(),
                     span: Span {
                         start: base_span.start + expr_start,
@@ -68,6 +70,7 @@ pub(super) fn parse_template_parts(
 
             // Parse the expression string
             let expr = parse_simple_template_expr(expr_str).map_err(|e| ParseError {
+                kind: None,
                 message: format!("In template expression '{}': {}", expr_str, e),
                 span: Span {
                     start: base_span.start + expr_start,

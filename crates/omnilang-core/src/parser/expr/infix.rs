@@ -133,6 +133,7 @@ impl<'a> Parser<'a> {
                         }
                     }
                     _ => Err(ParseError {
+                        kind: None,
                         message: "Expected field name after '.'".into(),
                         span: next.span,
                     }),
@@ -156,6 +157,7 @@ impl<'a> Parser<'a> {
                         },
                     }),
                     _ => Err(ParseError {
+                        kind: None,
                         message: "Expected field name after '?.'".into(),
                         span: next.span,
                     }),
@@ -184,6 +186,7 @@ impl<'a> Parser<'a> {
                 })
             }
             _ => Err(ParseError {
+                kind: None,
                 message: format!("Unexpected infix token: {:?}", t.kind),
                 span,
             }),

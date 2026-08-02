@@ -444,6 +444,7 @@ impl<'a> Parser<'a> {
                 }
                 if self.at(&TokenKind::Eof) {
                     return Err(ParseError {
+                        kind: None,
                         message: "unterminated HTML comment, expected '-->'".into(),
                         span: self.peek_span(),
                     });
@@ -538,7 +539,7 @@ impl<'a> Parser<'a> {
                 // "Unexpected token in element props" error.
                 TokenKind::AtHero => {
                     let t = self.advance();
-                    return Err(ParseError {
+                    return Err(ParseError { kind: None,
                         message: "hero transitions are not supported — '@hero' was removed in the semantic DSL (ADR-032/053); use @enter/@hover/@press/@focus/@in-view/@scroll/@drag-* triggers instead"
                             .into(),
                         span: t.span,
@@ -552,6 +553,7 @@ impl<'a> Parser<'a> {
                 _ => {
                     let t = self.advance();
                     return Err(ParseError {
+                        kind: None,
                         message: format!("Unexpected token in element props: {:?}", t.kind),
                         span: t.span,
                     });

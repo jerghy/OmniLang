@@ -61,6 +61,7 @@ impl<'a> Parser<'a> {
         self.depth += 1;
         if self.depth > MAX_RECURSION_DEPTH {
             return Err(ParseError {
+                kind: None,
                 message: format!(
                     "maximum recursion depth ({}) exceeded — input may be too deeply nested",
                     MAX_RECURSION_DEPTH
@@ -151,6 +152,7 @@ impl<'a> Parser<'a> {
         match &t.kind {
             TokenKind::StringLiteral(s) => Ok(s.clone()),
             _ => Err(ParseError {
+                kind: None,
                 message: format!("{} — found {:?}", msg, t.kind),
                 span: t.span,
             }),
@@ -160,6 +162,7 @@ impl<'a> Parser<'a> {
     /// Construct a ParseError at the current peek position.
     pub fn error(&self, msg: impl Into<String>) -> ParseError {
         ParseError {
+            kind: None,
             message: msg.into(),
             span: self.peek_span(),
         }
@@ -1372,13 +1375,21 @@ mod roundtrip_tests {
         let comp = component_def(
             "component X { store Local { signal n: i32 = 0 } @store External; view { <div>{Local.n}</div> } }",
         );
-        assert_eq!(comp.inline_stores, vec!["Local"], "inline store name recorded");
+        assert_eq!(
+            comp.inline_stores,
+            vec!["Local"],
+            "inline store name recorded"
+        );
         assert_eq!(
             comp.store_refs,
             vec!["Local", "External"],
             "inline stores and references both stay in store_refs"
         );
-        assert_eq!(comp.signals.len(), 1, "inline store signal flattened into component");
+        assert_eq!(
+            comp.signals.len(),
+            1,
+            "inline store signal flattened into component"
+        );
         assert_eq!(comp.signals[0].name, "n");
     }
 

@@ -434,6 +434,7 @@ impl<'a> Parser<'a> {
 
         if catch_body.is_none() && finally_body.is_none() {
             return Err(ParseError {
+                kind: None,
                 message: "expected 'catch' or 'finally' after 'try'".into(),
                 span: self.peek_span(),
             });
@@ -483,6 +484,7 @@ impl<'a> Parser<'a> {
         let t = self.peek();
         if t.kind != expected {
             return Err(ParseError {
+                kind: None,
                 message: format!("{} — found {:?}", msg, t.kind),
                 span: t.span,
             });
@@ -522,6 +524,7 @@ impl<'a> Parser<'a> {
                     return Ok(name.to_string());
                 }
                 Err(ParseError {
+                    kind: None,
                     message: format!("{} — found {:?}", msg, t.kind),
                     span: t.span,
                 })

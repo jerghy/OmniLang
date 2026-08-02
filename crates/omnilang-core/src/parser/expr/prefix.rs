@@ -272,7 +272,14 @@ impl<'a> Parser<'a> {
                 })
             }
 
+            // '=>' at the start of an expression — rejected with a migration
+            // hint (pipe closures |x| are the only general closure form;
+            // match-arm and inline-event-handler arrows are consumed by
+            // their own parsers and never reach this prefix position).
+            TokenKind::FatArrow => Err(self.closure_arrow_error(t.span)),
+
             _ => Err(ParseError {
+                kind: None,
                 message: format!("Unexpected token in expression: {:?}", t.kind),
                 span,
             }),
@@ -349,5 +356,102 @@ impl<'a> Parser<'a> {
         }
         self.expect_close(TokenKind::RBrace, "expected '}'")?;
         Ok(entries)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lexer::tokenize;
+    use crate::parser::parse;
+
+    /// Parse a standalone expression via the parser entry point.
+    fn parse_expr(src: &str) -> Result<Expr, ParseError> {
+        let tokens = tokenize(src);
+        let mut p = Parser::new(tokens, src);
+        p.parse_expr()
+    }
+
+    /// Parse a full source module and return the collected parse errors.
+    fn parse_src(src: &str) -> Vec<ParseError> {
+        let (_, errors) = parse(tokenize(src), src);
+        errors
+    }
+
+    // ════════════════════════════════════════════════════════
+    // Closure semantics unification (design doc 域 8 / task 1.1):
+    // pipe closures |x| are the ONLY general closure form; fat-arrow
+    // '=>' is rejected in general expression positions with a migration
+    // hint (legal only in match arms and inline event handlers).
+    // ════════════════════════════════════════════════════════
+
+    #[test]
+    fn fat_arrow_rejected_in_general_expressions() {
+        let err = parse_expr("items.filter(item => item.done)").unwrap_err();
+        assert!(
+            err.message.contains("|x|"),
+            "must hint pipe closure: {}",
+            err.message
+        );
+    }
+
+    #[test]
+    fn pipe_closure_parses() {
+        assert!(parse_expr("items.filter(|item| item.done)").is_ok());
+    }
+
+    #[test]
+    fn fat_arrow_rejected_at_expression_start() {
+        let err = parse_expr("=> 5").unwrap_err();
+        assert!(
+            err.message.contains("|x|"),
+            "must hint pipe closure: {}",
+            err.message
+        );
+    }
+
+    #[test]
+    fn fat_arrow_rejected_in_assignment_rhs() {
+        // Before the fix this silently parsed as `f = x` and left `=> x + 1`
+        // dangling — now the '=>' must be rejected with the migration hint.
+        let err = parse_expr("f = x => x + 1").unwrap_err();
+        assert!(
+            err.message.contains("|x|"),
+            "must hint pipe closure: {}",
+            err.message
+        );
+    }
+
+    #[test]
+    fn match_arm_fat_arrow_still_parses() {
+        // Regression: the match parser consumes '=>' directly (not via the
+        // general expression path) — multi-arm matches must keep working.
+        assert!(parse_expr("match x { \"a\" => 1, \"b\" => 2 }").is_ok());
+    }
+
+    #[test]
+    fn event_inline_fat_arrow_still_parses() {
+        // Regression: inline event handlers @onPress={() => { ... }} consume
+        // '=>' directly in parse_event_handler_value — must not hit the
+        // general-position rejection. (@press is a motion trigger, so the
+        // event form is the on-prefixed name.)
+        let src = r#"component App { view { <button @onPress={() => { msg = "x" }} /> } }"#;
+        let errors = parse_src(src);
+        assert!(
+            errors.is_empty(),
+            "unexpected parse errors: {:?}",
+            errors.iter().map(|e| &e.message).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn event_inline_fat_arrow_with_param_still_parses() {
+        let src = r#"component App { view { <button @onPress={(e) => { msg = e.x }} /> } }"#;
+        let errors = parse_src(src);
+        assert!(
+            errors.is_empty(),
+            "unexpected parse errors: {:?}",
+            errors.iter().map(|e| &e.message).collect::<Vec<_>>()
+        );
     }
 }

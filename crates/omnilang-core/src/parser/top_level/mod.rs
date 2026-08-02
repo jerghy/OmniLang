@@ -95,6 +95,7 @@ impl<'a> Parser<'a> {
                             _ => {
                                 let t = self.advance();
                                 return Err(ParseError {
+                                    kind: None,
                                     message: format!(
                                         "Expected fn, struct, or type after 'pub', got {:?}",
                                         t.kind
@@ -166,6 +167,7 @@ impl<'a> Parser<'a> {
                     _ => {
                         let t = self.advance();
                         return Err(ParseError {
+                            kind: None,
                             message: format!("Unexpected token at top level: {:?}", t.kind),
                             span: t.span,
                         });

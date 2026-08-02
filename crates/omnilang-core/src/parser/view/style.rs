@@ -228,6 +228,7 @@ impl<'a> Parser<'a> {
                                 }
                                 _ => {
                                     return Err(ParseError {
+                                        kind: None,
                                         message: format!(
                                             "Unexpected token after '#' in color value: {:?}",
                                             next_t.kind
@@ -261,6 +262,7 @@ impl<'a> Parser<'a> {
                         }
                         _ => {
                             return Err(ParseError {
+                                kind: None,
                                 message: format!("Unexpected style value: {:?}", t.kind),
                                 span: t.span,
                             })
@@ -431,6 +433,7 @@ impl<'a> Parser<'a> {
                             }
                             _ => {
                                 return Err(ParseError {
+                                    kind: None,
                                     message: format!(
                                         "Unexpected token after '#' in color value: {:?}",
                                         next_t.kind
@@ -464,6 +467,7 @@ impl<'a> Parser<'a> {
                     }
                     _ => {
                         return Err(ParseError {
+                            kind: None,
                             message: format!("Unexpected style value: {:?}", t.kind),
                             span: t.span,
                         })

@@ -24,6 +24,7 @@ impl<'a> Parser<'a> {
                 _ => {
                     let t = self.advance();
                     return Err(ParseError {
+                        kind: None,
                         message: format!("Unexpected token in store: {:?}", t.kind),
                         span: t.span,
                     });

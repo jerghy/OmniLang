@@ -112,6 +112,7 @@ impl<'a> Parser<'a> {
                             TokenKind::Null => Expr::Literal(Literal::Null, t.span),
                             _ => {
                                 return Err(ParseError {
+                                    kind: None,
                                     message: format!(
                                         "Expected literal value for const, got {:?}",
                                         t.kind
@@ -153,6 +154,7 @@ impl<'a> Parser<'a> {
                 TokenKind::View => {
                     if view.is_some() {
                         return Err(ParseError {
+                            kind: None,
                             message: "Duplicate view block".into(),
                             span: self.peek_span(),
                         });
@@ -178,6 +180,7 @@ impl<'a> Parser<'a> {
                 _ => {
                     let t = self.advance();
                     return Err(ParseError {
+                        kind: None,
                         message: format!("Unexpected token in component: {:?}", t.kind),
                         span: t.span,
                     });

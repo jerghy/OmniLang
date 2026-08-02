@@ -38,6 +38,7 @@ impl<'a> Parser<'a> {
         }
 
         let rbrace_pos = rbrace_pos.ok_or_else(|| ParseError {
+            kind: None,
             message: "unterminated design block — expected '}'".to_string(),
             span: start,
         })?;
@@ -53,6 +54,7 @@ impl<'a> Parser<'a> {
         // Delegate to the string-based design body parser, now with tokens
         let mut def = crate::parser::design::parse_design_body(inner_text, &design_tokens)
             .map_err(|e| ParseError {
+                kind: None,
                 message: e.message,
                 span: Span {
                     start: start.start + e.offset,

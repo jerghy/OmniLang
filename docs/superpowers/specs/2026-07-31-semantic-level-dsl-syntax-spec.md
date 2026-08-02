@@ -680,18 +680,18 @@ store TodoStore {
   signal items: Todo[] = []
   signal filter: String = "all"
 
-  getter filteredItems: Todo[] = items.filter(item =>
+  getter filteredItems: Todo[] = items.filter(|item|
     filter == "all" || item.status == filter
   )
 
-  getter activeCount: Int = items.count(item => item.status == "active")
+  getter activeCount: Int = items.count(|item| item.status == "active")
 
   action add(text: String) {
     items = [...items, Todo { id: nextId(), text, status: "active" }]
   }
 
   action toggle(id: Int) {
-    items = items.map(item =>
+    items = items.map(|item|
       item.id == id 
         ? { ...item, status: item.status == "active" ? "completed" : "active" } 
         : item
@@ -699,7 +699,7 @@ store TodoStore {
   }
 
   action clearCompleted() {
-    items = items.filter(item => item.status != "completed")
+    items = items.filter(|item| item.status != "completed")
   }
 }
 
@@ -723,7 +723,7 @@ component TodoPage {
     @for item in TodoStore.filteredItems key={item.id} {
       <TodoItem 
         data={item} 
-        @onToggle={fn() => TodoStore.toggle(item.id)} 
+        @onToggle={() => { TodoStore.toggle(item.id) }} 
       />
     }
   </div>
@@ -949,7 +949,7 @@ Flutter: [...list], count += 1, await fn()
 
 | 表达式 | 说明 |
 |--------|------|
-| `items.count(item => cond)` | 展开为 `items.filter(item => cond).length` |
+| `items.count(|item| cond)` | 展开为 `items.filter(|item| cond).length` |
 | `Array<T>` 类型 | `T[]` 语法糖 → `Array<T>` |
 | 模板字符串 | `` `Hello ${name}` `` 保持不变 |
 

@@ -137,6 +137,7 @@ impl<'a> Parser<'a> {
                         } else {
                             // Should not reach here — outer match confirmed StringLiteral
                             Err(ParseError {
+                                kind: None,
                                 message: "expected string literal after '='".into(),
                                 span: t.span,
                             })
@@ -160,6 +161,7 @@ impl<'a> Parser<'a> {
                     _ => {
                         let t = self.advance();
                         Err(ParseError {
+                            kind: None,
                             message: format!(
                                 "Expected string or {{expr}} for prop value, got {:?}",
                                 t.kind
@@ -303,7 +305,7 @@ impl<'a> Parser<'a> {
                                                 self.advance();
                                                 name.to_string()
                                             } else {
-                                                return Err(ParseError {
+                                                return Err(ParseError { kind: None,
                                                     message: "expected identifier or number after '-' in class name".into(),
                                                     span: self.peek_span(),
                                                 });
@@ -332,7 +334,7 @@ impl<'a> Parser<'a> {
                                                     self.advance();
                                                     name.to_string()
                                                 } else {
-                                                    return Err(ParseError {
+                                                    return Err(ParseError { kind: None,
                                                         message: "expected identifier or number after '-' in class name".into(),
                                                         span: self.peek_span(),
                                                     });
@@ -344,6 +346,7 @@ impl<'a> Parser<'a> {
                                     class_name
                                 } else {
                                     return Err(ParseError {
+                                        kind: None,
                                         message: format!("Expected class name, got {:?}", k),
                                         span: t.span,
                                     });
@@ -477,6 +480,7 @@ impl<'a> Parser<'a> {
         if content.is_empty() {
             let t = self.peek();
             return Err(ParseError {
+                kind: None,
                 message: format!(
                     "expected slot content (e.g. '<div>...</div>') after '{{', got {:?}",
                     t.kind
@@ -519,6 +523,7 @@ impl<'a> Parser<'a> {
                 }
                 _ => {
                     return Err(ParseError {
+                        kind: None,
                         message: "Expected {signalPath} or signalName for bind value".into(),
                         span: self.peek_span(),
                     })
@@ -526,6 +531,7 @@ impl<'a> Parser<'a> {
             }
         } else {
             return Err(ParseError {
+                kind: None,
                 message: "Expected '=' after bind:property".into(),
                 span: self.peek_span(),
             });
@@ -548,6 +554,7 @@ impl<'a> Parser<'a> {
             }
             _ => {
                 return Err(ParseError {
+                    kind: None,
                     message: format!("Expected @event binding, got {:?}", t.kind),
                     span: t.span,
                 })
@@ -560,6 +567,7 @@ impl<'a> Parser<'a> {
                 EventHandler::FnRef(n) => n.clone(),
                 _ => {
                     return Err(ParseError {
+                        kind: None,
                         message: format!("Expected ref name, got {:?}", handler),
                         span: t.span,
                     })
@@ -593,6 +601,7 @@ impl<'a> Parser<'a> {
     pub(super) fn parse_event_handler_value(&mut self) -> Result<EventHandler, ParseError> {
         if !self.at(&TokenKind::Eq) {
             return Err(ParseError {
+                kind: None,
                 message: "Expected '=' after event name".into(),
                 span: self.peek_span(),
             });
@@ -641,6 +650,7 @@ impl<'a> Parser<'a> {
             _ => {
                 let t = self.advance();
                 Err(ParseError {
+                    kind: None,
                     message: format!("Expected {{handler}} after '=', got {:?}", t.kind),
                     span: t.span,
                 })
