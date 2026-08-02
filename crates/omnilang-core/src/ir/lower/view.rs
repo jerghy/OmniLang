@@ -5,11 +5,13 @@
 use super::component::lower_type;
 use super::expr::lower_expr;
 use super::stmt::lower_block;
+use crate::error::{Diagnostic, DiagnosticKind};
 use crate::ir::logic::FunctionIR;
 use crate::ir::types::*;
 use crate::ir::types_motion::*;
 use crate::ir::walk;
 use crate::ir::TriggerKind;
+use crate::lexer::Span;
 use crate::parser::ast::*;
 use crate::semantic::SemanticResult;
 use rustc_hash::FxHashMap;
@@ -273,6 +275,33 @@ pub(super) fn lower_slot_common(
 /// Lowers an `Element` AST node into `ViewTree::Element(ElementIR)`.
 /// Handles props, bindings, events, class/style, motion, state, scroll, drag,
 /// and hero attributes.
+/// Class names reaching codegen are restricted to `[a-zA-Z0-9_-]` — the same
+/// charset policy as the design parser's identifier rule. Quoted
+/// `class: "..."` strings are free-form text, so any payload that would break
+/// out of the emitted `styles['...']` / `"..."` literals (e.g.
+/// `class: "x',alert(1),'"` → `styles['x',alert(1),'']`, comma operator) is
+/// rejected here with a hard error — code-injection double-insurance,
+/// layer 1 (codegen escaping is layer 2). Invalid tokens are dropped from
+/// the IR so even a failed compile's output never carries the payload.
+fn validate_class_names(class_str: &str, span: &Span, semantics: &mut SemanticResult) -> String {
+    let mut valid: Vec<&str> = Vec::new();
+    for token in class_str.split_whitespace() {
+        if token
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+        {
+            valid.push(token);
+        } else {
+            semantics.diagnostics.push(Diagnostic::error(
+                DiagnosticKind::E0006,
+                &format!("类名仅允许字母数字下划线连字符：\"{}\"", token),
+                span,
+            ));
+        }
+    }
+    valid.join(" ")
+}
+
 fn lower_element(
     el: &Element,
     variant_map: &FxHashMap<String, String>,
@@ -437,8 +466,8 @@ fn lower_element(
                 // class: styleRef or class: "literal-class"
                 let mut class_map_bindings: FxHashMap<String, ExprIR> = FxHashMap::default();
                 let class_str = match value {
-                    ClassValue::StyleRef(s) => s.clone(),
-                    ClassValue::StringLiteral(s) => s.clone(),
+                    ClassValue::StyleRef(s) => validate_class_names(s, &el.span, semantics),
+                    ClassValue::StringLiteral(s) => validate_class_names(s, &el.span, semantics),
                     ClassValue::DesignClass {
                         design_name: _,
                         class_name,
@@ -1248,5 +1277,174 @@ component MultiRoot {
             }
             _ => panic!("Expected ViewTree::Fragment for a multi-root view"),
         }
+    }
+
+    /// Build an element with a single `class:` prop and lower it, returning
+    /// the lowered ViewTree plus the diagnostics produced.
+    fn lower_class_prop(value: ClassValue) -> (ViewTree, Vec<crate::error::Diagnostic>) {
+        let el = Element {
+            tag: "div".into(),
+            props: vec![ElementProp::Class { value }],
+            children: vec![],
+            self_closing: true,
+            span: Span {
+                start: 0,
+                end: 0,
+                line: 1,
+                col: 1,
+            },
+        };
+        let mut semantics = SemanticResult {
+            symbols: SymbolTable::default(),
+            dependencies: FxHashMap::default(),
+            diagnostics: vec![],
+            event_param_name: None,
+        };
+        let tree = lower_element(
+            &el,
+            &FxHashMap::default(),
+            &mut semantics,
+            &[],
+            &FxHashSet::default(),
+        );
+        (tree, semantics.diagnostics)
+    }
+
+    /// Lowered class prop value from a ViewTree::Element, if present.
+    fn lowered_class(tree: &ViewTree) -> Option<String> {
+        match tree {
+            ViewTree::Element(el_ir) => el_ir.props.get("class").and_then(|v| match v {
+                ExprIR::LiteralExpr { value } => value.as_str().map(String::from),
+                _ => None,
+            }),
+            _ => None,
+        }
+    }
+
+    #[test]
+    fn class_name_injection_rejected_at_lowering() {
+        // Review-verified exploit: `class: "x',alert(document.cookie),'"`
+        // used to flow through verbatim into `styles['x',alert(...),'']`.
+        // Layer 1 of the double-insurance: the lowering rejects any class
+        // name outside `[a-zA-Z0-9_-]` with a hard error and drops the
+        // invalid token from the IR.
+        let (tree, diagnostics) = lower_class_prop(ClassValue::StringLiteral(
+            "x',alert(document.cookie),'".into(),
+        ));
+        assert!(
+            diagnostics
+                .iter()
+                .any(|d| d.message.contains("类名仅允许字母数字下划线连字符")),
+            "expected charset-validation diagnostic, got: {:?}",
+            diagnostics
+        );
+        assert!(
+            diagnostics
+                .iter()
+                .all(|d| d.severity == crate::error::Severity::Error),
+            "class-name validation must be a hard error"
+        );
+        assert_eq!(
+            lowered_class(&tree),
+            Some(String::new()),
+            "invalid class token must be dropped from the lowered IR"
+        );
+    }
+
+    #[test]
+    fn class_name_injection_rejected_for_style_refs_and_mixed_classes() {
+        // StyleRef class names are parser idents, but they are validated with
+        // the same charset policy as quoted literals; mixed valid+invalid
+        // keeps the valid names and reports the invalid one.
+        let (tree, diagnostics) =
+            lower_class_prop(ClassValue::StyleRef("btn x',alert(1),' ok-btn".into()));
+        assert!(
+            diagnostics
+                .iter()
+                .any(|d| d.message.contains("类名仅允许字母数字下划线连字符")),
+            "expected charset-validation diagnostic, got: {:?}",
+            diagnostics
+        );
+        assert_eq!(
+            lowered_class(&tree),
+            Some("btn ok-btn".into()),
+            "valid tokens must pass through, invalid ones are dropped"
+        );
+    }
+
+    #[test]
+    fn valid_class_names_pass_through_unchanged() {
+        // Hyphenated, underscore, multi-class and digit-suffixed names are
+        // all legal and must reach the IR untouched with no diagnostics.
+        for (value, expected) in [
+            (
+                ClassValue::StringLiteral("btn btn-primary card--active".into()),
+                "btn btn-primary card--active",
+            ),
+            (
+                ClassValue::StyleRef("theme-bar demo1-r-0 _hidden".into()),
+                "theme-bar demo1-r-0 _hidden",
+            ),
+            (ClassValue::StringLiteral("".into()), ""),
+        ] {
+            let (tree, diagnostics) = lower_class_prop(value);
+            assert!(
+                diagnostics.is_empty(),
+                "valid class names must not diagnose: {:?}",
+                diagnostics
+            );
+            assert_eq!(lowered_class(&tree), Some(expected.into()));
+        }
+    }
+
+    #[test]
+    fn design_class_and_class_map_keys_are_not_revalidated() {
+        // DesignClass names and ClassMap keys come from expect_ident and can
+        // never carry quote/backtick payloads — they must pass through with
+        // no new diagnostics (class_map static truthy keys still included).
+        let span = Span {
+            start: 0,
+            end: 0,
+            line: 1,
+            col: 1,
+        };
+        let el = Element {
+            tag: "div".into(),
+            props: vec![
+                ElementProp::Class {
+                    value: ClassValue::DesignClass {
+                        design_name: "AppDesign".into(),
+                        class_name: "Card".into(),
+                    },
+                },
+                ElementProp::Class {
+                    value: ClassValue::ClassMap(vec![
+                        ("active".into(), Expr::Literal(Literal::Bool(true), span)),
+                        ("hidden".into(), Expr::Literal(Literal::Bool(false), span)),
+                    ]),
+                },
+            ],
+            children: vec![],
+            self_closing: true,
+            span,
+        };
+        let mut semantics = SemanticResult {
+            symbols: SymbolTable::default(),
+            dependencies: FxHashMap::default(),
+            diagnostics: vec![],
+            event_param_name: None,
+        };
+        let _tree = lower_element(
+            &el,
+            &FxHashMap::default(),
+            &mut semantics,
+            &[],
+            &FxHashSet::default(),
+        );
+        assert!(
+            semantics.diagnostics.is_empty(),
+            "design classes and class-map keys must not diagnose: {:?}",
+            semantics.diagnostics
+        );
     }
 }

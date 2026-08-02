@@ -1,5 +1,6 @@
 //! View tree formatting for Flutter codegen.
 
+use crate::codegen::json::escape_literal_str;
 use crate::codegen::shared::inline_handler::{build_inline_handler, InlineHandlerConfig};
 use crate::codegen::shared::stmt::FormatStmt;
 use crate::codegen::CodeWriter;
@@ -71,7 +72,12 @@ pub(crate) fn format_view_tree(
                     format!("Text('${{{}}}')", inner)
                 }
             } else {
-                format!("Text('{}')", text.replace('\'', "\\'"))
+                // Plain text — Dart string escaping. `$` must be escaped too:
+                // `$var` / `${expr}` inside a Dart string is interpolation,
+                // so an unescaped `$` from text content executes code
+                // (injection corpus finding, Task 3.1).
+                let escaped = escape_literal_str(text, '\'');
+                format!("Text('{}')", escaped.replace('$', "\\$"))
             }
         }
         ViewTree::Interpolation(expr) => {

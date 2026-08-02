@@ -1546,6 +1546,194 @@ fn compile_react(source: &str) -> Option<crate::InternalCompileResult> {
     }
 }
 
+// ── Class-name injection defense (security regression, Task 3.1) ───
+
+/// Compile helper returning the full result (success + errors) so tests can
+/// assert on diagnostics.
+fn compile_react_full(source: &str) -> crate::InternalCompileResult {
+    let mut sources = FxHashMap::default();
+    sources.insert("input.omni".to_string(), source.to_string());
+    let pm = path_mapping::derive_path_mapping(&sources);
+    crate::compile_multi_internal(
+        sources,
+        crate::codegen::Target::React,
+        pm,
+        false,
+        false,
+        None,
+    )
+}
+
+/// Review-verified exploit: `class: "x',alert(document.cookie),'"` used to
+/// compile to valid TSX (`styles['x',alert(document.cookie),'']` — comma
+/// operator) that executes arbitrary JS on render. It must now be a compile
+/// ERROR (not merely "compiles but warned").
+#[test]
+fn class_name_injection_rejected() {
+    let source = r##"
+component App {
+    view {
+        <div class: "x',alert(document.cookie),'"/>
+    }
+}
+"##;
+    let result = compile_react_full(source);
+    assert!(
+        !result.success,
+        "injected class name must fail compilation. Output:\n{:?}",
+        result.files
+    );
+    let messages: Vec<&str> = result.errors.iter().map(|d| d.message.as_str()).collect();
+    assert!(
+        messages.iter().any(|m| m.contains("类名仅允许字母数字下划线连字符")),
+        "expected charset-validation error, got: {:?}",
+        messages
+    );
+    // Defense in depth: even the (failed) codegen output must not carry the
+    // executable payload.
+    let all_output: String = result.files.values().cloned().collect::<Vec<_>>().join("\n");
+    assert!(
+        !all_output.contains("alert("),
+        "generated output must not contain the payload even on failed compiles:\n{}",
+        all_output
+    );
+}
+
+/// Simple (non-design) class names keep the CSS-module lookup emission
+/// `styles['name']` — the legit path is unchanged by the escaping layer.
+#[test]
+fn react_class_legit_path_unchanged() {
+    let source = r##"
+component App {
+    style {
+        .btn { padding: 4px; }
+        .btn-primary { color: red; }
+    }
+    view {
+        <div class: "btn btn-primary"/>
+    }
+}
+"##;
+    let output = compile_react(source).unwrap();
+    let tsx = output
+        .files
+        .get("App.tsx")
+        .expect("App.tsx should be emitted");
+    assert!(
+        tsx.contains("styles['btn'] + ' ' + styles['btn-primary']"),
+        "legit class names must keep CSS-module lookups. Got:\n{}",
+        tsx
+    );
+}
+
+/// `class: AppDesign.Card` design references keep the literal class-name
+/// emission (global rules in design.css) — unchanged by the fix.
+#[test]
+fn react_design_class_legit_path_unchanged() {
+    let source = r##"
+design AppDesign {
+    class Card { display: "block"; }
+}
+component App {
+    view {
+        <div class: AppDesign.Card/>
+    }
+}
+"##;
+    let output = compile_react(source).unwrap();
+    let tsx = output
+        .files
+        .get("App.tsx")
+        .expect("App.tsx should be emitted");
+    assert!(
+        tsx.contains("className={\"Card\"}"),
+        "design class must stay a literal class name. Got:\n{}",
+        tsx
+    );
+    assert!(
+        !tsx.contains("alert("),
+        "design class emission must not carry payloads. Got:\n{}",
+        tsx
+    );
+}
+
+/// Layer 2 of the double-insurance: `format_class_ref` must escape quotes
+/// even when a malicious class name reaches codegen through a hand-built IR
+/// (bypassing the .omni parser/lowering charset validation).
+#[test]
+fn react_format_class_ref_escapes_quotes_defense_in_depth() {
+    use super::design::DesignCtx;
+    use crate::ir::design::*;
+
+    fn ir_with_design_class(name: &str) -> IRProgram {
+        let design = DesignIR {
+            name: "D".into(),
+            tokens: FxHashMap::default(),
+            classes: vec![ClassIR {
+                name: name.into(),
+                properties: FxHashMap::default(),
+                pseudo_states: vec![],
+                source_span: None,
+            }],
+            variants: vec![],
+            default_theme: None,
+            themes: vec![],
+            source_span: None,
+            source_file: None,
+        };
+        let module = ModuleIR {
+            name: "main".into(),
+            functions: FxHashMap::default(),
+            structs: FxHashMap::default(),
+            enums: FxHashMap::default(),
+            type_aliases: FxHashMap::default(),
+            components: FxHashMap::default(),
+            stores: FxHashMap::default(),
+            motions: vec![],
+            imports: vec![],
+            exports: vec![],
+            designs: vec![design],
+            source_span: None,
+        };
+        IRProgram {
+            version: "0.1".into(),
+            modules: FxHashMap::from_iter([("main".into(), module)]),
+            source_map: FxHashMap::default(),
+            stdlib_imports: Default::default(),
+            source_span: None,
+            motion_index: FxHashMap::default(),
+        }
+    }
+
+    // CSS-module branch: single-quoted literal — `'` must be escaped so the
+    // payload cannot break out into executable code.
+    let ir = ir_with_design_class("unused");
+    let ctx = DesignCtx::new(&ir);
+    assert_eq!(
+        ctx.format_class_ref("x',alert(1),'"),
+        "styles['x\\',alert(1),\\'']"
+    );
+    assert_eq!(
+        ctx.format_class_ref("x\\';alert(1);//"),
+        "styles['x\\\\\\';alert(1);//']"
+    );
+    // Legit names are untouched (no escaping churn on the happy path).
+    assert_eq!(ctx.format_class_ref("btn"), "styles['btn']");
+    assert_eq!(ctx.format_class_ref("btn-primary"), "styles['btn-primary']");
+
+    // Design-class branch: double-quoted literal — `"` must be escaped.
+    let ir = ir_with_design_class("x\",alert(1),\"");
+    let ctx = DesignCtx::new(&ir);
+    assert_eq!(
+        ctx.format_class_ref("x\",alert(1),\""),
+        "\"x\\\",alert(1),\\\"\""
+    );
+    // A legit design class name keeps the literal emission.
+    let ir = ir_with_design_class("Card");
+    let ctx = DesignCtx::new(&ir);
+    assert_eq!(ctx.format_class_ref("Card"), "\"Card\"");
+}
+
 // ── Component-level @motion codegen integration tests ───
 
 #[test]

@@ -93,10 +93,24 @@ pub(crate) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &VueFo
                                 let _ = write!(result, "        {}\n", line);
                             }
                             result.push_str("      }");
-                            attrs.push(format!("@{}=\"{}\"", vue_event, result));
+                            // The handler is embedded in a double-quoted Vue
+                            // template attribute — `"` inside it would
+                            // terminate the attribute and break (or hijack)
+                            // the template. `&quot;` is decoded back to `"`
+                            // by the Vue template parser (Task 3.1 corpus
+                            // finding).
+                            attrs.push(format!(
+                                "@{}=\"{}\"",
+                                vue_event,
+                                result.replace('"', "&quot;")
+                            ));
                         } else {
                             let handler_str = format_inline_handler_vue(body, &fmt.diagnostics);
-                            attrs.push(format!("@{}=\"{}\"", vue_event, handler_str));
+                            attrs.push(format!(
+                                "@{}=\"{}\"",
+                                vue_event,
+                                handler_str.replace('"', "&quot;")
+                            ));
                         }
                     }
                     EventHandlerIR::StoreAction { r#ref, .. } => {

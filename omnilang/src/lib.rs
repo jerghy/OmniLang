@@ -602,12 +602,14 @@ mod warnings_gateway_tests {
         );
     }
 
-    /// Brief's test input (syntax fixed: the brief's `view X {}` shorthand
-    /// is a parse error — components use `component X {}`). Triggers a known
-    /// codegen warning: undefined class reference in a class binding.
+    /// Triggers a known codegen warning: undefined class reference in a
+    /// class binding. (The brief's original input `class: "{'x'}"` is now a
+    /// compile error — quoted class names are charset-validated to
+    /// `[a-zA-Z0-9_-]` since Task 3.1 — so the class-map form is used to
+    /// keep exercising the warning path.)
     #[test]
     fn compile_omniview_surfaces_brief_input_warning() {
-        let src = r#"component X { view { <div class: "{'x'}" > } }"#;
+        let src = r#"component X { view { <div class: { card: true } > } }"#;
         let out = compile_omniview(src, false, false);
         assert!(
             !out.warnings.is_empty(),

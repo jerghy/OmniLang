@@ -5,6 +5,7 @@ use super::{
     to_dioxus_event,
 };
 use super::{generate_statement_dioxus, CodeWriter, DioxusStmtFormatter};
+use crate::codegen::json::escape_literal_str;
 use crate::codegen::shared::expr::RustFormatExpr;
 use crate::codegen::shared::inline_handler::{build_inline_handler, InlineHandlerConfig};
 use crate::codegen::shared::stmt::FormatStmt;
@@ -129,12 +130,12 @@ pub(crate) fn gen_view_node_dioxus(w: &mut CodeWriter, node: &ViewTree, is_root:
                 }
             }
 
-            // Style classes
-            if let Some(ref classes) = el.style_classes {
-                if let Some(classes_str) = classes.as_str() {
-                    attrs.push(format!("class: \"{}\",", classes_str));
-                }
-            }
+            // Note: `el.style_classes` is always `None` — lowering never
+            // populates it (view classes flow through the "class" prop),
+            // so the old `class: "{}"` emission here was dead code and has
+            // been removed (Task 3.1). Class names are charset-validated
+            // at lowering (`[a-zA-Z0-9_-]`), so the remaining emissions
+            // below (`class_map_bindings` keys) are parser ident-shaped.
 
             // Dynamic class bindings (class_map_bindings)
             for (cls, expr) in &el.class_map_bindings {
@@ -270,12 +271,27 @@ pub(crate) fn gen_view_node_dioxus(w: &mut CodeWriter, node: &ViewTree, is_root:
                 let inner = &text[1..text.len() - 1];
                 w.emit_fmt(format_args!("\"{{{}}}\"{}", inner, comma));
             } else {
-                // Plain text
-                w.emit_fmt(format_args!("\"{}\"{}", text, comma));
+                // Plain text — escape for a Rust string literal. Raw emission
+                // let `"` terminate the literal and the rest become code
+                // (`x", alert(1); //` executes) — Task 3.1 corpus finding.
+                let escaped = escape_literal_str(text, '"');
+                w.emit_fmt(format_args!("\"{}\"{}", escaped, comma));
             }
         }
         ViewTree::Interpolation(expr) => {
             let comma = if is_root { "" } else { "," };
+            // String-literal interpolations are text VALUES — emit the
+            // escaped literal directly. The generic `"{formatted}"` wrapper
+            // double-wraps quotes around `"...".to_string()` and produced
+            // invalid Rust for any payload containing `"` — Task 3.1 corpus
+            // finding.
+            if let ExprIR::LiteralExpr { value } = expr.as_ref() {
+                if let Some(s) = value.as_str() {
+                    let escaped = escape_literal_str(s, '"');
+                    w.emit_fmt(format_args!("\"{}\"{}", escaped, comma));
+                    return;
+                }
+            }
             let formatted = format_expr_ir_dioxus(expr);
             w.emit_fmt(format_args!("\"{formatted}\"{comma}"));
         }

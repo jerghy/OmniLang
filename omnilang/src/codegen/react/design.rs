@@ -17,6 +17,7 @@
 //!   (`theme`/`setTheme`) that applies `data-theme` to `<html>` whenever
 //!   the theme changes, mirroring the `[data-theme="..."]` CSS scoping
 
+use crate::codegen::json::escape_literal_str;
 use crate::codegen::react::{relative_import_path, source_dir_prefix};
 use crate::codegen::shared::design as shared_design;
 use crate::codegen::CodeWriter;
@@ -148,11 +149,17 @@ impl<'a> DesignCtx<'a> {
 
     /// Format one class name for JSX: a literal string for design classes
     /// (global rules in `design.css`), a CSS-module lookup otherwise.
+    ///
+    /// Layer 2 of the class-name injection double-insurance: quotes and
+    /// backslashes are escaped even though lowering already restricts class
+    /// names to `[a-zA-Z0-9_-]` — a payload that bypasses charset validation
+    /// (e.g. a hand-built IR) still cannot break out of the emitted
+    /// `styles['...']` / `"..."` literals into executable code.
     pub(super) fn format_class_ref(&self, name: &str) -> String {
         if self.global_class_names.contains(name) {
-            format!("\"{}\"", name)
+            format!("\"{}\"", escape_literal_str(name, '"'))
         } else {
-            format!("styles['{}']", name)
+            format!("styles['{}']", escape_literal_str(name, '\''))
         }
     }
 

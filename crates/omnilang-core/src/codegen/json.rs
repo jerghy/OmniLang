@@ -29,6 +29,11 @@ pub struct JsonFormatConfig {
     /// Suffix to append to large integer literals that exceed MAX_SAFE_INTEGER (2^53-1).
     /// JS-family targets use `"n"` for BigInt; other targets leave this empty.
     pub large_integer_suffix: &'static str,
+    /// Escape `$` as `\$` in string literals. Required for Dart targets:
+    /// `$var` / `${expr}` inside a Dart string is interpolation, so an
+    /// unescaped `$` from a payload executes arbitrary code (injection
+    /// corpus finding, Task 3.1).
+    pub dollar_escape: bool,
 }
 
 /// How to format JSON arrays for the target language.
@@ -88,7 +93,10 @@ pub fn format_json_value(value: &serde_json::Value, cfg: &JsonFormatConfig) -> S
             s
         }
         serde_json::Value::String(s) => {
-            let escaped = escape_literal_str(s, cfg.quote);
+            let mut escaped = escape_literal_str(s, cfg.quote);
+            if cfg.dollar_escape {
+                escaped = escaped.replace('$', "\\$");
+            }
             if cfg.string_suffix.is_empty() {
                 format!("{c}{escaped}{c}", c = cfg.quote)
             } else {
@@ -136,6 +144,7 @@ pub const JSON_JS: JsonFormatConfig = JsonFormatConfig {
     object_fmt: JsonObjectFmt::Bracket,
     strip_trailing_dot_zero: false,
     large_integer_suffix: "n",
+    dollar_escape: false,
 };
 
 /// Config: React (same as JS)
@@ -158,6 +167,7 @@ pub const JSON_DART: JsonFormatConfig = JsonFormatConfig {
     object_fmt: JsonObjectFmt::Bracket,
     strip_trailing_dot_zero: true,
     large_integer_suffix: "",
+    dollar_escape: true,
 };
 
 /// Config: Flutter (same as Dart)
@@ -174,6 +184,7 @@ pub const JSON_RUST: JsonFormatConfig = JsonFormatConfig {
     object_fmt: JsonObjectFmt::Passthrough,
     strip_trailing_dot_zero: true,
     large_integer_suffix: "",
+    dollar_escape: false,
 };
 
 /// Config: Dioxus (same as Rust)
@@ -190,4 +201,5 @@ pub const JSON_PYTHON: JsonFormatConfig = JsonFormatConfig {
     object_fmt: JsonObjectFmt::Passthrough,
     strip_trailing_dot_zero: true,
     large_integer_suffix: "",
+    dollar_escape: false,
 };
