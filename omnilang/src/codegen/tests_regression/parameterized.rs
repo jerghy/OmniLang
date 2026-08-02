@@ -366,11 +366,12 @@ fn assert_refs_react(files: &FxHashMap<String, String>) {
     // A signal read ONLY inside style: { ... } must still get a state hook —
     // inline-style reads are collected for the useState decision (regression:
     // boxColor used to be emitted without a declaration, throwing a
-    // ReferenceError on first render).
+    // ReferenceError on first render). The generic is typed from the IR
+    // signal type (T1.6 TS batch).
     assert_contains(
         files,
         "SearchBox.tsx",
-        "const [boxColor, setBoxColor] = useState(\"red\");",
+        "const [boxColor, setBoxColor] = useState<string>(\"red\");",
     );
     assert_contains(files, "SearchBox.tsx", "color: boxColor");
 }

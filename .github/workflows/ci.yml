@@ -269,14 +269,16 @@ jobs:
         with:
           channel: stable
           cache: true
-      # Version-pinned to match test/projects/learn-omniview/build/react-test-app
-      # (the e2e-validated generated app). The generated_code_validation test
+      # Matches test/projects/learn-omniview/build/react-test-app (the
+      # e2e-validated generated app — react ^19.2.8 / zustand ^5.0.14 /
+      # @types/react ^19.2.18; previously pinned at 18.3.1/4.5.0/18.3.0 from
+      # the pre-upgrade era, T0.4). The generated_code_validation test
       # resolves tsc + react/zustand/@types/react from this directory.
       - name: Install TypeScript validation dependencies
         working-directory: omnilang/tests
         run: |
           npm init -y
-          npm install react@18.3.1 zustand@4.5.0 typescript@5.5.4 @types/react@18.3.0
+          npm install react@^19 zustand@^5 typescript@5.5.4 @types/react@^19
       # Runs tsc --noEmit over generated React TSX and dart analyze over
       # generated Flutter Dart (graceful SKIPs when a toolchain is missing).
       - name: Validate generated code compiles

@@ -25,9 +25,10 @@
 //!
 //! - React: `node` + `tsc` on PATH, or a local install of the TS packages
 //!   under `tests/node_modules` (gitignored; the `codegen-validate` CI job
-//!   runs `cd tests && npm init -y && npm install react@18.3.1 zustand@4.5.0
-//!   typescript@5.5.4 @types/react@18.3.0 && rm package.json package-lock.json`
-//!   there).
+//!   runs `cd tests && npm init -y && npm install react@^19 zustand@^5
+//!   typescript@5.5.4 @types/react@^19 && rm package.json package-lock.json`
+//!   there — matching the harness app's react ^19.2.8 / zustand ^5.0.14,
+//!   T0.4 upgrade).
 //!   The temp scratch dir lives under `tests/` so node's module resolution
 //!   can walk up to `tests/node_modules`.
 //! - Flutter: a Flutter-bundled `dart` (needed for the `sdk: flutter`
@@ -324,8 +325,8 @@ fn react_output_compiles_with_tsc() {
     if !deps_resolvable(&out_dir) {
         eprintln!(
             "SKIP: react/zustand/@types/react not resolvable from generated output. \
-             Install them once with: cd tests && npm init -y && npm install react@18.3.1 \
-             zustand@4.5.0 typescript@5.5.4 @types/react@18.3.0 && rm package.json package-lock.json \
+             Install them once with: cd tests && npm init -y && npm install react@^19 \
+             zustand@^5 typescript@5.5.4 @types/react@^19 && rm package.json package-lock.json \
              (CI does this in the codegen-validate job)"
         );
         return;

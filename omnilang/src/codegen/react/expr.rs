@@ -725,7 +725,18 @@ fn translate_method_call(obj: &str, method: &str, args: &[String]) -> String {
         // String methods
         "starts_with" => format!("{}.startsWith({})", obj, args.join(", ")),
         "ends_with" => format!("{}.endsWith({})", obj, args.join(", ")),
-        "contains" => format!("{}.includes({})", obj, args.join(", ")),
+        "contains" => {
+            // Map literals compile to plain JS objects (no native Map) —
+            // `obj.includes(key)` is a runtime TypeError AND fails tsc on a
+            // typed Record receiver (TS2349). Arrays and strings keep
+            // `.includes` (both have it); objects fall back to
+            // hasOwnProperty. Mirrors the OmniView backend's contains
+            // translation, with the string branch preserved.
+            let idx = args.first().map(|s| s.as_str()).unwrap_or("");
+            format!(
+                "((_c) => Array.isArray(_c) || typeof _c === \"string\" ? _c.includes({idx}) : Object.prototype.hasOwnProperty.call(_c, {idx}))({obj})"
+            )
+        }
         "substring" => format!("{}.substring({})", obj, args.join(", ")),
         "split" => format!("{}.split({})", obj, args.join(", ")),
         "replace" => format!("{}.replace({})", obj, args.join(", ")),

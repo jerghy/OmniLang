@@ -16,29 +16,30 @@
 #   - an UNUSED exemption also fails the gate (stale entry — delete it when
 #     the root cause lands; do not leave it to rot)
 #
-# Counts: 284 tsc errors + 109 eslint problems over 157 generated files.
+# Counts: 284 tsc errors + 109 eslint problems over 157 generated files at
+# T0.4 baseline; 159 tsc + 108 eslint after Task 1.6 (C1 function emission +
+# TS batch). Removed by T1.6: TS2686 (React.Fragment import, T0.8 fix),
+# TS18046 (typed-args fallout), TS2769 (emit-statement typing).
 #
-# tsc — C1 class (function/typed-state emission) → Task 1.6
-*	TS7006	T1.6	123x implicit-any fn params — codegen omits fn param types
-*	TS7005	T1.6	2x implicit any[] vars (InlineStoreDemo)
+# tsc — C1 class (function/typed-state emission) → Task 1.6 (partial:
+#       159 total now; residue classes below have their own root causes)
+*	TS7006	T1.6	45x implicit-any fn/closure params — untyped source params + codegen-internal closures (motion helpers); IR-typed params now emit types
+*	TS7005	T1.6	2x implicit any[] vars (InlineStoreDemo, untyped store slice)
 *	TS7034	T1.6	1x implicit any[] partial inference (InlineStoreDemo)
-*	TS2304	T1.6	59x undefined names — emitted calls to never-defined fns/vars
-*	TS2722	T1.6	21x invoke of possibly-undefined event-handler props
-*	TS2686	T1.6	2x React UMD global — generated files lack React import
-*	TS2588	T1.6	3x assign to const — let/const emission (ErrorHandlingDemo)
+*	TS2304	T1.6	5x undefined names — residue is NOT fn emission: inline store ref (CartStore ×2) + union/struct type names never emitted by React target (Rating/ApiResult/Todo) → T3.3 / React union-type emission
+*	TS2722	T1.6	23x invoke of possibly-undefined event-handler props — needs `?.()` emission (event-prop call sites)
+*	TS2588	T1.6	7x assign to const — `let mut` vars emitted as const; LetStmtIR carries no mut flag (IR change, follow-up; exposed by C1 now emitting those fns)
 *	TS18048	T1.6	4x possibly-undefined ref access (ElementRefDemo)
-*	TS18046	T1.6	2x 'unknown' callback args (StdLibShowcase)
-*	TS2769	T1.6	2x no overload matches (EmitKeywordDemo)
 *	TS2554	T1.6	6x wrong callback arity (FormPage, FormControlsDemo)
-*	TS2322	T1.6	13x not assignable to never[] — untyped useState emission
-*	TS2345	T1.6	10x SetStateAction<never[]> — untyped useState emission
+*	TS2322	T1.6	14x state-value mismatches — 10x never[] (DataTable RowItem state; user structs not emitted → useState stays untyped) + event-handler nullability + Option-value mismatches
+*	TS2345	T1.6	13x SetStateAction mismatches — Option/void/unknown values + bind:value string→number coercion + Record param literals
 *	TS2367	T1.6	2x void-vs-string comparison (DataFetching fetch typing)
 # tsc — C2 class (style channel) → Task 1.3
 *	TS2353	T1.3	14x CSS custom properties (--var) rejected by React.CSSProperties
 # tsc — T3.3 class (store slices / typed state) → Task 3.3
-*	TS2339	T3.3	20x property access on 'never' — untyped store/state slices
+*	TS2339	T3.3	23x property access on 'never'/'EventTarget' — untyped store/state slices
 # eslint — react-hooks + TS rules on generated code → Task 1.6
 *	react-hooks/exhaustive-deps	T1.6	93x missing/new-array deps — codegen dependency-array emission
-*	@typescript-eslint/no-unused-vars	T1.6	13x generated unused identifiers (_b/_i)
+*	@typescript-eslint/no-unused-vars	T1.6	12x generated unused identifiers (_b/_i)
 *	@typescript-eslint/no-explicit-any	T1.6	1x generated any annotation (FnFormatter)
 *	no-control-regex	T1.6	2x generated regex with control chars (StdLibShowcase)

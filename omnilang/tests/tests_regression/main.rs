@@ -570,3 +570,254 @@ if (color !== "#16a34a") {{ throw new Error("expected #16a34a for score 95, got 
         expr
     );
 }
+
+// ── Task 1.6 (C1 + TS batch): functions called from interpolations / props /
+//    inline styles must be EMITTED; fn params and useState get TS types ────
+//
+// Before the fix, `collect_called_fns_from_view` only scanned event handlers
+// and class_map_bindings — DataTable.omni's interpolation calls
+// (getSortIcon / getScoreColor / getActiveRows / getGradeForScore /
+// getBonusTotal) were never declared → TS2304 ×6 and ReferenceError at
+// render.
+
+/// DataTable-like fixture: component fns called from an interpolation, a
+/// plain prop value, an inline style (`$call` channel), and a @for item
+/// style — ALL must be declared in the React output.
+const C1_VIEW_CALLED_FN_FIXTURE: &str = r##"
+import omniview;
+
+struct RowItem {
+    id: i32,
+    score: i32,
+}
+
+component App {
+    signal rows: Array<RowItem> = [];
+    signal title: String = "";
+
+    fn getScoreColor(score: i32) -> String {
+        if score >= 90 { return "#16a34a"; }
+        return "#dc2626";
+    }
+
+    fn getSortIcon() -> String { return "ASC"; }
+
+    fn getActiveRows() -> Array<RowItem> { return rows; }
+
+    fn getTitle() -> String { return title; }
+
+    view {
+        <div>
+            <p>Sort: {getSortIcon()}</p>
+            <img src={getTitle()} />
+            <span style: { color: getScoreColor(95) }>x</span>
+            @for row in rows {
+                <span style: { color: getScoreColor(row.score) }>{row.score}</span>
+            }
+            <p>Active: {(getActiveRows()).length}</p>
+        </div>
+    }
+}
+"##;
+
+#[test]
+fn interpolation_called_fns_are_emitted() {
+    let out = compile_react(C1_VIEW_CALLED_FN_FIXTURE);
+    for f in ["getSortIcon", "getScoreColor", "getActiveRows", "getTitle"] {
+        assert!(
+            out.contains(&format!("const {} =", f)),
+            "interpolation/prop/style-called fn `{f}` must be declared. Got:\n{}",
+            out
+        );
+    }
+    assert!(
+        out.contains("getSortIcon()"),
+        "interpolation call must be emitted. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("getScoreColor(row.score)"),
+        "style-channel field access must be emitted. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("src={getTitle()}"),
+        "prop-value call must be emitted. Got:\n{}",
+        out
+    );
+}
+
+/// A component-local fn passed by VALUE into a prop (`transform={shout}`)
+/// must be emitted — the call walker previously only saw CallExpr, so the
+/// identifier reference was never collected (TS2304 on `shout`).
+const FN_REF_PROP_FIXTURE: &str = r##"
+import omniview;
+
+component FnFormatter {
+    prop transform: fn(String) -> String = null;
+
+    view {
+        <p>{transform("hi")}</p>
+    }
+}
+
+component App {
+    fn shout(s: String) -> String { return s; }
+
+    view {
+        <div>
+            <FnFormatter transform={shout} />
+        </div>
+    }
+}
+"##;
+
+#[test]
+fn fn_referenced_by_value_in_prop_is_emitted() {
+    let out = compile_react(FN_REF_PROP_FIXTURE);
+    assert!(
+        out.contains("const shout = (s: string) => {"),
+        "fn passed as a prop value must be declared with typed params. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("transform={shout}"),
+        "prop value reference must be emitted. Got:\n{}",
+        out
+    );
+}
+
+/// Module-level pub fns calling other pub fns: the callee must be emitted
+/// too (previously only the view-referenced entry was declared → TS2304 on
+/// the inner call).
+const LIB_FN_TRANSITIVE_FIXTURE: &str = r##"
+import omniview;
+
+pub fn inner(x: String) -> String { return x; }
+
+pub fn outer(x: String) -> String { return inner(x); }
+
+component App {
+    view {
+        <p>{outer("hi")}</p>
+    }
+}
+"##;
+
+#[test]
+fn lib_fn_transitive_callees_are_emitted() {
+    let out = compile_react(LIB_FN_TRANSITIVE_FIXTURE);
+    assert!(
+        out.contains("const outer = (x: string) => {"),
+        "entry lib fn must be declared with typed params. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("const inner = (x: string) => {"),
+        "transitively-called lib fn must be declared. Got:\n{}",
+        out
+    );
+}
+
+/// TS batch: fn params typed from FunctionIR param types, and
+/// `useState<T>` typed initialization for resolvable (builtin) element
+/// types — fixes the never[]-cascade (TS2322/TS2345) for array state.
+const TYPED_FN_PARAM_AND_STATE_FIXTURE: &str = r##"
+import omniview;
+
+component App {
+    signal items: Array<String> = [];
+    signal count: i32 = 0;
+
+    fn greet(name: String) -> String { return "hi " + name; }
+
+    fn reset() {
+        items = ["a", "b"];
+        count = 1;
+    }
+
+    view {
+        <div>
+            <p>{greet("Ada")}</p>
+            <p>{items}</p>
+            <p>{count}</p>
+            <button @onPress={reset}>reset</button>
+        </div>
+    }
+}
+"##;
+
+#[test]
+fn fn_params_and_use_state_are_typed() {
+    let out = compile_react(TYPED_FN_PARAM_AND_STATE_FIXTURE);
+    assert!(
+        out.contains("const greet = (name: string) => {"),
+        "fn params must carry TS types from the IR. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("useState<string[]>([])"),
+        "array state must emit a typed initializer (never[] cascade fix). Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("useState<number>(0)"),
+        "primitive state must emit a typed initializer. Got:\n{}",
+        out
+    );
+}
+
+/// A signal read ONLY from a class map binding (`class: { success: x }`)
+/// must still get useState + setter — previously it was emitted as a plain
+/// const, so the generated `setSubmitted(...)` was TS2304.
+const CLASS_MAP_READ_SIGNAL_FIXTURE: &str = r##"
+import omniview;
+
+component App {
+    signal submitted: bool = false;
+
+    fn mark() { submitted = true; }
+
+    view {
+        <div>
+            <p class: { status: true, success: submitted }>x</p>
+            <button @onPress={mark}>go</button>
+        </div>
+    }
+}
+"##;
+
+#[test]
+fn class_map_binding_reads_emit_state_hook() {
+    let out = compile_react(CLASS_MAP_READ_SIGNAL_FIXTURE);
+    assert!(
+        out.contains("const [submitted, setSubmitted] = useState<boolean>(false);"),
+        "signal read only via class map binding must get useState + setter. Got:\n{}",
+        out
+    );
+}
+
+/// bind:value-driven setters must count as mutations — the bound signal
+/// needs useState + setter (previously `const x = ""` + an undefined
+/// `setInputText` call → TS2304).
+const BINDING_MUTATION_FIXTURE: &str = r##"
+import omniview;
+
+component App {
+    signal inputText: String = "";
+
+    view {
+        <input bind:value={inputText} />
+    }
+}
+"##;
+
+#[test]
+fn binding_driven_setters_emit_state_hook() {
+    let out = compile_react(BINDING_MUTATION_FIXTURE);
+    assert!(
+        out.contains("const [inputText, setInputText] = useState<string>(\"\");"),
+        "bind:value signal must get useState + setter. Got:\n{}",
+        out
+    );
+}

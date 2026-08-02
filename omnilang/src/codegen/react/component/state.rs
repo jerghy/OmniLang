@@ -5,6 +5,7 @@
 use crate::codegen::capitalize_first;
 use crate::codegen::react::expr;
 use crate::codegen::react::ReactCodegen;
+use crate::codegen::shared::types::{FormatType, JsTypeFormatter};
 use crate::codegen::CodeWriter;
 use crate::ir::*;
 use rustc_hash::FxHashMap;
@@ -37,10 +38,25 @@ impl ReactCodegen {
                 } else {
                     setter_base
                 };
-                w.emit_fmt(format_args!(
-                    "const [{}, {}] = useState({});",
-                    state.name, setter, init_val
-                ));
+                // TS batch: type the useState generic from the IR signal type
+                // (`useState<string[]>([])` instead of `useState([])` which
+                // infers `never[]` and cascades into TS2322/TS2345 on every
+                // setter call). Only when every name in the type resolves in
+                // the generated file — user structs are never emitted by the
+                // React target, and `any` would defeat a literal initializer's
+                // better inference.
+                let type_ann = typed_state_annotation(&state.r#type);
+                if type_ann.is_empty() {
+                    w.emit_fmt(format_args!(
+                        "const [{}, {}] = useState({});",
+                        state.name, setter, init_val
+                    ));
+                } else {
+                    w.emit_fmt(format_args!(
+                        "const [{}, {}] = useState<{}>({});",
+                        state.name, setter, type_ann, init_val
+                    ));
+                }
             } else {
                 w.emit_fmt(format_args!("const {} = {};", state.name, init_val));
             }
@@ -51,6 +67,35 @@ impl ReactCodegen {
 // ═══════════════════════════════════════════════════════════
 // Signal mutation & usage tracking
 // ═══════════════════════════════════════════════════════════
+
+/// The TS type argument for `useState<T>`, or empty when the type must not
+/// be emitted. The React target never emits user structs (no `RowItem`
+/// declaration exists in generated output), so `useState<RowItem[]>` would
+/// be TS2304 — such states stay untyped and let their initializer infer.
+/// `any` is also left untyped: a literal initializer (`[]`, `""`, `0`)
+/// infers a strictly better type than `any`.
+fn typed_state_annotation(ty: &TypeIR) -> String {
+    if !js_type_resolves(ty) {
+        return String::new();
+    }
+    JsTypeFormatter.format_type(ty.kind.as_str(), &ty.type_args)
+}
+
+/// Whether a TypeIR only references names that exist in the generated file:
+/// builtin kinds plus container wrappers whose element types also resolve.
+fn js_type_resolves(ty: &TypeIR) -> bool {
+    match &ty.kind {
+        TypeKind::String | TypeKind::Int | TypeKind::Float | TypeKind::Bool | TypeKind::Void => {
+            true
+        }
+        TypeKind::Any => false,
+        TypeKind::Named { name } => match name.as_str() {
+            "Array" | "Vec" | "List" | "Map" | "HashMap" | "FxHashMap" | "Dict" | "Option"
+            | "Record" => ty.type_args.iter().all(js_type_resolves),
+            _ => false,
+        },
+    }
+}
 
 /// Collect names of all signals that are mutated (assigned to) anywhere in the component.
 pub(super) fn collect_signal_mutations(
@@ -227,6 +272,13 @@ fn collect_view_mutation_targets(node: &ViewTree, acc: &mut FxHashSet<String>) {
                     EventHandlerIR::FnRef { .. } | EventHandlerIR::StoreAction { .. } => {}
                 }
             }
+            // Two-way bindings (bind:value={x}) emit `setX(...)` into the
+            // element's onChange — a signal mutated ONLY that way (never in
+            // a fn/handler) must still count as mutated, or it is emitted
+            // as a plain const and the generated setter call is TS2304.
+            for sig_ref in el.bindings.values() {
+                acc.insert(sig_ref.name.clone());
+            }
             for child in &el.children {
                 collect_view_mutation_targets(child, acc);
             }
@@ -328,6 +380,11 @@ pub(super) fn collect_used_store_signals(comp: &ComponentIR) -> FxHashSet<String
     }
     // From effects
     for effect in &comp.effects {
+        // Dep-array names are emitted verbatim — a store signal referenced
+        // only as an effect dep still needs its store hook import.
+        for dep in &effect.deps {
+            acc.insert(dep.clone());
+        }
         for stmt in &effect.body.statements {
             collect_expr_ids_from_stmt(stmt, &mut acc);
         }
@@ -464,9 +521,13 @@ fn collect_expr_ids_from_stmt(stmt: &StatementIR, acc: &mut FxHashSet<String>) {
                 }
             }
         }
-        StatementIR::EventEmitStmtIR { .. }
-        | StatementIR::BreakStmtIR
-        | StatementIR::ContinueStmtIR => {}
+        StatementIR::EventEmitStmtIR { event_name, args } => {
+            acc.insert(event_name.clone());
+            for arg in args {
+                collect_expr_identifiers(arg, acc);
+            }
+        }
+        StatementIR::BreakStmtIR | StatementIR::ContinueStmtIR => {}
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown StatementIR variant — update codegen for new variant"),
     }
@@ -487,6 +548,23 @@ fn collect_view_read_signals_inner(node: &ViewTree, acc: &mut FxHashSet<String>)
             }
             for sig_ref in el.bindings.values() {
                 acc.insert(sig_ref.name.clone());
+            }
+            // Event-handler FnRefs emit the ref name as a JSX value
+            // (`@onPress={onClose}` → `onClick={onClose}`) — an event prop
+            // referenced ONLY that way must still be destructured, or the
+            // generated JSX references an undeclared name (TS2304).
+            for handler in el.events.values() {
+                if let EventHandlerIR::FnRef { r#ref, .. } = handler {
+                    acc.insert(r#ref.clone());
+                }
+            }
+            // Class map bindings (class: { active: isOpen }) emit their
+            // conditions inside the JSX className template — a signal read
+            // ONLY there (e.g. `submitted`) would otherwise be emitted
+            // undeclared (the generated `setSubmitted(...)` / `${submitted}`
+            // both throw TS2304).
+            for binding in el.class_map_bindings.values() {
+                collect_expr_identifiers(binding, acc);
             }
             // Semantic ref bindings (focus={sig}, value={Store.sig}, ...)
             // read their bound signals inside generated effects — they must

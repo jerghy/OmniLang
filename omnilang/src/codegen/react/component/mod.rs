@@ -84,6 +84,12 @@ impl ReactCodegen {
             collect_expr_identifiers(&computed.body, &mut read_signals);
         }
         for effect in &comp.effects {
+            // Effect dep arrays are emitted verbatim (`useEffect(..., [username, fontSize])`)
+            // — a signal referenced ONLY as a dep must still get its hook,
+            // or the emitted dep name is undeclared (TS2304).
+            for dep in &effect.deps {
+                read_signals.insert(dep.clone());
+            }
             for stmt in &effect.body.statements {
                 collect_stmt_identifiers(stmt, &mut read_signals);
             }
@@ -282,6 +288,21 @@ impl ReactCodegen {
         }
 
         let all_lib_fns: Vec<&FunctionIR> = ir.all_functions();
+        // Transitive closure: a lib fn used from the view may delegate to
+        // other lib fns — every callee referenced by an emitted body needs
+        // a declaration too (previously only the view-referenced entry was
+        // emitted → TS2304 on the inner call).
+        let mut prev_len = 0;
+        while used_fn_names.len() > prev_len {
+            prev_len = used_fn_names.len();
+            for fun in &all_lib_fns {
+                if used_fn_names.contains(&fun.name) {
+                    for stmt in &fun.body.statements {
+                        collect_stmt_identifiers(stmt, &mut used_fn_names);
+                    }
+                }
+            }
+        }
         let lib_fns: Vec<&&FunctionIR> = all_lib_fns
             .iter()
             .filter(|f| used_fn_names.contains(&f.name))
@@ -296,8 +317,7 @@ impl ReactCodegen {
                     (escaped, needs_rename)
                 })
                 .collect();
-            let param_escaped: Vec<&str> = param_names.iter().map(|(n, _)| n.as_str()).collect();
-            let params_str = param_escaped.join(", ");
+            let params_str = function::format_fn_params(fun);
             let is_async =
                 fun.is_async || fun.body.statements.iter().any(effect::stmt_contains_await);
             let async_prefix = if is_async { "async " } else { "" };
@@ -774,9 +794,16 @@ fn collect_stmt_identifiers(stmt: &StatementIR, acc: &mut FxHashSet<String>) {
                 }
             }
         }
-        StatementIR::EventEmitStmtIR { .. }
-        | StatementIR::BreakStmtIR
-        | StatementIR::ContinueStmtIR => {}
+        StatementIR::EventEmitStmtIR { event_name, args } => {
+            // `emit onX(...)` emits the event prop name + argument
+            // expressions verbatim — both must count as reads or the
+            // generated call references an undeclared name (TS2304).
+            acc.insert(event_name.clone());
+            for arg in args {
+                collect_expr_identifiers(arg, acc);
+            }
+        }
+        StatementIR::BreakStmtIR | StatementIR::ContinueStmtIR => {}
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown StatementIR variant — update codegen for new variant"),
     }

@@ -2,10 +2,12 @@
 // Function codegen: fn / action → local function declarations
 // ═══════════════════════════════════════════════════════════
 
+use super::collect_expr_identifiers;
 use super::effect;
 use crate::codegen::capitalize_first;
 use crate::codegen::react::expr;
 use crate::codegen::react::ReactCodegen;
+use crate::codegen::shared::types::{FormatType, JsTypeFormatter};
 use crate::codegen::CodeWriter;
 use crate::ir::*;
 use rustc_hash::FxHashMap;
@@ -38,8 +40,7 @@ impl ReactCodegen {
                     (escaped, needs_rename)
                 })
                 .collect();
-            let param_escaped: Vec<&str> = param_names.iter().map(|(n, _)| n.as_str()).collect();
-            let params_str = param_escaped.join(", ");
+            let params_str = format_fn_params(fun);
             let is_async =
                 fun.is_async || fun.body.statements.iter().any(effect::stmt_contains_await);
             let async_prefix = if is_async { "async " } else { "" };
@@ -102,6 +103,31 @@ impl ReactCodegen {
 // Called function tracking — determines which local functions
 // are actually referenced from views/effects/lifecycles.
 // ═══════════════════════════════════════════════════════════
+
+/// Format a function's parameter list with TypeScript type annotations from
+/// the IR param types (TS batch: `(name: string, score: number)` instead of
+/// bare names — previously every generated fn param was implicit any).
+/// Params without an IR type annotation stay bare (the source had none).
+pub(super) fn format_fn_params(fun: &FunctionIR) -> String {
+    fun.params
+        .iter()
+        .map(|p| {
+            let escaped = crate::codegen::react::escape_js_ident(&p.name);
+            match p.r#type.as_ref() {
+                Some(t) => {
+                    let ty = JsTypeFormatter.format_type(t.kind.as_str(), &t.type_args);
+                    if ty.is_empty() {
+                        escaped
+                    } else {
+                        format!("{}: {}", escaped, ty)
+                    }
+                }
+                None => escaped,
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
+}
 
 /// Collect names of local component functions that are called from the view
 /// or from effects/lifecycles (transitively).
@@ -217,12 +243,38 @@ fn collect_called_fns_from_view(node: &ViewTree, acc: &mut FxHashSet<String>) {
             for binding in el.class_map_bindings.values() {
                 collect_called_fns_from_expr(binding, acc);
             }
+            // C1: prop values may CALL component fns (src={getTitle()}) or
+            // reference them by VALUE (transform={shout}) — the emitted JSX
+            // references both forms, so both must be collected. Identifier
+            // names that are not component fns (signals, loop items, props)
+            // are filtered by the consumer (gen_functions matches against
+            // comp.fns), so the collection never over-emits.
+            for prop in el.props.values() {
+                collect_called_fns_from_expr(prop, acc);
+                collect_expr_identifiers(prop, acc);
+            }
+            // Semantic ref bindings (focus={expr}, value={expr}, ...) emit
+            // their expressions inside generated effects — calls there are
+            // referenced by the emitted code and need declarations.
+            for binding_expr in el.semantic_bindings.values() {
+                collect_called_fns_from_expr(binding_expr, acc);
+            }
+            // C1: inline styles lower to JSON with `$call` markers rendered
+            // as `fnName(args)` by format_style_value_expr — the called
+            // function must be declared (getScoreColor(row.score)).
+            if let Some(ref style_json) = el.inline_style {
+                collect_called_fns_from_style_json(style_json, acc);
+            }
+            // el.bindings are SignalRefIR (name-only references) — they can
+            // never carry function calls, so nothing to collect here (the
+            // mutation side is handled by collect_signal_mutations).
             for child in &el.children {
                 collect_called_fns_from_view(child, acc);
             }
         }
         ViewTree::Conditional(cond) => {
             for branch in &cond.branches {
+                collect_called_fns_from_expr(&branch.condition, acc);
                 if let Some(ref body) = branch.body {
                     collect_called_fns_from_view(body, acc);
                 }
@@ -232,6 +284,7 @@ fn collect_called_fns_from_view(node: &ViewTree, acc: &mut FxHashSet<String>) {
             }
         }
         ViewTree::ListRendering(list) => {
+            collect_called_fns_from_expr(&list.iterable, acc);
             if let Some(ref body) = list.body {
                 collect_called_fns_from_view(body, acc);
             }
@@ -244,14 +297,46 @@ fn collect_called_fns_from_view(node: &ViewTree, acc: &mut FxHashSet<String>) {
                 collect_called_fns_from_view(child, acc);
             }
         }
+        // C1: template interpolations ({getScoreColor(row.score)}) emit the
+        // expression verbatim — calls inside must be declared.
+        ViewTree::Interpolation(expr) => {
+            collect_called_fns_from_expr(expr, acc);
+        }
         ViewTree::Slot { fallback, .. } => {
             for child in fallback {
                 collect_called_fns_from_view(child, acc);
             }
         }
-        ViewTree::Text(_) | ViewTree::Interpolation(_) => {}
+        ViewTree::Text(_) => {}
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
+    }
+}
+
+/// Collect function names from inline-style JSON values. Styles lower to
+/// marker objects (`{"$call": {"name": "fn", "args": [...]}}` plus nested
+/// `$signal` / `$ident` / `$field` / `$concat`), mirroring
+/// `collect_inline_style_signals` in state.rs (which collects the signal
+/// half of the same channel). Args nest arbitrarily, so the walk recurses
+/// through the whole value.
+fn collect_called_fns_from_style_json(val: &serde_json::Value, acc: &mut FxHashSet<String>) {
+    match val {
+        serde_json::Value::Object(obj) => {
+            if let Some(call_obj) = obj.get("$call").and_then(|v| v.as_object()) {
+                if let Some(fn_name) = call_obj.get("name").and_then(|v| v.as_str()) {
+                    acc.insert(fn_name.to_string());
+                }
+            }
+            for v in obj.values() {
+                collect_called_fns_from_style_json(v, acc);
+            }
+        }
+        serde_json::Value::Array(items) => {
+            for item in items {
+                collect_called_fns_from_style_json(item, acc);
+            }
+        }
+        _ => {}
     }
 }
 
@@ -340,9 +425,13 @@ fn collect_called_fns_from_stmt(stmt: &StatementIR, acc: &mut FxHashSet<String>)
                 }
             }
         }
-        StatementIR::EventEmitStmtIR { .. }
-        | StatementIR::BreakStmtIR
-        | StatementIR::ContinueStmtIR => {}
+        StatementIR::EventEmitStmtIR { args, .. } => {
+            // `emit onX(fnCall())` emits the argument expressions verbatim.
+            for arg in args {
+                collect_called_fns_from_expr(arg, acc);
+            }
+        }
+        StatementIR::BreakStmtIR | StatementIR::ContinueStmtIR => {}
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown StatementIR variant — update codegen for new variant"),
     }
