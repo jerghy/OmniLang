@@ -3160,9 +3160,16 @@ fn test_build_animated_builder_body_border_radius_and_font_size() {
     let body = build_animated_builder_body(&motion, "soften");
     assert!(
         body.contains(
-            "Container(decoration: BoxDecoration(borderRadius: _softenBorderRadius.value"
+            "Container(decoration: BoxDecoration(borderRadius: _softenBorderRadius.value)"
         ),
         "borderRadius wrapper: {}",
+        body
+    );
+    assert!(
+        body.contains("clipBehavior: Clip.antiAlias"),
+        "borderRadius wrapper must clip the child so the animated radius is \
+         visible on a container with a background (a bare BoxDecoration with \
+         no color paints nothing — the motion would be visually inert): {}",
         body
     );
     assert!(

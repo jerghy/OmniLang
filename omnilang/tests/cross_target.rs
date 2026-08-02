@@ -499,6 +499,13 @@ component RoundedCard {
             "Flutter field for borderRadius must be Animation<BorderRadius?>: {:?}",
             flutter.files.iter().map(|f| &f.content).collect::<Vec<_>>()
         );
+        assert!(
+            has(&flutter, "clipBehavior: Clip.antiAlias"),
+            "Flutter borderRadius wrapper must clip the child (the card-case \
+             background) so the animated radius is visible — a decoration \
+             without color/clipping is visually inert: {:?}",
+            flutter.files.iter().map(|f| &f.content).collect::<Vec<_>>()
+        );
     }
 
     // ── OmniView: keyframe properties pass through to the runtime, which

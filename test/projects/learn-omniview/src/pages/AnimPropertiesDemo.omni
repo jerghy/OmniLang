@@ -1,22 +1,22 @@
 // ╔══════════════════════════════════════════════════════════════════════╗
-// ║  AnimPropertiesDemo — 全动画属性覆盖（17 个语义属性）                 ║
+// ║  AnimPropertiesDemo — 全动画属性覆盖（19 个语义属性）                 ║
 // ║                                                                    ║
 // ║  变换组：   scale · scaleX · scaleY · rotate · rotateX ·           ║
 // ║             rotateY · rotateZ · skewX · skewY                      ║
 // ║  位移组：   translateX · translateY · translateZ                   ║
 // ║  视觉组：   opacity · backgroundColor · color · width · height     ║
-// ║                                                                    ║
+// ║             borderRadius · fontSize（v2 新增，Task 5.2）           ║
 // ║  按 semantic-level DSL（ADR-053）白名单迁移：                      ║
 // ║    - x/y → translateX/translateY，background → backgroundColor     ║
 // ║    - 滤镜（blur/brightness/contrast/saturate/hueRotate）、         ║
-// ║      margin/padding、fontSize、letterSpacing、borderWidth、        ║
-// ║      borderColor、borderRadius、top/left 不在白名单内：            ║
+// ║      margin/padding、letterSpacing、borderWidth、borderColor、     ║
+// ║      top/left 不在白名单内：                                       ║
 // ║      · top/left → translateX/translateY（等价语义）               ║
 // ║      · blur/brightness/contrast/hueRotate → opacity/scale/        ║
 // ║        rotate/translateZ（保脉冲语义的替代属性）                  ║
-// ║      · 其余（saturate/margin/padding/fontSize/letterSpacing/      ║
-// ║        borderWidth/borderColor/borderRadius）删除——仍可作为       ║
-// ║        元素静态样式使用                                           ║
+// ║      · 其余（saturate/margin/padding/letterSpacing/borderWidth/   ║
+// ║        borderColor）删除——仍可作为元素静态样式使用                ║
+// ║    - borderRadius/fontSize 已入白名单（v2，Task 5.2，19 项语义集）║
 // ╚══════════════════════════════════════════════════════════════════════╝
 
 import omniview;
@@ -185,7 +185,7 @@ component AnimPropertiesDemo {
     view {
         <div class: container>
             <h3 class: title>全动画属性覆盖</h3>
-            <p class: subtitle>17 个语义 keyframe 属性（ADR-053 白名单）· scale/scaleX/scaleY · rotate/rotateX/rotateY/rotateZ · skewX/skewY · translateX/translateY/translateZ · opacity · backgroundColor · color · width · height · 点击按钮播放所有 @enter 动画</p>
+            <p class: subtitle>19 个语义 keyframe 属性（ADR-053 白名单）· scale/scaleX/scaleY · rotate/rotateX/rotateY/rotateZ · skewX/skewY · translateX/translateY/translateZ · opacity · backgroundColor · color · width · height · borderRadius · fontSize · 点击按钮播放所有 @enter 动画</p>
 
             <button @click={toggleAll} class: trigger-btn>
                 Replay All Animations

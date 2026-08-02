@@ -512,10 +512,15 @@ pub(crate) fn build_animated_builder_body(motion: &MotionIntent, motion_name: &s
     }
 
     // borderRadius → Container with BoxDecoration (corner radius of a
-    // rounded surface — BorderRadiusTween interpolation)
+    // rounded surface — BorderRadiusTween interpolation). `clipBehavior:
+    // Clip.antiAlias` makes the animated radius actually clip the child (the
+    // element's background painting) — a BoxDecoration with no color paints
+    // nothing, so without clipping the motion would be visually inert.
+    // Container clips the child to the decoration shape via ClipPath +
+    // _DecorationClipper (Flutter SDK container.dart).
     if has("borderRadius") {
         body = format!(
-            "Container(decoration: BoxDecoration(borderRadius: {}.value), child: {})",
+            "Container(decoration: BoxDecoration(borderRadius: {}.value), clipBehavior: Clip.antiAlias, child: {})",
             prop_anim_field(motion_name, "borderRadius"),
             body
         );
