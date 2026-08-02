@@ -39,6 +39,7 @@ component InlineStoreDemo {
 
         action clear() {
             items = [];
+            prices = [];
             totalPrice = 0.0;
         }
     }

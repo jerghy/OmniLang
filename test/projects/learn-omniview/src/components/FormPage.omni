@@ -128,12 +128,15 @@ component FormPage {
                 </div>
 
                 <!-- Disabled field demonstration -->
+                <!-- value={""} 阻止 auto-bind——否则会意外绑到 name 信号，
+                     随 Name 输入实时镜像（disabled 无交互但可见副作用） -->
                 <div class: field>
                     <label class: label for="disabled-field">Disabled field</label>
                     <input
                         id="disabled-field"
                         class: input
                         placeholder="This field is disabled"
+                        value={""}
                         disabled
                         aria-label="Disabled input"
                         data-testid="disabled-field"
@@ -174,7 +177,7 @@ component FormPage {
                 @if message != "" {
                     <div class: trimmed-area>
                         <p class: trimmed-label>Trimmed message:</p>
-                        <p class: trimmed-value>"{getTrimmedMessage()}"</p>
+                        <p class: trimmed-value>{getTrimmedMessage()}</p>
                     </div>
                 }
 

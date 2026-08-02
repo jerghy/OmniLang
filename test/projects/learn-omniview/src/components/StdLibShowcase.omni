@@ -105,7 +105,7 @@ component StdLibShowcase {
                         <code>demo_map([1,2,3])</code> = {demo_map([1, 2, 3]).len().to_string()} 项（每项 ×2）
                     </li>
                     <li class: output-item>
-                        <code>demo_find(["a","b"], "b")</code> = 索引 {demo_find(["a", "b"], "b")}
+                        <code>demo_find(["a","b"], "b")</code> = 元素 {demo_find(["a", "b"], "b")}
                     </li>
                     <li class: output-item>
                         <code>demo_contains(["a","b"], "a")</code> = {demo_contains(["a", "b"], "a")}

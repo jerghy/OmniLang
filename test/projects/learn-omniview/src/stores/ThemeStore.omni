@@ -35,9 +35,12 @@ store ThemeStore {
     }
 
     // action: 设置指定模式（验证有效性）
+    // 任何主题变更都计入 toggleCount——ThemeSwitcher 卡片走 setMode，
+    // 若只统计 toggle()，卡片选择后 "Toggled N times" 永远显示 0
     action setMode(newMode: String) {
         if newMode == "light" || newMode == "dark" || newMode == "sepia" || newMode == "highContrast" {
             mode = newMode;
+            toggleCount = toggleCount + 1;
         }
     }
 

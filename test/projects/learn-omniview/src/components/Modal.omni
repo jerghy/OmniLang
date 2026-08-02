@@ -21,17 +21,10 @@ component Modal {
     fn handleKeyDown(e) { if e.key == "Escape" { close() } }
     fn handleMouseEnter() { isHovering = true; }
     fn handleMouseLeave() { isHovering = false; }
+    // 仅点击 overlay 背景关闭——内容区点击先被 handleContentClick 拦截，
+    // 否则选择/阅读弹窗内文本也会误关（@onPress 冒泡到 overlay）
     fn handleOverlayClick() { close(); }
-
-    fn getOverlayClass() -> String {
-        if isOpen { return "overlay visible"; }
-        return "overlay hidden";
-    }
-
-    fn getModalClass() -> String {
-        if isHovering { return "modal-content hover"; }
-        return "modal-content";
-    }
+    fn handleContentClick(e) { e.stopPropagation(); }
 
     view {
         <div class: container>
@@ -49,6 +42,7 @@ component Modal {
                         @onKeyDown={handleKeyDown}
                         @onMouseEnter={handleMouseEnter}
                         @onMouseLeave={handleMouseLeave}
+                        @onPress={handleContentClick}
                     >
                         <!-- Named slot: header interpolation (title + close stay as static chrome) -->
                         <div class: modal-header>

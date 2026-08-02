@@ -383,17 +383,22 @@ fn lower_element(
                     }
                     EventHandler::FnRef(fn_name) => {
                         // Look up the referenced function's body to find which
-                        // event fields are used (e.g. `e.value`, `e.key`).
+                        // event fields are used (e.g. `e.value`, `e.key`) and
+                        // whether it calls e.stopPropagation()/preventDefault()
+                        // (same scan as InlineFn — without it, `@onPress={fn}`
+                        // where fn calls e.stopPropagation() emits neither the
+                        // listener-level flag nor a working call, so the event
+                        // keeps bubbling and the handler throws on `{}`).
+                        let func_ir = fns.iter().find(|f| f.name == *fn_name).or_else(|| {
+                            fns.iter().find(|f| {
+                                f.name == *fn_name || f.name.ends_with(&format!("_{}", fn_name))
+                            })
+                        });
+
                         let used_fields = event_data.as_ref().and_then(|kind| {
                             let schema = event_data_schema(kind);
                             let valid_names: Vec<&str> =
                                 schema.iter().map(|f| f.name.as_str()).collect();
-
-                            let func_ir = fns.iter().find(|f| f.name == *fn_name).or_else(|| {
-                                fns.iter().find(|f| {
-                                    f.name == *fn_name || f.name.ends_with(&format!("_{}", fn_name))
-                                })
-                            });
 
                             func_ir.map(|func| {
                                 let mut used = Vec::new();
@@ -406,6 +411,19 @@ fn lower_element(
                                     .collect()
                             })
                         });
+
+                        // Scan the referenced fn body for event method calls
+                        // (stopPropagation / preventDefault) like InlineFn does.
+                        if event_data.is_some() {
+                            if let Some(func) = func_ir {
+                                let fn_param_name =
+                                    func.params.first().map(|p| p.name.as_str()).unwrap_or("e");
+                                let (pd_from_scan, sp_from_scan) =
+                                    scan_ir_event_methods(&func.body, fn_param_name);
+                                needs_pd = needs_pd || pd_from_scan;
+                                needs_sp = needs_sp || sp_from_scan;
+                            }
+                        }
 
                         EventHandlerIR::FnRef {
                             r#ref: fn_name.clone(),
@@ -854,6 +872,32 @@ fn collect_ir_event_fields(block: &BlockIR, fields: &mut Vec<String>, param_name
             }
         });
     }
+}
+
+/// IR-level scan for `e.stopPropagation()` / `e.preventDefault()` calls
+/// inside a lowered function body (the AST-level `scan_event_methods` only
+/// sees inline handler bodies). FnRef handlers get their needs_* flags from
+/// this scan — without it the listener never emits the flag and the handler
+/// receives `{}` with no such methods (TypeError on click-through).
+fn scan_ir_event_methods(block: &BlockIR, param_name: &str) -> (bool, bool) {
+    let mut needs_pd = false;
+    let mut needs_sp = false;
+    for stmt in &block.statements {
+        walk::walk_stmt(stmt, &mut |expr| {
+            if let ExprIR::MethodCallExpr { object, method, .. } = expr {
+                if let ExprIR::IdentifierExpr { name, .. } = object.as_ref() {
+                    if name == param_name {
+                        if method == "preventDefault" {
+                            needs_pd = true;
+                        } else if method == "stopPropagation" {
+                            needs_sp = true;
+                        }
+                    }
+                }
+            }
+        });
+    }
+    (needs_pd, needs_sp)
 }
 
 // ── Helper factories ─────────────────────────────────────

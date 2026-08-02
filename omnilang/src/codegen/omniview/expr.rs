@@ -167,6 +167,19 @@ impl OmniViewGenerator {
                 object,
                 ..
             } => {
+                // e.stopPropagation() / e.preventDefault() inside an event
+                // handler are compile-time directives: the listener-level
+                // flag (needs_stop_propagation / needs_prevent_default) is
+                // what actually calls them on the real event. The handler
+                // receives the extracted event-data object ({} when no fields
+                // are used), which has no such methods — emit a no-op instead
+                // of `{}.stopPropagation()` (TypeError).
+                if (method == "stopPropagation" || method == "preventDefault")
+                    && matches!(object.as_ref(), ExprIR::IdentifierExpr { name, .. } if name == "e")
+                    && args.is_empty()
+                {
+                    return String::new();
+                }
                 let raw_store_name = if let ExprIR::IdentifierExpr { name, .. } = object.as_ref() {
                     name.clone()
                 } else {

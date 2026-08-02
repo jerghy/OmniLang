@@ -42,7 +42,7 @@ component FilterBar {
                         if searchText == "" {
                             TodoStore.setFilter("all");
                         } else {
-                            TodoStore.setFilter("urgent");
+                            TodoStore.setFilter(searchText);
                         }
                     }}
                 ></input>

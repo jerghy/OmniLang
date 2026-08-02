@@ -50,6 +50,13 @@ import { LearnDesign } from "../design";
     easing: power2-out
 }
 
+@motion dragSlideY {
+    from { translateY: 0 }
+    to   { translateY: 100 }
+    over: 300ms
+    easing: power2-out
+}
+
 component MotionTriggersDemo {
     view {
         <div class: LearnDesign.Container>
@@ -85,7 +92,7 @@ component MotionTriggersDemo {
                 <div @drag-horizontal={dragSlide} class: drag-box>
                     <p>Drag me →</p>
                 </div>
-                <div @drag-vertical={dragSlide} class: drag-box-vertical>
+                <div @drag-vertical={dragSlideY} class: drag-box-vertical>
                     <p>Drag me ↓</p>
                 </div>
             </div>

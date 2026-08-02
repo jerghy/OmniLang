@@ -7,6 +7,9 @@ struct StatisticsData { name: String, count: i32, percentage: f64, active: bool,
 component FeatureCard {
     signal status: String = "idle";
     signal focusCount: i32 = 0;
+    // 显式 input 信号——否则 auto-bind 会把 status 绑到输入框，
+    // 用户输入会覆盖状态徽章（"idle" 变成输入文本）
+    signal inputText: String = "";
 
     fn getOriginX() -> i32 {
         let p = Point { x: 0, y: 0 };
@@ -34,7 +37,7 @@ component FeatureCard {
     view {
         <div class: LearnDesign.Card>
             <h3 class: LearnDesign.CardTitle>FeatureCard Demo</h3>
-            <input class: input placeholder="Click" @onFocus={handleFocus} @onBlur={handleBlur}></input>
+            <input class: input placeholder="Click" bind:value={inputText} @onFocus={handleFocus} @onBlur={handleBlur}></input>
             @if status == "focused" {
                 <span class: badge-focused>Focused</span>
             }

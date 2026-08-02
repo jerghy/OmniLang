@@ -14,7 +14,8 @@ pub fn demo_map(arr: Array<i32>) -> Array<i32> {
     return array_map(arr, |x| x * 2);
 }
 
-pub fn demo_find(arr: Array<String>, target: String) -> i32 {
+pub fn demo_find(arr: Array<String>, target: String) -> String {
+    // array_find 返回匹配的「元素」（JS .find() 语义），不是索引
     return array_find(arr, |s| s == target);
 }
 
