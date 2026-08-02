@@ -589,6 +589,15 @@ pub fn analyse_multi_cached(
         }
     }
 
+    // Merge cached diagnostics for files NOT in to_reprocess (shallow clone;
+    // hit cost traded for diagnostic completeness — unchanged files keep
+    // surfacing their errors).
+    for (path, cached) in &cache.entries {
+        if !to_reprocess.contains(path) {
+            diags.extend(cached.diagnostics.iter().cloned());
+        }
+    }
+
     // Merge freshly computed IR (consume per_file_ir — no clone needed)
     for (path, (ir_program, local_diags)) in per_file_ir.drain() {
         diags.extend(local_diags);
@@ -618,5 +627,50 @@ pub fn analyse_multi_cached(
         ir: Some(merged_ir),
         warnings,
         programs: all_programs,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Regression: cache hits must not drop diagnostics of unchanged files.
+    ///
+    /// `CachedFile.diagnostics` is written on cache update but was never
+    /// merged into the output on hits, so `success` could be `true` while
+    /// errors existed — the poiesis editor runs this path on every keystroke.
+    #[test]
+    fn cached_run_keeps_diagnostics_of_unchanged_files() {
+        // File "a.omni" contains an illegal ref op — a lower-phase error that
+        // must surface on every run, cached or not (same source as the
+        // lib.rs pipeline_tests regression).
+        let err_src = "component App {\n    ref box: Element;\n    view {\n        <div @ref={box} />\n    }\n    fn go() {\n        box.getBoundingClientRect();\n    }\n}";
+        let ok_src = "component Clean {\n    view {\n        <div>ok</div>\n    }\n}";
+        let mut sources: FxHashMap<String, String> = FxHashMap::default();
+        sources.insert("a.omni".to_string(), err_src.to_string());
+        sources.insert("b.omni".to_string(), ok_src.to_string());
+        let path_mapping: FxHashMap<String, String> = FxHashMap::default();
+        let mut cache = IncrementalCache::new();
+
+        let out1 = analyse_multi_cached(&sources, &path_mapping, &mut cache);
+        assert!(
+            out1.diagnostics
+                .iter()
+                .any(|d| d.message.contains("getBoundingClientRect")),
+            "run 1 must surface the ref-op error, got: {:?}",
+            out1.diagnostics
+        );
+        assert!(!out1.success, "run 1 must not report success with errors");
+
+        // Second run: both files are cache hits. The error must survive.
+        let out2 = analyse_multi_cached(&sources, &path_mapping, &mut cache);
+        assert!(
+            out2.diagnostics
+                .iter()
+                .any(|d| d.message.contains("getBoundingClientRect")),
+            "cache hit dropped diagnostics of unchanged file, run 2 got: {:?}",
+            out2.diagnostics
+        );
+        assert!(!out2.success, "success must not lie while errors exist");
     }
 }
