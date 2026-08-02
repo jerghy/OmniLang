@@ -552,7 +552,7 @@ fn match_variant_arms_flutter_compiles() {
 
 - [ ] **Step 3: 实现**——match 表达式（含字面量臂与变体臂）Flutter 发射修复；match 引用的本地类型在文件级收集发射
 
-- [ ] **Step 4: 运行验证**——移除 Task 0.5 skip 后 codegen-validate 全绿；dart analyze 全生成文件 0 错误
+- [ ] **Step 4: 运行验证**——MatchBreadthDemo 专项错误清零（`Undefined class 'Rating'`/`Undefined name 'level'` 消失，快照断言）；**保持 Task 0.5 门禁 `#[ignore]`**——T0.5 实测门禁 RED 于 1125 错误/21 类（Curves easing 312、motion controller 重复 225、stdlib 方法发射 202、String→Color props 84 等），un-ignore 条件 = Phase 5 Flutter 批次（5.5/5.6/5.7）完成后全量 dart analyze 0 错误
 
 - [ ] **Step 5: Commit**
 
@@ -1250,7 +1250,7 @@ git add omnilang/src/codegen/flutter/
 git commit -m "fix(flutter): prop type conversion, store equality, safe casts, per-element controllers, const injection"
 ```
 
-**Phase 5 退出门**: @scroll/@drag 维度浏览器实证；fade 三目标对等；@for 契约 fixture + 浏览器；Flutter 常见输入 dart analyze 全绿；语义绑定无焦点偷窃。BNF spec §3/§7 同步。
+**Phase 5 退出门**: @scroll/@drag 维度浏览器实证；fade 三目标对等；@for 契约 fixture + 浏览器；Flutter 常见输入 dart analyze 全绿；语义绑定无焦点偷窃；**learn-omniview Flutter 全量 dart analyze 0 错误 → 移除 Task 0.5 门禁 `#[ignore]`**（T0.5 实测基线 1125 错误/21 类，逐批清零）。BNF spec §3/§7 同步。
 
 ---
 
