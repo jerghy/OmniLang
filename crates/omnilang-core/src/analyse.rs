@@ -229,6 +229,10 @@ fn merge_file_ir_into(
             path,
         );
         existing.structs.extend(std::mem::take(&mut mod_ir.structs));
+        // Tagged unions (deferral #30): per-file enums were silently dropped
+        // here, so no backend ever saw union declarations from the merged IR
+        // (Flutter match variant arms / variant literals reference them).
+        existing.enums.extend(std::mem::take(&mut mod_ir.enums));
         existing
             .type_aliases
             .extend(std::mem::take(&mut mod_ir.type_aliases));

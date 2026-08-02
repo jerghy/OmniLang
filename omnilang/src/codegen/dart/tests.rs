@@ -957,8 +957,8 @@ fn test_format_await_expr_dart() {
 }
 
 /// Literal match arms switch on the subject value itself (`switch (n)`
-/// with `case 0:`) — `switch (n._variant)` on a raw int is null and never
-/// matches. Variant-only matches keep the `_variant` dispatch.
+/// with `case 0:`) — `switch (n.variant)` on a raw int is null and never
+/// matches. Variant-only matches keep the `variant` dispatch.
 #[test]
 fn test_format_match_literal_arms_switch_on_subject() {
     let expr = ExprIR::MatchExpr {
@@ -1014,7 +1014,12 @@ fn test_format_match_literal_arms_switch_on_subject() {
     };
     let out = format_expr_ir(&expr);
     assert!(
-        out.contains("switch (n)"),
+        out.contains("final _v = n;"),
+        "match IIFE should bind the subject once. Output: {}",
+        out
+    );
+    assert!(
+        out.contains("switch (_v)"),
         "literal match should switch on the subject value. Output: {}",
         out
     );
@@ -1034,13 +1039,48 @@ fn test_format_match_literal_arms_switch_on_subject() {
         out
     );
     assert!(
-        !out.contains("switch (n._variant)"),
-        "literal match must not switch on _variant. Output: {}",
+        !out.contains("switch (n.variant)"),
+        "literal match must not switch on variant. Output: {}",
         out
     );
 }
 
-/// Variant-only matches keep switching on `._variant`.
+/// Non-exhaustive matches (no wildcard arm) get a throwing default so the
+/// IIFE's return type is not nullable (return_of_invalid_type).
+#[test]
+fn test_format_match_without_wildcard_gets_throwing_default() {
+    let expr = ExprIR::MatchExpr {
+        matched: Box::new(ExprIR::IdentifierExpr {
+            name: "r".into(),
+            type_ann: None,
+        }),
+        arms: vec![MatchArmIR {
+            pattern: MatchPatternIR {
+                kind: MatchPatternKindIR::Variant {
+                    name: "Star".into(),
+                    bindings: vec!["level".into()],
+                },
+            },
+            body: BlockIR {
+                statements: vec![StatementIR::ReturnStmtIR {
+                    value: Some(ExprIR::IdentifierExpr {
+                        name: "level".into(),
+                        type_ann: None,
+                    }),
+                }],
+            },
+            union_type: None,
+        }],
+    };
+    let out = format_expr_ir(&expr);
+    assert!(
+        out.contains("default: throw StateError('Unmatched variant');"),
+        "match without wildcard must get a throwing default. Output: {}",
+        out
+    );
+}
+
+/// Variant-only matches keep switching on `.variant`.
 #[test]
 fn test_format_match_variant_arms_switch_on_variant() {
     let expr = ExprIR::MatchExpr {
@@ -1082,13 +1122,75 @@ fn test_format_match_variant_arms_switch_on_variant() {
     };
     let out = format_expr_ir(&expr);
     assert!(
-        out.contains("switch (r._variant)"),
-        "variant match should keep _variant dispatch. Output: {}",
+        out.contains("final _v = r;"),
+        "match IIFE should bind the subject once. Output: {}",
         out
     );
     assert!(
-        out.contains("case \"Star\": return 'star';"),
+        out.contains("switch (_v.variant)"),
+        "variant match should keep variant dispatch. Output: {}",
+        out
+    );
+    assert!(
+        out.contains("case \"Star\": {"),
         "variant arm should be a case on the variant name. Output: {}",
+        out
+    );
+    assert!(
+        out.contains("final _level = _v.level;"),
+        "variant arm should bind its pattern fields from the subject \
+         (unused binding prefixed with _). Output: {}",
+        out
+    );
+}
+
+/// Variant arms whose body uses the bound field emit the binding under its
+/// real name (`Star { level }` → `final level = _v.level;`).
+#[test]
+fn test_format_match_variant_arm_uses_binding_name() {
+    let expr = ExprIR::MatchExpr {
+        matched: Box::new(ExprIR::IdentifierExpr {
+            name: "r".into(),
+            type_ann: None,
+        }),
+        arms: vec![MatchArmIR {
+            pattern: MatchPatternIR {
+                kind: MatchPatternKindIR::Variant {
+                    name: "Star".into(),
+                    bindings: vec!["level".into()],
+                },
+            },
+            body: BlockIR {
+                statements: vec![StatementIR::ReturnStmtIR {
+                    value: Some(ExprIR::BinaryOpExpr {
+                        op: crate::ir::BinaryOpIR::Add,
+                        left: Box::new(ExprIR::LiteralExpr {
+                            value: serde_json::json!("star Lv."),
+                        }),
+                        right: Box::new(ExprIR::MethodCallExpr {
+                            object: Box::new(ExprIR::IdentifierExpr {
+                                name: "level".into(),
+                                type_ann: None,
+                            }),
+                            method: "toString".into(),
+                            args: vec![],
+                            is_optional: false,
+                        }),
+                    }),
+                }],
+            },
+            union_type: None,
+        }],
+    };
+    let out = format_expr_ir(&expr);
+    assert!(
+        out.contains("final level = _v.level;"),
+        "used binding must keep its name. Output: {}",
+        out
+    );
+    assert!(
+        out.contains("return 'star Lv.' + level.toString();"),
+        "arm body must reference the bound field. Output: {}",
         out
     );
 }

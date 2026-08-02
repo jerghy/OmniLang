@@ -9,13 +9,11 @@
 // ║     · 现状：fn 类型在 React 降级为 any、Flutter 为 dynamic，            ║
 // ║       签名（参数个数/返回类型）暂不校验                                 ║
 // ║                                                                      ║
-// ║  ② match 表达式（标签联合臂 + 通配符——仅演示可工作子集）             ║
-// ║     · 可工作：_ 通配、标签联合臂 { field } 解构、字面量臂             ║
-// ║       （React/OmniView/JS：字面量臂比较主体值本身，已修复；           ║
-// ║       Flutter 见下方 ⚠ 状态）                                          ║
-// ║     · 已知代码生成缺口（另行追踪，不在本演示展示）：                   ║
-// ║       Flutter 不发射本地标签联合类型（如 Rating 类），且变体臂        ║
-// ║       switch (n._variant) 无运行时字段支撑——生成的 Dart 无法编译       ║
+// ║  ② match 表达式（标签联合臂 + 通配符）                                ║
+// ║     · 可工作：_ 通配、标签联合臂 { field } 解构 —— React/OmniView/JS   ║
+// ║       字面量臂比较主体值本身（已修复）；Flutter 变体臂自 2026-08-02    ║
+// ║       Task 1.4 起可用（deferral #30）：本地标签联合类型（Rating 类）   ║
+// ║       发射进 types.dart + 臂内字段绑定 + 非穷尽 match 的 default 兜底  ║
 // ║     · 不支持：臂内 if 守卫（guard）、模式中的 | 联合（1 | 2 =>）        ║
 // ║                                                                      ║
 // ║  ③ 语法状态速查（诚实标注，避免把无效果语法当功能展示）                  ║
@@ -86,11 +84,12 @@ component MatchBreadthDemo {
         };
     }
 
-    // 说明：字面量臂（0 => ...）在 JS 目标已修复——比较主体值本身（_v === 0），
-    // 运行时可命中（React/OmniView/JS）。Flutter 仍为缺口：变体臂
-    // switch (n._variant) 无运行时字段支撑、本地类型（Rating 类）发射缺失，
-    // 故此处不演示字面量臂。
-    // 仅演示可工作子集：标签联合臂 { field } 解构 + _ 通配。
+    // 说明：字面量臂（0 => ...）在 JS 目标比较主体值本身（_v === 0），
+    // 运行时可命中（React/OmniView/JS）。Flutter 变体臂自 2026-08-02
+    // Task 1.4（deferral #30）起可用：Rating 类发射进 types.dart，臂内
+    // 字段绑定为 final level = _v.level，非穷尽 match 追加
+    // default: throw StateError 兜底。
+    // 此处演示标签联合臂 { field } 解构 + _ 通配。
     // 注意：臂内暂不支持 1 | 2 联合模式与 if 守卫。
 
     view {
@@ -166,7 +165,7 @@ component AdvancedTypesDemo {
                     <li>泛型：类型实参（Array、Map 形式）可用；泛型声明 fn foo / component Bar 的类型参数尚未支持（完整说明见文件头注释）</li>
                     <li>{"$signal"} / {"$concat"} / {"$call"}：这是 lowering 写入 style JSON 的<strong>内部标记</strong>（见 ir/lower/expr.rs），不是用户可写的源码语法</li>
                     <li>match 暂不支持：臂内 <code>if</code> 守卫、模式联合（1 | 2）</li>
-                    <li><strong>⚠ match 已知代码生成缺口（另行追踪，此处不演示）</strong>：Flutter 不发射本地标签联合类型（Rating 类缺失），且字面量臂生成 <code>switch (n._variant)</code> —— 生成的 Dart 无法编译。JS 目标（React/OmniView）字面量臂已修复为 <code>_v === value</code> 直接比较，可正常工作。本演示仅保留 React / OmniView 可工作的标签联合臂 + 通配符</li>
+                    <li><strong>✅ match Flutter 变体臂已修复（Task 1.4，deferral #30）</strong>：本地标签联合类型（<code>Rating</code> 类）发射进 <code>types.dart</code>，变体臂内字段绑定（<code>final level = _v.level</code>）+ 非穷尽 match 的 <code>default: throw</code> 兜底——生成的 Dart 通过 <code>dart analyze</code>。三目标（React / OmniView / Flutter）标签联合臂 + 通配符均可用；字面量臂在 JS 目标比较主体值本身（<code>_v === value</code>），此处不演示</li>
                 </ul>
             </div>
         </div>

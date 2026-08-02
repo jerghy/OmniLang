@@ -592,7 +592,9 @@ fn test_drag_widget_without_translate_falls_back_unbounded() {
         expr
     );
     assert!(
-        warnings.iter().any(|w| w.contains("fadeOnly") && w.contains("literal translateX/Y")),
+        warnings
+            .iter()
+            .any(|w| w.contains("fadeOnly") && w.contains("literal translateX/Y")),
         "fallback must push a compiler warning through the warnings channel, got: {:?}",
         warnings
     );
@@ -1399,6 +1401,7 @@ fn test_component_with_unmount_lifecycle() {
 #[test]
 fn test_store_dart_empty() {
     let codegen = FlutterCodegen;
+    let ir_program = IRProgram::default();
     let store = StoreIR {
         name: "EmptyStore".into(),
         signals: FxHashMap::default(),
@@ -1407,7 +1410,7 @@ fn test_store_dart_empty() {
         actions: vec![],
         ..Default::default()
     };
-    let store_dart = codegen.gen_store_dart("EmptyStore", &store);
+    let store_dart = codegen.gen_store_dart("EmptyStore", &store, &ir_program);
     assert!(store_dart.contains("import 'package:flutter_riverpod/flutter_riverpod.dart';"));
     assert!(
         store_dart.contains("Empty store"),
@@ -1419,6 +1422,7 @@ fn test_store_dart_empty() {
 #[test]
 fn test_store_dart_with_signals() {
     let codegen = FlutterCodegen;
+    let ir_program = IRProgram::default();
     let mut signals = FxHashMap::default();
     signals.insert(
         "count".into(),
@@ -1447,7 +1451,7 @@ fn test_store_dart_with_signals() {
         actions: vec![],
         ..Default::default()
     };
-    let store_dart = codegen.gen_store_dart("AppStore", &store);
+    let store_dart = codegen.gen_store_dart("AppStore", &store, &ir_program);
     // Riverpod 3.0: immutable state class
     assert!(
         store_dart.contains("class AppStoreState {"),
@@ -1508,6 +1512,7 @@ fn test_store_dart_with_signals() {
 #[test]
 fn test_store_dart_with_getters() {
     let codegen = FlutterCodegen;
+    let ir_program = IRProgram::default();
     let mut getters = FxHashMap::default();
     getters.insert(
         "doubleCount".into(),
@@ -1549,7 +1554,7 @@ fn test_store_dart_with_getters() {
         actions: vec![],
         ..Default::default()
     };
-    let store_dart = codegen.gen_store_dart("CalcStore", &store);
+    let store_dart = codegen.gen_store_dart("CalcStore", &store, &ir_program);
     // Riverpod 3.0: getters are computed properties on the immutable state class
     assert!(store_dart.contains("class CalcStoreState {"));
     assert!(
@@ -2829,6 +2834,7 @@ fn test_motion_pipeline_warnings_and_playback() {
 #[test]
 fn test_store_dart_with_action() {
     let codegen = FlutterCodegen;
+    let ir_program = IRProgram::default();
     let mut signals = FxHashMap::default();
     signals.insert(
         "count".into(),
@@ -2867,7 +2873,7 @@ fn test_store_dart_with_action() {
         }],
         ..Default::default()
     };
-    let store_dart = codegen.gen_store_dart("AppStore", &store);
+    let store_dart = codegen.gen_store_dart("AppStore", &store, &ir_program);
     // Riverpod 3.0: actions are Notifier methods mutating state via copyWith
     assert!(
         store_dart.contains("void increment() {"),

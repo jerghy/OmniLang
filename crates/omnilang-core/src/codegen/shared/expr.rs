@@ -430,6 +430,15 @@ impl FormatExpr for DartFormatExpr {
         self.event_param_name.as_deref()
     }
 
+    // Rust-style conversions → Dart (mirrors the React backend's
+    // translate_method_call): `x.to_string()` → `x.toString()`.
+    fn format_method_call(&self, obj: &str, method: &str, args: &[String]) -> String {
+        match method {
+            "to_string" => format!("{obj}.toString({})", args.join(", ")),
+            _ => format!("{obj}.{method}({})", args.join(", ")),
+        }
+    }
+
     // Dart uses `UnionType.variant(unquotedKey: value)` syntax.
     fn format_variant_literal(
         &self,
@@ -449,22 +458,64 @@ impl FormatExpr for DartFormatExpr {
     // subject value itself — `n._variant` on a raw int is null and never
     // matches, so a switch on the value is required when any literal arm
     // exists (variant dispatch stays when all arms are variants).
+    //
+    // Variant arms bind their pattern fields (`Star { level }`) from the
+    // subject's union-class members — `final level = _v.level;` — and are
+    // wrapped in a block so the declarations stay scoped to their case
+    // (Dart switch cases share the enclosing scope). The union class itself
+    // exposes every variant field as a dynamic member, so the access
+    // type-checks; the emitting backend is responsible for declaring it
+    // (Flutter emits referenced unions into types.dart — deferral #30).
+    // Matches without a wildcard arm get a `default: throw StateError(...)`
+    // fallback so the IIFE's return type is never nullable — otherwise
+    // `return (() { switch ... })();` reports return_of_invalid_type.
     fn format_match(&self, matched: &str, arms: &[MatchArmIR]) -> String {
         let has_variant = arms
             .iter()
             .any(|arm| matches!(arm.pattern.kind, MatchPatternKindIR::Variant { .. }));
+        let has_wildcard = arms
+            .iter()
+            .any(|arm| matches!(arm.pattern.kind, MatchPatternKindIR::Wildcard));
         let subject = if has_variant {
-            format!("{matched}._variant")
+            // `variant` (not `_variant`): the union class lives in the shared
+            // types.dart library, and `_`-prefixed members are library-private
+            // in Dart — the match arm's `_v.variant` access must cross files.
+            "_v.variant".to_string()
         } else {
-            matched.to_string()
+            "_v".to_string()
         };
-        let cases: Vec<String> = arms
+        let mut cases: Vec<String> = arms
             .iter()
             .map(|arm| {
                 let body = self.format_block_as_expr(&arm.body);
                 match &arm.pattern.kind {
-                    MatchPatternKindIR::Variant { name, .. } => {
-                        format!("  case \"{name}\": return {body};")
+                    MatchPatternKindIR::Variant { name, bindings } => {
+                        // Bind pattern fields from the subject's union-class
+                        // members. Unused bindings get the `_` prefix so
+                        // Dart's unused_local_variable lint stays quiet. The
+                        // discriminator member is `variant` — public, so the
+                        // access crosses the types.dart library boundary
+                        // (a `_`-prefixed member would be library-private).
+                        let binds: Vec<String> = bindings
+                            .iter()
+                            .filter(|b| b.as_str() != "variant")
+                            .map(|b| {
+                                let local = if body.contains(b) {
+                                    b.clone()
+                                } else {
+                                    format!("_{b}")
+                                };
+                                format!("final {local} = _v.{b};")
+                            })
+                            .collect();
+                        if binds.is_empty() {
+                            format!("  case \"{name}\": return {body};")
+                        } else {
+                            format!(
+                                "  case \"{name}\": {{\n{}\n    return {body};\n  }}",
+                                binds.join("\n    ")
+                            )
+                        }
                     }
                     MatchPatternKindIR::Wildcard => {
                         format!("  default: return {body};")
@@ -476,8 +527,11 @@ impl FormatExpr for DartFormatExpr {
                 }
             })
             .collect();
+        if !has_wildcard {
+            cases.push("  default: throw StateError('Unmatched variant');".to_string());
+        }
         format!(
-            "(() {{\nswitch ({subject}) {{\n{}\n}}\n}})()",
+            "(() {{\nfinal _v = {matched};\nswitch ({subject}) {{\n{}\n}}\n}})()",
             cases.join("\n")
         )
     }

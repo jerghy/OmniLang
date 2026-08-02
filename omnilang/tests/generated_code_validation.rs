@@ -6,11 +6,17 @@
 //!
 //! - `react_output_compiles_with_tsc`: fixtures -> React TSX -> `tsc --noEmit`
 //! - `flutter_output_compiles_with_dart_analyze`: fixtures -> Dart -> `dart analyze`
+//! - `match_variant_arms_flutter_compiles`: the showcase project
+//!   (`test/projects/learn-omniview`) -> Flutter -> scoped `dart analyze`
+//!   of `MatchBreadthDemo.dart` asserting deferral #30's specific errors
+//!   (`Undefined class 'Rating'` / `Undefined name 'level'`) are gone.
 //! - `learn_omniview_flutter_output_passes_dart_analyze`: the showcase
-//!   project (`test/projects/learn-omniview`) -> Flutter -> full-output
-//!   `dart analyze` (currently `#[ignore]`d — deferral #30: match variant
-//!   arms emit uncompilable Dart; Task 1.4 fixes the root cause and removes
-//!   the ignore)
+//!   project -> Flutter -> full-output `dart analyze` (still `#[ignore]`d —
+//!   deferral #30's match root cause is fixed by Task 1.4, but the gate
+//!   stays RED on other pre-existing gaps — Curves easing names, duplicated
+//!   motion controllers, stdlib method emission, String->Color props — until
+//!   the Phase 5 Flutter batch (Tasks 5.5/5.6/5.7) makes the full output
+//!   analyze clean; that is the un-ignore point)
 //!
 //! Toolchain requirements (none are hard requirements — each test SKIPs
 //! gracefully when its toolchain is missing, mirroring the pattern in
@@ -508,31 +514,18 @@ fn flutter_output_compiles_with_dart_analyze() {
 //
 // The fixture gates above validate synthetic inputs; the flagship demo
 // project exercises real combinations the fixtures do not cover (match /
-// @for key / theme / typed slots — compilability review MEDIUM-10). This
-// gate compiles the WHOLE project to Flutter and runs `dart analyze` over
-// EVERY generated `.dart` file, reusing the exact full-enumeration pattern
-// of `flutter_output_compiles_with_dart_analyze` (the project's output is
-// written under `out/learn-omniview/` so `flutter_analyze_targets` picks
-// it up unchanged).
+// @for key / theme / typed slots — compilability review MEDIUM-10). The
+// full-project gate compiles the WHOLE project to Flutter and runs
+// `dart analyze` over EVERY generated `.dart` file; the scoped match test
+// below analyzes a single file. Both share `compile_learn_omniview_flutter`
+// (the project's output is written under `out/learn-omniview/` so
+// `flutter_analyze_targets` picks it up unchanged).
 
-// SKIPPED until Task 1.4 (semantic-syntax-v2) removes the ignore: the
-// showcase project's Flutter output does NOT pass `dart analyze` today.
-// The RED run (2026-08-02, this task) reported 1125 analyzer errors, the
-// tracked root cause being deferral #30 — match variant arms / local-type
-// emission: `Rating` class not emitted, `level` undeclared
-// (MatchBreadthDemo.dart:649+). The same run also surfaced other
-// pre-existing codegen gaps (Curves easing names, duplicated motion
-// controllers, stdlib method emission, String->Color props — all recorded
-// in .architecture/reviews/feature-omniview-semantic-syntax-compilability.md).
-// Task 1.4 fixes the match root cause and removes this attribute.
-#[test]
-#[ignore = "deferral #30: match variant arms / local-type emission make learn-omniview Flutter output uncompilable (see .architecture/deferrals.md #30) — Task 1.4 fixes and un-ignores"]
-fn learn_omniview_flutter_output_passes_dart_analyze() {
-    let Some(mut dart) = dart_command() else {
-        eprintln!("SKIP: dart not found on PATH");
-        return;
-    };
-
+/// Compile the showcase project to Flutter and write every generated `.dart`
+/// file under `out/learn-omniview/` plus the pubspec/analysis_options
+/// `dart analyze` needs. Returns the out root, or None when the Flutter
+/// backend is not compiled into this build (SKIP).
+fn compile_learn_omniview_flutter(scratch: &ScratchDir) -> Option<PathBuf> {
     // Discover sources the same way `omnic build` does: Directory mode
     // keys files by path relative to src/ ("./components/x" imports
     // resolve through the same path mapping the CLI uses).
@@ -554,7 +547,6 @@ fn learn_omniview_flutter_output_passes_dart_analyze() {
         project_root.join("src").display()
     );
 
-    let scratch = ScratchDir::new("learn-omniview");
     let path_mapping = omnilang::path_mapping::derive_path_mapping(&sources);
     let result = omnilang::compile_multi_internal(
         sources,
@@ -570,7 +562,7 @@ fn learn_omniview_flutter_output_passes_dart_analyze() {
              (run with `--features codegen-flutter`); cannot validate \
              learn-omniview output"
         );
-        return;
+        return None;
     }
     assert!(
         result.success,
@@ -600,6 +592,137 @@ fn learn_omniview_flutter_output_passes_dart_analyze() {
 
     std::fs::write(out_root.join("pubspec.yaml"), FLUTTER_PUBSPEC).expect("write pubspec");
     std::fs::write(out_root.join("analysis_options.yaml"), "# minimal\n").expect("write options");
+    Some(out_root)
+}
+
+/// Scoped validation for deferral #30 (Task 1.4): match expressions with
+/// variant arms must emit complete, compilable types. The showcase project's
+/// `MatchBreadthDemo` uses `type Rating = Star { level: i32 } | Blank` —
+/// the Flutter backend previously emitted `switch (r._variant)` / `Rating.*`
+/// literals without ever emitting the `Rating` class or binding the variant
+/// fields, so `dart analyze` reported `Undefined class 'Rating'`,
+/// `Undefined name 'level'`, and `return_of_invalid_type`.
+///
+/// The fix: (1) union classes are emitted into a shared `types.dart` and
+/// imported by the components that reference them; (2) variant match arms
+/// bind their fields (`final level = _v.level;`); (3) matches without a
+/// wildcard arm get a `default: throw StateError(...)` fallback so the
+/// match IIFE's return type is not nullable.
+#[test]
+fn match_variant_arms_flutter_compiles() {
+    let scratch = ScratchDir::new("match-variant");
+    let Some(out_root) = compile_learn_omniview_flutter(&scratch) else {
+        return; // backend not compiled in
+    };
+
+    // Deterministic content assertions — the emitted shape itself (these do
+    // not depend on the dart toolchain being present).
+    let demo_path = out_root
+        .join("learn-omniview")
+        .join("MatchBreadthDemo.dart");
+    let types_path = out_root.join("learn-omniview").join("types.dart");
+    let demo = std::fs::read_to_string(&demo_path).expect("MatchBreadthDemo.dart generated");
+    let types = std::fs::read_to_string(&types_path).expect("types.dart generated");
+    assert!(
+        types.contains("class Rating"),
+        "union class Rating must be emitted into types.dart:\n{types}"
+    );
+    assert!(
+        types.contains("Rating.Star({ required this.level })"),
+        "variant constructor must take the field as a named param \
+         (VariantLiteral emits Rating.Star(level: ...)):\n{types}"
+    );
+    assert!(
+        demo.contains("import './types.dart';"),
+        "component using Rating must import types.dart:\n{demo}"
+    );
+    assert!(
+        demo.contains("final level = _v.level;"),
+        "variant arm must bind its fields from the subject:\n{demo}"
+    );
+    assert!(
+        demo.contains("switch (_v.variant)"),
+        "variant match keeps variant dispatch on the bound subject \
+         (public member — the union class lives in the types.dart library):\n{demo}"
+    );
+    assert!(
+        demo.contains("default: throw StateError"),
+        "non-exhaustive match gets a throwing default so the IIFE return \
+         type is non-nullable (kills return_of_invalid_type):\n{demo}"
+    );
+
+    // Analyzer gate — the MatchBreadthDemo-specific errors must be gone from
+    // dart analyze's output for that file. Other pre-existing errors in the
+    // file (Curves easing names, duplicated motion controllers, String->Color
+    // props) belong to Phase 5 and are out of scope here.
+    let Some(mut dart) = dart_command() else {
+        eprintln!("SKIP: dart not found on PATH");
+        return;
+    };
+    dart.args(["pub", "get"]).current_dir(&out_root);
+    let pub_get = run(&mut dart);
+    if !pub_get.status.success() {
+        print_output("dart pub get", &pub_get);
+        eprintln!(
+            "SKIP: `dart pub get` failed — is dart the Flutter-bundled SDK, \
+             and is pub.dev reachable? (flutter_riverpod must resolve)"
+        );
+        return;
+    }
+
+    let mut dart = dart_command().expect("dart still available");
+    dart.args(["analyze"])
+        .current_dir(&out_root)
+        .arg("learn-omniview/MatchBreadthDemo.dart");
+    let analyze = run(&mut dart);
+    let stdout = String::from_utf8_lossy(&analyze.stdout).into_owned();
+    let stderr = String::from_utf8_lossy(&analyze.stderr).into_owned();
+    let combined = format!("{stdout}{stderr}");
+    for needle in [
+        "Undefined class 'Rating'",
+        "Undefined name 'Rating'",
+        "Undefined name 'level'",
+        "return_of_invalid_type",
+    ] {
+        assert!(
+            !combined.contains(needle),
+            "MatchBreadthDemo.dart must not report `{needle}` after the \
+             deferral #30 fix. Full analyzer output:\n{combined}"
+        );
+    }
+    eprintln!(
+        "MatchBreadthDemo.dart: no deferral-#30 errors (Rating class / level \
+         binding / return type). Residual Phase-5 errors in the file (Curves \
+         easing names, duplicated motion controllers, String->Color props) \
+         may remain:\n{combined}"
+    );
+}
+
+// SKIPPED until the Phase 5 Flutter batch (Tasks 5.5/5.6/5.7): the showcase
+// project's Flutter output does NOT pass `dart analyze` today. Task 1.4
+// (this session) fixed the deferral #30 root cause — match variant arms /
+// local-type emission: the `Rating` class is now emitted into types.dart,
+// variant fields are bound (`final level = _v.level;`), and non-exhaustive
+// matches get a throwing default (verified by `match_variant_arms_flutter_compiles`,
+// MatchBreadthDemo.dart's `Undefined class 'Rating'` / `Undefined name
+// 'level'` / `return_of_invalid_type` errors are gone). The gate stays RED
+// on the remaining pre-existing gaps (Curves easing names, duplicated
+// motion controllers, stdlib method emission, String->Color props — 1125
+// errors / 21 classes in the 2026-08-02 run, recorded in
+// .architecture/reviews/feature-omniview-semantic-syntax-compilability.md).
+// Phase 5 fixes those and removes this attribute.
+#[test]
+#[ignore = "learn-omniview Flutter output still RED on Phase 5 gaps (Curves easing names, duplicated motion controllers, stdlib emission, String->Color props) — un-ignore after Tasks 5.5/5.6/5.7 (see .architecture/deferrals.md #30)"]
+fn learn_omniview_flutter_output_passes_dart_analyze() {
+    let Some(mut dart) = dart_command() else {
+        eprintln!("SKIP: dart not found on PATH");
+        return;
+    };
+
+    let scratch = ScratchDir::new("learn-omniview");
+    let Some(out_root) = compile_learn_omniview_flutter(&scratch) else {
+        return; // backend not compiled in
+    };
 
     dart.args(["pub", "get"]).current_dir(&out_root);
     let pub_get = run(&mut dart);
@@ -620,7 +743,7 @@ fn learn_omniview_flutter_output_passes_dart_analyze() {
         !targets.is_empty(),
         "no generated .dart files found under {} — the compile-level \
          validation above should have produced some",
-        out_dir.display()
+        out_root.display()
     );
     let mut failures = Vec::new();
     for path in targets {
@@ -632,12 +755,7 @@ fn learn_omniview_flutter_output_passes_dart_analyze() {
     }
     assert!(
         failures.is_empty(),
-        "learn-omniview Flutter output failed `dart analyze` ({} files):\n{}",
-        written,
+        "learn-omniview Flutter output failed `dart analyze`:\n{}",
         failures.join("\n\n")
-    );
-    eprintln!(
-        "learn-omniview Flutter output: dart analyze OK ({} files)",
-        written
     );
 }
