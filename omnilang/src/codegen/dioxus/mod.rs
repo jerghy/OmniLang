@@ -15,6 +15,7 @@ use view::*;
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
 use crate::codegen::shared::expr::{FormatExpr, RustFormatExpr};
 use crate::codegen::shared::stmt::FormatStmt;
+use crate::codegen::shared::types::{FormatType, RustTypeFormatter};
 use crate::codegen::{format_json_value, JSON_DIOXUS};
 use crate::ir::*;
 use rustc_hash::FxHashMap;
@@ -62,7 +63,8 @@ impl DioxusCodegen {
             w.emit_fmt(format_args!("struct {}Props {{", name));
             w.indent();
             for (prop_name, prop_type) in &comp.props {
-                let rs_ty = super::rust::rs_type(prop_type.kind.as_str(), &prop_type.type_args);
+                let rs_ty =
+                    RustTypeFormatter.format_type(prop_type.kind.as_str(), &prop_type.type_args);
                 w.emit_fmt(format_args!("{}: {},", prop_name, rs_ty));
             }
             w.dedent();
@@ -219,7 +221,7 @@ impl DioxusCodegen {
         w.emit_fmt(format_args!("pub struct {} {{", name));
         w.indent();
         for (sig_name, sig_type) in &store.signals {
-            let rs_ty = super::rust::rs_type(sig_type.kind.as_str(), &sig_type.type_args);
+            let rs_ty = RustTypeFormatter.format_type(sig_type.kind.as_str(), &sig_type.type_args);
             w.emit_fmt(format_args!("pub {}: Signal<{}>,", sig_name, rs_ty));
         }
         w.dedent();
@@ -289,7 +291,12 @@ impl FormatStmt for DioxusStmtFormatter {
 
     fn format_let_type_ann(&self, ty: &Option<TypeIR>) -> String {
         ty.as_ref()
-            .map(|t| format!(": {}", super::rust::rs_type(t.kind.as_str(), &t.type_args)))
+            .map(|t| {
+                format!(
+                    ": {}",
+                    RustTypeFormatter.format_type(t.kind.as_str(), &t.type_args)
+                )
+            })
             .unwrap_or_default()
     }
 
