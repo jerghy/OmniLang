@@ -665,10 +665,10 @@ Semantics(liveRegion: true, child: Text(status))
 
 #### 验证清单
 
-- [ ] 三目标语义等价（Flutter 语义树断言：Semantics 节点 label/flag 存在）
-- [ ] 现有 6 处 demo a11y 属性（FormPage aria-label 等）迁移到 a11y 块 + 三目标生效
-- [ ] 不可映射 role → warning + 注释
-- [ ] a11y 加入 floor 表与文档
+- [x] 三目标语义等价（Flutter 语义树断言：Semantics 节点 label/flag 存在）— Task 4.5：fixture `a11y.omni` 三目标生成形状断言 + `Semantics(label:)`/`ExcludeSemantics`/`liveRegion`/`semanticLabel` 存在性（`tests_regression/parameterized.rs` + `generated_code_validation.rs`）
+- [x] 现有 demo a11y 属性（FormPage 8 处 aria-label 等）迁移到 a11y 块 + 三目标生效 — Task 4.5：`learn_omniview_formpage_a11y_migration_across_targets`（OmniView 属性不变 / React 无占位符重复 / Flutter 新出 Semantics）
+- [x] 不可映射 role → warning + 注释 — Task 4.5：语义 pass warning + Flutter T2.4 warnings 通道 + 生成代码 `/* a11y: … */` 注释（`test_a11y_unmappable_role_warns_and_comments`）
+- [x] a11y 加入 floor 表与文档 — Task 4.5：floor 表（设计文档 §10.1）+ 语法规范 §11
 
 ---
 

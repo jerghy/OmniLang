@@ -374,6 +374,16 @@ pub fn lower(
         }
     }
 
+    // Validate a11y blocks (design doc 域 10): `role` must be in the
+    // Flutter-mappable subset (warning otherwise — Flutter degrades with a
+    // generated-code comment, the web targets pass the role through);
+    // `live` accepts only "polite"/"assertive" (error otherwise).
+    for module in ir_program.modules.values() {
+        for component in module.components.values() {
+            crate::semantic::validate_a11y::validate_a11y(component, &mut semantics.diagnostics);
+        }
+    }
+
     ir_program
 }
 

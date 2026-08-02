@@ -987,6 +987,16 @@ impl SemanticAnalyzer {
                         self.resolve_view_node_refs(node, vctx);
                     }
                 }
+                // a11y block expressions (hidden/alt) reference signals
+                // like any other prop expression.
+                ElementProp::A11y(spec) => {
+                    if let Some(ref hidden) = spec.hidden {
+                        self.resolve_expr_refs(hidden, vctx);
+                    }
+                    if let Some(ref alt) = spec.alt {
+                        self.resolve_expr_refs(alt, vctx);
+                    }
+                }
                 ElementProp::Bind { .. }
                 | ElementProp::TestId(_)
                 | ElementProp::Ref(_)

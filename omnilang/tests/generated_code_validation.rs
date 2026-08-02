@@ -772,3 +772,130 @@ fn learn_omniview_flutter_output_passes_dart_analyze() {
         failures.join("\n\n")
     );
 }
+
+// ════════════════════════════════════════════════════════════════
+// Showcase project: FormPage demo a11y migration (design doc 域 10)
+// ════════════════════════════════════════════════════════════════
+//
+// FormPage.omni's 8 raw `aria-label` attributes migrated to
+// `a11y: { label: ... }` blocks (Task 4.5). The contract: OmniView keeps
+// emitting the aria-label attributes (no behavior change), React emits
+// aria-label (with NO duplicate placeholder auto-fill label), and Flutter
+// emits the Semantics(label: ...) node it used to silently drop (the
+// review's MEDIUM-2).
+
+/// Compile the whole learn-omniview project to a target, returning the
+/// generated files keyed by output path. Returns None when the backend is
+/// not compiled into this build (SKIP).
+fn compile_learn_omniview(target: Target) -> Option<FxHashMap<String, String>> {
+    let project_root = Path::new(env!("CARGO_MANIFEST_DIR")).join(LEARN_OMNIVIEW_PROJECT);
+    let sources = omnilang::discovery::discover_omni_sources(
+        &project_root.join("src"),
+        omnilang::discovery::DiscoveryMode::Directory,
+    )
+    .expect("discover learn-omniview sources");
+    let path_mapping = omnilang::path_mapping::derive_path_mapping(&sources);
+    let result =
+        omnilang::compile_multi_internal(sources, target, path_mapping, false, false, None);
+    if result
+        .errors
+        .iter()
+        .any(|d| d.message.contains(BACKEND_NOT_ENABLED))
+    {
+        eprintln!(
+            "SKIP: backend for {target:?} not compiled into this build \
+             (run with `--features codegen-flutter` for Flutter); \
+             cannot validate learn-omniview output"
+        );
+        return None;
+    }
+    // The showcase project demonstrates the DOM-only pointer-capture ref
+    // ops (design D3). On Flutter those are a DELIBERATE hard error
+    // ("Flutter 不支持指针捕获，用 GestureDetector" — spec §10.3), so the
+    // project can never compile cleanly to Flutter while ElementRefDemo
+    // keeps its pointer-capture section. Filter that expected diagnostic
+    // out; any other error is a regression.
+    let unexpected: Vec<String> = result
+        .errors
+        .iter()
+        .filter(|d| !d.message.contains("Flutter 不支持指针捕获"))
+        .map(|d| d.message.clone())
+        .collect();
+    assert!(
+        unexpected.is_empty(),
+        "learn-omniview compilation to {target:?} failed: {:?}",
+        unexpected
+    );
+    Some(result.files)
+}
+
+#[test]
+fn learn_omniview_formpage_a11y_migration_across_targets() {
+    // ── OmniView: the migrated a11y blocks must keep emitting the exact
+    // aria-label attributes the raw attributes used to produce.
+    if let Some(files) = compile_learn_omniview(Target::OmniView) {
+        let body = files
+            .get("body.html")
+            .expect("omniview body.html generated");
+        for label in [
+            "Full name input",
+            "Email address input",
+            "Message input",
+            "Disabled input",
+            "Read-only input",
+            "Submit form",
+            "Reset form",
+            "Conditional submit button",
+        ] {
+            assert!(
+                body.contains(&format!("aria-label=\"{label}\"")),
+                "OmniView must keep emitting aria-label=\"{label}\" after the \
+                 a11y-block migration; got:\n{body}"
+            );
+        }
+    }
+
+    // ── React: aria-label present, and the placeholder auto-fill must NOT
+    // add a duplicate aria-label (the a11y label suppresses the fallback).
+    if let Some(files) = compile_learn_omniview(Target::React) {
+        let form = files
+            .get("components/FormPage.tsx")
+            .expect("FormPage.tsx generated");
+        assert!(
+            form.contains("aria-label=\"Full name input\""),
+            "React must emit the a11y-block label; got:\n{form}"
+        );
+        assert!(
+            !form.contains("aria-label=\"Your name\""),
+            "placeholder auto-fill must not duplicate the a11y label; got:\n{form}"
+        );
+        // Count: exactly one aria-label per field — the a11y label only.
+        let count = form.matches("aria-label=").count();
+        assert_eq!(
+            count, 8,
+            "React FormPage must emit exactly the 8 a11y labels; got {count}:\n{form}"
+        );
+    }
+
+    // ── Flutter: the a11y intent is no longer silently dropped — every
+    // migrated label becomes a Semantics(label: ...) node.
+    if let Some(files) = compile_learn_omniview(Target::Flutter) {
+        let form = files.get("FormPage.dart").expect("FormPage.dart generated");
+        for label in [
+            "Full name input",
+            "Email address input",
+            "Message input",
+            "Disabled input",
+            "Read-only input",
+            "Submit form",
+            "Reset form",
+            "Conditional submit button",
+        ] {
+            assert!(
+                form.contains(&format!("Semantics(label: '{label}'")),
+                "Flutter must emit Semantics(label: '{label}') for the \
+                 migrated a11y block (no silent drop); got:\n{form}"
+            );
+        }
+    }
+}

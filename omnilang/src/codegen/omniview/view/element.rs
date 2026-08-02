@@ -226,6 +226,30 @@ impl OmniViewGenerator {
             }
         }
 
+        // ── a11y block (design doc 域 10): aria-* attribute passthrough ──
+        // label → aria-label, role → role, live → aria-live, hidden →
+        // aria-hidden, alt → alt. Static entries land in the HTML; dynamic
+        // entries (hidden/alt expressions) emit a reactive __omni_effect
+        // setAttribute binding — the same static-vs-dynamic machinery the
+        // real-HTML-attribute arm above uses.
+        if let Some(ref a11y) = el.a11y {
+            if let Some(ref label) = a11y.label {
+                let _ = write!(attrs, " aria-label=\"{}\"", escape_html(label));
+            }
+            if let Some(ref role) = a11y.role {
+                let _ = write!(attrs, " role=\"{}\"", escape_html(role));
+            }
+            if let Some(ref hidden) = a11y.hidden {
+                self.emit_a11y_attr(&mut attrs, nid, "aria-hidden", hidden);
+            }
+            if let Some(ref live) = a11y.live {
+                let _ = write!(attrs, " aria-live=\"{}\"", escape_html(live));
+            }
+            if let Some(ref alt) = a11y.alt {
+                self.emit_a11y_attr(&mut attrs, nid, "alt", alt);
+            }
+        }
+
         // ── Expand design variant binding into CSS class names ──
         // Variant bindings are stored as a synthetic `_design_variant` prop
         // during IR lowering, encoded as a JSON object.
@@ -292,6 +316,36 @@ impl OmniViewGenerator {
         }
 
         (attrs, class_name_parts)
+    }
+
+    /// Emit one a11y-block attribute (design doc 域 10) with the same
+    /// static-vs-dynamic machinery as regular props: literal values land in
+    /// the static HTML string, expressions emit a reactive
+    /// `__omni_effect` setAttribute binding on the element.
+    fn emit_a11y_attr(&mut self, attrs: &mut String, nid: &str, name: &str, value: &ExprIR) {
+        match value {
+            ExprIR::LiteralExpr { value } => {
+                if let Some(s) = value.as_str() {
+                    let _ = write!(attrs, " {}=\"{}\"", name, escape_html(s));
+                } else if let Some(b) = value.as_bool() {
+                    let _ = write!(attrs, " {}=\"{}\"", name, b);
+                }
+                // Non-string/bool literals carry no meaningful aria value —
+                // skip (the semantic pass places no type constraint).
+            }
+            _ => {
+                let js_val = self.expr_to_js(value);
+                let js_access = if self.name_resolver.signal_names.contains(&js_val) {
+                    format!("{}.value", js_val)
+                } else {
+                    js_val
+                };
+                let _ = writeln!(self.js,
+                    "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) try {{ el.setAttribute('{}', {}); }} catch(e) {{ __omni_reportError(\"error:bind:attr:{}\", e); }} }});",
+                    nid, name, js_access, name
+                );
+            }
+        }
     }
 
     /// Emit two-way bindings (bind:value / bind:checked).
@@ -663,6 +717,18 @@ impl OmniViewGenerator {
         // expressions so that data-bind-text markers reference the @for
         // loop variable; event handlers and prop-wiring effects are skipped
         // (they cannot work correctly for dynamically-cloned elements).
+        //
+        // a11y on a component tag: OmniView inlines the child's own view
+        // HTML (the consumer tag never becomes a real DOM element), so the
+        // a11y intent has no wrapper to attach to — warn instead of
+        // silently dropping (React/Flutter carry it on the component).
+        if el.a11y.is_some() && self.name_resolver.component_map.contains_key(&el.tag) {
+            self.warnings.push(format!(
+                "[omniview] a11y 块用于组件标签 <{}>：OmniView 内联组件无 aria-* 包裹机制，\
+                 a11y 意图被忽略（React/Flutter 目标不受影响）",
+                el.tag
+            ));
+        }
         if let Some(inlined) = self.try_inline_component(el, indent, &nid, &pad) {
             // Record nid_map + element_tags for the component wrapper so the
             // editor can select custom components (not just their children).

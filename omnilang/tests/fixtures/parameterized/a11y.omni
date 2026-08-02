@@ -1,0 +1,21 @@
+// a11y.omni — semantic accessibility domain (域 10) three-target fixture.
+// The `a11y: { ... }` element attribute block maps to:
+//   OmniView → aria-* attribute passthrough (static + dynamic)
+//   React    → aria-label / role / aria-hidden / aria-live / alt
+//   Flutter  → Semantics(label:) / Semantics(button:) / ExcludeSemantics /
+//              liveRegion / Image.network semanticLabel
+// (design doc 域 10 mapping table — the review's MEDIUM-2: previously the
+// intent could only be written as raw aria-* attrs that Flutter dropped.)
+
+import omniview;
+
+component A11yDemo {
+    signal visible: bool = true;
+
+    view {
+        <button a11y: { label: "Close", role: "button", hidden: !visible }>×</button>
+        <input a11y: { label: "Search" } />
+        <div a11y: { live: "polite" }>{visible}</div>
+        <img src="icon.png" a11y: { alt: "Settings icon" } />
+    }
+}

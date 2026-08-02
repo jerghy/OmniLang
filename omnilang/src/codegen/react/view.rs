@@ -97,6 +97,10 @@ pub(super) fn gen_view_node_tsx(
                         format_expr_ir_tsx_renamed(prop_value, ref_names, store_field_renames);
                     comp_attrs.push(format!("{}={{{}}}", prop_name, js_val));
                 }
+                // a11y block → aria-* props on the component element (React
+                // components accept and forward aria-* props — never a
+                // silent drop).
+                comp_attrs.extend(a11y_react_attrs(el, ref_names, store_field_renames));
                 for (event_name, handler) in &el.events {
                     let jsx_event = to_react_event(event_name);
                     match handler {
@@ -635,6 +639,14 @@ pub(super) fn gen_view_node_tsx(
                 let joined = variant_classes.join(" ");
                 append_class_attr(&mut attrs, format!("\"{}\"", joined));
             }
+
+            // a11y block (design doc 域 10): aria-* attributes. Static
+            // string entries emit as quoted attributes; expression entries
+            // (hidden/alt) emit as {expr} — same static-vs-dynamic split as
+            // the regular props loop above. Emitted BEFORE the placeholder
+            // auto-fill so an explicit a11y label suppresses the placeholder
+            // fallback (a duplicated aria-label would be invalid JSX).
+            attrs.extend(a11y_react_attrs(el, ref_names, store_field_renames));
 
             // Ensure <button> has explicit type to prevent accidental form submission
             if html_tag == "button" && !attrs.iter().any(|a| a.starts_with("type=")) {
@@ -1260,6 +1272,58 @@ fn format_inline_handler(
             store_field_renames,
         )
     })
+}
+
+/// Emit the `a11y: { ... }` block (design doc 域 10) as JSX attributes.
+///
+/// Mapping (design doc mapping table):
+/// - `label` → `aria-label="..."` (static — label is a string literal)
+/// - `role`  → `role="..."` (static — role is a string literal)
+/// - `hidden`→ `aria-hidden={expr}` (dynamic expression)
+/// - `live`  → `aria-live="polite"` (static — polite/assertive literal)
+/// - `alt`   → `alt="..."` when literal, `alt={expr}` when dynamic
+///
+/// String literals are escaped exactly like the static props loop so a
+/// quote/backslash payload can never break out of the attribute.
+fn a11y_react_attrs(
+    el: &ElementIR,
+    ref_names: &FxHashSet<String>,
+    store_field_renames: &FxHashMap<String, String>,
+) -> Vec<String> {
+    let Some(ref a11y) = el.a11y else {
+        return Vec::new();
+    };
+    let mut attrs: Vec<String> = Vec::new();
+    if let Some(ref label) = a11y.label {
+        let escaped = label.replace('\\', "\\\\").replace('"', "\\\"");
+        attrs.push(format!("aria-label=\"{}\"", escaped));
+    }
+    if let Some(ref role) = a11y.role {
+        let escaped = role.replace('\\', "\\\\").replace('"', "\\\"");
+        attrs.push(format!("role=\"{}\"", escaped));
+    }
+    if let Some(ref hidden) = a11y.hidden {
+        let js_val = format_expr_ir_tsx_renamed(hidden, ref_names, store_field_renames);
+        attrs.push(format!("aria-hidden={{{}}}", js_val));
+    }
+    if let Some(ref live) = a11y.live {
+        let escaped = live.replace('\\', "\\\\").replace('"', "\\\"");
+        attrs.push(format!("aria-live=\"{}\"", escaped));
+    }
+    if let Some(ref alt) = a11y.alt {
+        match alt {
+            ExprIR::LiteralExpr { value } if value.is_string() => {
+                let s = value.as_str().unwrap_or_default();
+                let escaped = s.replace('\\', "\\\\").replace('"', "\\\"");
+                attrs.push(format!("alt=\"{}\"", escaped));
+            }
+            _ => {
+                let js_val = format_expr_ir_tsx_renamed(alt, ref_names, store_field_renames);
+                attrs.push(format!("alt={{{}}}", js_val));
+            }
+        }
+    }
+    attrs
 }
 
 /// Append a static class expression to the element's `className` attribute,

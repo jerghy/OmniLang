@@ -1202,6 +1202,7 @@ component Timer {
 | **Variants** | variant: Design.Xxx.Yyy | ✅ React CSS 组合，Flutter ThemeExtension |
 | **表达式** | OptionalChain, BlockExpr IIFE, Match, Await, Spread | ✅ |
 | **类型** | LiteralExpr, Identifier, FieldAccess, BinaryOp, UnaryOp, Ternary, Call, Array | ✅ |
+| **a11y** | `a11y: { label, role, hidden, live, alt }` | ✅ Task 4.5 已实现：React aria-*；Flutter `Semantics`/`ExcludeSemantics`/`semanticLabel`/`liveRegion`（role 子集 + warning）；OmniView aria-* 透传 |
 
 ### 10.2 Diagnostic Floor（出 diagnostic 但不阻止编译）
 

@@ -633,6 +633,37 @@ pub enum ConstructionKind {
 // Element IR
 // ═══════════════════════════════════════════════════════
 
+/// The `a11y: { ... }` semantic accessibility block (design doc 域 10,
+/// syntax spec §11) — the element's accessible name/role/visibility/
+/// live-region/image-alt intent, carried in the IR so each backend maps it
+/// to its platform vocabulary: aria-* (React/OmniView) or
+/// Semantics/ExcludeSemantics (Flutter). Before this block existed the
+/// intent could only be written as raw aria-* attributes that Flutter
+/// silently dropped (review MEDIUM-2).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct A11yIR {
+    /// Accessible name (→ aria-label / Semantics(label:) / aria-label).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+    /// Semantic role (→ role / Semantics flags subset / role). The
+    /// Flutter-mappable subset (button/textField/link/checkbox/radio/image)
+    /// is enforced with a warning by `semantic/validate_a11y`; other roles
+    /// degrade on Flutter with a generated-code comment.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub role: Option<String>,
+    /// Hidden from assistive technology (→ aria-hidden / ExcludeSemantics).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hidden: Option<ExprIR>,
+    /// Live-region politeness — only "polite"/"assertive" (validated by
+    /// `semantic/validate_a11y`; the parser accepts any string literal so
+    /// the semantic pass reports the precise diagnostic).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub live: Option<String>,
+    /// Image alternative text (→ alt / Image semanticLabel / alt).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub alt: Option<ExprIR>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ElementIR {
     pub tag: String,
@@ -668,6 +699,12 @@ pub struct ElementIR {
     /// by codegen backends (Phase 4-6).
     #[serde(default)]
     pub semantic_bindings: FxHashMap<String, ExprIR>,
+    /// The `a11y: { ... }` semantic accessibility block (design doc 域 10) —
+    /// populated during view lowering from `ElementProp::A11y`, validated by
+    /// `semantic/validate_a11y`, consumed by all three P0 backends (React
+    /// aria-* / Flutter Semantics+ExcludeSemantics / OmniView aria-*).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub a11y: Option<A11yIR>,
 }
 
 impl ElementIR {

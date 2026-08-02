@@ -852,6 +852,7 @@ mod tests {
             construction_kind: ConstructionKind::Static,
             source_span: None,
             semantic_bindings: FxHashMap::default(),
+            a11y: None,
         };
         crate::codegen::dioxus::gen_view_node_dioxus(
             &mut w,
@@ -888,6 +889,7 @@ mod tests {
             construction_kind: ConstructionKind::Static,
             source_span: None,
             semantic_bindings: FxHashMap::default(),
+            a11y: None,
         };
         crate::codegen::dioxus::gen_view_node_dioxus(
             &mut w,
@@ -923,6 +925,7 @@ mod tests {
             construction_kind: ConstructionKind::Static,
             source_span: None,
             semantic_bindings: FxHashMap::default(),
+            a11y: None,
         };
         crate::codegen::dioxus::gen_view_node_dioxus(
             &mut w,
@@ -959,6 +962,7 @@ mod tests {
             construction_kind: ConstructionKind::Static,
             source_span: None,
             semantic_bindings: FxHashMap::default(),
+            a11y: None,
         };
         crate::codegen::dioxus::gen_view_node_dioxus(
             &mut w,

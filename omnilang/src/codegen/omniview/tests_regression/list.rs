@@ -313,6 +313,7 @@ fn test_list_with_event_delegation() {
         drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
+        a11y: None,
     }));
 
     let list = ListRenderingIntent {

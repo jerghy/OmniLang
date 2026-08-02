@@ -587,6 +587,17 @@ fn collect_view_read_signals_inner(node: &ViewTree, acc: &mut FxHashSet<String>)
             for binding_expr in el.semantic_bindings.values() {
                 collect_expr_identifiers(binding_expr, acc);
             }
+            // a11y block expressions (hidden/alt — design doc 域 10) emit
+            // inside the JSX attributes (`aria-hidden={expr}`) — a signal
+            // read ONLY there must still produce a useState/store hook.
+            if let Some(ref a11y) = el.a11y {
+                if let Some(ref expr) = a11y.hidden {
+                    collect_expr_identifiers(expr, acc);
+                }
+                if let Some(ref expr) = a11y.alt {
+                    collect_expr_identifiers(expr, acc);
+                }
+            }
             // Inline style bindings (style: { width: sig, ... }) read their
             // signals inside the emitted JSX style object — collect them so
             // a signal referenced only there still gets a useState hook (it

@@ -23,13 +23,13 @@ pub use slot_materialize::{materialize_view_slots, slot_collision_names};
 
 // ── Explicit re-exports from types.rs ──
 pub use types::{
-    event_data_kind_label, event_data_schema, map_event_data_kind, ArrayMethodIR, BinaryOpIR,
-    BindingIR, BlockIR, ComponentIR, ComputedIntent, ConditionalBranch, ConditionalIntent,
-    ConstructionKind, EffectIntent, ElementIR, EventDataKind, EventDeclIR, EventFieldDef,
-    EventHandlerIR, ExprIR, IRProgram, LifecycleIntent, LifecycleKind, ListRenderingIntent,
-    MatchArmIR, MatchPatternIR, MatchPatternKindIR, MeasureWhat, MutationIntent, MutationOp,
-    ParamIR, RefDeclIR, RefOpIR, SignalIntent, SignalRefIR, SlotDeclIR, StatementIR, StoreIR,
-    StyleRuleIR, TypeIR, TypeKind, UnaryOpIR, ViewTree,
+    event_data_kind_label, event_data_schema, map_event_data_kind, A11yIR, ArrayMethodIR,
+    BinaryOpIR, BindingIR, BlockIR, ComponentIR, ComputedIntent, ConditionalBranch,
+    ConditionalIntent, ConstructionKind, EffectIntent, ElementIR, EventDataKind, EventDeclIR,
+    EventFieldDef, EventHandlerIR, ExprIR, IRProgram, LifecycleIntent, LifecycleKind,
+    ListRenderingIntent, MatchArmIR, MatchPatternIR, MatchPatternKindIR, MeasureWhat,
+    MutationIntent, MutationOp, ParamIR, RefDeclIR, RefOpIR, SignalIntent, SignalRefIR, SlotDeclIR,
+    StatementIR, StoreIR, StyleRuleIR, TypeIR, TypeKind, UnaryOpIR, ViewTree,
 };
 
 // ── Explicit re-exports from logic.rs ──

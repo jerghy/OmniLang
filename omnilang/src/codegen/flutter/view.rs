@@ -674,6 +674,105 @@ fn wrap_design_decorations(el: &ElementIR, inner: String, ctx: &mut ViewContext)
     }
 }
 
+/// Map a semantic role (design doc 域 10 Flutter role 子集) to its
+/// `Semantics` flag argument. Returns `None` for unmappable roles — the
+/// caller warns and degrades (honest degradation: the role still passes
+/// through as an attribute on the web targets).
+fn role_to_semantics_flag(role: &str) -> Option<&'static str> {
+    match role {
+        "button" => Some("button: true"),
+        "textField" => Some("textField: true"),
+        "link" => Some("link: true"),
+        "checkbox" => Some("checkbox: true"),
+        "radio" => Some("radio: true"),
+        "image" => Some("image: true"),
+        _ => None,
+    }
+}
+
+/// Wrap the element's widget expression in the a11y block's semantic
+/// wrappers (design doc 域 10 mapping table):
+///
+/// - `label` → `Semantics(label: ...)`
+/// - `role`  → Semantics flags (subset above); unmappable roles → warning
+///   on the T2.4 warnings channel + a generated-code degradation comment
+///   (the design doc's "warning + 生成代码注释" honest degradation)
+/// - `live`  → `Semantics(liveRegion: true)`
+/// - `alt`   → on image widgets the semanticLabel constructor param is
+///   already emitted in `format_element`; on other widgets it degrades to
+///   the accessible-name `label` (image alt text IS the accessible name)
+/// - `hidden`→ `ExcludeSemantics(excluding: <expr>, ...)` — the widget
+///   excludes itself from the semantics tree while the expression holds
+///
+/// label/role/live/alt merge into ONE `Semantics(...)` call; `hidden`
+/// wraps outside it (`ExcludeSemantics(excluding: ..., child:
+/// Semantics(...))`). The review's MEDIUM-2 (a11y intent silently dropped
+/// on Flutter) is gone — the semantic node is always emitted.
+fn wrap_a11y(el: &ElementIR, inner: String, ctx: &mut ViewContext) -> String {
+    let Some(ref a11y) = el.a11y else {
+        return inner;
+    };
+    let mut semantics_args: Vec<String> = Vec::new();
+    if let Some(ref label) = a11y.label {
+        semantics_args.push(format!("label: '{}'", escape_literal_str(label, '\'')));
+    }
+    if let Some(ref role) = a11y.role {
+        match role_to_semantics_flag(role) {
+            Some(flag) => semantics_args.push(flag.to_string()),
+            None => {
+                ctx.warnings.push(format!(
+                    "[flutter] a11y role '{role}' is not in the Flutter \
+                     Semantics subset (button/textField/link/checkbox/radio/\
+                     image); degraded — no Semantics flag (the role still \
+                     passes through on the web targets)"
+                ));
+            }
+        }
+    }
+    if a11y.live.is_some() {
+        // Both "polite" and "assertive" map to liveRegion: true (validated
+        // by semantic/validate_a11y — the value is one of the two).
+        semantics_args.push("liveRegion: true".into());
+    }
+    if let Some(ref alt) = a11y.alt {
+        // Image widgets carry alt via the semanticLabel constructor param
+        // (format_element); everywhere else it degrades to the accessible
+        // name — no information is lost.
+        if !matches!(tag_to_flutter_widget(&el.tag), "Image.network") {
+            semantics_args.push(format!("label: {}", ctx.format_expr(alt)));
+        }
+    }
+
+    let mut result = inner;
+    let mut degradation_comment = String::new();
+    if let Some(ref role) = a11y.role {
+        if role_to_semantics_flag(role).is_none() {
+            // Honest degradation: the generated code says what happened.
+            degradation_comment = format!(
+                "/* a11y: role '{role}' has no Flutter Semantics flag \
+                 (subset: button/textField/link/checkbox/radio/image); \
+                 degraded — no Semantics flag emitted */ "
+            );
+        }
+    }
+    if !semantics_args.is_empty() {
+        semantics_args.push(format!("child: {}", result));
+        result = format!("Semantics({})", semantics_args.join(", "));
+    }
+    if let Some(ref hidden) = a11y.hidden {
+        result = format!(
+            "ExcludeSemantics(excluding: {}, child: {})",
+            ctx.format_expr(hidden),
+            result
+        );
+    }
+    if degradation_comment.is_empty() {
+        result
+    } else {
+        format!("{degradation_comment}{result}")
+    }
+}
+
 /// Format an ElementIR node as a Flutter widget constructor expression.
 /// Wraps with motion animation widgets (AnimatedBuilder, MouseRegion, GestureDetector)
 /// when the element has motion triggers.
@@ -769,7 +868,10 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
         };
         // Design classes/variants resolve to a decoration on a wrapping
         // Container — real visual output on component instantiations too.
-        return wrap_design_decorations(el, child_expr, ctx);
+        let decorated = wrap_design_decorations(el, child_expr, ctx);
+        // a11y block → Semantics/ExcludeSemantics wrappers around the
+        // component widget (the semantic node describes the whole subtree).
+        return wrap_a11y(el, decorated, ctx);
     }
     // Otherwise, fall through to HTML tag mapping
     let widget = tag_to_flutter_widget(&el.tag);
@@ -788,6 +890,14 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
             continue;
         }
         let formatted = ctx.format_expr(value);
+        // Image.network takes the URL as a POSITIONAL argument —
+        // `src` maps to the first positional arg, NOT a named `image:`
+        // param (`Image.network(image: ...)` is invalid Dart — the named
+        // param list has no `image`; the fixture gate surfaced this).
+        if widget == "Image.network" && name == "src" {
+            args.insert(0, formatted);
+            continue;
+        }
         let param = widget_param_rename(widget, prop_to_flutter_param_name(name));
         if param.is_empty() {
             continue; // slug props (class/style/id/value/...) — intentionally dropped
@@ -815,6 +925,19 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
             _ => wrapper,
         };
         args.push(format!("{}: {}({})", arg_name, wrapper, members.join(", ")));
+    }
+
+    // a11y block (design doc 域 10): `alt` on image widgets maps to the
+    // Image.network `semanticLabel` constructor param — the same mapping as
+    // the plain `alt` prop (utils.rs prop_to_flutter_param_name). Skipped
+    // when a literal `alt` prop already carries the semanticLabel, so the
+    // generated Dart never duplicates the named argument.
+    if widget == "Image.network" {
+        if let Some(ref alt) = el.a11y.as_ref().and_then(|a| a.alt.as_ref()) {
+            if !el.props.contains_key("alt") {
+                args.push(format!("semanticLabel: {}", ctx.format_expr(alt)));
+            }
+        }
     }
 
     // Inline style (style: { prop: value }) — map CSS properties to Flutter widget parameters
@@ -1140,6 +1263,16 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
     // review's HIGH (empty `BoxDecoration()` stub, invisible decorations) is
     // gone. Unknown/layout-only classes and unmappable values warn.
     let inner = wrap_design_decorations(el, inner, ctx);
+
+    // ── a11y block (design doc 域 10) ──
+    // label → Semantics(label:), role → Semantics flags subset (unmappable
+    // roles warn + degrade with a generated comment), live → liveRegion,
+    // hidden → ExcludeSemantics(excluding:). alt on image widgets is
+    // carried by the semanticLabel constructor param (above); on other
+    // widgets it degrades to the accessible-name label. The review's
+    // MEDIUM-2 (a11y intent silently dropped on Flutter) is gone — the
+    // semantic node is always emitted.
+    let inner = wrap_a11y(el, inner, ctx);
 
     // Wrap with motion animation widgets if the element has triggers
     let has_inview = el

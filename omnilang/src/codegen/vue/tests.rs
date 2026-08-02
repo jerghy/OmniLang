@@ -242,6 +242,7 @@ mod tests {
                     construction_kind: ConstructionKind::Static,
                     source_span: None,
                     semantic_bindings: FxHashMap::default(),
+                    a11y: None,
                 }))),
                 styles: vec![],
                 ..Default::default()
@@ -311,6 +312,7 @@ mod tests {
                     construction_kind: ConstructionKind::Static,
                     source_span: None,
                     semantic_bindings: FxHashMap::default(),
+                    a11y: None,
                 }))),
                 styles: vec![],
                 ..Default::default()
@@ -1010,6 +1012,7 @@ mod tests {
             construction_kind: ConstructionKind::Static,
             source_span: None,
             semantic_bindings: FxHashMap::default(),
+            a11y: None,
         };
         crate::codegen::vue::gen_template_node(&mut w, &ViewTree::Element(Box::new(el)), &fmt);
         let out = w.into_string();
@@ -1043,6 +1046,7 @@ mod tests {
             construction_kind: ConstructionKind::Static,
             source_span: None,
             semantic_bindings: FxHashMap::default(),
+            a11y: None,
         };
         crate::codegen::vue::gen_template_node(&mut w, &ViewTree::Element(Box::new(el)), &fmt);
         let out = w.into_string();
@@ -1075,6 +1079,7 @@ mod tests {
             construction_kind: ConstructionKind::Static,
             source_span: None,
             semantic_bindings: FxHashMap::default(),
+            a11y: None,
         };
         crate::codegen::vue::gen_template_node(&mut w, &ViewTree::Element(Box::new(el)), &fmt);
         let out = w.into_string();
@@ -1108,6 +1113,7 @@ mod tests {
             construction_kind: ConstructionKind::Static,
             source_span: None,
             semantic_bindings: FxHashMap::default(),
+            a11y: None,
         };
         crate::codegen::vue::gen_template_node(&mut w, &ViewTree::Element(Box::new(el)), &fmt);
         let out = w.into_string();

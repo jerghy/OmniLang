@@ -227,6 +227,7 @@ mod tests {
             motion: None,
             scroll: None,
             drag: None,
+            a11y: None,
         }
     }
 

@@ -332,6 +332,7 @@ fn lower_element(
     let drag_velocity_max: Option<ExprIR> = None;
     let mut ref_binding: Option<String> = None;
     let mut semantic_bindings: Option<FxHashMap<String, ExprIR>> = None;
+    let mut a11y: Option<A11yIR> = None;
     // Named slot projections (ADR-053 D5): `header={<div/>}` on a component
     // call lowers to `ViewTree::Slot { name: Some(name), fallback: content }`
     // inserted into the element's children — codegen consumes the projection
@@ -528,6 +529,25 @@ fn lower_element(
                     .collect();
                 inline_style = Some(serde_json::Value::Object(style_map));
             }
+            ElementProp::A11y(spec) => {
+                // a11y: { label/role/hidden/live/alt } — semantic
+                // accessibility block (design doc 域 10). Lowered into
+                // ElementIR.a11y; validated by semantic/validate_a11y;
+                // consumed by all three P0 backends.
+                a11y = Some(A11yIR {
+                    label: spec.label.clone(),
+                    role: spec.role.clone(),
+                    hidden: spec
+                        .hidden
+                        .as_ref()
+                        .map(|e| lower_expr(e, variant_map, None, semantics)),
+                    live: spec.live.clone(),
+                    alt: spec
+                        .alt
+                        .as_ref()
+                        .map(|e| lower_expr(e, variant_map, None, semantics)),
+                });
+            }
             ElementProp::Variant {
                 design_name,
                 variant_name,
@@ -695,6 +715,7 @@ fn lower_element(
         },
         ref_binding,
         semantic_bindings: semantic_bindings.unwrap_or_default(),
+        a11y,
     }))
 }
 
@@ -901,6 +922,7 @@ fn make_fragment_element(children: Vec<ViewTree>, construction_kind: Constructio
         drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
+        a11y: None,
     }))
 }
 

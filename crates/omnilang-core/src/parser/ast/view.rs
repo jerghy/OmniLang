@@ -191,9 +191,33 @@ pub enum ElementProp {
     Style {
         entries: Vec<(String, Expr)>,
     },
+    /// `a11y: { label: "...", role: "button", hidden: expr, live: "polite",
+    /// alt: expr }` — semantic accessibility block (design doc 域 10,
+    /// syntax spec §11). Mirrors the `style: { ... }` block shape: an
+    /// element attribute carrying the element's accessible name/role/
+    /// visibility/live-region/image-alt intent for the three targets.
+    A11y(A11ySpec),
     TestId(String),
     Ref(String),
     MotionTrigger(MotionTrigger),
+}
+
+/// The `a11y: { ... }` block contents (design doc 域 10 BNF):
+/// `label`/`role`/`live` are string-valued (BNF `'string'`), `hidden`/`alt`
+/// are arbitrary expressions. All entries optional — at least one is
+/// required (the parser hard-errors on an empty block).
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct A11ySpec {
+    /// Accessible name (→ aria-label / Semantics(label:) / aria-label).
+    pub label: Option<String>,
+    /// Semantic role (→ role / Semantics flags subset / role).
+    pub role: Option<String>,
+    /// Hidden from assistive technology (→ aria-hidden / ExcludeSemantics).
+    pub hidden: Option<Expr>,
+    /// Live region politeness (→ aria-live / Semantics(liveRegion:)).
+    pub live: Option<String>,
+    /// Image alternative text (→ alt / Image semanticLabel / alt).
+    pub alt: Option<Expr>,
 }
 
 #[derive(Debug, Clone, Serialize)]

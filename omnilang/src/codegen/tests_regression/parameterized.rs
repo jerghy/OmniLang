@@ -703,3 +703,50 @@ gen_semantic_dsl_tests!(
     assert_control_flow_react,
     assert_control_flow_flutter
 );
+
+// ── a11y.omni (域 10 semantic accessibility domain) ──
+
+fn assert_a11y_omniview(files: &FxHashMap<String, String>) {
+    // The a11y block emits real HTML aria attributes (static entries land in
+    // body.html; dynamic `hidden` lands in the reactive index.js effect).
+    assert_contains(files, "body.html", "aria-label=\"Close\"");
+    assert_contains(files, "body.html", "role=\"button\"");
+    assert_contains(files, "body.html", "aria-live=\"polite\"");
+    assert_contains(files, "body.html", "alt=\"Settings icon\"");
+    // Dynamic hidden → reactive aria-hidden setAttribute effect (index.js).
+    assert_contains(files, "index.js", "setAttribute('aria-hidden'");
+}
+
+fn assert_a11y_react(files: &FxHashMap<String, String>) {
+    // a11y block → aria-* attributes on the JSX element (no Flutter-only
+    // leakage — React sees exactly the DOM vocabulary).
+    assert_contains(files, "A11yDemo.tsx", "aria-label=\"Close\"");
+    assert_contains(files, "A11yDemo.tsx", "role=\"button\"");
+    assert_contains(files, "A11yDemo.tsx", "aria-hidden={");
+    assert_contains(files, "A11yDemo.tsx", "aria-live=\"polite\"");
+    assert_contains(files, "A11yDemo.tsx", "alt=\"Settings icon\"");
+}
+
+fn assert_a11y_flutter(files: &FxHashMap<String, String>) {
+    // The review's core complaint (MEDIUM-2): Flutter must NOT silently drop
+    // a11y intent. label → Semantics(label: ...); role button → Semantics
+    // flag; hidden → ExcludeSemantics(excluding: ...); live → liveRegion;
+    // alt on img → semanticLabel param.
+    assert_contains(files, "A11yDemo.dart", "Semantics(label: 'Close'");
+    assert_contains(files, "A11yDemo.dart", "button: true");
+    assert_contains(
+        files,
+        "A11yDemo.dart",
+        "ExcludeSemantics(excluding: !visible",
+    );
+    assert_contains(files, "A11yDemo.dart", "liveRegion: true");
+    assert_contains(files, "A11yDemo.dart", "semanticLabel: 'Settings icon'");
+}
+
+gen_semantic_dsl_tests!(
+    a11y,
+    "a11y.omni",
+    assert_a11y_omniview,
+    assert_a11y_react,
+    assert_a11y_flutter
+);

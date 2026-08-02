@@ -145,6 +145,16 @@ fn collect_idents_from_view(view: &ViewTree, used: &mut FxHashSet<String>) {
                 collect_idents(expr, used);
             }
         }
+        // a11y block expressions (hidden/alt — design doc 域 10) can
+        // reference computeds — DCE must keep them alive.
+        if let Some(ref a11y) = el.a11y {
+            if let Some(ref expr) = a11y.hidden {
+                collect_idents(expr, used);
+            }
+            if let Some(ref expr) = a11y.alt {
+                collect_idents(expr, used);
+            }
+        }
     });
 
     // Collect identifiers from non-element expressions in the view tree
@@ -612,6 +622,7 @@ mod tests {
                 drag: None,
                 ref_binding: None,
                 semantic_bindings: FxHashMap::default(),
+                a11y: None,
             }))),
             ..ComponentIR::default()
         };
@@ -646,6 +657,7 @@ mod tests {
                 drag: None,
                 ref_binding: None,
                 semantic_bindings: FxHashMap::default(),
+                a11y: None,
             }))),
             ..ComponentIR::default()
         };
@@ -680,6 +692,7 @@ mod tests {
                 drag: None,
                 ref_binding: None,
                 semantic_bindings: FxHashMap::default(),
+                a11y: None,
             }))),
             ..ComponentIR::default()
         };
@@ -892,6 +905,7 @@ mod tests {
                 drag: None,
                 ref_binding: None,
                 semantic_bindings: FxHashMap::default(),
+                a11y: None,
             }))),
             ..ComponentIR::default()
         };
@@ -918,6 +932,7 @@ mod tests {
             drag: None,
             ref_binding: None,
             semantic_bindings: FxHashMap::default(),
+            a11y: None,
         }))
     }
 

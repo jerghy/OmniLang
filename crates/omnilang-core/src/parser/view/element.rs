@@ -213,6 +213,75 @@ impl<'a> Parser<'a> {
                         ),
                     }));
                 }
+                // a11y: { label: string, role: string, hidden: expr,
+                //        live: "polite"|"assertive", alt: expr }
+                // Semantic accessibility block (design doc 域 10) — an
+                // element attribute block mirroring the style: { ... } shape.
+                if name == "a11y" {
+                    self.advance(); // consume ':'
+                    self.expect_token(TokenKind::LBrace, "expected '{' after 'a11y:'")?;
+                    let mut spec = A11ySpec::default();
+                    if self.at(&TokenKind::RBrace) {
+                        let t = self.peek();
+                        return Err(ParseError {
+                            kind: None,
+                            message: "a11y 块不能为空".into(),
+                            span: t.span,
+                        });
+                    }
+                    while !self.at(&TokenKind::RBrace) && !self.at(&TokenKind::Eof) {
+                        let key = self.expect_ident("expected a11y key")?;
+                        self.expect_token(TokenKind::Colon, "expected ':' after a11y key")?;
+                        match key.as_str() {
+                            // BNF: 'label' ':' string — string literals only.
+                            // (The web targets emit them as static attributes;
+                            // dynamic accessible names are future work.)
+                            "label" | "role" | "live" => {
+                                let t = self.advance();
+                                let value = match &t.kind {
+                                    TokenKind::StringLiteral(s) => s.clone(),
+                                    _ => {
+                                        return Err(ParseError {
+                                            kind: None,
+                                            message: format!(
+                                                "a11y 键 '{key}' 需要字符串字面量，得到 {:?}",
+                                                t.kind
+                                            ),
+                                            span: t.span,
+                                        })
+                                    }
+                                };
+                                match key.as_str() {
+                                    "label" => spec.label = Some(value),
+                                    "role" => spec.role = Some(value),
+                                    _ => spec.live = Some(value),
+                                }
+                            }
+                            // BNF: 'hidden' ':' expr / 'alt' ':' expr — dynamic.
+                            "hidden" => {
+                                spec.hidden = Some(self.parse_expr()?);
+                            }
+                            "alt" => {
+                                spec.alt = Some(self.parse_expr()?);
+                            }
+                            other => {
+                                let t = self.peek();
+                                return Err(ParseError {
+                                    kind: None,
+                                    message: format!(
+                                        "未知 a11y 键：'{other}'（支持 label/role/hidden/live/alt）"
+                                    ),
+                                    span: t.span,
+                                });
+                            }
+                        }
+                        if self.at(&TokenKind::Comma) {
+                            self.advance();
+                        }
+                    }
+                    self.expect_token(TokenKind::RBrace, "expected '}'")?;
+                    return Ok(ElementProp::A11y(spec));
+                }
                 // variant: DesignName.VariantName(dim=val, ...)
                 if name == "variant" {
                     self.advance(); // consume ':'

@@ -538,6 +538,7 @@ fn test_format_element_empty() {
         drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
+        a11y: None,
     };
     let (expr, _) = fmt_view(&ViewTree::Element(Box::new(el)));
     assert_eq!(expr, "Container()");
@@ -561,6 +562,7 @@ fn test_format_element_with_text_child() {
         drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
+        a11y: None,
     };
     let (expr, _) = fmt_view(&ViewTree::Element(Box::new(el)));
     assert_eq!(expr, "Container(child: Text('Hello'))");
@@ -641,6 +643,7 @@ fn test_drag_widget_derives_extent_from_keyframes() {
         })),
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
+        a11y: None,
     };
     let (expr, _) = fmt_view_with_motions(&ViewTree::Element(Box::new(el)), &motions);
     assert!(
@@ -728,6 +731,7 @@ fn test_drag_widget_without_translate_falls_back_unbounded() {
         })),
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
+        a11y: None,
     };
     let (expr, warnings) = fmt_view_with_motions(&ViewTree::Element(Box::new(el)), &motions);
     assert!(
@@ -775,6 +779,7 @@ fn test_format_element_with_multiple_children() {
         drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
+        a11y: None,
     };
     let (expr, _) = fmt_view(&ViewTree::Element(Box::new(el)));
     assert_eq!(expr, "Column(children: [Text('First'), Text('Second')])");
@@ -803,6 +808,7 @@ fn test_format_element_div_multiple_children_wraps_column() {
         drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
+        a11y: None,
     };
     let (expr, _) = fmt_view(&ViewTree::Element(Box::new(el)));
     assert_eq!(
@@ -841,6 +847,7 @@ fn test_format_element_with_event() {
         drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
+        a11y: None,
     };
     let (expr, _) = fmt_view(&ViewTree::Element(Box::new(el)));
     assert!(expr.contains("ElevatedButton("));
@@ -881,6 +888,7 @@ fn test_format_element_void_callback_fn_ref_warns_on_dropped_event_fields() {
         drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
+        a11y: None,
     };
     let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
     assert!(
@@ -1028,6 +1036,7 @@ fn test_format_element_with_class_map_bindings_warns_unknown_class() {
         drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
+        a11y: None,
     };
     let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
     assert_eq!(
@@ -1074,6 +1083,7 @@ fn test_format_element_with_class_map_bindings_static_true_warns_unknown_class()
         drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
+        a11y: None,
     };
     let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
     // Static true class bindings resolve like static classes; an unknown
@@ -1111,6 +1121,7 @@ fn test_format_element_with_class_map_bindings_static_false() {
         drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
+        a11y: None,
     };
     let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
     // Static false class bindings are skipped entirely — no warning either.
@@ -1148,6 +1159,7 @@ fn test_format_element_with_class_map_bindings_and_child_warns_unknown_class() {
         drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
+        a11y: None,
     };
     let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
     // An unresolvable dynamic class leaves the element unwrapped (warned).
@@ -1195,6 +1207,7 @@ fn el_with_class(classes: &str) -> ElementIR {
         drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
+        a11y: None,
     }
 }
 
@@ -1434,6 +1447,7 @@ fn test_design_class_on_component_element_wraps_in_decoration() {
         drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
+        a11y: None,
     };
     let ir = design_test_program();
     let my_card = ComponentIR {
@@ -2081,6 +2095,7 @@ fn test_motion_enter_controller_init() {
         drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
+        a11y: None,
     };
 
     let view = ViewTree::Element(Box::new(el));
@@ -2368,6 +2383,7 @@ fn test_motion_inline_body_handling() {
         drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
+        a11y: None,
     };
 
     let view = ViewTree::Element(Box::new(el));
@@ -3193,6 +3209,7 @@ fn test_motion_pipeline_warnings_and_playback() {
         drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
+        a11y: None,
     };
 
     let view = ViewTree::Element(Box::new(el));
@@ -4226,6 +4243,7 @@ fn enter_motion_in_slot_fallback_is_found() {
         drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
+        a11y: None,
     };
     let view = ViewTree::Slot {
         name: None,
@@ -4627,6 +4645,7 @@ fn test_inline_style_hex_color_emits_color_literal() {
         drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
+        a11y: None,
     };
     let (expr, _warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
     assert!(
@@ -4654,6 +4673,7 @@ fn test_inline_style_unsupported_color_warns() {
         drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
+        a11y: None,
     };
     let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
     assert!(
@@ -4697,6 +4717,7 @@ fn test_unmapped_prop_warns_and_is_skipped() {
         drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
+        a11y: None,
     };
     let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
     assert_eq!(
@@ -4748,6 +4769,7 @@ fn test_class_prop_unknown_class_warns_and_skips() {
         drag: None,
         ref_binding: None,
         semantic_bindings: style,
+        a11y: None,
     };
     let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
     assert_eq!(expr, "Container()");
@@ -4795,6 +4817,7 @@ fn test_event_not_supported_on_widget_warns() {
         drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
+        a11y: None,
     };
     let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
     assert_eq!(
@@ -4841,6 +4864,7 @@ fn test_event_on_button_is_allowed() {
         drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
+        a11y: None,
     };
     let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
     assert!(
@@ -4896,6 +4920,7 @@ fn test_text_style_props_wrapped_in_text_style() {
         drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
+        a11y: None,
     };
     let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
     // fontSize/fontWeight are TextStyle members — merged into a single style: arg
@@ -4943,6 +4968,7 @@ fn test_text_semantics_label_rename() {
         drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
+        a11y: None,
     };
     let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
     assert!(
@@ -4987,6 +5013,7 @@ fn test_text_field_placeholder_wrapped_in_decoration() {
         drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
+        a11y: None,
     };
     let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
     assert!(
@@ -5066,6 +5093,7 @@ fn test_store_action_in_inline_handler_body() {
         drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
+        a11y: None,
     };
     let view = ViewTree::Element(Box::new(el));
     let ir = make_ir_with_stores(
@@ -5164,6 +5192,7 @@ fn test_store_action_method_call_form_in_handler() {
         drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
+        a11y: None,
     };
     let view = ViewTree::Element(Box::new(el));
     let ir = make_ir_with_stores(
@@ -5218,6 +5247,7 @@ fn ref_el(tag: &str, ref_binding: Option<&str>, semantic: &[(&str, ExprIR)]) -> 
             .iter()
             .map(|(k, v)| (k.to_string(), v.clone()))
             .collect(),
+        a11y: None,
     }
 }
 
@@ -5442,6 +5472,83 @@ fn test_ref_key_on_widget_and_controller_attachment() {
     );
 }
 
+/// a11y block (design doc 域 10): an unmappable role must surface on the
+/// T2.4 warnings channel AND leave an honest degradation comment in the
+/// generated Dart (never a silent drop — the review's MEDIUM-2 was exactly
+/// the silent loss of a11y intent on Flutter).
+#[test]
+fn test_a11y_unmappable_role_warns_and_comments() {
+    let codegen = FlutterCodegen;
+    let el = ElementIR {
+        tag: "input".to_string(),
+        a11y: Some(A11yIR {
+            label: Some("Search".into()),
+            role: Some("searchbox".into()), // NOT in the Flutter subset
+            hidden: None,
+            live: None,
+            alt: None,
+        }),
+        children: vec![],
+        props: FxHashMap::default(),
+        bindings: FxHashMap::default(),
+        events: FxHashMap::default(),
+        style_classes: None,
+        inline_style: None,
+        construction_kind: ConstructionKind::Normal,
+        class_map_bindings: FxHashMap::default(),
+        source_span: None,
+        motion: None,
+        scroll: None,
+        drag: None,
+        ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
+    };
+    let view = ViewTree::Element(Box::new(el));
+    let comp = ref_component("A11yDemo", &[], vec![], vec![], Some(view));
+    let mut components = FxHashMap::default();
+    components.insert("A11yDemo".into(), comp);
+    let ir = make_ir(components);
+    let comp_ref = ir
+        .modules
+        .get("main")
+        .unwrap()
+        .components
+        .get("A11yDemo")
+        .unwrap();
+    let component_map = build_component_map(&ir);
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let (dart, warnings, errors) =
+        codegen.gen_component_dart("A11yDemo", comp_ref, &ir, &component_map, &component_slots);
+    assert!(errors.is_empty(), "unexpected errors: {:?}", errors);
+    // The label still emits a Semantics node (the a11y intent survives).
+    assert!(
+        dart.contains("Semantics(label: 'Search'"),
+        "label must still emit Semantics; got:
+{}",
+        dart
+    );
+    // No flag for the unmappable role — but the degradation is stated:
+    assert!(
+        !dart.contains("textField: true") && !dart.contains("button: true"),
+        "unmappable role must not emit a Semantics flag; got:
+{}",
+        dart
+    );
+    assert!(
+        warnings
+            .iter()
+            .any(|w| w.contains("searchbox") && w.contains("Semantics")),
+        "unmappable role must warn on the T2.4 warnings channel; got: {:?}",
+        warnings
+    );
+    assert!(
+        dart.contains("/* a11y: role 'searchbox' has no Flutter Semantics flag"),
+        "degradation comment must be present in the generated code; got:
+{}",
+        dart
+    );
+}
+
 /// Design D2: `bind:value` (ElementIR.bindings) on a ref'd text field is the
 /// sole two-way form — it must install the guarded controller listener (user
 /// edits → setState write-back) and the `_syncSemanticBindings` re-apply,
@@ -5470,6 +5577,7 @@ fn test_bind_value_ref_text_field_two_way() {
         motion: None,
         scroll: None,
         drag: None,
+        a11y: None,
     };
     let view = ViewTree::Element(Box::new(el_input));
     let signals = vec![SignalIntent {

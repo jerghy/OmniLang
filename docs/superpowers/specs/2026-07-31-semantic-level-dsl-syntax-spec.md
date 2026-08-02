@@ -1072,7 +1072,114 @@ Flutter: [...list], count += 1, await fn()
 
 ---
 
-## 11. PRD 对比：本规范 vs 设计文档
+## 11. Accessibility Domain（a11y 域）
+
+### 11.1 语义定义
+
+「可访问性」让编译器知道：**这个控件的可访问名称/角色/可见性/实时区域**——
+辅助技术如何理解这个界面（设计文档 域 10；评审 MEDIUM-2：以前只能写
+aria-*（DOM 词汇），Flutter 目标静默丢失）。
+
+语义原语集（v1 范围）：`label`（可访问名称）/ `role`（角色）/ `hidden`
+（辅助技术隐藏）/ `live`（实时区域）/ `alt`（图像替代）。`required` 保持
+表单语义属性（不进本域）。
+
+### 11.2 BNF 语法
+
+```
+a11y_block    ::= 'a11y:' '{' a11y_entry+ '}'     (* 元素属性，与 style: {...} 同形态 *)
+a11y_entry    ::= 'label' ':' string               (* 至少一项；空块 = 编译错误「a11y 块不能为空」*)
+                | 'role' ':' string
+                | 'hidden' ':' expr                (* 动态隐藏 *)
+                | 'live' ':' '"polite"' | '"assertive"'
+                | 'alt' ':' expr                   (* 图像替代文本 *)
+```
+
+语法规则：
+
+- **至少一项**：空 `a11y: { }` 块是硬解析错误「a11y 块不能为空」——
+  空块不携带任何意图（设计文档 域 10 验证清单）。
+- **`label`/`role`/`live` 是字符串字面量**（BNF `'string'`）：`label: {expr}`
+  形式（动态可访问名称）暂不支持，解析错误。
+- **`live` 值域**：`"polite"`/`"assertive"`（语义 pass 验证，其余值 →
+  error「a11y live 仅支持 "polite"/"assertive"」）。
+- **`role` 子集**：Flutter 可映射角色
+  `button`/`textField`/`link`/`checkbox`/`radio`/`image` → Semantics flags；
+  其余角色 → **warning**（语义 pass）+ Flutter 生成代码注释（诚实降级）；
+  非 Flutter 目标原样透传（诊断表记录子集）。
+- **`hidden`/`alt` 是任意表达式**（动态）：`hidden: !visible`、
+  `alt: iconName` 均合法。
+- **未知键** → 解析错误「未知 a11y 键：'…'（支持 label/role/hidden/live/alt）」。
+
+### 11.3 完整示例
+
+```
+<button a11y: { label: "Close", role: "button", hidden: !visible }>×</button>
+<input a11y: { label: "Search", role: "searchbox" } />
+<div a11y: { live: "polite" }>{status}</div>
+<img src="icon.png" a11y: { alt: "Settings icon" } />
+```
+
+### 11.4 平台映射
+
+| 语义 | React | Flutter | OmniView |
+|------|-------|---------|----------|
+| `label` | `aria-label="..."`（静态字符串） | `Semantics(label: '...', child: ...)` | `aria-label="..."` 透传 |
+| `role` | `role="..."` | 语义角色子集 → `Semantics(button: true)` 等 flags；不可映射 → warning + 生成注释 | `role="..."` 透传 |
+| `hidden` | `aria-hidden={expr}`（动态） | `ExcludeSemantics(excluding: expr, child: ...)` | `aria-hidden` 透传（动态 → `__omni_effect` setAttribute） |
+| `live` | `aria-live="polite"` | `Semantics(liveRegion: true)` | `aria-live="polite"` 透传 |
+| `alt` | `alt="..."` / `alt={expr}` | img → `Image.network(semanticLabel:)`；其余 → `Semantics(label:)` | `alt` 透传（动态同 hidden） |
+
+**Flutter role 子集**：`button`/`textField`/`link`/`checkbox`/`radio`/`image`
+→ 对应 `Semantics` flag；子集外角色 → warnings 通道
+（`[flutter] a11y role 'X' is not in the Flutter Semantics subset …`）+
+生成代码内 `/* a11y: role 'X' has no Flutter Semantics flag … */` 注释。
+
+**组件标签上的 a11y 块**：React 以 aria-* prop 透传给子组件；Flutter 以
+Semantics/ExcludeSemantics 包裹子组件 widget；OmniView 内联组件无包裹
+机制 → warning「a11y 意图被忽略」。
+
+### 11.5 完整示例产物
+
+```dart
+// Flutter（三目标语义等价 — 语义树断言）
+ExcludeSemantics(
+  excluding: !visible,
+  child: Semantics(label: 'Close', button: true,
+    child: ElevatedButton(...)),
+)
+```
+
+```tsx
+// React
+<button aria-label="Close" role="button" aria-hidden={!visible}>×</button>
+```
+
+### 11.6 Diagnostic
+
+| 特性 | 目标 | 级别 | 说明 |
+|------|------|------|------|
+| 空 `a11y: { }` 块 | 全部 | error | 「a11y 块不能为空」（解析期） |
+| `label`/`role`/`live` 非字符串字面量 | 全部 | error | BNF `'string'` 值域 |
+| `live` 值非 polite/assertive | 全部 | error | 「a11y live 仅支持 "polite"/"assertive"」（语义 pass） |
+| `role` 不在 Flutter 子集 | 全部 | warning | Flutter 降级 + 生成注释；其余目标透传 |
+| 未知 a11y 键 | 全部 | error | 「未知 a11y 键：'…'」 |
+| a11y 块用于组件标签 | OmniView | warning | 内联组件无 aria-* 包裹机制 |
+| `role` 不在 Flutter 子集 | Flutter | warning | T2.4 warnings 通道 + `/* a11y: … */` 生成注释 |
+
+> **实现状态（2026-08-03，Task 4.5）**：parser（`ElementProp::A11y`/
+> `A11ySpec`）、IR（`ElementIR.a11y: Option<A11yIR>`）、语义
+> （`semantic/validate_a11y.rs`：role 子集 + live 值域）、三后端
+> （React aria-*；Flutter `Semantics`/`ExcludeSemantics`/`semanticLabel`/
+> `liveRegion`；OmniView aria-* 透传）已实现；fixture `a11y.omni` 三目标
+> 生成形状断言 + Flutter 语义树节点断言（`Semantics(label:)`/
+> `ExcludeSemantics` 存在性）；demo FormPage 8 处 `aria-label` 迁移到
+> a11y 块并在三目标验证（OmniView 属性不变、React 不再产生占位符重复
+> aria-label、Flutter 新出 Semantics 节点）。
+
+---
+
+## 12. PRD 对比：本规范 vs 设计文档
 
 | 对比维度 | 设计文档 (`semantic-level-dsl-design.md`) | 本语法规范 |
 |---------|------------------------------------------|-----------|
@@ -1083,7 +1190,7 @@ Flutter: [...list], count += 1, await fn()
 
 ---
 
-## 12. 实现影响
+## 13. 实现影响
 
 本语法规范要求以下编译器变更：
 
@@ -1099,10 +1206,16 @@ Flutter: [...list], count += 1, await fn()
 | `codegen/react/` — 全部模块 | 重写 | Zustand v5、React 19 ref prop、slot children、design CSS、动画 → 平台原生 ref+WAAPI |
 | `codegen/flutter/` — 全部模块 | 重写 | Riverpod 3.0、Ref handle、TweenSequence、design tokens、slot |
 | `codegen/shared/expr.rs` | 修改 | OptionalChain/BlockExpr/Match override |
+| `parser/ast/view.rs` + `parser/view/element.rs` | 修改 | ✅ 已实现（Task 4.5）：`ElementProp::A11y(A11ySpec)` + `a11y: { ... }` 块解析（§11.2） |
+| `ir/types.rs` — `A11yIR` + `ElementIR.a11y` | 新增 | ✅ 已实现（Task 4.5）：`A11yIR { label, role, hidden, live, alt }` |
+| `semantic/validate_a11y.rs` | 新增 | ✅ 已实现（Task 4.5）：role 子集 warning + live 值域 error |
+| `codegen/react/view.rs` | 修改 | ✅ 已实现（Task 4.5）：a11y → aria-label/role/aria-hidden/aria-live/alt |
+| `codegen/flutter/view.rs` | 修改 | ✅ 已实现（Task 4.5）：Semantics(label:)/flags/liveRegion + ExcludeSemantics + img semanticLabel；不可映射 role → warning + 生成注释 |
+| `codegen/omniview/view/element.rs` | 修改 | ✅ 已实现（Task 4.5）：aria-* 静态 + 动态透传；组件标签 → warning |
 
 ---
 
-## 13. References
+## 14. References
 
 - [ADR-052 — Semantic-Level DSL Cross-Target Codegen](.architecture/decisions/adrs/ADR-052-semantic-level-dsl-cross-target-codegen.md)
 - [Semantic-Level DSL Design Document](docs/superpowers/plans/2026-07-31-semantic-level-dsl-design.md)

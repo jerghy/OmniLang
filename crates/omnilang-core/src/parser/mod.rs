@@ -2232,4 +2232,115 @@ mod roundtrip_tests {
             _ => panic!("expected Element"),
         }
     }
+
+    // ── a11y block (域 10 semantic accessibility, design doc 域 10) ──
+
+    /// Parse a component source and return its first element's props.
+    fn first_element_props(source: &str) -> Vec<ElementProp> {
+        let children = view_children(source);
+        match &children[0] {
+            ViewNode::Element(el) => el.props.clone(),
+            other => panic!("expected Element, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn a11y_block_parses_all_entries() {
+        // a11y: { label/role/hidden/live/alt } parses as a dedicated
+        // ElementProp::A11y (mirrors the style: { ... } block shape).
+        let props = first_element_props(
+            "component A11y { signal visible: bool = true; \
+             view { <button a11y: { label: \"Close\", role: \"button\", hidden: !visible, \
+             live: \"polite\", alt: \"close glyph\" }>x</button> } }",
+        );
+        let a11y = props
+            .iter()
+            .find_map(|p| match p {
+                ElementProp::A11y(spec) => Some(spec),
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("expected ElementProp::A11y, got: {:?}", props));
+        assert_eq!(a11y.label.as_deref(), Some("Close"));
+        assert_eq!(a11y.role.as_deref(), Some("button"));
+        assert!(matches!(
+            &a11y.hidden,
+            Some(Expr::UnaryOp {
+                op: UnaryOpKind::Not,
+                ..
+            })
+        ));
+        assert_eq!(a11y.live.as_deref(), Some("polite"));
+        assert!(matches!(
+            &a11y.alt,
+            Some(Expr::Literal(Literal::String(s), _)) if s == "close glyph"
+        ));
+    }
+
+    #[test]
+    fn a11y_block_single_entry_parses() {
+        // Only one entry — all other fields stay None.
+        let props = first_element_props(
+            "component A11y { view { <input a11y: { label: \"Search\" } /> } }",
+        );
+        let a11y = props
+            .iter()
+            .find_map(|p| match p {
+                ElementProp::A11y(spec) => Some(spec),
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("expected ElementProp::A11y, got: {:?}", props));
+        assert_eq!(a11y.label.as_deref(), Some("Search"));
+        assert!(
+            a11y.role.is_none()
+                && a11y.hidden.is_none()
+                && a11y.live.is_none()
+                && a11y.alt.is_none()
+        );
+    }
+
+    #[test]
+    fn a11y_block_empty_errors() {
+        // Empty a11y block is a hard parse error (design doc 域 10: entries
+        // are the payload — an empty block carries no intent).
+        let source = "component A11y { view { <button a11y: { }>x</button> } }";
+        let tokens = tokenize(source);
+        let (_, errors) = parse(tokens, source);
+        assert!(
+            errors.iter().any(|e| e.message.contains("a11y 块不能为空")),
+            "expected 'a11y 块不能为空' parse error, got: {:?}",
+            errors.iter().map(|e| &e.message).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn a11y_block_unknown_key_errors() {
+        // Unknown a11y keys are rejected — typo'd intent must not silently
+        // become a style prop.
+        let source = "component A11y { view { <button a11y: { lable: \"x\" }>y</button> } }";
+        let tokens = tokenize(source);
+        let (_, errors) = parse(tokens, source);
+        assert!(
+            errors.iter().any(|e| e.message.contains("未知 a11y 键")),
+            "expected unknown-key error, got: {:?}",
+            errors.iter().map(|e| &e.message).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn a11y_block_label_role_live_require_string_literal() {
+        // label/role/live are string-valued per the BNF — a non-string value
+        // is a parse error (hidden/alt accept arbitrary expressions).
+        for (key, value) in [("label", "42"), ("role", "true"), ("live", "visible")] {
+            let source = format!(
+                "component A11y {{ view {{ <button a11y: {{ {key}: {value} }}>x</button> }} }}"
+            );
+            let tokens = tokenize(&source);
+            let (_, errors) = parse(tokens, &source);
+            assert!(
+                errors.iter().any(|e| e.message.contains("a11y")),
+                "expected a string-literal requirement error for {key}, got: {:?}",
+                errors.iter().map(|e| &e.message).collect::<Vec<_>>()
+            );
+        }
+    }
 }

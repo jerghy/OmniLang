@@ -1178,6 +1178,7 @@ mod tests {
             drag: None,
             ref_binding: None,
             semantic_bindings: rustc_hash::FxHashMap::default(),
+            a11y: None,
         })));
         let diags = run_pass(&mut comp);
         assert!(diags.is_empty(), "expected no diagnostics: {:?}", diags);
