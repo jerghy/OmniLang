@@ -429,6 +429,12 @@ fn collect_called_fns_from_expr(expr: &ExprIR, acc: &mut FxHashSet<String>) {
         ExprIR::AwaitExpr { operand } => {
             collect_called_fns_from_expr(operand, acc);
         }
+        ExprIR::ArrayMethod {
+            subject, predicate, ..
+        } => {
+            collect_called_fns_from_expr(subject, acc);
+            collect_called_fns_from_expr(predicate, acc);
+        }
         ExprIR::IdentifierExpr { .. } | ExprIR::LiteralExpr { .. } => {}
         // Ref ops don't call functions — their args are value expressions.
         ExprIR::RefOpExpr { .. } => {}

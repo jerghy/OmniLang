@@ -639,6 +639,12 @@ fn collect_expr_identifiers(expr: &ExprIR, acc: &mut FxHashSet<String>) {
         ExprIR::AwaitExpr { operand } => {
             collect_expr_identifiers(operand, acc);
         }
+        ExprIR::ArrayMethod {
+            subject, predicate, ..
+        } => {
+            collect_expr_identifiers(subject, acc);
+            collect_expr_identifiers(predicate, acc);
+        }
         ExprIR::LiteralExpr { .. } => {}
         ExprIR::RefOpExpr { op, .. } => {
             collect_ref_op_identifiers(op, acc);

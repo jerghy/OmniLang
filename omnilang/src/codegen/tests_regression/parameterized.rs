@@ -518,6 +518,67 @@ gen_semantic_dsl_tests!(
     assert_store_flutter
 );
 
+// ── array_methods.omni ──
+
+fn assert_array_methods_omniview(files: &FxHashMap<String, String>) {
+    // Array language methods (design doc 域 8): JS-family mapping with the
+    // defensive `|| []` guard; component signals resolve to the nid-qualified
+    // `.value` reads. filter → .filter(pred); map → .map(pred);
+    // count → .filter(pred).length.
+    assert_contains(
+        files,
+        "index.js",
+        "(((ArrayMethodsDemo_items.value) || []).filter(((i) => i % 2 === 0)))",
+    );
+    assert_contains(
+        files,
+        "index.js",
+        "(((ArrayMethodsDemo_items.value) || []).map(((i) => i * 2)))",
+    );
+    assert_contains(
+        files,
+        "index.js",
+        "(((ArrayMethodsDemo_items.value) || []).filter(((i) => i % 2 === 0)).length)",
+    );
+}
+
+fn assert_array_methods_react(files: &FxHashMap<String, String>) {
+    // JS-family mapping: filter/map verbatim, count → filter(pred).length.
+    assert_contains(
+        files,
+        "ArrayMethodsDemo.tsx",
+        "items.filter(((i) => (i % 2 === 0)))",
+    );
+    assert_contains(files, "ArrayMethodsDemo.tsx", "items.map(((i) => (i * 2)))");
+    assert_contains(
+        files,
+        "ArrayMethodsDemo.tsx",
+        "items.filter(((i) => (i % 2 === 0))).length",
+    );
+}
+
+fn assert_array_methods_flutter(files: &FxHashMap<String, String>) {
+    // Dart-family mapping (the fix for the Flutter `.filter()` silent
+    // failure): filter → where(...).toList(); map → map(...).toList();
+    // count → where(...).length (no toList — length is on the lazy
+    // Iterable).
+    assert_contains(
+        files,
+        "ArrayMethodsDemo.dart",
+        "items.where(((i) => i % 2 == 0)).toList()",
+    );
+    assert_contains(
+        files,
+        "ArrayMethodsDemo.dart",
+        "items.map(((i) => i * 2)).toList()",
+    );
+    assert_contains(
+        files,
+        "ArrayMethodsDemo.dart",
+        "items.where(((i) => i % 2 == 0)).length",
+    );
+}
+
 // ── control_flow.omni ──
 
 fn assert_control_flow_omniview(files: &FxHashMap<String, String>) {
@@ -586,6 +647,13 @@ fn flutter_control_flow_contract() {
     assert_contains(&files, "ListPage.dart", "AnimatedSwitcher");
 }
 
+gen_semantic_dsl_tests!(
+    array_methods,
+    "array_methods.omni",
+    assert_array_methods_omniview,
+    assert_array_methods_react,
+    assert_array_methods_flutter
+);
 gen_semantic_dsl_tests!(
     control_flow,
     "control_flow.omni",

@@ -139,3 +139,44 @@ fn catch_all_wildcard_regression() {
         assert!(result.success, "compilation should succeed for: {}", src);
     }
 }
+
+/// Array language methods (design doc 域 8): `.filter/.map/.count` are
+/// rewritten to ExprIR::ArrayMethod by the semantic pass. `count()` without
+/// a predicate is the design-doc diagnostic 「count 需要一个谓词闭包」.
+#[test]
+fn e2e_array_method_rewrite_and_count_diagnostic() {
+    // Well-formed filter → IR node; module-level fn path (script-style).
+    let ir = compile_ok(
+        "fn pick(items: Array<i32>) -> Array<i32> { return items.filter(|i| i % 2 == 0); }",
+    );
+    let module = ir.modules.get("input.omni").expect("should have module");
+    let body_str = format!("{:?}", module.functions["pick"].body);
+    assert!(
+        body_str.contains("ArrayMethod") && body_str.contains("Filter"),
+        "filter call must lower to ExprIR::ArrayMethod, got: {}",
+        body_str
+    );
+
+    // count() with no predicate → design-doc diagnostic (Chinese, verbatim
+    // per the v2 policy recorded in the SDD ledger).
+    let result = omnilang::compile("fn main() -> i32 { return items.count(); }");
+    assert!(!result.success, "count() without predicate must fail");
+    assert!(
+        result
+            .errors
+            .iter()
+            .any(|d| d.message == "count 需要一个谓词闭包"),
+        "expected the design-doc diagnostic, got: {:?}",
+        result.errors
+    );
+
+    // count() with a predicate → ArrayMethod::Count.
+    let ir = compile_ok("fn main(items: Array<i32>) -> i32 { return items.count(|i| i > 0); }");
+    let module = ir.modules.get("input.omni").expect("should have module");
+    let body_str = format!("{:?}", module.functions["main"].body);
+    assert!(
+        body_str.contains("ArrayMethod") && body_str.contains("Count"),
+        "count call must lower to ExprIR::ArrayMethod, got: {}",
+        body_str
+    );
+}

@@ -157,6 +157,101 @@ pub fn describe(n: i32) -> String {
     }
 }
 
+/// End-to-end runtime proof that array language methods (filter/map/count,
+/// design doc 域 8) produce correct results: compile functions using
+/// `items.filter/map/count(|x| ...)` through the real pipeline and execute
+/// the generated JavaScript in node. Before the semantic rewrite these
+/// calls emitted verbatim `.count(...)` (TypeError at runtime on JS).
+#[test]
+fn js_runtime_array_methods_pass() {
+    if Command::new("node").arg("--version").output().is_err() {
+        eprintln!("SKIP: Node.js not found -- skipping JS runtime tests");
+        return;
+    }
+
+    let mut sources = FxHashMap::default();
+    sources.insert(
+        "main.omni".to_string(),
+        r#"
+pub fn filter_evens(items: Array<i32>) -> Array<i32> {
+    return items.filter(|i| i % 2 == 0);
+}
+
+pub fn map_doubled(items: Array<i32>) -> Array<i32> {
+    return items.map(|i| i * 2);
+}
+
+pub fn count_evens(items: Array<i32>) -> i32 {
+    return items.count(|i| i % 2 == 0);
+}
+"#
+        .to_string(),
+    );
+    let path_mapping = omnilang::path_mapping::derive_path_mapping(&sources);
+    let result = omnilang::compile_multi_internal(
+        sources,
+        omnilang::codegen::Target::JavaScript,
+        path_mapping,
+        false,
+        false,
+        None,
+    );
+    // The JavaScript backend is gated behind `codegen-javascript` (not in
+    // default features) — mirror the graceful SKIP of the validation suite.
+    if result
+        .errors
+        .iter()
+        .any(|d| d.message.contains("is not enabled"))
+    {
+        eprintln!(
+            "SKIP: JavaScript backend not compiled in -- rerun with \
+             `--features codegen-javascript`"
+        );
+        return;
+    }
+    assert!(result.success, "compile failed: {:?}", result.errors);
+
+    let mut js = String::new();
+    for content in result.files.values() {
+        js.push_str(content);
+    }
+    js.push_str(
+        "\nconsole.log(JSON.stringify(filter_evens([1, 2, 3, 4, 5, 6])));\
+         \nconsole.log(JSON.stringify(map_doubled([1, 2, 3, 4, 5, 6])));\
+         \nconsole.log(count_evens([1, 2, 3, 4, 5, 6]));\n",
+    );
+
+    let mut child = Command::new("node")
+        .args(["--input-type=module", "-"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("failed to spawn node");
+    child
+        .stdin
+        .take()
+        .expect("node stdin")
+        .write_all(js.as_bytes())
+        .expect("write generated JS to node stdin");
+    let output = child.wait_with_output().expect("node output");
+
+    assert!(
+        output.status.success(),
+        "generated JS failed to run:\nstdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    for expected in ["[2,4,6]", "[2,4,6,8,10,12]", "3"] {
+        assert!(
+            stdout.contains(expected),
+            "expected {expected:?} in stdout, got: {}",
+            stdout
+        );
+    }
+}
+
 /// End-to-end runtime proof for the stdlib gap modules (async/datetime/encode/
 /// regex + math extensions): compile a program that uses every newly
 /// registered std function through the real pipeline and execute the generated

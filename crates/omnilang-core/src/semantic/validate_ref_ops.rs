@@ -405,6 +405,12 @@ fn walk_expr_mut(expr: &mut ExprIR, ctx: &mut RefOpCtx) {
                 walk_expr_mut(value, ctx);
             }
         }
+        ExprIR::ArrayMethod {
+            subject, predicate, ..
+        } => {
+            walk_expr_mut(subject, ctx);
+            walk_expr_mut(predicate, ctx);
+        }
         ExprIR::RefOpExpr { op, .. } => walk_ref_op_children_mut(op, ctx),
     }
 }

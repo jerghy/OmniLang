@@ -1,0 +1,27 @@
+// array_methods.omni — filter/map/count 三后端参数化断言（设计文档域 8）：
+//   - `.filter(|x| ...)` → React/JS `filter` / Flutter `where(...).toList()`
+//   - `.map(|x| ...)`    → React/JS `map` / Flutter `map(...).toList()`
+//   - `.count(|x| ...)`  → React/JS `filter(pred).length` / Flutter `where(pred).length`
+//
+// The generated output must compile on all three P0 backends (tsc + dart
+// analyze gates in generated_code_validation.rs pick this file up
+// automatically). No `.len()` / `.get()` / `.length` method calls are used —
+// those are separate Dart-family gaps outside this task.
+
+import omniview;
+
+component ArrayMethodsDemo {
+    signal items: Array<i32> = [1, 2, 3, 4, 5, 6];
+
+    computed evens: Array<i32> = items.filter(|i| i % 2 == 0);
+    computed doubled: Array<i32> = items.map(|i| i * 2);
+    computed evenCount: i32 = items.count(|i| i % 2 == 0);
+
+    view {
+        <div>
+            <p>evens: {evens}</p>
+            <p>doubled: {doubled}</p>
+            <p>count: {evenCount}</p>
+        </div>
+    }
+}

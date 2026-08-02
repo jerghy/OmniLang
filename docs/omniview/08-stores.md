@@ -14,7 +14,7 @@ store TodoStore {
 
     // 2. 计算属性（store 中用 getter）
     getter totalCount: i32 = items.len();
-    getter activeCount: i32 = items.filter(|item| !item.done).len();
+    getter activeCount: i32 = items.count(|item| !item.done);
 
     // 3. 修改方法（store 中用 action）
     action add(text: String) {
@@ -38,6 +38,18 @@ Store 成员：
 - **action** — 修改 signal 的方法，只能在 action 内部修改 store signal
 
 > Store 不支持 `computed`，用 `getter` 代替。
+
+## 数组方法（filter/map/count）
+
+`.filter(|x| ...)`、`.map(|x| ...)`、`.count(|x| ...)` 是正式的语言方法（无需 import），跨目标映射为各平台惯用写法：
+
+| 方法 | React / JS | Flutter / Dart |
+|------|-----------|----------------|
+| `.filter(\|x\| cond)` | `items.filter((x) => cond)` | `items.where((x) => cond).toList()` |
+| `.map(\|x\| expr)` | `items.map((x) => expr)` | `items.map((x) => expr).toList()` |
+| `.count(\|x\| cond)` | `items.filter((x) => cond).length` | `items.where((x) => cond).length` |
+
+`count` 需要一个谓词闭包（`items.count()` 是编译错误）；`array_filter`/`array_map` 等 stdlib 函数保留为底层接口。
 
 ## Action 返回类型与异步
 

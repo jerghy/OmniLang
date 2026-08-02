@@ -227,6 +227,17 @@ pub enum ExprIR {
     MapExpr {
         entries: Vec<(ExprIR, ExprIR)>,
     },
+    /// Array language method: `items.filter(|x| ...)`, `items.map(|x| ...)`,
+    /// `items.count(|x| ...)`. Populated by the semantic pass
+    /// (`semantic/validate_array_methods.rs`) from `MethodCallExpr` on the
+    /// reserved method names; consumed by codegen backends with cross-target
+    /// mapping (JS-family `filter`/`map`/`filter().length`; Dart-family
+    /// `where(...).toList()`/`map(...).toList()`/`where(...).length`).
+    ArrayMethod {
+        method: ArrayMethodIR,
+        subject: Box<ExprIR>,
+        predicate: Box<ExprIR>,
+    },
     /// Semantic ref method call: `refName.focus()`, `refName.scrollTo(x, y)`, etc.
     /// Populated by the semantic pass from `@ref`-bound element method calls;
     /// consumed by codegen backends (Phase 4-6).
@@ -703,6 +714,23 @@ pub enum ViewTree {
     },
     /// Inline list of child nodes (no wrapper element) — used for slot projection.
     Fragment(Vec<ViewTree>),
+}
+
+// ═══════════════════════════════════════════════════════
+// ArrayMethodIR — array language methods (filter/map/count)
+// ═══════════════════════════════════════════════════════
+
+/// Which array transformation an `ExprIR::ArrayMethod` performs.
+///
+/// `Count` is a filter-then-count (`.filter(pred).length` on JS,
+/// `.where(pred).length` on Dart) — the design doc 域 8 semantics
+/// (`items.count(|item| cond)` expands to filter + length).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ArrayMethodIR {
+    Filter,
+    Map,
+    Count,
 }
 
 // ═══════════════════════════════════════════════════════

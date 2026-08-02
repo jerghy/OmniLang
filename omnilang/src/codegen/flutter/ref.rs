@@ -218,6 +218,12 @@ fn scan_expr(expr: &ExprIR, usage: &mut FxHashMap<String, RefUsage>) {
                 scan_expr(v, usage);
             }
         }
+        ExprIR::ArrayMethod {
+            subject, predicate, ..
+        } => {
+            scan_expr(subject, usage);
+            scan_expr(predicate, usage);
+        }
         ExprIR::LiteralExpr { .. } | ExprIR::IdentifierExpr { .. } => {}
         #[allow(unreachable_patterns)]
         _ => {}
@@ -815,6 +821,15 @@ fn watch_to_read(expr: &ExprIR) -> ExprIR {
         ExprIR::ClosureExpr { params, body } => ExprIR::ClosureExpr {
             params: params.clone(),
             body: Box::new(watch_to_read(body)),
+        },
+        ExprIR::ArrayMethod {
+            method,
+            subject,
+            predicate,
+        } => ExprIR::ArrayMethod {
+            method: *method,
+            subject: Box::new(watch_to_read(subject)),
+            predicate: Box::new(watch_to_read(predicate)),
         },
         leaf => leaf.clone(),
     }

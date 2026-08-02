@@ -579,6 +579,22 @@ pub(super) fn format_expr_ir_tsx_renamed(
                 .collect();
             translate_method_call(&obj_str, method, &args_str)
         }
+        ExprIR::ArrayMethod {
+            method,
+            subject,
+            predicate,
+        } => {
+            // Array language methods must apply the same identifier renames
+            // (Zustand action bodies: store signals → state.<name>) inside
+            // both the subject and the predicate before formatting.
+            let subj_str = format_expr_ir_tsx_renamed(subject, ref_names, renames);
+            let pred_str = format_expr_ir_tsx_renamed(predicate, ref_names, renames);
+            ReactFormatExpr {
+                ref_names: ref_names.clone(),
+                renames: renames.clone(),
+            }
+            .format_array_method(method, &subj_str, &pred_str)
+        }
         _ => ReactFormatExpr {
             ref_names: ref_names.clone(),
             renames: renames.clone(),

@@ -95,6 +95,12 @@ pub fn walk_expr(expr: &ExprIR, f: &mut impl FnMut(&ExprIR)) {
                 walk_expr(value, f);
             }
         }
+        ExprIR::ArrayMethod {
+            subject, predicate, ..
+        } => {
+            walk_expr(subject, f);
+            walk_expr(predicate, f);
+        }
         ExprIR::RefOpExpr { op, .. } => {
             walk_ref_op(op, f);
         }

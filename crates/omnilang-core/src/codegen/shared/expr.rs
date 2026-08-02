@@ -204,6 +204,48 @@ pub trait FormatExpr {
         format!("/* RefOp::{op:?} on {ref_name} */")
     }
 
+    /// Format an array language method (`items.filter(...)`, `items.map(...)`,
+    /// `items.count(...)`) — the cross-target mapping table for
+    /// `ExprIR::ArrayMethod` (design doc 域 8).
+    ///
+    /// JS family (React/Vue/JavaScript/TypeScript): `filter`/`map` map
+    /// verbatim (native JS array methods); `count` expands to
+    /// `subject.filter(pred).length` (no `count` method exists on JS arrays).
+    /// Dart family (Dart/Flutter): arrays are `List`s, whose functional
+    /// methods are `Iterable`-returning — `filter` → `where(...).toList()`,
+    /// `map` → `map(...).toList()`, `count` → `where(...).length` (no
+    /// `toList` needed — length is available on the lazy Iterable).
+    /// Unmapped targets keep the verbatim method-call form (today's
+    /// behavior) — no new behavior for targets the design doc does not
+    /// promise.
+    fn format_array_method(
+        &self,
+        method: &ArrayMethodIR,
+        subject: &str,
+        predicate: &str,
+    ) -> String {
+        match self.codegen_target() {
+            Target::JavaScript | Target::TypeScript | Target::React | Target::Vue => match method {
+                ArrayMethodIR::Filter => format!("{subject}.filter({predicate})"),
+                ArrayMethodIR::Map => format!("{subject}.map({predicate})"),
+                ArrayMethodIR::Count => format!("{subject}.filter({predicate}).length"),
+            },
+            Target::Dart | Target::Flutter => match method {
+                ArrayMethodIR::Filter => format!("{subject}.where({predicate}).toList()"),
+                ArrayMethodIR::Map => format!("{subject}.map({predicate}).toList()"),
+                ArrayMethodIR::Count => format!("{subject}.where({predicate}).length"),
+            },
+            _ => {
+                let name = match method {
+                    ArrayMethodIR::Filter => "filter",
+                    ArrayMethodIR::Map => "map",
+                    ArrayMethodIR::Count => "count",
+                };
+                self.format_method_call(subject, name, &[predicate.to_string()])
+            }
+        }
+    }
+
     // ── Main dispatch ────────────────────────────────────
 
     /// Format any `ExprIR` node according to this language's syntax.
@@ -316,6 +358,15 @@ pub trait FormatExpr {
                 // Use empty type_name since MapExpr has no struct type
                 self.format_struct("", &fields.join(", "))
             }
+            ExprIR::ArrayMethod {
+                method,
+                subject,
+                predicate,
+            } => self.format_array_method(
+                method,
+                &self.format_expr(subject),
+                &self.format_expr(predicate),
+            ),
             ExprIR::RefOpExpr { ref_name, op } => self.format_ref_op(ref_name, op),
         }
     }
@@ -658,6 +709,115 @@ mod tests {
         assert!(
             out.contains("(() {") && out.contains("var x = 5;") && out.contains("return x;"),
             "dart block expr: {out}"
+        );
+    }
+
+    /// Helper: an `items.filter(|i| i.done)`-shaped ArrayMethod IR node.
+    fn array_method(method: ArrayMethodIR, predicate_body: &str) -> ExprIR {
+        ExprIR::ArrayMethod {
+            method,
+            subject: Box::new(ExprIR::IdentifierExpr {
+                name: "items".into(),
+                type_ann: Some("Array<Todo>".into()),
+            }),
+            predicate: Box::new(ExprIR::ClosureExpr {
+                params: vec!["i".into()],
+                body: Box::new(ExprIR::IdentifierExpr {
+                    name: predicate_body.into(),
+                    type_ann: None,
+                }),
+            }),
+        }
+    }
+
+    fn filter_expr() -> ExprIR {
+        array_method(ArrayMethodIR::Filter, "i.done")
+    }
+
+    fn map_expr() -> ExprIR {
+        array_method(ArrayMethodIR::Map, "i * 2")
+    }
+
+    fn count_expr() -> ExprIR {
+        array_method(ArrayMethodIR::Count, "i.done")
+    }
+
+    #[test]
+    fn js_family_filter_maps_to_js_filter() {
+        // items.filter(|i| i.done) → items.filter(((i) => i.done)) — the
+        // closure keeps the shared `((params) => body)` emission convention.
+        assert_eq!(
+            JsFormatExpr.format_expr(&filter_expr()),
+            "items.filter(((i) => i.done))"
+        );
+    }
+
+    #[test]
+    fn js_family_map_maps_to_js_map() {
+        assert_eq!(
+            JsFormatExpr.format_expr(&map_expr()),
+            "items.map(((i) => i * 2))"
+        );
+    }
+
+    #[test]
+    fn js_family_count_expands_to_filter_length() {
+        // count → filter(pred).length — JS arrays have no native count.
+        assert_eq!(
+            JsFormatExpr.format_expr(&count_expr()),
+            "items.filter(((i) => i.done)).length"
+        );
+    }
+
+    #[test]
+    fn dart_family_filter_maps_to_where_tolist() {
+        // items.filter(|i| i.done) → items.where(((i) => i.done)).toList()
+        // (Dart List has no `filter` method — the cross-target mapping that
+        // makes `.filter()` compile on Flutter.)
+        let fmt = DartFormatExpr {
+            event_param_name: None,
+        };
+        assert_eq!(
+            fmt.format_expr(&filter_expr()),
+            "items.where(((i) => i.done)).toList()"
+        );
+    }
+
+    #[test]
+    fn dart_family_map_maps_to_dart_map_tolist() {
+        let fmt = DartFormatExpr {
+            event_param_name: None,
+        };
+        assert_eq!(
+            fmt.format_expr(&map_expr()),
+            "items.map(((i) => i * 2)).toList()"
+        );
+    }
+
+    #[test]
+    fn dart_family_count_maps_to_where_length() {
+        // count → where(pred).length — the lazy Iterable's length is the
+        // count; no toList() needed.
+        let fmt = DartFormatExpr {
+            event_param_name: None,
+        };
+        assert_eq!(
+            fmt.format_expr(&count_expr()),
+            "items.where(((i) => i.done)).length"
+        );
+    }
+
+    #[test]
+    fn rust_family_keeps_verbatim_method_call() {
+        // Unmapped targets keep today's verbatim emission (design doc maps
+        // only JS-family + Dart-family; Rust/Python are out of scope).
+        let fmt = RustFormatExpr {
+            move_closures: false,
+            event_param_name: None,
+        };
+        assert_eq!(
+            fmt.format_expr(&filter_expr()),
+            "items.filter((|i| i.done))"
         );
     }
 

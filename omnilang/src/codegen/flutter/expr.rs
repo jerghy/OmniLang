@@ -184,6 +184,15 @@ pub(crate) fn rewrite_store_accesses(
         ExprIR::MapExpr { entries } => ExprIR::MapExpr {
             entries: entries.iter().map(|(k, v)| (rw(k), rw(v))).collect(),
         },
+        ExprIR::ArrayMethod {
+            method,
+            subject,
+            predicate,
+        } => ExprIR::ArrayMethod {
+            method: *method,
+            subject: Box::new(rw(subject)),
+            predicate: Box::new(rw(predicate)),
+        },
         leaf => leaf.clone(),
     }
 }

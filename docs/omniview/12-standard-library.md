@@ -137,8 +137,21 @@ fn saveTheme(mode: String) {
 | `.get(index) -> T` | 按索引取值 |
 | `.is_empty() -> bool` | 是否为空 |
 | `.concat(other) -> Array<T>` | 连接 |
+| `.filter(\|x\| cond) -> Array<T>` | 过滤（语言方法，见下方跨目标映射） |
+| `.map(\|x\| expr) -> Array<U>` | 映射（语言方法，见下方跨目标映射） |
+| `.count(\|x\| cond) -> i32` | 满足条件的元素个数（语言方法，展开为 filter + length） |
 
 `.push()` 和 `.pop()` 会触发信号系统的响应式更新。
+
+`filter`/`map`/`count` 是**语言方法**（无需 import，谓词用管道闭包 `|x|`），跨目标映射：
+
+| 方法 | React / JS | Flutter / Dart |
+|------|-----------|----------------|
+| `.filter(\|x\| cond)` | `filter((x) => cond)` | `where((x) => cond).toList()` |
+| `.map(\|x\| expr)` | `map((x) => expr)` | `map((x) => expr).toList()` |
+| `.count(\|x\| cond)` | `filter((x) => cond).length` | `where((x) => cond).length` |
+
+`count` 需要一个谓词闭包——`items.count()` 是编译错误（E_ARRAY_METHOD）。`array_filter`/`array_map` 等 stdlib 函数保留为底层接口。
 
 ### 数字
 

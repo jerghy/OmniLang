@@ -1646,6 +1646,12 @@ fn collect_store_refs(
         }
         ExprIR::SpreadExpr { operand } => collect_store_refs(operand, all_stores, acc),
         ExprIR::AwaitExpr { operand } => collect_store_refs(operand, all_stores, acc),
+        ExprIR::ArrayMethod {
+            subject, predicate, ..
+        } => {
+            collect_store_refs(subject, all_stores, acc);
+            collect_store_refs(predicate, all_stores, acc);
+        }
         ExprIR::RefOpExpr { op, .. } => {
             collect_ref_op_store_refs(op, all_stores, acc);
         }

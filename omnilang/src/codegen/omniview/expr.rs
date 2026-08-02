@@ -377,6 +377,31 @@ impl OmniViewGenerator {
                     .collect();
                 format!("{{{}}}", items.join(", "))
             }
+            ExprIR::ArrayMethod {
+                method,
+                subject,
+                predicate,
+            } => {
+                // Array language methods (design doc 域 8): JS-family mapping
+                // with the defensive `|| []` guard used by the other array
+                // ops (len/get/push/contains) so a not-yet-initialized
+                // signal value degrades to an empty array instead of
+                // throwing. count → filter(pred).length (no JS count).
+                let base = self.expr_to_js(subject);
+                let obj = if self.name_resolver.signal_names.contains(&base) {
+                    format!("{}.value", base)
+                } else {
+                    base
+                };
+                let pred = self.expr_to_js(predicate);
+                match method {
+                    ArrayMethodIR::Filter => format!("(({obj}) || []).filter({pred})"),
+                    ArrayMethodIR::Map => format!("(({obj}) || []).map({pred})"),
+                    ArrayMethodIR::Count => {
+                        format!("(({obj}) || []).filter({pred}).length")
+                    }
+                }
+            }
             ExprIR::RefOpExpr { ref_name, op } => self.format_ref_op(ref_name, op),
             #[allow(unreachable_patterns)]
             _ => unreachable!("Unknown ExprIR variant — update codegen for new variant"),

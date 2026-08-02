@@ -298,6 +298,9 @@ pub(super) fn expr_contains_await(expr: &ExprIR) -> bool {
         ExprIR::MapExpr { entries } => entries
             .iter()
             .any(|(k, v)| expr_contains_await(k) || expr_contains_await(v)),
+        ExprIR::ArrayMethod {
+            subject, predicate, ..
+        } => expr_contains_await(subject) || expr_contains_await(predicate),
         // Ref ops are synchronous DOM operations — no await inside.
         ExprIR::RefOpExpr { .. } => false,
         #[allow(unreachable_patterns)]

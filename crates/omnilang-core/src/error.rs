@@ -123,6 +123,8 @@ pub enum DiagnosticKind {
     ECodegen,
     #[error("closure syntax error")]
     EClosureArrow,
+    #[error("array method error")]
+    EArrayMethod,
     #[error("omniview warning")]
     WOmniviewMarker,
     #[error("motion warning")]
@@ -153,6 +155,7 @@ impl DiagnosticKind {
             Self::ECycle => "E_CYCLE",
             Self::ECodegen => "E_CODEGEN",
             Self::EClosureArrow => "E_CLOSURE_ARROW",
+            Self::EArrayMethod => "E_ARRAY_METHOD",
             Self::WOmniviewMarker => "W_OMNIVIEW_MARKER",
             Self::WMotion => "W0001",
             Self::ELint(_) => "E_LINT",
@@ -196,6 +199,7 @@ impl<'de> Deserialize<'de> for DiagnosticKind {
                     "E_CYCLE" => Ok(DiagnosticKind::ECycle),
                     "E_CODEGEN" => Ok(DiagnosticKind::ECodegen),
                     "E_CLOSURE_ARROW" => Ok(DiagnosticKind::EClosureArrow),
+                    "E_ARRAY_METHOD" => Ok(DiagnosticKind::EArrayMethod),
                     "W_OMNIVIEW_MARKER" => Ok(DiagnosticKind::WOmniviewMarker),
                     "W0001" => Ok(DiagnosticKind::WMotion),
                     "E_LINT" => Ok(DiagnosticKind::ELint("E_LINT".into())),
@@ -602,6 +606,14 @@ mod tests {
         .into();
         assert_eq!(diag.kind, DiagnosticKind::EClosureArrow);
         assert!(diag.message.contains("|x|"));
+
+        // E_ARRAY_METHOD must be a registered diagnostic code too (semantic
+        // array-method rules carry the same named-code convention).
+        assert_eq!(DiagnosticKind::EArrayMethod.code_str(), "E_ARRAY_METHOD");
+        let json = serde_json::to_value(DiagnosticKind::EArrayMethod).unwrap();
+        assert_eq!(json, "E_ARRAY_METHOD");
+        let back: DiagnosticKind = serde_json::from_value(json).unwrap();
+        assert_eq!(back, DiagnosticKind::EArrayMethod);
         // Untyped ParseErrors still map to E0001.
         let plain: Diagnostic = ParseError {
             message: "generic".into(),

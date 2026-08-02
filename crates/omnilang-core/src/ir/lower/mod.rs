@@ -336,6 +336,18 @@ pub fn lower(
         }
     }
 
+    // Validate array language methods: rewrite `subject.filter/map/count(...)`
+    // method calls to ExprIR::ArrayMethod (cross-target mapping), error on
+    // malformed uses (count without predicate, provably non-array subjects).
+    // Runs after validate_ref_ops so declared-ref subjects keep their
+    // unknown-ref-operation diagnostics.
+    for module in ir_program.modules.values_mut() {
+        crate::semantic::validate_array_methods::validate_array_methods(
+            module,
+            &mut semantics.diagnostics,
+        );
+    }
+
     // Validate semantic ref bindings: focus={sig}, scroll-x={sig}, scroll-y={sig},
     // value={sig} must appear only on elements with a @ref binding whose ref is
     // declared on the component.

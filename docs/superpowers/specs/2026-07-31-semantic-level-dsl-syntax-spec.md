@@ -949,9 +949,14 @@ Flutter: [...list], count += 1, await fn()
 
 | 表达式 | 说明 |
 |--------|------|
-| `items.count(|item| cond)` | 展开为 `items.filter(|item| cond).length` |
+| `items.filter(\|x\| cond)` | 语言方法 → JS `filter((x) => cond)` / Dart `where((x) => cond).toList()` |
+| `items.map(\|x\| expr)` | 语言方法 → JS `map((x) => expr)` / Dart `map((x) => expr).toList()` |
+| `items.count(\|x\| cond)` | 展开为 `items.filter(\|x\| cond).length`（JS）；Dart `where((x) => cond).length` |
 | `Array<T>` 类型 | `T[]` 语法糖 → `Array<T>` |
 | 模板字符串 | `` `Hello ${name}` `` 保持不变 |
+
+数组方法语法：`array_method ::= expr '.' ('filter' | 'map' | 'count') '(' closure ')'`。
+谓词必须是管道闭包 `|x| ...`（函数引用也可）；`count` 无谓词报错「count 需要一个谓词闭包」（E_ARRAY_METHOD）。
 
 ---
 

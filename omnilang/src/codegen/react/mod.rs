@@ -771,6 +771,12 @@ fn expr_references_store_name(expr: &ExprIR, store_names: &FxHashSet<String>) ->
             .iter()
             .any(|a| expr_references_store_name(a, store_names)),
         ExprIR::AwaitExpr { operand } => expr_references_store_name(operand, store_names),
+        ExprIR::ArrayMethod {
+            subject, predicate, ..
+        } => {
+            expr_references_store_name(subject, store_names)
+                || expr_references_store_name(predicate, store_names)
+        }
         ExprIR::RefOpExpr { op, .. } => ref_op_references_store_name(op, store_names),
         ExprIR::LiteralExpr { .. } => false,
         #[allow(unreachable_patterns)]
