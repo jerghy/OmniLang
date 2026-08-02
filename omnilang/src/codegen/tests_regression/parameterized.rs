@@ -517,3 +517,77 @@ gen_semantic_dsl_tests!(
     assert_store_react,
     assert_store_flutter
 );
+
+// ── control_flow.omni ──
+
+fn assert_control_flow_omniview(files: &FxHashMap<String, String>) {
+    // Keyed @for: FLIP keyed reconciliation + data-for-key clone tracking.
+    assert_contains(files, "index.js", "Omni.flipBefore(parent)");
+    assert_contains(files, "index.js", "data-for-key");
+    // Empty body: empty-state template clone + length check.
+    assert_contains(files, "index.js", "data-for-empty");
+    assert_contains(files, "index.js", "length === 0");
+    // @if mode:"fade": branch display toggling + both branch texts.
+    assert_contains(files, "index.js", "_show(");
+    assert_contains(files, "body.html", "shown");
+    assert_contains(files, "body.html", "hidden");
+    assert_contains(files, "body.html", "No items");
+}
+
+fn assert_control_flow_react(files: &FxHashMap<String, String>) {
+    // Keyed @for → key={item}; empty body → length === 0 ternary.
+    assert_contains(files, "ListPage.tsx", "key={item}");
+    assert_contains(files, "ListPage.tsx", ".length === 0");
+    // @if mode:"fade" → CSS-module fade wrapper around each branch.
+    assert_contains(files, "ListPage.tsx", "omni-if-fade");
+    assert_contains(files, "ListPage.tsx", "shown");
+    assert_contains(files, "ListPage.tsx", "hidden");
+    assert_contains(files, "ListPage.tsx", "No items");
+}
+
+fn assert_control_flow_flutter(files: &FxHashMap<String, String>) {
+    // Today-passing subset. The keyed @for contract (key: ValueKey(expr))
+    // and @if mode:"fade" (AnimatedSwitcher) are the Task 5.5 TARGET
+    // contract — asserted in the #[ignore]d `flutter_control_flow_contract`
+    // test below (current codegen ignores key_expr and fade mode silently).
+    assert_contains(files, "ListPage.dart", "ListView.builder(");
+    // Empty body → Builder with isEmpty switch.
+    assert_contains(files, "ListPage.dart", "isEmpty ?");
+    assert_contains(files, "ListPage.dart", "No items");
+    assert_contains(files, "ListPage.dart", "shown");
+    assert_contains(files, "ListPage.dart", "hidden");
+}
+
+/// T5.5 TARGET contract for Flutter control flow: keyed @for + @if fade.
+///
+/// Today the Flutter codegen ignores `key_expr` (unconditional
+/// ListView.builder with no ValueKey) and `@if mode:"fade"` is a silent
+/// no-op (no AnimatedSwitcher) — known #30-era gap owned by Task 5.5 of
+/// the 2026-08-02-semantic-syntax-v2 plan (§5.5; design doc mapping table:
+/// Flutter key_expr → `key: ValueKey(expr)`, `@if mode:"fade"` →
+/// AnimatedSwitcher). The assertions below are the TARGET shape and FAIL
+/// on the current codegen, so the test stays #[ignore]d until 5.5 lands.
+// TODO(T5.5): Flutter ValueKey/scroll dispatch — un-ignore when Task 5.5
+// lands (key_expr → key: ValueKey(expr); [scroll] → ListView.builder
+// dispatch; @if mode:"fade" → AnimatedSwitcher).
+#[cfg(feature = "codegen-flutter")]
+#[test]
+#[ignore = "T5.5: Flutter keyed @for ValueKey + @if fade AnimatedSwitcher — known gap, owned by Task 5.5"]
+fn flutter_control_flow_contract() {
+    let source = include_str!("../../../tests/fixtures/parameterized/control_flow.omni");
+    let files = compile_source_fixture(source, crate::codegen::Target::Flutter);
+    assert_flutter_files(&files);
+    // key_expr → key: ValueKey(expr) in the item builder.
+    assert_contains(&files, "ListPage.dart", "ValueKey");
+    assert_contains(&files, "ListPage.dart", "ValueKey(item)");
+    // @if mode:"fade" → AnimatedSwitcher (currently a silent no-op).
+    assert_contains(&files, "ListPage.dart", "AnimatedSwitcher");
+}
+
+gen_semantic_dsl_tests!(
+    control_flow,
+    "control_flow.omni",
+    assert_control_flow_omniview,
+    assert_control_flow_react,
+    assert_control_flow_flutter
+);

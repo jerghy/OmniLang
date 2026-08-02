@@ -1,0 +1,29 @@
+// control_flow.omni — @if/@for 三后端参数化断言：
+//   - @for key_expr (key={item}) + empty_body (@empty) + [scroll] 提示
+//   - @if ternary with mode:"fade" 过渡
+// Exercises conditional/list rendering shapes across all P0 backends.
+//
+// Note: the item type is intentionally a plain Array<String> (not a
+// struct-typed array) — Flutter struct emission is a Phase 5 gap
+// (Task 5.5 family), so a struct element type would fail the
+// generated_code_validation dart-analyze gate.
+
+import omniview;
+
+component ListPage {
+    signal items: Array<String> = [];
+    signal show: bool = true;
+
+    view {
+        <div>
+            <h3>Keyed list</h3>
+            @for item in items key={item} [scroll] {
+                <div class: item-row>{item}</div>
+            } @empty {
+                <p class: empty>No items</p>
+            }
+            <h3>If fade</h3>
+            @if show mode:"fade" { <div>shown</div> } @else { <div>hidden</div> }
+        </div>
+    }
+}

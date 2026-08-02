@@ -16,6 +16,10 @@ use super::jsx;
 pub(super) struct ComponentImports {
     /// React hook names to import (e.g. `useState`, `useMemo`, `useEffect`).
     pub hooks: Vec<String>,
+    /// Whether the view emits `<React.Fragment>` (any `@for` list
+    /// rendering) — requires the React default import even when the
+    /// component uses no hooks (e.g. a read-only `@for` over props).
+    pub needs_react_default: bool,
     /// Whether the component has styles that need `./name.module.css`.
     pub has_styles: bool,
     /// Pre-formatted import lines for each used store hook.
@@ -107,13 +111,45 @@ pub(super) fn collect_component_imports(
         })
         .collect();
 
+    // ── React default import (React.Fragment from @for) ─────
+    // `@for` renders `<React.Fragment key=...>`, which requires the React
+    // default import even when the component uses no hooks (read-only
+    // signals/props). Without it tsc reports TS2686 ("React refers to a UMD
+    // global") — the hook-driven import below used to be the only trigger.
+    let needs_react_default = comp
+        .view
+        .as_ref()
+        .is_some_and(view_has_list_rendering);
+
     ComponentImports {
         hooks,
+        needs_react_default,
         has_styles,
         store_hook_lines,
         child_import_lines,
         design_import_lines: design_import_lines.to_vec(),
         slot_infos,
+    }
+}
+
+/// Whether the view tree contains any `@for` list rendering (nested inside
+/// elements, conditionals, slots or fragments).
+fn view_has_list_rendering(node: &ViewTree) -> bool {
+    match node {
+        ViewTree::Element(el) => el.children.iter().any(view_has_list_rendering),
+        ViewTree::ListRendering(_) => true,
+        ViewTree::Conditional(cond) => {
+            cond.branches
+                .iter()
+                .any(|b| b.body.as_ref().is_some_and(view_has_list_rendering))
+                || cond.fallback.as_ref().is_some_and(view_has_list_rendering)
+        }
+        ViewTree::Fragment(children) => children.iter().any(view_has_list_rendering),
+        ViewTree::Slot { fallback, .. } => fallback.iter().any(view_has_list_rendering),
+        // ViewTree is #[non_exhaustive] — unknown variants cannot contain
+        // list rendering.
+        #[allow(unreachable_patterns)]
+        _ => false,
     }
 }
 
@@ -128,16 +164,22 @@ impl ComponentImports {
     /// 5. Child component imports
     pub(super) fn emit(&self, w: &mut CodeWriter, name: &str, comp: &ComponentIR, has_props: bool) {
         // ── 1-2: React / styles imports ─────────────────────
-        if !self.hooks.is_empty() {
-            w.emit_fmt(format_args!(
-                "import React, {{ {} }} from 'react';",
-                self.hooks.join(", ")
-            ));
+        if !self.hooks.is_empty() || self.needs_react_default {
+            if self.hooks.is_empty() {
+                // React.Fragment from @for without any hooks — bare default
+                // import is all that's needed.
+                w.emit("import React from 'react';");
+            } else {
+                w.emit_fmt(format_args!(
+                    "import React, {{ {} }} from 'react';",
+                    self.hooks.join(", ")
+                ));
+            }
         }
         if self.has_styles {
             w.emit_fmt(format_args!("import styles from './{}.module.css';", name));
         }
-        if !self.hooks.is_empty() || self.has_styles {
+        if !self.hooks.is_empty() || self.needs_react_default || self.has_styles {
             w.emit("");
         }
 
