@@ -294,8 +294,8 @@ Container(decoration: AppDesign.cardDecoration(), child: ...)
 
 | 输入 | 诊断 |
 |------|------|
-| `theme = "dark"` | error：「主题切换 = 设置 @theme 信号（ThemeStore.setMode("dark")）」 |
-| `@native(...)` | error：「平台特有层已删除」 |
+| `theme = "dark"` | 自然解析错误（虚构语法，零用户；T4.4 裁决不设自定义消息——响亮失败即可，见实施注记） |
+| `@native(...)` | 自然解析错误（token 已删除；T4.4 裁决同上） |
 | 不可映射 token 值（box-shadow 组合等） | warning + 生成代码降级注释（warnings 通道落地） |
 | display:grid / float | error（spec §10.3 实现） |
 | cursor / zIndex | warning（spec §10.3 实现） |
