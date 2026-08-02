@@ -11,7 +11,11 @@ wasm-opt = ["-O", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]
 crate-type = ["cdylib", "rlib"]
 
 [dev-dependencies]
-wasm-bindgen-test = "0.2"
+# 0.3.x is the current test-crate line; it pins wasm-bindgen =0.2.126
+# (already in the workspace lockfile). The older 0.2.50 test crate's
+# metadata is unreadable by the installed wasm-bindgen-test-runner
+# (0.2.125) — the harness reported "no tests to run" with it.
+wasm-bindgen-test = "0.3.76"
 
 [dependencies]
 omnilang = { path = "../omnilang" }

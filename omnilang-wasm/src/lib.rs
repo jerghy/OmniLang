@@ -15,20 +15,12 @@ use omnilang::compile;
 use omnilang::compile_omniview;
 
 /// Build a JsValue error response for consistent error reporting.
+/// Errors use the unified `DiagnosticJson` envelope (all 10 fields present,
+/// lowercase severity).
 fn js_error_value(message: &str) -> JsValue {
     let err = serde_json::json!({
         "success": false,
-        "errors": [{
-            "severity": "error",
-            "code": "E_WASM",
-            "message": message,
-            "file": null,
-            "line": 0,
-            "col": 0,
-            "end_line": 0,
-            "end_col": 0,
-            "suggestion": null
-        }]
+        "errors": [omnilang::error::DiagnosticJson::synthetic("E_WASM", message)],
     });
     serde_wasm_bindgen::to_value(&err)
         .unwrap_or_else(|e| JsValue::from_str(&format!("Critical internal error: {}", e)))
@@ -144,30 +136,31 @@ fn parse_source_internal(source: &str) -> serde_json::Value {
         return serde_json::json!({
             "success": false,
             "program": null,
-            "errors": [{
-                "severity": "error",
-                "code": "E_PARSE",
-                "message": "Input exceeds 10MB limit",
-                "file": null,
-                "line": 0,
-                "col": 0,
-            }],
+            "errors": [omnilang::error::DiagnosticJson::synthetic(
+                "E_PARSE",
+                "Input exceeds 10MB limit",
+            )],
         });
     }
     let tokens = omnilang::lexer::tokenize(source);
     let (program, parse_errors) = omnilang::parser::parse(tokens, source);
     let success = parse_errors.is_empty();
-    let errors: Vec<serde_json::Value> = parse_errors
+    // Unified DiagnosticJson shape: all 10 fields present, explicit nulls.
+    let errors: Vec<omnilang::error::DiagnosticJson> = parse_errors
         .into_iter()
         .map(|err| {
-            serde_json::json!({
-                "severity": "error",
-                "code": "E_PARSE",
-                "message": err.message,
-                "file": null,
-                "line": err.span.line,
-                "col": err.span.col,
-            })
+            let span = err.span;
+            omnilang::error::DiagnosticJson {
+                severity: "error".to_string(),
+                code: "E_PARSE".to_string(),
+                message: err.message,
+                file: None,
+                line: span.line,
+                col: span.col,
+                end_line: Some(span.line),
+                end_col: Some(span.col + (span.end.saturating_sub(span.start)) as u32),
+                suggestion: None,
+            }
         })
         .collect();
     serde_json::json!({
@@ -212,12 +205,10 @@ pub fn resolve_styles_multi(sources: JsValue, path_mapping: JsValue) -> JsValue 
                 "element_classes": {},
                 "element_tags": {},
                 "warnings": [],
-                "errors": [{
-                    "severity": "error",
-                    "code": "E_INVALID_SOURCES",
-                    "message": format!("Failed to parse sources: {}", e),
-                    "line": 0, "col": 0, "end_line": 0, "end_col": 0
-                }]
+                "errors": [omnilang::error::DiagnosticJson::synthetic(
+                    "E_INVALID_SOURCES",
+                    format!("Failed to parse sources: {}", e),
+                )]
             }))
             .unwrap_or_else(|e| js_error_value(&format!("serialization error: {}", e)));
         }
@@ -283,12 +274,10 @@ pub fn analyse_multi_cached(
         Err(e) => {
             return serde_wasm_bindgen::to_value(&serde_json::json!({
                 "success": false,
-                "errors": [{
-                    "severity": "error",
-                    "code": "E_INVALID_SOURCES",
-                    "message": format!("Failed to parse sources: {}", e),
-                    "file": null, "line": 0, "col": 0, "end_line": 0, "end_col": 0
-                }],
+                "errors": [omnilang::error::DiagnosticJson::synthetic(
+                    "E_INVALID_SOURCES",
+                    format!("Failed to parse sources: {}", e),
+                )],
                 "warnings": [],
                 "cache_state": null,
             }))
@@ -315,10 +304,22 @@ pub fn analyse_multi_cached(
         omnilang::analyse::analyse_multi_cached(&sources_map, &path_map, &mut cache)
     });
 
+    // Diagnostics cross the boundary in the unified DiagnosticJson shape.
+    let errors: Vec<omnilang::error::DiagnosticJson> = analysis
+        .diagnostics
+        .iter()
+        .map(omnilang::error::DiagnosticJson::from)
+        .collect();
+    let warnings: Vec<omnilang::error::DiagnosticJson> = analysis
+        .warnings
+        .iter()
+        .map(omnilang::error::DiagnosticJson::from)
+        .collect();
+
     to_js_value(&serde_json::json!({
         "success": analysis.success,
-        "errors": analysis.diagnostics,
-        "warnings": analysis.warnings,
+        "errors": errors,
+        "warnings": warnings,
         "cache_state": null,
     }))
 }
@@ -345,12 +346,10 @@ pub fn resolve_styles_multi_cached(
                     "element_classes": {},
                     "element_tags": {},
                     "warnings": [],
-                    "errors": [{
-                        "severity": "error",
-                        "code": "E_INVALID_SOURCES",
-                        "message": format!("Failed to parse sources: {}", e),
-                        "line": 0, "col": 0, "end_line": 0, "end_col": 0
-                    }]
+                    "errors": [omnilang::error::DiagnosticJson::synthetic(
+                        "E_INVALID_SOURCES",
+                        format!("Failed to parse sources: {}", e),
+                    )]
                 },
                 "cache_state": null,
             }))
@@ -381,14 +380,19 @@ pub fn resolve_styles_multi_cached(
         omnilang::analyse::analyse_multi_cached(&sources_map, &path_map, &mut cache)
     });
 
-    let errors = analysis_result.diagnostics;
+    // Diagnostics cross the boundary in the unified DiagnosticJson shape.
+    let errors: Vec<omnilang::error::DiagnosticJson> = analysis_result
+        .diagnostics
+        .iter()
+        .map(omnilang::error::DiagnosticJson::from)
+        .collect();
 
     let result_value = match analysis_result.ir {
         Some(ref ir) => {
             let output = omnilang::codegen::omniview::generate(ir, true, true, false);
             let success = errors
                 .iter()
-                .all(|d| d.severity != omnilang::error::Severity::Error)
+                .all(|d| d.severity != "error")
                 && output.warnings.is_empty();
             serde_json::json!({
                 "success": success,
@@ -443,17 +447,10 @@ pub fn compile_multi_to_omniview(
                 "result": {
                     "success": false,
                     "files": {},
-                    "errors": [{
-                        "severity": "error",
-                        "code": "E_INVALID_SOURCES",
-                        "message": format!("Failed to parse sources: {}", e),
-                        "file": null,
-                        "line": 0,
-                        "col": 0,
-                        "end_line": 0,
-                        "end_col": 0,
-                        "suggestion": null
-                    }]
+                    "errors": [omnilang::error::DiagnosticJson::synthetic(
+                        "E_INVALID_SOURCES",
+                        format!("Failed to parse sources: {}", e),
+                    )]
                 },
                 "cache_state": null,
             }))
@@ -467,17 +464,10 @@ pub fn compile_multi_to_omniview(
             "result": {
                 "success": false,
                 "files": {},
-                "errors": [{
-                    "severity": "error",
-                    "code": "E_WASM",
-                    "message": "Input exceeds 10MB limit",
-                    "file": null,
-                    "line": 0,
-                    "col": 0,
-                    "end_line": 0,
-                    "end_col": 0,
-                    "suggestion": null
-                }]
+                "errors": [omnilang::error::DiagnosticJson::synthetic(
+                    "E_WASM",
+                    "Input exceeds 10MB limit",
+                )]
             },
             "cache_state": null,
         }))
@@ -507,15 +497,13 @@ pub fn compile_multi_to_omniview(
         )
     });
 
-    // Serialize updated cache state for explicit persistence
-    let cache_json: String = ANALYSIS_CACHE.with(|cell| {
-        let cache = cell.borrow();
-        serde_json::to_string(&*cache).unwrap_or_default()
-    });
-
+    // The cache is NOT serialized per call — it lives in WASM memory for the
+    // page lifetime (see `save_cache_state` for explicit persistence). The
+    // JS side passes `cache_state` back on the next call and the seed logic
+    // no-ops on null.
     serde_wasm_bindgen::to_value(&serde_json::json!({
         "result": result,
-        "cache_state": cache_json,
+        "cache_state": null,
     }))
     .unwrap_or_else(|e| js_error_value(&format!("serialization error: {}", e)))
 }
@@ -565,16 +553,10 @@ impl OmniCompiler {
                 "files": null,
                 "components": null,
                 "source_map": null,
-                "errors": [{
-                    "severity": "error",
-                    "code": "E_NO_SOURCES",
-                    "message": "no source files added to compiler",
-                    "line": 0,
-                    "col": 0,
-                    "end_line": 0,
-                    "end_col": 0,
-                    "suggestion": null
-                }]
+                "errors": [omnilang::error::DiagnosticJson::synthetic(
+                    "E_NO_SOURCES",
+                    "no source files added to compiler",
+                )]
             }))
             .unwrap_or_else(|e| js_error_value(&format!("serialization error: {}", e)));
         }
@@ -594,16 +576,10 @@ impl OmniCompiler {
                         "files": null,
                         "components": null,
                         "source_map": null,
-                        "errors": [{
-                            "severity": "error",
-                            "code": "E_NO_SOURCES",
-                            "message": "no source files in compiler",
-                            "line": 0,
-                            "col": 0,
-                            "end_line": 0,
-                            "end_col": 0,
-                            "suggestion": null
-                        }]
+                        "errors": [omnilang::error::DiagnosticJson::synthetic(
+                            "E_NO_SOURCES",
+                            "no source files in compiler",
+                        )]
                     }))
                     .unwrap_or_else(|e| js_error_value(&format!("serialization error: {}", e)));
                 }
@@ -629,24 +605,29 @@ impl OmniCompiler {
 
     /// Run diagnostics on all registered sources without compiling to output.
     /// Returns JsValue with `success` and `errors` arrays.
+    ///
+    /// Routes through the multi-file analysis path (`analyse_multi_cached`)
+    /// so diagnostics are cross-file aware (import errors, cross-file type
+    /// mismatches) instead of per-file isolated compiles. Diagnostics cross
+    /// the boundary in the unified `DiagnosticJson` shape.
     pub fn diagnostics(&mut self) -> JsValue {
         if let Some(ref cached) = self.cached_diags_result {
             return cached.clone();
         }
-        let mut all_errors: Vec<serde_json::Value> = Vec::new();
-        let mut all_success = true;
-        for source in self.sources.values() {
-            let result = compile(source);
-            if !result.success {
-                all_success = false;
-            }
-            for err in &result.errors {
-                all_errors.push(err.to_json_value());
-            }
-        }
+        let sources_map = self.sources.clone();
+        let path_mapping = omnilang::path_mapping::derive_path_mapping(&sources_map);
+        let analysis = ANALYSIS_CACHE.with(|cell| {
+            let mut cache = cell.borrow_mut();
+            omnilang::analyse::analyse_multi_cached(&sources_map, &path_mapping, &mut cache)
+        });
+        let errors: Vec<omnilang::error::DiagnosticJson> = analysis
+            .diagnostics
+            .iter()
+            .map(omnilang::error::DiagnosticJson::from)
+            .collect();
         let result_value = serde_wasm_bindgen::to_value(&serde_json::json!({
-            "success": all_success,
-            "errors": all_errors,
+            "success": analysis.success,
+            "errors": errors,
         }))
         .unwrap_or_else(|e| js_error_value(&format!("serialization error: {}", e)));
         self.cached_diags_result = Some(result_value.clone());
@@ -656,28 +637,54 @@ impl OmniCompiler {
     /// Run semantic analysis on all registered sources and return
     /// symbols + dependencies in addition to diagnostics.
     /// Returns JsValue with { symbols, dependencies, diagnostics }.
+    ///
+    /// Routes through the multi-file analysis path (cross-file aware
+    /// diagnostics). Symbols/dependencies are extracted from the pre-parsed
+    /// programs via a per-file semantic pass — parsing, cross-file
+    /// validation, IR lowering and codegen all run once in the shared
+    /// multi-file path, not per-file in isolation.
     pub fn analyse_dependencies(&mut self) -> JsValue {
+        let sources_map = self.sources.clone();
+        let path_mapping = omnilang::path_mapping::derive_path_mapping(&sources_map);
+        let analysis = ANALYSIS_CACHE.with(|cell| {
+            let mut cache = cell.borrow_mut();
+            omnilang::analyse::analyse_multi_cached(&sources_map, &path_mapping, &mut cache)
+        });
+
         let mut all_symbols: Vec<serde_json::Value> = Vec::new();
         let mut all_deps: FxHashMap<String, Vec<String>> = FxHashMap::default();
-        let mut all_errors: Vec<serde_json::Value> = Vec::new();
-
-        for source in self.sources.values() {
-            let result = compile(source);
-            for sym in &result.symbols {
-                all_symbols.push(serde_json::to_value(sym).unwrap_or_default());
+        for program in analysis.programs.values() {
+            let semantics = omnilang::semantic::analyze(program);
+            for sym in semantics
+                .symbols
+                .scopes()
+                .iter()
+                .flat_map(|scope| scope.symbols.values())
+            {
+                all_symbols.push(
+                    serde_json::to_value(omnilang::SymbolInfo {
+                        name: sym.name.clone(),
+                        kind: format!("{:?}", sym.kind).to_lowercase(),
+                        type_ann: sym.type_ann.clone(),
+                        mutable: sym.mutable,
+                    })
+                    .unwrap_or_default(),
+                );
             }
-            for (k, v) in &result.dependencies {
+            for (k, v) in &semantics.dependencies {
                 all_deps.entry(k.clone()).or_default().extend(v.clone());
             }
-            for err in &result.errors {
-                all_errors.push(err.to_json_value());
-            }
         }
+        let diagnostics: Vec<omnilang::error::DiagnosticJson> = analysis
+            .diagnostics
+            .iter()
+            .map(omnilang::error::DiagnosticJson::from)
+            .collect();
 
         serde_wasm_bindgen::to_value(&serde_json::json!({
             "symbols": all_symbols,
             "dependencies": all_deps,
-            "diagnostics": all_errors,
+            "diagnostics": diagnostics,
         }))
         .unwrap_or_else(|e| js_error_value(&format!("serialization error: {}", e)))
     }
@@ -708,9 +715,10 @@ pub fn save_cache_state() -> JsValue {
 #[cfg(all(test, target_arch = "wasm32"))]
 mod tests {
     use super::*;
+    use wasm_bindgen_test::wasm_bindgen_test;
 
     #[cfg(feature = "codegen-omniview")]
-    #[test]
+    #[wasm_bindgen_test]
     fn test_compile_to_omniview_full_success() {
         let result = compile_to_omniview_full(
             "component App { view { Text { \"hello\" } } }",
@@ -726,18 +734,19 @@ mod tests {
     }
 
     #[cfg(feature = "codegen-omniview")]
-    #[test]
+    #[wasm_bindgen_test]
     fn test_compile_to_omniview_full_parse_error() {
         let result = compile_to_omniview_full("this is invalid @@@", false, false);
         let parsed: serde_json::Value = serde_wasm_bindgen::from_value(result).unwrap();
         assert!(!parsed["success"].as_bool().unwrap());
-        assert!(parsed["ir"].is_null());
-        assert!(parsed["files"].is_null());
+        // The full pipeline always returns ir + files (parse-error recovery);
+        // success=false + populated errors is the error contract.
+        assert!(parsed["ir"].is_object());
         assert!(parsed["errors"].as_array().unwrap().len() > 0);
     }
 
     #[cfg(feature = "codegen-omniview")]
-    #[test]
+    #[wasm_bindgen_test]
     fn test_compile_to_omniview_full_editor_mode() {
         let result1 =
             compile_to_omniview_full("component App { view { Text { \"hi\" } } }", false, false);
@@ -755,7 +764,7 @@ mod tests {
         );
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn test_compile_multi_to_omniview_single_file() {
         let sources = serde_wasm_bindgen::to_value(&serde_json::json!({
             "main.omni": "component App { view { Text { \"multi\" } } }"
@@ -777,12 +786,76 @@ mod tests {
             has_output || has_errors,
             "Expected either files or errors in multi compile result"
         );
-        // Cache state should be a non-empty string
-        let cache_state = parsed["cache_state"].as_str().unwrap();
-        assert!(!cache_state.is_empty(), "Expected non-empty cache_state");
+        // Cache is NOT serialized per call anymore — explicit save_cache_state() API.
+        assert!(
+            parsed["cache_state"].is_null(),
+            "Expected null cache_state (no per-call cache serialization)"
+        );
     }
 
-    #[test]
+    #[wasm_bindgen_test]
+    fn test_compile_multi_error_envelope_unified_shape() {
+        // Synthetic boundary errors (E_INVALID_SOURCES) use the unified
+        // DiagnosticJson shape: all 10 fields present, lowercase severity.
+        let sources = serde_wasm_bindgen::to_value("not a map").unwrap();
+        let result = compile_multi_to_omniview(sources, false, false, JsValue::null());
+        let parsed: serde_json::Value = serde_wasm_bindgen::from_value(result).unwrap();
+        let errors = parsed["result"]["errors"].as_array().unwrap();
+        assert!(!errors.is_empty());
+        for e in errors {
+            assert_diagnostic_json_shape(e);
+        }
+        assert_eq!(errors[0]["severity"], "error");
+        assert_eq!(errors[0]["code"], "E_INVALID_SOURCES");
+    }
+
+    #[wasm_bindgen_test]
+    fn test_analyse_multi_cached_error_envelope_unified_shape() {
+        let sources = serde_wasm_bindgen::to_value(&serde_json::json!({
+            "main.omni": "this is invalid @@@"
+        }))
+        .unwrap();
+        let path_mapping = serde_wasm_bindgen::to_value(&serde_json::json!({})).unwrap();
+        let result = analyse_multi_cached(sources, path_mapping, JsValue::null());
+        let parsed: serde_json::Value = serde_wasm_bindgen::from_value(result).unwrap();
+        assert!(!parsed["success"].as_bool().unwrap());
+        let errors = parsed["errors"].as_array().unwrap();
+        assert!(!errors.is_empty());
+        for e in errors {
+            assert_diagnostic_json_shape(e);
+        }
+        // Parse diagnostics carry file attribution + spans.
+        assert!(errors[0]["file"].is_string());
+        assert!(errors[0]["end_line"].is_number());
+        // Cache state stays null (no per-call serialization).
+        assert!(parsed["cache_state"].is_null());
+    }
+
+    #[wasm_bindgen_test]
+    fn test_omni_compiler_diagnostics_unified_shape() {
+        let mut c = OmniCompiler::new();
+        c.upsert_source(
+            "app.omni".into(),
+            "component App { view { Text { \"ok\" } } }".into(),
+        );
+        let d = c.diagnostics();
+        let parsed: serde_json::Value = serde_wasm_bindgen::from_value(d).unwrap();
+        assert!(parsed["success"].as_bool().unwrap());
+        assert!(parsed["errors"].is_array());
+
+        // Invalid source → errors carry the unified DiagnosticJson shape.
+        let mut c2 = OmniCompiler::new();
+        c2.upsert_source("bad.omni".into(), "not valid @@@".into());
+        let d2 = c2.diagnostics();
+        let parsed2: serde_json::Value = serde_wasm_bindgen::from_value(d2).unwrap();
+        let errors = parsed2["errors"].as_array().unwrap();
+        assert!(!errors.is_empty());
+        for e in errors {
+            assert_diagnostic_json_shape(e);
+        }
+    }
+
+    #[wasm_bindgen_test]
     fn test_compile_multi_to_omniview_invalid_sources() {
         let sources = serde_wasm_bindgen::to_value("not a map").unwrap();
         let result = compile_multi_to_omniview(sources, false, false, JsValue::null());
@@ -790,14 +863,14 @@ mod tests {
         assert!(!parsed["result"]["success"].as_bool().unwrap());
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn test_omni_compiler_new() {
         let c = OmniCompiler::new();
         assert_eq!(c.version(), env!("CARGO_PKG_VERSION"));
     }
 
     #[cfg(feature = "codegen-omniview")]
-    #[test]
+    #[wasm_bindgen_test]
     fn test_omni_compiler_empty_sources() {
         let mut c = OmniCompiler::new();
         let result = c.compile_to_omniview(false, false);
@@ -811,7 +884,7 @@ mod tests {
     }
 
     #[cfg(feature = "codegen-omniview")]
-    #[test]
+    #[wasm_bindgen_test]
     fn test_omni_compiler_single_file_compile() {
         let mut c = OmniCompiler::new();
         c.upsert_source(
@@ -825,7 +898,7 @@ mod tests {
     }
 
     #[cfg(feature = "codegen-omniview")]
-    #[test]
+    #[wasm_bindgen_test]
     fn test_omni_compiler_cache_invalidation() {
         let mut c = OmniCompiler::new();
         c.upsert_source(
@@ -850,7 +923,7 @@ mod tests {
         assert_ne!(p1, p3);
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn test_omni_compiler_diagnostics() {
         let mut c = OmniCompiler::new();
         c.upsert_source(
@@ -865,7 +938,7 @@ mod tests {
 
     // ── parse_source tests ─────────────────────────────────
 
-    #[test]
+    #[wasm_bindgen_test]
     fn test_parse_source_component() {
         let result = parse_source_internal("component App { view { Text { \"hello\" } } }");
         assert!(result["success"].as_bool().unwrap());
@@ -874,23 +947,24 @@ mod tests {
         assert!(program["modules"].is_object());
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn test_parse_source_function() {
         let result = parse_source_internal("pub fn add(a: i32, b: i32) -> i32 { return a + b; }");
         assert!(result["success"].as_bool().unwrap());
         assert!(result["program"]["modules"].is_object());
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn test_parse_source_invalid_syntax() {
         let result = parse_source_internal("this is definitely not valid omni @@@");
         assert!(!result["success"].as_bool().unwrap());
-        assert!(result["program"].is_null());
+        // The parser performs error recovery and returns a partial program —
+        // success=false + populated errors is the error contract.
         let errors = result["errors"].as_array().unwrap();
         assert!(!errors.is_empty());
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn test_parse_source_empty() {
         let result = parse_source_internal("");
         // Empty source is valid — produces empty module
@@ -898,9 +972,64 @@ mod tests {
         assert!(result["program"]["modules"].is_object());
     }
 
-    #[test]
+    #[wasm_bindgen_test]
     fn test_parse_source_store() {
         let result = parse_source_internal("store Counter { signal count: i32 = 0 }");
         assert!(result["success"].as_bool().unwrap());
+    }
+
+    // ── Unified DiagnosticJson shape ───────────────────────────
+
+    /// Assert a diagnostic object has the unified 10-field envelope:
+    /// severity (lowercase), code, message, file, line, col, end_line,
+    /// end_col, suggestion — with explicit nulls for missing optionals.
+    fn assert_diagnostic_json_shape(e: &serde_json::Value) {
+        for field in [
+            "severity",
+            "code",
+            "message",
+            "file",
+            "line",
+            "col",
+            "end_line",
+            "end_col",
+            "suggestion",
+        ] {
+            assert!(
+                e.get(field).is_some(),
+                "diagnostic missing field {field:?}: {e}"
+            );
+        }
+        let sev = e["severity"].as_str().unwrap();
+        assert!(
+            sev == "error" || sev == "warning" || sev == "info",
+            "severity must be lowercase, got {sev:?}: {e}"
+        );
+        assert_eq!(e["message"].as_str().unwrap().len() > 0, true);
+    }
+
+    #[wasm_bindgen_test]
+    fn test_parse_source_error_unified_shape() {
+        let result = parse_source_internal("this is definitely not valid omni @@@");
+        assert!(!result["success"].as_bool().unwrap());
+        let errors = result["errors"].as_array().unwrap();
+        assert!(!errors.is_empty());
+        for e in errors {
+            assert_diagnostic_json_shape(e);
+        }
+        // E_PARSE synthetic + real parse errors both carry the full shape.
+        assert_eq!(errors[0]["code"], "E_PARSE");
+    }
+
+    #[wasm_bindgen_test]
+    fn test_js_error_value_unified_shape() {
+        let result = js_error_value("boom");
+        let parsed: serde_json::Value = serde_wasm_bindgen::from_value(result).unwrap();
+        assert!(!parsed["success"].as_bool().unwrap());
+        let errors = parsed["errors"].as_array().unwrap();
+        assert_eq!(errors.len(), 1);
+        assert_diagnostic_json_shape(&errors[0]);
+        assert_eq!(errors[0]["code"], "E_WASM");
+        assert_eq!(errors[0]["message"], "boom");
     }
 }

@@ -331,6 +331,71 @@ pub fn diagnostics_to_json(diagnostics: &[Diagnostic]) -> Vec<serde_json::Value>
     diagnostics.iter().map(|d| d.to_json_value()).collect()
 }
 
+// ═══════════════════════════════════════════════════════════
+// DiagnosticJson — unified FFI/WASM diagnostic envelope
+// ═══════════════════════════════════════════════════════════
+
+/// Canonical diagnostic envelope for the FFI/WASM boundary.
+///
+/// All 10 fields are always present (missing values serialize as explicit
+/// `null`), so every consumer sees ONE shape regardless of which code path
+/// produced the diagnostic. The `Diagnostic` type keeps its own manual
+/// `Serialize` impl for serde consumers (compile-result JSON etc.).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct DiagnosticJson {
+    /// Lowercase severity: "error" | "warning" | "info".
+    pub severity: String,
+    /// Backward-compatible code string (e.g. "E0001", "E_VISIBILITY").
+    pub code: String,
+    pub message: String,
+    pub file: Option<String>,
+    pub line: u32,
+    pub col: u32,
+    pub end_line: Option<u32>,
+    pub end_col: Option<u32>,
+    pub suggestion: Option<String>,
+}
+
+impl DiagnosticJson {
+    /// Build a synthetic (non-source) error envelope for boundary failures
+    /// (size limits, invalid inputs, missing sources).
+    #[must_use]
+    pub fn synthetic(code: &str, message: impl Into<String>) -> Self {
+        Self {
+            severity: "error".to_string(),
+            code: code.to_string(),
+            message: message.into(),
+            file: None,
+            line: 0,
+            col: 0,
+            end_line: None,
+            end_col: None,
+            suggestion: None,
+        }
+    }
+}
+
+impl From<&Diagnostic> for DiagnosticJson {
+    fn from(d: &Diagnostic) -> Self {
+        Self {
+            severity: match d.severity {
+                Severity::Error => "error",
+                Severity::Warning => "warning",
+                Severity::Info => "info",
+            }
+            .to_string(),
+            code: d.kind.code_str().to_string(),
+            message: d.message.clone(),
+            file: d.file.clone(),
+            line: d.line,
+            col: d.col,
+            end_line: d.end_line,
+            end_col: d.end_col,
+            suggestion: d.suggestion.clone(),
+        }
+    }
+}
+
 /// Returns the closest matching name within edit distance <= 3, if any.
 pub fn suggest_similar_name<'a>(attempt: &str, known_names: &[&'a str]) -> Option<&'a str> {
     let mut best_dist = usize::MAX;
@@ -375,5 +440,125 @@ pub struct ParseError {
 impl From<ParseError> for Diagnostic {
     fn from(e: ParseError) -> Self {
         Diagnostic::error(DiagnosticKind::E0001, &e.message, &e.span)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn diagnostic_json_full_shape() {
+        let d = Diagnostic::error(DiagnosticKind::E0001, "bad token", &Span {
+            start: 0,
+            end: 4,
+            line: 3,
+            col: 5,
+        })
+        .with_file("main.omni")
+        .with_suggestion("try again");
+        let json = serde_json::to_value(DiagnosticJson::from(&d)).unwrap();
+        assert_eq!(
+            json,
+            serde_json::json!({
+                "severity": "error",
+                "code": "E0001",
+                "message": "bad token",
+                "file": "main.omni",
+                "line": 3,
+                "col": 5,
+                "end_line": 3,
+                "end_col": 9,
+                "suggestion": "try again",
+            })
+        );
+    }
+
+    #[test]
+    fn diagnostic_json_explicit_nulls_when_absent() {
+        // Missing optional fields serialize as explicit nulls — the unified
+        // 10-field shape is the same for every diagnostic on the boundary.
+        // Built as a struct literal (not Diagnostic::warning, which always
+        // fills end_line/end_col from the span) so the Nones are real.
+        let d = Diagnostic {
+            severity: Severity::Warning,
+            kind: DiagnosticKind::WMotion,
+            message: "unused".to_string(),
+            file: None,
+            line: 1,
+            col: 1,
+            end_line: None,
+            end_col: None,
+            suggestion: None,
+        };
+        let json = serde_json::to_value(DiagnosticJson::from(&d)).unwrap();
+        assert_eq!(json["severity"], "warning");
+        assert_eq!(json["code"], "W0001");
+        assert!(json["file"].is_null());
+        assert!(json["end_line"].is_null());
+        assert!(json["end_col"].is_null());
+        assert!(json["suggestion"].is_null());
+        // Same key set as the full-shape case — no key is ever dropped.
+        let full = DiagnosticJson::from(&Diagnostic::error(
+            DiagnosticKind::E0002,
+            "dup",
+            &Span { start: 0, end: 1, line: 1, col: 1 },
+        ));
+        let full_json = serde_json::to_value(&full).unwrap();
+        let null_json = serde_json::to_value(&DiagnosticJson::from(&d)).unwrap();
+        let mut full_keys: Vec<&str> = full_json
+            .as_object()
+            .unwrap()
+            .keys()
+            .map(String::as_str)
+            .collect();
+        let mut null_keys: Vec<&str> = null_json
+            .as_object()
+            .unwrap()
+            .keys()
+            .map(String::as_str)
+            .collect();
+        full_keys.sort_unstable();
+        null_keys.sort_unstable();
+        assert_eq!(full_keys, null_keys);
+    }
+
+    #[test]
+    fn diagnostic_json_lowercase_severity() {
+        // Severity is always lowercase — "Error"/"Warning" capitalizations
+        // are not allowed to leak through the boundary.
+        for (sev, expected) in [
+            (Severity::Error, "error"),
+            (Severity::Warning, "warning"),
+            (Severity::Info, "info"),
+        ] {
+            let d = Diagnostic {
+                severity: sev,
+                kind: DiagnosticKind::E0001,
+                message: "m".into(),
+                file: None,
+                line: 0,
+                col: 0,
+                end_line: None,
+                end_col: None,
+                suggestion: None,
+            };
+            let json = serde_json::to_value(DiagnosticJson::from(&d)).unwrap();
+            assert_eq!(json["severity"], expected);
+        }
+    }
+
+    #[test]
+    fn diagnostic_json_synthetic() {
+        let json = serde_json::to_value(DiagnosticJson::synthetic("E_WASM", "boom")).unwrap();
+        assert_eq!(json["severity"], "error");
+        assert_eq!(json["code"], "E_WASM");
+        assert_eq!(json["message"], "boom");
+        assert!(json["file"].is_null());
+        assert_eq!(json["line"], 0);
+        assert_eq!(json["col"], 0);
+        assert!(json["end_line"].is_null());
+        assert!(json["end_col"].is_null());
+        assert!(json["suggestion"].is_null());
     }
 }
