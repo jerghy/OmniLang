@@ -1,0 +1,27 @@
+@motion swipeX {
+  from { translateX: 0 }
+  to   { translateX: 300 }
+  over: 300ms
+}
+
+@motion swipeY {
+  from { translateY: 0 }
+  to   { translateY: 150 }
+  over: 300ms
+}
+
+component MotionDrag {
+  view {
+    <div>
+      <div @drag-horizontal constraints: [-100, 100] elastic: 0.5 threshold: 0.3 velocity_max: 500 ={swipeX}>
+        Drag me horizontally
+      </div>
+      <div @drag-vertical constraints: [0, 150] elastic: 0.2 ={swipeY}>
+        Drag me vertically
+      </div>
+      <div @drag-horizontal={swipeX}>
+        Drag with derived extent
+      </div>
+    </div>
+  }
+}

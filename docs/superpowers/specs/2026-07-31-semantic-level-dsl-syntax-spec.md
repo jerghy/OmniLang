@@ -271,9 +271,13 @@ motion_trigger_attr ::= '@enter' '=' '{' motion_expr '}'
                       | '@press' '=' '{' motion_expr '}'
                       | '@focus' '=' '{' motion_expr '}'
                       | '@in-view' '=' '{' motion_expr '}'
-                      | '@scroll' '=' '{' motion_expr '}'
-                      | '@drag-horizontal' '=' '{' motion_expr '}'
-                      | '@drag-vertical' '=' '{' motion_expr '}'
+                      | '@scroll' [scroll_params] '=' '{' motion_expr '}'
+                      | '@drag-horizontal' [drag_params] '=' '{' motion_expr '}'
+                      | '@drag-vertical' [drag_params] '=' '{' motion_expr '}'
+
+scroll_params ::= 'start:' expr 'end:' expr 'scrub:' bool
+drag_params   ::= 'constraints:' '[' expr ',' expr ']' 'elastic:' expr
+                  'threshold:' expr ('velocity_max:' expr)?
 
 motion_expr ::= <ident>                             // 命名 motion 引用
 ```
@@ -282,8 +286,14 @@ motion_expr ::= <ident>                             // 命名 motion 引用
 > 值必须是命名 motion 引用。以下**尚未实现**（ADR-053 移除，待重新实现，
 > 见 `.architecture/deferrals.md` #19）：
 >
-> - 触发器子属性（旧 `@in-view-once`/`@scroll-start`/`@drag-constraints`
->   等）——parser 不解析任何 opts
+> - ~~触发器子属性（旧 `@in-view-once`/`@scroll-start`/`@drag-constraints`
+>   等）~~ —— **Task 5.1 已恢复**（deferral #19 关闭）：`@scroll`/`@drag-*`
+>   控制维度以冒号形式子参数挂在触发器关键字与 `={motion}` 绑定之间
+>   （`@scroll start: 0 end: 1000 scrub: true ={parallaxScroll}`）。未知或
+>   畸形子参数是硬错误（不解析忽略）；其余触发器不接受子参数。语义校验
+>   （validate_motion）：`start`/`end` 必须是数字且成对、`scrub` 必须是布尔、
+>   `constraints` 必须是 `[min, max]` 数字且 min < max、`elastic`/`threshold`/
+>   `velocity_max` 必须是非负数字（错误信息为中文硬诊断）。
 > - 内联动画体语法糖 `'{' motion_body '}'`（§3.3 / §3.7 示例中的
 >   `@enter = { over: 200ms ... }` 形式当前不解析）
 
@@ -316,11 +326,13 @@ motion_expr ::= <ident>                             // 命名 motion 引用
 component AnimatedCard {
   <Card @enter={fadeIn} @hover={scaleUp} />
 
-  <HeroImage @scroll={parallaxScroll} />
+  <HeroImage @scroll start: 0 end: 1000 scrub: true ={parallaxScroll} />
 
-  // ⚠️ 触发器子属性（start={0} end={1} scrub={true}）与内联动画体语法糖
-  //    （@enter = { ... }）当前均未实现（ADR-053，见 §3.2 说明）——
-  //    请使用命名 motion + 单独定义：@motion parallaxScroll { ... }
+  <SwipeCard @drag-horizontal constraints: [-100, 100] elastic: 0.5
+             threshold: 0.3 velocity_max: 500 ={swipeCard} />
+
+  // ⚠️ 内联动画体语法糖（@enter = { ... }）当前未实现（ADR-053，见 §3.2
+  //    说明）——请使用命名 motion + 单独定义：@motion parallaxScroll { ... }
 }
 ```
 
@@ -335,6 +347,19 @@ component AnimatedCard {
 | `@in-view` | 滚入视口时播放 | `IntersectionObserver` + `element.animate()` | `_OmniInViewWidget` |
 | `@scroll` | 滚动位置驱动动画进度 | scroll event + progress scrubbing | `ScrollController` 驱动 |
 | `@drag-*` | 拖拽距离驱动动画进度 | pointer events + 距离→进度映射 | `GestureDetector.onPanUpdate` |
+
+**控制维度（Task 5.1，v1 语法恢复）**：
+
+| 子参数 | 语义 | React 实现 | Flutter 实现 |
+|--------|------|-----------|-------------|
+| `@scroll start:`/`end:` | 数字滚动映射区间 | `const startPos = N; const endPos = M;` → `progress = (scrollY - N) / (M - N)` | `_OmniScrollDrivenWidget(start: N, end: M)`（类型化 `double?` 字段） |
+| `@scroll scrub: true` | 平滑系数（布尔 true = 1s） | `scrub > 0` 指数平滑 | `_OmniScrollDrivenWidget(scrub:)` 指数平滑 |
+| `@drag-* constraints: [min, max]` | 拖拽范围限制 + 弹性回弹 | `const constraints = [min, max]`（运行时 clamp + `(1 - elastic)` 回弹） | `_OmniDragWidget(constraintsMin: min, constraintsMax: max)` |
+| `@drag-* elastic:`/`threshold:`/`velocity_max:` | 弹性系数 / 吸附阈值 / 最大惯性速度 | 生成数值常量 | 类型化构造参数 |
+
+> 缺省行为：`@scroll` 无 `start`/`end` 回落视口相对字符串配置（`"top 80%"` →
+> `"bottom 20%"`）；`@drag-*` 无 `constraints` 回落关键帧范围推导
+> （`maxExtent`），无可用范围时带编译器警告。
 
 ### 3.5 Keyframe 属性 → 平台映射
 

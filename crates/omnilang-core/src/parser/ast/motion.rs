@@ -95,16 +95,39 @@ pub struct MotionTrigger {
     pub motion_expr: Expr,
 }
 
-#[derive(Debug, Clone, Copy, Serialize)]
+/// Trigger kind. `@scroll` / `@drag-*` carry their v1 control dimensions as
+/// colon-form sub-parameters between the trigger keyword and the `={motion}`
+/// binding (v2 BNF):
+///
+/// ```text
+/// scroll_params ::= 'start:' expr 'end:' expr 'scrub:' bool
+/// drag_params   ::= 'constraints:' '[' expr ',' expr ']' 'elastic:' expr
+///                   'threshold:' expr ('velocity_max:' expr)?
+/// ```
+#[derive(Debug, Clone, Serialize)]
 pub enum TriggerKind {
     Enter,
     Hover,
     Press,
     Focus,
     InView,
-    Scroll,
-    DragHorizontal,
-    DragVertical,
+    Scroll {
+        start: Option<Expr>,
+        end: Option<Expr>,
+        scrub: Option<Expr>,
+    },
+    DragHorizontal {
+        constraints: Option<(Expr, Expr)>,
+        elastic: Option<Expr>,
+        threshold: Option<Expr>,
+        velocity_max: Option<Expr>,
+    },
+    DragVertical {
+        constraints: Option<(Expr, Expr)>,
+        elastic: Option<Expr>,
+        threshold: Option<Expr>,
+        velocity_max: Option<Expr>,
+    },
 }
 
 // ── Store & Theme ─────────────────────────────────────

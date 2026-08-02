@@ -370,6 +370,14 @@ motion parallax {
 }
 ```
 
+> ✅ **已实现**（Task 5.1，v2 BNF `scroll_params ::= 'start:' expr 'end:' expr 'scrub:' bool`）：
+> 控制维度以冒号形式子参数挂在触发器关键字与 `={motion}` 绑定之间——
+> `@scroll start: 0 end: 1000 scrub: true ={parallaxScroll}`（内联动画体语法仍按
+> ADR-053 不解析，见 BNF spec §3.2）。三后端均消费：React/OmniView 生成
+> 数字滚动区间映射（`progress = (scrollY - start) / (end - start)`，缺省回落
+> 视口相对字符串配置 `"top 80%"`/`"bottom 20%"`）；Flutter `_OmniScrollDrivenWidget`
+> 接收类型化 `start:`/`end:` 构造参数。
+
 **语义**：动画进度由滚动位置线性映射（scrub）。`start`/`end` 定义映射范围。
 
 | 属性 | React | Flutter | OmniView |
@@ -387,6 +395,15 @@ motion swipeCard {
   }
 }
 ```
+
+> ✅ **已实现**（Task 5.1，v2 BNF `drag_params ::= 'constraints:' '[' expr ',' expr ']'
+> 'elastic:' expr 'threshold:' expr ('velocity_max:' expr)?`）：控制维度以冒号形式
+> 子参数挂在触发器关键字与 `={motion}` 绑定之间——
+> `@drag-horizontal constraints: [-100, 100] elastic: 0.5 velocity_max: 500 ={swipeCard}`。
+> 三后端均消费：React/OmniView 生成类型化 `constraints: [min, max]`（运行时
+> clamp + 弹性回弹，不再解析字符串配置）；Flutter `_OmniDragWidget` 接收
+> `constraintsMin:`/`constraintsMax:` 类型化构造参数。缺省时保持关键帧范围
+> 推导（`maxExtent`）与无界警告回退。
 
 | 属性 | 语义 | React | Flutter |
 |------|------|-------|---------|

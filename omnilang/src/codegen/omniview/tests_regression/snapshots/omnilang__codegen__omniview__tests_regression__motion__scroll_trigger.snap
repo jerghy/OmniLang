@@ -1,5 +1,6 @@
 ---
 source: omnilang/src/codegen/omniview/tests_regression/motion.rs
+assertion_line: 559
 expression: "&output"
 ---
 // === mount_js ===
@@ -8,6 +9,16 @@ expression: "&output"
 /// ─── Shared scroll handler — single listener for all @scroll triggers
 var __omni_scrollElements = [];
 var __omni_scrollHandler = null;
+/// Progress target for one @scroll entry: numeric start/end range
+/// when given (Task 5.1), otherwise the legacy viewport-relative
+/// string configs resolved by Omni.scrollProgress.
+function __omni_scrollTarget(entry) {
+  if (entry.startPos !== undefined && entry.endPos !== undefined) {
+   var raw = (window.scrollY - entry.startPos) / (entry.endPos - entry.startPos);
+   return Math.max(0, Math.min(1, raw));
+  }
+  return Omni.scrollProgress(entry.el, entry.startCfg, entry.endCfg);
+}
 function __omni_ensureScrollHandler() {
   if (__omni_scrollHandler) return;
   __omni_scrollHandler = function() {
@@ -15,7 +26,7 @@ function __omni_ensureScrollHandler() {
     var el = entry.el;
     var anim = entry.anim;
     var dur = entry.dur;
-    var target = Omni.scrollProgress(el, entry.startCfg, entry.endCfg);
+    var target = __omni_scrollTarget(entry);
     if (entry.scrubDelay > 0) {
      entry.currentProgress += (target - entry.currentProgress) * Math.min(1, 16.67 / (entry.scrubDelay * 1000));
      anim.currentTime = entry.currentProgress * dur;
@@ -48,11 +59,13 @@ function __omni_scrollRemoveEntry(nid) {
    el,
    anim,
    dur,
-   startCfg: "0",
-   endCfg: "500",
+   startCfg: "top 80%",
+   endCfg: "bottom 20%",
    scrubDelay: true,
    currentProgress: 0,
+startPos: 0,
+endPos: 500,
   });
   __omni_ensureScrollHandler();
-  anim.currentTime = Omni.scrollProgress(el, "0", "500") * dur;
+  anim.currentTime = __omni_scrollTarget(__omni_scrollElements[__omni_scrollElements.length - 1]) * dur;
 })();

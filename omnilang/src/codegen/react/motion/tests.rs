@@ -412,3 +412,116 @@ fn test_react_motion_combined() {
         insta::assert_snapshot!("motion_combined_snapshot", &output);
     });
 }
+
+#[test]
+fn scroll_with_numeric_range_consumes_start_end() {
+    // v1 control dimensions (Task 5.1): @scroll start/end define the
+    // scroll-range → progress mapping directly — no viewport-relative
+    // string parsing, no keyframe derivation.
+    let source = r#"
+@motion fadeScroll {
+    from { opacity: 0.3 }
+    to   { opacity: 1 }
+    over: 500ms
+}
+component Test {
+    view {
+        <div @scroll start: 0 end: 1000 scrub: true ={fadeScroll}>scroll me</div>
+    }
+}
+"#;
+    let output = compile_fixture_to_react(source);
+    assert!(
+        output.contains("const startPos = 0;"),
+        "expected numeric startPos, got partial:
+{}",
+        &output[..output.len().min(700)]
+    );
+    assert!(
+        output.contains("const endPos = 1000;"),
+        "expected numeric endPos, got partial:
+{}",
+        &output[..output.len().min(700)]
+    );
+    assert!(
+        !output.contains("parseScrollTrigger(\"top 80%\")"),
+        "numeric range must not call the viewport-relative parser:
+{}",
+        &output[..output.len().min(700)]
+    );
+}
+
+#[test]
+fn scroll_without_range_falls_back_to_string_configs() {
+    // No sub-params: the legacy "top 80%" / "bottom 20%" path stays.
+    let source = r#"
+@motion fadeScroll {
+    from { opacity: 0.3 }
+    to   { opacity: 1 }
+    over: 500ms
+}
+component Test {
+    view {
+        <div @scroll={fadeScroll}>scroll me</div>
+    }
+}
+"#;
+    let output = compile_fixture_to_react(source);
+    assert!(
+        output.contains("const startPos = parseScrollTrigger(\"top 80%\");"),
+        "expected fallback string config, got partial:
+{}",
+        &output[..output.len().min(700)]
+    );
+}
+
+#[test]
+fn drag_with_constraints_consumes_range_and_elastic() {
+    // v1 control dimensions (Task 5.1): constraints: [min, max] are emitted
+    // as a typed pair — no runtime string parsing, no keyframe derivation.
+    let source = r#"
+@motion dragX300 {
+    from { translateX: 0 }
+    to   { translateX: 300 }
+    over: 300ms
+}
+component Test {
+    view {
+        <div @drag-horizontal constraints: [-100, 100] elastic: 0.5 threshold: 0.3 velocity_max: 500 ={dragX300}>drag me</div>
+    }
+}
+"#;
+    let output = compile_fixture_to_react(source);
+    assert!(
+        output.contains("const constraints = [-100, 100];"),
+        "expected typed constraints array, got partial:
+{}",
+        &output[..output.len().min(800)]
+    );
+    assert!(
+        output.contains("const elastic = 0.5;"),
+        "expected elastic value, got partial:
+{}",
+        &output[..output.len().min(800)]
+    );
+    assert!(
+        output.contains("const maxExtent = Math.abs(constraint.max - constraint.min) || 1;"),
+        "constraints must drive maxExtent (no keyframe derivation), got partial:
+{}",
+        &output[..output.len().min(800)]
+    );
+    assert!(
+        !output.contains("WARNING"),
+        "typed constraints must not emit the no-constraints warning:
+{}",
+        &output[..output.len().min(800)]
+    );
+}
+
+#[test]
+fn test_react_motion_drag() {
+    let output = compile_fixture_to_react(fixture!("motion_drag"));
+    insta::with_settings!({snapshot_path => "snapshots"}, {
+        insta::assert_snapshot!("motion_drag_snapshot", &output);
+    });
+}

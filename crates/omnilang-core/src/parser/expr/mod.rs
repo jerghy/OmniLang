@@ -44,6 +44,26 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
+    /// Parse an expression that must NOT consume a trailing assignment
+    /// (`=` / `+=` / `-=` ...). The expression grammar treats `=` as the
+    /// assignment infix (binding power (1, 2)), so `@scroll start: 0 ={m}`
+    /// would otherwise swallow the `={motion}` trigger binding into the
+    /// value. Control-dimension sub-params (Task 5.1) use this entry point.
+    pub fn parse_expr_no_assign(&mut self) -> Result<Expr, ParseError> {
+        let mut expr = self.parse_expr_bp(2)?;
+
+        // Struct literal suffix — mirror parse_expr's tail so `Type { ... }`
+        // values keep working (assignment is the only thing excluded).
+        if self.at(&TokenKind::LBrace) {
+            if let Expr::VarRef(ref name, _) = expr {
+                if name.chars().next().is_some_and(|c| c.is_uppercase()) {
+                    expr = self.parse_struct_literal_suffix(name.clone())?;
+                }
+            }
+        }
+        Ok(expr)
+    }
+
     /// Pratt: parse expression with minimum binding power.
     ///
     /// Depth accounting lives here so EVERY recursive Pratt path (unary `-`/`!`,

@@ -215,11 +215,108 @@ impl SemanticAnalyzer {
                         self.diagnostics.push(Diagnostic::error(
                             DiagnosticKind::E0006,
                             &format!("Undefined motion '{}' referenced in element trigger", name),
-                            span,
+                            &span,
+                        ));
+                    }
+                }
+                self.validate_trigger_params(trigger);
+            }
+        }
+    }
+
+    /// Validate the v1 control dimensions of `@scroll` / `@drag-*` triggers
+    /// (Task 5.1, v2 BNF): `start`/`end` must be numbers and come in pairs,
+    /// `scrub` must be a bool, `constraints` must be `[min, max]` numbers
+    /// with min < max, and `elastic`/`threshold`/`velocity_max` must be
+    /// non-negative numbers. Errors are hard diagnostics in Chinese per the
+    /// v2 policy — never parse-and-ignore.
+    fn validate_trigger_params(&mut self, trigger: &MotionTrigger) {
+        let span = trigger_expr_span(&trigger.motion_expr);
+        match &trigger.trigger {
+            TriggerKind::Scroll { start, end, scrub } => {
+                if start.is_some() != end.is_some() {
+                    self.diagnostics.push(Diagnostic::error(
+                        DiagnosticKind::E0006,
+                        "「start」与「end」必须成对提供（滚动映射区间）",
+                        &span,
+                    ));
+                }
+                for (name, expr) in [("start", start), ("end", end)] {
+                    if let Some(e) = expr {
+                        if !is_number_literal_expr(e) {
+                            self.diagnostics.push(Diagnostic::error(
+                                DiagnosticKind::E0006,
+                                &format!("「{}」必须是数字（滚动位置）", name),
+                                &span,
+                            ));
+                        }
+                    }
+                }
+                if let Some(e) = scrub {
+                    if !matches!(e, Expr::Literal(Literal::Bool(_), _)) {
+                        self.diagnostics.push(Diagnostic::error(
+                            DiagnosticKind::E0006,
+                            "「scrub」必须是布尔值 true/false",
+                            &span,
                         ));
                     }
                 }
             }
+            TriggerKind::DragHorizontal {
+                constraints,
+                elastic,
+                threshold,
+                velocity_max,
+            }
+            | TriggerKind::DragVertical {
+                constraints,
+                elastic,
+                threshold,
+                velocity_max,
+            } => {
+                let label = if matches!(trigger.trigger, TriggerKind::DragHorizontal { .. }) {
+                    "@drag-horizontal"
+                } else {
+                    "@drag-vertical"
+                };
+                if let Some((min, max)) = constraints {
+                    if !is_number_literal_expr(min) || !is_number_literal_expr(max) {
+                        self.diagnostics.push(Diagnostic::error(
+                            DiagnosticKind::E0006,
+                            &format!("{}「constraints」必须是 [min, max] 两个数字", label),
+                            &span,
+                        ));
+                    } else if number_literal_value(min) >= number_literal_value(max) {
+                        self.diagnostics.push(Diagnostic::error(
+                            DiagnosticKind::E0006,
+                            &format!("{}「constraints」min 必须小于 max", label),
+                            &span,
+                        ));
+                    }
+                }
+                for (name, expr) in [
+                    ("elastic", elastic),
+                    ("threshold", threshold),
+                    ("velocity_max", velocity_max),
+                ] {
+                    if let Some(e) = expr {
+                        if !is_number_literal_expr(e) {
+                            self.diagnostics.push(Diagnostic::error(
+                                DiagnosticKind::E0006,
+                                &format!("{}「{}」必须是数字", label, name),
+                                &span,
+                            ));
+                        } else if number_literal_value(e) < 0.0 {
+                            self.diagnostics.push(Diagnostic::error(
+                                DiagnosticKind::E0006,
+                                &format!("{}「{}」必须是非负数字（≥ 0）", label, name),
+                                &span,
+                            ));
+                        }
+                    }
+                }
+            }
+            _ => {}
         }
     }
 
@@ -365,6 +462,54 @@ impl SemanticAnalyzer {
 
 // ── Motion Warnings ─────────────────────────
 
+/// Span of a motion trigger's binding expr for diagnostics.
+fn trigger_expr_span(expr: &Expr) -> Span {
+    match expr {
+        Expr::VarRef(_, span) => *span,
+        Expr::MapLiteral { span, .. } => *span,
+        Expr::ArrayLiteral { span, .. } => *span,
+        _ => Span {
+            start: 0,
+            end: 0,
+            line: 0,
+            col: 0,
+        },
+    }
+}
+
+/// True when the expr is a numeric literal (`0`, `1000`, `0.5`) or a
+/// negated numeric literal (`-100`). The @scroll/@drag control dimensions
+/// (Task 5.1) must be literal numbers so backends can consume them
+/// statically.
+fn is_number_literal_expr(expr: &Expr) -> bool {
+    match expr {
+        Expr::Literal(Literal::Int(_) | Literal::Float(_), _) => true,
+        Expr::UnaryOp {
+            op: UnaryOpKind::Neg,
+            operand,
+            ..
+        } => matches!(
+            operand.as_ref(),
+            Expr::Literal(Literal::Int(_) | Literal::Float(_), _)
+        ),
+        _ => false,
+    }
+}
+
+/// Numeric value of a number-literal expr (see [`is_number_literal_expr`]).
+fn number_literal_value(expr: &Expr) -> f64 {
+    match expr {
+        Expr::Literal(Literal::Int(n), _) => *n as f64,
+        Expr::Literal(Literal::Float(f), _) => *f,
+        Expr::UnaryOp {
+            op: UnaryOpKind::Neg,
+            operand,
+            ..
+        } => -number_literal_value(operand),
+        _ => f64::NAN,
+    }
+}
+
 impl SemanticAnalyzer {
     /// Emit warnings for motion-specific issues.
     fn emit_motion_warnings(&mut self, motion: &MotionDef) {
@@ -446,5 +591,141 @@ impl SemanticAnalyzer {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod trigger_param_validation_tests {
+    use super::*;
+
+    /// Run the full pipeline over a source carrying one motion trigger and
+    /// return the diagnostics.
+    fn diags(source: &str) -> Vec<Diagnostic> {
+        let result = crate::compile(source);
+        result.errors
+    }
+
+    fn wrap(attr: &str, motion_body: &str) -> String {
+        format!(
+            "@motion m {{ {} }}\ncomponent C {{\n  view {{\n    <div {}>x</div>\n  }}\n}}",
+            motion_body, attr
+        )
+    }
+
+    #[test]
+    fn valid_scroll_params_produce_no_errors() {
+        let d = diags(&wrap(
+            "@scroll start: 0 end: 1000 scrub: true ={m}",
+            "from { opacity: 0 } to { opacity: 1 }",
+        ));
+        assert!(
+            d.is_empty(),
+            "valid @scroll params must compile clean, got: {:?}",
+            d
+        );
+    }
+
+    #[test]
+    fn scroll_start_without_end_is_error() {
+        let d = diags(&wrap(
+            "@scroll start: 0 ={m}",
+            "from { opacity: 0 } to { opacity: 1 }",
+        ));
+        assert!(
+            d.iter().any(|e| e.message.contains("必须成对")),
+            "unpaired start must be diagnosed in Chinese, got: {:?}",
+            d
+        );
+    }
+
+    #[test]
+    fn scroll_non_numeric_start_is_error() {
+        let d = diags(&wrap(
+            "@scroll start: \"top\" end: 1000 ={m}",
+            "from { opacity: 0 } to { opacity: 1 }",
+        ));
+        assert!(
+            d.iter().any(|e| e.message.contains("start」必须是数字")),
+            "string start must be diagnosed, got: {:?}",
+            d
+        );
+    }
+
+    #[test]
+    fn scroll_non_bool_scrub_is_error() {
+        let d = diags(&wrap(
+            "@scroll start: 0 end: 1000 scrub: 1 ={m}",
+            "from { opacity: 0 } to { opacity: 1 }",
+        ));
+        assert!(
+            d.iter().any(|e| e.message.contains("scrub」必须是布尔值")),
+            "numeric scrub must be diagnosed, got: {:?}",
+            d
+        );
+    }
+
+    #[test]
+    fn valid_drag_params_produce_no_errors() {
+        let d = diags(&wrap(
+            "@drag-horizontal constraints: [-100, 100] elastic: 0.5 threshold: 0.3 velocity_max: 500 ={m}",
+            "from { opacity: 0 } to { opacity: 1 }",
+        ));
+        assert!(
+            d.is_empty(),
+            "valid @drag params must compile clean, got: {:?}",
+            d
+        );
+    }
+
+    #[test]
+    fn drag_constraints_min_ge_max_is_error() {
+        let d = diags(&wrap(
+            "@drag-horizontal constraints: [100, -100] ={m}",
+            "from { opacity: 0 } to { opacity: 1 }",
+        ));
+        assert!(
+            d.iter().any(|e| e.message.contains("min 必须小于 max")),
+            "inverted constraints must be diagnosed, got: {:?}",
+            d
+        );
+    }
+
+    #[test]
+    fn drag_constraints_non_numeric_is_error() {
+        let d = diags(&wrap(
+            "@drag-horizontal constraints: [\"a\", 100] ={m}",
+            "from { opacity: 0 } to { opacity: 1 }",
+        ));
+        assert!(
+            d.iter().any(|e| e
+                .message
+                .contains("constraints」必须是 [min, max] 两个数字")),
+            "non-numeric constraints must be diagnosed, got: {:?}",
+            d
+        );
+    }
+
+    #[test]
+    fn drag_negative_elastic_is_error() {
+        let d = diags(&wrap(
+            "@drag-horizontal constraints: [0, 100] elastic: -0.5 ={m}",
+            "from { opacity: 0 } to { opacity: 1 }",
+        ));
+        assert!(
+            d.iter()
+                .any(|e| e.message.contains("elastic」必须是非负数字")),
+            "negative elastic must be diagnosed, got: {:?}",
+            d
+        );
+    }
+
+    #[test]
+    fn plain_triggers_still_compile() {
+        let d = diags(&wrap("@enter={m}", "from { opacity: 0 } to { opacity: 1 }"));
+        assert!(
+            d.is_empty(),
+            "plain @enter must compile clean, got: {:?}",
+            d
+        );
     }
 }

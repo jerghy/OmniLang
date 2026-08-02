@@ -38,6 +38,8 @@ impl OmniViewGenerator {
                     escape_literal_str(dir, '"')
                 )
             }
+            // #[non_exhaustive] — future easing kinds degrade to linear.
+            _ => "\"linear\"".to_string(),
         }
     }
 
@@ -81,6 +83,8 @@ impl OmniViewGenerator {
             Some(FillValue::Backwards) => "\"backwards\"",
             Some(FillValue::Both) => "\"both\"",
             None => "\"both\"",
+            // #[non_exhaustive]
+            _ => "\"both\"",
         };
         opts.push(format!("fill:{}", fill_str));
         if let Some(ref dir) = kf.playback.direction {
@@ -89,6 +93,8 @@ impl OmniViewGenerator {
                 DirectionValue::Reverse => "reverse",
                 DirectionValue::Alternate => "alternate",
                 DirectionValue::AlternateReverse => "alternate-reverse",
+                // #[non_exhaustive]
+                _ => "normal",
             };
             opts.push(format!("direction:\"{}\"", d));
         }
@@ -96,6 +102,8 @@ impl OmniViewGenerator {
             match loop_val {
                 LoopValue::Infinite => opts.push("iterations:Infinity".into()),
                 LoopValue::Count(n) => opts.push(format!("iterations:{}", n)),
+                // #[non_exhaustive]
+                _ => opts.push("iterations:Infinity".into()),
             }
         }
         if let Some(ref delay) = kf.playback.delay {

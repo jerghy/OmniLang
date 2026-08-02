@@ -457,15 +457,17 @@ impl OmniViewGenerator {
                 .motion_behavior()
                 .map_or(&[] as &[TriggerIntent], |m| &m.triggers)
             {
-                let data_attr = match trigger.kind {
+                let data_attr = match &trigger.kind {
                     TriggerKind::Enter => "data-enter",
                     TriggerKind::Hover => "data-hover",
                     TriggerKind::Press => "data-press",
                     TriggerKind::Focus => "data-focus",
                     TriggerKind::InView => "data-in-view",
-                    TriggerKind::Scroll => "data-scroll",
-                    TriggerKind::DragHorizontal => "data-drag-horizontal",
-                    TriggerKind::DragVertical => "data-drag-vertical",
+                    TriggerKind::Scroll { .. } => "data-scroll",
+                    TriggerKind::DragHorizontal { .. } => "data-drag-horizontal",
+                    TriggerKind::DragVertical { .. } => "data-drag-vertical",
+                    // #[non_exhaustive] — future trigger kinds carry no data attr yet.
+                    _ => "",
                 };
                 if let Some(ref motion_name) = trigger.motion_ref {
                     let _ = write!(attrs, " {}=\"{}\"", data_attr, escape_html(motion_name));
@@ -491,36 +493,65 @@ impl OmniViewGenerator {
                     escape_html(&js_val)
                 );
             }
-            // Sub-attributes for scroll
-            if let Some(s) = el.scroll_behavior().and_then(|sb| sb.start.as_ref()) {
-                let _ = write!(attrs, " data-scroll-start=\"{}\"", escape_html(s));
-            }
-            if let Some(s) = el.scroll_behavior().and_then(|sb| sb.end.as_ref()) {
-                let _ = write!(attrs, " data-scroll-end=\"{}\"", escape_html(s));
-            }
-            if let Some(scrub) = el.scroll_behavior().and_then(|sb| sb.scrub.as_ref()) {
-                let js_val = self.expr_to_js(scrub);
-                let _ = write!(attrs, " data-scroll-scrub=\"{}\"", escape_html(&js_val));
-            }
-            // Sub-attributes for drag
-            if let Some(s) = el.drag_behavior().and_then(|db| db.constraints.as_ref()) {
-                let _ = write!(attrs, " data-drag-constraints=\"{}\"", escape_html(s));
-            }
-            if let Some(elastic) = el.drag_behavior().and_then(|db| db.elastic.as_ref()) {
-                let js_val = self.expr_to_js(elastic);
-                let _ = write!(attrs, " data-drag-elastic=\"{}\"", escape_html(&js_val));
-            }
-            if let Some(threshold) = el.drag_behavior().and_then(|db| db.threshold.as_ref()) {
-                let js_val = self.expr_to_js(threshold);
-                let _ = write!(attrs, " data-drag-threshold=\"{}\"", escape_html(&js_val));
-            }
-            if let Some(vel) = el.drag_behavior().and_then(|db| db.velocity_max.as_ref()) {
-                let js_val = self.expr_to_js(vel);
-                let _ = write!(
-                    attrs,
-                    " data-drag-velocity-max=\"{}\"",
-                    escape_html(&js_val)
-                );
+            // Sub-attributes for scroll (v1 control dimensions, Task 5.1)
+            for trigger in el
+                .motion_behavior()
+                .map_or(&[] as &[TriggerIntent], |m| &m.triggers)
+            {
+                if let TriggerKind::Scroll { start, end, scrub } = &trigger.kind {
+                    if let Some(s) = start {
+                        let js_val = self.expr_to_js(s);
+                        let _ = write!(attrs, " data-scroll-start=\"{}\"", escape_html(&js_val));
+                    }
+                    if let Some(s) = end {
+                        let js_val = self.expr_to_js(s);
+                        let _ = write!(attrs, " data-scroll-end=\"{}\"", escape_html(&js_val));
+                    }
+                    if let Some(sc) = scrub {
+                        let js_val = self.expr_to_js(sc);
+                        let _ = write!(attrs, " data-scroll-scrub=\"{}\"", escape_html(&js_val));
+                    }
+                }
+                if let TriggerKind::DragHorizontal {
+                    constraints,
+                    elastic,
+                    threshold,
+                    velocity_max,
+                }
+                | TriggerKind::DragVertical {
+                    constraints,
+                    elastic,
+                    threshold,
+                    velocity_max,
+                } = &trigger.kind
+                {
+                    if let Some((min, max)) = constraints {
+                        let min_js = self.expr_to_js(min);
+                        let max_js = self.expr_to_js(max);
+                        let _ = write!(
+                            attrs,
+                            " data-drag-constraints=\"[{}, {}]\"",
+                            escape_html(&min_js),
+                            escape_html(&max_js)
+                        );
+                    }
+                    if let Some(e) = elastic {
+                        let js_val = self.expr_to_js(e);
+                        let _ = write!(attrs, " data-drag-elastic=\"{}\"", escape_html(&js_val));
+                    }
+                    if let Some(e) = threshold {
+                        let js_val = self.expr_to_js(e);
+                        let _ = write!(attrs, " data-drag-threshold=\"{}\"", escape_html(&js_val));
+                    }
+                    if let Some(v) = velocity_max {
+                        let js_val = self.expr_to_js(v);
+                        let _ = write!(
+                            attrs,
+                            " data-drag-velocity-max=\"{}\"",
+                            escape_html(&js_val)
+                        );
+                    }
+                }
             }
 
             self.emit_motion_triggers_for_element(nid, el);

@@ -1,5 +1,6 @@
 ---
 source: omnilang/src/codegen/omniview/tests_regression/motion.rs
+assertion_line: 617
 expression: "&output"
 ---
 // === mount_js ===
@@ -18,12 +19,13 @@ expression: "&output"
   let isDragging = false;
   let lastMoveTime = 0, lastMovePos = 0;
   let velocity = 0;
-  const constraints = "left: 0; right: 300; top: 0; bottom: 0";
+  const constraints = [0, 300];
   const elastic = 0.1;
   const threshold = 0;
   const velocityMax = 2000;
   function parseConstraint(cfg) {
    if (!cfg) return { min: -Infinity, max: Infinity };
+   if (Array.isArray(cfg)) return { min: cfg[0], max: cfg[1] };
    if (cfg === 'parent') {
     const parent = el.parentElement;
     if (!parent) return { min: -Infinity, max: Infinity };

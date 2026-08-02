@@ -48,9 +48,8 @@ pub use design::{
 
 // ── Explicit re-exports from types_motion.rs ──
 pub use types_motion::{
-    DirectionValue, DragBehavior, EasingIR, FillValue, KeyframeIR, KeyframeStopIR, LoopValue,
-    MotionBehavior, MotionBodyIR, MotionIntent, PlaybackIR, ScrollBehavior, TriggerIntent,
-    TriggerKind,
+    DirectionValue, EasingIR, FillValue, KeyframeIR, KeyframeStopIR, LoopValue, MotionBehavior,
+    MotionBodyIR, MotionIntent, PlaybackIR, TriggerIntent, TriggerKind,
 };
 
 pub(crate) use lower::{lower_block, lower_type};

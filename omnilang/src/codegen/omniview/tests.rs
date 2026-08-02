@@ -22,8 +22,6 @@ fn make_element(tag: &str) -> ElementIR {
         class_map_bindings: FxHashMap::default(),
         source_span: None,
         motion: None,
-        scroll: None,
-        drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
         a11y: None,
@@ -1741,7 +1739,9 @@ fn theme_signal_drives_omni_theme_sync_bridge() {
         output.js
     );
     assert!(
-        output.js.contains("__omni_theme.set(ThemeStore_mode.value)"),
+        output
+            .js
+            .contains("__omni_theme.set(ThemeStore_mode.value)"),
         "store changes must propagate to __omni_theme (data-theme). Got:\n{}",
         output.js
     );

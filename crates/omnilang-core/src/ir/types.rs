@@ -684,10 +684,9 @@ pub struct ElementIR {
     pub source_span: Option<Span>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub motion: Option<Box<MotionBehavior>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub scroll: Option<Box<ScrollBehavior>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub drag: Option<Box<DragBehavior>>,
+    // Note: the former ElementIR.scroll / ElementIR.drag fields were deleted
+    // with the ScrollBehavior / DragBehavior structs (Task 5.1) — @scroll /
+    // @drag-* control dimensions live on TriggerKind now.
     /// Element ref binding name — connects this element to a component-level
     /// ref declaration. Maps to useRef (React), __omni_el wrapper (OmniView),
     /// or GlobalKey (Flutter).
@@ -710,12 +709,6 @@ pub struct ElementIR {
 impl ElementIR {
     pub fn motion_behavior(&self) -> Option<&MotionBehavior> {
         self.motion.as_deref()
-    }
-    pub fn scroll_behavior(&self) -> Option<&ScrollBehavior> {
-        self.scroll.as_deref()
-    }
-    pub fn drag_behavior(&self) -> Option<&DragBehavior> {
-        self.drag.as_deref()
     }
 }
 

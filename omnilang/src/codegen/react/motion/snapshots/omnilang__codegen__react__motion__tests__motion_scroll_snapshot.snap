@@ -1,5 +1,6 @@
 ---
 source: omnilang/src/codegen/react/motion/tests.rs
+assertion_line: 323
 expression: "&output"
 ---
 === MotionScroll.module.css ===
@@ -14,6 +15,7 @@ import React, { useEffect, useRef } from 'react';
 
 export function MotionScroll() {
     const __el_0Ref = useRef<HTMLDivElement>(null);
+    const __el_1Ref = useRef<HTMLDivElement>(null);
 
     // -- Motion definitions --
     const _M={
@@ -23,6 +25,51 @@ export function MotionScroll() {
     // @scroll: element 0 — scroll-driven progress
     useEffect(() => {
         const el = __el_0Ref.current;
+        if (!el) return;
+        const anim = el.animate(_M["fadeScroll"].kf, _M["fadeScroll"].opts);
+        anim.pause();
+        const parseScrollTrigger = (cfg) => {
+            if (!cfg || typeof cfg !== 'string') return 0;
+            const parts = cfg.split(' ');
+            if (parts.length < 2) return 0;
+            const edge = parts[0];
+            const offset = parts[1];
+            const vh = window.innerHeight;
+            const elRect = el.getBoundingClientRect();
+            let elPos;
+            if (edge === 'top') elPos = elRect.top;
+            else if (edge === 'center') elPos = elRect.top + elRect.height / 2;
+            else if (edge === 'bottom') elPos = elRect.bottom;
+            else elPos = elRect.top;
+            if (offset.endsWith('%')) return window.scrollY + elPos - vh * (parseFloat(offset) / 100);
+            else if (offset === 'bottom') return window.scrollY + elPos - vh;
+            else if (offset === 'top') return window.scrollY + elPos;
+            return window.scrollY + elPos - vh * 0.5;
+        };
+        // scroll range: start 0 → end 1000 (scroll-driven progress)
+        const startPos = 0;
+        const endPos = 1000;
+        let scrubCache = 0;
+        const handleScroll = () => {
+            const raw = (window.scrollY - startPos) / (endPos - startPos);
+            const target = Math.max(0, Math.min(1, raw));
+            const scrub = 1;
+            const scrubbed = scrub > 0 ? scrubCache + (target - scrubCache) * Math.min(1, 16.67 / (scrub * 1000)) : target;
+            scrubCache = scrubbed;
+            const duration = Number(anim.effect?.getTiming()?.duration) || 300;
+            anim.currentTime = scrubbed * duration;
+        };
+        window.addEventListener('scroll', handleScroll, { passive: true });
+        handleScroll();
+        return () => {
+            window.removeEventListener('scroll', handleScroll);
+            anim.cancel();
+        };
+    }, []);
+
+    // @scroll: element 1 — scroll-driven progress
+    useEffect(() => {
+        const el = __el_1Ref.current;
         if (!el) return;
         const anim = el.animate(_M["fadeScroll"].kf, _M["fadeScroll"].opts);
         anim.pause();
@@ -72,6 +119,13 @@ export function MotionScroll() {
             >
                 <p>
                     {'Scroll-driven animation'}
+                </p>
+            </div>
+            <div
+                ref={__el_1Ref}
+            >
+                <p>
+                    {'Scroll-driven animation (default range)'}
                 </p>
             </div>
         </div>

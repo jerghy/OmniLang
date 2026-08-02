@@ -304,6 +304,8 @@ pub(crate) fn format_easing_flutter(ease: &Option<EasingIR>) -> String {
             _ => "Curves.easeOutElastic".to_string(),
         },
         None => "Curves.linear".to_string(),
+        // #[non_exhaustive] — future easing kinds fall back to linear.
+        _ => "Curves.linear".to_string(),
     }
 }
 

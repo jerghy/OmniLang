@@ -277,18 +277,23 @@ pub fn generate(
 
     // Build component map for view inlining
     for (comp_name, comp) in ir.all_components() {
-        gen.name_resolver.component_map
+        gen.name_resolver
+            .component_map
             .insert(comp_name.to_string(), Arc::new(comp.clone()));
         // Pre-register ALL component function & event renames globally.
         // These never get cleared so template interpolations like {getModStatus()}
         // resolve correctly even when the component is inlined as a child.
         for f in &comp.fns {
             let prefixed = format!("{}_{}", comp_name, f.name);
-            gen.name_resolver.global_renames.insert(f.name.clone(), prefixed);
+            gen.name_resolver
+                .global_renames
+                .insert(f.name.clone(), prefixed);
         }
         for event in &comp.events {
             let prefixed = format!("{}_{}", comp_name, event.name);
-            gen.name_resolver.global_renames.insert(event.name.clone(), prefixed);
+            gen.name_resolver
+                .global_renames
+                .insert(event.name.clone(), prefixed);
         }
     }
 
@@ -389,10 +394,8 @@ pub fn generate(
         //      from the store default, override the store to respect the saved/preferred theme.
         //   2. Reactive: any @theme signal change propagates to __omni_theme, updating data-theme.
         // Recognition is by IR only — the former `mode` magic-name matching is gone.
-        let theme_signal: Option<String> = gen
-            .design_map
-            .values()
-            .find_map(|d| d.theme_signal.clone());
+        let theme_signal: Option<String> =
+            gen.design_map.values().find_map(|d| d.theme_signal.clone());
         if let Some((store_name, signal_name)) =
             theme_signal.as_deref().and_then(|p| p.split_once('.'))
         {
@@ -435,10 +438,8 @@ pub fn generate(
         if !dynamic_tokens.is_empty() {
             // Separate steps to satisfy the borrow checker: the closure captures
             // &mut gen for expr_to_js, so the call must finish before gen.js is accessed.
-            let effects_js = design::emit_dynamic_token_effects(
-                &dynamic_tokens,
-                |expr| gen.expr_to_js(expr),
-            );
+            let effects_js =
+                design::emit_dynamic_token_effects(&dynamic_tokens, |expr| gen.expr_to_js(expr));
             gen.js.push_str(&effects_js);
         }
 
@@ -524,10 +525,10 @@ fn project_uses_motion(ir: &IRProgram) -> bool {
 }
 
 /// Recursively scan a view tree for any motion/animation-related fields.
+/// (@scroll / @drag-* control dimensions live on TriggerKind (Task 5.1), so
+/// `motion` alone covers them.)
 fn view_tree_has_motion(view: &ViewTree) -> bool {
-    omnilang_core::codegen::shared::view_tree::view_tree_any(view, |el| {
-        el.motion.is_some() || el.scroll.is_some() || el.drag.is_some()
-    })
+    omnilang_core::codegen::shared::view_tree::view_tree_any(view, |el| el.motion.is_some())
 }
 
 #[derive(Default)]

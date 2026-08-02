@@ -9,6 +9,11 @@ use serde::{Deserialize, Serialize};
 // ═══════════════════════════════════════════════════════
 // Motion / Animation IR
 // ═══════════════════════════════════════════════════════
+//
+// The enums below are `#[non_exhaustive]`: every backend (9 targets) matches
+// them in codegen, so a future variant addition must not silently break
+// external match arms (implementation-strategist review, Task 0.6 note —
+// "motion IR 触碰时补标 #[non_exhaustive]").
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MotionIntent {
@@ -51,6 +56,7 @@ pub struct PlaybackIR {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum EasingIR {
     Named(String),
     CubicBezier { x1: f64, y1: f64, x2: f64, y2: f64 },
@@ -67,20 +73,44 @@ pub struct TriggerIntent {
     pub source_span: Option<Span>,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+/// Trigger kind. `@scroll` / `@drag-*` carry their v1 control dimensions
+/// (restored by the v2 BNF) as optional per-parameter fields:
+///
+/// ```text
+/// scroll_params ::= 'start:' expr 'end:' expr 'scrub:' bool
+/// drag_params   ::= 'constraints:' '[' expr ',' expr ']' 'elastic:' expr
+///                   'threshold:' expr ('velocity_max:' expr)?
+/// ```
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum TriggerKind {
     Enter,
     Hover,
     Press,
     Focus,
     InView,
-    Scroll,
-    DragHorizontal,
-    DragVertical,
+    Scroll {
+        start: Option<ExprIR>,
+        end: Option<ExprIR>,
+        scrub: Option<ExprIR>,
+    },
+    DragHorizontal {
+        constraints: Option<(ExprIR, ExprIR)>,
+        elastic: Option<ExprIR>,
+        threshold: Option<ExprIR>,
+        velocity_max: Option<ExprIR>,
+    },
+    DragVertical {
+        constraints: Option<(ExprIR, ExprIR)>,
+        elastic: Option<ExprIR>,
+        threshold: Option<ExprIR>,
+        velocity_max: Option<ExprIR>,
+    },
 }
 
 /// Value type for loop_count.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum LoopValue {
     Infinite,
     Count(u32),
@@ -88,6 +118,7 @@ pub enum LoopValue {
 
 /// Value type for playback direction.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum DirectionValue {
     Normal,
     Reverse,
@@ -97,6 +128,7 @@ pub enum DirectionValue {
 
 /// Value type for fill mode.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum FillValue {
     None,
     Forwards,
@@ -118,24 +150,10 @@ pub struct MotionBehavior {
     pub source_span: Option<Span>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct ScrollBehavior {
-    pub start: Option<String>,
-    pub end: Option<String>,
-    pub scrub: Option<ExprIR>,
-    #[serde(default)]
-    pub source_span: Option<Span>,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct DragBehavior {
-    pub constraints: Option<String>,
-    pub elastic: Option<ExprIR>,
-    pub threshold: Option<ExprIR>,
-    pub velocity_max: Option<ExprIR>,
-    #[serde(default)]
-    pub source_span: Option<Span>,
-}
+// Note: the former ScrollBehavior / DragBehavior structs (string-based
+// "top 80%" / "left: 0 right: 300" configs) were deleted — the v1 control
+// dimensions now live on TriggerKind::Scroll / Drag* as typed Option fields
+// (Task 5.1), so there is a single source of truth per trigger.
 
 #[cfg(test)]
 mod event_data_tests {

@@ -255,8 +255,6 @@ mod tests {
             class_map_bindings: FxHashMap::default(),
             source_span: None,
             motion: None,
-            scroll: None,
-            drag: None,
             semantic_bindings: FxHashMap::default(),
             a11y: None,
         }
@@ -465,8 +463,6 @@ mod tests {
                     class_map_bindings: FxHashMap::default(),
                     source_span: None,
                     motion: None,
-                    scroll: None,
-                    drag: None,
                     semantic_bindings: FxHashMap::default(),
                     a11y: None,
                 }))),

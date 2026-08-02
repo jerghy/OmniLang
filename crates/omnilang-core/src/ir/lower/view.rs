@@ -323,13 +323,10 @@ fn lower_element(
     let in_view_once: Option<ExprIR> = None;
     let in_view_repeat: Option<ExprIR> = None;
     let in_view_threshold: Option<ExprIR> = None;
-    let scroll_start: Option<String> = None;
-    let scroll_end: Option<String> = None;
-    let scroll_scrub: Option<ExprIR> = None;
-    let drag_constraints: Option<String> = None;
-    let drag_elastic: Option<ExprIR> = None;
-    let drag_threshold: Option<ExprIR> = None;
-    let drag_velocity_max: Option<ExprIR> = None;
+    // Note: the former scroll_start/scroll_end/scroll_scrub/drag_* locals
+    // (fed into ScrollBehavior/DragBehavior) were deleted with those IR
+    // structs (Task 5.1) — the v1 control dimensions are carried directly on
+    // TriggerKind::Scroll / Drag* and lowered below.
     let mut ref_binding: Option<String> = None;
     let mut semantic_bindings: Option<FxHashMap<String, ExprIR>> = None;
     let mut a11y: Option<A11yIR> = None;
@@ -607,27 +604,17 @@ fn lower_element(
                     _ => (None, None),
                 };
                 motion_triggers.push(TriggerIntent {
-                    kind: match &mt.trigger {
-                        crate::parser::ast::TriggerKind::Enter => TriggerKind::Enter,
-                        crate::parser::ast::TriggerKind::Hover => TriggerKind::Hover,
-                        crate::parser::ast::TriggerKind::Press => TriggerKind::Press,
-                        crate::parser::ast::TriggerKind::Focus => TriggerKind::Focus,
-                        crate::parser::ast::TriggerKind::InView => TriggerKind::InView,
-                        crate::parser::ast::TriggerKind::Scroll => TriggerKind::Scroll,
-                        crate::parser::ast::TriggerKind::DragHorizontal => {
-                            TriggerKind::DragHorizontal
-                        }
-                        crate::parser::ast::TriggerKind::DragVertical => TriggerKind::DragVertical,
-                    },
+                    kind: lower_trigger_kind(&mt.trigger, variant_map, semantics),
                     motion_ref,
                     inline_motion,
                     source_span: None,
                 });
-            } // Deleted sub-attribute ElementProps (@paused, in-view once/repeat/
+            } // The old sub-attribute ElementProps (@paused, in-view once/repeat/
             // threshold, scroll start/end/scrub, drag constraints/elastic/scrub/
-            // momentum/threshold/velocity-max) no longer exist — they are parsed
-            // as regular ident-based attrs per semantic-level DSL spec §3.2 and
-            // will be lowered again once the new attr syntax lands (Tasks 0.3-0.4).
+            // momentum/threshold/velocity-max) no longer exist. @scroll/@drag-*
+            // control dimensions are restored on the trigger keyword itself as
+            // colon-form sub-params (Task 5.1, v2 BNF) and lowered via
+            // lower_trigger_kind above.
             // Named slot projection: <Modal header={<div>Title</div>} />
             // The projected content is the fallback of the consumer-position
             // ViewTree::Slot (the parent will override the declaration's
@@ -684,39 +671,86 @@ fn lower_element(
                 None
             }
         },
-        scroll: {
-            if scroll_start.is_some() || scroll_end.is_some() || scroll_scrub.is_some() {
-                Some(Box::new(ScrollBehavior {
-                    start: scroll_start,
-                    end: scroll_end,
-                    scrub: scroll_scrub,
-                    source_span: None,
-                }))
-            } else {
-                None
-            }
-        },
-        drag: {
-            if drag_constraints.is_some()
-                || drag_elastic.is_some()
-                || drag_threshold.is_some()
-                || drag_velocity_max.is_some()
-            {
-                Some(Box::new(DragBehavior {
-                    constraints: drag_constraints,
-                    elastic: drag_elastic,
-                    threshold: drag_threshold,
-                    velocity_max: drag_velocity_max,
-                    source_span: None,
-                }))
-            } else {
-                None
-            }
-        },
         ref_binding,
         semantic_bindings: semantic_bindings.unwrap_or_default(),
         a11y,
     }))
+}
+
+/// Lower an AST trigger kind to its IR form, carrying the v1 control
+/// dimensions of `@scroll` / `@drag-*` (Task 5.1) as lowered Option exprs.
+fn lower_trigger_kind(
+    kind: &crate::parser::ast::TriggerKind,
+    variant_map: &FxHashMap<String, String>,
+    semantics: &mut SemanticResult,
+) -> TriggerKind {
+    use crate::parser::ast::TriggerKind as AstKind;
+    match kind {
+        AstKind::Enter => TriggerKind::Enter,
+        AstKind::Hover => TriggerKind::Hover,
+        AstKind::Press => TriggerKind::Press,
+        AstKind::Focus => TriggerKind::Focus,
+        AstKind::InView => TriggerKind::InView,
+        AstKind::Scroll { start, end, scrub } => TriggerKind::Scroll {
+            start: start
+                .as_ref()
+                .map(|e| lower_expr(e, variant_map, None, semantics)),
+            end: end
+                .as_ref()
+                .map(|e| lower_expr(e, variant_map, None, semantics)),
+            scrub: scrub
+                .as_ref()
+                .map(|e| lower_expr(e, variant_map, None, semantics)),
+        },
+        AstKind::DragHorizontal {
+            constraints,
+            elastic,
+            threshold,
+            velocity_max,
+        } => TriggerKind::DragHorizontal {
+            constraints: lower_constraints(constraints, variant_map, semantics),
+            elastic: elastic
+                .as_ref()
+                .map(|e| lower_expr(e, variant_map, None, semantics)),
+            threshold: threshold
+                .as_ref()
+                .map(|e| lower_expr(e, variant_map, None, semantics)),
+            velocity_max: velocity_max
+                .as_ref()
+                .map(|e| lower_expr(e, variant_map, None, semantics)),
+        },
+        AstKind::DragVertical {
+            constraints,
+            elastic,
+            threshold,
+            velocity_max,
+        } => TriggerKind::DragVertical {
+            constraints: lower_constraints(constraints, variant_map, semantics),
+            elastic: elastic
+                .as_ref()
+                .map(|e| lower_expr(e, variant_map, None, semantics)),
+            threshold: threshold
+                .as_ref()
+                .map(|e| lower_expr(e, variant_map, None, semantics)),
+            velocity_max: velocity_max
+                .as_ref()
+                .map(|e| lower_expr(e, variant_map, None, semantics)),
+        },
+    }
+}
+
+/// Lower the `constraints: [min, max]` pair.
+fn lower_constraints(
+    constraints: &Option<(Expr, Expr)>,
+    variant_map: &FxHashMap<String, String>,
+    semantics: &mut SemanticResult,
+) -> Option<(ExprIR, ExprIR)> {
+    constraints.as_ref().map(|(min, max)| {
+        (
+            lower_expr(min, variant_map, None, semantics),
+            lower_expr(max, variant_map, None, semantics),
+        )
+    })
 }
 
 /// Lower an inline motion tween body (`@enter={{ opacity: 0, scale: 0.8 }}`)
@@ -918,8 +952,6 @@ fn make_fragment_element(children: Vec<ViewTree>, construction_kind: Constructio
         class_map_bindings: FxHashMap::default(),
         source_span: None,
         motion: None,
-        scroll: None,
-        drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
         a11y: None,

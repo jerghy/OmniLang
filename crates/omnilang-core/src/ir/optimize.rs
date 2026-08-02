@@ -127,22 +127,52 @@ fn collect_idents_from_view(view: &ViewTree, used: &mut FxHashSet<String>) {
                 if let Some(ref body) = trigger.inline_motion {
                     collect_idents_from_motion_body(body, used);
                 }
-            }
-        }
-        if let Some(ref scroll) = el.scroll {
-            if let Some(ref expr) = scroll.scrub {
-                collect_idents(expr, used);
-            }
-        }
-        if let Some(ref drag) = el.drag {
-            if let Some(ref expr) = drag.elastic {
-                collect_idents(expr, used);
-            }
-            if let Some(ref expr) = drag.threshold {
-                collect_idents(expr, used);
-            }
-            if let Some(ref expr) = drag.velocity_max {
-                collect_idents(expr, used);
+                // @scroll / @drag-* control dimensions (Task 5.1) can
+                // reference computed properties — DCE must keep them alive.
+                match &trigger.kind {
+                    TriggerKind::Scroll {
+                        start, end, scrub, ..
+                    } => {
+                        if let Some(ref e) = start {
+                            collect_idents(e, used);
+                        }
+                        if let Some(ref e) = end {
+                            collect_idents(e, used);
+                        }
+                        if let Some(ref e) = scrub {
+                            collect_idents(e, used);
+                        }
+                    }
+                    TriggerKind::DragHorizontal {
+                        constraints,
+                        elastic,
+                        threshold,
+                        velocity_max,
+                        ..
+                    }
+                    | TriggerKind::DragVertical {
+                        constraints,
+                        elastic,
+                        threshold,
+                        velocity_max,
+                        ..
+                    } => {
+                        if let Some((ref min, ref max)) = constraints {
+                            collect_idents(min, used);
+                            collect_idents(max, used);
+                        }
+                        if let Some(ref e) = elastic {
+                            collect_idents(e, used);
+                        }
+                        if let Some(ref e) = threshold {
+                            collect_idents(e, used);
+                        }
+                        if let Some(ref e) = velocity_max {
+                            collect_idents(e, used);
+                        }
+                    }
+                    _ => {}
+                }
             }
         }
         // a11y block expressions (hidden/alt — design doc 域 10) can
@@ -618,8 +648,6 @@ mod tests {
                 class_map_bindings: FxHashMap::default(),
                 source_span: None,
                 motion: None,
-                scroll: None,
-                drag: None,
                 ref_binding: None,
                 semantic_bindings: FxHashMap::default(),
                 a11y: None,
@@ -653,8 +681,6 @@ mod tests {
                 class_map_bindings: FxHashMap::default(),
                 source_span: None,
                 motion: None,
-                scroll: None,
-                drag: None,
                 ref_binding: None,
                 semantic_bindings: FxHashMap::default(),
                 a11y: None,
@@ -688,8 +714,6 @@ mod tests {
                 },
                 source_span: None,
                 motion: None,
-                scroll: None,
-                drag: None,
                 ref_binding: None,
                 semantic_bindings: FxHashMap::default(),
                 a11y: None,
@@ -901,8 +925,6 @@ mod tests {
                 class_map_bindings: FxHashMap::default(),
                 source_span: None,
                 motion: None,
-                scroll: None,
-                drag: None,
                 ref_binding: None,
                 semantic_bindings: FxHashMap::default(),
                 a11y: None,
@@ -928,8 +950,6 @@ mod tests {
             class_map_bindings: FxHashMap::default(),
             source_span: None,
             motion: None,
-            scroll: None,
-            drag: None,
             ref_binding: None,
             semantic_bindings: FxHashMap::default(),
             a11y: None,

@@ -346,10 +346,9 @@ pub(super) fn view_has_motion_or_effects(node: &ViewTree) -> bool {
                     return true;
                 }
             }
-            // scroll and drag always generate useEffect
-            if el.scroll.is_some() || el.drag.is_some() {
-                return true;
-            }
+            // Note: @scroll / @drag-* control dimensions now live on the
+            // trigger kinds (Task 5.1), so the trigger check above already
+            // covers them — no separate scroll/drag field scan needed.
             // Check children
             el.children.iter().any(view_has_motion_or_effects)
         }

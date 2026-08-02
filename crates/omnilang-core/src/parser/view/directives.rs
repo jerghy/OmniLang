@@ -175,12 +175,25 @@ impl<'a> Parser<'a> {
 
     // ── Motion Trigger Parsing ──────────────────────────────
 
-    /// Parse a motion trigger: consumes `={motionExpr}` after the trigger keyword.
+    /// Parse a motion trigger: `@trigger [sub-params] ={motionExpr}`.
+    ///
+    /// `@scroll` / `@drag-horizontal` / `@drag-vertical` accept the v1
+    /// control-dimension sub-parameters between the trigger keyword and the
+    /// `={motion}` binding (v2 BNF):
+    ///
+    /// ```text
+    /// @scroll start: 0 end: 1000 scrub: true ={fadeScroll}
+    /// @drag-horizontal constraints: [-100, 100] elastic: 0.5 ={swipeCard}
+    /// ```
+    ///
+    /// Unknown or malformed sub-parameters are hard errors — never parsed
+    /// and ignored.
     pub(super) fn parse_motion_trigger(
         &mut self,
         kind: TriggerKind,
     ) -> Result<MotionTrigger, ParseError> {
         self.advance(); // consume the @enter/@hover/etc. token
+        let kind = self.parse_trigger_sub_params(kind)?;
         self.expect_token(TokenKind::Eq, "expected '=' after motion trigger")?;
         self.expect_token(TokenKind::LBrace, "expected '{'")?;
         let motion_expr = self.parse_motion_expr()?;
@@ -188,6 +201,136 @@ impl<'a> Parser<'a> {
         Ok(MotionTrigger {
             trigger: kind,
             motion_expr,
+        })
+    }
+
+    /// Parse the colon-form control dimensions of `@scroll` / `@drag-*`
+    /// triggers (v1 syntax, restored by the v2 BNF). No sub-parameters are
+    /// allowed on the other five triggers. Unknown keys and malformed values
+    /// are hard parse errors (no parse-and-ignore).
+    fn parse_trigger_sub_params(&mut self, kind: TriggerKind) -> Result<TriggerKind, ParseError> {
+        let is_scroll = matches!(kind, TriggerKind::Scroll { .. });
+        let is_drag = matches!(
+            kind,
+            TriggerKind::DragHorizontal { .. } | TriggerKind::DragVertical { .. }
+        );
+        if !is_scroll && !is_drag {
+            return Ok(kind);
+        }
+        let (mut start, mut end, mut scrub) = (None, None, None);
+        let (mut constraints, mut elastic, mut threshold, mut velocity_max) =
+            (None, None, None, None);
+        let (mut horizontal, mut vertical) = (false, false);
+        match kind {
+            TriggerKind::Scroll {
+                start: s,
+                end: e,
+                scrub: sc,
+            } => {
+                start = s;
+                end = e;
+                scrub = sc;
+            }
+            TriggerKind::DragHorizontal {
+                constraints: c,
+                elastic: el,
+                threshold: th,
+                velocity_max: v,
+            } => {
+                constraints = c;
+                elastic = el;
+                threshold = th;
+                velocity_max = v;
+                horizontal = true;
+            }
+            TriggerKind::DragVertical {
+                constraints: c,
+                elastic: el,
+                threshold: th,
+                velocity_max: v,
+            } => {
+                constraints = c;
+                elastic = el;
+                threshold = th;
+                velocity_max = v;
+                vertical = true;
+            }
+            _ => return Ok(kind),
+        }
+        let allowed: &[&str] = if is_scroll {
+            &["start", "end", "scrub"]
+        } else {
+            &["constraints", "elastic", "threshold", "velocity_max"]
+        };
+        loop {
+            match self.peek_ident_value() {
+                Some(ref s) if is_scroll && s == "start" => {
+                    self.advance();
+                    self.expect_token(TokenKind::Colon, "expected ':' after 'start'")?;
+                    start = Some(self.parse_expr_no_assign()?);
+                }
+                Some(ref s) if is_scroll && s == "end" => {
+                    self.advance();
+                    self.expect_token(TokenKind::Colon, "expected ':' after 'end'")?;
+                    end = Some(self.parse_expr_no_assign()?);
+                }
+                Some(ref s) if is_scroll && s == "scrub" => {
+                    self.advance();
+                    self.expect_token(TokenKind::Colon, "expected ':' after 'scrub'")?;
+                    scrub = Some(self.parse_expr_no_assign()?);
+                }
+                Some(ref s) if is_drag && s == "constraints" => {
+                    self.advance();
+                    self.expect_token(TokenKind::Colon, "expected ':' after 'constraints'")?;
+                    self.expect_token(TokenKind::LBracket, "expected '[' for constraints range")?;
+                    let min = self.parse_expr_no_assign()?;
+                    self.expect_token(TokenKind::Comma, "expected ',' between constraints bounds")?;
+                    let max = self.parse_expr_no_assign()?;
+                    self.expect_token(TokenKind::RBracket, "expected ']' after constraints range")?;
+                    constraints = Some((min, max));
+                }
+                Some(ref s) if is_drag && s == "elastic" => {
+                    self.advance();
+                    self.expect_token(TokenKind::Colon, "expected ':' after 'elastic'")?;
+                    elastic = Some(self.parse_expr_no_assign()?);
+                }
+                Some(ref s) if is_drag && s == "threshold" => {
+                    self.advance();
+                    self.expect_token(TokenKind::Colon, "expected ':' after 'threshold'")?;
+                    threshold = Some(self.parse_expr_no_assign()?);
+                }
+                Some(ref s) if is_drag && s == "velocity_max" => {
+                    self.advance();
+                    self.expect_token(TokenKind::Colon, "expected ':' after 'velocity_max'")?;
+                    velocity_max = Some(self.parse_expr_no_assign()?);
+                }
+                Some(other) => {
+                    return Err(self.error(format!(
+                        "unknown parameter '{}' on @scroll/@drag trigger; expected {}",
+                        other,
+                        allowed.join(" | ")
+                    )))
+                }
+                None => break,
+            }
+        }
+        Ok(if is_scroll {
+            TriggerKind::Scroll { start, end, scrub }
+        } else if horizontal {
+            TriggerKind::DragHorizontal {
+                constraints,
+                elastic,
+                threshold,
+                velocity_max,
+            }
+        } else {
+            debug_assert!(vertical);
+            TriggerKind::DragVertical {
+                constraints,
+                elastic,
+                threshold,
+                velocity_max,
+            }
         })
     }
 
@@ -217,5 +360,177 @@ impl<'a> Parser<'a> {
             }
         }
         ViewNode::Text(text)
+    }
+}
+
+#[cfg(test)]
+mod trigger_params_tests {
+    use super::*;
+    use crate::lexer::tokenize;
+    use crate::parser::parse;
+
+    /// Parse a view source with one element carrying motion triggers and
+    /// return the element's MotionTrigger props.
+    fn parse_triggers(source: &str) -> Vec<MotionTrigger> {
+        let tokens = tokenize(source);
+        let (program, errors) = parse(tokens, source);
+        assert!(
+            errors.is_empty(),
+            "unexpected parse errors: {:?}",
+            errors.iter().map(|e| e.message.clone()).collect::<Vec<_>>()
+        );
+        let module = program.modules.get("input.omni").unwrap();
+        let comp = &module.components[0];
+        let view = comp.view.as_ref().expect("component has view");
+        let mut out = Vec::new();
+        for node in &view.children {
+            if let ViewNode::Element(el) = node {
+                for prop in &el.props {
+                    if let ElementProp::MotionTrigger(mt) = prop {
+                        out.push(mt.clone());
+                    }
+                }
+            }
+        }
+        assert!(!out.is_empty(), "no motion triggers found in: {}", source);
+        out
+    }
+
+    #[test]
+    fn scroll_trigger_with_v1_sub_params_parses() {
+        // v1 design doc §3.6 syntax, restored by the v2 BNF:
+        //   scroll_params ::= 'start:' expr 'end:' expr 'scrub:' bool
+        let triggers = parse_triggers(
+            "@motion fadeScroll { from { opacity: 0 } to { opacity: 1 } }
+component C {
+  view { <div @scroll start: 0 end: 1000 scrub: true ={fadeScroll}>x</div> }
+}",
+        );
+        let TriggerKind::Scroll { start, end, scrub } = &triggers[0].trigger else {
+            panic!("expected Scroll trigger");
+        };
+        assert!(matches!(start, Some(Expr::Literal(Literal::Int(0), _))));
+        assert!(matches!(end, Some(Expr::Literal(Literal::Int(1000), _))));
+        assert!(matches!(scrub, Some(Expr::Literal(Literal::Bool(true), _))));
+        assert!(matches!(
+            triggers[0].motion_expr,
+            Expr::VarRef(ref name, _) if name == "fadeScroll"
+        ));
+    }
+
+    #[test]
+    fn scroll_trigger_without_sub_params_still_parses() {
+        let triggers = parse_triggers(
+            "@motion fadeScroll { from { opacity: 0 } to { opacity: 1 } }
+component C {
+  view { <div @scroll ={fadeScroll}>x</div> }
+}",
+        );
+        let TriggerKind::Scroll { start, end, scrub } = &triggers[0].trigger else {
+            panic!("expected Scroll trigger");
+        };
+        assert!(start.is_none() && end.is_none() && scrub.is_none());
+    }
+
+    #[test]
+    fn drag_trigger_with_v1_sub_params_parses() {
+        // v1 design doc §3.7 syntax, restored by the v2 BNF:
+        //   drag_params ::= 'constraints:' '[' expr ',' expr ']' 'elastic:' expr
+        //                   'threshold:' expr ('velocity_max:' expr)?
+        let triggers = parse_triggers(
+            "@motion swipeCard { from { rotate: 0 } to { rotate: 30 } }
+component C {
+  view { <div @drag-horizontal constraints: [-100, 100] elastic: 0.5 threshold: 0.3 velocity_max: 500 ={swipeCard}>x</div> }
+}",
+        );
+        let TriggerKind::DragHorizontal {
+            constraints,
+            elastic,
+            threshold,
+            velocity_max,
+        } = &triggers[0].trigger
+        else {
+            panic!("expected DragHorizontal trigger");
+        };
+        let (min, max) = constraints.as_ref().expect("constraints parsed");
+        assert!(matches!(min, Expr::UnaryOp { .. }));
+        assert!(matches!(max, Expr::Literal(Literal::Int(100), _)));
+        assert!(matches!(
+            elastic,
+            Some(Expr::Literal(Literal::Float(f), _)) if *f == 0.5
+        ));
+        assert!(matches!(
+            threshold,
+            Some(Expr::Literal(Literal::Float(f), _)) if *f == 0.3
+        ));
+        assert!(matches!(
+            velocity_max,
+            Some(Expr::Literal(Literal::Int(500), _))
+        ));
+    }
+
+    #[test]
+    fn drag_vertical_sub_params_parse() {
+        let triggers = parse_triggers(
+            "@motion m { from { opacity: 0 } to { opacity: 1 } }
+component C {
+  view { <div @drag-vertical constraints: [0, 300] ={m}>x</div> }
+}",
+        );
+        let TriggerKind::DragVertical { constraints, .. } = &triggers[0].trigger else {
+            panic!("expected DragVertical trigger");
+        };
+        assert!(constraints.is_some());
+    }
+
+    #[test]
+    fn unknown_trigger_sub_param_is_hard_error() {
+        // No parse-and-ignore: an unknown sub-parameter is a hard parse error.
+        let source = "@motion m { from { opacity: 0 } to { opacity: 1 } }
+component C {
+  view { <div @scroll start: 0 bogus: 1 ={m}>x</div> }
+}";
+        let tokens = tokenize(source);
+        let (_program, errors) = parse(tokens, source);
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.message.contains("unknown parameter 'bogus'")),
+            "expected unknown-parameter error, got: {:?}",
+            errors.iter().map(|e| e.message.clone()).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn scroll_key_on_drag_trigger_is_hard_error() {
+        // `start` belongs to @scroll, not @drag-* — wrong-kind keys error.
+        let source = "@motion m { from { opacity: 0 } to { opacity: 1 } }
+component C {
+  view { <div @drag-horizontal start: 0 ={m}>x</div> }
+}";
+        let tokens = tokenize(source);
+        let (_program, errors) = parse(tokens, source);
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.message.contains("unknown parameter 'start'")),
+            "expected wrong-kind parameter error, got: {:?}",
+            errors.iter().map(|e| e.message.clone()).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn malformed_constraints_bracket_is_hard_error() {
+        // constraints: [1, 2, 3] — trailing element is a hard error.
+        let source = "@motion m { from { opacity: 0 } to { opacity: 1 } }
+component C {
+  view { <div @drag-horizontal constraints: [1, 2, 3] ={m}>x</div> }
+}";
+        let tokens = tokenize(source);
+        let (_program, errors) = parse(tokens, source);
+        assert!(
+            !errors.is_empty(),
+            "malformed constraints must not parse, got no errors"
+        );
     }
 }

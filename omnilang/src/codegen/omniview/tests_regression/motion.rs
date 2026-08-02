@@ -394,8 +394,6 @@ fn test_motion_trigger_enter_named() {
             in_view_threshold: None,
             source_span: None,
         })),
-        scroll: None,
-        drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
         a11y: None,
@@ -457,8 +455,6 @@ fn test_motion_trigger_hover_named() {
             in_view_threshold: None,
             source_span: None,
         })),
-        scroll: None,
-        drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
         a11y: None,
@@ -496,8 +492,6 @@ fn test_motion_trigger_focus_named() {
             in_view_threshold: None,
             source_span: None,
         })),
-        scroll: None,
-        drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
         a11y: None,
@@ -529,7 +523,17 @@ fn test_scroll_trigger() {
         source_span: None,
         motion: Some(Box::new(MotionBehavior {
             triggers: vec![TriggerIntent {
-                kind: TriggerKind::Scroll,
+                kind: TriggerKind::Scroll {
+                    start: Some(ExprIR::LiteralExpr {
+                        value: serde_json::json!(0),
+                    }),
+                    end: Some(ExprIR::LiteralExpr {
+                        value: serde_json::json!(500),
+                    }),
+                    scrub: Some(ExprIR::LiteralExpr {
+                        value: serde_json::json!(true),
+                    }),
+                },
                 motion_ref: Some("fadeIn".into()),
                 inline_motion: None,
                 source_span: None,
@@ -539,15 +543,6 @@ fn test_scroll_trigger() {
             in_view_threshold: None,
             source_span: None,
         })),
-        scroll: Some(Box::new(ScrollBehavior {
-            start: Some("0".into()),
-            end: Some("500".into()),
-            scrub: Some(ExprIR::LiteralExpr {
-                value: serde_json::json!(true),
-            }),
-            source_span: None,
-        })),
-        drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
         a11y: None,
@@ -582,7 +577,21 @@ fn test_drag_trigger() {
         source_span: None,
         motion: Some(Box::new(MotionBehavior {
             triggers: vec![TriggerIntent {
-                kind: TriggerKind::DragHorizontal,
+                kind: TriggerKind::DragHorizontal {
+                    constraints: Some((
+                        ExprIR::LiteralExpr {
+                            value: serde_json::json!(0),
+                        },
+                        ExprIR::LiteralExpr {
+                            value: serde_json::json!(300),
+                        },
+                    )),
+                    elastic: Some(ExprIR::LiteralExpr {
+                        value: serde_json::json!(0.1),
+                    }),
+                    threshold: None,
+                    velocity_max: None,
+                },
                 motion_ref: Some("fadeIn".into()),
                 inline_motion: None,
                 source_span: None,
@@ -590,16 +599,6 @@ fn test_drag_trigger() {
             in_view_once: None,
             in_view_repeat: None,
             in_view_threshold: None,
-            source_span: None,
-        })),
-        scroll: None,
-        drag: Some(Box::new(DragBehavior {
-            constraints: Some("left: 0; right: 300; top: 0; bottom: 0".into()),
-            elastic: Some(ExprIR::LiteralExpr {
-                value: serde_json::json!(0.1),
-            }),
-            threshold: None,
-            velocity_max: None,
             source_span: None,
         })),
         ref_binding: None,
@@ -672,7 +671,12 @@ fn test_drag_trigger_no_constraints_derived_extent() {
         source_span: None,
         motion: Some(Box::new(MotionBehavior {
             triggers: vec![TriggerIntent {
-                kind: TriggerKind::DragHorizontal,
+                kind: TriggerKind::DragHorizontal {
+                    constraints: None,
+                    elastic: None,
+                    threshold: None,
+                    velocity_max: None,
+                },
                 motion_ref: Some("slideX".into()),
                 inline_motion: None,
                 source_span: None,
@@ -680,14 +684,6 @@ fn test_drag_trigger_no_constraints_derived_extent() {
             in_view_once: None,
             in_view_repeat: None,
             in_view_threshold: None,
-            source_span: None,
-        })),
-        scroll: None,
-        drag: Some(Box::new(DragBehavior {
-            constraints: None,
-            elastic: None,
-            threshold: None,
-            velocity_max: None,
             source_span: None,
         })),
         ref_binding: None,
@@ -765,7 +761,12 @@ fn test_drag_trigger_no_translate_falls_back_unbounded() {
         source_span: None,
         motion: Some(Box::new(MotionBehavior {
             triggers: vec![TriggerIntent {
-                kind: TriggerKind::DragVertical,
+                kind: TriggerKind::DragVertical {
+                    constraints: None,
+                    elastic: None,
+                    threshold: None,
+                    velocity_max: None,
+                },
                 motion_ref: Some("fadeOnly".into()),
                 inline_motion: None,
                 source_span: None,
@@ -773,14 +774,6 @@ fn test_drag_trigger_no_translate_falls_back_unbounded() {
             in_view_once: None,
             in_view_repeat: None,
             in_view_threshold: None,
-            source_span: None,
-        })),
-        scroll: None,
-        drag: Some(Box::new(DragBehavior {
-            constraints: None,
-            elastic: None,
-            threshold: None,
-            velocity_max: None,
             source_span: None,
         })),
         ref_binding: None,
@@ -828,7 +821,12 @@ fn test_drag_trigger_inline_motion_derived_extent() {
         source_span: None,
         motion: Some(Box::new(MotionBehavior {
             triggers: vec![TriggerIntent {
-                kind: TriggerKind::DragHorizontal,
+                kind: TriggerKind::DragHorizontal {
+                    constraints: None,
+                    elastic: None,
+                    threshold: None,
+                    velocity_max: None,
+                },
                 motion_ref: None,
                 inline_motion: Some(KeyframeIR {
                     stops: vec![
@@ -869,14 +867,7 @@ fn test_drag_trigger_inline_motion_derived_extent() {
             in_view_threshold: None,
             source_span: None,
         })),
-        scroll: None,
-        drag: Some(Box::new(DragBehavior {
-            constraints: None,
-            elastic: None,
-            threshold: None,
-            velocity_max: None,
-            source_span: None,
-        })),
+
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
         a11y: None,
@@ -935,8 +926,6 @@ fn test_inview_trigger() {
             }),
             source_span: None,
         })),
-        scroll: None,
-        drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
         a11y: None,
@@ -982,8 +971,6 @@ fn test_driven_by() {
             in_view_threshold: None,
             source_span: None,
         })),
-        scroll: None,
-        drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
         a11y: None,

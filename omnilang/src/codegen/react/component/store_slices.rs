@@ -577,14 +577,12 @@ fn collect_expr_store_field_refs(
     bare: &mut FxHashSet<String>,
 ) {
     match expr {
-        ExprIR::FieldAccessExpr { object, field } => {
-            match object.as_ref() {
-                ExprIR::IdentifierExpr { name, .. } => {
-                    acc.entry(name.clone()).or_default().insert(field.clone());
-                }
-                _ => collect_expr_store_field_refs(object, acc, bare),
+        ExprIR::FieldAccessExpr { object, field } => match object.as_ref() {
+            ExprIR::IdentifierExpr { name, .. } => {
+                acc.entry(name.clone()).or_default().insert(field.clone());
             }
-        }
+            _ => collect_expr_store_field_refs(object, acc, bare),
+        },
         ExprIR::OptionalChainExpr { object, field } => {
             // `TodoStore?.items` reads the store field like a plain access —
             // record it so the store slices (review NEW-1; this arm also
@@ -889,22 +887,53 @@ pub(super) fn motion_whole_store_stores(
                 if let Some(body) = super::super::motion::resolve_def(trigger, &motion_bodies) {
                     scan_body(body, &mut acc, &mut bare);
                 }
+                // @scroll / @drag-* control dimensions (Task 5.1) can
+                // reference store fields — slices must keep them in the
+                // subscribed set.
+                match &trigger.kind {
+                    TriggerKind::Scroll { start, end, scrub } => {
+                        if let Some(e) = scrub {
+                            collect_expr_store_field_refs(e, &mut acc, &mut bare);
+                        }
+                        if let Some(e) = start {
+                            collect_expr_store_field_refs(e, &mut acc, &mut bare);
+                        }
+                        if let Some(e) = end {
+                            collect_expr_store_field_refs(e, &mut acc, &mut bare);
+                        }
+                    }
+                    TriggerKind::DragHorizontal {
+                        constraints,
+                        elastic,
+                        threshold,
+                        velocity_max,
+                        ..
+                    }
+                    | TriggerKind::DragVertical {
+                        constraints,
+                        elastic,
+                        threshold,
+                        velocity_max,
+                        ..
+                    } => {
+                        if let Some((min, max)) = constraints {
+                            collect_expr_store_field_refs(min, &mut acc, &mut bare);
+                            collect_expr_store_field_refs(max, &mut acc, &mut bare);
+                        }
+                        if let Some(e) = elastic {
+                            collect_expr_store_field_refs(e, &mut acc, &mut bare);
+                        }
+                        if let Some(e) = threshold {
+                            collect_expr_store_field_refs(e, &mut acc, &mut bare);
+                        }
+                        if let Some(e) = velocity_max {
+                            collect_expr_store_field_refs(e, &mut acc, &mut bare);
+                        }
+                    }
+                    _ => {}
+                }
             }
             if let Some(e) = &behavior.in_view_threshold {
-                collect_expr_store_field_refs(e, &mut acc, &mut bare);
-            }
-        }
-        if let Some(scrub) = el.scroll.as_ref().and_then(|s| s.scrub.as_ref()) {
-            collect_expr_store_field_refs(scrub, &mut acc, &mut bare);
-        }
-        if let Some(drag) = &el.drag {
-            if let Some(e) = &drag.elastic {
-                collect_expr_store_field_refs(e, &mut acc, &mut bare);
-            }
-            if let Some(e) = &drag.threshold {
-                collect_expr_store_field_refs(e, &mut acc, &mut bare);
-            }
-            if let Some(e) = &drag.velocity_max {
                 collect_expr_store_field_refs(e, &mut acc, &mut bare);
             }
         }

@@ -1293,7 +1293,11 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
         .motion_behavior()
         .and_then(|m| m.in_view_once.as_ref().or(m.in_view_repeat.as_ref()))
         .is_some();
-    let has_scroll = el.scroll_behavior().is_some();
+    let has_scroll = el.motion_behavior().is_some_and(|m| {
+        m.triggers
+            .iter()
+            .any(|t| matches!(&t.kind, TriggerKind::Scroll { .. }))
+    });
     let result = if el.motion_behavior().is_some_and(|m| !m.triggers.is_empty())
         || has_inview
         || has_scroll
@@ -1349,33 +1353,68 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
 
         // Handle @scroll trigger: wrap with _OmniScrollDrivenWidget
         if has_scroll {
-            let scroll_start = el
-                .scroll_behavior()
-                .and_then(|s| s.start.as_deref())
-                .unwrap_or("top 80%");
-            let scroll_end = el
-                .scroll_behavior()
-                .and_then(|s| s.end.as_deref())
-                .unwrap_or("bottom 20%");
-            let scrub = match el.scroll_behavior().and_then(|s| s.scrub.as_ref()) {
-                Some(expr) => ctx.format_expr(expr),
-                None => "0.0".to_string(),
-            };
             let motion_ref = el
                 .motion_behavior()
                 .and_then(|m| {
                     m.triggers
                         .iter()
-                        .find(|t| matches!(t.kind, TriggerKind::Scroll))
+                        .find(|t| matches!(&t.kind, TriggerKind::Scroll { .. }))
                 })
                 .and_then(|t| t.motion_ref.as_ref());
+            // v1 control dimensions (Task 5.1): numeric start/end are passed
+            // as typed constructor args; without them the widget falls back
+            // to the viewport-relative string configs (defaults "top 80%" /
+            // "bottom 20%", parsed at runtime).
+            let (start_dart, end_dart) = match el
+                .motion_behavior()
+                .and_then(|m| {
+                    m.triggers
+                        .iter()
+                        .find(|t| matches!(&t.kind, TriggerKind::Scroll { .. }))
+                })
+                .map(|t| match &t.kind {
+                    TriggerKind::Scroll { start, end, .. } => (start.as_ref(), end.as_ref()),
+                    _ => (None, None),
+                }) {
+                Some((Some(s), Some(e))) => (ctx.format_expr(s), ctx.format_expr(e)),
+                _ => (String::new(), String::new()),
+            };
+            let scroll_range_args = if start_dart.is_empty() && end_dart.is_empty() {
+                String::new()
+            } else {
+                format!("  start: {},\n  end: {},\n", start_dart, end_dart)
+            };
+            let scrub = match el
+                .motion_behavior()
+                .and_then(|m| {
+                    m.triggers
+                        .iter()
+                        .find(|t| matches!(&t.kind, TriggerKind::Scroll { .. }))
+                })
+                .and_then(|t| match &t.kind {
+                    TriggerKind::Scroll { scrub, .. } => scrub.as_ref(),
+                    _ => None,
+                }) {
+                // `scrub: true` (v1 BNF) coerces to the numeric smoothing
+                // factor 1.0 — the widget field is a `double`, so a raw bool
+                // literal would not compile.
+                Some(ExprIR::LiteralExpr { value }) if value.is_boolean() => {
+                    if value.as_bool() == Some(true) {
+                        "1.0".to_string()
+                    } else {
+                        "0.0".to_string()
+                    }
+                }
+                Some(expr) => ctx.format_expr(expr),
+                None => "0.0".to_string(),
+            };
 
             if let Some(motion_name) = motion_ref {
                 let ctrl_name = format!("_{}Controller", motion_name);
                 let active_name = format!("_{}Active", motion_name);
                 result = format!(
-                    "_OmniScrollDrivenWidget(\n  start: '{}',\n  end: '{}',\n  scrub: {},\n  onProgress: (p) {{ {} = true; {}.value = p; }},\n  child: {},\n)",
-                    scroll_start, scroll_end, scrub, active_name, ctrl_name, result
+                    "_OmniScrollDrivenWidget(\n{}  scrub: {},\n  onProgress: (p) {{ {} = true; {}.value = p; }},\n  child: {},\n)",
+                    scroll_range_args, scrub, active_name, ctrl_name, result
                 );
             }
         }
@@ -1384,8 +1423,8 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
         let has_drag = el.motion_behavior().is_some_and(|m| {
             m.triggers.iter().any(|t| {
                 matches!(
-                    t.kind,
-                    TriggerKind::DragHorizontal | TriggerKind::DragVertical
+                    &t.kind,
+                    TriggerKind::DragHorizontal { .. } | TriggerKind::DragVertical { .. }
                 )
             })
         });
@@ -1394,10 +1433,11 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                 .motion_behavior()
                 .map_or(&[] as &[TriggerIntent], |m| &m.triggers)
             {
-                match trigger.kind {
-                    TriggerKind::DragHorizontal | TriggerKind::DragVertical => {
+                match &trigger.kind {
+                    TriggerKind::DragHorizontal { .. } | TriggerKind::DragVertical { .. } => {
                         if let Some(motion_name) = trigger.motion_ref.as_ref() {
-                            let is_horizontal = matches!(trigger.kind, TriggerKind::DragHorizontal);
+                            let is_horizontal =
+                                matches!(&trigger.kind, TriggerKind::DragHorizontal { .. });
                             let axis_type = if is_horizontal {
                                 "Axis.horizontal"
                             } else {
@@ -1405,16 +1445,36 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                             };
                             let ctrl_name = format!("_{}Controller", motion_name);
                             let active_name = format!("_{}Active", motion_name);
-                            let constraints_str = el
-                                .drag_behavior()
-                                .and_then(|d| d.constraints.as_deref())
-                                .unwrap_or("");
-                            // ADR-053 removed @drag-constraints — when none are
-                            // given, drag the extent from the motion's own
-                            // keyframe range in the drag axis so the element
-                            // follows its animation (deferral #19). 0.0 = no
-                            // usable range → unbounded (inert, previous behavior).
-                            let (extent_dart, extent_warning) = if constraints_str.is_empty() {
+                            // v1 control dimensions (Task 5.1): numeric
+                            // constraints pass straight into the widget as
+                            // typed constructor args; when none are given,
+                            // drag the extent from the motion's own keyframe
+                            // range in the drag axis so the element follows
+                            // its animation (deferral #19). 0.0 = no usable
+                            // range → unbounded (inert, previous behavior).
+                            let (constraints_min_dart, constraints_max_dart) = match &trigger.kind {
+                                TriggerKind::DragHorizontal { constraints, .. }
+                                | TriggerKind::DragVertical { constraints, .. } => {
+                                    match constraints {
+                                        Some((min, max)) => {
+                                            (ctx.format_expr(min), ctx.format_expr(max))
+                                        }
+                                        None => (String::new(), String::new()),
+                                    }
+                                }
+                                _ => (String::new(), String::new()),
+                            };
+                            let has_constraints = !constraints_min_dart.is_empty()
+                                && !constraints_max_dart.is_empty();
+                            let constraints_args = if has_constraints {
+                                format!(
+                                    "  constraintsMin: {},\n  constraintsMax: {},\n",
+                                    constraints_min_dart, constraints_max_dart
+                                )
+                            } else {
+                                String::new()
+                            };
+                            let (extent_dart, extent_warning) = if !has_constraints {
                                 match motions.iter().find(|m| m.name == *motion_name).and_then(
                                     |m| {
                                         crate::codegen::shared::drag::drag_extent(
@@ -1446,19 +1506,27 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                             } else {
                                 ("0.0".to_string(), String::new())
                             };
-                            let elastic_val =
-                                match el.drag_behavior().and_then(|d| d.elastic.as_ref()) {
-                                    Some(expr) => ctx.format_expr(expr),
-                                    None => "0.0".to_string(),
-                                };
-                            let threshold_val =
-                                match el.drag_behavior().and_then(|d| d.threshold.as_ref()) {
-                                    Some(expr) => ctx.format_expr(expr),
-                                    None => "0.0".to_string(),
-                                };
+                            let (elastic_val, threshold_val) = match &trigger.kind {
+                                TriggerKind::DragHorizontal {
+                                    elastic, threshold, ..
+                                }
+                                | TriggerKind::DragVertical {
+                                    elastic, threshold, ..
+                                } => (
+                                    elastic
+                                        .as_ref()
+                                        .map(|e| ctx.format_expr(e))
+                                        .unwrap_or_else(|| "0.0".to_string()),
+                                    threshold
+                                        .as_ref()
+                                        .map(|e| ctx.format_expr(e))
+                                        .unwrap_or_else(|| "0.0".to_string()),
+                                ),
+                                _ => ("0.0".to_string(), "0.0".to_string()),
+                            };
                             result = format!(
-                                "{extent_warning}_OmniDragWidget(\n  axis: {},\n  constraints: '{}',\n  elastic: {},\n  threshold: {},\n  dragExtent: {},\n  onDragStart: () {{ {} = true; }},\n  onDragProgress: (p) {{ {} = true; {}.value = p; }},\n  onDragEnd: (completed) {{ if (completed) {{ {}.forward(); }} else {{ {}.reverse().whenComplete(() {{ if (mounted && {}.value == 0.0) setState(() {{ {} = false; }}); }}); }} }},\n  child: {},\n)",
-                                axis_type, constraints_str, elastic_val, threshold_val, extent_dart, active_name, active_name, ctrl_name, ctrl_name, ctrl_name, ctrl_name, active_name, result,
+                                "{extent_warning}_OmniDragWidget(\n  axis: {},\n  constraints: '',\n{}  elastic: {},\n  threshold: {},\n  dragExtent: {},\n  onDragStart: () {{ {} = true; }},\n  onDragProgress: (p) {{ {} = true; {}.value = p; }},\n  onDragEnd: (completed) {{ if (completed) {{ {}.forward(); }} else {{ {}.reverse().whenComplete(() {{ if (mounted && {}.value == 0.0) setState(() {{ {} = false; }}); }}); }} }},\n  child: {},\n)",
+                                axis_type, constraints_args, elastic_val, threshold_val, extent_dart, active_name, active_name, ctrl_name, ctrl_name, ctrl_name, ctrl_name, active_name, result,
                                 extent_warning = extent_warning
                             );
                         }

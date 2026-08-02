@@ -206,6 +206,8 @@ fn format_animate_options(over: &ExprIR, ease: &Option<EasingIR>, playback: &Pla
         Some(FillValue::None) => "\"none\"",
         Some(FillValue::Backwards) => "\"backwards\"",
         Some(FillValue::Both) => "\"both\"",
+        // #[non_exhaustive]
+        _ => "\"forwards\"",
     };
     opts.push(format!("fill:{}", fill));
     // direction
@@ -215,6 +217,8 @@ fn format_animate_options(over: &ExprIR, ease: &Option<EasingIR>, playback: &Pla
             DirectionValue::Reverse => "reverse",
             DirectionValue::Alternate => "alternate",
             DirectionValue::AlternateReverse => "alternate-reverse",
+            // #[non_exhaustive]
+            _ => "normal",
         };
         opts.push(format!("direction:\"{}\"", d));
     }
@@ -223,6 +227,8 @@ fn format_animate_options(over: &ExprIR, ease: &Option<EasingIR>, playback: &Pla
         match loop_val {
             LoopValue::Infinite => opts.push("iterations:Infinity".into()),
             LoopValue::Count(n) => opts.push(format!("iterations:{}", n)),
+            // #[non_exhaustive]
+            _ => opts.push("iterations:Infinity".into()),
         }
     }
     // delay
@@ -315,6 +321,8 @@ fn translate_easing(ease: &EasingIR) -> String {
                 .unwrap_or("cubic-bezier(0.250,0.460,0.450,0.940)")
                 .to_string()
         }
+        // #[non_exhaustive] — future easing kinds degrade to linear.
+        _ => "linear".to_string(),
     }
 }
 

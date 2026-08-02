@@ -8,8 +8,11 @@
 component MotionScroll {
   view {
     <div>
-      <div @scroll={fadeScroll}>
+      <div @scroll start: 0 end: 1000 scrub: true ={fadeScroll}>
         <p>Scroll-driven animation</p>
+      </div>
+      <div @scroll={fadeScroll}>
+        <p>Scroll-driven animation (default range)</p>
       </div>
     </div>
   }

@@ -751,8 +751,6 @@ fn test_tsx_interpolation_renders_expr() {
             }))],
             class_map_bindings: FxHashMap::default(),
             motion: None,
-            scroll: None,
-            drag: None,
             ref_binding: None,
             semantic_bindings: FxHashMap::default(),
             a11y: None,
@@ -2326,7 +2324,9 @@ component App {
         theme_file
     );
     assert!(
-        theme_file.contains("import { useThemeStore as useAppThemeStore } from '../stores/useThemeStore';"),
+        theme_file.contains(
+            "import { useThemeStore as useAppThemeStore } from '../stores/useThemeStore';"
+        ),
         "the wired theme runtime must import the user's store hook. Got:\n{}",
         theme_file
     );
@@ -2340,7 +2340,9 @@ component App {
         .get("App.tsx")
         .expect("App.tsx should be emitted");
     assert!(
-        app.contains("import { useThemeStore as useThemeStoreDesign } from './__design/useThemeStore';"),
+        app.contains(
+            "import { useThemeStore as useThemeStoreDesign } from './__design/useThemeStore';"
+        ),
         "root component must import the wired theme hook (aliased). Got:\n{}",
         app
     );
@@ -2744,7 +2746,9 @@ component App {
         app
     );
     assert!(
-        result.files.contains_key("designs/__design/useDesignTokens.ts"),
+        result
+            .files
+            .contains_key("designs/__design/useDesignTokens.ts"),
         "hook file must be emitted next to the design source"
     );
 }
@@ -4422,8 +4426,6 @@ fn react_store_field_access_expr_uses_slice_selectors() {
             ],
             class_map_bindings: FxHashMap::default(),
             motion: None,
-            scroll: None,
-            drag: None,
             ref_binding: None,
             semantic_bindings: FxHashMap::default(),
             a11y: None,

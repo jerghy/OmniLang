@@ -132,6 +132,16 @@ impl OmniViewGenerator {
             "/// ─── Shared scroll handler — single listener for all @scroll triggers\n\
              var __omni_scrollElements = [];\n\
              var __omni_scrollHandler = null;\n\
+             /// Progress target for one @scroll entry: numeric start/end range\n\
+             /// when given (Task 5.1), otherwise the legacy viewport-relative\n\
+             /// string configs resolved by Omni.scrollProgress.\n\
+             function __omni_scrollTarget(entry) {\n\
+             \x20 if (entry.startPos !== undefined && entry.endPos !== undefined) {\n\
+             \x20\x20 var raw = (window.scrollY - entry.startPos) / (entry.endPos - entry.startPos);\n\
+             \x20\x20 return Math.max(0, Math.min(1, raw));\n\
+             \x20 }\n\
+             \x20 return Omni.scrollProgress(entry.el, entry.startCfg, entry.endCfg);\n\
+             }\n\
              function __omni_ensureScrollHandler() {\n\
              \x20 if (__omni_scrollHandler) return;\n\
              \x20 __omni_scrollHandler = function() {\n\
@@ -139,7 +149,7 @@ impl OmniViewGenerator {
              \x20\x20\x20 var el = entry.el;\n\
              \x20\x20\x20 var anim = entry.anim;\n\
              \x20\x20\x20 var dur = entry.dur;\n\
-             \x20\x20\x20 var target = Omni.scrollProgress(el, entry.startCfg, entry.endCfg);\n\
+             \x20\x20\x20 var target = __omni_scrollTarget(entry);\n\
              \x20\x20\x20 if (entry.scrubDelay > 0) {\n\
              \x20\x20\x20\x20 entry.currentProgress += (target - entry.currentProgress) * Math.min(1, 16.67 / (entry.scrubDelay * 1000));\n\
              \x20\x20\x20\x20 anim.currentTime = entry.currentProgress * dur;\n\
@@ -169,24 +179,36 @@ impl OmniViewGenerator {
         nid: &str,
         trigger_str: &str,
         anim_call: &str,
-        el: &ElementIR,
+        trigger: &TriggerIntent,
         is_inline: bool,
     ) {
-        let scroll_start_str = escape_literal_str(
-            el.scroll_behavior()
-                .and_then(|s| s.start.as_deref())
-                .unwrap_or("top 80%"),
-            '"',
-        );
-        let scroll_end_str = escape_literal_str(
-            el.scroll_behavior()
-                .and_then(|s| s.end.as_deref())
-                .unwrap_or("bottom 20%"),
-            '"',
-        );
-        let scrub_val = match el.scroll_behavior().and_then(|s| s.scrub.as_ref()) {
-            Some(expr) => self.expr_to_js(expr),
-            None => "0".to_string(),
+        // v1 control dimensions (Task 5.1): numeric start/end define the
+        // scroll-range → progress mapping directly; without them the legacy
+        // viewport-relative string configs are used (defaults "top 80%" →
+        // "bottom 20%", resolved by Omni.scrollProgress at runtime).
+        let (start_expr, end_expr) = match &trigger.kind {
+            TriggerKind::Scroll { start, end, .. } => (start.as_ref(), end.as_ref()),
+            _ => (None, None), // defensive; callers only invoke for Scroll
+        };
+        let (start_num_js, end_num_js) = match (start_expr, end_expr) {
+            (Some(s), Some(e)) => (Some(self.expr_to_js(s)), Some(self.expr_to_js(e))),
+            _ => (None, None),
+        };
+        let scroll_start_str = escape_literal_str("top 80%", '"');
+        let scroll_end_str = escape_literal_str("bottom 20%", '"');
+        let scrub_val = match &trigger.kind {
+            TriggerKind::Scroll { scrub, .. } => scrub
+                .as_ref()
+                .map_or_else(|| "0".to_string(), |e| self.expr_to_js(e)),
+            _ => "0".to_string(),
+        };
+        let start_pos_field = match &start_num_js {
+            Some(v) => format!("startPos: {},\n", v),
+            None => String::new(),
+        };
+        let end_pos_field = match &end_num_js {
+            Some(v) => format!("endPos: {},\n", v),
+            None => String::new(),
         };
         let comment = if is_inline {
             "// @scroll (inline)"
@@ -214,16 +236,18 @@ impl OmniViewGenerator {
              \x20\x20 endCfg: \"{scroll_end}\",\n\
              \x20\x20 scrubDelay: {scrub},\n\
              \x20\x20 currentProgress: 0,\n\
-             \x20 }});\n\
+             {start_pos}{end_pos}\x20 }});\n\
              \x20 __omni_ensureScrollHandler();\n\
-             \x20 anim.currentTime = Omni.scrollProgress(el, \"{scroll_start}\", \"{scroll_end}\") * dur;\n\
+             \x20 anim.currentTime = __omni_scrollTarget(__omni_scrollElements[__omni_scrollElements.length - 1]) * dur;\n\
              }})();", comment = comment,
             nid = nid,
             anim_call = anim_call,
             trigger = trigger_str,
             scroll_start = scroll_start_str,
             scroll_end = scroll_end_str,
-            scrub = scrub_val,);
+            scrub = scrub_val,
+            start_pos = start_pos_field,
+            end_pos = end_pos_field,);
     }
 
     /// Generate @drag trigger JS. Shared by both named motion ref and inline paths.
@@ -238,7 +262,7 @@ impl OmniViewGenerator {
         nid: &str,
         trigger_str: &str,
         anim_call: &str,
-        el: &ElementIR,
+        trigger: &TriggerIntent,
         is_horizontal: bool,
         is_inline: bool,
         derived_extent: Option<f64>,
@@ -248,27 +272,46 @@ impl OmniViewGenerator {
         let edge_min = if is_horizontal { "left" } else { "top" };
         let edge_max = if is_horizontal { "right" } else { "bottom" };
         let rect_size = if is_horizontal { "width" } else { "height" };
-        let constraints_str = escape_literal_str(
-            el.drag_behavior()
-                .and_then(|d| d.constraints.as_deref())
-                .unwrap_or(""),
-            '"',
-        );
-        let has_constraints = el
-            .drag_behavior()
-            .is_some_and(|d| d.constraints.as_deref().is_some_and(|c| !c.is_empty()));
-        let elastic_val = match el.drag_behavior().and_then(|d| d.elastic.as_ref()) {
-            Some(expr) => self.expr_to_js(expr),
-            None => "0".to_string(),
+        // v1 control dimensions (Task 5.1): numeric constraints pass straight
+        // through; the legacy string config remains as a runtime fallback.
+        let (constraints_pair, elastic_expr, threshold_expr, velocity_expr) = match &trigger.kind {
+            TriggerKind::DragHorizontal {
+                constraints,
+                elastic,
+                threshold,
+                velocity_max,
+            }
+            | TriggerKind::DragVertical {
+                constraints,
+                elastic,
+                threshold,
+                velocity_max,
+            } => (
+                constraints.as_ref(),
+                elastic.as_ref(),
+                threshold.as_ref(),
+                velocity_max.as_ref(),
+            ),
+            _ => (None, None, None, None),
         };
-        let threshold_val = match el.drag_behavior().and_then(|d| d.threshold.as_ref()) {
-            Some(expr) => self.expr_to_js(expr),
-            None => "0".to_string(),
+        let (constraints_min_js, constraints_max_js) = match constraints_pair {
+            Some((min, max)) => (Some(self.expr_to_js(min)), Some(self.expr_to_js(max))),
+            None => (None, None),
         };
-        let velocity_max_val = match el.drag_behavior().and_then(|d| d.velocity_max.as_ref()) {
-            Some(expr) => self.expr_to_js(expr),
-            None => "2000".to_string(),
+        let has_constraints = constraints_pair.is_some();
+        let constraints_decl = match (&constraints_min_js, &constraints_max_js) {
+            (Some(min), Some(max)) => format!("const constraints = [{}, {}];", min, max),
+            _ => "const constraints = \"\";".to_string(),
         };
+        let elastic_val = elastic_expr
+            .map(|e| self.expr_to_js(e))
+            .unwrap_or_else(|| "0".to_string());
+        let threshold_val = threshold_expr
+            .map(|e| self.expr_to_js(e))
+            .unwrap_or_else(|| "0".to_string());
+        let velocity_max_val = velocity_expr
+            .map(|e| self.expr_to_js(e))
+            .unwrap_or_else(|| "2000".to_string());
         // maxExtent emission: constraints win; otherwise derive from the
         // motion's keyframe range; otherwise fall back to the previous
         // unbounded behavior (progress stays 0) with a warning.
@@ -316,12 +359,13 @@ impl OmniViewGenerator {
              \x20 let isDragging = false;\n\
              \x20 let lastMoveTime = 0, lastMovePos = 0;\n\
              \x20 let velocity = 0;\n\
-             \x20 const constraints = \"{constraints}\";\n\
+             \x20 {constraints_decl}\n\
              \x20 const elastic = {elastic};\n\
              \x20 const threshold = {threshold};\n\
              \x20 const velocityMax = {velocity_max};\n\
              \x20 function parseConstraint(cfg) {{\n\
              \x20\x20 if (!cfg) return {{ min: -Infinity, max: Infinity }};\n\
+             \x20\x20 if (Array.isArray(cfg)) return {{ min: cfg[0], max: cfg[1] }};\n\
              \x20\x20 if (cfg === 'parent') {{\n\
              \x20\x20\x20 const parent = el.parentElement;\n\
              \x20\x20\x20 if (!parent) return {{ min: -Infinity, max: Infinity }};\n\
@@ -392,7 +436,7 @@ impl OmniViewGenerator {
             nid = nid,
             anim_call = anim_call,
             trigger = trigger_str,
-            constraints = constraints_str,
+            constraints_decl = constraints_decl,
             elastic = elastic_val,
             threshold = threshold_val,
             ptr_axis = pointer_axis,
@@ -410,7 +454,7 @@ impl OmniViewGenerator {
         nid: &str,
         trigger_str: &str,
         anim_call: &str,
-        kind: TriggerKind,
+        kind: &TriggerKind,
         is_inline: bool,
     ) {
         match kind {
@@ -499,9 +543,10 @@ impl OmniViewGenerator {
                 ));
             }
             TriggerKind::InView
-            | TriggerKind::Scroll
-            | TriggerKind::DragHorizontal
-            | TriggerKind::DragVertical => {
+            | TriggerKind::Scroll { .. }
+            | TriggerKind::DragHorizontal { .. }
+            | TriggerKind::DragVertical { .. }
+            | _ => {
                 unreachable!(
                     "emit_trigger_with_anim_call only handles Enter/Hover/Press/Focus — \
                      other variants are dispatched to their own dedicated methods"
@@ -518,15 +563,17 @@ impl OmniViewGenerator {
             .motion_behavior()
             .map_or(&[] as &[TriggerIntent], |m| &m.triggers)
         {
-            let trigger_str = match trigger.kind {
+            let trigger_str = match &trigger.kind {
                 TriggerKind::Enter => "enter",
                 TriggerKind::Hover => "hover",
                 TriggerKind::Press => "press",
                 TriggerKind::Focus => "focus",
                 TriggerKind::InView => "inView",
-                TriggerKind::Scroll => "scroll",
-                TriggerKind::DragHorizontal => "dragHorizontal",
-                TriggerKind::DragVertical => "dragVertical",
+                TriggerKind::Scroll { .. } => "scroll",
+                TriggerKind::DragHorizontal { .. } => "dragHorizontal",
+                TriggerKind::DragVertical { .. } => "dragVertical",
+                // #[non_exhaustive] — future trigger kinds carry no runtime name yet.
+                _ => "",
             };
 
             // If there's an inline motion definition, emit it as a player config
@@ -552,7 +599,7 @@ impl OmniViewGenerator {
                         self.scope.current_component.clone(),
                     ));
                 }
-                match trigger.kind {
+                match &trigger.kind {
                     TriggerKind::Enter
                     | TriggerKind::Hover
                     | TriggerKind::Press
@@ -561,18 +608,19 @@ impl OmniViewGenerator {
                             nid,
                             trigger_str,
                             &anim_call,
-                            trigger.kind,
+                            &trigger.kind,
                             false,
                         );
                     }
                     TriggerKind::InView => {
                         self.emit_trigger_inview_js(nid, trigger_str, &anim_call, el, false);
                     }
-                    TriggerKind::Scroll => {
-                        self.emit_trigger_scroll_js(nid, trigger_str, &anim_call, el, false);
+                    TriggerKind::Scroll { .. } => {
+                        self.emit_trigger_scroll_js(nid, trigger_str, &anim_call, trigger, false);
                     }
-                    TriggerKind::DragHorizontal | TriggerKind::DragVertical => {
-                        let is_horizontal = matches!(trigger.kind, TriggerKind::DragHorizontal);
+                    TriggerKind::DragHorizontal { .. } | TriggerKind::DragVertical { .. } => {
+                        let is_horizontal =
+                            matches!(&trigger.kind, TriggerKind::DragHorizontal { .. });
                         let extent = trigger
                             .motion_ref
                             .as_deref()
@@ -584,18 +632,20 @@ impl OmniViewGenerator {
                             nid,
                             trigger_str,
                             &anim_call,
-                            el,
+                            trigger,
                             is_horizontal,
                             false,
                             extent,
                         );
                     }
+                    // #[non_exhaustive] — future trigger kinds are inert here.
+                    _ => {}
                 }
             } else if !kf_override.is_empty() {
                 // Inline motion definition — full config embedded
                 let anim_call =
                     format!("Omni.animate(el, {}, {{ {} }})", kf_override, opts_override);
-                match trigger.kind {
+                match &trigger.kind {
                     TriggerKind::Enter
                     | TriggerKind::Hover
                     | TriggerKind::Press
@@ -604,18 +654,19 @@ impl OmniViewGenerator {
                             nid,
                             trigger_str,
                             &anim_call,
-                            trigger.kind,
+                            &trigger.kind,
                             true,
                         );
                     }
                     TriggerKind::InView => {
                         self.emit_trigger_inview_js(nid, trigger_str, &anim_call, el, true);
                     }
-                    TriggerKind::Scroll => {
-                        self.emit_trigger_scroll_js(nid, trigger_str, &anim_call, el, true);
+                    TriggerKind::Scroll { .. } => {
+                        self.emit_trigger_scroll_js(nid, trigger_str, &anim_call, trigger, true);
                     }
-                    TriggerKind::DragHorizontal | TriggerKind::DragVertical => {
-                        let is_horizontal = matches!(trigger.kind, TriggerKind::DragHorizontal);
+                    TriggerKind::DragHorizontal { .. } | TriggerKind::DragVertical { .. } => {
+                        let is_horizontal =
+                            matches!(&trigger.kind, TriggerKind::DragHorizontal { .. });
                         let extent = trigger.inline_motion.as_ref().and_then(|body| {
                             crate::codegen::shared::drag::drag_extent(body, is_horizontal)
                         });
@@ -623,12 +674,13 @@ impl OmniViewGenerator {
                             nid,
                             trigger_str,
                             &anim_call,
-                            el,
+                            trigger,
                             is_horizontal,
                             true,
                             extent,
                         );
                     }
+                    _ => {}
                 }
             }
         }

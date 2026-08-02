@@ -522,15 +522,29 @@ impl<'a> Parser<'a> {
                     props.push(ElementProp::MotionTrigger(trigger));
                 }
                 TokenKind::AtScroll => {
-                    let trigger = self.parse_motion_trigger(TriggerKind::Scroll)?;
+                    let trigger = self.parse_motion_trigger(TriggerKind::Scroll {
+                        start: None,
+                        end: None,
+                        scrub: None,
+                    })?;
                     props.push(ElementProp::MotionTrigger(trigger));
                 }
                 TokenKind::AtDragHorizontal => {
-                    let trigger = self.parse_motion_trigger(TriggerKind::DragHorizontal)?;
+                    let trigger = self.parse_motion_trigger(TriggerKind::DragHorizontal {
+                        constraints: None,
+                        elastic: None,
+                        threshold: None,
+                        velocity_max: None,
+                    })?;
                     props.push(ElementProp::MotionTrigger(trigger));
                 }
                 TokenKind::AtDragVertical => {
-                    let trigger = self.parse_motion_trigger(TriggerKind::DragVertical)?;
+                    let trigger = self.parse_motion_trigger(TriggerKind::DragVertical {
+                        constraints: None,
+                        elastic: None,
+                        threshold: None,
+                        velocity_max: None,
+                    })?;
                     props.push(ElementProp::MotionTrigger(trigger));
                 }
                 // @hero is dead syntax: hero transitions were removed from the

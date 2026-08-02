@@ -24,7 +24,7 @@ pub(crate) fn has_trigger_kind_scroll(node: &ViewTree) -> bool {
         el.motion_behavior().is_some_and(|m| {
             m.triggers
                 .iter()
-                .any(|t| matches!(t.kind, TriggerKind::Scroll))
+                .any(|t| matches!(&t.kind, TriggerKind::Scroll { .. }))
         })
     })
 }
@@ -128,20 +128,24 @@ pub(crate) fn emit_inview_widget_class(w: &mut CodeWriter) {
 /// Emit the _OmniScrollDrivenWidget class for @scroll support.
 pub(crate) fn emit_scroll_widget_class(w: &mut CodeWriter) {
     w.emit("// ── Scroll-driven wrapper widget (@scroll support) ──");
+    w.emit("// start/end are the v1 numeric scroll range (Task 5.1) — absolute");
+    w.emit("// scroll positions where the mapping starts/ends. When null the");
+    w.emit("// widget falls back to the legacy viewport-relative string configs");
+    w.emit("// (\"top 80%\" / \"bottom 20%\").");
     w.emit("");
     w.emit("class _OmniScrollDrivenWidget extends StatefulWidget {");
     w.indent();
     w.emit("final Widget child;");
-    w.emit("final String start;");
-    w.emit("final String end;");
+    w.emit("final double? start;");
+    w.emit("final double? end;");
     w.emit("final double scrub;");
     w.emit("final ValueChanged<double> onProgress;");
     w.emit("");
     w.emit("const _OmniScrollDrivenWidget({");
     w.indent();
     w.emit("required this.child,");
-    w.emit("this.start = 'top 80%',");
-    w.emit("this.end = 'bottom 20%',");
+    w.emit("this.start,");
+    w.emit("this.end,");
     w.emit("this.scrub = 0.0,");
     w.emit("required this.onProgress,");
     w.dedent();
@@ -210,16 +214,31 @@ pub(crate) fn emit_scroll_widget_class(w: &mut CodeWriter) {
     w.emit("final elementTop = renderBox.localToGlobal(Offset.zero).dy;");
     w.emit("final elementHeight = renderBox.size.height;");
     w.emit("");
-    w.emit("// Parse start config: \"top 80%\" -> edge=top, pct=0.8");
-    w.emit("final startParts = widget.start.split(' ');");
+    w.emit("final double? typedStart = widget.start;");
+    w.emit("final double? typedEnd = widget.end;");
+    w.emit("double progress;");
+    w.emit("if (typedStart != null && typedEnd != null) {");
+    w.indent();
+    w.emit("// v1 numeric scroll range: progress = (element edge - start) / (end - start)");
+    w.emit("final scrollOffset = _scrollPosition?.pixels ?? 0.0;");
+    w.emit("final absEdge = scrollOffset + elementTop;");
+    w.emit("final range = typedEnd - typedStart;");
+    w.emit("if (range <= 0) return;");
+    w.emit("final raw = (absEdge - typedStart) / range;");
+    w.emit("progress = raw.clamp(0.0, 1.0);");
+    w.dedent();
+    w.emit("} else {");
+    w.indent();
+    w.emit("// Legacy viewport-relative configs: \"top 80%\" -> edge=top, pct=0.8");
+    w.emit("final startCfg = 'top 80%';");
+    w.emit("final endCfg = 'bottom 20%';");
+    w.emit("final startParts = startCfg.split(' ');");
     w.emit("final startEdge = startParts.isNotEmpty ? startParts[0] : 'top';");
     w.emit("final startPct = (startParts.length == 2)");
     w.emit("    ? (double.tryParse(startParts[1].replaceAll('%', '')) ?? 80.0) / 100.0");
     w.emit("    : 0.8;");
     w.emit("");
-    w.emit("// Parse end config: \"bottom 20%\" -> edge=bottom, pct=0.2");
-    w.emit("final endParts = widget.end.split(' ');");
-    w.emit("final endEdge = endParts.isNotEmpty ? endParts[0] : 'bottom';");
+    w.emit("final endParts = endCfg.split(' ');");
     w.emit("final endPct = (endParts.length == 2)");
     w.emit("    ? (double.tryParse(endParts[1].replaceAll('%', '')) ?? 20.0) / 100.0");
     w.emit("    : 0.2;");
@@ -236,7 +255,6 @@ pub(crate) fn emit_scroll_widget_class(w: &mut CodeWriter) {
     w.emit("final startY = viewportHeight * startPct;");
     w.emit("final endY = viewportHeight * endPct;");
     w.emit("final elementStartEdge = getEdgePosition(startEdge);");
-    w.emit("final elementEndEdge = getEdgePosition(endEdge);");
     w.emit("");
     w.emit("final totalDistance = startY - (endY - elementHeight);");
     w.emit("final elementProgress = startY - elementStartEdge;");
@@ -244,7 +262,9 @@ pub(crate) fn emit_scroll_widget_class(w: &mut CodeWriter) {
     w.emit("if (totalDistance <= 0) return;");
     w.emit("");
     w.emit("final raw = elementProgress / totalDistance;");
-    w.emit("final progress = raw.clamp(0.0, 1.0);");
+    w.emit("progress = raw.clamp(0.0, 1.0);");
+    w.dedent();
+    w.emit("}");
     w.emit("");
     w.emit("if (widget.scrub > 0) {");
     w.indent();
@@ -273,8 +293,8 @@ pub(crate) fn has_trigger_kind_drag(node: &ViewTree) -> bool {
         el.motion_behavior().is_some_and(|m| {
             m.triggers.iter().any(|t| {
                 matches!(
-                    t.kind,
-                    TriggerKind::DragHorizontal | TriggerKind::DragVertical
+                    &t.kind,
+                    TriggerKind::DragHorizontal { .. } | TriggerKind::DragVertical { .. }
                 )
             })
         })
@@ -289,7 +309,12 @@ pub(crate) fn emit_drag_widget_class(w: &mut CodeWriter) {
     w.indent();
     w.emit("final Widget child;");
     w.emit("final Axis axis;");
+    // v1 numeric constraints (Task 5.1): constraintsMin/Max define the drag
+    // range directly. The legacy `constraints` string ("left:0 right:300")
+    // remains as a runtime-parsed fallback when the typed pair is absent.
     w.emit("final String constraints;");
+    w.emit("final double? constraintsMin;");
+    w.emit("final double? constraintsMax;");
     w.emit("final double elastic;");
     w.emit("final double threshold;");
     // Max drag distance (px) derived at compile time from the motion's own
@@ -305,6 +330,8 @@ pub(crate) fn emit_drag_widget_class(w: &mut CodeWriter) {
     w.emit("required this.child,");
     w.emit("required this.axis,");
     w.emit("this.constraints = '',");
+    w.emit("this.constraintsMin,");
+    w.emit("this.constraintsMax,");
     w.emit("this.elastic = 0.0,");
     w.emit("this.threshold = 0.0,");
     w.emit("this.dragExtent = 0.0,");
@@ -321,16 +348,22 @@ pub(crate) fn emit_drag_widget_class(w: &mut CodeWriter) {
     w.emit("");
     w.emit("class _OmniDragWidgetState extends State<_OmniDragWidget> {");
     w.indent();
-    w.emit("double _startPos = 0;");
     w.emit("double _currentDelta = 0;");
     w.emit("");
     w.emit("double _computeProgress(double delta) {");
     w.indent();
-    w.emit("// Parse constraints string: \"left:0 right:300\" or \"top:0 bottom:500\"");
     w.emit("double minVal = double.negativeInfinity;");
     w.emit("double maxVal = double.infinity;");
-    w.emit("if (widget.constraints.isNotEmpty) {");
+    w.emit("final bool hasTypedConstraints = widget.constraintsMin != null && widget.constraintsMax != null;");
+    w.emit("if (hasTypedConstraints) {");
     w.indent();
+    w.emit("// v1 numeric constraints: constraints: [min, max]");
+    w.emit("minVal = widget.constraintsMin!;");
+    w.emit("maxVal = widget.constraintsMax!;");
+    w.dedent();
+    w.emit("} else if (widget.constraints.isNotEmpty) {");
+    w.indent();
+    w.emit("// Parse legacy constraints string: \"left:0 right:300\" or \"top:0 bottom:500\"");
     w.emit("final parts = widget.constraints.split(' ');");
     w.emit("for (final part in parts) {");
     w.indent();
@@ -345,7 +378,7 @@ pub(crate) fn emit_drag_widget_class(w: &mut CodeWriter) {
     w.dedent();
     w.emit("}");
     w.emit("");
-    w.emit("final maxExtent = widget.constraints.isNotEmpty");
+    w.emit("final maxExtent = hasTypedConstraints || widget.constraints.isNotEmpty");
     w.indent();
     w.emit("? (maxVal - minVal).abs().clamp(1.0, double.infinity)");
     w.emit(": (widget.dragExtent > 0 ? widget.dragExtent : double.infinity);");
@@ -369,9 +402,6 @@ pub(crate) fn emit_drag_widget_class(w: &mut CodeWriter) {
     w.emit("");
     w.emit("void _onDragStart(DragStartDetails details) {");
     w.indent();
-    w.emit("_startPos = widget.axis == Axis.horizontal");
-    w.emit("    ? details.localPosition.dx");
-    w.emit("    : details.localPosition.dy;");
     w.emit("_currentDelta = 0;");
     w.emit("widget.onDragStart();");
     w.dedent();
@@ -470,7 +500,10 @@ pub(crate) fn field_extract_flutter(
         // pointerType: real mapping — PointerDeviceKind is the stable
         // analogue of DOM pointerType ("mouse"/"touch"/"stylus"/...).
         (EventDataKind::PointerEvent, "pointerType") => {
-            format!("{}.kind.name /* pointerType: PointerDeviceKind analogue of DOM pointerType */", raw)
+            format!(
+                "{}.kind.name /* pointerType: PointerDeviceKind analogue of DOM pointerType */",
+                raw
+            )
         }
         (EventDataKind::PointerEvent, m @ ("alt" | "ctrl" | "shift" | "meta")) => {
             let prop = match m {
@@ -548,7 +581,10 @@ pub(crate) fn field_extract_flutter(
         // (layout-independent, the DOM 'code' analogue). debugName is
         // debug-oriented and must never be emitted as event data.
         (EventDataKind::KeyEvent, "code") => {
-            format!("{}.physicalKey.keyId /* code: stable physical key id (DOM 'code' analogue) */", raw)
+            format!(
+                "{}.physicalKey.keyId /* code: stable physical key id (DOM 'code' analogue) */",
+                raw
+            )
         }
         (EventDataKind::KeyEvent, m @ ("alt" | "ctrl" | "shift" | "meta")) => {
             let prop = match m {
@@ -712,12 +748,7 @@ pub(crate) fn field_extract_flutter(
 
         // AnimationEvent
         (EventDataKind::AnimationEvent, "animationName") => {
-            warn_event_field_stub(
-                warnings,
-                kind,
-                field,
-                "AnimationController exposes no name",
-            );
+            warn_event_field_stub(warnings, kind, field, "AnimationController exposes no name");
             "'' /* animationName: AnimationController exposes no name */".to_string()
         }
         (EventDataKind::AnimationEvent, "elapsedTime") => format!("{}.value", raw),

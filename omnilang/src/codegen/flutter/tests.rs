@@ -534,8 +534,6 @@ fn test_format_element_empty() {
         construction_kind: ConstructionKind::Component,
         source_span: None,
         motion: None,
-        scroll: None,
-        drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
         a11y: None,
@@ -558,8 +556,6 @@ fn test_format_element_with_text_child() {
         construction_kind: ConstructionKind::Component,
         source_span: None,
         motion: None,
-        scroll: None,
-        drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
         a11y: None,
@@ -623,7 +619,12 @@ fn test_drag_widget_derives_extent_from_keyframes() {
         source_span: None,
         motion: Some(Box::new(MotionBehavior {
             triggers: vec![TriggerIntent {
-                kind: TriggerKind::DragHorizontal,
+                kind: TriggerKind::DragHorizontal {
+                    constraints: None,
+                    elastic: None,
+                    threshold: None,
+                    velocity_max: None,
+                },
                 motion_ref: Some("slideX".into()),
                 inline_motion: None,
                 source_span: None,
@@ -631,14 +632,6 @@ fn test_drag_widget_derives_extent_from_keyframes() {
             in_view_once: None,
             in_view_repeat: None,
             in_view_threshold: None,
-            source_span: None,
-        })),
-        scroll: None,
-        drag: Some(Box::new(DragBehavior {
-            constraints: None,
-            elastic: None,
-            threshold: None,
-            velocity_max: None,
             source_span: None,
         })),
         ref_binding: None,
@@ -711,7 +704,12 @@ fn test_drag_widget_without_translate_falls_back_unbounded() {
         source_span: None,
         motion: Some(Box::new(MotionBehavior {
             triggers: vec![TriggerIntent {
-                kind: TriggerKind::DragVertical,
+                kind: TriggerKind::DragVertical {
+                    constraints: None,
+                    elastic: None,
+                    threshold: None,
+                    velocity_max: None,
+                },
                 motion_ref: Some("fadeOnly".into()),
                 inline_motion: None,
                 source_span: None,
@@ -719,14 +717,6 @@ fn test_drag_widget_without_translate_falls_back_unbounded() {
             in_view_once: None,
             in_view_repeat: None,
             in_view_threshold: None,
-            source_span: None,
-        })),
-        scroll: None,
-        drag: Some(Box::new(DragBehavior {
-            constraints: None,
-            elastic: None,
-            threshold: None,
-            velocity_max: None,
             source_span: None,
         })),
         ref_binding: None,
@@ -775,8 +765,6 @@ fn test_format_element_with_multiple_children() {
         construction_kind: ConstructionKind::Component,
         source_span: None,
         motion: None,
-        scroll: None,
-        drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
         a11y: None,
@@ -804,8 +792,6 @@ fn test_format_element_div_multiple_children_wraps_column() {
         construction_kind: ConstructionKind::Component,
         source_span: None,
         motion: None,
-        scroll: None,
-        drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
         a11y: None,
@@ -843,8 +829,6 @@ fn test_format_element_with_event() {
         construction_kind: ConstructionKind::Component,
         source_span: None,
         motion: None,
-        scroll: None,
-        drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
         a11y: None,
@@ -884,8 +868,6 @@ fn test_format_element_void_callback_fn_ref_warns_on_dropped_event_fields() {
         construction_kind: ConstructionKind::Component,
         source_span: None,
         motion: None,
-        scroll: None,
-        drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
         a11y: None,
@@ -1032,8 +1014,6 @@ fn test_format_element_with_class_map_bindings_warns_unknown_class() {
         construction_kind: ConstructionKind::Component,
         source_span: None,
         motion: None,
-        scroll: None,
-        drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
         a11y: None,
@@ -1079,8 +1059,6 @@ fn test_format_element_with_class_map_bindings_static_true_warns_unknown_class()
         construction_kind: ConstructionKind::Component,
         source_span: None,
         motion: None,
-        scroll: None,
-        drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
         a11y: None,
@@ -1117,8 +1095,6 @@ fn test_format_element_with_class_map_bindings_static_false() {
         construction_kind: ConstructionKind::Component,
         source_span: None,
         motion: None,
-        scroll: None,
-        drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
         a11y: None,
@@ -1155,8 +1131,6 @@ fn test_format_element_with_class_map_bindings_and_child_warns_unknown_class() {
         construction_kind: ConstructionKind::Component,
         source_span: None,
         motion: None,
-        scroll: None,
-        drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
         a11y: None,
@@ -1203,8 +1177,6 @@ fn el_with_class(classes: &str) -> ElementIR {
         construction_kind: ConstructionKind::Component,
         source_span: None,
         motion: None,
-        scroll: None,
-        drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
         a11y: None,
@@ -1443,8 +1415,6 @@ fn test_design_class_on_component_element_wraps_in_decoration() {
         construction_kind: ConstructionKind::Component,
         source_span: None,
         motion: None,
-        scroll: None,
-        drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
         a11y: None,
@@ -2091,8 +2061,6 @@ fn test_motion_enter_controller_init() {
             }],
             ..Default::default()
         })),
-        scroll: None,
-        drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
         a11y: None,
@@ -2379,8 +2347,6 @@ fn test_motion_inline_body_handling() {
             }],
             ..Default::default()
         })),
-        scroll: None,
-        drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
         a11y: None,
@@ -3205,8 +3171,6 @@ fn test_motion_pipeline_warnings_and_playback() {
             }],
             ..Default::default()
         })),
-        scroll: None,
-        drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
         a11y: None,
@@ -4239,8 +4203,6 @@ fn enter_motion_in_slot_fallback_is_found() {
             }],
             ..Default::default()
         })),
-        scroll: None,
-        drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
         a11y: None,
@@ -4641,8 +4603,6 @@ fn test_inline_style_hex_color_emits_color_literal() {
         construction_kind: ConstructionKind::Component,
         source_span: None,
         motion: None,
-        scroll: None,
-        drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
         a11y: None,
@@ -4669,8 +4629,6 @@ fn test_inline_style_unsupported_color_warns() {
         construction_kind: ConstructionKind::Component,
         source_span: None,
         motion: None,
-        scroll: None,
-        drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
         a11y: None,
@@ -4713,8 +4671,6 @@ fn test_unmapped_prop_warns_and_is_skipped() {
         construction_kind: ConstructionKind::Component,
         source_span: None,
         motion: None,
-        scroll: None,
-        drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
         a11y: None,
@@ -4765,8 +4721,6 @@ fn test_class_prop_unknown_class_warns_and_skips() {
         construction_kind: ConstructionKind::Component,
         source_span: None,
         motion: None,
-        scroll: None,
-        drag: None,
         ref_binding: None,
         semantic_bindings: style,
         a11y: None,
@@ -4813,8 +4767,6 @@ fn test_event_not_supported_on_widget_warns() {
         construction_kind: ConstructionKind::Component,
         source_span: None,
         motion: None,
-        scroll: None,
-        drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
         a11y: None,
@@ -4860,8 +4812,6 @@ fn test_event_on_button_is_allowed() {
         construction_kind: ConstructionKind::Component,
         source_span: None,
         motion: None,
-        scroll: None,
-        drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
         a11y: None,
@@ -4916,8 +4866,6 @@ fn test_text_style_props_wrapped_in_text_style() {
         construction_kind: ConstructionKind::Component,
         source_span: None,
         motion: None,
-        scroll: None,
-        drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
         a11y: None,
@@ -4964,8 +4912,6 @@ fn test_text_semantics_label_rename() {
         construction_kind: ConstructionKind::Component,
         source_span: None,
         motion: None,
-        scroll: None,
-        drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
         a11y: None,
@@ -5009,8 +4955,6 @@ fn test_text_field_placeholder_wrapped_in_decoration() {
         construction_kind: ConstructionKind::Component,
         source_span: None,
         motion: None,
-        scroll: None,
-        drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
         a11y: None,
@@ -5089,8 +5033,6 @@ fn test_store_action_in_inline_handler_body() {
         construction_kind: ConstructionKind::Component,
         source_span: None,
         motion: None,
-        scroll: None,
-        drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
         a11y: None,
@@ -5188,8 +5130,6 @@ fn test_store_action_method_call_form_in_handler() {
         construction_kind: ConstructionKind::Component,
         source_span: None,
         motion: None,
-        scroll: None,
-        drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
         a11y: None,
@@ -5240,8 +5180,6 @@ fn ref_el(tag: &str, ref_binding: Option<&str>, semantic: &[(&str, ExprIR)]) -> 
         class_map_bindings: FxHashMap::default(),
         source_span: None,
         motion: None,
-        scroll: None,
-        drag: None,
         ref_binding: ref_binding.map(String::from),
         semantic_bindings: semantic
             .iter()
@@ -5498,8 +5436,6 @@ fn test_a11y_unmappable_role_warns_and_comments() {
         class_map_bindings: FxHashMap::default(),
         source_span: None,
         motion: None,
-        scroll: None,
-        drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
     };
@@ -5578,8 +5514,6 @@ fn test_a11y_label_alt_collision_non_image_dedupes() {
         class_map_bindings: FxHashMap::default(),
         source_span: None,
         motion: None,
-        scroll: None,
-        drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
     };
@@ -5616,9 +5550,7 @@ fn test_a11y_label_alt_collision_non_image_dedupes() {
         dart
     );
     assert!(
-        warnings
-            .iter()
-            .any(|w| w.contains("alt 仅对 img 元素生效")),
+        warnings.iter().any(|w| w.contains("alt 仅对 img 元素生效")),
         "alt-on-non-image with a label present must warn on the T2.4 \
          warnings channel; got: {:?}",
         warnings
@@ -5652,8 +5584,6 @@ fn test_a11y_alt_alone_non_image_degrades_to_label() {
         class_map_bindings: FxHashMap::default(),
         source_span: None,
         motion: None,
-        scroll: None,
-        drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
     };
@@ -5715,8 +5645,6 @@ fn test_bind_value_ref_text_field_two_way() {
         class_map_bindings: FxHashMap::default(),
         source_span: None,
         motion: None,
-        scroll: None,
-        drag: None,
         a11y: None,
     };
     let view = ViewTree::Element(Box::new(el_input));
@@ -6599,5 +6527,98 @@ component Demo {
         !design_dart.contains("zModal"),
         "no meaningless ZIndex constant may be emitted. Got:\n{}",
         design_dart
+    );
+}
+
+#[test]
+fn scroll_trigger_passes_typed_start_end_to_widget() {
+    // v1 control dimensions (Task 5.1): numeric start/end flow into the
+    // _OmniScrollDrivenWidget constructor as typed doubles.
+    let result = compile_flutter(
+        "@motion fadeScroll { from { opacity: 0.3 } to { opacity: 1 } over: 500ms }
+         component Test {
+             view {
+                 <div @scroll start: 0 end: 1000 scrub: true ={fadeScroll}>scroll me</div>
+             }
+         }",
+    )
+    .expect("scroll fixture must compile");
+    let out = result.files.values().cloned().collect::<Vec<_>>().join(
+        "
+",
+    );
+    assert!(
+        out.contains(
+            "_OmniScrollDrivenWidget(
+  start: 0,
+  end: 1000,"
+        ),
+        "expected typed start/end constructor args, got:
+{}",
+        &out[..out.len().min(1200)]
+    );
+    assert!(
+        out.contains("class _OmniScrollDrivenWidget extends StatefulWidget"),
+        "scroll widget class must be emitted"
+    );
+    assert!(
+        out.contains("final double? start;"),
+        "widget must accept typed nullable start"
+    );
+}
+
+#[test]
+fn drag_trigger_passes_typed_constraints_to_widget() {
+    // v1 control dimensions (Task 5.1): constraints: [min, max] flow into
+    // the _OmniDragWidget constructor as typed constraintsMin/constraintsMax.
+    let result = compile_flutter(
+        "@motion dragX { from { translateX: 0 } to { translateX: 300 } over: 300ms }
+         component Test {
+             view {
+                 <div @drag-horizontal constraints: [-100, 100] elastic: 0.5 threshold: 0.3 velocity_max: 500 ={dragX}>drag me</div>
+             }
+         }",
+    )
+    .expect("drag fixture must compile");
+    let out = result.files.values().cloned().collect::<Vec<_>>().join(
+        "
+",
+    );
+    assert!(
+        out.contains("constraintsMin: -100,") && out.contains("constraintsMax: 100,"),
+        "expected typed constraintsMin/constraintsMax constructor args, got:
+{}",
+        &out[..out.len().min(1200)]
+    );
+    assert!(
+        out.contains("final double? constraintsMin;"),
+        "widget must accept typed nullable constraintsMin"
+    );
+}
+
+#[test]
+fn scroll_without_params_omits_typed_args() {
+    // No sub-params: the widget falls back to the legacy string configs.
+    let result = compile_flutter(
+        "@motion fadeScroll { from { opacity: 0.3 } to { opacity: 1 } over: 500ms }
+         component Test {
+             view {
+                 <div @scroll={fadeScroll}>scroll me</div>
+             }
+         }",
+    )
+    .expect("scroll fixture must compile");
+    let out = result.files.values().cloned().collect::<Vec<_>>().join(
+        "
+",
+    );
+    assert!(
+        !out.contains(
+            "_OmniScrollDrivenWidget(
+  start:"
+        ),
+        "no typed start/end args when sub-params absent, got:
+{}",
+        &out[..out.len().min(800)]
     );
 }

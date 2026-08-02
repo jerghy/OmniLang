@@ -103,7 +103,8 @@ fn test_list_state_init_basic() {
         "should handle empty data"
     );
     assert!(
-        gen.js.contains("parent.removeChild(tpl.nextElementSibling)"),
+        gen.js
+            .contains("parent.removeChild(tpl.nextElementSibling)"),
         "should clear rendered items when data becomes empty"
     );
 
@@ -209,14 +210,16 @@ fn test_list_with_key_and_empty_state() {
     // (Indent-qualified to distinguish from the 4-space empty-branch loop —
     // bare substring matching can't tell them apart.)
     assert!(
-        !gen.js.contains("  // Clear existing rendered items\n  while (tpl.nextElementSibling"),
+        !gen.js
+            .contains("  // Clear existing rendered items\n  while (tpl.nextElementSibling"),
         "keyed list must not clear all rendered items at the top level"
     );
     // But when data becomes empty, the empty-state branch must clear the
     // surviving clones before showing the empty state (early return skips the
     // per-key cleanup below).
     assert!(
-        gen.js.contains("    // Clear existing rendered items\n    while (tpl.nextElementSibling"),
+        gen.js
+            .contains("    // Clear existing rendered items\n    while (tpl.nextElementSibling"),
         "empty-state branch should clear surviving clones for keyed lists"
     );
     // And when data becomes non-empty again, the stale empty-state clone
@@ -265,7 +268,8 @@ fn test_list_with_key_and_empty_state() {
     // registers `_leave` entries) — removed items are cleaned up and
     // removed directly, with no dead `_leave` lookup in the generated JS.
     assert!(
-        gen.js.contains("__omni_cleanupElement(leavingNid); el.remove(); _forKeys.delete(key);"),
+        gen.js
+            .contains("__omni_cleanupElement(leavingNid); el.remove(); _forKeys.delete(key);"),
         "should clean up and remove vanished items directly"
     );
     assert!(
@@ -309,8 +313,6 @@ fn test_list_with_event_delegation() {
         class_map_bindings: FxHashMap::default(),
         source_span: None,
         motion: None,
-        scroll: None,
-        drag: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
         a11y: None,
@@ -369,7 +371,9 @@ fn test_list_with_event_delegation() {
     // events delivers {} — the handler's id/payload parameter becomes a
     // useless object and the store action removes nothing.
     assert!(
-        gen.js.contains("_emitAttr && !_evtAttr ? e.detail : _extractEvent(_eventKinds[e.type] || '', e)"),
+        gen.js.contains(
+            "_emitAttr && !_evtAttr ? e.detail : _extractEvent(_eventKinds[e.type] || '', e)"
+        ),
         "emit events should dispatch with e.detail, element events with extracted event"
     );
 
