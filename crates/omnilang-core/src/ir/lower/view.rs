@@ -14,7 +14,6 @@ use crate::parser::ast::*;
 use crate::semantic::SemanticResult;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
-use std::cell::Cell;
 
 // ═══════════════════════════════════════════════════════
 // View lowering
@@ -22,8 +21,6 @@ use std::cell::Cell;
 
 pub(super) fn lower_view_block(
     view: &ViewBlock,
-    string_signals: &[String],
-    sig_idx: &Cell<usize>,
     variant_map: &FxHashMap<String, String>,
     semantics: &mut SemanticResult,
     fns: &[FunctionIR],
@@ -36,8 +33,6 @@ pub(super) fn lower_view_block(
     for child in &view.children {
         lowered.push(lower_view_node(
             child,
-            string_signals,
-            Some(sig_idx),
             variant_map,
             semantics,
             fns,
@@ -195,44 +190,24 @@ fn scan_expr_for_event_methods(expr: &Expr, pd: &mut bool, sp: &mut bool, event_
 
 pub(super) fn lower_view_node(
     node: &ViewNode,
-    string_signals: &[String],
-    sig_idx: Option<&Cell<usize>>,
     variant_map: &FxHashMap<String, String>,
     semantics: &mut SemanticResult,
     fns: &[FunctionIR],
     signal_like_names: &FxHashSet<String>,
 ) -> ViewTree {
     match node {
-        ViewNode::Element(el) => lower_element(
-            el,
-            string_signals,
-            sig_idx,
-            variant_map,
-            semantics,
-            fns,
-            signal_like_names,
-        ),
+        ViewNode::Element(el) => lower_element(el, variant_map, semantics, fns, signal_like_names),
         ViewNode::Text(s) => ViewTree::Text(s.clone()),
         ViewNode::Interpolation(expr) => {
             // Lower the inner expression to ExprIR so codegen can emit proper JS
             ViewTree::Interpolation(Box::new(lower_expr(expr, variant_map, None, semantics)))
         }
-        ViewNode::IfDirective(if_dir) => lower_if_directive(
-            if_dir,
-            string_signals,
-            variant_map,
-            semantics,
-            fns,
-            signal_like_names,
-        ),
-        ViewNode::ForDirective(for_dir) => lower_for_directive(
-            for_dir,
-            string_signals,
-            variant_map,
-            semantics,
-            fns,
-            signal_like_names,
-        ),
+        ViewNode::IfDirective(if_dir) => {
+            lower_if_directive(if_dir, variant_map, semantics, fns, signal_like_names)
+        }
+        ViewNode::ForDirective(for_dir) => {
+            lower_for_directive(for_dir, variant_map, semantics, fns, signal_like_names)
+        }
         ViewNode::SlotDirective {
             name,
             default_content,
@@ -243,16 +218,8 @@ pub(super) fn lower_view_node(
                 default_content,
                 type_constraint,
             };
-            lower_slot_common(
-                &shape,
-                string_signals,
-                sig_idx,
-                variant_map,
-                semantics,
-                fns,
-                signal_like_names,
-            )
-            .into_view_tree()
+            lower_slot_common(&shape, variant_map, semantics, fns, signal_like_names)
+                .into_view_tree()
         }
     }
 }
@@ -270,8 +237,6 @@ pub(super) struct SlotDeclShape<'a> {
 /// constraint) into `SlotDeclIR`.
 pub(super) fn lower_slot_common(
     slot: &SlotDeclShape,
-    string_signals: &[String],
-    sig_idx: Option<&Cell<usize>>,
     variant_map: &FxHashMap<String, String>,
     semantics: &mut SemanticResult,
     fns: &[FunctionIR],
@@ -283,17 +248,7 @@ pub(super) fn lower_slot_common(
         .map(|nodes| {
             nodes
                 .iter()
-                .map(|n| {
-                    lower_view_node(
-                        n,
-                        string_signals,
-                        sig_idx,
-                        variant_map,
-                        semantics,
-                        fns,
-                        signal_like_names,
-                    )
-                })
+                .map(|n| lower_view_node(n, variant_map, semantics, fns, signal_like_names))
                 .collect()
         })
         .unwrap_or_default();
@@ -320,8 +275,6 @@ pub(super) fn lower_slot_common(
 /// and hero attributes.
 fn lower_element(
     el: &Element,
-    string_signals: &[String],
-    sig_idx: Option<&Cell<usize>>,
     variant_map: &FxHashMap<String, String>,
     semantics: &mut SemanticResult,
     fns: &[FunctionIR],
@@ -331,7 +284,6 @@ fn lower_element(
     let mut bindings: Option<FxHashMap<String, SignalRefIR>> = None;
     let mut events: Option<FxHashMap<String, EventHandlerIR>> = None;
     let mut inline_style: Option<serde_json::Value> = None;
-    let mut has_value_binding = false;
     let mut class_map_bindings_from_prop: Option<FxHashMap<String, ExprIR>> = None;
     let mut motion_triggers: Vec<TriggerIntent> = Vec::new();
     // Sub-attribute values (in-view once/repeat/threshold, scroll start/end/
@@ -366,9 +318,6 @@ fn lower_element(
                 );
             }
             ElementProp::Bind { name, signal_path } => {
-                if name == "value" {
-                    has_value_binding = true;
-                }
                 bindings.get_or_insert_with(Default::default).insert(
                     name.clone(),
                     SignalRefIR {
@@ -580,10 +529,11 @@ fn lower_element(
             ElementProp::Ref(r) => {
                 ref_binding = Some(r.clone());
             }
-            // Semantic ref bindings: focus={sig}, scroll-x={sig}, scroll-y={sig},
-            // value={sig}. Extracted into ElementIR.semantic_bindings (consumed
-            // by codegen backends in later phases); the semantic pass enforces
-            // that they appear only on @ref-bound elements.
+            // Semantic ref bindings: focus={sig}, scroll-x={sig}, scroll-y={sig}.
+            // Extracted into ElementIR.semantic_bindings (consumed by codegen
+            // backends in later phases); the semantic pass enforces that they
+            // appear only on @ref-bound elements. The value={sig} form is
+            // removed (design D2) — validate_semantic_bindings hard-errors it.
             ElementProp::RefBinding { binding, signal } => {
                 semantic_bindings
                     .get_or_insert_with(Default::default)
@@ -636,17 +586,7 @@ fn lower_element(
             ElementProp::SlotContent { name, content } => {
                 let fallback = content
                     .iter()
-                    .map(|n| {
-                        lower_view_node(
-                            n,
-                            string_signals,
-                            sig_idx,
-                            variant_map,
-                            semantics,
-                            fns,
-                            signal_like_names,
-                        )
-                    })
+                    .map(|n| lower_view_node(n, variant_map, semantics, fns, signal_like_names))
                     .collect();
                 slot_projections.push(ViewTree::Slot {
                     name: Some(name.clone()),
@@ -658,60 +598,10 @@ fn lower_element(
         }
     }
 
-    // Auto-bind <input> elements to String signals if no explicit bind:value
-    // and no existing value={expr} prop or value semantic binding (one-way
-    // reactive binding).
-    // Skip checkbox/radio inputs — they use "checked" property, not "value".
-    let has_value_prop = props.as_ref().is_some_and(|p| p.contains_key("value"))
-        || semantic_bindings
-            .as_ref()
-            .is_some_and(|s| s.contains_key("value"));
-    let is_checkbox_or_radio = props.as_ref().is_some_and(|p| {
-        p.get("type").is_some_and(|v| {
-            matches!(v, ExprIR::LiteralExpr { value: serde_json::Value::String(s) } if s == "checkbox" || s == "radio")
-        })
-    });
-    // Skip auto-bind for <input> elements that already have an explicit
-    // @onInput event handler — the handler is the developer's chosen approach
-    // for managing input state (e.g., reading via ref), and an auto-inserted
-    // bind:value would conflict by binding to an unrelated string signal.
-    let has_explicit_oninput = events.as_ref().is_some_and(|e| {
-        e.keys().any(|k| {
-            let lower = k.to_lowercase();
-            lower == "oninput" || lower == "input"
-        })
-    });
-    if let Some(sig_counter) = sig_idx {
-        let idx = sig_counter.get();
-        if el.tag == "input"
-            && !has_value_binding
-            && !has_value_prop
-            && !has_explicit_oninput
-            && !is_checkbox_or_radio
-            && idx < string_signals.len()
-        {
-            let sig_name = string_signals[idx].clone();
-            sig_counter.set(idx + 1);
-            bindings
-                .get_or_insert_with(Default::default)
-                .insert("value".into(), SignalRefIR { name: sig_name });
-        }
-    }
-
     let mut children: Vec<ViewTree> = el
         .children
         .iter()
-        .map(|c| {
-            lower_view_node(
-                c,
-                string_signals,
-                sig_idx,
-                variant_map,
-                semantics,
-                fns,
-                signal_like_names,
-            )
-        })
+        .map(|c| lower_view_node(c, variant_map, semantics, fns, signal_like_names))
         .collect();
     // Slot projections are appended after regular children — codegen looks
     // them up by slot name, so relative order does not affect projection.
@@ -825,7 +715,6 @@ fn lower_inline_motion_map(
 /// any `else if` chains, and the optional `else` fallback.
 fn lower_if_directive(
     if_dir: &IfDirective,
-    string_signals: &[String],
     variant_map: &FxHashMap<String, String>,
     semantics: &mut SemanticResult,
     fns: &[FunctionIR],
@@ -837,17 +726,7 @@ fn lower_if_directive(
             if_dir
                 .body
                 .iter()
-                .map(|n| {
-                    lower_view_node(
-                        n,
-                        string_signals,
-                        None,
-                        variant_map,
-                        semantics,
-                        fns,
-                        signal_like_names,
-                    )
-                })
+                .map(|n| lower_view_node(n, variant_map, semantics, fns, signal_like_names))
                 .collect(),
             ConstructionKind::Conditional,
         )),
@@ -857,17 +736,7 @@ fn lower_if_directive(
             condition: lower_expr(cond, variant_map, None, semantics),
             body: Some(make_fragment_element(
                 body.iter()
-                    .map(|n| {
-                        lower_view_node(
-                            n,
-                            string_signals,
-                            None,
-                            variant_map,
-                            semantics,
-                            fns,
-                            signal_like_names,
-                        )
-                    })
+                    .map(|n| lower_view_node(n, variant_map, semantics, fns, signal_like_names))
                     .collect(),
                 ConstructionKind::Conditional,
             )),
@@ -878,17 +747,7 @@ fn lower_if_directive(
     let fallback = if_dir.else_body.as_ref().map(|body| {
         make_fragment_element(
             body.iter()
-                .map(|n| {
-                    lower_view_node(
-                        n,
-                        string_signals,
-                        None,
-                        variant_map,
-                        semantics,
-                        fns,
-                        signal_like_names,
-                    )
-                })
+                .map(|n| lower_view_node(n, variant_map, semantics, fns, signal_like_names))
                 .collect(),
             ConstructionKind::Conditional,
         )
@@ -907,7 +766,6 @@ fn lower_if_directive(
 /// Wraps body nodes in a fragment with `ConstructionKind::List`.
 fn lower_for_directive(
     for_dir: &ForDirective,
-    string_signals: &[String],
     variant_map: &FxHashMap<String, String>,
     semantics: &mut SemanticResult,
     fns: &[FunctionIR],
@@ -920,17 +778,7 @@ fn lower_for_directive(
             Some(make_fragment_element(
                 nodes
                     .iter()
-                    .map(|n| {
-                        lower_view_node(
-                            n,
-                            string_signals,
-                            None,
-                            variant_map,
-                            s,
-                            fns,
-                            signal_like_names,
-                        )
-                    })
+                    .map(|n| lower_view_node(n, variant_map, s, fns, signal_like_names))
                     .collect(),
                 ConstructionKind::List,
             ))
@@ -1057,8 +905,6 @@ mod tests {
         };
         let result = lower_element(
             &el,
-            &[],
-            None,
             &FxHashMap::default(),
             &mut semantics,
             &[],
@@ -1109,8 +955,6 @@ mod tests {
         };
         let result = lower_element(
             &el,
-            &[],
-            None,
             &FxHashMap::default(),
             &mut semantics,
             &[],
@@ -1139,9 +983,11 @@ mod tests {
     }
 
     #[test]
-    fn test_auto_bind_skipped_when_semantic_value_binding_present() {
-        // <input value={sig} /> is a semantic binding — the auto-bind logic
-        // must not also insert a bind:value for a String signal.
+    fn test_no_auto_bind_for_bare_input() {
+        // design D2 (值绑定收敛): the implicit auto-bind is removed — an
+        // `<input>` without any value prop/binding gets NO binding at all.
+        // `value` is always exactly what the author writes: explicit
+        // bind:value (two-way), explicit value prop (one-way), or nothing.
         let span = Span {
             start: 0,
             end: 0,
@@ -1150,10 +996,7 @@ mod tests {
         };
         let el = Element {
             tag: "input".into(),
-            props: vec![ElementProp::RefBinding {
-                binding: "value".into(),
-                signal: Expr::VarRef("text".into(), span),
-            }],
+            props: vec![],
             children: vec![],
             self_closing: true,
             span,
@@ -1164,11 +1007,8 @@ mod tests {
             diagnostics: vec![],
             event_param_name: None,
         };
-        let string_signals = vec!["unrelated".to_string()];
         let result = lower_element(
             &el,
-            &string_signals,
-            Some(&Cell::new(0usize)),
             &FxHashMap::default(),
             &mut semantics,
             &[],
@@ -1177,12 +1017,8 @@ mod tests {
         match result {
             ViewTree::Element(el_ir) => {
                 assert!(
-                    el_ir.semantic_bindings.contains_key("value"),
-                    "value should be a semantic binding"
-                );
-                assert!(
                     !el_ir.bindings.contains_key("value"),
-                    "auto-bind must not add bind:value when value={{sig}} exists"
+                    "auto-bind removed — a bare <input> must carry no implicit value binding"
                 );
             }
             _ => panic!("Expected ViewTree::Element"),

@@ -125,14 +125,14 @@ PascalCase 标签引用其他组件——编译时视图会被内联展开：
 ### 动态属性
 
 ```omni
-<input @ref={inputBox} value={inputText} placeholder={hintText} />
+<input value={inputText.to_string()} placeholder={hintText} />
 <button disabled={isLoading}>Submit</button>
 <a href={dynamicUrl}>Link</a>
 ```
 
-`value={signal}` 是语义绑定，元素必须同时有 `@ref={name}`（ADR-053 D2）——详见下一节「语义绑定」；`bind:value` 双向绑定见下文。
+`value={expr}` 是**普通单向 prop**——显示表达式的计算结果，无任何魔法（值绑定收敛 D2）。双向绑定只有一种形式：`bind:value`（见下文）。注意：`value={sig}` 裸 signal 形式已删除——写它会编译报错「用 bind:value 双向绑定，或普通 value prop 单向」。
 
-### 语义绑定（focus / scroll-x / scroll-y / value）
+### 语义绑定（focus / scroll-x / scroll-y）
 
 语义绑定是编译器识别的元素属性（ADR-053 D2）：把裸 signal 绑定到元素 ref，驱动原生 DOM 副作用。元素必须同时带 `@ref={name}`，否则语义检查报错（E0006）：
 
@@ -141,16 +141,14 @@ PascalCase 标签引用其他组件——编译时视图会被内联展开：
 | `focus={sig}` | bool | `el.focus()` / `el.blur()` |
 | `scroll-y={sig}` | 数字 | `el.scrollTop = sig` |
 | `scroll-x={sig}` | 数字 | `el.scrollLeft = sig` |
-| `value={sig}` | 字符串 | 单项值同步（先比较再写入，未变化不写入，保留光标位置） |
 
 ```omni
 component SearchBox {
     signal isSearchActive: bool = false;
-    signal searchText: String = "";
     signal scrollPosition: f64 = 0;
 
     view {
-        <input @ref={searchBox} focus={isSearchActive} value={searchText} />
+        <input @ref={searchBox} focus={isSearchActive} />
         <div @ref={scrollPane} scroll-y={scrollPosition}>...</div>
     }
 }
@@ -158,9 +156,9 @@ component SearchBox {
 
 规则：
 
-- **裸 signal 限定**：值必须是裸 signal 引用（`{sig}`）或限定 store signal（`{Store.sig}`）；其他 `{expr}` 表达式（如 `value={age.to_string()}`）保持为普通静态属性
-- **`@ref` 必需**：缺少 `@ref` 时报错；`focus` 用于不可聚焦标签（如 `div`/`span`）时仅警告，`value` 适用于带 value 概念的标签（`input`/`textarea`/`select` 等），`scroll-x`/`scroll-y` 适用于任意可溢出滚动的元素
-- **与 `bind:value` 的区别**：`value={sig}` 是单项（signal → DOM），`bind:value` 是双向（signal ↔ DOM）
+- **裸 signal 限定**：值必须是裸 signal 引用（`{sig}`）或限定 store signal（`{Store.sig}`）；其他 `{expr}` 表达式保持为普通属性
+- **`@ref` 必需**：缺少 `@ref` 时报错；`focus` 用于不可聚焦标签（如 `div`/`span`）时仅警告，`scroll-x`/`scroll-y` 适用于任意可溢出滚动的元素
+- **表单值不用语义绑定**：值双向同步用 `bind:value`（唯一双向形式）；单向显示用普通 `value={expr}` prop
 
 详见 [05-组件](05-components.md) 的 `ref` 章节。
 
@@ -339,8 +337,9 @@ component Child {
 | 条件类 | `class: {k: v}` | `class: {active: flag}` |
 | 变体 | `variant: D.V(...)` | `variant: D.Button(color=primary)` |
 | 内联样式 | `style: {k: v}` | `style: {color: "red"}` |
-| 双向绑定 | `bind:prop={s}` | `bind:value={name}` |
-| 语义绑定 | `focus={s}` / `scroll-x={s}` / `scroll-y={s}` / `value={s}` | `focus={isActive}` |
+| 双向绑定（唯一） | `bind:prop={s}` | `bind:value={name}` |
+| 单向值 prop | `value={expr}` | `value={age.to_string()}` |
+| 语义绑定 | `focus={s}` / `scroll-x={s}` / `scroll-y={s}` | `focus={isActive}` |
 | 事件 | `@onEvent={fn}` | `@onPress={handle}` |
 | 动画 | `@trigger={m}` | `@enter={fadeIn}` |
 | 引用（简写） | `ref: name` | `ref: myInput` |

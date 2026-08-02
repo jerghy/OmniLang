@@ -663,6 +663,18 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
         if param.is_empty() {
             continue;
         }
+        // A ref'd TextField's bind:value is carried by the text controller
+        // (needs_text → `controller:` param + guarded listener + sync), not
+        // by a `value:` constructor arg — skip silently instead of warning.
+        let controller_covers = widget == "TextField"
+            && bind_name == "value"
+            && el
+                .ref_binding
+                .as_ref()
+                .is_some_and(|r| ctx.ref_usage.get(r).is_some_and(|u| u.needs_text));
+        if controller_covers {
+            continue;
+        }
         if !widget_allows_param(widget, param) {
             ctx.warnings.push(format!(
                 "[flutter] binding 'bind:{bind_name}' → param '{param}' is not supported on '{widget}'; skipped"
@@ -969,15 +981,14 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                             // follows its animation (deferral #19). 0.0 = no
                             // usable range → unbounded (inert, previous behavior).
                             let (extent_dart, extent_warning) = if constraints_str.is_empty() {
-                                match motions
-                                    .iter()
-                                    .find(|m| m.name == *motion_name)
-                                    .and_then(|m| {
+                                match motions.iter().find(|m| m.name == *motion_name).and_then(
+                                    |m| {
                                         crate::codegen::shared::drag::drag_extent(
                                             &m.body,
                                             is_horizontal,
                                         )
-                                    }) {
+                                    },
+                                ) {
                                     Some(e) => (
                                         crate::codegen::shared::drag::format_extent_dart(e),
                                         String::new(),

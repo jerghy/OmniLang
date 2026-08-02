@@ -4858,17 +4858,115 @@ fn test_ref_key_on_widget_and_controller_attachment() {
     );
 }
 
+/// Design D2: `bind:value` (ElementIR.bindings) on a ref'd text field is the
+/// sole two-way form — it must install the guarded controller listener (user
+/// edits → setState write-back) and the `_syncSemanticBindings` re-apply,
+/// exactly as the removed `value={sig}` semantic binding did.
+#[test]
+fn test_bind_value_ref_text_field_two_way() {
+    let codegen = FlutterCodegen;
+    let el_input = ElementIR {
+        tag: "input".to_string(),
+        ref_binding: Some("inputBox".to_string()),
+        semantic_bindings: FxHashMap::default(),
+        bindings: FxHashMap::from_iter([(
+            "value".to_string(),
+            SignalRefIR {
+                name: "text".to_string(),
+            },
+        )]),
+        children: vec![],
+        props: FxHashMap::default(),
+        events: FxHashMap::default(),
+        style_classes: None,
+        inline_style: None,
+        construction_kind: ConstructionKind::Normal,
+        class_map_bindings: FxHashMap::default(),
+        source_span: None,
+        motion: None,
+        scroll: None,
+        drag: None,
+    };
+    let view = ViewTree::Element(Box::new(el_input));
+    let signals = vec![SignalIntent {
+        name: "text".into(),
+        r#type: TypeIR {
+            kind: "string".into(),
+            type_args: vec![],
+            is_nullable: false,
+        },
+        initial_value: ExprIR::LiteralExpr {
+            value: serde_json::json!(""),
+        },
+    }];
+    let comp = ref_component("BindDemo", &["inputBox"], signals, vec![], Some(view));
+    let mut components = FxHashMap::default();
+    components.insert("BindDemo".into(), comp);
+    let ir = make_ir(components);
+    let comp_ref = ir
+        .modules
+        .get("main")
+        .unwrap()
+        .components
+        .get("BindDemo")
+        .unwrap();
+    let component_map = build_component_map(&ir);
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let (dart, _warnings, _errors) =
+        codegen.gen_component_dart("BindDemo", comp_ref, &ir, &component_map, &component_slots);
+
+    // Controller + guard flag declared (bind:value needs the text controller).
+    assert!(
+        dart.contains("final TextEditingController _inputBoxText = TextEditingController();"),
+        "bind:value must declare the text controller. Got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("bool _syncingInputBoxText = false;"),
+        "bind:value must declare the sync guard. Got:\n{}",
+        dart
+    );
+    // Listener write-back: user edits flow into the signal via setState.
+    assert!(
+        dart.contains("_inputBoxText.addListener(() {"),
+        "bind:value must install the controller listener. Got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("setState(() {") && dart.contains("text = _inputBoxText.text;"),
+        "bind:value must write back through setState. Got:\n{}",
+        dart
+    );
+    // The widget attaches the controller and the sync re-applies signal → text.
+    assert!(
+        dart.contains("controller: _inputBoxText"),
+        "TextField must attach the controller. Got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("_syncingInputBoxText = true;")
+            && dart.contains("_inputBoxText.text = text;"),
+        "_syncSemanticBindings must re-apply the signal to the controller. Got:\n{}",
+        dart
+    );
+}
+
 #[test]
 fn test_semantic_binding_post_frame_setup() {
-    // input with focus={active} + value={text}; div with scroll-y={pos}
+    // input with focus={active} + bind:value={text}; div with scroll-y={pos}
+    // (the value={sig} semantic form is removed — design D2 — bind:value
+    // drives the text controller machinery)
     let codegen = FlutterCodegen;
-    let el_input = ref_el(
+    let mut el_input = ref_el(
         "input",
         Some("inputBox"),
-        &[
-            ("focus", ExprIR::ident("active")),
-            ("value", ExprIR::ident("text")),
-        ],
+        &[("focus", ExprIR::ident("active"))],
+    );
+    el_input.bindings.insert(
+        "value".to_string(),
+        SignalRefIR {
+            name: "text".to_string(),
+        },
     );
     let el_pane = ref_el("div", Some("pane"), &[("scroll-y", ExprIR::ident("pos"))]);
     let view = ViewTree::Fragment(vec![
@@ -5225,7 +5323,7 @@ component SearchBox {
     field.focus()
   }
   view {
-    <input ref:field focus={active} scroll-y={pos} value={text} />
+    <input ref:field focus={active} scroll-y={pos} bind:value={text} />
   }
 }
 "##;

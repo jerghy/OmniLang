@@ -2238,18 +2238,18 @@ component TypedRefs {
     );
 }
 
-/// Test: semantic bindings (focus, scroll-y, value) on a ref-bound element
-/// generate useEffect blocks driven by the bound signal.
+/// Test: semantic bindings (focus, scroll-y) on a ref-bound element generate
+/// useEffect blocks driven by the bound signal. (`value={sig}` is removed —
+/// design D2 — it hard-errors in the semantic pass instead.)
 #[test]
 fn test_react_semantic_bindings_generate_effects() {
     let source = r#"
 component SearchBox {
   signal active: Bool = false
   signal pos: Float = 0
-  signal text: String = ""
   ref field: Element
   view {
-    <input ref:field focus={active} scroll-y={pos} value={text} />
+    <input ref:field focus={active} scroll-y={pos} />
   }
 }
 "#;
@@ -2290,17 +2290,105 @@ component SearchBox {
         "scroll-y effect deps should track the bound signal. Got:\n{}",
         content
     );
-    // value binding → guarded imperative value sync
+}
+
+/// Test: `bind:value` on React emits the idiomatic two-way form —
+/// `value={sig}` + an `onChange` setter writing back through the same
+/// mutation machinery as actions (design D2 方向一致性; the review HIGH-1
+/// divergence was the removed `value={sig}` one-way effect).
+#[test]
+fn test_react_bind_value_emits_onchange_setter() {
+    let source = r#"
+component SearchBox {
+  signal query: String = ""
+  view {
+    <input bind:value={query} />
+  }
+}
+"#;
+    let output = compile_react(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
     assert!(
-        content.contains(
-            "if (fieldRef.current && fieldRef.current.value !== text) {\n            fieldRef.current.value = text;"
-        ),
-        "value binding should emit guarded value sync. Got:\n{}",
+        content.contains("value={query}") && content.contains("setQuery(e.target.value)"),
+        "bind:value must emit value + onChange setter. Got:\n{}",
         content
     );
     assert!(
-        content.contains("}, [text]);"),
-        "value effect deps should track the bound signal. Got:\n{}",
+        !content.contains("queryRef") && !content.contains("useEffect"),
+        "bind:value must not need a ref or a DOM-syncing effect. Got:\n{}",
+        content
+    );
+}
+
+/// Test: `bind:value={Store.sig}` writes back through the Zustand mutation
+/// machinery (`useStore.setState`) — not an invalid `setStore.sig(...)` call.
+#[test]
+fn test_react_bind_value_store_signal_uses_setstate() {
+    let store_source = r#"
+store CartStore {
+    signal text: String = "";
+}
+"#;
+    let comp_source = r#"
+import { CartStore } from "./store";
+
+component StoreBinding {
+    @store CartStore;
+    view {
+        <input bind:value={CartStore.text} />
+    }
+}
+"#;
+    let mut sources = FxHashMap::default();
+    sources.insert("store.omni".to_string(), store_source.to_string());
+    sources.insert("main.omni".to_string(), comp_source.to_string());
+    let pm = path_mapping::derive_path_mapping(&sources);
+    let result = crate::compile_multi_internal(
+        sources,
+        crate::codegen::Target::React,
+        pm,
+        false,
+        false,
+        None,
+    );
+    assert!(
+        result.success,
+        "store-backed bind:value must compile. Errors: {:?}",
+        result.errors
+    );
+    let content: String = result
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    // The store hook must be generated for the qualified binding.
+    assert!(
+        content.contains("const CartStore = useCartStore();"),
+        "store hook must be generated for a store-backed binding. Got:\n{}",
+        content
+    );
+    // Read side: value={CartStore.text} through the hook object.
+    assert!(
+        content.contains("value={CartStore.text}"),
+        "bind:value must emit the qualified store read. Got:\n{}",
+        content
+    );
+    // Write side: the Zustand setState mutation machinery, like store
+    // mutations in actions — never `setStore.sig(...)`.
+    assert!(
+        content.contains("useCartStore.setState({ text: e.target.value })"),
+        "store write-back must use useStore.setState. Got:\n{}",
+        content
+    );
+    assert!(
+        !content.contains("setCartStore.text"),
+        "no invalid setStore.sig call may be emitted. Got:\n{}",
         content
     );
 }
@@ -2336,11 +2424,11 @@ component Carousel {
     );
 }
 
-/// Test: store signals work in semantic binding position — `value={Store.sig}`
-/// is a semantic binding (not a raw JSX prop), generates the store hook, and
-/// the effect depends on `Store.sig` (not the store hook object).
+/// Test: the removed `value={Store.sig}` semantic-binding form must
+/// hard-diagnose with the migration hint — `bind:value` is the sole two-way
+/// binding (design D2), covered by `test_react_bind_value_store_signal_uses_setstate`.
 #[test]
-fn test_react_semantic_binding_store_signal() {
+fn test_react_semantic_binding_store_signal_rejected() {
     let store_source = r#"
 store CartStore {
     signal text: String = "";
@@ -2370,39 +2458,17 @@ component StoreBinding {
         None,
     );
     assert!(
-        result.success,
-        "store-backed semantic binding must compile. Errors: {:?}",
+        !result.success,
+        "value={{Store.sig}} must fail to compile. Errors: {:?}",
         result.errors
     );
-    let content: String = result
-        .files
-        .values()
-        .cloned()
-        .collect::<Vec<_>>()
-        .join("\n");
-    // Store hook must be generated — binding signal feeds used_store_refs
     assert!(
-        content.contains("const CartStore = useCartStore();"),
-        "store hook must be generated for a store-backed binding. Got:\n{}",
-        content
-    );
-    // value={Store.sig} must NOT leak as a raw JSX prop (silent one-way break)
-    assert!(
-        !content.contains("value={CartStore.text}"),
-        "store binding must not emit a raw value prop. Got:\n{}",
-        content
-    );
-    // The generated effect reads the qualified signal and depends on the
-    // exact expression, so unrelated store updates don't re-fire it.
-    assert!(
-        content.contains("fieldRef.current.value !== CartStore.text"),
-        "value binding should read the qualified store signal. Got:\n{}",
-        content
-    );
-    assert!(
-        content.contains("}, [CartStore.text]);"),
-        "value effect deps should be Store.sig, not the store hook. Got:\n{}",
-        content
+        result
+            .errors
+            .iter()
+            .any(|e| e.message.contains("bind:value") && e.message.contains("value prop")),
+        "value={{Store.sig}} must diagnose with the migration hint. Got: {:?}",
+        result.errors
     );
 }
 

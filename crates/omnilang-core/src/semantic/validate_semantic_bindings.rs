@@ -1,11 +1,15 @@
 //! Validate semantic ref bindings on elements.
 //!
-//! Semantic bindings (`focus={sig}`, `scroll-x={sig}`, `scroll-y={sig}`,
-//! `value={sig}`) are compiler-recognized element attributes (semantic-level
-//! DSL spec §2.2) that bind a bare signal to an element's ref. They must
-//! appear only on elements with a `@ref` binding. This pass enforces that
-//! contract after component lowering, where the bindings have been extracted
-//! into `ElementIR.semantic_bindings`.
+//! Semantic bindings (`focus={sig}`, `scroll-x={sig}`, `scroll-y={sig}`) are
+//! compiler-recognized element attributes (semantic-level DSL spec §2.2) that
+//! bind a bare signal to an element's ref. They must appear only on elements
+//! with a `@ref` binding. This pass enforces that contract after component
+//! lowering, where the bindings have been extracted into
+//! `ElementIR.semantic_bindings`.
+//!
+//! The `value={sig}` semantic-binding form is REMOVED (design D2 值绑定收敛):
+//! `bind:value` is the sole two-way binding and `value={expr}` is a plain
+//! one-way prop. Writing the bare-signal form errors with the migration hint.
 //!
 //! Runs after component lowering (`ir/lower/mod.rs`), alongside
 //! `validate_ref_ops`. Ref declaration checks (`ref name: Element` exists,
@@ -16,11 +20,17 @@
 use crate::error::{Diagnostic, DiagnosticKind, Severity};
 use crate::ir::{ComponentIR, ViewTree};
 
+/// Migration hint for the removed `value={sig}` semantic-binding form —
+/// verbatim from the v2 design doc 域 1 诊断表 (design D2). `bind:value` is
+/// the sole two-way binding; `value={expr}` remains a plain one-way prop.
+const VALUE_BINDING_REMOVED_HINT: &str = "用 bind:value 双向绑定，或普通 value prop 单向";
+
 /// Validates semantic ref bindings on elements.
 ///
-/// Semantic bindings (focus={sig}, scroll-x={sig}, scroll-y={sig}, value={sig})
-/// are compiler-recognized element attributes that must appear only on
-/// elements with a @ref binding. This pass enforces that contract.
+/// Semantic bindings (focus={sig}, scroll-x={sig}, scroll-y={sig}) are
+/// compiler-recognized element attributes that must appear only on elements
+/// with a @ref binding. The removed `value={sig}` form hard-errors with the
+/// bind:value migration hint. This pass enforces that contract.
 pub fn validate_semantic_bindings(component: &ComponentIR, diagnostics: &mut Vec<Diagnostic>) {
     let Some(ref view) = component.view else {
         return;
@@ -30,13 +40,24 @@ pub fn validate_semantic_bindings(component: &ComponentIR, diagnostics: &mut Vec
 }
 
 /// Recursively walk the view tree, checking `semantic_bindings` on every
-/// element: each binding requires a `@ref` on the element itself, and the
-/// binding kind must be applicable to the element's tag.
+/// element: the removed `value` form errors; the remaining bindings require
+/// a `@ref` on the element itself, and the binding kind must be applicable
+/// to the element's tag.
 fn walk_view_tree(tree: &ViewTree, component: &ComponentIR, diagnostics: &mut Vec<Diagnostic>) {
     match tree {
         ViewTree::Element(el) => {
             // Check semantic_bindings
             for binding in el.semantic_bindings.keys() {
+                if binding == "value" {
+                    // design D2: the value={sig} semantic-binding form is
+                    // deleted — bind:value is the sole two-way binding.
+                    // Applies regardless of @ref (the form itself is gone).
+                    diagnostics.push(error_diag(
+                        component,
+                        format!("'value={{sig}}' 语义绑定形式已删除，{VALUE_BINDING_REMOVED_HINT}"),
+                    ));
+                    continue;
+                }
                 match &el.ref_binding {
                     Some(_) => {
                         if !binding_applies_to_tag(binding, &el.tag) {
@@ -97,9 +118,10 @@ fn walk_view_tree(tree: &ViewTree, component: &ComponentIR, diagnostics: &mut Ve
 /// Whether a semantic binding is meaningful for an element tag.
 ///
 /// Conservative, warning-only check: `focus` on never-focusable container
-/// tags and `value` on tags without a value concept produce a warning.
-/// Scroll bindings apply to any overflow-scrollable element, so they are
-/// always accepted. Unknown tags (custom components) are accepted.
+/// tags produces a warning. Scroll bindings apply to any overflow-scrollable
+/// element, so they are always accepted. Unknown tags (custom components)
+/// are accepted. (`value` is not listed — the `value={sig}` form is removed
+/// and errors in `walk_view_tree` before this check runs.)
 fn binding_applies_to_tag(binding: &str, tag: &str) -> bool {
     match binding {
         "focus" => !matches!(
@@ -139,19 +161,6 @@ fn binding_applies_to_tag(binding: &str, tag: &str) -> bool {
                 | "figcaption"
                 | "br"
                 | "hr"
-        ),
-        "value" => matches!(
-            tag,
-            "input"
-                | "textarea"
-                | "select"
-                | "option"
-                | "progress"
-                | "meter"
-                | "li"
-                | "button"
-                | "data"
-                | "param"
         ),
         // scroll-x / scroll-y: any element can scroll via overflow.
         _ => true,
@@ -326,8 +335,11 @@ mod tests {
     }
 
     #[test]
-    fn semantic_binding_value_on_valid_tag_passes() {
-        // value={sig} on an input → no warning
+    fn value_semantic_binding_form_rejected() {
+        // design D2 (值绑定收敛): the `value={sig}` semantic-binding form is
+        // removed — `bind:value` is the sole two-way binding and `value={expr}`
+        // is a plain one-way prop. Writing the bare-signal form must error with
+        // the migration hint (设计文档 域 1 诊断表), even with @ref present.
         let comp = make_component(
             "Test",
             &["field"],
@@ -339,10 +351,17 @@ mod tests {
         );
         let mut diagnostics = Vec::new();
         validate_semantic_bindings(&comp, &mut diagnostics);
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].severity, Severity::Error);
         assert!(
-            diagnostics.is_empty(),
-            "expected no diagnostics, got: {:?}",
-            diagnostics
+            diagnostics[0].message.contains("bind:value"),
+            "unexpected message: {}",
+            diagnostics[0].message
+        );
+        assert!(
+            diagnostics[0].message.contains("value prop"),
+            "unexpected message: {}",
+            diagnostics[0].message
         );
     }
 

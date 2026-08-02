@@ -11,7 +11,6 @@ use crate::parser::ast::*;
 use crate::semantic::SemanticResult;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
-use std::cell::Cell;
 
 // Disambiguate conflicting names between parser AST and IR
 use crate::ir::types::LifecycleKind as IRLifecycleKind;
@@ -146,32 +145,6 @@ pub(super) fn lower_component(
         })
         .collect();
 
-    // Collect input-binding signal names for <input> element auto-binding.
-    // Only auto-bind signals whose name suggests they're for input binding.
-    // If none exist, fall back to all String signals for backward compatibility.
-    let input_signals: Vec<String> = {
-        let string_signals: Vec<_> = comp.signals.iter()
-            .filter(|s| matches!(s.type_ann, TypeAnnotation::Named { ref name, .. } if name == "String"))
-            .map(|s| s.name.clone())
-            .collect();
-        // Prefer signals whose name suggests they're for input binding
-        let candidates: Vec<_> = string_signals
-            .iter()
-            .filter(|n| n.contains("input") || n.contains("Input"))
-            .cloned()
-            .collect();
-        if candidates.is_empty() {
-            string_signals
-        } else {
-            candidates
-        }
-    };
-
-    // The input auto-binding counter is shared between body-slot fallbacks
-    // and the view block, so `<input>` elements receive string-signal
-    // auto-binding in declaration order across both (ADR-053 D5).
-    let sig_idx = Cell::new(0usize);
-
     // Names of this component's signal-like symbols (signals, computeds,
     // props, getters, refs). The style-channel lowering consults this set
     // to decide whether `obj.field` is a genuine signal read (OmniView
@@ -200,29 +173,14 @@ pub(super) fn lower_component(
                 default_content: &s.default_content,
                 type_constraint: &s.type_constraint,
             };
-            lower_slot_common(
-                &shape,
-                &input_signals,
-                Some(&sig_idx),
-                variant_map,
-                semantics,
-                &fns,
-                &signal_like_names,
-            )
+            lower_slot_common(&shape, variant_map, semantics, &fns, &signal_like_names)
         })
         .collect();
 
-    let view = comp.view.as_ref().map(|v| {
-        lower_view_block(
-            v,
-            &input_signals,
-            &sig_idx,
-            variant_map,
-            semantics,
-            &fns,
-            &signal_like_names,
-        )
-    });
+    let view = comp
+        .view
+        .as_ref()
+        .map(|v| lower_view_block(v, variant_map, semantics, &fns, &signal_like_names));
 
     let styles: Vec<StyleRuleIR> = comp
         .styles

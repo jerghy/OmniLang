@@ -31,7 +31,7 @@
 
 | 惯例 | 适用场景 | 示例 |
 |------|---------|------|
-| **声明式绑定** | 高频双向操作（聚焦、滚动、值）| `focus={sig}`, `scroll-y={sig}`, `value={sig}` |
+| **声明式绑定** | 高频操作（聚焦、滚动）| `focus={sig}`, `scroll-y={sig}`, `scroll-x={sig}`；值双向用 `bind:value` |
 | **语义方法** | 低频一次性操作（选区、测量、指针捕获）| `ref.select()`, `ref.measure()` |
 | **属性式触发器** | 元素上的动画/行为声明 | `@enter={motion}`, `@hover={motion}` |
 | **关键字声明** | 顶层/组件成员定义 | `signal`, `token`, `@slot`, `@mount` |
@@ -55,8 +55,11 @@ Ref 系统提供对元素的**平台无关的语义级访问**。两种形式：
 
 | 形式 | 适用场景 | 语法 |
 |------|---------|------|
-| **语义绑定** | 高频：聚焦、滚动、表单值 | 元素属性，signal 驱动 |
+| **语义绑定** | 高频：聚焦、滚动 | 元素属性，signal 驱动 |
+| **双向值绑定** | 表单值双向同步 | `bind:value={sig}`（唯一双向形式） |
 | **语义方法** | 低频：选区、测量、指针捕获 | ref 变量上的编译器识别方法 |
+
+> **值绑定收敛（设计 D2）**：`value={sig}` 语义绑定形式已删除——`bind:value` 是**唯一**的双向绑定；`value={expr}`（含 `value="text"`）是**普通单向 prop**，无魔法。写 `value={sig}` 裸 signal 形式 → 编译错误「用 bind:value 双向绑定，或普通 value prop 单向」。
 
 ### 2.2 BNF 语法
 
@@ -68,10 +71,15 @@ ref_decl ::= 'ref' <ident> ':' <type_annotation> ';'?
 semantic_binding ::= 'focus' '=' <expr>
                    | 'scroll-x' '=' <expr>
                    | 'scroll-y' '=' <expr>
-                   | 'value' '=' <expr>
+                   // 'value' '=' <expr> 已删除（D2）→ error 迁移提示
 
 // 这些属性出现在元素上时，编译器理解它们的语义（不只是普通 prop）
 // 元素必须已有对应的 @ref 绑定
+
+// ── 双向值绑定（唯一双向形式，无需 @ref）──
+
+value_binding ::= 'bind:value' '=' <signal_path>   (* 双向 *)
+value_prop    ::= 'value' '=' <expr>               (* 普通单向 prop，无魔法 *)
 
 // ── 语义方法（在 action/expression 中对 ref 变量调用）──
 
@@ -84,8 +92,8 @@ ref_semantic_call ::= <ref_name> '.' ( ref_op_select
 ref_op_select          ::= 'select' '(' ')'
 ref_op_set_selection   ::= 'setSelection' '(' expr ',' expr ')'
 ref_op_measure         ::= 'measure' '(' ')'     // → { width: Float, height: Float, x: Float, y: Float }
-ref_op_capture_pointer ::= 'capturePointer' '(' expr ')'
-ref_op_release_pointer ::= 'releasePointer' '(' expr ')'
+ref_op_capture_pointer ::= 'capturePointer' '(' ')'
+ref_op_release_pointer ::= 'releasePointer' '(' ')'
 ```
 
 ### 2.3 完整示例
@@ -99,12 +107,11 @@ component SearchPage {
   signal scrollPosition: Float = 0
   signal searchText: String = ""
 
-  // ── 高频：语义绑定 ──
+  // ── 高频：语义绑定（focus/scroll）+ bind:value 双向 ──
   <div>
     <input 
-      @ref={searchBox} 
+      bind:value={searchText}    // 双向值绑定（唯一双向形式）
       focus={isSearchActive}     // 聚焦控制
-      value={searchText}         // 双向值绑定
       placeholder="搜索..."
     />
     
@@ -136,12 +143,15 @@ component SearchPage {
 | `focus={sig}` | `useEffect(() => sig ? ref.focus() : ref.blur(), [sig])` | `FocusNode` + listener → `requestFocus()/unfocus()` | `el.focus()/blur()` |
 | `scroll-y={sig}` | `useEffect(() => ref.scrollTo({top: sig}), [sig])` | `ScrollController.animateTo(sig)` | `el.scrollTo(0, sig)` |
 | `scroll-x={sig}` | `useEffect(() => ref.scrollTo({left: sig}), [sig])` | `ScrollController.animateTo(sig)` (horizontal) | `el.scrollTo(sig, 0)` |
-| `value={sig}` | `value={sig}` + `onChange={e => set(sig, e.target.value)}` | `TextEditingController` + listener | `el.value = sig` + input event |
+| `bind:value={sig}`（双向） | `value={sig}` + `onChange={e => set(sig, e.target.value)}` | `TextEditingController` + 守卫 listener 回写 `setState` | guard + input listener + 守卫 effect（双向） |
+| `value={expr}`（单向 prop） | 普通 `value={expr}` prop | 普通 widget 参数（无回写） | 普通属性 |
 | `ref.select()` | `ref.current.select()` | `TextEditingController.selection = TextSelection(...)` | `el.select()` |
 | `ref.setSelection(s,e)` | `ref.current.setSelectionRange(s, e)` | `TextEditingController.selection = TextSelection(...)` | `el.setSelectionRange(s, e)` |
 | `ref.measure()` | `ref.current.getBoundingClientRect()` | `RenderBox.localToGlobal()` + `size` | `el.getBoundingClientRect()` |
-| `ref.capturePointer(id)` | `ref.current.setPointerCapture(id)` | diagnostic: 不支持 | `el.setPointerCapture(id)` |
-| `ref.releasePointer(id)` | `ref.current.releasePointerCapture(id)` | diagnostic: 不支持 | `el.releasePointerCapture(id)` |
+| `ref.capturePointer()` | `ref.current.setPointerCapture(id)` | diagnostic: 不支持 | `el.setPointerCapture(id)` |
+| `ref.releasePointer()` | `ref.current.releasePointerCapture(id)` | diagnostic: 不支持 | `el.releasePointerCapture(id)` |
+
+> **方向一致性契约**：`bind:value` 在三目标必须双向且方向一致——React 发射 `value` + `onChange` 写回；Flutter 发射 controller + 守卫 listener 写回（`setState`）；OmniView 发射 input listener + 守卫 effect。禁止任何目标单向化。删除的 `value={sig}` 形式不再产生单向 useEffect / 单向 sync 路径（评审 HIGH-1 分歧消除）。
 
 ### 2.5 已删除的 DOM API
 
@@ -969,7 +979,9 @@ Flutter: [...list], count += 1, await fn()
 | `focus={sig}` | `useEffect(() => sig ? ref.focus() : ref.blur(), [sig])` | `FocusNode.requestFocus/unfocus` | `el.focus/blur` |
 | `scroll-x={sig}` | `ref.scrollTo({left: sig})` | `ScrollController.animateTo(sig)` (horizontal) | `el.scrollTo(sig, 0)` |
 | `scroll-y={sig}` | `ref.scrollTo({top: sig})` | `ScrollController.animateTo(sig)` | `el.scrollTo(0, sig)` |
-| `value={sig}` | `value={sig}` + `onChange` setter | `TextEditingController` + listener | `el.value` + event |
+| `bind:value={sig}`（双向，唯一形式） | `value={sig}` + `onChange` setter 写回 | `TextEditingController` + 守卫 listener 写回（`setState`） | guard + input listener + 守卫 effect（双向） |
+| `value={expr}`（单向 prop） | 普通 `value={expr}` prop | 普通 widget 参数（无回写） | 普通属性 |
+| ~~`value={sig}`（已删除，D2）~~ | — 编译错误「用 bind:value 双向绑定，或普通 value prop 单向」— | | |
 
 ### 10.2 Ref 语义方法 → 平台输出
 

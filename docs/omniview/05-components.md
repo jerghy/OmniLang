@@ -186,7 +186,8 @@ component MyComponent {
 > 已删除（ADR-052/053）：`.style`（改用 `style: {...}` 绑定 signal）与
 > `.getBoundingClientRect()` / `.offsetWidth` / `.offsetHeight`（改用
 > `.measure()`，编译器报错并提示替代方案）。高频语义操作优先使用语义绑定
-> 属性：`focus={sig}`、`scroll-x={sig}`、`scroll-y={sig}`、`value={sig}`
+> 属性：`focus={sig}`、`scroll-x={sig}`、`scroll-y={sig}`；表单值双向同步
+> 用 `bind:value`（`value={sig}` 形式已删除——值绑定收敛 D2）。
 > （需配合 `@ref={name}`）。
 
 ### 高频场景：ref + @drag-* 触发器配合

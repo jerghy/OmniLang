@@ -548,6 +548,12 @@ fn collect_view_read_signals_inner(node: &ViewTree, acc: &mut FxHashSet<String>)
             }
             for sig_ref in el.bindings.values() {
                 acc.insert(sig_ref.name.clone());
+                // A qualified binding target (`bind:value={Store.sig}`) must
+                // also feed the store-ref root so the `useStore()` hook is
+                // generated and the read (`value={Store.sig}`) resolves.
+                if let Some((root, _)) = sig_ref.name.split_once('.') {
+                    acc.insert(root.to_string());
+                }
             }
             // Event-handler FnRefs emit the ref name as a JSX value
             // (`@onPress={onClose}` → `onClick={onClose}`) — an event prop
@@ -876,13 +882,14 @@ fn ref_element_type(tag: Option<&str>) -> &str {
 }
 
 // ═══════════════════════════════════════════════════════════
-// Semantic binding codegen: focus={sig} / scroll-x / scroll-y / value={sig}
-// → useEffect
+// Semantic binding codegen: focus={sig} / scroll-x / scroll-y → useEffect
+// (the value={sig} form is removed — design D2 — bind:value is emitted as
+// value + onChange in view.rs, never as a one-way effect here)
 // ═══════════════════════════════════════════════════════════
 
 /// Whether any element in the view tree carries semantic ref bindings
-/// (focus={sig}, scroll-x={sig}, scroll-y={sig}, value={sig}) — used to
-/// decide whether the component needs a useEffect import.
+/// (focus={sig}, scroll-x={sig}, scroll-y={sig}) — used to decide whether
+/// the component needs a useEffect import.
 pub(super) fn view_has_semantic_bindings(node: &ViewTree) -> bool {
     match node {
         ViewTree::Element(el) => {
@@ -920,7 +927,9 @@ pub(super) fn view_has_semantic_bindings(node: &ViewTree) -> bool {
 /// - `focus={sig}`    → focus()/blur() driven by the boolean signal
 /// - `scroll-x={sig}` → scrollTo({ left: sig })
 /// - `scroll-y={sig}` → scrollTo({ top: sig })
-/// - `value={sig}`    → imperative value sync (one-way, keeps caret position)
+///
+/// (`value={sig}` is removed — design D2 — `bind:value` is emitted as a
+/// JSX value + onChange setter, never as a one-way effect.)
 ///
 /// Called after gen_effects in gen_component_tsx.
 pub(super) fn gen_semantic_binding_effects(
@@ -1045,21 +1054,12 @@ fn emit_element_binding_effects(
                 w.dedent();
                 w.emit_fmt(format_args!("}}, [{}]);", deps_str));
             }
-            // value={sig}: one-way value sync (unlike bind:value this never
-            // moves the caret or clobbers user input mid-typing)
-            "value" => {
-                w.emit("useEffect(() => {");
-                w.indent();
-                w.emit_fmt(format_args!("if ({base} && {base}.value !== {}) {{", val));
-                w.indent();
-                w.emit_fmt(format_args!("{base}.value = {};", val));
-                w.dedent();
-                w.emit("}");
-                w.dedent();
-                w.emit_fmt(format_args!("}}, [{}]);", deps_str));
-            }
+            // The `value={sig}` semantic-binding form is removed (design D2):
+            // `bind:value` is the sole two-way binding, emitted as a JSX
+            // `value` + `onChange` setter — it never reaches this effect
+            // path, and the old one-way DOM-syncing effect is deleted.
             // Unknown binding kind — emit nothing (future-proofing; the
-            // semantic pass only produces the four kinds above).
+            // semantic pass only produces focus/scroll-x/scroll-y).
             _ => {}
         }
     }

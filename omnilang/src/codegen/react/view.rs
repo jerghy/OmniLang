@@ -17,6 +17,23 @@ use super::utils::{emit_event_object_react, to_jsx_attr, to_react_event, to_reac
 use crate::codegen::sanitize::is_dangerous_url;
 use std::fmt::Write;
 
+/// Split a qualified binding target (`Store.field`) and verify it against
+/// the store-owner map — the same `bare-field → store-ref` map the mutation
+/// machinery uses. Returns `(owner, field)` only when the field genuinely
+/// belongs to the named store; anything else falls back to the component
+/// setter path (never `setStore.field(...)`).
+fn split_qualified_signal<'a>(
+    name: &'a str,
+    store_signal_owners: &FxHashMap<String, String>,
+) -> Option<(&'a str, &'a str)> {
+    let (owner, field) = name.split_once('.')?;
+    if store_signal_owners.get(field).map(String::as_str) == Some(owner) {
+        Some((owner, field))
+    } else {
+        None
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn gen_view_node_tsx(
     w: &mut CodeWriter,
@@ -249,20 +266,34 @@ pub(super) fn gen_view_node_tsx(
             let mut binding_events_map: FxHashMap<String, String> = FxHashMap::default();
             for (bind_name, signal_ref) in &el.bindings {
                 let jsx_attr = to_jsx_attr(bind_name);
-                let setter = format!("set{}", capitalize_first(&signal_ref.name));
                 attrs.push(format!("{}={{{}}}", jsx_attr, signal_ref.name));
                 match bind_name.as_str() {
-                    "value" => {
-                        binding_events_map.insert(
-                            "onChange".to_string(),
-                            format!("{}(e.target.value)", setter),
-                        );
-                    }
-                    "checked" => {
-                        binding_events_map.insert(
-                            "onChange".to_string(),
-                            format!("{}(e.target.checked)", setter),
-                        );
+                    "value" | "checked" => {
+                        // The write-back goes through the SAME mutation
+                        // machinery as action statements (C7): a store signal
+                        // updates via `useStore.setState({ field: value })`,
+                        // a component signal via its `setX` setter. The
+                        // element value shape differs (input vs checkbox).
+                        let event_value = if bind_name == "checked" {
+                            "e.target.checked"
+                        } else {
+                            "e.target.value"
+                        };
+                        let setter = if let Some((owner, field)) =
+                            split_qualified_signal(&signal_ref.name, store_signal_owners)
+                        {
+                            format!(
+                                "use{}.setState({{ {}: {} }})",
+                                owner, field, event_value
+                            )
+                        } else {
+                            format!(
+                                "{}({})",
+                                format!("set{}", capitalize_first(&signal_ref.name)),
+                                event_value
+                            )
+                        };
+                        binding_events_map.insert("onChange".to_string(), setter);
                     }
                     _ => {}
                 }

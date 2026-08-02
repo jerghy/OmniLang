@@ -154,7 +154,9 @@ impl FlutterCodegen {
         // The second return value carries hard errors for unsupported ops
         // (pointer capture — design D3 / spec §10.3).
         let (ref_usage, ref_errors) = collect_ref_usage(comp);
-        let needs_ref_setup = has_semantic_bindings(comp);
+        // The post-frame re-apply + controller wiring serve both semantic
+        // bindings (focus/scroll) and bind:value text listeners (design D2).
+        let needs_ref_setup = has_semantic_bindings(comp) || has_text_listeners(comp);
         let needs_text_listeners = has_text_listeners(comp);
         let refs_to_dispose = has_ref_dispose(comp, &ref_usage);
 

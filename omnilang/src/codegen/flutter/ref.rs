@@ -376,21 +376,26 @@ fn scan_view(node: &ViewTree, usage: &mut FxHashMap<String, RefUsage>) {
                 scan_expr(value, usage);
             }
             // Semantic bindings on @ref-bound elements (Step 1):
-            // focus={sig} → needs_focus, scroll-y/x={sig} → needs_scroll,
-            // value={sig} → needs_text (+ listener).
+            // focus={sig} → needs_focus, scroll-y/x={sig} → needs_scroll.
+            // (The value={sig} form is removed — design D2 — bind:value below
+            // is the sole two-way form and drives the text controller.)
             if let Some(ref_name) = &el.ref_binding {
                 for (kind, expr) in &el.semantic_bindings {
                     let u = usage.entry(ref_name.clone()).or_default();
                     match kind.as_str() {
                         "focus" => u.needs_focus = true,
                         "scroll-x" | "scroll-y" => u.needs_scroll = true,
-                        "value" => {
-                            u.needs_text = true;
-                            u.has_value_binding = true;
-                        }
                         _ => {}
                     }
                     scan_expr(expr, usage);
+                }
+                // bind:value on a ref'd element → needs_text (+ listener):
+                // the text controller carries the value and the guarded
+                // listener writes user edits back into the signal.
+                if el.bindings.contains_key("value") {
+                    let u = usage.entry(ref_name.clone()).or_default();
+                    u.needs_text = true;
+                    u.has_value_binding = true;
                 }
             }
             for child in &el.children {
@@ -574,73 +579,64 @@ fn scan_semantic_bindings(node: &ViewTree, found: &mut bool) {
 /// A ref + its semantic bindings, collected in view-tree order.
 type RefBinding<'a> = (&'a str, Vec<(&'a str, &'a ExprIR)>);
 
-/// Whether any `value={sig}` binding targets a bare component signal —
+/// Whether any `bind:value` binding targets a bare component signal — this
 /// installs a guarded controller listener in `initState` (user edits flow
-/// back into the signal through `setState`).
+/// back into the signal through `setState`). The `value={sig}` semantic
+/// form is removed (design D2); `bind:value` is the sole two-way binding.
 pub(crate) fn has_text_listeners(comp: &ComponentIR) -> bool {
     let Some(view) = &comp.view else {
         return false;
     };
-    let mut bindings: Vec<RefBinding> = Vec::new();
-    collect_ref_bindings(view, &mut bindings);
+    let mut bindings: Vec<(&str, &str)> = Vec::new();
+    collect_binding_refs(view, &mut bindings);
     let signal_names: Vec<&str> = comp.signals.iter().map(|s| s.name.as_str()).collect();
-    bindings.iter().any(|(_, pairs)| {
-        pairs.iter().any(|(kind, expr)| {
-            *kind == "value"
-                && matches!(
-                    expr,
-                    ExprIR::IdentifierExpr { name, .. } if signal_names.contains(&name.as_str())
-                )
-        })
-    })
+    bindings.iter().any(|(_, name)| signal_names.contains(name))
 }
 
-/// Emit the guarded `value={sig}` controller listeners inside `initState`
+/// Emit the guarded `bind:value` controller listeners inside `initState`
 /// (Step 5): user edits flow back into the bound signal through `setState` —
 /// a bare field write would leave every other consumer of the signal stale.
 /// The guard flag stops the programmatic sync from echoing into the signal.
+/// Only bare component signals get a listener (store-qualified bindings are
+/// re-applied by `_syncSemanticBindings` from the provider instead).
 pub(crate) fn emit_semantic_binding_listeners(w: &mut CodeWriter, comp: &ComponentIR) {
     let Some(view) = &comp.view else {
         return;
     };
-    let mut bindings: Vec<RefBinding> = Vec::new();
-    collect_ref_bindings(view, &mut bindings);
+    let mut bindings: Vec<(&str, &str)> = Vec::new();
+    collect_binding_refs(view, &mut bindings);
     let signal_names: Vec<&str> = comp.signals.iter().map(|s| s.name.as_str()).collect();
     let mut first = true;
-    for (ref_name, ref_bindings) in &bindings {
-        for (kind, expr) in ref_bindings {
-            if *kind == "value" {
-                if let ExprIR::IdentifierExpr { name, .. } = expr {
-                    if signal_names.contains(&name.as_str()) {
-                        if !first {
-                            w.emit("");
-                        }
-                        first = false;
-                        let text = ref_text_name(ref_name);
-                        let guard = ref_text_guard_name(ref_name);
-                        w.emit_fmt(format_args!("{}.addListener(() {{", text));
-                        w.indent();
-                        w.emit_fmt(format_args!("if ({}) {{", guard));
-                        w.indent();
-                        w.emit("return;");
-                        w.dedent();
-                        w.emit("}");
-                        w.emit("setState(() {");
-                        w.indent();
-                        w.emit_fmt(format_args!("{} = {}.text;", name, text));
-                        w.dedent();
-                        w.emit("});");
-                        w.dedent();
-                        w.emit("});");
-                    }
-                }
-            }
+    for (ref_name, name) in &bindings {
+        if !signal_names.contains(name) {
+            continue;
         }
+        if !first {
+            w.emit("");
+        }
+        first = false;
+        let text = ref_text_name(ref_name);
+        let guard = ref_text_guard_name(ref_name);
+        w.emit_fmt(format_args!("{}.addListener(() {{", text));
+        w.indent();
+        w.emit_fmt(format_args!("if ({}) {{", guard));
+        w.indent();
+        w.emit("return;");
+        w.dedent();
+        w.emit("}");
+        w.emit("setState(() {");
+        w.indent();
+        w.emit_fmt(format_args!("{} = {}.text;", name, text));
+        w.dedent();
+        w.emit("});");
+        w.dedent();
+        w.emit("});");
     }
 }
 
 /// Emit the `_syncSemanticBindings()` State method — re-applies every
-/// semantic binding (`focus={sig}`, `scroll-x/y={sig}`, `value={sig}`).
+/// semantic binding (`focus={sig}`, `scroll-x/y={sig}`) and the `bind:value`
+/// two-way value bindings.
 ///
 /// The method is registered as a post-frame callback from `build`, so it
 /// re-runs after every setState-driven rebuild — reactive parity with
@@ -662,15 +658,18 @@ pub(crate) fn emit_semantic_binding_sync(
     };
     let mut bindings: Vec<RefBinding> = Vec::new();
     collect_ref_bindings(view, &mut bindings);
-    if bindings.is_empty() {
+    // bind:value pairs contribute the "value" re-apply (design D2).
+    let mut value_bindings: Vec<(&str, &str)> = Vec::new();
+    collect_binding_refs(view, &mut value_bindings);
+    if bindings.is_empty() && value_bindings.is_empty() {
         return;
     }
 
     w.emit("void _syncSemanticBindings() {");
     w.indent();
     for (ref_name, ref_bindings) in &bindings {
-        // Deterministic per-ref order: focus, scroll-y, scroll-x, value.
-        for kind in ["focus", "scroll-y", "scroll-x", "value"] {
+        // Deterministic per-ref order: focus, scroll-y, scroll-x.
+        for kind in ["focus", "scroll-y", "scroll-x"] {
             for (k, expr) in ref_bindings {
                 if *k != kind {
                     continue;
@@ -703,17 +702,20 @@ pub(crate) fn emit_semantic_binding_sync(
                         w.dedent();
                         w.emit("}");
                     }
-                    "value" => {
-                        let text = ref_text_name(ref_name);
-                        let guard = ref_text_guard_name(ref_name);
-                        w.emit_fmt(format_args!("{} = true;", guard));
-                        w.emit_fmt(format_args!("{}.text = {};", text, val));
-                        w.emit_fmt(format_args!("{} = false;", guard));
-                    }
                     _ => {}
                 }
             }
         }
+    }
+    // bind:value re-apply: signal → controller text, guarded against echo.
+    for (ref_name, name) in &value_bindings {
+        let expr = binding_name_to_expr(name);
+        let val = format_binding_expr(&expr, store_provider_map, ir);
+        let text = ref_text_name(ref_name);
+        let guard = ref_text_guard_name(ref_name);
+        w.emit_fmt(format_args!("{} = true;", guard));
+        w.emit_fmt(format_args!("{}.text = {};", text, val));
+        w.emit_fmt(format_args!("{} = false;", guard));
     }
     w.dedent();
     w.emit("}");
@@ -769,6 +771,76 @@ fn collect_ref_bindings<'a>(node: &'a ViewTree, acc: &mut Vec<RefBinding<'a>>) {
         ViewTree::Text(_) | ViewTree::Interpolation(_) => {}
         #[allow(unreachable_patterns)]
         _ => {}
+    }
+}
+
+/// Collect `(ref_name, bound signal name)` pairs for `bind:value` on
+/// @ref-bound elements, in view-tree order (design D2: `bind:value` is the
+/// sole two-way form; the removed `value={sig}` never reaches codegen).
+fn collect_binding_refs<'a>(node: &'a ViewTree, acc: &mut Vec<(&'a str, &'a str)>) {
+    match node {
+        ViewTree::Element(el) => {
+            if let Some(ref ref_name) = el.ref_binding {
+                for (bind_name, signal_ref) in &el.bindings {
+                    if bind_name == "value" {
+                        acc.push((ref_name.as_str(), signal_ref.name.as_str()));
+                    }
+                }
+            }
+            for child in &el.children {
+                collect_binding_refs(child, acc);
+            }
+        }
+        ViewTree::Conditional(cond) => {
+            for branch in &cond.branches {
+                if let Some(ref body) = branch.body {
+                    collect_binding_refs(body, acc);
+                }
+            }
+            if let Some(ref fb) = cond.fallback {
+                collect_binding_refs(fb, acc);
+            }
+        }
+        ViewTree::ListRendering(list) => {
+            if let Some(ref body) = list.body {
+                collect_binding_refs(body, acc);
+            }
+            if let Some(ref empty) = list.empty_body {
+                collect_binding_refs(empty, acc);
+            }
+        }
+        ViewTree::Fragment(children) => {
+            for c in children {
+                collect_binding_refs(c, acc);
+            }
+        }
+        ViewTree::Slot { fallback, .. } => {
+            for c in fallback {
+                collect_binding_refs(c, acc);
+            }
+        }
+        ViewTree::Text(_) | ViewTree::Interpolation(_) => {}
+        #[allow(unreachable_patterns)]
+        _ => {}
+    }
+}
+
+/// Build an `ExprIR` for a binding's signal name — `Store.sig` becomes a
+/// field access so the store rewrite (`ref.read(storeProvider.sig)`) applies.
+fn binding_name_to_expr(name: &str) -> ExprIR {
+    if let Some((store, field)) = name.split_once('.') {
+        ExprIR::FieldAccessExpr {
+            object: Box::new(ExprIR::IdentifierExpr {
+                name: store.to_string(),
+                type_ann: None,
+            }),
+            field: field.to_string(),
+        }
+    } else {
+        ExprIR::IdentifierExpr {
+            name: name.to_string(),
+            type_ann: None,
+        }
     }
 }
 
@@ -986,7 +1058,10 @@ fn format_ref_op_flutter(ref_name: &str, op: &RefOpIR, fmt: &impl FormatExpr) ->
                 (None, Some(x)) => fmt.format_expr(x),
                 (None, None) => return format!("{}.jumpTo({}.position.pixels)", scroll, scroll),
             };
-            format!("if ({}.hasClients) {{ {}.jumpTo({}); }}", scroll, scroll, target)
+            format!(
+                "if ({}.hasClients) {{ {}.jumpTo({}); }}",
+                scroll, scroll, target
+            )
         }
         RefOpIR::ScrollBy { dx, dy } => {
             let delta = match (dy, dx) {
@@ -1003,8 +1078,7 @@ fn format_ref_op_flutter(ref_name: &str, op: &RefOpIR, fmt: &impl FormatExpr) ->
         RefOpIR::Measure { what } => {
             // RenderBox read at call time via the GlobalKey — safe before
             // layout via `?.` (degrades to null, matching React's `?.`).
-            let box_expr =
-                format!("({}.currentContext?.findRenderObject() as RenderBox?)", key);
+            let box_expr = format!("({}.currentContext?.findRenderObject() as RenderBox?)", key);
             match what {
                 MeasureWhat::Width => format!("{}?.size.width", box_expr),
                 MeasureWhat::Height => format!("{}?.size.height", box_expr),

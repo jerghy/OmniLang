@@ -131,8 +131,9 @@ component MultiRef {
 // Semantic ref bindings → __omni_effect wrappers
 // ═════════════════════════════════════════════════════════════════════════════
 
-/// Test: focus/scroll-x/scroll-y/value semantic bindings emit __omni_effect
+/// Test: focus/scroll-x/scroll-y semantic bindings emit __omni_effect
 /// wrappers driving the bound signal → native DOM side effects.
+/// (The value={sig} form is removed — design D2 — bind:value covers two-way.)
 #[test]
 fn test_semantic_bindings_emit_effects() {
     let source = r#"
@@ -140,10 +141,9 @@ component SearchBox {
   signal active: Bool = false
   signal pos: Float = 0
   signal hpos: Float = 0
-  signal text: String = ""
   ref field: Element
   view {
-    <input ref:field focus={active} scroll-y={pos} scroll-x={hpos} value={text} />
+    <input ref:field focus={active} scroll-y={pos} scroll-x={hpos} />
   }
 }
 "#;
@@ -176,12 +176,6 @@ component SearchBox {
     assert!(
         js.contains("el.scrollLeft = SearchBox_hpos.value;"),
         "scroll-x binding should emit scrollLeft assignment. Got:\n{}",
-        js
-    );
-    // value binding → guarded one-way value sync
-    assert!(
-        js.contains("if (el.value !== SearchBox_text.value) { el.value = SearchBox_text.value; }"),
-        "value binding should emit guarded value sync. Got:\n{}",
         js
     );
 }

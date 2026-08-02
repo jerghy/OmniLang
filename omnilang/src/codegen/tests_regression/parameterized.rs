@@ -358,15 +358,32 @@ fn assert_refs_omniview(files: &FxHashMap<String, String>) {
         "index.js",
         "__omni_subs.get(\"SearchBox_query\").set(\"\");",
     );
+    // bind:value → the two-way runtime: DOM input listener writing the
+    // signal plus the guarded reactive effect reading it back (方向一致性).
+    assert_contains(
+        files,
+        "index.js",
+        "addEventListener(\"input\", (e) => { if (!_guard_value_el_input_001) { __omni_subs.get(\"SearchBox_query\").set(e.target.value); } });",
+    );
+    assert_contains(
+        files,
+        "index.js",
+        "__omni_effect(() => { const el = __omni_el(\"el-input-001\"); if (el) { _guard_value_el_input_001 = true; el.value = __omni_subs.get(\"SearchBox_query\").value; _guard_value_el_input_001 = false; } });",
+    );
     // Semantic binding effects drive focus()/blur() from the boolean signal.
     assert_contains(files, "index.js", "el.focus(); } else { el.blur(); }");
 }
 
 fn assert_refs_react(files: &FxHashMap<String, String>) {
     assert_contains(files, "SearchBox.tsx", "useRef");
-    // The value={query} semantic binding is emitted as a DOM-syncing effect
-    // on the ref-bound element (ref bindings are not JSX props).
-    assert_contains(files, "SearchBox.tsx", "inputRef.current.value = query");
+    // bind:value → value prop + onChange write-back (two-way, 方向一致性).
+    assert_contains(files, "SearchBox.tsx", "value={query}");
+    assert_contains(files, "SearchBox.tsx", "setQuery(e.target.value)");
+    assert!(
+        !files["SearchBox.tsx"].contains("inputRef.current.value = query"),
+        "the one-way DOM-syncing effect for value bindings must be gone:\n{}",
+        files["SearchBox.tsx"]
+    );
     // The focus={isFocused} semantic binding drives focus()/blur().
     assert_contains(files, "SearchBox.tsx", "inputRef.current?.focus()");
     // A signal read ONLY inside style: { ... } must still get a state hook —
@@ -384,6 +401,18 @@ fn assert_refs_react(files: &FxHashMap<String, String>) {
 
 fn assert_refs_flutter(files: &FxHashMap<String, String>) {
     assert_contains(files, "SearchBox.dart", "FocusNode");
+    // bind:value on a ref'd TextField → controller + guarded listener
+    // write-back via setState (the two-way mechanism, 方向一致性).
+    assert_contains(
+        files,
+        "SearchBox.dart",
+        "final TextEditingController _inputText = TextEditingController();",
+    );
+    assert_contains(files, "SearchBox.dart", "_inputText.addListener(() {");
+    assert_contains(files, "SearchBox.dart", "query = _inputText.text;");
+    assert_contains(files, "SearchBox.dart", "_syncingInputText");
+    assert_contains(files, "SearchBox.dart", "controller: _inputText");
+    assert_contains(files, "SearchBox.dart", "_inputText.text = query");
 }
 
 // ── animation.omni ──

@@ -335,7 +335,7 @@ impl OmniViewGenerator {
     }
 
     /// Emit reactive effects for semantic ref bindings (`focus={sig}`,
-    /// `scroll-x={sig}`, `scroll-y={sig}`, `value={sig}`).
+    /// `scroll-x={sig}`, `scroll-y={sig}`).
     ///
     /// The bindings are extracted into `ElementIR.semantic_bindings` during
     /// lowering (semantic-level DSL spec §2.2) and validated by the semantic
@@ -346,8 +346,9 @@ impl OmniViewGenerator {
     /// - `focus`    → `el.focus()` / `el.blur()` on the boolean signal
     /// - `scroll-y` → `el.scrollTop = sig`
     /// - `scroll-x` → `el.scrollLeft = sig`
-    /// - `value`    → guarded one-way value sync (compares first so the caret
-    ///   position is preserved and no write happens when unchanged)
+    ///
+    /// (`value={sig}` is removed — design D2 — `bind:value` is the sole
+    /// two-way form and is emitted by `emit_element_bindings`.)
     fn emit_semantic_bindings(&mut self, el: &ElementIR, nid: &str) {
         for (kind, binding) in &el.semantic_bindings {
             let js_expr = self.expr_to_js(binding);
@@ -376,13 +377,6 @@ impl OmniViewGenerator {
                     let _ = writeln!(self.js,
                         "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) {{ el.scrollLeft = {}; }} }});",
                         nid, js_access
-                    );
-                }
-                // value={sig}: one-way value sync (keeps caret position)
-                "value" => {
-                    let _ = writeln!(self.js,
-                        "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) {{ if (el.value !== {}) {{ el.value = {}; }} }} }});",
-                        nid, js_access, js_access
                     );
                 }
                 _ => {

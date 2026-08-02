@@ -348,9 +348,10 @@ pub fn lower(
         );
     }
 
-    // Validate semantic ref bindings: focus={sig}, scroll-x={sig}, scroll-y={sig},
-    // value={sig} must appear only on elements with a @ref binding whose ref is
-    // declared on the component.
+    // Validate semantic ref bindings: focus={sig}, scroll-x={sig}, scroll-y={sig}
+    // must appear only on elements with a @ref binding whose ref is declared
+    // on the component. The removed value={sig} form (design D2) hard-errors
+    // here with the bind:value migration hint.
     for module in ir_program.modules.values_mut() {
         for component in module.components.values_mut() {
             crate::semantic::validate_semantic_bindings::validate_semantic_bindings(

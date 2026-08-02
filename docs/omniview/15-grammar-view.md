@@ -322,16 +322,18 @@ Two-way data binding:
 ### 2.7 Semantic Bindings (Ref System)
 
 ```
-semantic_binding ::= ('focus' | 'scroll-x' | 'scroll-y' | 'value')
-                     '=' '{' expr '}'
+semantic_binding ::= ('focus' | 'scroll-x' | 'scroll-y') '=' '{' expr '}'
 ```
 
 Compiler-recognized ref bindings (ADR-053 D2) — the value must be a bare
 signal reference (`{sig}`) or qualified store signal (`{Store.sig}`); the
 element must also carry `@ref={name}`. Other `{expr}` values on these names
-stay generic static props:
+stay generic static props. The `value` semantic binding is REMOVED (design
+D2 值绑定收敛): `bind:value` is the sole two-way form, `value={expr}` is a
+plain one-way prop, and writing `value={sig}` is a compile error with the
+migration hint「用 bind:value 双向绑定，或普通 value prop 单向」:
 ```
-<input @ref={searchBox} focus={isSearchActive} value={searchText} />
+<input @ref={searchBox} focus={isSearchActive} bind:value={searchText} />
 <ScrollView @ref={scrollPane} scroll-y={scrollPosition} />
 ```
 

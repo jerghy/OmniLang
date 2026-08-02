@@ -358,6 +358,65 @@ mod pipeline_tests {
         }
     }
 
+    /// Design D2 (值绑定收敛): the `value={sig}` semantic-binding form is
+    /// removed — `bind:value` is the sole two-way binding and `value={expr}`
+    /// is a plain one-way prop. The bare-signal form must hard-diagnose with
+    /// the migration hint and fail the compile (even with @ref present).
+    #[test]
+    fn compile_rejects_value_sig_semantic_binding_form() {
+        let source = r#"
+component InputComp {
+    signal text: String = "";
+    ref field: Element;
+    view {
+        <input ref:field value={text} />
+    }
+}
+"#;
+        let result = compile(source);
+        assert!(
+            !result.success,
+            "value={{sig}} must fail to compile, got: {:?}",
+            result.errors
+        );
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|e| e.message.contains("bind:value") && e.message.contains("value prop")),
+            "value={{sig}} must diagnose with the migration hint, got: {:?}",
+            result.errors
+        );
+    }
+
+    /// Design D2: `value={expr}` with a computed expression stays a plain
+    /// one-way prop — no diagnostic, compile succeeds.
+    #[test]
+    fn compile_accepts_computed_value_prop() {
+        let source = r#"
+component InputComp {
+    signal age: i32 = 25;
+    view {
+        <input type="number" value={age.to_string()} />
+    }
+}
+"#;
+        let result = compile(source);
+        assert!(
+            result.success,
+            "computed value prop must compile, got: {:?}",
+            result.errors
+        );
+        assert!(
+            result
+                .errors
+                .iter()
+                .all(|e| !matches!(e.severity, crate::error::Severity::Error)),
+            "computed value prop must produce no error diagnostics, got: {:?}",
+            result.errors
+        );
+    }
+
     /// Task 0.6 — lint rules must run in the shared single-file pipeline
     /// (lifted from analyse_multi) so that compile() surfaces them.
     #[test]

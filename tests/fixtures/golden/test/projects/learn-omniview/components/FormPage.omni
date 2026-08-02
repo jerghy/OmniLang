@@ -127,7 +127,8 @@ component FormPage {
                     ></textarea>
                 </div>
 
-                <!-- Disabled field demonstration -->
+                <!-- Disabled field demonstration (implicit auto-bind removed —
+                     value is always exactly what the author writes) -->
                 <div class: field>
                     <label class: label for="disabled-field">Disabled field</label>
                     <input
@@ -174,7 +175,7 @@ component FormPage {
                 @if message != "" {
                     <div class: trimmed-area>
                         <p class: trimmed-label>Trimmed message:</p>
-                        <p class: trimmed-value>"{getTrimmedMessage()}"</p>
+                        <p class: trimmed-value>{getTrimmedMessage()}</p>
                     </div>
                 }
 

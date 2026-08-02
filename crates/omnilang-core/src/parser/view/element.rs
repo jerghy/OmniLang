@@ -72,13 +72,16 @@ impl<'a> Parser<'a> {
             name = format!("{}-{}", name, next);
         }
 
-        // Check for semantic binding attributes (focus, scroll-x, scroll-y, value).
-        // These are compiler-recognized ref bindings, not generic static props.
-        // Per the semantic-level DSL spec they bind a bare signal: name={sig}.
-        // The string-literal form (value="text") and bare boolean form stay
-        // generic Static props, and so does a computed expression
-        // (value={age.to_string()}) — only a bare VarRef is a semantic binding.
-        // Validation (element has @ref, ref declared) happens in the semantic pass.
+        // Check for semantic binding attributes (focus, scroll-x, scroll-y,
+        // value). These are compiler-recognized ref bindings, not generic
+        // static props. Per the semantic-level DSL spec they bind a bare
+        // signal: name={sig}. The string-literal form (value="text") and bare
+        // boolean form stay generic Static props, and so does a computed
+        // expression (value={age.to_string()}) — only a bare VarRef is a
+        // semantic binding. The value={sig} form is REMOVED (design D2):
+        // the parser still produces RefBinding so the semantic pass can
+        // hard-error it with the bind:value migration hint instead of
+        // silently turning it into a one-way prop.
         const SEMANTIC_BINDINGS: &[&str] = &["focus", "scroll-x", "scroll-y", "value"];
         if SEMANTIC_BINDINGS.contains(&name.as_str())
             && self.at(&TokenKind::Eq)

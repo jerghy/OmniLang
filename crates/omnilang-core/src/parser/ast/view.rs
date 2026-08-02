@@ -150,10 +150,14 @@ pub enum ElementProp {
         name: String,
         signal_path: String,
     },
-    /// Semantic ref binding: focus={sig}, scroll-x={sig}, scroll-y={sig}, value={sig}
-    /// These are compiler-recognized — not generic static props.
+    /// Semantic ref binding: focus={sig}, scroll-x={sig}, scroll-y={sig}.
+    /// These are compiler-recognized — not generic static props. The
+    /// value={sig} form is removed (design D2); it is still parsed as a
+    /// RefBinding so the semantic pass can hard-error it with the bind:value
+    /// migration hint instead of silently turning it into a one-way prop.
     RefBinding {
-        /// The semantic binding name: "focus", "scroll-x", "scroll-y", "value"
+        /// The semantic binding name: "focus", "scroll-x", "scroll-y" ("value"
+        /// is accepted syntactically but rejected by validate_semantic_bindings)
         binding: String,
         /// The signal expression driving the binding
         signal: Expr,
