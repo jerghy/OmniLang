@@ -1023,14 +1023,16 @@ Flutter: [...list], count += 1, await fn()
 | `ref.select()` | `ref.current.select()` | `controller.selection = TextSelection(...)` | `el.select()` |
 | `ref.setSelection(s,e)` | `ref.current.setSelectionRange(s,e)` | `controller.selection = TextSelection(...)` | `el.setSelectionRange(s,e)` |
 | `ref.measure()` | `ref.current.getBoundingClientRect()` | `RenderBox.localToGlobal()` + `size` | `el.getBoundingClientRect()` |
-| `ref.capturePointer(id)` | `ref.current.setPointerCapture(id)` | diagnostic: 不支持 | `el.setPointerCapture(id)` |
-| `ref.releasePointer(id)` | `ref.current.releasePointerCapture(id)` | diagnostic: 不支持 | `el.releasePointerCapture(id)` |
+| `ref.capturePointer()` | `ref.current.setPointerCapture(id)` | diagnostic: 不支持 | `el.setPointerCapture(id)` |
+| `ref.releasePointer()` | `ref.current.releasePointerCapture(id)` | diagnostic: 不支持 | `el.releasePointerCapture(id)` |
 
 ### 10.3 Diagnostic 完整表
 
 | 特性 | 目标 | 级别 | 说明 |
 |------|------|------|------|
-| `capturePointer` / `releasePointer` | Flutter | error | Flutter 不支持指针捕获，请用 GestureDetector |
+| `ref.value = x` / `ref.setValue(x)` / `ref = x` | 全部 | error | 命令式写已删除，用 bind:value 双向绑定 |
+| `capturePointer(任何参数)` | 全部 | error | capturePointer 无参数；多指针锁定不支持 |
+| `capturePointer` / `releasePointer` | Flutter | error | Flutter 不支持指针捕获，用 GestureDetector |
 | `steps()` easing | Flutter | error | Flutter 无原生 steps easing |
 | ZIndex token | Flutter | warning | z-index 在 Flutter 中用 widget 顺序/Stack 控制 |
 | CSS `display: grid` | Flutter | error | Flutter 不支持 CSS grid |
@@ -1060,7 +1062,7 @@ Flutter: [...list], count += 1, await fn()
 | 变更 | 层 | 说明 |
 |------|-----|------|
 | `semantic/validate_ref_ops.rs` | 新增 | ✅ 已实现：ref 上的合法语义方法（focus/blur/scrollTo/scrollBy/select/setSelection/measure/capturePointer/releasePointer）→ RefOpIR；非法操作（getBoundingClientRect、offsetWidth 等）→ compile error + 替代建议 |
-| `ir/types.rs` — `RefOpIR` 枚举 | 新增 | ✅ 已实现：Focus, Blur, ScrollTo, ScrollBy, Measure, Select, SetSelection, Value, SetValue, CapturePointer, ReleasePointer |
+| `ir/types.rs` — `RefOpIR` 枚举 | 新增 | ✅ 已实现（10 ops）：Focus, Blur, ScrollTo, ScrollBy, Measure, Select, SetSelection, Value, CapturePointer, ReleasePointer |
 | `ir/types.rs` — `ViewTree::Slot` | 修改 | ✅ 已实现：`Slot { name, fallback, type_constraint, data_param }`（见 §5.5） |
 | `ir/lower/view.rs` — slot lowering | 修复 | ✅ 已实现：`default_content` 保留并填入 `fallback`；消费者命名属性投影同样转 `ViewTree::Slot` |
 | `ir/lower/lower_inline_motions.rs` | 新增 | ⚠️ **未实现**：内联动画体语法不解析（见 §3.7），此模块待实现 |
