@@ -5,6 +5,8 @@
 //! full pipeline and run the real toolchains over the output:
 //!
 //! - `react_output_compiles_with_tsc`: fixtures -> React TSX -> `tsc --noEmit`
+//!   with `strict: true` (the showcase-project standard); the known C1 codegen
+//!   residue is documented count-capped in `FIXTURE_STRICT_ALLOWANCE`
 //! - `flutter_output_compiles_with_dart_analyze`: fixtures -> Dart -> `dart analyze`
 //! - `match_variant_arms_flutter_compiles`: the showcase project
 //!   (`test/projects/learn-omniview`) -> Flutter -> scoped `dart analyze`
@@ -207,20 +209,55 @@ fn print_output(label: &str, out: &Output) {
 // ════════════════════════════════════════════════════════════════
 
 /// Matches the committed tsconfig of `test/projects/learn-omniview/build/
-/// react-test-app` (the e2e-validated generated app).
+/// react-test-app` (the e2e-validated generated app) — `strict: true`, the
+/// showcase standard: fixtures must be as strict-clean as the showcase app
+/// except for the documented, count-capped allowance below.
 const REACT_TSCONFIG: &str = r#"{
   "compilerOptions": {
     "jsx": "react-jsx",
     "target": "ES2020",
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "strict": false,
+    "strict": true,
     "noEmit": true,
     "skipLibCheck": true
   },
   "include": ["**/*.ts", "**/*.tsx"]
 }
 "#;
+
+/// Known `tsc --noEmit` (strict) errors in generated fixture output — the
+/// same C1 codegen residue the React gate documents in
+/// `scripts/verify-react.exemptions` (task T1.6: implicit-any params TS7006,
+/// implicit any[] vars TS7005/TS7034 — untyped SOURCE params/vars, not the
+/// typed emission path). Map: (fixture output path, error code) -> instance
+/// cap; caps equal the snapshot counts (2026-08-03, strict:true). A fixture
+/// error not listed here — or exceeding its cap — fails the test, and a
+/// stale (unused) entry fails it too (same discipline as the gate).
+const FIXTURE_STRICT_ALLOWANCE: &[((&str, &str), usize)] = &[
+    (("motion_drag/MotionDrag.tsx", "TS7006"), 15),
+    (("animation/MotionCard.tsx", "TS7006"), 6),
+    (("control_flow/ListPage.tsx", "TS7005"), 3),
+    (("control_flow/ListPage.tsx", "TS7034"), 2),
+    (("control_flow/ListPage.tsx", "TS7006"), 2),
+    (("motion_scroll/MotionScroll.tsx", "TS7006"), 2),
+];
+
+/// Parse `tsc --noEmit --pretty false` output into (path, code) -> count.
+/// Paths are normalized to forward slashes; indented multi-line message
+/// continuations (no `error TS` prefix) are skipped naturally.
+fn parse_tsc_errors(stdout: &[u8]) -> FxHashMap<(String, String), usize> {
+    let mut counts = FxHashMap::default();
+    for line in String::from_utf8_lossy(stdout).lines() {
+        let Some((loc, rest)) = line.split_once(": error TS") else {
+            continue;
+        };
+        let code = format!("TS{}", rest.split_once(':').map_or("", |(c, _)| c).trim());
+        let path = loc.rsplit_once('(').map_or("", |(p, _)| p).to_string();
+        *counts.entry((path, code)).or_insert(0) += 1;
+    }
+    counts
+}
 
 /// Can node resolve the packages the generated code imports from `dir`?
 /// Mirrors tsc's node_modules walk-up resolution closely enough for the
@@ -339,18 +376,61 @@ fn react_output_compiles_with_tsc() {
     cmd.args(&argv).current_dir(&out_dir);
     let out = run(&mut cmd);
     if !out.status.success() {
-        print_output("tsc --noEmit", &out);
-        panic!(
-            "generated React TSX failed `tsc --noEmit` ({} fixtures compiled): \
-             see output above",
+        let counts = parse_tsc_errors(&out.stdout);
+        if counts.is_empty() {
+            // No parseable `error TSxxxx` lines — a config/tool-level failure.
+            print_output("tsc --noEmit", &out);
+            panic!(
+                "generated React TSX failed `tsc --noEmit` in an unparseable \
+                 way ({} fixtures compiled): see output above",
+                fixtures.len()
+            );
+        }
+        // Every error must be a documented, count-capped allowance: exceeding
+        // a cap or hitting an un-allowanced (path, code) pair is a regression;
+        // an unused allowance entry is stale (mirrors the React gate).
+        let allowance: FxHashMap<(&str, &str), usize> =
+            FIXTURE_STRICT_ALLOWANCE.iter().copied().collect();
+        let mut problems: Vec<String> = Vec::new();
+        let mut allowed_total = 0usize;
+        for ((path, code), count) in &counts {
+            match allowance.get(&(path.as_str(), code.as_str())) {
+                Some(cap) if count <= cap => allowed_total += *count,
+                Some(cap) => problems.push(format!(
+                    "strict allowance exceeded: {path} {code}: {count} instances > cap {cap}"
+                )),
+                None => problems.push(format!(
+                    "unexpected strict error: {path} {code}: {count} instances \
+                     (fix the fixture/codegen, or document it in FIXTURE_STRICT_ALLOWANCE)"
+                )),
+            }
+        }
+        for (path, code) in allowance.keys() {
+            if !counts.contains_key(&(path.to_string(), code.to_string())) {
+                problems.push(format!(
+                    "stale strict allowance (delete — fixture now strict-clean): {path} {code}"
+                ));
+            }
+        }
+        if !problems.is_empty() {
+            print_output("tsc --noEmit", &out);
+            panic!(
+                "generated React TSX has unexpected strict errors ({} fixtures compiled):\n  {}\nsee output above",
+                fixtures.len(),
+                problems.join("\n  ")
+            );
+        }
+        eprintln!(
+            "tsc --noEmit (strict): OK — {allowed_total} known allowance'd errors over {} fixtures",
             fixtures.len()
         );
+    } else {
+        eprintln!(
+            "tsc --noEmit (strict): OK ({} fixtures compiled clean in {})",
+            fixtures.len(),
+            out_dir.display()
+        );
     }
-    eprintln!(
-        "tsc --noEmit: OK ({} fixtures compiled clean in {})",
-        fixtures.len(),
-        out_dir.display()
-    );
 }
 
 // ════════════════════════════════════════════════════════════════

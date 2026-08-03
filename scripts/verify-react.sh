@@ -8,13 +8,16 @@
 #                                     + @eslint/js + typescript-eslint recommended
 #
 # Known root-caused errors are documented in scripts/verify-react.exemptions
-# (one entry per error code, each referencing the task that fixes the root
-# cause — T1.3 style channel, T1.6 function emission, T3.3 store slices).
+# (one entry per error code and FILE — the gate is per-file, not
+# category-wide — each referencing the task that fixes the root cause —
+# T1.3 style channel, T1.6 function emission, T3.3 store slices).
 #
 # Gate semantics:
-#   - any NON-exempt error  -> GATE FAILED  (that is a new regression)
-#   - any UNUSED exemption  -> GATE FAILED  (stale entry — delete it once the
-#     root-cause task lands; exemptions must be removed, never silenced)
+#   - any NON-exempt error    -> GATE FAILED  (that is a new regression)
+#   - any UNUSED exemption    -> GATE FAILED  (stale entry — delete it once
+#     the root-cause task lands; exemptions must be removed, never silenced)
+#   - exceeding a count-cap   -> GATE FAILED  (a known error class ballooned
+#     past its documented instance count — that is also a regression)
 #
 # Prerequisites (see .github/workflows/ci.yml e2e job):
 #   cd test/projects/learn-omniview
@@ -48,26 +51,27 @@ LINT_SCOPE="src App.tsx SimpleApp.tsx __design/useDesignTokens.ts __design/useTh
 
 fail=0
 
-# ---- exemptions (glob, code, task, reason) ----
-declare -a EX_GLOB=() EX_CODE=() EX_TASK=() EX_REASON=() EX_USED=()
+# ---- exemptions (path, code, reason, count-cap, deferral) ----
+declare -a EX_GLOB=() EX_CODE=() EX_REASON=() EX_CAP=() EX_USED=()
 load_exemptions() {
-  local glob code task reason
-  while IFS=$'\t' read -r glob code task reason; do
+  local glob code reason cap deferral
+  while IFS=$'\t' read -r glob code reason cap deferral; do
     [[ -z "$glob" || "$glob" == \#* ]] && continue
     EX_GLOB+=("${glob//\*\*/*}") # bash [[ == ]] pattern: '*' crosses '/'
     EX_CODE+=("$code")
-    EX_TASK+=("$task")
     EX_REASON+=("$reason")
+    EX_CAP+=("${cap:-}")
     EX_USED+=(0)
   done < "$EXEMPTIONS"
 }
 
-# is_exempt <path> <code> — returns 0 when the (path, code) pair is exempted
+# is_exempt <path> <code> — returns 0 when the (path, code) pair is exempted;
+# counts each match against the entry so cap violations are detectable
 is_exempt() {
   local path="$1" code="$2" i
   for i in "${!EX_GLOB[@]}"; do
     if [[ "$path" == ${EX_GLOB[$i]} && "$code" == "${EX_CODE[$i]}" ]]; then
-      EX_USED[$i]=1
+      EX_USED[$i]=$((EX_USED[$i] + 1))
       return 0
     fi
   done
@@ -77,8 +81,21 @@ is_exempt() {
 check_unused() {
   local i
   for i in "${!EX_GLOB[@]}"; do
-    if [[ "${EX_USED[$i]}" != 1 ]]; then
-      echo "STALE EXEMPTION (delete it — error class gone): ${EX_GLOB[$i]} ${EX_CODE[$i]} [${EX_TASK[$i]}] ${EX_REASON[$i]}"
+    if [[ "${EX_USED[$i]}" -eq 0 ]]; then
+      echo "STALE EXEMPTION (delete it — error class gone): ${EX_GLOB[$i]} ${EX_CODE[$i]} [${EX_REASON[$i]}]"
+      fail=1
+    fi
+  done
+}
+
+# check_counts — fail when a (path, code) pair exceeded its instance cap
+check_counts() {
+  local i cap
+  for i in "${!EX_GLOB[@]}"; do
+    cap="${EX_CAP[$i]}"
+    [[ "$cap" =~ ^[0-9]+$ ]] || continue
+    if (( EX_USED[$i] > cap )); then
+      echo "EXEMPTION CAP EXCEEDED (error class ballooned — new instances are regressions): ${EX_GLOB[$i]} ${EX_CODE[$i]} (cap $cap, actual ${EX_USED[$i]}) [${EX_REASON[$i]}]"
       fail=1
     fi
   done
@@ -149,12 +166,14 @@ else
 fi
 
 check_unused
+check_counts
 
 if [ "$fail" -ne 0 ]; then
   echo
   echo "GATE FAILED"
   echo "  - non-exempt errors are NEW regressions in generated output"
   echo "  - stale exemptions must be deleted (root cause already fixed)"
+  echo "  - cap-exceeded exemptions mean a known error class ballooned"
   echo "  - exemption registry: scripts/verify-react.exemptions"
   exit 1
 fi
