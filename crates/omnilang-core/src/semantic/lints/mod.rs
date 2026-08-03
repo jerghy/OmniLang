@@ -11,6 +11,7 @@
 mod ast_collectors;
 mod computed_purity;
 mod dead_code;
+mod for_key;
 mod helpers;
 mod invalid_event_field;
 mod missing_return;
@@ -106,6 +107,7 @@ fn all_rules() -> Vec<Box<dyn LintRule>> {
         Box::new(unused_import::UnusedImport),
         Box::new(invalid_event_field::InvalidEventField),
         Box::new(store_action_event::StoreActionEventData),
+        Box::new(for_key::ForKey),
     ]
 }
 

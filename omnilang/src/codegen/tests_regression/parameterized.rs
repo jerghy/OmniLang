@@ -641,6 +641,12 @@ fn assert_control_flow_react(files: &FxHashMap<String, String>) {
     // Keyed @for → key={item}; empty body → length === 0 ternary.
     assert_contains(files, "ListPage.tsx", "key={item}");
     assert_contains(files, "ListPage.tsx", ".length === 0");
+    // Empty body → single-eval iterable (T5.5: the old `({} && {}...)`
+    // shape double-evaluated the iterable; now a render-scope const).
+    assert_contains(files, "ListPage.tsx", "const __omni_iterable = items;");
+    // Key-less nested @for → index-key fallback + generated warning comment.
+    assert_contains(files, "ListPage.tsx", "key={_i}");
+    assert_contains(files, "ListPage.tsx", "omni: no key=");
     // @if mode:"fade" → CSS-module fade wrapper around each branch.
     assert_contains(files, "ListPage.tsx", "omni-if-fade");
     assert_contains(files, "ListPage.tsx", "shown");
@@ -649,10 +655,18 @@ fn assert_control_flow_react(files: &FxHashMap<String, String>) {
 }
 
 fn assert_control_flow_flutter(files: &FxHashMap<String, String>) {
-    // Keyed @for renders as ListView.builder; the key_expr contract
-    // (key: ValueKey(expr)) is the Task 5.5 TARGET — asserted in the
-    // #[ignore]d `flutter_control_flow_contract` test below.
+    // [scroll] @for → ListView.builder dispatch (T5.5) with
+    // key: ValueKey(expr) per item (the key_expr contract, design doc 域 6).
     assert_contains(files, "ListPage.dart", "ListView.builder(");
+    // Non-scroll @for → Column document flow (T5.5: no more unconditional
+    // ListView.builder; nested @for stays in flow).
+    assert_contains(
+        files,
+        "ListPage.dart",
+        "Column(mainAxisSize: MainAxisSize.min, children: [for (final item in items) KeyedSubtree(key: ValueKey(item), child:",
+    );
+    assert_contains(files, "ListPage.dart", "for (final row in matrix)");
+    assert_contains(files, "ListPage.dart", "for (final cell in row)");
     // Empty body → Builder with isEmpty switch.
     assert_contains(files, "ListPage.dart", "isEmpty ?");
     assert_contains(files, "ListPage.dart", "No items");
@@ -670,23 +684,16 @@ fn assert_control_flow_flutter(files: &FxHashMap<String, String>) {
     assert_contains(files, "ListPage.dart", "hidden");
 }
 
-/// T5.5 TARGET contract for Flutter keyed @for: `key_expr` → `key:
-/// ValueKey(expr)` in the item builder.
+/// T5.5 contract for the Flutter keyed @for: `key_expr` → `key:
+/// ValueKey(expr)` per item and `[scroll]` → ListView.builder dispatch.
 ///
-/// Today the Flutter codegen ignores `key_expr` (unconditional
-/// ListView.builder with no ValueKey) — the remaining #30-era gap owned by
-/// Task 5.5 (key_expr → `key: ValueKey(expr)`; [scroll] → ListView.builder
-/// dispatch) of the 2026-08-02-semantic-syntax-v2 plan (§5.5; design doc
-/// mapping table). `@if mode:"fade"` → AnimatedSwitcher landed in Task 5.4
-/// and is asserted by the active `assert_control_flow_flutter` above. The
-/// assertions below are the TARGET shape and FAIL on the current codegen,
-/// so the test stays #[ignore]d until 5.5 lands.
-// TODO(T5.5): Flutter @for key_expr → key: ValueKey(expr) + [scroll]
-// dispatch — un-ignore when Task 5.5 lands (key_expr → key: ValueKey(expr);
-// [scroll] → ListView.builder dispatch).
+/// Landed by Task 5.5 (key_expr → `key: ValueKey(expr)`; [scroll] →
+/// ListView.builder; non-scroll → Column document flow) of the
+/// 2026-08-02-semantic-syntax-v2 plan (§5.5; design doc 域 6 mapping table
+/// / spec §7.4). Un-ignored when 5.5 landed — it now runs green on every
+/// fixture compile.
 #[cfg(feature = "codegen-flutter")]
 #[test]
-#[ignore = "T5.5: Flutter @for key_expr → key: ValueKey(expr) — known gap, owned by Task 5.5"]
 fn flutter_control_flow_contract() {
     let source = include_str!("../../../tests/fixtures/parameterized/control_flow.omni");
     let files = compile_source_fixture(source, crate::codegen::Target::Flutter);

@@ -1897,6 +1897,175 @@ fn compile_react_full(source: &str) -> crate::InternalCompileResult {
     )
 }
 
+// ── @for cross-target keyed contract (Task 5.5) ─────────────
+
+/// T5.5: key_expr → `key={expr}`; a key-less @for falls back to the index
+/// `key={_i}` with a generated warning comment — NEVER `key={String(item)}`
+/// (which renders "[object Object]" for object items and silently collapses
+/// keyed reconciliation, review CRITICAL).
+#[test]
+fn react_for_index_key_fallback_with_warning_comment() {
+    let source = r#"
+component ListPage {
+    signal items: Array<String> = [];
+    view {
+        @for item in items { <div>{item}</div> }
+    }
+}
+"#;
+    let result = compile_react_full(source);
+    assert!(result.success, "errors: {:?}", result.errors);
+    let content: String = result
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        content.contains("key={_i}"),
+        "key-less @for must fall back to the index key, got:\n{content}"
+    );
+    assert!(
+        content.contains("omni:"),
+        "key-less @for must carry a generated warning comment, got:\n{content}"
+    );
+    assert!(
+        !content.contains("key={String("),
+        "the String(item) -> \"[object Object]\" key must be gone, got:\n{content}"
+    );
+}
+
+/// T5.5: keyed @for keeps `key={expr}` on the item fragment.
+#[test]
+fn react_for_key_expr_emits_expr_key() {
+    let source = r#"
+component ListPage {
+    signal items: Array<String> = [];
+    view {
+        @for item in items key={item} { <div>{item}</div> }
+    }
+}
+"#;
+    let result = compile_react_full(source);
+    assert!(result.success, "errors: {:?}", result.errors);
+    let content: String = result
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        content.contains("key={item}"),
+        "key_expr must emit key={{expr}}, got:\n{content}"
+    );
+    assert!(
+        !content.contains("key={_i}"),
+        "keyed @for must not use the index fallback, got:\n{content}"
+    );
+}
+
+/// T5.5: the empty-body iterable is evaluated ONCE (render-scope const in
+/// an IIFE), not twice (`({} && {}.length === 0) ? ... : ({}.map(...))`
+/// re-evaluated the iterable per render — side effects / allocations ran
+/// twice, review CRITICAL).
+#[test]
+fn react_for_empty_body_single_eval() {
+    let source = r#"
+component ListPage {
+    signal items: Array<String> = [];
+    view {
+        @for item in items {
+            <div>{item}</div>
+        } @empty {
+            <p>No items</p>
+        }
+    }
+}
+"#;
+    let result = compile_react_full(source);
+    assert!(result.success, "errors: {:?}", result.errors);
+    let content: String = result
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert_eq!(
+        content.matches("const __omni_iterable = items;").count(),
+        1,
+        "the iterable const must be declared exactly once, got:\n{content}"
+    );
+    assert_eq!(
+        content.matches("__omni_iterable.map").count(),
+        1,
+        "the iterable must be mapped exactly once, got:\n{content}"
+    );
+    assert!(
+        !content.contains("items && items"),
+        "the double-evaluation shape must be gone, got:\n{content}"
+    );
+    assert!(
+        content.contains("__omni_iterable.length === 0"),
+        "the empty check must read the single-eval const, got:\n{content}"
+    );
+}
+
+/// T5.5: a @for over OBJECT items (record/struct element type) without
+/// key= must produce the semantic for-key WARNING (design doc 域 6 诊断表:
+/// 「对象项列表建议提供 key=；未提供时使用索引，重排将丢失状态」) while
+/// still compiling.
+#[test]
+fn react_for_object_items_no_key_warns() {
+    let source = r#"
+struct Todo { id: i32, title: String }
+
+component App {
+    signal todos: Array<Todo> = [];
+    view {
+        @for t in todos { <div>{t.title}</div> }
+    }
+}
+"#;
+    let result = compile_react_full(source);
+    assert!(result.success, "errors: {:?}", result.errors);
+    let kinds: Vec<String> = result
+        .warnings
+        .iter()
+        .map(|d| d.kind.code_str().to_string())
+        .collect();
+    assert!(
+        result
+            .warnings
+            .iter()
+            .any(|d| d.message.contains("对象项列表建议提供 key=")),
+        "object-item @for without key must warn; warnings: {kinds:?}"
+    );
+}
+
+/// T5.5: primitive-item @for without key= must NOT warn.
+#[test]
+fn react_for_primitive_items_no_key_does_not_warn() {
+    let source = r#"
+component ListPage {
+    signal items: Array<String> = [];
+    view {
+        @for item in items { <div>{item}</div> }
+    }
+}
+"#;
+    let result = compile_react_full(source);
+    assert!(result.success, "errors: {:?}", result.errors);
+    assert!(
+        result.warnings.iter().all(|d| !d.message.contains("对象项列表")),
+        "primitive-item @for must not warn; warnings: {:?}",
+        result
+            .warnings
+            .iter()
+            .map(|d| d.message.clone())
+            .collect::<Vec<_>>()
+    );
+}
+
 /// Review-verified exploit: `class: "x',alert(document.cookie),'"` used to
 /// compile to valid TSX (`styles['x',alert(document.cookie),'']` — comma
 /// operator) that executes arbitrary JS on render. It must now be a compile

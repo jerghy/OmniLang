@@ -3673,6 +3673,134 @@ fn compile_flutter(source: &str) -> Option<crate::InternalCompileResult> {
     }
 }
 
+// ── @for cross-target keyed contract (Task 5.5) ─────────────
+
+/// T5.5: a non-scroll @for emits a `Column` (document flow), NOT an
+/// unconditional `ListView.builder` (review CRITICAL: Flutter emitted
+/// ListView.builder regardless of `[scroll]`).
+#[test]
+fn flutter_for_non_scroll_emits_column() {
+    let source = r#"
+component ListPage {
+    signal items: Array<String> = [];
+    view {
+        @for item in items { <div>{item}</div> }
+    }
+}
+"#;
+    let flutter = compile_flutter(source).unwrap();
+    let dart: String = flutter
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        dart.contains(
+            "Column(mainAxisSize: MainAxisSize.min, children: [for (final item in items)"
+        ),
+        "non-scroll @for must emit a Column, got:\n{dart}"
+    );
+    assert!(
+        !dart.contains("ListView.builder"),
+        "non-scroll @for must NOT emit ListView.builder, got:\n{dart}"
+    );
+}
+
+/// T5.5: `key={expr}` → `KeyedSubtree(key: ValueKey(expr), ...)` per item —
+/// the Column (non-scroll) path.
+#[test]
+fn flutter_for_key_expr_emits_value_key() {
+    let source = r#"
+component ListPage {
+    signal items: Array<String> = [];
+    view {
+        @for item in items key={item} { <div>{item}</div> }
+    }
+}
+"#;
+    let flutter = compile_flutter(source).unwrap();
+    let dart: String = flutter
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        dart.contains("KeyedSubtree(key: ValueKey(item), child:"),
+        "key_expr must emit key: ValueKey(expr), got:\n{dart}"
+    );
+    assert!(
+        !dart.contains("ListView.builder"),
+        "keyed non-scroll @for must stay in a Column, got:\n{dart}"
+    );
+}
+
+/// T5.5: `[scroll]` → ListView.builder dispatch, with `key: ValueKey(expr)`
+/// on each item (the design doc 域 6 mapping row).
+#[test]
+fn flutter_for_scroll_emits_listview_builder_with_value_key() {
+    let source = r#"
+component ListPage {
+    signal items: Array<String> = [];
+    view {
+        @for item in items [scroll] key={item} { <div>{item}</div> }
+    }
+}
+"#;
+    let flutter = compile_flutter(source).unwrap();
+    let dart: String = flutter
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        dart.contains("ListView.builder("),
+        "[scroll] @for must emit ListView.builder, got:\n{dart}"
+    );
+    assert!(
+        dart.contains("key: ValueKey(item)"),
+        "[scroll] keyed @for must carry key: ValueKey(expr) per item, got:\n{dart}"
+    );
+}
+
+/// T5.5: nested @for (list inside list, non-scroll) must stay in document
+/// flow — the inner list emits a nested Column, never a nested unbounded
+/// ListView (design doc 域 6: 「@for 嵌套在可滚动父元素内 → Column」).
+#[test]
+fn flutter_nested_for_stays_in_document_flow() {
+    let source = r#"
+component MatrixPage {
+    signal matrix: Array<Array<String>> = [];
+    view {
+        @for row in matrix {
+            <div>@for cell in row { <span>{cell}</span> }</div>
+        }
+    }
+}
+"#;
+    let flutter = compile_flutter(source).unwrap();
+    let dart: String = flutter
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        dart.contains("for (final row in matrix)"),
+        "outer @for must iterate in document flow, got:\n{dart}"
+    );
+    assert!(
+        dart.contains("for (final cell in row)"),
+        "inner @for must iterate in document flow, got:\n{dart}"
+    );
+    assert!(
+        !dart.contains("ListView.builder"),
+        "nested non-scroll @for must not produce unbounded viewports, got:\n{dart}"
+    );
+}
+
 /// Task 4.3 fixture: a component using `class: Design.Card`, a dynamic
 /// `class: { Active: cond }`, and `variant: Design.Button(color=primary)` —
 /// the Flutter output must carry REAL decoration values (the generated

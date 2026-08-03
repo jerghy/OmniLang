@@ -898,17 +898,26 @@ pub(super) fn gen_view_node_tsx(
                     format_expr_ir_tsx_renamed(ke, ref_names, store_field_renames)
                 )
             } else {
-                // Use item identity as key to avoid index-as-key anti-pattern.
-                // String() wraps so React gets a consistent key for objects
-                // rather than silently calling toString() -> "[object Object]"
-                format!(" key={{String({})}}", item_name)
+                // Index-key fallback (Task 5.5): without key={expr} React
+                // reconciles by index anyway — make it explicit and leave a
+                // generated warning in the output (the semantic layer warns
+                // for OBJECT items — design doc 域 6; the index fallback is
+                // the codegen safety net). NEVER String(item) — that renders
+                // "[object Object]" for object items and silently collapses
+                // keyed reconciliation.
+                " key={_i} /* omni: no key={expr} on @for — index-key fallback; reorder/filter loses item state — add key={...} for object items */".to_string()
             };
             if list.empty_body.is_some() {
                 w.emit("{");
                 w.indent();
+                // Single-eval the iterable (Task 5.5): the previous shape
+                // `({} && {}.length === 0) ? ... : ({}.map(...))` evaluated
+                // the iterable TWICE per render (side effects / allocations
+                // ran twice). Hoist to a const inside an IIFE so the list
+                // expression runs exactly once.
                 w.emit_fmt(format_args!(
-                    "({} && {}.length === 0) ? (",
-                    iterable_str, iterable_str
+                    "(() => {{ const __omni_iterable = {}; return (__omni_iterable && __omni_iterable.length === 0) ? (",
+                    iterable_str
                 ));
                 w.indent();
                 if let Some(ref empty_body) = list.empty_body {
@@ -927,8 +936,8 @@ pub(super) fn gen_view_node_tsx(
                 }
                 w.dedent();
                 w.emit_fmt(format_args!(
-                    ") : ({}.map(({}, _i) => (",
-                    iterable_str, item_name
+                    ") : (__omni_iterable.map(({}, _i) => (",
+                    item_name
                 ));
             } else {
                 w.emit("{");
@@ -961,7 +970,13 @@ pub(super) fn gen_view_node_tsx(
             w.emit("))");
             w.dedent();
             if list.empty_body.is_some() {
-                w.emit(")}");
+                // The preceding `))` closed the lambda-body and map-call
+                // parens; here the ternary's else paren closes (`)`), the
+                // return statement ends (`;`), the arrow body and the IIFE
+                // call paren close (`})`), the IIFE is invoked (`()`), and
+                // the JSX container closes (`}`). No stray `;` — JSX
+                // expression containers hold exactly one expression.
+                w.emit("); })()}");
             } else {
                 w.emit("}");
             }

@@ -1,10 +1,12 @@
-// control_flow.omni — @if/@for 三后端参数化断言：
+// control_flow.omni — @if/@for 三后端参数化断言（Task 5.5 扩展）：
 //   - @for key_expr (key={item}) + empty_body (@empty) + [scroll] 提示
+//   - 非滚动 @for → Flutter Column（文档流；修复无条件 ListView.builder）
+//   - 嵌套 @for（列表套列表，非滚动）→ 内层仍走 Column，无无界视口
 //   - @if ternary with mode:"fade" 过渡
 // Exercises conditional/list rendering shapes across all P0 backends.
 //
-// Note: the item type is intentionally a plain Array<String> (not a
-// struct-typed array) — Flutter struct emission is a Phase 5 gap
+// Note: item types are intentionally plain Array<String> / Array<Array<String>>
+// (not struct-typed arrays) — Flutter struct emission is a Phase 5 gap
 // (Task 5.5 family), so a struct element type would fail the
 // generated_code_validation dart-analyze gate.
 
@@ -12,6 +14,7 @@ import omniview;
 
 component ListPage {
     signal items: Array<String> = [];
+    signal matrix: Array<Array<String>> = [];
     signal show: bool = true;
 
     view {
@@ -21,6 +24,14 @@ component ListPage {
                 <div class: item-row>{item}</div>
             } @empty {
                 <p class: empty>No items</p>
+            }
+            <h3>Inline list (non-scroll)</h3>
+            @for item in items key={item} {
+                <div class: item-row>{item}</div>
+            }
+            <h3>Nested list (non-scroll)</h3>
+            @for row in matrix {
+                <div>@for cell in row { <span>{cell}</span> }</div>
             }
             <h3>If fade</h3>
             @if show mode:"fade" { <div>shown</div> } @else { <div>hidden</div> }

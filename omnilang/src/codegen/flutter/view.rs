@@ -1644,7 +1644,16 @@ fn format_conditional(
     format!("Builder(\n  builder: (context) => {},\n)", result)
 }
 
-/// Format a ListRenderingIntent as a ListView.builder for reactive re-rendering.
+/// Format a ListRenderingIntent for reactive re-rendering.
+///
+/// Task 5.5 dispatch (design doc 域 6 mapping / spec §7.4):
+/// - `[scroll]` hint → `ListView.builder` (lazy viewport)
+/// - no hint → `Column(children: [for ...])` — document flow, never an
+///   unconditional ListView.builder (review CRITICAL); nested @for stays in
+///   flow (inner lists emit nested Columns, no unbounded viewports)
+/// - `key={expr}` → `KeyedSubtree(key: ValueKey(expr), child: ...)` per item
+///   on both paths
+/// - `@empty` → `Builder(builder: (context) => iterable.isEmpty ? empty : rendered)`
 fn format_list_rendering(
     list: &ListRenderingIntent,
     motions: &[MotionIntent],
@@ -1653,16 +1662,34 @@ fn format_list_rendering(
     let iterable_str = ctx.format_expr(&list.iterable);
     let item_name = &list.item_binding.name;
     // The item body must be a single widget expression — multi-node
-    // fragments are Column-wrapped so `return <body>` stays valid.
+    // fragments are Column-wrapped so the emitted expression stays valid.
     let body_str = list
         .body
         .as_ref()
         .map(|b| format_single_view(b, motions, ctx))
         .unwrap_or_else(|| "SizedBox()".to_string());
-    let list_builder = format!(
-        "ListView.builder(\n  itemCount: {iter}.length,\n  itemBuilder: (context, index) {{\n    var {item} = {iter}[index];\n    return {body};\n  }},\n)",
-        iter = iterable_str, item = item_name, body = body_str
-    );
+    // key={expr} → per-item KeyedSubtree (identity tracking for
+    // state-preserving reconciliation on both paths; the item widget cannot
+    // take `key:` generically, so the wrapper carries it).
+    let item_widget = match &list.key_expr {
+        Some(ke) => format!(
+            "KeyedSubtree(key: ValueKey({}), child: {})",
+            ctx.format_expr(ke),
+            body_str
+        ),
+        None => body_str,
+    };
+    let rendered = if list.scroll_hint {
+        format!(
+            "ListView.builder(\n  itemCount: {iter}.length,\n  itemBuilder: (context, index) {{\n    var {item} = {iter}[index];\n    return {item_widget};\n  }},\n)",
+            iter = iterable_str, item = item_name, item_widget = item_widget
+        )
+    } else {
+        format!(
+            "Column(mainAxisSize: MainAxisSize.min, children: [for (final {item} in {iter}) {item_widget}])",
+            item = item_name, iter = iterable_str, item_widget = item_widget
+        )
+    };
     if list.empty_body.is_some() {
         let empty_str = list
             .empty_body
@@ -1671,10 +1698,10 @@ fn format_list_rendering(
             .unwrap_or_else(|| "SizedBox()".to_string());
         format!(
             "Builder(\n  builder: (context) => {}.isEmpty ? {} : {},\n)",
-            iterable_str, empty_str, list_builder
+            iterable_str, empty_str, rendered
         )
     } else {
-        list_builder
+        rendered
     }
 }
 

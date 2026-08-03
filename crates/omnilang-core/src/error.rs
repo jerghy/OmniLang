@@ -35,6 +35,8 @@ pub enum LintRuleId {
     InvalidEventField,
     #[error("store-action-no-event-data")]
     StoreActionNoEventData,
+    #[error("for-key")]
+    ForKey,
     /// Unknown/unrecognized lint rule (fallback for forward compatibility).
     #[error("{0}")]
     Unknown(String),
@@ -53,6 +55,7 @@ impl From<&str> for LintRuleId {
             "unused-import" => Self::UnusedImport,
             "invalid-event-field" => Self::InvalidEventField,
             "store-action-no-event-data" => Self::StoreActionNoEventData,
+            "for-key" => Self::ForKey,
             _ => Self::Unknown(s.to_string()),
         }
     }
