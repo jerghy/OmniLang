@@ -17,6 +17,12 @@
 //!   0 warnings (UN-IGNORED by Task 5.8a — the residual 2 errors and ~115
 //!   warnings were eliminated; see the test's doc comment for the itemized
 //!   fixes)
+//! - `learn_omniview_flutter_warnings_are_tracked`: the showcase project ->
+//!   Flutter -> compile-warnings count asserted ≤ the documented baseline
+//!   (1,004 = 881 ECodegen + 123 unused-import; Task 0.5). Later tasks
+//!   (3.3/3.5/3.6/4.12) must lower the number monotonically, updating the
+//!   `FLUTTER_WARNINGS_BASELINE` cap — a regression fails the gate even
+//!   while `dart analyze` stays green.
 //!
 //! Toolchain requirements (none are hard requirements — each test SKIPs
 //! gracefully when its toolchain is missing, mirroring the pattern in
@@ -52,6 +58,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
 use omnilang::codegen::Target;
+use omnilang::error::{DiagnosticKind, LintRuleId};
 use rustc_hash::FxHashMap;
 
 /// Fixture directories (relative to the omnilang crate root).
@@ -372,11 +379,37 @@ fn react_output_compiles_with_tsc() {
     };
 
     argv.push("--noEmit".to_string());
+    // Match the doc contract of `parse_tsc_errors` (`--pretty false`): the
+    // single-line `path(line,col): error TSxxxx: ...` format the parser
+    // expects. tsc's default pretty mode depends on TTY detection; pinning
+    // it explicitly makes the parse contract tool-independent.
+    argv.push("--pretty".to_string());
+    argv.push("false".to_string());
     let mut cmd = Command::new(program);
     cmd.args(&argv).current_dir(&out_dir);
     let out = run(&mut cmd);
     if !out.status.success() {
         let counts = parse_tsc_errors(&out.stdout);
+        // Mixed-output blind spot (mirrors verify-react.sh:133, which flags
+        // any unparsed non-indented line as a config/tool failure): tsc can
+        // interleave parseable `error TS` lines with unparseable ones (a
+        // crash banner, or pretty-mode formatting if `--pretty false` is
+        // not honored). Every `error TS` line must have been parsed — a
+        // mismatch means the parser silently swallowed part of the output
+        // while the allowance logic below went on "approving" the rest.
+        let error_ts_lines = String::from_utf8_lossy(&out.stdout)
+            .lines()
+            .filter(|l| l.contains("error TS"))
+            .count();
+        let parsed_lines: usize = counts.values().sum();
+        if error_ts_lines != parsed_lines {
+            print_output("tsc --noEmit", &out);
+            panic!(
+                "mixed tsc output: {error_ts_lines} line(s) contain `error TS` \
+                 but only {parsed_lines} were parseable — the unparseable ones \
+                 are a config/tool failure, not codegen errors (see output above)"
+            );
+        }
         if counts.is_empty() {
             // No parseable `error TSxxxx` lines — a config/tool-level failure.
             print_output("tsc --noEmit", &out);
@@ -607,11 +640,24 @@ fn flutter_output_compiles_with_dart_analyze() {
 // (the project's output is written under `out/learn-omniview/` so
 // `flutter_analyze_targets` picks it up unchanged).
 
+/// Compile output of the showcase project: the out root (generated `.dart`
+/// files under `out/learn-omniview/` plus the pubspec/analysis_options
+/// `dart analyze` needs) and the compile warnings.
+struct LearnOmniviewFlutterOutput {
+    out_root: PathBuf,
+    /// Warnings raised during compilation — lint diagnostics
+    /// (`DiagnosticKind::ELint(...)`, e.g. unused-import) plus codegen
+    /// warnings (`DiagnosticKind::ECodegen`, unmapped feature degradations
+    /// per ADR-052/053). This is the channel the Task 0.5 warnings gate
+    /// asserts on (the same `warnings` array `omnic build` prints).
+    warnings: Vec<omnilang::error::Diagnostic>,
+}
+
 /// Compile the showcase project to Flutter and write every generated `.dart`
 /// file under `out/learn-omniview/` plus the pubspec/analysis_options
-/// `dart analyze` needs. Returns the out root, or None when the Flutter
-/// backend is not compiled into this build (SKIP).
-fn compile_learn_omniview_flutter(scratch: &ScratchDir) -> Option<PathBuf> {
+/// `dart analyze` needs. Returns the out root and compile warnings, or None
+/// when the Flutter backend is not compiled into this build (SKIP).
+fn compile_learn_omniview_flutter(scratch: &ScratchDir) -> Option<LearnOmniviewFlutterOutput> {
     // Discover sources the same way `omnic build` does: Directory mode
     // keys files by path relative to src/ ("./components/x" imports
     // resolve through the same path mapping the CLI uses).
@@ -690,7 +736,10 @@ fn compile_learn_omniview_flutter(scratch: &ScratchDir) -> Option<PathBuf> {
 
     std::fs::write(out_root.join("pubspec.yaml"), FLUTTER_PUBSPEC).expect("write pubspec");
     std::fs::write(out_root.join("analysis_options.yaml"), "# minimal\n").expect("write options");
-    Some(out_root)
+    Some(LearnOmniviewFlutterOutput {
+        out_root,
+        warnings: result.warnings,
+    })
 }
 
 /// Scoped validation for deferral #30 (Task 1.4): match expressions with
@@ -709,9 +758,10 @@ fn compile_learn_omniview_flutter(scratch: &ScratchDir) -> Option<PathBuf> {
 #[test]
 fn match_variant_arms_flutter_compiles() {
     let scratch = ScratchDir::new("match-variant");
-    let Some(out_root) = compile_learn_omniview_flutter(&scratch) else {
+    let Some(out) = compile_learn_omniview_flutter(&scratch) else {
         return; // backend not compiled in
     };
+    let out_root = out.out_root;
 
     // Deterministic content assertions — the emitted shape itself (these do
     // not depend on the dart toolchain being present).
@@ -831,9 +881,10 @@ fn learn_omniview_flutter_output_passes_dart_analyze() {
     };
 
     let scratch = ScratchDir::new("learn-omniview");
-    let Some(out_root) = compile_learn_omniview_flutter(&scratch) else {
+    let Some(out) = compile_learn_omniview_flutter(&scratch) else {
         return; // backend not compiled in
     };
+    let out_root = out.out_root;
 
     dart.args(["pub", "get"]).current_dir(&out_root);
     let pub_get = run(&mut dart);
@@ -867,6 +918,62 @@ fn learn_omniview_flutter_output_passes_dart_analyze() {
         failures.is_empty(),
         "learn-omniview Flutter output failed `dart analyze`:\n{}",
         failures.join("\n\n")
+    );
+}
+
+// ════════════════════════════════════════════════════════════════
+// Showcase project: Flutter compile-warnings baseline (Task 0.5)
+// ════════════════════════════════════════════════════════════════
+//
+// `dart analyze` being green does NOT mean the compile is warning-free: the
+// compiler itself emits warnings (lint rules + codegen degradations) that
+// never reach the analyzer. This gate tracks them so the v3 fixes cannot
+// silently add new ones while analyzer-level assertions hold.
+
+/// Baseline for the showcase project's Flutter compile warnings, measured
+/// 2026-08-03: 1,004 total = 881 codegen warnings
+/// (`DiagnosticKind::ECodegen` — unmapped semantic features degrading per
+/// ADR-052/053) + 123 `unused-import` lint warnings. The gate asserts
+/// MONOTONIC DECREASE: tasks 3.3/3.5/3.6/4.12 lower this number, and each
+/// lowering updates this cap — so a regression (or an un-documented new
+/// warning source) fails the gate here, even while `dart analyze` stays
+/// green. Warnings are not errors: they must be lowered deliberately,
+/// warning by warning, never re-baselined upward.
+const FLUTTER_WARNINGS_BASELINE: usize = 1004;
+
+#[test]
+fn learn_omniview_flutter_warnings_are_tracked() {
+    let scratch = ScratchDir::new("flutter-warnings");
+    let Some(out) = compile_learn_omniview_flutter(&scratch) else {
+        return; // backend not compiled in
+    };
+    let warnings = out.warnings;
+
+    // Baseline assertion: total must stay ≤ the documented cap. The plan's
+    // measured distribution (881 ECodegen + 123 unused-import) is recorded
+    // in the eprintln below for the per-category trackers.
+    assert!(
+        warnings.len() <= FLUTTER_WARNINGS_BASELINE,
+        "warnings regressed: {} > {} — see the FLUTTER_WARNINGS_BASELINE \
+         comment for the monotonic-decrease contract (never re-baseline \
+         upward; lower the number per task 3.3/3.5/3.6/4.12)",
+        warnings.len(),
+        FLUTTER_WARNINGS_BASELINE
+    );
+
+    let ecodegen = warnings
+        .iter()
+        .filter(|w| w.kind == DiagnosticKind::ECodegen)
+        .count();
+    let unused = warnings
+        .iter()
+        .filter(|w| matches!(w.kind, DiagnosticKind::ELint(LintRuleId::UnusedImport)))
+        .count();
+    eprintln!(
+        "warnings baseline: {} total ({} ECodegen, {} unused-import)",
+        warnings.len(),
+        ecodegen,
+        unused
     );
 }
 
