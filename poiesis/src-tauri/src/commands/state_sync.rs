@@ -1,7 +1,8 @@
 //! State-sync and PID-verification commands.
 
-use crate::path::sanitize_path;
 use crate::state::ProjectState;
+#[cfg(feature = "server-compile")]
+use crate::path::sanitize_path;
 
 // ── PID verification ──
 
@@ -42,6 +43,7 @@ pub(crate) fn get_pid_index(state: tauri::State<ProjectState>) -> Result<String,
     Ok(state.pid_index.lock().map_err(|e| e.to_string())?.clone())
 }
 
+#[cfg(feature = "server-compile")]
 #[tauri::command]
 pub(crate) fn verify_pid_roundtrip(
     file: String,

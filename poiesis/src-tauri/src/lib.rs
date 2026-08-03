@@ -14,6 +14,7 @@ pub(crate) const MAX_SOURCE_SIZE: usize = 10 * 1024 * 1024;
 
 /// Convert an omnilang diagnostic to a JSON Value (useful for FFI or dynamic output).
 #[allow(dead_code)]
+#[cfg(feature = "server-compile")]
 pub(crate) fn diagnostic_to_json(d: &omnilang::error::Diagnostic) -> serde_json::Value {
     serde_json::json!({
         "severity": match d.severity {
@@ -77,9 +78,13 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            #[cfg(feature = "server-compile")]
             compile_project,
+            #[cfg(feature = "server-compile")]
             compile_source,
+            #[cfg(feature = "server-compile")]
             analyse_source,
+            #[cfg(feature = "server-compile")]
             project_export,
             get_project_dir,
             open_project,
@@ -90,6 +95,7 @@ pub fn run() {
             sync_store_state,
             get_store_snapshot,
             get_pid_index,
+            #[cfg(feature = "server-compile")]
             verify_pid_roundtrip,
             open_debug_window,
             close_debug_window,

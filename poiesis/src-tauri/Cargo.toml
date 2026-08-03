@@ -18,11 +18,15 @@ tauri-plugin-dialog = "2"
 tauri-plugin-shell = "2"
 tauri-plugin-window-state = "2"
 tauri-plugin-store = "2"
-omnilang = { path = "../../omnilang" }
+omnilang = { path = "../../omnilang", optional = true }
 rustc-hash = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 victauri-plugin = "0.8.5"
+
+[features]
+default = []
+server-compile = ["omnilang"]
 
 [dev-dependencies]
 victauri-test = "0.8.5"

@@ -1,13 +1,16 @@
 //! Project lifecycle, file-system, and export commands.
 
+#[cfg(feature = "server-compile")]
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "server-compile")]
 use crate::commands::compile::compile_project;
 use crate::path::sanitize_path;
 use crate::state::ProjectState;
 use crate::MAX_SOURCE_SIZE;
 
 #[derive(Debug, Serialize, Deserialize)]
+#[cfg(feature = "server-compile")]
 pub struct ExportResult {
     pub success: bool,
     pub output_dir: String,
@@ -15,6 +18,7 @@ pub struct ExportResult {
     pub errors: Vec<String>,
 }
 
+#[cfg(feature = "server-compile")]
 #[tauri::command]
 pub(crate) fn project_export(
     project_path: String,
@@ -285,11 +289,14 @@ pub(crate) fn close_project(
 ) -> Result<serde_json::Value, String> {
     *state.project_dir.lock().map_err(|e| e.to_string())? = None;
     *state.file_list_cache.lock().map_err(|e| e.to_string())? = None;
-    state
-        .compile_cache
-        .lock()
-        .map_err(|e| e.to_string())?
-        .clear();
+    #[cfg(feature = "server-compile")]
+    {
+        state
+            .compile_cache
+            .lock()
+            .map_err(|e| e.to_string())?
+            .clear();
+    }
     *state.store_snapshot.lock().map_err(|e| e.to_string())? = String::new();
     *state.pid_index.lock().map_err(|e| e.to_string())? = "{}".to_string();
     Ok(serde_json::json!({"success": true}))
