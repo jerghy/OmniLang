@@ -193,8 +193,23 @@ impl ReactCodegen {
         // refs) so used_store_refs and the slice plan agree. Also returns
         // BARE store-alias identifier references (review LOW-3) — a store
         // referenced as a value keeps the whole-store object.
-        let (comp_store_field_refs, bare_store_refs) =
+        let (mut comp_store_field_refs, mut bare_store_refs) =
             store_slices::collect_component_store_field_refs(comp, view);
+        // Task 2.10 (perf M1): motion-context store references (motion value
+        // expressions + trigger control dimensions) merge into the component
+        // refs map HERE — before used_store_refs and the slice plan — so the
+        // store is subscribed (per-field) and its slice locals reach the
+        // motion formatters. Previously these references forced the
+        // whole-store subscription (motion formatting carried no renames).
+        let (motion_field_refs, motion_bare_refs) =
+            store_slices::motion_store_field_refs(view, ir, component_map);
+        for (store, fields) in motion_field_refs {
+            comp_store_field_refs
+                .entry(store)
+                .or_default()
+                .extend(fields);
+        }
+        bare_store_refs.extend(motion_bare_refs);
 
         let local_names: FxHashSet<String> = comp
             .signals
@@ -363,13 +378,11 @@ impl ReactCodegen {
         // whole-store const exist, so their store references keep the
         // pre-existing (qualified) output.
         let shadowing_names = store_slices::collect_shadowing_names(comp, view);
-        let motion_stores = store_slices::motion_whole_store_stores(view, ir, component_map);
         let (store_field_renames, slice_fields) = store_slices::build_slice_plan(
             comp,
             &comp_store_field_refs,
             &shadowing_names,
             &bare_store_refs,
-            &motion_stores,
             &all_stores,
         );
 
@@ -753,7 +766,12 @@ impl ReactCodegen {
             w.emit("");
         }
 
-        // Motion animation effects — per-ref native effects (all triggers)
+        // Motion animation effects — per-ref native effects (all triggers).
+        // Task 2.10 (perf M1): the store-field renames thread into the
+        // in-function `_M` table and the trigger control dimensions — a
+        // store-ref motion keeps the table in-function (2.6: slice locals
+        // are component-scope, a module-level table cannot see them), and
+        // its `Store.field` reads resolve to the slice locals.
         if let Some(view) = view {
             motion_effects::gen_motion_effects(
                 &mut w,
@@ -761,6 +779,7 @@ impl ReactCodegen {
                 &motion_map,
                 component_map,
                 motion_table_hoisted,
+                &store_field_renames,
             );
         }
 

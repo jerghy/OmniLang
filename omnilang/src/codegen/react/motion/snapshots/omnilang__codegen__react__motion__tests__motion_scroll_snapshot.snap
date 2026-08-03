@@ -1,5 +1,6 @@
 ---
 source: omnilang/src/codegen/react/motion/tests.rs
+assertion_line: 323
 expression: "&output"
 ---
 === MotionScroll.module.css ===
@@ -27,6 +28,7 @@ export function MotionScroll() {
         if (!el) return;
         const anim = el.animate(_M["fadeScroll"].kf, _M["fadeScroll"].opts);
         anim.pause();
+        const duration = Number(anim.effect?.getTiming()?.duration) || 300;
         const parseScrollTrigger = (cfg) => {
             if (!cfg || typeof cfg !== 'string') return 0;
             const parts = cfg.split(' ');
@@ -49,13 +51,15 @@ export function MotionScroll() {
         const startPos = 0;
         const endPos = 1000;
         let scrubCache = 0;
+        let lastProgress = -1;
         const handleScroll = () => {
             const raw = (window.scrollY - startPos) / (endPos - startPos);
             const target = Math.max(0, Math.min(1, raw));
             const scrub = 1;
             const scrubbed = scrub > 0 ? scrubCache + (target - scrubCache) * Math.min(1, 16.67 / (scrub * 1000)) : target;
             scrubCache = scrubbed;
-            const duration = Number(anim.effect?.getTiming()?.duration) || 300;
+            if (scrubbed === lastProgress) return;
+            lastProgress = scrubbed;
             anim.currentTime = scrubbed * duration;
         };
         window.addEventListener('scroll', handleScroll, { passive: true });
@@ -72,6 +76,7 @@ export function MotionScroll() {
         if (!el) return;
         const anim = el.animate(_M["fadeScroll"].kf, _M["fadeScroll"].opts);
         anim.pause();
+        const duration = Number(anim.effect?.getTiming()?.duration) || 300;
         const parseScrollTrigger = (cfg) => {
             if (!cfg || typeof cfg !== 'string') return 0;
             const parts = cfg.split(' ');
@@ -93,13 +98,15 @@ export function MotionScroll() {
         const startPos = parseScrollTrigger("top 80%");
         const endPos = parseScrollTrigger("bottom 20%");
         let scrubCache = 0;
+        let lastProgress = -1;
         const handleScroll = () => {
             const raw = (window.scrollY - startPos) / (endPos - startPos);
             const target = Math.max(0, Math.min(1, raw));
             const scrub = 0;
             const scrubbed = scrub > 0 ? scrubCache + (target - scrubCache) * Math.min(1, 16.67 / (scrub * 1000)) : target;
             scrubCache = scrubbed;
-            const duration = Number(anim.effect?.getTiming()?.duration) || 300;
+            if (scrubbed === lastProgress) return;
+            lastProgress = scrubbed;
             anim.currentTime = scrubbed * duration;
         };
         window.addEventListener('scroll', handleScroll, { passive: true });

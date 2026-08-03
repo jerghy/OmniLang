@@ -707,7 +707,7 @@ Semantics(liveRegion: true, child: Text(status))
 - React：C1 函数发射遍历补全、C2 样式通道、array_sort comparator、setX 函数式更新、Object.assign 清理、set() 合并、effect deps 从 body 分析、computed deps 含 props、fn 参数类型、typed useState
 - Flutter：语义绑定快照比较、prop 类型转换层、_Omni* helper 共享化、store ==/hashCode、ref.measure 安全 cast、event 字段桩诊断
 - 通用：WASM FFI 契约统一、Python/Vue BlockExpr 诊断、is_dangerous_url 移位、增量缓存诊断、motion IR `#[non_exhaustive]`、--all-features 修复
-- 性能：React 切片订阅、Flutter 按元素 motion controller、const 传播、滚动驱动相等守卫
+- 性能：React 切片订阅、Flutter 按元素 motion controller、const 传播、滚动驱动相等守卫 — Task 2.10：@scroll/@drag-* 进度相等守卫（`lastProgress`，进度未变不重 seek）+ seek duration 提升出 handler（单次 `getTiming()`）；React 切片订阅扩展至 motion 通道（motion 值中的 `Store.field` 经 `store_field_renames` 解析为 slice 局部，整 store 订阅回退消除——重渲染粒度与视图表达式一致；含 store 引用的 motion 保持函数内 `_M` 表，模块级表不可见组件作用域 slice 局部）
 
 ---
 

@@ -853,18 +853,29 @@ fn collect_mutation_store_field_refs(
     }
 }
 
-/// Stores referenced from motion value expressions (keyframe stops, `over`,
-/// `delay`, in-view thresholds, scroll scrub, drag constraints). Motion
-/// value formatting does not carry the slice renames (they are module-level
-/// shared defs), so such stores keep the whole-store object — the qualified
-/// `Store.field` reads stay valid.
-pub(super) fn motion_whole_store_stores(
+/// Store → referenced-field map from MOTION contexts: motion value
+/// expressions (keyframe stops, `over`, `delay`) and trigger control
+/// dimensions (`@in-view` thresholds, `@scroll` start/end/scrub,
+/// `@drag-*` constraints/elastic/threshold/velocity_max).
+///
+/// Before Task 2.10 (perf M1) these references forced the WHOLE-store
+/// subscription: motion value formatting carried no slice renames, so the
+/// qualified `Store.field` read needed the whole-store object. They now
+/// merge into the component refs map (caller) and the renames thread into
+/// the motion formatters (keyframes.rs / transforms.rs) — the motion
+/// channel is the same slice channel as view/body expressions, so a store
+/// write re-renders only when the CHANGED field feeds the motion.
+///
+/// The motion-context `bare` refs (a store referenced as a value inside a
+/// motion body — edge case) also return: like every other bare reference
+/// (review LOW-3) such a store must keep the whole-store object.
+pub(super) fn motion_store_field_refs(
     view: Option<&ViewTree>,
     ir: &IRProgram,
     component_map: &FxHashMap<&str, &ComponentIR>,
-) -> FxHashSet<String> {
+) -> (FxHashMap<String, FxHashSet<String>>, FxHashSet<String>) {
     let Some(view) = view else {
-        return FxHashSet::default();
+        return (FxHashMap::default(), FxHashSet::default());
     };
     let mut motion_bodies: FxHashMap<String, MotionBodyIR> = FxHashMap::default();
     for m in ir.modules.values().flat_map(|m| &m.motions) {
@@ -943,7 +954,7 @@ pub(super) fn motion_whole_store_stores(
             }
         }
     });
-    acc.into_keys().collect()
+    (acc, bare)
 }
 
 /// Decide the subscription mode per store and build the rename map.
@@ -960,7 +971,6 @@ pub(crate) fn build_slice_plan(
     store_field_refs: &FxHashMap<String, FxHashSet<String>>,
     shadowing_names: &FxHashSet<String>,
     bare_store_refs: &FxHashSet<String>,
-    motion_stores: &FxHashSet<String>,
     all_stores: &FxHashMap<&str, &StoreIR>,
 ) -> (FxHashMap<String, String>, FxHashMap<String, SliceFields>) {
     let mut renames: FxHashMap<String, String> = FxHashMap::default();
@@ -1031,11 +1041,7 @@ pub(crate) fn build_slice_plan(
         // A BARE store-alias reference (`let s = TodoStore;` — review
         // LOW-3) needs the whole-store object; slice locals only cover
         // individual fields.
-        if unknown
-            || slice.is_empty()
-            || bare_store_refs.contains(store_ref.as_str())
-            || motion_stores.contains(store_ref.as_str())
-        {
+        if unknown || slice.is_empty() || bare_store_refs.contains(store_ref.as_str()) {
             continue;
         }
         // A field name already claimed by another store's slice would

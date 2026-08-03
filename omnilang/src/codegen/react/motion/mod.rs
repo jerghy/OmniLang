@@ -172,8 +172,16 @@ pub(super) fn view_has_interactive_triggers(
 /// made every `_M["x"]` use site a fresh object identity (exhaustive-deps
 /// errors at every reference). Returns whether the table was hoisted; when
 /// false the caller emits it in-function (a referenced motion carries
-/// non-literal values — store fields/signals — resolved at render time;
-/// the 2.10 slice channel unblocks those, deferred).
+/// non-literal values — store fields/signals — resolved at render time).
+///
+/// Task 2.10 (perf M1) interaction, confirmed: a store-ref motion STAYS
+/// in-function — after the slice channel its values reference component-
+/// scope slice locals, which a module-level table cannot see; the hoist
+/// gate (`motion_body_is_constant`) never accepted store refs anyway, so
+/// the decision is unchanged. The benefit is subscription granularity only
+/// (whole-store → per-field slices), not table placement. The module-scope
+/// table formats with EMPTY renames: constant bodies cannot carry store
+/// refs, so the renames are never consulted.
 pub(super) fn emit_motion_table_module_scope(
     w: &mut CodeWriter,
     node: &ViewTree,
@@ -188,7 +196,7 @@ pub(super) fn emit_motion_table_module_scope(
     if !all_constant {
         return false;
     }
-    emit_motion_table(w, &sorted, motion_bodies);
+    emit_motion_table(w, &sorted, motion_bodies, &FxHashMap::default());
     true
 }
 
@@ -205,13 +213,18 @@ pub(super) fn emit_motion_table_module_scope(
 ///      driven by the element ref.
 ///
 /// `motion_bodies` maps motion name → its MotionBodyIR, from both component
-/// and module-level @motion definitions.
+/// and module-level @motion definitions. `store_field_renames` (task 2.10,
+/// perf M1) resolve `Store.field` reads inside motion values and trigger
+/// control dimensions to the component's slice locals — the in-function
+/// table and the per-element effects are both inside the component body,
+/// where those locals are in scope.
 pub(super) fn emit_motion_effects_tsx(
     w: &mut CodeWriter,
     node: &ViewTree,
     motion_bodies: &FxHashMap<String, MotionBodyIR>,
     component_map: &FxHashMap<&str, &ComponentIR>,
     table_hoisted: bool,
+    store_field_renames: &FxHashMap<String, String>,
 ) {
     let Some(sorted) = collect_defined_motion_refs(node, motion_bodies) else {
         return;
@@ -220,9 +233,9 @@ pub(super) fn emit_motion_effects_tsx(
     if !table_hoisted {
         // ── Emit the MOTION_DEFS constant in-function ──
         // (a referenced motion carries non-literal values resolved at
-        // render time — store fields / signals — 2.10 slice channel
-        // unblocks the hoist for the store case)
-        emit_motion_table(w, &sorted, motion_bodies);
+        // render time — store fields / signals — formatted with the slice
+        // renames, task 2.10)
+        emit_motion_table(w, &sorted, motion_bodies, store_field_renames);
     }
 
     // ── Per-element effects ──
@@ -232,7 +245,14 @@ pub(super) fn emit_motion_effects_tsx(
             .clone()
             .unwrap_or_else(|| format!("__el_{}", idx));
         let ref_ident = format!("{}Ref.current", ref_name);
-        emit_element_motion(w, el, idx, &ref_ident, motion_bodies);
+        emit_element_motion(
+            w,
+            el,
+            idx,
+            &ref_ident,
+            motion_bodies,
+            store_field_renames,
+        );
     });
 }
 
@@ -264,13 +284,14 @@ fn emit_motion_table(
     w: &mut CodeWriter,
     sorted: &[String],
     motion_bodies: &FxHashMap<String, MotionBodyIR>,
+    store_field_renames: &FxHashMap<String, String>,
 ) {
     w.emit("// -- Motion definitions --");
     w.emit("const _M={");
     w.indent();
     for name in sorted {
         if let Some(body) = motion_bodies.get(name.as_str()) {
-            let def_js = keyframes::format_motion_to_animate(body);
+            let def_js = keyframes::format_motion_to_animate(body, store_field_renames);
             w.emit_fmt(format_args!("{}:{},", name, def_js));
         }
     }
@@ -287,13 +308,14 @@ fn emit_element_motion(
     idx: usize,
     ref_ident: &str,
     motion_bodies: &FxHashMap<String, MotionBodyIR>,
+    store_field_renames: &FxHashMap<String, String>,
 ) {
     emit_interactive_handlers(w, el, idx, ref_ident, motion_bodies);
     emit_enter_effect(w, el, idx, ref_ident, motion_bodies);
     emit_focus_effect(w, el, idx, ref_ident, motion_bodies);
-    transforms::emit_inview_effect_tsx(w, el, idx, ref_ident, motion_bodies);
-    transforms::emit_scroll_effect_tsx(w, el, idx, ref_ident, motion_bodies);
-    transforms::emit_drag_effect_tsx(w, el, idx, ref_ident, motion_bodies);
+    transforms::emit_inview_effect_tsx(w, el, idx, ref_ident, motion_bodies, store_field_renames);
+    transforms::emit_scroll_effect_tsx(w, el, idx, ref_ident, motion_bodies, store_field_renames);
+    transforms::emit_drag_effect_tsx(w, el, idx, ref_ident, motion_bodies, store_field_renames);
 }
 
 /// Find the first trigger of the given kind on an element.

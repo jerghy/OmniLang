@@ -16,6 +16,11 @@ use crate::codegen::react::motion;
 ///   2. Per motion element: useCallback handlers for @hover/@press and
 ///      useEffect blocks for @enter/@focus/@in-view/@scroll/@drag-*
 ///
+/// `store_field_renames` (task 2.10, perf M1) resolve `Store.field` reads
+/// in motion values and trigger control dimensions to slice locals — only
+/// consulted for the in-function table and the per-element effects, both
+/// inside the component where the slice locals are in scope.
+///
 /// All effects are keyed on element refs (user `@ref` or synthesized
 /// `__el_N`) — no data-* attributes, no document.querySelectorAll, no
 /// MutationObserver.
@@ -25,7 +30,15 @@ pub(super) fn gen_motion_effects(
     motion_map: &FxHashMap<String, MotionBodyIR>,
     component_map: &FxHashMap<&str, &ComponentIR>,
     table_hoisted: bool,
+    store_field_renames: &FxHashMap<String, String>,
 ) {
     // Per-element @enter/@hover/@press/@focus/@in-view/@scroll/@drag effects
-    motion::emit_motion_effects_tsx(w, view, motion_map, component_map, table_hoisted);
+    motion::emit_motion_effects_tsx(
+        w,
+        view,
+        motion_map,
+        component_map,
+        table_hoisted,
+        store_field_renames,
+    );
 }

@@ -1160,6 +1160,89 @@ fn motion_table_hoisted_to_module_scope() {
     );
 }
 
+/// perf M1 (task 2.10): a store reference inside a MOTION VALUE used to
+/// force the whole-store subscription (`const S = useS()`) — motion value
+/// formatting (keyframes.rs) carried no slice renames, so the qualified
+/// `Store.field` read needed the whole-store object. The motion refs must
+/// resolve through the same `store_field_renames` slice channel as view/body
+/// expressions (subscription granularity: a store write re-renders only when
+/// the CHANGED field feeds the motion).
+///
+/// (The brief's `view V {...}` shorthand, element-level `@motion="m"`
+/// attribute and store reference in the `style` prop do not parse or do not
+/// force whole-store today — the store reference moves into the `@motion`
+/// def body, the shape that actually exercises the fallback; the component
+/// must declare `@store S;` or no subscription is emitted at all. Test name,
+/// assertions and failure messages are kept verbatim.)
+#[test]
+fn motion_store_value_uses_slice() {
+    let out = compile_react(r#"
+        store S { signal pos: i32 = 0; }
+        @motion m {
+            from { translateX: 0 }
+            to   { translateX: S.pos }
+            over: 300ms
+        }
+        component V {
+            @store S;
+            view { <div @scroll={m}/> }
+        }
+    "#)
+    .expect("compile must succeed");
+    let tsx = out.files.get("V.tsx").expect("V.tsx emitted");
+    assert!(
+        !tsx.contains("const S = useS()"),
+        "motion store ref must not force whole-store: {}",
+        tsx
+    );
+    assert!(
+        tsx.contains("(s) => s.pos"),
+        "expected slice selector: {}",
+        tsx
+    );
+    // The slice local must reach the MOTION VALUE itself — the keyframe
+    // transform embeds the renamed field (also pins the task 2.6 deferred
+    // case: a store-ref motion keeps the `_M` table in-function — slice
+    // locals are component-scope, a module-level table cannot see them).
+    assert!(
+        tsx.contains("translateX(${pos}px)"),
+        "motion value must reference the slice local: {}",
+        tsx
+    );
+    assert!(
+        tsx.contains("const _M"),
+        "_M table must be emitted (in-function for the store-ref motion): {}",
+        tsx
+    );
+}
+
+/// perf M5 (task 2.10): @scroll progress handling recomputes
+/// `Number(anim.effect?.getTiming()?.duration)` and writes `anim.currentTime`
+/// on EVERY scroll event, even when the progress value did not change —
+/// the seek must be gated by an equality guard. (The brief's disjunction
+/// `scrubCache || lastProgress` accidentally matches the pre-existing
+/// `scrubCache` smoothing variable, so the assertion is narrowed to the
+/// guard's own variable; test name and failure message are kept verbatim.)
+#[test]
+fn scroll_progress_has_equality_guard() {
+    let out = compile_react(r#"
+        @motion m {
+            from { opacity: 0 }
+            to   { opacity: 1 }
+        }
+        component V {
+            view { <div @scroll={m}/> }
+        }
+    "#)
+    .expect("compile must succeed");
+    let tsx = out.files.get("V.tsx").expect("V.tsx emitted");
+    assert!(
+        tsx.contains("lastProgress"),
+        "missing equality guard: {}",
+        tsx
+    );
+}
+
 /// perf M3: a never-mutated signal initialized with a literal is hoisted to
 /// module scope — it was re-allocated inside the component function on EVERY
 /// render, and a computed/memo depending on it recomputed every render (the

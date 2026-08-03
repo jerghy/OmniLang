@@ -444,7 +444,6 @@ fn emit_use_design_tokens(
         &token_field_refs,
         &hook_shadowing,
         &bare_refs,
-        &FxHashSet::default(),
         &all_stores,
     );
     for store_name in &known_stores {

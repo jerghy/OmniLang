@@ -44,6 +44,7 @@ pub(super) fn emit_inview_effect_tsx(
     idx: usize,
     ref_ident: &str,
     motion_bodies: &FxHashMap<String, MotionBodyIR>,
+    store_field_renames: &FxHashMap<String, String>,
 ) {
     let Some(trigger) = find_trigger(el, TriggerKind::InView) else {
         return;
@@ -59,7 +60,7 @@ pub(super) fn emit_inview_effect_tsx(
         .and_then(|m| m.in_view_threshold.as_ref())
         .map_or_else(
             || "0".to_string(),
-            |e| expr::format_expr_ir_tsx(e, &FxHashSet::default()),
+            |e| expr::format_expr_ir_tsx_renamed(e, &FxHashSet::default(), store_field_renames),
         );
 
     w.emit_fmt(format_args!(
@@ -105,6 +106,7 @@ pub(super) fn emit_scroll_effect_tsx(
     idx: usize,
     ref_ident: &str,
     motion_bodies: &FxHashMap<String, MotionBodyIR>,
+    store_field_renames: &FxHashMap<String, String>,
 ) {
     let Some(trigger) = find_trigger(
         el,
@@ -132,9 +134,10 @@ pub(super) fn emit_scroll_effect_tsx(
     let start_str = "top 80%";
     let end_str = "bottom 20%";
     let scrub_js = match &trigger.kind {
-        TriggerKind::Scroll { scrub, .. } => scrub
-            .as_ref()
-            .map_or_else(|| "0".to_string(), scrub_js_from_expr),
+        TriggerKind::Scroll { scrub, .. } => scrub.as_ref().map_or_else(
+            || "0".to_string(),
+            |e| scrub_js_from_expr(e, store_field_renames),
+        ),
         _ => "0".to_string(),
     };
 
@@ -151,6 +154,10 @@ pub(super) fn emit_scroll_effect_tsx(
         def_ref, def_ref
     ));
     w.emit("anim.pause();");
+    // Task 2.10 (perf M5): the seek duration is hoisted out of the scroll
+    // handler — `anim` is created once per effect, so `getTiming()` yields
+    // the same value on every event; per-event re-evaluation was pure waste.
+    w.emit("const duration = Number(anim.effect?.getTiming()?.duration) || 300;");
     w.emit("const parseScrollTrigger = (cfg) => {");
     w.indent();
     w.emit("if (!cfg || typeof cfg !== 'string') return 0;");
@@ -173,8 +180,10 @@ pub(super) fn emit_scroll_effect_tsx(
     w.emit("};");
     if let (Some(start), Some(end)) = (start_expr, end_expr) {
         // v1 numeric scroll range: progress = (scrollY - start) / (end - start)
-        let start_js = expr::format_expr_ir_tsx(start, &FxHashSet::default());
-        let end_js = expr::format_expr_ir_tsx(end, &FxHashSet::default());
+        let start_js =
+            expr::format_expr_ir_tsx_renamed(start, &FxHashSet::default(), store_field_renames);
+        let end_js =
+            expr::format_expr_ir_tsx_renamed(end, &FxHashSet::default(), store_field_renames);
         w.emit_fmt(format_args!(
             "// scroll range: start {} → end {} (scroll-driven progress)",
             start_js, end_js
@@ -192,6 +201,7 @@ pub(super) fn emit_scroll_effect_tsx(
         ));
     }
     w.emit("let scrubCache = 0;");
+    w.emit("let lastProgress = -1;");
     w.emit("const handleScroll = () => {");
     w.indent();
     w.emit("const raw = (window.scrollY - startPos) / (endPos - startPos);");
@@ -199,7 +209,11 @@ pub(super) fn emit_scroll_effect_tsx(
     w.emit_fmt(format_args!("const scrub = {};", scrub_js));
     w.emit("const scrubbed = scrub > 0 ? scrubCache + (target - scrubCache) * Math.min(1, 16.67 / (scrub * 1000)) : target;");
     w.emit("scrubCache = scrubbed;");
-    w.emit("const duration = Number(anim.effect?.getTiming()?.duration) || 300;");
+    // Task 2.10 (perf M5): equality guard — a scroll event whose progress
+    // did not change (scrolled outside the range, or converged smoothing)
+    // must not re-seek the animation.
+    w.emit("if (scrubbed === lastProgress) return;");
+    w.emit("lastProgress = scrubbed;");
     w.emit("anim.currentTime = scrubbed * duration;");
     w.dedent();
     w.emit("};");
@@ -229,6 +243,7 @@ pub(super) fn emit_drag_effect_tsx(
     idx: usize,
     ref_ident: &str,
     motion_bodies: &FxHashMap<String, MotionBodyIR>,
+    store_field_renames: &FxHashMap<String, String>,
 ) {
     let Some(trigger) = find_drag_trigger(el) else {
         return;
@@ -278,15 +293,15 @@ pub(super) fn emit_drag_effect_tsx(
     };
     let elastic_js = elastic_expr.map_or_else(
         || "0".to_string(),
-        |e| expr::format_expr_ir_tsx(e, &FxHashSet::default()),
+        |e| expr::format_expr_ir_tsx_renamed(e, &FxHashSet::default(), store_field_renames),
     );
     let threshold_js = threshold_expr.map_or_else(
         || "0".to_string(),
-        |e| expr::format_expr_ir_tsx(e, &FxHashSet::default()),
+        |e| expr::format_expr_ir_tsx_renamed(e, &FxHashSet::default(), store_field_renames),
     );
     let velocity_max_js = velocity_expr.map_or_else(
         || "2000".to_string(),
-        |e| expr::format_expr_ir_tsx(e, &FxHashSet::default()),
+        |e| expr::format_expr_ir_tsx_renamed(e, &FxHashSet::default(), store_field_renames),
     );
 
     w.emit_fmt(format_args!(
@@ -302,12 +317,18 @@ pub(super) fn emit_drag_effect_tsx(
         def_ref, def_ref
     ));
     w.emit("anim.pause();");
+    // Task 2.10 (perf M5): the seek duration is hoisted out of the pointer
+    // handlers — `anim` is created once per effect, so `getTiming()` yields
+    // the same value on every event; per-event re-evaluation was pure waste.
+    w.emit("const duration = Number(anim.effect?.getTiming()?.duration) || 300;");
     // `: string` prevents literal-type narrowing (TS2367 on `axis === 'x'`)
     w.emit_fmt(format_args!("const axis: string = \"{}\";", axis));
     if let Some((min_expr, max_expr)) = constraints_pair {
         // v1 numeric constraints: `constraints: [min, max]` — no runtime parsing.
-        let min_js = expr::format_expr_ir_tsx(min_expr, &FxHashSet::default());
-        let max_js = expr::format_expr_ir_tsx(max_expr, &FxHashSet::default());
+        let min_js =
+            expr::format_expr_ir_tsx_renamed(min_expr, &FxHashSet::default(), store_field_renames);
+        let max_js =
+            expr::format_expr_ir_tsx_renamed(max_expr, &FxHashSet::default(), store_field_renames);
         w.emit_fmt(format_args!(
             "// drag range: constraints [{}, {}]",
             min_js, max_js
@@ -375,6 +396,8 @@ pub(super) fn emit_drag_effect_tsx(
     }
     w.emit("let startPos = 0, currentDelta = 0, isDragging = false;");
     w.emit("let lastMoveTime = 0, lastMovePos = 0, velocity = 0;");
+    // Task 2.10 (perf M5): equality guard for the move-time seek.
+    w.emit("let lastProgress = -1;");
     w.emit("const onPointerDown = (e) => {");
     w.indent();
     w.emit("isDragging = true;");
@@ -383,6 +406,7 @@ pub(super) fn emit_drag_effect_tsx(
     w.emit("lastMoveTime = 0;");
     w.emit("lastMovePos = 0;");
     w.emit("velocity = 0;");
+    w.emit("lastProgress = -1;");
     w.emit("el.setPointerCapture(e.pointerId);");
     w.dedent();
     w.emit("};");
@@ -413,7 +437,11 @@ pub(super) fn emit_drag_effect_tsx(
     w.emit("}");
     w.emit("currentDelta = raw;");
     w.emit("const progress = Math.min(1, Math.abs(constrained) / maxExtent);");
-    w.emit("const duration = Number(anim.effect?.getTiming()?.duration) || 300;");
+    // Task 2.10 (perf M5): equality guard — a pointermove whose progress
+    // did not change (e.g. clamped at the constraint edge) must not re-seek
+    // the animation.
+    w.emit("if (progress === lastProgress) return;");
+    w.emit("lastProgress = progress;");
     w.emit("anim.currentTime = progress * duration;");
     w.dedent();
     w.emit("};");
@@ -465,11 +493,11 @@ fn find_drag_trigger(el: &ElementIR) -> Option<&TriggerIntent> {
 /// with `scrub > 0` / `scrub * 1000` (scrub is a seconds-scale factor), so a
 /// `scrub: true` bool literal (v1 BNF) must emit as the numeric equivalent —
 /// JS coerces true→1, but tsc rejects `boolean > number` (TS2365).
-fn scrub_js_from_expr(e: &ExprIR) -> String {
+fn scrub_js_from_expr(e: &ExprIR, store_field_renames: &FxHashMap<String, String>) -> String {
     if let ExprIR::LiteralExpr { value } = e {
         if let Some(b) = value.as_bool() {
             return if b { "1" } else { "0" }.to_string();
         }
     }
-    expr::format_expr_ir_tsx(e, &FxHashSet::default())
+    expr::format_expr_ir_tsx_renamed(e, &FxHashSet::default(), store_field_renames)
 }

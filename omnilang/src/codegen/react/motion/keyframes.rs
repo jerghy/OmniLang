@@ -5,6 +5,7 @@
 use crate::codegen::react::expr;
 use crate::codegen::{escape_literal_str, format_json_value, JSON_REACT};
 use crate::ir::*;
+use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 
 /// Format a MotionBodyIR into JS: `{kf:[...],opts:{...}}` for use with the
@@ -16,9 +17,23 @@ use rustc_hash::FxHashSet;
 ///   `rotate`/`rotateX`/`rotateY`/`rotateZ`/`skewX`/`skewY` → `transform`
 ///   (composed into a single transform string)
 /// - `backgroundColor`/`color`/`width`/`height` → passed through as-is
-pub(super) fn format_motion_to_animate(motion: &MotionBodyIR) -> String {
-    let kf_items = format_waapi_keyframes(motion);
-    let opts = format_animate_options(&motion.over, &motion.ease, &motion.playback);
+///
+/// `store_field_renames` (task 2.10, perf M1) resolve `Store.field` reads
+/// inside the motion values to slice locals — the motion defs are formatted
+/// per component file, so the component's slice locals are in scope at the
+/// (in-function) table. The module-scope table always passes an empty map:
+/// a hoistable body is a compile-time constant and can carry no store refs.
+pub(super) fn format_motion_to_animate(
+    motion: &MotionBodyIR,
+    store_field_renames: &FxHashMap<String, String>,
+) -> String {
+    let kf_items = format_waapi_keyframes(motion, store_field_renames);
+    let opts = format_animate_options(
+        &motion.over,
+        &motion.ease,
+        &motion.playback,
+        store_field_renames,
+    );
     // `as KeyframeAnimationOptions` — the DOM type for el.animate() options;
     // without it TS widens `fill:"forwards"` to `string` and rejects the call
     // (KeyframeAnimationOptions.fill is a narrow union).
@@ -92,7 +107,10 @@ const PX_SUFFIX_PROPS: [&str; 2] = ["borderRadius", "fontSize"];
 /// Each stop becomes a flat keyframe object: `{offset, opacity, transform}`
 /// (one `transform` entry per stop, composed from all transform-family
 /// properties present in the stop).
-fn format_waapi_keyframes(kf: &KeyframeIR) -> String {
+fn format_waapi_keyframes(
+    kf: &KeyframeIR,
+    store_field_renames: &FxHashMap<String, String>,
+) -> String {
     let mut items: Vec<String> = Vec::new();
 
     if kf.stops.len() == 1 {
@@ -100,10 +118,10 @@ fn format_waapi_keyframes(kf: &KeyframeIR) -> String {
         if stop.position >= 0.5 {
             // to-only: synthetic 0% keyframe (start from current state)
             items.push("{offset:0}".to_string());
-            items.push(format_waapi_stop(stop));
+            items.push(format_waapi_stop(stop, store_field_renames));
         } else {
             // from-only: synthetic 100% keyframe (return to current state)
-            items.push(format_waapi_stop(stop));
+            items.push(format_waapi_stop(stop, store_field_renames));
             items.push("{offset:1}".to_string());
         }
         return format!("[{}]", items.join(","));
@@ -118,14 +136,17 @@ fn format_waapi_keyframes(kf: &KeyframeIR) -> String {
     });
 
     for stop in &sorted_stops {
-        items.push(format_waapi_stop(stop));
+        items.push(format_waapi_stop(stop, store_field_renames));
     }
 
     format!("[{}]", items.join(","))
 }
 
 /// Format one keyframe stop as a flat WAAPI keyframe object.
-fn format_waapi_stop(stop: &KeyframeStopIR) -> String {
+fn format_waapi_stop(
+    stop: &KeyframeStopIR,
+    store_field_renames: &FxHashMap<String, String>,
+) -> String {
     let mut entries: Vec<String> = vec![format!("offset:{}", stop.position)];
 
     // Transform-family props → one composed `transform` string.
@@ -134,7 +155,7 @@ fn format_waapi_stop(stop: &KeyframeStopIR) -> String {
     let mut plain_pairs: Vec<(&String, &ExprIR)> = Vec::new();
     for (prop, value) in &stop.properties {
         if TRANSFORM_PROPS.contains(&prop.as_str()) {
-            transform_parts.push(format_transform_part(prop, value));
+            transform_parts.push(format_transform_part(prop, value, store_field_renames));
         } else {
             plain_pairs.push((prop, value));
         }
@@ -144,7 +165,8 @@ fn format_waapi_stop(stop: &KeyframeStopIR) -> String {
     }
     plain_pairs.sort_by(|a, b| a.0.cmp(b.0));
     for (prop, value) in plain_pairs {
-        let mut val_str = expr::format_expr_ir_tsx(value, &FxHashSet::default());
+        let mut val_str =
+            expr::format_expr_ir_tsx_renamed(value, &FxHashSet::default(), store_field_renames);
         // Length properties: bare numbers need a px unit to be valid CSS
         // keyframe values (borderRadius/fontSize, Task 5.2 semantic set).
         // String literals already carry their unit; expressions are emitted
@@ -190,7 +212,11 @@ fn literal_number_string(value: &ExprIR) -> Option<String> {
 /// Format one transform component, e.g. `translateY(20px)`, `scale(1.05)`,
 /// `rotate(45deg)`. Literal values are inlined; expressions are embedded
 /// with template-literal `${...}` escapes.
-fn format_transform_part(prop: &str, value: &ExprIR) -> String {
+fn format_transform_part(
+    prop: &str,
+    value: &ExprIR,
+    store_field_renames: &FxHashMap<String, String>,
+) -> String {
     // `translate*` values are lengths (px unless the source said otherwise);
     // `rotate*`/`skew*` are angles (deg); `scale*` are unitless factors.
     let unit = match prop {
@@ -222,14 +248,14 @@ fn format_transform_part(prop: &str, value: &ExprIR) -> String {
                 return format!("{}({})", prop, escaped);
             }
             // Non-numeric non-string literal (bool/null) — emit as-is
-            let js = expr::format_expr_ir_tsx(value, &FxHashSet::default());
+            let js = expr::format_expr_ir_tsx_renamed(value, &FxHashSet::default(), store_field_renames);
             format!("{}({})", prop, js)
         }
         _ => {
             // Expression — embed as a template-literal escape so units
             // compose: `translateX(${dx}px)`. The entry wrapper adds the
             // backticks. Built with push_str to avoid format! brace escapes.
-            let js = expr::format_expr_ir_tsx(value, &FxHashSet::default());
+            let js = expr::format_expr_ir_tsx_renamed(value, &FxHashSet::default(), store_field_renames);
             let mut s = String::new();
             s.push_str(prop);
             s.push('(');
@@ -256,9 +282,17 @@ fn format_transform_entry(parts: &[String]) -> String {
 }
 
 /// Format motion options for the native WAAPI animate() call.
-fn format_animate_options(over: &ExprIR, ease: &Option<EasingIR>, playback: &PlaybackIR) -> String {
+fn format_animate_options(
+    over: &ExprIR,
+    ease: &Option<EasingIR>,
+    playback: &PlaybackIR,
+    store_field_renames: &FxHashMap<String, String>,
+) -> String {
     let mut opts: Vec<String> = Vec::new();
-    let dur = duration_expr_to_js(over, expr::format_expr_ir_tsx(over, &FxHashSet::default()));
+    let dur = duration_expr_to_js(
+        over,
+        expr::format_expr_ir_tsx_renamed(over, &FxHashSet::default(), store_field_renames),
+    );
     opts.push(format!("duration:{}", dur));
     if let Some(e) = ease {
         opts.push(format!("easing:{}", format_easing_to_js(e)));
@@ -300,7 +334,11 @@ fn format_animate_options(over: &ExprIR, ease: &Option<EasingIR>, playback: &Pla
             "delay:{}",
             duration_expr_to_js(
                 delay,
-                expr::format_expr_ir_tsx(delay, &FxHashSet::default())
+                expr::format_expr_ir_tsx_renamed(
+                    delay,
+                    &FxHashSet::default(),
+                    store_field_renames
+                )
             )
         ));
     }

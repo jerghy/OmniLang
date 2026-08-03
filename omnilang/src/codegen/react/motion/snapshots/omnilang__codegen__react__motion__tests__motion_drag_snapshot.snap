@@ -1,5 +1,6 @@
 ---
 source: omnilang/src/codegen/react/motion/tests.rs
+assertion_line: 537
 expression: "&output"
 ---
 === MotionDrag.module.css ===
@@ -29,6 +30,7 @@ export function MotionDrag() {
         if (!el) return;
         const anim = el.animate(_M["swipeX"].kf, _M["swipeX"].opts);
         anim.pause();
+        const duration = Number(anim.effect?.getTiming()?.duration) || 300;
         const axis: string = "x";
         // drag range: constraints [-100, 100]
         const constraints = [-100, 100];
@@ -58,6 +60,7 @@ export function MotionDrag() {
         const maxExtent = Math.abs(constraint.max - constraint.min) || 1;
         let startPos = 0, currentDelta = 0, isDragging = false;
         let lastMoveTime = 0, lastMovePos = 0, velocity = 0;
+        let lastProgress = -1;
         const onPointerDown = (e) => {
             isDragging = true;
             startPos = axis === 'x' ? e.clientX : e.clientY;
@@ -65,6 +68,7 @@ export function MotionDrag() {
             lastMoveTime = 0;
             lastMovePos = 0;
             velocity = 0;
+            lastProgress = -1;
             el.setPointerCapture(e.pointerId);
         };
         const onPointerMove = (e) => {
@@ -87,7 +91,8 @@ export function MotionDrag() {
             }
             currentDelta = raw;
             const progress = Math.min(1, Math.abs(constrained) / maxExtent);
-            const duration = Number(anim.effect?.getTiming()?.duration) || 300;
+            if (progress === lastProgress) return;
+            lastProgress = progress;
             anim.currentTime = progress * duration;
         };
         const onPointerUp = (e) => {
@@ -119,6 +124,7 @@ export function MotionDrag() {
         if (!el) return;
         const anim = el.animate(_M["swipeY"].kf, _M["swipeY"].opts);
         anim.pause();
+        const duration = Number(anim.effect?.getTiming()?.duration) || 300;
         const axis: string = "y";
         // drag range: constraints [0, 150]
         const constraints = [0, 150];
@@ -148,6 +154,7 @@ export function MotionDrag() {
         const maxExtent = Math.abs(constraint.max - constraint.min) || 1;
         let startPos = 0, currentDelta = 0, isDragging = false;
         let lastMoveTime = 0, lastMovePos = 0, velocity = 0;
+        let lastProgress = -1;
         const onPointerDown = (e) => {
             isDragging = true;
             startPos = axis === 'x' ? e.clientX : e.clientY;
@@ -155,6 +162,7 @@ export function MotionDrag() {
             lastMoveTime = 0;
             lastMovePos = 0;
             velocity = 0;
+            lastProgress = -1;
             el.setPointerCapture(e.pointerId);
         };
         const onPointerMove = (e) => {
@@ -177,7 +185,8 @@ export function MotionDrag() {
             }
             currentDelta = raw;
             const progress = Math.min(1, Math.abs(constrained) / maxExtent);
-            const duration = Number(anim.effect?.getTiming()?.duration) || 300;
+            if (progress === lastProgress) return;
+            lastProgress = progress;
             anim.currentTime = progress * duration;
         };
         const onPointerUp = (e) => {
@@ -209,6 +218,7 @@ export function MotionDrag() {
         if (!el) return;
         const anim = el.animate(_M["swipeX"].kf, _M["swipeX"].opts);
         anim.pause();
+        const duration = Number(anim.effect?.getTiming()?.duration) || 300;
         const axis: string = "x";
         const constraints = "";
         const elastic = 0;
@@ -238,6 +248,7 @@ export function MotionDrag() {
         const maxExtent = 300;
         let startPos = 0, currentDelta = 0, isDragging = false;
         let lastMoveTime = 0, lastMovePos = 0, velocity = 0;
+        let lastProgress = -1;
         const onPointerDown = (e) => {
             isDragging = true;
             startPos = axis === 'x' ? e.clientX : e.clientY;
@@ -245,6 +256,7 @@ export function MotionDrag() {
             lastMoveTime = 0;
             lastMovePos = 0;
             velocity = 0;
+            lastProgress = -1;
             el.setPointerCapture(e.pointerId);
         };
         const onPointerMove = (e) => {
@@ -267,7 +279,8 @@ export function MotionDrag() {
             }
             currentDelta = raw;
             const progress = Math.min(1, Math.abs(constrained) / maxExtent);
-            const duration = Number(anim.effect?.getTiming()?.duration) || 300;
+            if (progress === lastProgress) return;
+            lastProgress = progress;
             anim.currentTime = progress * duration;
         };
         const onPointerUp = (e) => {
