@@ -1286,6 +1286,28 @@ git commit -m "feat(slots): remove typed slots and legacy forms — slot = paren
 
 # Phase 7: 终验
 
+### Task 7.0: learn-omniview 展示项目重构（v2 语法纯净呈现）
+
+> 用户指示（2026-08-03）：Phase 7 须含展示项目重构任务。理由：92 文件 demo 在 Phase 0-6 期间被逐域增量迁移，积累了大量迁移期痕迹（workaround 写法、陈旧教学注释、golden 镜像漂移、build 目录混合产物）——作为语言的「可执行文档」（ADR-054 原则 5），终验前需要一次有意的重构，使展示项目干净呈现 v2 语法。
+
+**Files:**
+- `test/projects/learn-omniview/src/**`（92 文件：pages/components/stores/design.omni）
+- `test/projects/learn-omniview/build/`（产物清理：区分目标目录或清理混合产物）
+- `tests/fixtures/golden/`（镜像 resync——含 T5.3 记录的 playAll 漂移）
+- 相关 demo 页面（含每域任务留下的迁移注释与 workaround）
+
+**范围与验收**:
+1. **v2 语法纯净审计**：逐文件核对——无 v1 残留语法（已删形式/已删关键字/陈旧教学注释/`17 个属性`类过时计数）、无 workaround 写法（如 T2.3 时代的 `value={""}` 反模式残留、fixture 类 `key={item}` 替代）、无「编译器 bug 规避」注释
+2. **结构重构**：以「v2 功能全集 × 展示项目」覆盖矩阵重新审视组织——9 标签页是否清晰呈现 10 个语义域（含新 a11y 域、@themes/@theme、@scroll/@drag 维度）；缺失功能补 demo，重复/弱演示合并（对照 ADR-054 覆盖差距分析的先例）
+3. **golden 镜像 resync**：`diff -rq test/projects/learn-omniview/src tests/fixtures/golden/` 清零（含 playAll 漂移）
+4. **build 产物清理**：区分目标目录（React/Flutter/OmniView）或清理混合产物（doc 专家 LOW-2）
+5. **终验联动**：重构后跑通三目标全量编译（Task 7.1 的输入——React tsc 0 错误、Flutter dart analyze 0/0、OmniView 浏览器 9 标签页）
+6. **文档同步**：demo 修改导致的文档/展示一致性检查（随重构同 commit）
+
+**退出条件**: 展示项目零 v1 残留、零 workaround、golden 全同步、结构覆盖 10 域、三目标编译全绿（供 Task 7.1 直接验证）。
+
+**Commit**: `refactor(demo): learn-omniview v2 showcase — syntax purity, structure, golden resync`
+
 ### Task 7.1: 三目标全量编译 + 浏览器全测
 
 **Files:**
