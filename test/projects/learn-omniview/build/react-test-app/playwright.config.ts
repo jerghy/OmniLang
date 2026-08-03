@@ -26,7 +26,9 @@ export default defineConfig({
   projects: [
     {
       name: 'omniview-react',
-      testMatch: '**/*.spec.ts',
+      // omniview-browser.spec.ts targets the OmniView static output and
+      // is served by playwright.omniview.config.ts instead.
+      testIgnore: ['**/omniview-browser.spec.ts'],
     },
   ],
   webServer: {
