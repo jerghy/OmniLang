@@ -436,6 +436,9 @@ pub fn analyse_multi_cached(
     to_reprocess.retain(|p| sources.contains_key(p));
 
     // Phase 1: Parse only changed + transitively affected files
+    // Parse-phase diagnostics are retained per-path so they can be persisted
+    // into the cache below (otherwise cache hits would drop them entirely).
+    let mut parse_diags: FxHashMap<String, Vec<Diagnostic>> = FxHashMap::default();
     if !to_reprocess.is_empty() {
         let parse_results: Vec<(String, Program, Vec<Diagnostic>)> = to_reprocess
             .par_iter()
@@ -455,7 +458,8 @@ pub fn analyse_multi_cached(
             .collect();
 
         for (path, program, file_diags) in parse_results {
-            diags.extend(file_diags);
+            diags.extend(file_diags.iter().cloned());
+            parse_diags.insert(path.clone(), file_diags);
             all_programs.insert(path, Arc::new(program));
         }
     }
@@ -522,13 +526,18 @@ pub fn analyse_multi_cached(
             let content_hash = fast_hash(&sources[path]);
             let imports = new_imports.remove(path).unwrap_or_default();
             if let Some((ir, local_diags)) = per_file_ir.get(path) {
+                // Persist parse-phase diagnostics alongside lowering diagnostics
+                // so cache hits replay the complete error set — parse errors
+                // must not silently vanish on the second run.
+                let mut cached_diags = parse_diags.remove(path).unwrap_or_default();
+                cached_diags.extend(local_diags.iter().cloned());
                 cache.entries.insert(
                     path.clone(),
                     CachedFile {
                         content_hash,
                         program: program.clone(),
                         program_valid: true,
-                        diagnostics: local_diags.clone(),
+                        diagnostics: cached_diags,
                         ir: ir.clone(),
                         imports,
                         dependents: Vec::new(),
@@ -688,5 +697,54 @@ mod tests {
             out2.diagnostics
         );
         assert!(!out2.success, "success must not lie while errors exist");
+    }
+
+    /// Regression: parse-phase diagnostics must survive cache hits.
+    ///
+    /// `CachedFile.diagnostics` only ever stored lowering-phase diagnostics;
+    /// parse-phase diagnostics (collected in Phase 1) were emitted to the
+    /// output but never cached, so on the next run — where the file is a
+    /// cache hit and skipped — `success` flipped to `true` and the parse
+    /// error vanished. The poiesis editor runs this path on every keystroke,
+    /// so bad code would show as green.
+    #[test]
+    fn cached_run_keeps_parse_diagnostics() {
+        // File "a.omni" triggers a parse error (E0001); "b.omni" is clean.
+        let bad = "view A { @click { } }";
+        let clean = "view B { }";
+        let mut sources: FxHashMap<String, String> = FxHashMap::default();
+        sources.insert("a.omni".to_string(), bad.to_string());
+        sources.insert("b.omni".to_string(), clean.to_string());
+        let path_mapping: FxHashMap<String, String> = FxHashMap::default();
+        let mut cache = IncrementalCache::new();
+
+        let out1 = analyse_multi_cached(&sources, &path_mapping, &mut cache);
+        assert!(
+            !out1.success,
+            "run 1 must fail on parse error, got success=true, diags: {:?}",
+            out1.diagnostics
+        );
+        assert!(
+            out1.diagnostics
+                .iter()
+                .any(|d| d.kind == DiagnosticKind::E0001),
+            "run 1 must carry the parse diag, got: {:?}",
+            out1.diagnostics
+        );
+
+        // Second run: both files are cache hits. The parse error must survive.
+        let out2 = analyse_multi_cached(&sources, &path_mapping, &mut cache);
+        assert!(
+            !out2.success,
+            "cache hit must not flip success on parse error, got success=true, diags: {:?}",
+            out2.diagnostics
+        );
+        assert!(
+            out2.diagnostics
+                .iter()
+                .any(|d| d.kind == DiagnosticKind::E0001),
+            "parse diag dropped on cache hit, run 2 got: {:?}",
+            out2.diagnostics
+        );
     }
 }
