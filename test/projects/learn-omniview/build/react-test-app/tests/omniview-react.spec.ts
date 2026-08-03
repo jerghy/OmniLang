@@ -34,6 +34,10 @@ import { test, expect, Page } from '@playwright/test';
 //      fix belongs to the IR wave (Phase 5.2 store emission).
 //   D. `&` in static text is escaped to `&amp;` INSIDE JSX string
 //      literals, rendering literally ("Signal &amp; Store Patterns").
+//      FIXED (task 2.4): the string-literal emission path no longer
+//      entity-escapes — `<`, `>`, `&` stay raw in JS strings (React
+//      renders expression-container strings verbatim); entity escaping
+//      remains only on the JSXText/HTML paths. Test 19 un-fixme'd.
 //   E. Kebab-case style props ("border-radius") → React console errors
 //      (TS2353 class).
 //   F. Lowercase event handlers (onAnimationend / onTransitionend)
@@ -242,7 +246,7 @@ test.describe('OmniView React — 9 标签页验证', () => {
 
   // ═══ TAB 4: State ═══
   test.describe('Tab 4: ⚡ State', () => {
-    test.fixme('19 - SignalPatternsDemo counter (React bug D: & renders as literal &amp;)', async ({ page }) => {
+    test('19 - SignalPatternsDemo counter (React bug D: & renders as literal &amp; — fixed by task 2.4 entity-escape separation)', async ({ page }) => {
       await switchToTab(page, 4);
       await visible(page, 'Signal & Store Patterns');
       await clickBtn(page, '+1');

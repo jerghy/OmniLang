@@ -5051,3 +5051,50 @@ component V {
         content
     );
 }
+
+// ── Task 2.4: JS string literal entity-escape separation ───────────
+
+/// JSX string literals (`{'...'}`) must NOT be HTML-entity-escaped — React
+/// renders JS string content in expression containers literally (no entity
+/// decoding), so escaping produced visible `&amp;amp;` text (ts/react M1).
+/// Only JS quote/backslash escaping applies inside the string; entity
+/// escaping remains on the JSXText/HTML paths.
+#[test]
+fn jsx_string_literal_not_entity_escaped() {
+    // Raw text node (the buggy path — Text emission wraps in `{'...'}`, a JS
+    // string literal, where HTML entity escaping is a visible double-escape:
+    // `Signal & Store` rendered `Signal &amp; Store`; a source entity became
+    // `&amp;amp;` — ts/react M1). The brief's `view V { <div>{"Signal &
+    // Store"}</div> }` source does not parse (no `import omniview;
+    // component`), and the `{"..."}` interpolation form already emits
+    // unescaped via format_expr_ir_tsx_renamed — the raw-text form is the
+    // shape that reproduced `&amp;amp;` in the demos.
+    let src = r#"
+import omniview;
+component V {
+    view {
+        <div>Signal & Store</div>
+    }
+}
+"#;
+    let out = compile_react_full(src);
+    if !out.success {
+        panic!("compile errors: {:?}", out.errors);
+    }
+    let content: String = out
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        !content.contains("&amp;"),
+        "string literal must not be entity-escaped: {}",
+        content
+    );
+    assert!(
+        content.contains("Signal & Store"),
+        "literal text changed: {}",
+        content
+    );
+}

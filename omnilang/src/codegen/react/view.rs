@@ -2,6 +2,7 @@
 // View tree generation (JSX)
 // ═══════════════════════════════════════════════════════════
 
+use crate::codegen::escape_literal_str;
 use crate::codegen::shared::inline_handler::{build_inline_handler, InlineHandlerConfig};
 use crate::codegen::shared::style::{format_style_prop_key, format_style_value_expr};
 use crate::codegen::CodeWriter;
@@ -999,13 +1000,18 @@ pub(super) fn gen_view_node_tsx(
             // treating it as code was a live injection vector
             // (`{"", alert(1), ""}` → `{..., alert(1), ...}` comma
             // operator, Task 3.1 review CRITICAL round 2). Such text is
-            // escaped as plain text and rendered literally.
-            let escaped = text
-                .replace('\\', "\\\\")
-                .replace('\'', "\\'")
-                .replace('<', "&lt;")
-                .replace('>', "&gt;")
-                .replace('&', "&amp;");
+            // wrapped in a JS string literal and rendered literally.
+            //
+            // Escape separation (Task 2.4): the `{'...'}` wrapper is a JS
+            // STRING LITERAL in an expression container — React renders its
+            // content verbatim (no HTML entity decoding), so `<`, `>`, `&`
+            // must stay RAW: entity-escaping them produced visible `&amp;amp;`
+            // text (ts/react M1) and double-escaped the demos' titles. Only
+            // JS-level escaping (backslash / quote / control chars) applies
+            // here; HTML entity escaping belongs on the JSXText/HTML paths
+            // (OmniView escape_html), which React's runtime text escaping
+            // makes redundant in expression containers anyway.
+            let escaped = escape_literal_str(text, '\'');
             w.emit_fmt(format_args!("{{'{}'}}", escaped));
         }
         ViewTree::Interpolation(expr) => {
