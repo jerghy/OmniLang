@@ -113,6 +113,25 @@ fn saveTheme(mode: String) {
 }
 ```
 
+## std/async — 异步
+
+| 函数 | 说明 |
+|------|------|
+| `async_sleep(ms: i32) async` | 异步延时（如实现计时器） |
+| `async_spawn(fn) async` | 并行执行异步任务 |
+| `async_all(tasks) async` | 全部完成 |
+| `async_race(tasks) async` | 先到者胜 |
+| `async_timeout(fn, ms) async` | 超时兜底 |
+
+```omni
+import { async_sleep } from "std/async";
+
+// async fn 内 await 延时；完整演示见 StdLibShowcase（async_demo.omni）
+action tick() async {
+    await async_sleep(1000);
+}
+```
+
 ## 内置方法
 
 无需 import，直接在类型上调用：

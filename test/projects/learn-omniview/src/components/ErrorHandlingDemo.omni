@@ -1,7 +1,7 @@
 // ╔══════════════════════════════════════════════════════════════╗
 // ║  ErrorHandlingDemo.omni —— 异常处理演示组件                    ║
 // ║                                                              ║
-// ║  将纯逻辑文件 components/error_handling.omni 接线到展示页：     ║
+// ║  演示 components/error_handling.omni 的纯逻辑函数：            ║
 // ║    · throw 语句（safe_divide）                               ║
 // ║    · try/catch（try_catch_divide）                           ║
 // ║    · try/catch/finally（try_catch_finally_divide）           ║
@@ -24,23 +24,21 @@ component ErrorHandlingDemo {
 
     view {
         <div class: LearnDesign.Container>
-            <!-- 注：throw / try / catch / finally 四个词因解析器文本 token 缺陷需用
-                 {"..."} 插值形式书写（见接线报告中的解析器 bug 最小复现）-->
-            <h3 class: LearnDesign.CardTitle>异常处理：{"throw"} / {"try"} / {"catch"} / {"finally"}</h3>
+            <h3 class: LearnDesign.CardTitle>异常处理：throw / try / catch / finally</h3>
             <p class: LearnDesign.Subtitle>
-                演示 components/error_handling.omni 中的 {"throw"} 语句与 {"try"}/{"catch"}/{"finally"} 结构
+                演示 components/error_handling.omni 中的 throw 语句与 try/catch/finally 结构
             </p>
 
             <!-- ═══ throw + try/catch ═══ -->
             <div class: module-card>
-                <h4 class: module-title>① {"throw"} 语句 + {"try"}/{"catch"}</h4>
+                <h4 class: module-title>① throw 语句 + try/catch</h4>
                 <ul class: output-list>
                     <li class: output-item>
                         <code>safe_divide(10, 2)</code> = {safe_divide(10.0, 2.0)}
                     </li>
                     <li class: output-item>
                         <code>try_catch_divide(10, 0)</code> → {try_catch_divide(10.0, 0.0)}
-                        （b==0 时 {"throw"} "division by zero"，被 {"catch"} 捕获）
+                        （b==0 时 throw "division by zero"，被 catch 捕获）
                     </li>
                     <li class: output-item>
                         <code>try_catch_divide(8, 2)</code> → {try_catch_divide(8.0, 2.0)}
@@ -50,11 +48,11 @@ component ErrorHandlingDemo {
 
             <!-- ═══ try/catch/finally ═══ -->
             <div class: module-card>
-                <h4 class: module-title>② {"try"}/{"catch"}/{"finally"}</h4>
+                <h4 class: module-title>② try/catch/finally</h4>
                 <ul class: output-list>
                     <li class: output-item>
                         <code>triggerFinally()</code> → {triggerFinally()}
-                        （{"finally"} 分支的 print 输出到控制台）
+                        （finally 分支的 print 输出到控制台）
                     </li>
                     <li class: output-item>
                         <code>try_catch_finally_divide(6, 2)</code> → {try_catch_finally_divide(6.0, 2.0)}
@@ -71,14 +69,14 @@ component ErrorHandlingDemo {
                     </li>
                     <li class: output-item>
                         <code>safe_get(parse_config("abc"), "missing")</code> = {safe_get(parse_config("abc"), "missing")}
-                        （key 缺失 → {"throw"} → {"catch"} 返回 fallback）
+                        （key 缺失 → throw → catch 返回 fallback）
                     </li>
                     <li class: output-item>
                         <code>complex_parse("length", "abc")</code> = {complex_parse("length", "abc")}
                     </li>
                     <li class: output-item>
                         <code>complex_parse("unknown", "")</code> = {complex_parse("unknown", "")}
-                        （空 raw → 空 Map → get_or_throw 触发 → {"finally"} 打印）
+                        （空 raw → 空 Map → get_or_throw 触发 → finally 打印）
                     </li>
                 </ul>
             </div>

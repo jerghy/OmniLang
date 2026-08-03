@@ -1,31 +1,14 @@
 import omniview;
 
-// ╔══════════════════════════════════════════════════════════════╗
-// ║  🧪 Playwright Test                                         ║
-// ║                                                            ║
-// ║  **Steps:**                                                ║
-// ║  1. Navigate to ComputedFnFormDemo component.               ║
-// ║  2. Check the simple form computed and function-form        ║
-// ║     computed values.                                        ║
-// ║  3. Click "Clear Last Name" button.                         ║
-// ║  4. Click "Set San" button.                                 ║
-// ║                                                            ║
-// ║  **Expected:**                                             ║
-// ║  - Initial simple computed shows "Zhang ".                  ║
-// ║  - Initial function-form computed shows "Zhang".            ║
-// ║  - After "Clear Last Name", fullName shows just "Zhang".    ║
-// ║  - After "Set San", fullName shows "Zhang San".             ║
-// ╚══════════════════════════════════════════════════════════════╝
-
 component ComputedFnFormDemo {
     signal firstName: String = "Zhang";
     signal lastName: String = "";
     signal counter: i32 = 0;
 
-    // 已支持的：简单表达式形式
+    // 简单表达式形式
     computed simple: String = firstName + " " + lastName;
 
-    // ★ 未使用的：函数式形式（带 () 和 -> 及完整 block）
+    // 函数式形式（带 () 和 -> 及完整 block）——view 中 {fullName()} 调用
     computed fullName() -> String {
         if firstName == "" && lastName == "" {
             return "Anonymous";
@@ -42,7 +25,7 @@ component ComputedFnFormDemo {
     view {
         <div class: container>
             <h3 class: title>Computed Function Form Demo</h3>
-            <p class: subtitle>演示 computed name() → Type {"{ }"} 函数式写法</p>
+            <p class: subtitle>演示 computed name() → Type 函数式写法</p>
 
             <div class: card>
                 <h4 class: label>Simple form: computed simple: String = expr</h4>
@@ -50,7 +33,7 @@ component ComputedFnFormDemo {
             </div>
 
             <div class: card>
-                <h4 class: label>Function form: computed fullName() → String {"{...}"}</h4>
+                <h4 class: label>Function form: computed fullName() → String（函数体）</h4>
                 <p class: value>{fullName()}</p>
             </div>
 

@@ -5,9 +5,6 @@
 // ║    1. 函数调用：onEvent(value)                                   ║
 // ║    2. emit 关键字：emit eventName(value)                         ║
 // ║                                                                  ║
-// ║  当前 learn-omniview 中所有事件都用函数语法触发（如 AddTodo 中     ║
-// ║  onAdd(input)），从未演示 emit 关键字。                            ║
-// ║                                                                  ║
 // ║  本组件演示 emit 的用法以及与函数调用语法的等价性。                 ║
 // ╚══════════════════════════════════════════════════════════════════╝
 
@@ -162,7 +159,5 @@ component EmitKeywordDemo {
         .note-title { font-size: 14px; color: #e2e8f0; margin: 0 0 8px 0; }
         .note-list { margin: 0; padding-left: 18px; }
         .note-list li { font-size: 12px; color: #94a3b8; margin-bottom: 4px; line-height: 1.5; }
-        // .wrapper / .section-title / .subtitle / code
-        // 已由 LearnDesign.Card / CardTitle / Hint 提供
     }
 }

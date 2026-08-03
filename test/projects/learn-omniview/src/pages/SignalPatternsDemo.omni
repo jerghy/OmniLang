@@ -19,7 +19,7 @@ import { LearnDesign } from "../design";
 component SlotBox {
     event onClose: Void;
 
-    // Body-level slot declarations (ADR-053 D5): consumers project via
+    // Body-level slot declarations: consumers project via
     // named props, e.g. <SlotBox header={<h4>...</h4>} />.
     @slot header
     @slot body
@@ -184,7 +184,7 @@ component SignalPatternsDemo {
                 </button>
                 @if showPanel mode: "wait" {
                     <div class: panel>
-                        <p>这个面板在 mode: "wait" 下渲染——当前无离开动画注册，实际为立即切换（诚实降级）</p>
+                        <p>mode: "wait" 延迟卸载：有离开动画时等待其完成，无动画时立即切换</p>
                     </div>
                 }
             </div>

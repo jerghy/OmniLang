@@ -7,7 +7,7 @@ import { ThemeSourceDemo } from "../components/ThemeSourceDemo";
 import { DesignTokenPanel } from "../components/DesignTokenPanel";
 import { VariantShowcase } from "../components/VariantShowcase";
 import { ThemeCssVarsDemo } from "../components/ThemeCssVarsDemo";
-// CSS 变量与单位（接线孤儿文件）
+// CSS 变量与单位
 import { CssVarsDemo } from "../components/CssVarsDemo";
 import { CssUnitsDemo } from "../components/CssUnitsDemo";
 

@@ -1,7 +1,7 @@
 // ╔══════════════════════════════════════════════════════════════╗
 // ║  ViewAttributesDemo.omni —— 视图属性演示                      ║
-// ║  演示：testId, class:"string" 字面量, bind:checked,          ║
-// ║        bind:text（富文本输入）                                 ║
+// ║  演示：data-testid, class:"string" 字面量, bind:checked,      ║
+// ║        bind:value（文本输入）                                  ║
 // ╚══════════════════════════════════════════════════════════════╝
 
 import omniview;
@@ -13,19 +13,19 @@ component ViewAttributesDemo {
     view {
         <div class: container>
             <h3 class: title>视图属性演示</h3>
-            <p class: subtitle>testId · class:string · bind:checked</p>
+            <p class: subtitle>data-testid · class:string · bind:checked</p>
 
             <div class: card>
-                <h4 class: label>testId 属性标记</h4>
-                <div testId="attr-demo-container" class: info-box>
-                    <p class: info-text>此 div 使用 testId 属性标记，用于测试定位</p>
+                <h4 class: label>data-testid 属性标记</h4>
+                <div data-testid="attr-demo-container" class: info-box>
+                    <p class: info-text>此 div 使用 data-testid 属性标记，用于测试定位</p>
                 </div>
             </div>
 
             <div class: card>
                 <h4 class: label>bind:checked 复选框绑定</h4>
                 <label class: checkbox-label>
-                    <input type="checkbox" bind:checked={isChecked} testId="agree-checkbox" />
+                    <input type="checkbox" bind:checked={isChecked} data-testid="agree-checkbox" />
                     <span>同意条款: {isChecked.to_string()}</span>
                 </label>
             </div>

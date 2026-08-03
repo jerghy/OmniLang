@@ -1,8 +1,8 @@
 import omniview;
 
 component NullishDemo {
-    signal inputName: String = "test";
+    // `??` 空值合并：左侧为 null 时取右侧回退值（需可空类型信号）
+    signal inputName: String? = null;
     computed displayName: String = inputName ?? "Anonymous";
     view { <div>{displayName}</div> }
-    style { .d {} }
 }

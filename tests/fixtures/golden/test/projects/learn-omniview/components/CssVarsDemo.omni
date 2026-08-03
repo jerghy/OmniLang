@@ -1,35 +1,19 @@
 // ╔══════════════════════════════════════════════════════════════════╗
 // ║  CssVarsDemo.omni — CSS 自定义属性（CSS 变量）全覆盖              ║
 // ║                                                                  ║
-// ║  演示编译器新增的 4 种 CSS 变量用法：                              ║
+// ║  演示 4 种 CSS 变量用法：                                         ║
 // ║    1. Style 块中声明 --* 属性                                     ║
 // ║    2. Style 块中使用 var() 引用                                   ║
 // ║    3. 内联样式静态 CSS 变量                                       ║
-// ║    4. 内联样式动态 CSS 变量（信号 → setProperty 代码路径）         ║
-// ║                                                                  ║
-// ║  编译器支持：                                                     ║
-// ║    - parse_css_property_name() @ view.rs:1134                    ║
-// ║    - emit_style_assignment() @ omniview.rs:692                   ║
-// ║    - 测试文件: css_custom_property_test.rs                       ║
+// ║    4. 内联样式动态 CSS 变量（信号 → setProperty 桥接）             ║
 // ╚══════════════════════════════════════════════════════════════════╝
 
 import omniview;
-
-// ── @motion: 用于演示动态 CSS 变量变化的过渡效果 ────────────
-@motion pulseAccent {
-    from { --accent-h: 221 }
-    to   { --accent-h: 350 }
-    over: 600ms
-    easing: ease-in-out
-    direction alternate
-    loop
-}
 
 component CssVarsDemo {
     // 动态 CSS 变量用的信号
     signal accentColor: String = "#6366f1";
     signal accentHue: i32 = 221;
-    signal themeMode: String = "light";
 
     fn cycleAccent() {
         if accentColor == "#6366f1" {
@@ -38,14 +22,6 @@ component CssVarsDemo {
             accentColor = "#14b8a6";
         } else {
             accentColor = "#6366f1";
-        }
-    }
-
-    fn toggleMode() {
-        if themeMode == "light" {
-            themeMode = "dark";
-        } else {
-            themeMode = "light";
         }
     }
 
@@ -115,9 +91,8 @@ component CssVarsDemo {
             <div class: demo-card>
                 <h4 class: demo-label>③ 内联样式动态 CSS 变量（信号 → setProperty）</h4>
                 <p class: demo-desc>
-                    传递<strong>信号引用</strong>给 <code>--*</code> 属性。编译器自动生成
-                    <code>__omni_effect(() => el.style.setProperty("--name", signal.value))</code>。
-                    这是新增的 <code>$signal</code> JSON 标记代码路径。
+                    传递<strong>信号引用</strong>给 <code>--*</code> 属性。编译器生成 effect
+                    在信号变化时更新 CSS 变量。
                 </p>
 
                 <div class: dynamic-area
@@ -138,7 +113,7 @@ component CssVarsDemo {
                         Cycle Accent Color
                     </button>
                     <p class: code-hint>
-                        生成的 JS: <code>setProperty("--accent", accentColor.value)</code>
+                        生成的 JS: <code>setProperty("--accent", accentColor)</code>
                     </p>
                 </div>
             </div>
@@ -147,8 +122,8 @@ component CssVarsDemo {
             <div class: demo-card>
                 <h4 class: demo-label>④ CSS 变量级联 + Motion 驱动</h4>
                 <p class: demo-desc>
-                    外层设 <code>--accent-h</code>，内层用 <code>var(--accent-h)</code> 计算衍生色。
-                    配合 <code>@motion</code> 交替动画驱动 hue 值变化。
+                    外层设 <code>--accent-h</code>（由 accentHue 信号驱动），内层用
+                    <code>var(--accent-h)</code> 计算衍生色。hue 值随信号变化实时更新。
                 </p>
                 <div class: cascade-area
                     style: {
@@ -175,13 +150,11 @@ component CssVarsDemo {
 
             <!-- 技术说明 -->
             <div class: tech-note>
-                <h4 class: note-title>编译器技术要点</h4>
+                <h4 class: note-title>要点</h4>
                 <ul class: note-list>
-                    <li><code>parse_css_property_name()</code> 在 <code>view.rs:1134</code> 检测 <code>--</code> 双短横前缀</li>
-                    <li><code>emit_style_assignment()</code> 在 <code>omniview.rs:692</code> 对 <code>--</code> 属性用 <code>setProperty()</code> 而非直接赋值</li>
-                    <li>Style 块中 <code>--name: value</code> 以 <code>StyleValue::Ident</code> / <code>HexColor</code> / <code>Dimension</code> 存储在 AST</li>
-                    <li>内联 <code>style: &#123; --name: signal &#125;</code> 通过 <code>$signal</code> JSON 标记生成响应式代码</li>
-                    <li>测试覆盖：<code>css_custom_property_test.rs</code>（解析 + 静态内联 + 动态内联）</li>
+                    <li>Style 块与内联 <code>style:</code> 均可声明 <code>--name</code> 属性</li>
+                    <li><code>--name: 信号</code> 信号引用 → 编译期生成响应式 setProperty 更新</li>
+                    <li>静态 <code>--name: "value"</code> → 直接写入 CSS 变量</li>
                 </ul>
             </div>
         </div>

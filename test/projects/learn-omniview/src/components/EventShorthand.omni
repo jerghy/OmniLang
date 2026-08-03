@@ -35,14 +35,14 @@ component EventShorthand {
 
             <!-- 简写1: {fnName(args)} — 解析器自动生成 () => { fnName(args); } -->
             <div class: section>
-                <p class: section-title>Form 1: {"{fnName(args)}"} — auto-wraps inline</p>
+                <p class: section-title>Form 1: { "{fnName(args)}" } — auto-wraps inline</p>
                 <button variant: LearnDesign.Button(color=primary, size=sm) @onClick={greet("World")}>greet("World")</button>
                 <button variant: LearnDesign.Button(color=primary, size=sm) @onClick={farewell("World")}>farewell("World")</button>
             </div>
 
             <!-- 简写2: {store.action} — 直接引用 store action -->
             <div class: section>
-                <p class: section-title>Form 2: {"{store.action}"} — StoreAction ref</p>
+                <p class: section-title>Form 2: { "{store.action}" } — StoreAction ref</p>
                 <button variant: LearnDesign.Button(color=accent, size=sm) @onPress={() => { NotificationStore.add("Hello from shorthand"); }}>
                     NotificationStore.add(...)
                 </button>
@@ -82,7 +82,5 @@ component EventShorthand {
         .result-area { margin-top: 12px; padding: 12px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; }
         .result-text { font-size: 16px; color: #166534; margin: 0 0 4px 0; font-weight: 600; }
         .result-count { font-size: 13px; color: #6b7280; margin: 0; }
-        // .event-shorthand / .title / .btn* / .store-info
-        // 已由 LearnDesign.Card / CardTitle / Button 变体 / Hint 类提供
     }
 }

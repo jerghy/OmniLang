@@ -8,15 +8,17 @@ import { json_parse, json_stringify } from "std/json";
 component UserSettings {
     signal username: String = "";
     signal fontSize: String = "medium";
-    signal autoSave: bool = true;
     signal savedText: String = "";
 
     // @mount：组件挂载时从 storage 读取配置
     @mount {
         let raw = storage_get("user-settings");
-        if raw != "" {
+        // storage_get 对缺失键返回 null（localStorage.getItem）——
+        // 必须同时排除 null 和空串，否则首次访问会 JSON.parse(null)
+        // 误显示 "Settings loaded" 并把 "null" 写回 storage
+        if raw != "" && raw != null {
             let parsed = json_parse(raw);
-            if parsed != "" {
+            if parsed != "" && parsed != null {
                 username = parsed;
                 savedText = "Settings loaded from storage";
             } else {
@@ -36,7 +38,7 @@ component UserSettings {
     fn saveSettings() {
         let payload = json_stringify(username);
         storage_set("user-settings", payload);
-        savedText = "Settings saved at " + "now";
+        savedText = "Settings saved";
     }
 
     // 清除存储的设置

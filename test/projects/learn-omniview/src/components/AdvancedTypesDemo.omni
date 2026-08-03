@@ -6,26 +6,16 @@
 // ║     · 消费者以函数引用传值：transform={fnRef}                          ║
 // ║     · on 前缀的 prop 名保留给事件绑定语法 — 回调惯例是                   ║
 // ║       event onXxx + 父级 @onXxx={handler}（见 FnFormatter）           ║
-// ║     · 现状：fn 类型在 React 降级为 any、Flutter 为 dynamic，            ║
-// ║       签名（参数个数/返回类型）暂不校验                                 ║
 // ║                                                                      ║
 // ║  ② match 表达式（标签联合臂 + 通配符）                                ║
-// ║     · 可工作：_ 通配、标签联合臂 { field } 解构 —— React/OmniView/JS   ║
-// ║       字面量臂比较主体值本身（已修复）；Flutter 变体臂自 2026-08-02    ║
-// ║       Task 1.4 起可用（deferral #30）：本地标签联合类型（Rating 类）   ║
-// ║       发射进 types.dart + 臂内字段绑定 + 非穷尽 match 的 default 兜底  ║
+// ║     · 标签联合臂 { field } 解构 + _ 通配 —— 三目标（React /           ║
+// ║       OmniView / Flutter）均可用；Flutter 本地联合类型发射进           ║
+// ║       types.dart，臂内字段绑定 + 非穷尽 match 的 default 兜底         ║
+// ║     · 字面量臂在 JS 目标比较主体值本身（_v === value）                 ║
 // ║     · 不支持：臂内 if 守卫（guard）、模式中的 | 联合（1 | 2 =>）        ║
 // ║                                                                      ║
-// ║  ③ 语法状态速查（诚实标注，避免把无效果语法当功能展示）                  ║
-// ║     · @slot name: Type 类型化插槽已删除（v2 D4）——                    ║
-// ║       slot = 父传内容，三形态 default + named + fallback              ║
-// ║     · @for item in list [scroll] — 语法可解析并进入 IR，但当前          ║
-// ║       无任何代码生成目标消费该提示（Flutter ListView.builder            ║
-// ║       提示待实现；OmniView 无效果）                                   ║
-// ║     · 泛型：类型实参 Array<String> 可用；泛型声明 fn foo<T> /          ║
-// ║       component Bar<T> 尚未支持                                       ║
-// ║     · $signal / $concat / $call — 这是 lowering 写入 style JSON 的     ║
-// ║       内部标记，不是用户可写的源码语法                                 ║
+// ║  ③ 泛型：类型实参（Array、Map 形式）可用；泛型声明（fn foo<T> /       ║
+// ║     component Bar<T>）不在支持范围                                    ║
 // ╚══════════════════════════════════════════════════════════════════════╝
 
 import omniview;
@@ -83,19 +73,11 @@ component MatchBreadthDemo {
         };
     }
 
-    // 说明：字面量臂（0 => ...）在 JS 目标比较主体值本身（_v === 0），
-    // 运行时可命中（React/OmniView/JS）。Flutter 变体臂自 2026-08-02
-    // Task 1.4（deferral #30）起可用：Rating 类发射进 types.dart，臂内
-    // 字段绑定为 final level = _v.level，非穷尽 match 追加
-    // default: throw StateError 兜底。
-    // 此处演示标签联合臂 { field } 解构 + _ 通配。
-    // 注意：臂内暂不支持 1 | 2 联合模式与 if 守卫。
-
     view {
         <div class: match-card>
             <span class: card-label>MatchBreadthDemo — match 表达式</span>
             <div class: btn-row>
-                <button class: act-btn alt @onPress={() => { result = describe(Star { level: 5 }); }}>Star {"{}"} level: 5 {"{}"}</button>
+                <button class: act-btn alt @onPress={() => { result = describe(Star { level: 5 }); }}>Star { "{ level: 5 }" }</button>
                 <button class: act-btn alt @onPress={() => { result = describe(Blank); }}>Blank</button>
             </div>
             <p class: match-out>match 结果: <strong>{result}</strong></p>
@@ -114,7 +96,7 @@ component MatchBreadthDemo {
     }
 }
 
-// ═══ 主演示组件：消费者侧接线 ═══
+// ═══ 主演示组件：fn 类型 prop + match 表达式 ═══
 component AdvancedTypesDemo {
     signal log: String = ""
 
@@ -129,14 +111,14 @@ component AdvancedTypesDemo {
     view {
         <div class: wrapper>
             <h3 class: section-title>类型系统进阶</h3>
-            <p class: subtitle>fn 函数类型 · match 表达式（标签联合）· 语法状态速查</p>
+            <p class: subtitle>fn 函数类型 · match 表达式（标签联合）</p>
 
             <div class: demo-card>
                 <h4 class: demo-label>① 函数类型 fn(String) -> String</h4>
                 <p class: demo-desc>
-                    消费者以<strong>函数引用</strong>传值（<code>transform={"{}"}shout{"{}"}</code>），
+                    消费者以<strong>函数引用</strong>传值（<code>transform={ "{shout}" }</code>），
                     子组件在视图内直接调用；<code>on</code> 前缀的回调走事件惯例
-                    （<code>event onSelect</code> + <code>@onSelect={"{}"}handler{"{}"}</code>）。
+                    （<code>event onSelect</code> + <code>@onSelect={ "{handler}" }</code>）。
                 </p>
                 <div class: demo-box>
                     <FnFormatter transform={shout} @onSelect={handleSelect} />
@@ -147,24 +129,21 @@ component AdvancedTypesDemo {
             <div class: demo-card>
                 <h4 class: demo-label>② match 表达式</h4>
                 <p class: demo-desc>
-                    标签联合臂（<code>Star {"{"} level {"}"}</code> 解构）+ <code>_</code> 通配符
-                    （React / OmniView 运行正确；Flutter 状态见下）。
+                    标签联合臂（<code>Star { "{ level }" }</code> 解构）+ <code>_</code> 通配符，
+                    三目标（React / OmniView / Flutter）均可运行
                 </p>
                 <div class: demo-box>
                     <MatchBreadthDemo />
                 </div>
             </div>
 
-            <!-- 技术说明：诚实标注语法状态 -->
+            <!-- 技术说明：特性范围 -->
             <div class: tech-note>
-                <h4 class: note-title>💡 语法状态速查</h4>
+                <h4 class: note-title>💡 特性范围</h4>
                 <ul class: note-list>
-                    <li><strong>❌ <code>{"@slot name: Type"}</code> 类型化插槽已删除（v2 D4）</strong>：slot = 父传内容（default + named + fallback），写类型约束 → 编译错误「类型约束与数据参数已删除」；遗留 <code>slot="name"</code> / <code>{"@slot(name)"}</code> 形式同样硬诊断</li>
-                    <li><code>{"@for item in list [scroll]"}</code>：语法可解析并进入 IR，但<strong>尚无代码生成目标消费</strong>该提示（Flutter ListView.builder 提示待实现；OmniView 无效果），此处不演示无效果语法</li>
-                    <li>泛型：类型实参（Array、Map 形式）可用；泛型声明 fn foo / component Bar 的类型参数尚未支持（完整说明见文件头注释）</li>
-                    <li>{"$signal"} / {"$concat"} / {"$call"}：这是 lowering 写入 style JSON 的<strong>内部标记</strong>（见 ir/lower/expr.rs），不是用户可写的源码语法</li>
-                    <li>match 暂不支持：臂内 <code>if</code> 守卫、模式联合（1 | 2）</li>
-                    <li><strong>✅ match Flutter 变体臂已修复（Task 1.4，deferral #30）</strong>：本地标签联合类型（<code>Rating</code> 类）发射进 <code>types.dart</code>，变体臂内字段绑定（<code>final level = _v.level</code>）+ 非穷尽 match 的 <code>default: throw</code> 兜底——生成的 Dart 通过 <code>dart analyze</code>。三目标（React / OmniView / Flutter）标签联合臂 + 通配符均可用；字面量臂在 JS 目标比较主体值本身（<code>_v === value</code>），此处不演示</li>
+                    <li><strong>match</strong>：标签联合臂（{ "{field}" } 解构）+ <code>_</code> 通配 + 字面量臂（JS 目标比较主体值本身）；暂不支持臂内 <code>if</code> 守卫与模式联合（1 | 2）</li>
+                    <li><strong>fn 类型</strong>：<code>fn(Param) -> Return</code> 注解可用作 prop / 返回值 / 变量类型</li>
+                    <li><strong>泛型</strong>：类型实参（Array、Map 形式）可用；泛型声明（fn foo / component Bar 的类型参数）不在支持范围</li>
                 </ul>
             </div>
         </div>

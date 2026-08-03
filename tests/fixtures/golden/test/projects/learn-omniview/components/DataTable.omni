@@ -36,14 +36,9 @@ component DataTable {
     }
 
     fn handleScroll() { scrollCount = scrollCount + 1; }
-    fn toggleSort() { sortAsc = !sortAsc; rows = array_sort(rows, |a, b| a.name); }
+    fn toggleSort() { sortAsc = !sortAsc; rows = array_sort(rows, |a, b| if sortAsc { a.name } else { b.name }); }
     fn getSortIcon() -> String { if sortAsc { return "ASC"; } return "DESC"; }
     fn getActiveRows() -> Array<RowItem> { return array_filter(rows, |r| r.status == "Active"); }
-
-    fn getStatusClass(status: String) -> String {
-        if status == "Active" { return "badge active"; }
-        return "badge inactive";
-    }
 
     fn getScoreColor(score: i32) -> String {
         if score >= 90 { return "#16a34a"; }
@@ -115,7 +110,7 @@ component DataTable {
                         </tr>
                     </thead>
                     <tbody>
-                        @for row in rows {
+                        @for row in rows key={row.id} {
                             <tr class: tr>
                                 <td class: td>{row.id}</td>
                                 <td class: td>{row.name}</td>
@@ -153,7 +148,7 @@ component DataTable {
                 </List>
             </div>
 
-            <!-- Map Closure Demo Phase 4 -->
+            <!-- Map and Closure Demo -->
             <div class: features-section>
                 <h3 class: section-title>Map and Closure Demo</h3>
                 <List class: features-list>
@@ -179,7 +174,7 @@ component DataTable {
             <hr />
             <div class: footer-row>
                 <img src="/dot.png" alt="dot" />
-                <p class: footer-text>DataTable Phase 4 Demo</p>
+                <p class: footer-text>DataTable Demo — custom tags · Map literals · closures</p>
             </div>
         </div>
     }

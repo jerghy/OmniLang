@@ -31,7 +31,7 @@ component StringLiteralsDemo {
 
             <div class: card>
                 <h4 class: label>反引号字符串</h4>
-                <p class: value>signal = `{"Hello \\"OmniView\\" world"}`</p>
+                <p class: value>signal = {'`Hello "OmniView" world`'}</p>
                 <p class: result>结果: {backtickResult}</p>
             </div>
 
@@ -47,7 +47,7 @@ component StringLiteralsDemo {
 
             <div class: card>
                 <h4 class: label>模板字符串插值 {"`${expr}`"}</h4>
-                <p class: value>buildGreeting("Alice", 30) -> "{buildGreeting("Alice", 30)}"</p>
+                <p class: value>buildGreeting("Alice", 30) -> {buildGreeting("Alice", 30)}</p>
                 <p class: value>dynamic: {interpolated}</p>
                 <button class: btn-sm @onPress={updateTemplate}>Update</button>
             </div>

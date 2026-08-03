@@ -1,46 +1,15 @@
 // ╔══════════════════════════════════════════════════════════════════════╗
-// ║  AnimPropertiesDemo — 全动画属性覆盖（17 个语义属性）                 ║
+// ║  AnimPropertiesDemo — 可动画属性覆盖（17 个属性）                      ║
 // ║                                                                    ║
 // ║  变换组：   scale · scaleX · scaleY · rotate · rotateX ·           ║
 // ║             rotateY · rotateZ · skewX · skewY                      ║
 // ║  位移组：   translateX · translateY · translateZ                   ║
 // ║  视觉组：   opacity · backgroundColor · color · width · height     ║
 // ║                                                                    ║
-// ║  按 semantic-level DSL（ADR-053）白名单迁移：                      ║
-// ║    - x/y → translateX/translateY，background → backgroundColor     ║
-// ║    - 滤镜（blur/brightness/contrast/saturate/hueRotate）、         ║
-// ║      margin/padding、fontSize、letterSpacing、borderWidth、        ║
-// ║      borderColor、borderRadius、top/left 不在白名单内：            ║
-// ║      · top/left → translateX/translateY（等价语义）               ║
-// ║      · blur/brightness/contrast/hueRotate → opacity/scale/        ║
-// ║        rotate/translateZ（保脉冲语义的替代属性）                  ║
-// ║      · 其余（saturate/margin/padding/fontSize/letterSpacing/      ║
-// ║        borderWidth/borderColor/borderRadius）删除——仍可作为       ║
-// ║        元素静态样式使用                                           ║
+// ║  属性白名单共 19 项（另含 borderRadius · fontSize，见设计文档）。   ║
 // ╚══════════════════════════════════════════════════════════════════════╝
 
 import omniview;
-
-// ╔══════════════════════════════════════════════════════════════╗
-// ║  🧪 Playwright Test                                         ║
-// ║                                                            ║
-// ║  **Steps:**                                                ║
-// ║  1. Navigate to AnimPropertiesDemo component page.         ║
-// ║  2. Verify all 3 property groups render: transforms,       ║
-// ║     translations, visuals.                                 ║
-// ║  3. Check scale/scaleX/scaleY/rotate/rotateX/rotateY/      ║
-// ║     rotateZ/skewX/skewY cards.                             ║
-// ║  4. Check translate/translateZ cards.                      ║
-// ║  5. Check opacity/backgroundColor/color/width/height cards.║
-// ║  6. Click "Play All Animations" button to trigger @enter.  ║
-// ║                                                            ║
-// ║  **Expected:**                                             ║
-// ║  - 16 animation cards rendered across 3 property groups.   ║
-// ║  - Each card has @enter pointing to its @motion definition.║
-// ║  - scaleX card: @enter={scaleXDemo}, from scaleX:1→1.8.   ║
-// ║  - skewX card: @enter={skewXDemo}, skewX 0→15deg.         ║
-// ║  - "Play All Animations" button exists and clickable.      ║
-// ╚══════════════════════════════════════════════════════════════╝
 
 // ── 变换：scaleX（X 轴缩放） ──────────────────────────
 @motion scaleXDemo {
@@ -58,7 +27,7 @@ import omniview;
     easing: power2-out
 }
 
-// ── 变换：scale（等比缩放；原 brightness 滤镜动画） ──
+// ── 变换：scale（等比缩放） ──
 @motion scalePulseDemo {
     from { scale: 1 }
     to   { scale: 1.25 }
@@ -90,7 +59,7 @@ import omniview;
     easing: power2-out
 }
 
-// ── 变换：rotate（平面旋转；原 contrast 滤镜动画） ──
+// ── 变换：rotate（平面旋转） ──
 @motion rotateDemo {
     from { rotate: 0 }
     to   { rotate: 180 }
@@ -114,7 +83,7 @@ import omniview;
     easing: power2-out
 }
 
-// ── 位移：translateX + translateY（原 top/left 定位动画） ──
+// ── 位移：translateX + translateY ──
 @motion translateDemo {
     from { translateX: 0, translateY: 0 }
     to   { translateX: 120, translateY: -20 }
@@ -122,7 +91,7 @@ import omniview;
     easing: power2-out
 }
 
-// ── 位移：translateZ（原 hueRotate 滤镜动画） ─────────
+// ── 位移：translateZ ──
 @motion translateZDemo {
     from { translateZ: 0 }
     to   { translateZ: 60 }
@@ -130,7 +99,7 @@ import omniview;
     easing: ease-in-out
 }
 
-// ── 视觉：opacity（原 blur 滤镜动画） ─────────────────
+// ── 视觉：opacity ──
 @motion opacityPulseDemo {
     from { opacity: 0.3 }
     to   { opacity: 1 }
@@ -138,7 +107,7 @@ import omniview;
     easing: ease-out
 }
 
-// ── 视觉：backgroundColor（原 borderRadius 已移除） ──
+// ── 视觉：backgroundColor ──
 @motion bgColorDemo {
     from { backgroundColor: "#6366f1" }
     to   { backgroundColor: "#f97316" }
@@ -146,7 +115,7 @@ import omniview;
     easing: ease-in-out
 }
 
-// ── 视觉：color（原 borderColor 已移除） ──────────────
+// ── 视觉：color ──
 @motion textColorDemo {
     from { color: "var(--textPrimary)" }
     to   { color: "#dc2626" }
@@ -174,6 +143,7 @@ import omniview;
 //  组件
 // ══════════════════════════════════════════════════════════════════════
 component AnimPropertiesDemo {
+    // 重放机制：切换 playAll 信号会重放本组件全部命名 @enter 动画
     signal playAll: bool = false;
 
     fn toggleAll() { playAll = !playAll; }
@@ -181,10 +151,10 @@ component AnimPropertiesDemo {
     view {
         <div class: container>
             <h3 class: title>全动画属性覆盖</h3>
-            <p class: subtitle>17 个语义 keyframe 属性（ADR-053 白名单）· scale/scaleX/scaleY · rotate/rotateX/rotateY/rotateZ · skewX/skewY · translateX/translateY/translateZ · opacity · backgroundColor · color · width · height · 点击按钮播放所有 @enter 动画</p>
+            <p class: subtitle>17 个可动画属性 · 点击按钮播放所有 @enter 动画</p>
 
             <button @click={toggleAll} class: trigger-btn>
-                {if playAll { "Reset" } else { "Play All Animations" }}
+                Replay All Animations
             </button>
 
             <!-- ═══ 变换组 ═══ -->

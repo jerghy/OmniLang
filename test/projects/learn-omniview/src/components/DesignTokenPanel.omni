@@ -1,12 +1,9 @@
 // ╔══════════════════════════════════════════════════════════════════╗
 // ║  DesignTokenPanel.omni —— 设计令牌实时可视化                      ║
 // ║                                                                  ║
-// ║  展示所有 18 种设计令牌类型在当前主题下的值。                      ║
-// ║  令牌值通过 var(--name) CSS 变量引用，主题切换时自动更新。        ║
-// ║                                                                  ║
-// ║  Token 类型（13）：                                              ║
+// ║  展示 4 类设计令牌在当前主题下的值：                               ║
 // ║  Color（11）、Size（6）、Radius（4）、Shadow（3）                  ║
-// ║  FontFamily（1）、FontSize（8）、FontWeight（3）、Duration（1）    ║
+// ║  令牌值通过 var(--name) CSS 变量引用，主题切换时自动更新。        ║
 // ╚══════════════════════════════════════════════════════════════════╝
 
 import omniview;
@@ -18,7 +15,7 @@ component DesignTokenPanel {
         <div class: LearnDesign.Container>
             <h3 class: LearnDesign.CardTitle>Design Tokens Visualizer</h3>
             <p class: LearnDesign.Subtitle>
-                13 token types · values change instantly on theme switch via <code>var(--name)</code>
+                Color · Size · Radius · Shadow — 主题切换时经 <code>var(--name)</code> 即时更新
             </p>
 
             <h4 class: LearnDesign.SectionTitle>Color Tokens (11)</h4>

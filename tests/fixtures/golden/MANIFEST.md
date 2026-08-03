@@ -44,7 +44,7 @@ Files are grouped by primary feature. Many files demonstrate multiple features.
 ## Motion / Animation
 
 - `test/projects/learn-omniview/src/pages/MotionDemo.omni` — `@motion` definitions (fadeInUp, scalePress, listItem, pulse) + `@enter`/`@hover`/`@press` triggers + `@if` with `mode: "fade"`
-- `test/projects/learn-omniview/src/pages/MotionTriggersDemo.omni` — Motion trigger demo: `@in-view`, `@scroll`, `@focus`, `@drag-horizontal`, `@drag-vertical` (5 of 8 triggers)
+- `test/projects/learn-omniview/src/pages/MotionTriggersDemo.omni` — Motion trigger demo: `@in-view`, `@scroll` (start/end/scrub), `@focus`, `@drag-horizontal` / `@drag-vertical` (constraints/elastic/threshold)
 - `test/projects/learn-omniview/src/pages/KeyframeAnimationDemo.omni` — Full animation surface: 8 triggers, 4 playback props (loop/direction/fill/delay), 4 easing variants, multi-stop keyframes
 - `test/projects/learn-omniview/src/pages/EasingFunctionsDemo.omni` — 23 easing functions: power group, back/bounce/elastic (named-only), `cubic(x1,y1,x2,y2)`, `steps(count, direction)`
 - `test/projects/learn-omniview/src/pages/AnimPropertiesDemo.omni` — 17 animatable properties: scale/rotate/skew transforms, translateX/Y/Z, opacity/backgroundColor/color/width/height
@@ -54,6 +54,11 @@ Files are grouped by primary feature. Many files demonstrate multiple features.
 - `test/projects/learn-omniview/src/components/EmitEventDemo.omni` — `event` declaration (with return type), `event?` optional event, parent `@onEvent` binding
 - `test/projects/learn-omniview/src/components/EmitKeywordDemo.omni` — `emit` keyword syntax vs function-call event triggering
 - `test/projects/learn-omniview/src/components/EventShorthand.omni` — `{fnName(args)}` auto-wrapping, `{store.action}` reference, `@eventName` shorthand
+
+## Accessibility
+
+- `test/projects/learn-omniview/src/components/A11yDemo.omni` — `a11y: { label/role/hidden/live/alt }` semantic accessibility block (5 primitives, three-target mapping)
+- `test/projects/learn-omniview/src/components/FormPage.omni` — a11y blocks on form controls, `data-testid`, boolean/hyphenated attributes
 
 ## Data / Async
 
@@ -103,7 +108,7 @@ Files are grouped by primary feature. Many files demonstrate multiple features.
 - `test/projects/learn-omniview/src/components/DesignTokenPanel.omni` — Live design token visualizer with `var(--name)` CSS variables
 - `test/projects/learn-omniview/src/components/ThemeSourceDemo.omni` — `@themes` syntax showcase with generated CSS output
 - `test/projects/learn-omniview/src/components/VariantShowcase.omni` — Button component variant cross-theme demo
-- `test/projects/learn-omniview/src/main.omni` — Application root: imports, 7-tab routing, component-to-page mapping
+- `test/projects/learn-omniview/src/main.omni` — Application root: imports, 9-tab routing, component-to-page mapping
 
 ## Minimal
 
@@ -111,7 +116,7 @@ Files are grouped by primary feature. Many files demonstrate multiple features.
 
 ---
 
-**(total: 53 files)**
+**(total: 55 files)**
 
 ## Usage
 

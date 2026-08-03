@@ -1,0 +1,99 @@
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  ErrorHandlingDemo.omni —— 异常处理演示组件                    ║
+// ║                                                              ║
+// ║  演示 components/error_handling.omni 的纯逻辑函数：            ║
+// ║    · throw 语句（safe_divide）                               ║
+// ║    · try/catch（try_catch_divide）                           ║
+// ║    · try/catch/finally（try_catch_finally_divide）           ║
+// ║    · Map 存取 + get_or_throw + safe_get（fallback 包装）     ║
+// ║    · complex_parse 综合示例                                  ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+import omniview;
+import { LearnDesign } from "../design";
+import {
+    safe_divide, try_catch_divide, try_catch_finally_divide,
+    parse_config, safe_get, complex_parse,
+} from "./error_handling";
+
+component ErrorHandlingDemo {
+    // 触发一次 safe_divide(4, 0)，控制台会打印 finally 分支
+    fn triggerFinally() -> String {
+        return try_catch_finally_divide(4.0, 0.0);
+    }
+
+    view {
+        <div class: LearnDesign.Container>
+            <h3 class: LearnDesign.CardTitle>异常处理：throw / try / catch / finally</h3>
+            <p class: LearnDesign.Subtitle>
+                演示 components/error_handling.omni 中的 throw 语句与 try/catch/finally 结构
+            </p>
+
+            <!-- ═══ throw + try/catch ═══ -->
+            <div class: module-card>
+                <h4 class: module-title>① throw 语句 + try/catch</h4>
+                <ul class: output-list>
+                    <li class: output-item>
+                        <code>safe_divide(10, 2)</code> = {safe_divide(10.0, 2.0)}
+                    </li>
+                    <li class: output-item>
+                        <code>try_catch_divide(10, 0)</code> → {try_catch_divide(10.0, 0.0)}
+                        （b==0 时 throw "division by zero"，被 catch 捕获）
+                    </li>
+                    <li class: output-item>
+                        <code>try_catch_divide(8, 2)</code> → {try_catch_divide(8.0, 2.0)}
+                    </li>
+                </ul>
+            </div>
+
+            <!-- ═══ try/catch/finally ═══ -->
+            <div class: module-card>
+                <h4 class: module-title>② try/catch/finally</h4>
+                <ul class: output-list>
+                    <li class: output-item>
+                        <code>triggerFinally()</code> → {triggerFinally()}
+                        （finally 分支的 print 输出到控制台）
+                    </li>
+                    <li class: output-item>
+                        <code>try_catch_finally_divide(6, 2)</code> → {try_catch_finally_divide(6.0, 2.0)}
+                    </li>
+                </ul>
+            </div>
+
+            <!-- ═══ Map + get_or_throw + fallback ═══ -->
+            <div class: module-card>
+                <h4 class: module-title>③ Map 存取 + get_or_throw + safe_get</h4>
+                <ul class: output-list>
+                    <li class: output-item>
+                        <code>safe_get(parse_config("abc"), "parsed")</code> = {safe_get(parse_config("abc"), "parsed")}
+                    </li>
+                    <li class: output-item>
+                        <code>safe_get(parse_config("abc"), "missing")</code> = {safe_get(parse_config("abc"), "missing")}
+                        （key 缺失 → throw → catch 返回 fallback）
+                    </li>
+                    <li class: output-item>
+                        <code>complex_parse("length", "abc")</code> = {complex_parse("length", "abc")}
+                    </li>
+                    <li class: output-item>
+                        <code>complex_parse("unknown", "")</code> = {complex_parse("unknown", "")}
+                        （空 raw → 空 Map → get_or_throw 触发 → finally 打印）
+                    </li>
+                </ul>
+            </div>
+        </div>
+    }
+
+    style {
+        .module-card {
+            background: var(--surfaceMuted);
+            border: 1px solid var(--borderLight);
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 12px;
+        }
+        .module-title { font-size: 14px; font-weight: 600; color: var(--textPrimary); margin: 0 0 8px 0; }
+        .output-list { margin: 0; padding-left: 16px; }
+        .output-item { font-size: 13px; color: var(--textPrimary); margin: 4px 0; line-height: 1.5; }
+        .output-item code { background: var(--surfaceSubtle); padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+    }
+}

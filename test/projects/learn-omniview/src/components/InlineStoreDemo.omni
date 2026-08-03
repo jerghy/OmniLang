@@ -44,7 +44,7 @@ component InlineStoreDemo {
         }
     }
 
-    
+
     signal log: String = "";
 
     fn addApple() {
@@ -82,8 +82,17 @@ component InlineStoreDemo {
                 <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={addApple}>
                     Add Apple
                 </button>
+                <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={addBook}>
+                    Add Book
+                </button>
+                <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={addLaptop}>
+                    Add Laptop
+                </button>
                 <button variant: LearnDesign.Button(color=danger, size=sm) @onPress={remove}>
                     Remove
+                </button>
+                <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={clearCart}>
+                    Clear
                 </button>
             </div>
             <p class: LearnDesign.Hint>{log}</p>

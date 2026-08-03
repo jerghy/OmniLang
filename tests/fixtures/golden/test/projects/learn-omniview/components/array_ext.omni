@@ -1,5 +1,5 @@
 // ╔══════════════════════════════════════════════════════════════╗
-// ║  lib/array_ext.omni —— std/array 扩展函数演示                 ║
+// ║  components/array_ext.omni —— std/array 扩展函数演示                 ║
 // ║  演示：array_remove, array_map, array_find, array_contains   ║
 // ║  纯逻辑文件，不写 import omniview;                              ║
 // ╚══════════════════════════════════════════════════════════════╝
@@ -14,7 +14,8 @@ pub fn demo_map(arr: Array<i32>) -> Array<i32> {
     return array_map(arr, |x| x * 2);
 }
 
-pub fn demo_find(arr: Array<String>, target: String) -> i32 {
+pub fn demo_find(arr: Array<String>, target: String) -> String {
+    // array_find 返回匹配的「元素」（JS .find() 语义），不是索引
     return array_find(arr, |s| s == target);
 }
 

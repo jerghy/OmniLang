@@ -14,7 +14,7 @@
 import omniview;
 import { DynamicTokenStore } from "./stores/DynamicTokenStore";
 
-// ── Phase 1 编译时常量 ──
+// ── 编译时常量 ──
 const TOKEN_RADIUS = "12px";
 const TOKEN_SHADOW = "0 4px 12px rgba(0,0,0,0.08)";
 const TOKEN_SPACING = "16px";
@@ -26,11 +26,12 @@ design LearnDesign {
 
     // ═══════════════════════════════════════════════════════════
     // 1. 设计令牌（DESIGN TOKENS）
-    //    13 种类型：Color, Size, Radius, Shadow, FontFamily, FontSize,
-    //    FontWeight, Duration, Color（主题覆盖值）
+    //    8 种类型：Color, Size, Radius, Shadow, FontFamily, FontSize,
+    //    FontWeight, Duration
     //    令牌值编译为 :root { --name: value; } CSS 变量
     //    在类/变体中引用：token(name) → var(--name)
-    //    主题令牌："<light>" dark "<dark>" 生成 [data-theme="dark"] 作用域
+    //    主题覆盖值语法：token name: type = "默认值" themeName "主题值"
+    //    生成 [data-theme="themeName"] 作用域
     // ═══════════════════════════════════════════════════════════
 
     // ── 品牌色 ──
@@ -90,12 +91,12 @@ design LearnDesign {
     // ── 过渡时长 ──
     token durationFast: duration = "150ms";
 
-    // ── Phase 1: 编译时常量引用（const → token 值） ──
+    // ── 编译时常量引用（const → token 值） ──
     token constRadius: radius = TOKEN_RADIUS;
     token constShadow: shadow = TOKEN_SHADOW;
     token constSpacing: size = TOKEN_SPACING;
 
-    // ── Phase 2: 运行时信号引用（Store.signal → token 值） ──
+    // ── 运行时信号引用（Store.signal → token 值） ──
     // 这些 token 通过 __omni_effect 动态更新 CSS 变量
     // ⚠ 动态 token 不能有 theme 覆盖值
     token dynColor: color = DynamicTokenStore.liveColor;

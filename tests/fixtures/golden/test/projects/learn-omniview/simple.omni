@@ -1,5 +1,5 @@
 import omniview;
-// @pid:c1
+
 component SimpleApp {
   signal count: i32 = 0;
   fn increment() { count = count + 1; }

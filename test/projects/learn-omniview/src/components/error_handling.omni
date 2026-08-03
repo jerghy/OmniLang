@@ -35,9 +35,7 @@ pub fn try_catch_finally_divide(a: f64, b: f64) -> String {
     }
 }
 
-// ── 4. parse_config —— Map<K,V> 类型注解演示 ───────────────────
-// 注：Map 用字面量构建——`map.set()` 在 JS 目标无后端实现，且
-// `Map<String, T>` 返回类型注解尚未被类型检查器解析（deferrals #28）
+// ── 4. parse_config —— Map 字面量构建 ──────────────────────────
 
 pub fn parse_config(raw: String) {
     if raw != "" {
@@ -65,11 +63,7 @@ pub fn safe_get(map: Map<String, String>, key: String) -> String {
     }
 }
 
-// ── 7. try_catch_as_expr —— try/catch 作为表达式使用 ──────────
-
-
-
-// ── 8. complex_parse —— 综合示例 ────────────────────────────────
+// ── 7. complex_parse —— 综合示例 ────────────────────────────────
 
 pub fn complex_parse(key: String, raw: String) -> String {
     let config = parse_config(raw);

@@ -1,9 +1,10 @@
-// CompilerPage — 编译器特性：HTTP、数据提交、用户设置
+// CompilerPage — 编译器特性：HTTP、数据提交、用户设置、标准库
 import omniview;
 import { LearnDesign } from "../design";
 import { DataFetching } from "./DataFetching";
 import { DataSubmit } from "./DataSubmit";
 import { UserSettings } from "./UserSettings";
+import { StdLibShowcase } from "../components/StdLibShowcase";
 
 component CompilerPage {
     view {
@@ -11,6 +12,10 @@ component CompilerPage {
             <div class: LearnDesign.DemoFull><DataFetching /></div>
             <div class: LearnDesign.DemoFull><DataSubmit /></div>
             <div class: LearnDesign.DemoFull><UserSettings /></div>
+
+            <!-- 标准库（Std Lib）演示 -->
+            <h3 class: LearnDesign.SectionTitle>标准库（Std Lib）演示</h3>
+            <div class: LearnDesign.DemoFull><StdLibShowcase /></div>
         </section>
     }
 }

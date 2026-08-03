@@ -1,7 +1,7 @@
 // ╔══════════════════════════════════════════════════════════════╗
 // ║  StdLibShowcase.omni —— 标准库演示聚合组件                      ║
 // ║                                                              ║
-// ║  将 components/ 下的纯逻辑标准库演示文件接线到展示页：           ║
+// ║  聚合展示 components/ 下的纯逻辑标准库演示文件：               ║
 // ║    array_ext    — std/array 扩展（remove/map/find/contains）  ║
 // ║    strings      — 字符串转义序列（\n \t \" \\ \u{XXXX}）      ║
 // ║    string_ext   — std/string 扩展（split/join/case 等）       ║
@@ -21,8 +21,8 @@ import { LearnDesign } from "../design";
 import { demo_remove, demo_map, demo_find, demo_contains } from "./array_ext";
 // ── 字符串转义序列演示（components/strings.omni）──
 import {
-    multiline_greeting, numbered_list, tabular_data, quoted_value,
-    json_fragment, windows_path, emoji_smile, japanese_hello,
+    multiline_greeting, tabular_data, quoted_value,
+    windows_path, emoji_smile, japanese_hello,
     format_card, status_message,
 } from "./strings";
 // ── std/string 扩展演示（components/string_ext.omni）──

@@ -1,10 +1,9 @@
-// CompilerPage — 编译器特性：HTTP、数据提交、用户设置
+// CompilerPage — 编译器特性：HTTP、数据提交、用户设置、标准库
 import omniview;
 import { LearnDesign } from "../design";
 import { DataFetching } from "./DataFetching";
 import { DataSubmit } from "./DataSubmit";
 import { UserSettings } from "./UserSettings";
-// 标准库演示（接线孤儿文件：array_ext / strings / string_ext / print_demo）
 import { StdLibShowcase } from "../components/StdLibShowcase";
 
 component CompilerPage {

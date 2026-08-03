@@ -1,5 +1,5 @@
 // ╔══════════════════════════════════════════════════════════════════╗
-// ║  SlotDefaultDemo.omni — @slot 默认回退内容（ADR-053 D5 语法）      ║
+// ║  SlotDefaultDemo.omni — @slot 默认回退内容                         ║
 // ║                                                                  ║
 // ║  插槽在组件体内声明（body-level），view 中用 {name} / {children}   ║
 // ║  插值标记投影位置：                                                ║
@@ -10,16 +10,13 @@
 // ║  消费者用命名属性投影命名插槽（name={<.../>}），匿名插槽由           ║
 // ║  子元素隐式投影：                                                  ║
 // ║    <SlotPanel header={<div>...</div>}>...</SlotPanel>             ║
-// ║                                                                  ║
-// ║  v2（design D4）：slot = 父传内容，纯净三形态（default + named +   ║
-// ║  fallback）；类型化插槽 @slot name: Type 已删除（编译错误）。      ║
 // ╚══════════════════════════════════════════════════════════════════╝
 
 import omniview;
 
 // ── SlotPanel: 接收插槽的组件 ──────────────────────────
 component SlotPanel {
-    // Body-level slot declarations (ADR-053 D5) with fallback content;
+    // Body-level slot declarations with fallback content;
     // the view references them via {header} / {children} / {footer}.
     @slot header {
         <span class: default-text>Default Header (来自 header 插槽声明的回退)</span>
@@ -131,12 +128,11 @@ component SlotDefaultDemo {
             <div class: tech-note>
                 <h4 class: note-title>💡 插槽默认内容语义</h4>
                 <ul class: note-list>
-                    <li>如果消费者<strong>没有</strong>为命名的 <code>插槽</code> 提供内容，显示其默认回退</li>
+                    <li>如果消费者<strong>没有</strong>为命名的 <code>{"@slot"}</code> 提供内容，显示其默认回退</li>
                     <li>如果消费者<strong>有</strong>提供内容，默认回退被完全替换</li>
-                    <li>不带默认值的 <code>插槽声明</code>（无回退体）在无内容时渲染空白</li>
+                    <li>不带默认值的 <code>{"@slot 声明"}</code>（无回退体）在无内容时渲染空白</li>
                     <li>匿名插槽（不写名字的声明）同样支持默认回退</li>
                     <li>回退内容可以是任意 OmniLang view 模板（元素、文本、插值、条件等）</li>
-                    <li>v2（D4）：类型化插槽 <code>{"@slot name: Type"}</code> 已删除——slot = 父传内容（default + named + fallback），写类型约束是编译错误</li>
                 </ul>
             </div>
         </div>

@@ -4,11 +4,10 @@
 // ║  · event 声明（含返回值类型）                                       ║
 // ║  · event? 可选事件（nullable event）                               ║
 // ║  · 父组件 @onEvent 绑定 + 参数流转                                  ║
-// ║  · emit 语句（注：编译器 P2 保留语法，目前用直接调用代替）         ║
+// ║  · emit 语句与函数调用两种触发语法（见 EmitKeywordDemo）           ║
 // ╚══════════════════════════════════════════════════════════════════════╝
 import omniview;
 import { LearnDesign } from "../design";
-import { array_push } from "std/array";
 
 // ── EmitEventChild：事件来源子组件 ─────────────────────────
 component EmitEventChild {
@@ -47,25 +46,8 @@ component EmitEventChild {
         .child-box { padding: 14px; background: #f3f0ff; border-radius: 10px; border: 1px solid #c7d2fe; margin: 8px 0; }
         .child-box strong { font-size: 13px; color: #4338ca; display: block; margin-bottom: 4px; }
         .child-box p { font-size: 12px; color: #6b7280; margin: 0 0 8px 0; }
-        // .child-btn / .child-btn-outline 已由 LearnDesign.Button 变体提供
     }
 }
-
-// ╔══════════════════════════════════════════════════════════════╗
-// ║  🧪 Playwright Test                                         ║
-// ║                                                            ║
-// ║  **Steps:**                                                ║
-// ║  1. Navigate to EmitEventDemo component.                    ║
-// ║  2. Click "Send Action" button in child component.          ║
-// ║  3. Click "Send Count" button in child component.           ║
-// ║  4. Check the event log in the parent component.            ║
-// ║                                                            ║
-// ║  **Expected:**                                             ║
-// ║  - Clicking "Send Action" adds an event entry to the log.  ║
-// ║  - Clicking "Send Count" logs count event with numbers.    ║
-// ║  - Event log shows correct number of entries.              ║
-// ║  - Clear button resets the event log and total count.      ║
-// ╚══════════════════════════════════════════════════════════════╝
 
 // ── 父组件：事件消费者 ─────────────────────────────────────
 component EmitEventDemo {
@@ -74,16 +56,16 @@ component EmitEventDemo {
 
     fn onChildAction(msg: String) {
         totalCount = totalCount + 1;
-        array_push(messages, totalCount.to_string() + ": " + msg);
+        messages.push(totalCount.to_string() + ": " + msg);
     }
 
     fn onOptionalAck(msg: String) {
-        array_push(messages, "[ACK] " + msg);
+        messages.push("[ACK] " + msg);
     }
 
     fn onChildCount(n: i32) {
         totalCount = totalCount + n;
-        array_push(messages, "[COUNT] += " + n.to_string() + ", total=" + totalCount.to_string());
+        messages.push("[COUNT] += " + n.to_string() + ", total=" + totalCount.to_string());
     }
 
     fn clearLog() { messages = []; totalCount = 0; }

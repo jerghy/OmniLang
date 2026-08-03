@@ -1,10 +1,8 @@
 // ╔══════════════════════════════════════════════════════════════╗
-// ║  lib/async_demo.omni —— std/async 模块演示                   ║
+// ║  components/async_demo.omni —— std/async 模块演示                   ║
 // ║  演示：async_sleep, async_spawn, async_all, async_race,      ║
 // ║        async_timeout                                         ║
 // ║  纯逻辑文件，不写 import omniview;                              ║
-// ║  注：任务辅助函数必须 pub —— omniview codegen 只发射 pub 函数 ║
-// ║  （ir::all_functions 过滤 Visibility::Public，见 deferrals #32）║
 // ╚══════════════════════════════════════════════════════════════╝
 
 import { async_sleep, async_spawn, async_all, async_race, async_timeout } from "std/async";

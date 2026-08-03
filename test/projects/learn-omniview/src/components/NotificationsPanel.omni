@@ -5,7 +5,7 @@ import { LearnDesign } from "../design";
 import { NotificationStore } from "../stores/NotificationStore";
 
 component NotificationsPanel {
-    // Body-level slot declarations (ADR-053 D5): `{header}` / `{children}` /
+    // Body-level slot declarations: `{header}` / `{children}` /
     // `{footer}` interpolations mark the projection positions in the view.
     @slot header
     @slot default
@@ -15,9 +15,7 @@ component NotificationsPanel {
     ref scrollContainer: HtmlElement;
     signal badgeVisible: bool = false;
 
-    // deps 必须覆盖 body 读取的 store 字段（Task 3.4 语义验证）——
-    // unreadCount 是 getter，随 notifications 联动，但仍需显式声明，
-    // 否则 effect 在该字段变化时静默不重跑（E_EFFECT_DEPS_MISSING）。
+    // deps 显式列出 effect 读取的 store 字段（含 getter），字段变化时重跑
     @effect(notifications, NotificationStore.unreadCount) {
         if NotificationStore.unreadCount > 0 {
             badgeVisible = true;
@@ -85,6 +83,5 @@ component NotificationsPanel {
         .footer { margin-top: 12px; display: flex; justify-content: space-between; align-items: center; }
         .count-text { font-size: 13px; color: #6b7280; }
         .slot-footer-area { }
-        // .panel / .btn-sm / .btn-clear / .empty-text 已由 LearnDesign.Card / Button 变体 / Hint 类提供
     }
 }

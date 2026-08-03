@@ -1,18 +1,5 @@
 import omniview;
 
-// ╔══════════════════════════════════════════════════════════════╗
-// ║  🧪 Playwright Test                                         ║
-// ║                                                            ║
-// ║  **Steps:**                                                ║
-// ║  1. Navigate to TernaryExprDemo component.                  ║
-// ║  2. Verify computed labels render with ternary results.     ║
-// ║  3. Click buttons to change count — see labels update.      ║
-// ║                                                            ║
-// ║  **Expected:**                                             ║
-// ║  - "Positive" when count > 0, "Zero/negative" when ≤ 0.     ║
-// ║  - Grade labels use ternary in computed and view.          ║
-// ║  - ? : syntax compiles without errors.                     ║
-// ╚══════════════════════════════════════════════════════════════╝
 
 component TernaryExprDemo {
     signal count: i32 = 0;

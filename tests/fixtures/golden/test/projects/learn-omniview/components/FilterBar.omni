@@ -1,5 +1,5 @@
 // ╔══════════════════════════════════════════════════════════════╗
-// ║  FilterBar.omni —— 过滤排序工具栏（Phase 5）                    ║
+// ║  FilterBar.omni —— 过滤排序工具栏                              ║
 // ║  演示：@onChange 过滤、@onClick 排序、                            ║
 // ║        computed 过滤标签、@store 读取                            ║
 // ╚══════════════════════════════════════════════════════════════╝
@@ -42,7 +42,7 @@ component FilterBar {
                         if searchText == "" {
                             TodoStore.setFilter("all");
                         } else {
-                            TodoStore.setFilter("urgent");
+                            TodoStore.setFilter(searchText);
                         }
                     }}
                 ></input>

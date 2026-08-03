@@ -12,11 +12,15 @@ import { NotificationsPanel } from "../components/NotificationsPanel";
 import { SlotDefaultDemo } from "../components/SlotDefaultDemo";
 import { EventsDemo } from "../components/EventsDemo";
 import { EventShorthand } from "../components/EventShorthand";
+import { A11yDemo } from "../components/A11yDemo";
 // Todo app
 import { TodoList } from "../components/TodoList";
 import { FilterBar } from "../components/FilterBar";
 import { StatsDashboard } from "../components/StatsDashboard";
-import { AddTodo } from "../components/AddTodo";
+// 表单控件与 Dashboard 组合
+import { FormControlsDemo } from "../components/FormControlsDemo";
+import { Dashboard } from "./Dashboard";
+import { FeatureList } from "../components/FeatureList";
 
 component UiComponents {
     view {
@@ -37,13 +41,27 @@ component UiComponents {
             </div>
 
             <div class: LearnDesign.DemoFull><FormPage /></div>
+
+            <!-- HTML 原生表单控件（FormControlsDemo：a / select / checkbox / number / range）-->
+            <h3 class: LearnDesign.SectionTitle>HTML 原生控件</h3>
+            <div class: LearnDesign.DemoFull><FormControlsDemo /></div>
+
             <div class: LearnDesign.DemoFull><NotificationsPanel /></div>
             <div class: LearnDesign.DemoFull><EventShorthand /></div>
 
+            <!-- 可访问性语义（a11y: label/role/hidden/live/alt）-->
+            <h3 class: LearnDesign.SectionTitle>可访问性（a11y）</h3>
+            <div class: LearnDesign.DemoFull><A11yDemo /></div>
+
+            <!-- Dashboard 组合演示（Dashboard：StatsPanel + Counter + FeatureCard；FeatureList）-->
+            <h3 class: LearnDesign.SectionTitle>Dashboard 组合演示</h3>
+            <div class: LearnDesign.DemoFull><Dashboard /></div>
+            <div class: LearnDesign.DemoFull><FeatureList /></div>
+
             <h3 class: LearnDesign.SectionTitle>Todo App Demo</h3>
+            <!-- TodoList 内部组合了自己的 AddTodo（@onAdd → TodoStore.add）-->
             <div class: todo-section>
                 <div class: todo-sidebar>
-                    <AddTodo />
                     <FilterBar />
                 </div>
                 <div class: todo-main>

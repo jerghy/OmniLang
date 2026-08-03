@@ -3,9 +3,6 @@
 // ║  演示：datetime_now, datetime_format, datetime_from_timestamp, ║
 // ║        datetime_year/month/day/hour/minute/second             ║
 // ║  纯逻辑文件，不写 import omniview;                              ║
-// ║  注：Map 用字面量构建（{ "key": value }）——`map.set()` 方法   ║
-// ║  调用在 JS 目标无后端实现，且 `Map<String, T>` 返回类型注解   ║
-// ║  尚未被类型检查器解析（见 .architecture/deferrals.md #28）    ║
 // ╚══════════════════════════════════════════════════════════════╝
 
 import { datetime_now, datetime_from_timestamp, datetime_format,

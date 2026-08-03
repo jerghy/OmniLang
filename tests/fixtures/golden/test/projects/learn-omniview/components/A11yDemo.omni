@@ -1,0 +1,94 @@
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  A11yDemo.omni —— 可访问性语义域（域 10）                      ║
+// ║                                                              ║
+// ║  演示 a11y: { ... } 元素属性块的五种语义原语：                 ║
+// ║    · label   —— 可访问名称（→ aria-label / Semantics label）  ║
+// ║    · role    —— 语义角色（button/textField/link 等子集）      ║
+// ║    · hidden  —— 对辅助技术隐藏（→ aria-hidden / Exclude）     ║
+// ║    · live    —— 实时区域（polite/assertive → aria-live）      ║
+// ║    · alt     —— 图像替代文本（→ alt / semanticLabel）         ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+import omniview;
+import { LearnDesign } from "../design";
+
+component A11yDemo {
+    signal status: String = "ready";
+    signal hidden: bool = false;
+    signal count: i32 = 0;
+
+    fn notify() {
+        count = count + 1;
+        status = "状态更新 #" + count.to_string() + "（辅助技术实时播报）";
+    }
+
+    view {
+        <div class: LearnDesign.Container>
+            <h3 class: LearnDesign.CardTitle>Accessibility (a11y)</h3>
+            <p class: LearnDesign.Subtitle>a11y: label · role · hidden · live · alt</p>
+
+            <!-- ═══ label + role ═══ -->
+            <h4 class: LearnDesign.SectionTitle>label + role</h4>
+            <div class: demo-row>
+                <button
+                    variant: LearnDesign.Button(color=primary, size=sm)
+                    a11y: { label: "Close dialog", role: "button" }
+                    @onPress={notify}
+                >×</button>
+                <input
+                    class: search-input
+                    placeholder="Search..."
+                    a11y: { label: "Search", role: "textField" }
+                />
+                <p class: LearnDesign.Hint>
+                    纯图标按钮借助 label 获得可访问名称；输入框通过 role 声明搜索框角色
+                </p>
+            </div>
+
+            <!-- ═══ hidden 动态隐藏 ═══ -->
+            <h4 class: LearnDesign.SectionTitle>hidden 动态隐藏</h4>
+            <div class: demo-row>
+                <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={() => { hidden = !hidden; }}>
+                    {if hidden { "Show hint" } else { "Hide hint" }}
+                </button>
+                <p class: LearnDesign.Hint>
+                    hidden={ "{expr}" } 把元素对辅助技术隐藏（视觉保留）：
+                </p>
+            </div>
+            <p class: hidden-hint a11y: { hidden: hidden }>
+                辅助技术提示文本（当前 {if hidden { "已隐藏" } else { "可见" }}）
+            </p>
+
+            <!-- ═══ live 实时区域 ═══ -->
+            <h4 class: LearnDesign.SectionTitle>live 实时区域</h4>
+            <div class: demo-row>
+                <button variant: LearnDesign.Button(color=accent, size=sm) @onPress={notify}>
+                    触发状态更新
+                </button>
+                <p class: live-region a11y: { live: "polite", label: "状态播报" }>
+                    {status}
+                </p>
+                <p class: LearnDesign.Hint>
+                    live: "polite" 让区域内容变化时由辅助技术主动播报
+                </p>
+            </div>
+
+            <!-- ═══ alt 图像替代文本 ═══ -->
+            <h4 class: LearnDesign.SectionTitle>alt 图像替代文本</h4>
+            <div class: demo-row>
+                <img class: demo-img src="/dot.png" a11y: { alt: "演示用小圆点" } />
+                <p class: LearnDesign.Hint>
+                    alt 为图片提供替代文本（读屏软件朗读内容）
+                </p>
+            </div>
+        </div>
+    }
+
+    style {
+        .demo-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+        .search-input { padding: 10px 12px; border: 2px solid var(--borderLight); border-radius: var(--radiusMd); font-size: 13px; min-width: 160px; }
+        .hidden-hint { padding: 10px 14px; background: var(--surfaceMuted); border: 1px dashed var(--borderLight); border-radius: var(--radiusMd); font-size: 13px; color: var(--textSecondary); }
+        .live-region { padding: 10px 14px; background: var(--primaryLight); border-radius: var(--radiusMd); font-size: 13px; color: var(--textPrimary); min-width: 200px; }
+        .demo-img { width: 24px; height: 24px; }
+    }
+}

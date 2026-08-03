@@ -1,4 +1,4 @@
-// MotionPage — 运动动画（ADR-032 范围界定后的功能集合）
+// MotionPage — 运动动画：触发器、播放属性、缓动、动画属性、滚动/拖拽驱动
 import omniview;
 import { LearnDesign } from "../design";
 import { MotionDemo } from "./MotionDemo";

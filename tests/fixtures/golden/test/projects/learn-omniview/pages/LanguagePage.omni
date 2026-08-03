@@ -14,6 +14,11 @@ import { TernaryExprDemo } from "../components/TernaryExprDemo";
 import { BlockExprDemo } from "../components/BlockExprDemo";
 import { ForDirectiveKeyDemo } from "../components/ForDirectiveKeyDemo";
 import { AdvancedPseudoDemo } from "../components/AdvancedPseudoDemo";
+import { AdvancedTypesDemo } from "../components/AdvancedTypesDemo";
+// 事件与异常处理
+import { EmitEventDemo } from "../components/EmitEventDemo";
+import { EmitKeywordDemo } from "../components/EmitKeywordDemo";
+import { ErrorHandlingDemo } from "../components/ErrorHandlingDemo";
 
 component LanguagePage {
     view {
@@ -38,6 +43,21 @@ component LanguagePage {
                 <div class: LearnDesign.Col><StylePseudoDemo /></div>
                 <div class: LearnDesign.Col><AdvancedPseudoDemo /></div>
             </div>
+
+            <!-- 类型系统进阶（fn 函数类型 / match 广度 / 语法状态速查）-->
+            <h3 class: LearnDesign.SectionTitle>类型系统进阶</h3>
+            <div class: LearnDesign.DemoFull><AdvancedTypesDemo /></div>
+
+            <!-- 事件与 emit（EmitEventDemo / EmitKeywordDemo）-->
+            <h3 class: LearnDesign.SectionTitle>事件与 emit</h3>
+            <div class: LearnDesign.Row>
+                <div class: LearnDesign.Col><EmitEventDemo /></div>
+                <div class: LearnDesign.Col><EmitKeywordDemo /></div>
+            </div>
+
+            <!-- 异常处理（error_handling.omni：throw / try / catch / finally）-->
+            <h3 class: LearnDesign.SectionTitle>异常处理</h3>
+            <div class: LearnDesign.DemoFull><ErrorHandlingDemo /></div>
         </section>
     }
 }

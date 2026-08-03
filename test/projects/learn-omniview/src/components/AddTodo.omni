@@ -6,7 +6,7 @@
 
 import omniview;
 import { LearnDesign } from "../design";
-import { console_log, console_warn, console_error } from "std/console";
+import { console_log, console_warn } from "std/console";
 
 component AddTodo {
     // 自定义事件——子→父通信，携带输入文本

@@ -112,7 +112,7 @@ import { StatisticsData } from "@lib/types";
 my-project/
 ├── .omnilang.toml           # 项目配置
 └── src/
-    ├── main.omni            # 入口 + App 根组件（7 标签页路由）
+    ├── main.omni            # 入口 + App 根组件（9 标签页路由）
     ├── design.omni          # 全局设计系统（@themes + 令牌 + 类 + 变体）
     ├── lib.omni             # 入口级工具函数
     ├── lib/                 # 纯逻辑库
@@ -121,25 +121,25 @@ my-project/
     │   └── api.omni         # API 调用
     ├── stores/              # 全局状态
     │   ├── TodoStore.omni
-    │   └── ThemeStore.omni  # 多主题 store（mode 信号 ↔ __omni_theme）
+    │   └── ThemeStore.omni  # 多主题 store（@theme 标记信号 ↔ 主题模式）
     ├── components/          # 可复用 UI 组件
     │   ├── Header.omni      # 显示当前主题
     │   ├── ThemeSwitcher.omni # 4 主题卡片选择器
-    │   ├── TabBar.omni      # 7 标签页导航
+    │   ├── TabBar.omni      # 9 标签页导航
     │   └── ...              # 按领域组织
-    ├── pages/               # 页面级组件（按能力域组织）
-    │   ├── Overview.omni         # 能力矩阵首页
-    │   ├── UiComponents.omni     # UI 组件合集
-    │   ├── MotionPage.omni      # 运动动画
-    │   ├── DesignTheme.omni     # 设计系统 & 多主题（核心页）
-    │   ├── StatePage.omni       # 信号 & 状态模式
-    │   ├── LanguagePage.omni    # 语言深度特性
-    │   └── CompilerPage.omni    # 编译器高级能力
-    └── shared/              # 共享常量
-        └── constants.omni
+    └── pages/               # 页面级组件（按能力域组织）
+        ├── Overview.omni         # 能力矩阵首页（10 语义域）
+        ├── UiComponents.omni     # UI 组件合集（含 a11y 可访问性）
+        ├── MotionPage.omni       # 运动动画（触发器/播放/缓动/滚动驱动）
+        ├── DesignTheme.omni      # 设计系统 & 多主题（核心页）
+        ├── StatePage.omni        # 信号 & 状态模式
+        ├── LanguagePage.omni     # 语言深度特性（表达式/类型/事件）
+        ├── ElementRefDemo.omni   # 元素引用系统（域 1）
+        ├── DynamicTokens.omni    # 动态设计令牌
+        └── CompilerPage.omni     # 编译器高级能力（HTTP/标准库）
 ```
 
-learn-omniview 演示项目（`test/projects/learn-omniview/`）采用此 7 域结构，包含 60+ 源文件和 4 主题设计系统。
+learn-omniview 演示项目（`test/projects/learn-omniview/`）采用 9 标签页结构覆盖 10 个语义域（Ref / 动画 / Design+主题 / Slots / Stores / 控制流 / 事件 / 表达式 / 样式 / a11y），包含 93 个 `.omni` 源文件和 4 主题设计系统。
 
 ## 编译入口
 

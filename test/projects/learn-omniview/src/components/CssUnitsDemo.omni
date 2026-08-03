@@ -12,7 +12,7 @@ component CssUnitsDemo {
     view {
         <div class: container>
             <h3 class: title>CSS 单位全覆盖</h3>
-            <p class: subtitle>30 个 CSS 单位全覆盖（含 10 个新增：s, vmax, svw, lvw, dvw, cqh, cqb, cqmin, cqmax, rlh）</p>
+            <p class: subtitle>30 个 CSS 单位（视口/容器/时间/角度/长度维度）</p>
 
             <div class: grid>
                 <div class: box-vh>10vh</div>
@@ -39,7 +39,7 @@ component CssUnitsDemo {
                 <div class: box-cq>10cqw</div>
                 <div class: box-cqi>5cqi</div>
 
-                <!-- 10 个新增 CSS 单位 -->
+                <!-- 视口与容器单位 -->
                 <div class: box-s>1s</div>
                 <div class: box-vmax>5vmax</div>
                 <div class: box-svw>5svw</div>
@@ -84,7 +84,7 @@ component CssUnitsDemo {
         .box-cq { width: 10cqw; background: #ede9fe; padding: 8px; font-size: 12px; border-radius: 6px; text-align: center; }
         .box-cqi { width: 5cqi; height: 5cqb; background: #ffedd5; padding: 4px; font-size: 10px; border-radius: 6px; text-align: center; }
 
-        /* ─── 10 个新增单位 ─── */
+        /* ─── 视口与容器单位 ─── */
         .box-s { animation-duration: 1s; background: #fecdd3; padding: 8px; font-size: 12px; border-radius: 6px; text-align: center; }
         .box-vmax { width: 5vmax; height: 5vmax; background: #a7f3d0; padding: 4px; font-size: 10px; border-radius: 6px; text-align: center; }
         .box-svw { width: 5svw; background: #c7d2fe; padding: 8px; font-size: 12px; border-radius: 6px; text-align: center; }

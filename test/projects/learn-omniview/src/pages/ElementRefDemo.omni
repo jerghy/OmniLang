@@ -1,16 +1,16 @@
 // ╔══════════════════════════════════════════════════════════════╗
-// ║  ElementRefDemo.omni — Element Reference System (ADR-036)    ║
+// ║  ElementRefDemo.omni — Element Reference System               ║
 // ║                                                              ║
 // ║  演示 ref 声明 + @ref 绑定 + 语义化 ref 操作 API:            ║
 // ║    · ref name: Element   — 元素引用声明                      ║
 // ║    · @ref={name}         — 绑定到元素                        ║
-// ║    · style: { width: sig } — 信号驱动样式绑定（替代 .style） ║
+// ║    · style: { width: sig } — 信号驱动样式绑定                 ║
 // ║    · .focus() / .blur()  — 焦点管理（命令式）                ║
 // ║    · focus={sig}         — 语义化焦点绑定（信号驱动 focus/blur）║
 // ║    · .select() / .setSelection(s, e) — 文本全选 / 选区控制    ║
 // ║    · scroll-y={sig}      — 响应式滚动绑定                    ║
 // ║    · .scrollTo() / .scrollBy() — 命令式滚动控制              ║
-// ║    · .measure()          — 位置/尺寸查询（替代 getBoundingClientRect / offsetWidth）║
+// ║    · .measure()          — 位置/尺寸查询                      ║
 // ║    · .capturePointer() / .releasePointer() — 指针捕获         ║
 // ║    · @drag-horizontal / @drag-vertical — 拖拽触发器 + motion 接线 ║
 // ╚══════════════════════════════════════════════════════════════╝
@@ -39,7 +39,7 @@ import { LearnDesign } from "../design";
 }
 
 component ElementRefDemo {
-    // ── ref 声明（ADR-036：Element Reference System） ──
+    // ── ref 声明 ──
     ref inputBox: Element;
     ref scrollArea: Element;
     ref rectBox: Element;
@@ -138,8 +138,6 @@ component ElementRefDemo {
     // ── 多 ref 联动（输入 → 镜像） ──
     fn syncMirror() {
         let val = mirrorInput.value;
-        // borderColor 高亮已由 .ref-input:focus CSS 规则实现
-        // （ref.style 直接样式操作已移除 — validate_ref_ops 拒绝）
         mirrorText = val;
     }
 
@@ -174,9 +172,8 @@ component ElementRefDemo {
     }
 
     // ── 指针捕获（.capturePointer / .releasePointer，无参形式） ──
-    // 语义 = 「锁定后续指针事件到本元素」（设计 D3）：无参调用，由各目标
-    // 运行时自动使用活动指针（pointerdown 的 pointerId）；有参调用（旧的
-    // capturePointer(1) 形式）是编译错误——多指针锁定不支持。
+    // 语义 = 「锁定后续指针事件到本元素」：无参调用，由各目标运行时自动
+    // 使用活动指针（pointerdown 的 pointerId）；有参调用是编译错误。
     fn onPtrDown() {
         pointerBox.capturePointer();
         pointerActive = true;
@@ -189,14 +186,13 @@ component ElementRefDemo {
     }
 
     // ── 高频拖拽 ──
-    // 旧版通过 ref.style 直接写 DOM 实现 60fps 拖拽；ref.style 已按
-    // semantic-level DSL 移除（见 validate_ref_ops），拖拽改由
-    // @drag-horizontal / @drag-vertical 触发器 + @motion 驱动。
+    // 拖拽由 @drag-horizontal / @drag-vertical 触发器 + @motion 驱动
+    // （声明式，无手动 DOM 写入）。
 
     view {
         <div class: LearnDesign.Container>
             <h3 class: LearnDesign.CardTitle>Element Reference System</h3>
-            <p class: LearnDesign.Subtitle>ref · @ref · .focus() · .select() · .setSelection() · focus={"{}"}sig{"{}"} · .scrollTo() · .capturePointer()</p>
+            <p class: LearnDesign.Subtitle>ref · @ref · .focus() · .select() · .setSelection() · focus={"{sig}"} · scroll-y · .scrollTo() · .capturePointer()</p>
 
             <!-- ═══ 焦点管理 ═══ -->
             <h4 class: LearnDesign.SectionTitle>焦点管理 (.focus / .blur)</h4>
@@ -278,7 +274,7 @@ component ElementRefDemo {
                 <p class: scroll-item>Item 2 — 使用 scroll-y 绑定跳转</p>
                 <p class: scroll-item>Item 3 — 使用 .scrollBy() 增量</p>
                 <p class: scroll-item>Item 4 — Element Ref API</p>
-                <p class: scroll-item>Item 5 — ADR-036 / ADR-038</p>
+                <p class: scroll-item>Item 5 — Element Ref API 全集</p>
                 <p class: scroll-item>Item 6 — 底部</p>
             </div>
             <div class: LearnDesign.Row>
@@ -377,18 +373,17 @@ component ElementRefDemo {
                 </div>
             </div>
 
-            <h4 class: LearnDesign.SectionTitle>拖拽方向与范围变体</h4>
+            <h4 class: LearnDesign.SectionTitle>拖拽方向与范围变体（constraints 约束）</h4>
             <p class: LearnDesign.Hint>
-                约束/弹性等子属性已按 semantic-level DSL 移除；无约束时拖拽进度映射到
-                motion 自身的 keyframe 范围（水平用 translateX、垂直用 translateY）。
+                constraints: [min, max] 限定拖拽范围（超出部分由 elastic 回弹）；
+                拖拽进度映射到 motion 自身的 keyframe 范围（水平用 translateX、垂直用 translateY）。
             </p>
             <div class: constraints-row>
-                <!-- 原两个 elastic 变体盒子（elastic 0.5 / 0）均已移除 -->
-                <div @drag-horizontal={dragX150} class: drag-demo-box>
-                    <p>↔ 水平 150px</p>
+                <div @drag-horizontal constraints: [-150, 150] elastic: 0.4={dragX150} class: drag-demo-box>
+                    <p>↔ 约束 ±150px</p>
                 </div>
-                <div @drag-vertical={dragY100} class: drag-demo-box>
-                    <p>↕ 垂直 100px</p>
+                <div @drag-vertical constraints: [0, 100] elastic: 0.5={dragY100} class: drag-demo-box>
+                    <p>↕ 约束 0–100px</p>
                 </div>
             </div>
         </div>

@@ -6,14 +6,17 @@
 // ║  (var(--surface)) 自动切换，不在 store 中维护颜色 getter。    ║
 // ║  本 store 仅管理 mode 信号和切换计数。                        ║
 // ║                                                              ║
-// ║  ADR-044 自动同步 mode ↔ __omni_theme.set() 到 data-theme。  ║
+// ║  `mode` 信号标记 @theme —— 它就是「当前主题模式」。三目标自动   ║
+// ║  接线：React 写 data-theme 属性；Flutter 生成 ThemeModeNotifier；║
+// ║  OmniView 同步主题 CSS 变量。切换主题 = 普通 store action。    ║
 // ╚══════════════════════════════════════════════════════════════╝
 
 import omniview;
 
 store ThemeStore {
     // 当前主题模式："light" / "dark" / "sepia" / "highContrast"
-    signal mode: String = "light";
+    // @theme 标记：本信号是 design 块 @themes 声明的当前主题模式
+    signal mode: String @theme = "light";
 
     // 切换次数追踪
     signal toggleCount: i32 = 0;
@@ -35,14 +38,17 @@ store ThemeStore {
     }
 
     // action: 设置指定模式（验证有效性）
+    // 任何主题变更都计入 toggleCount——ThemeSwitcher 卡片走 setMode，
+    // 若只统计 toggle()，卡片选择后 "Toggled N times" 永远显示 0
     action setMode(newMode: String) {
         if newMode == "light" || newMode == "dark" || newMode == "sepia" || newMode == "highContrast" {
             mode = newMode;
+            toggleCount = toggleCount + 1;
         }
     }
 
-    // action: 初始化（主题由 CSS 的 [data-theme] 属性驱动）
+    // action: 初始化（主题由 @default-theme 与 design 块生成的 CSS 驱动）
     action load() {
-        // Nothing needed — design block's @default-theme + __omni_theme.init() handle CSS
+        // 无需额外逻辑——CSS 变量随 data-theme 自动切换
     }
 }

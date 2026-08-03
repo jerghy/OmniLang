@@ -7,8 +7,7 @@ struct StatisticsData { name: String, count: i32, percentage: f64, active: bool,
 component FeatureCard {
     signal status: String = "idle";
     signal focusCount: i32 = 0;
-    // 显式 input 信号——否则 auto-bind 会把 status 绑到输入框，
-    // 用户输入会覆盖状态徽章（"idle" 变成输入文本）
+    // bind:value 只绑定命名信号 inputText；status 由焦点事件单独驱动
     signal inputText: String = "";
 
     fn getOriginX() -> i32 {
@@ -50,7 +49,7 @@ component FeatureCard {
             @else {
                 <span class: badge-unknown>Unknown</span>
             }
-            <p class: text>X: {getOriginX()} | Focus: {focusCount}</p>
+            <p class: text>X: {getOriginX()} | Focus: {focusCount} | Stats: {getStats().name} / {getStats().count} / {getStats().percentage}</p>
             <button variant: LearnDesign.Button(color=ghost, size=md) @onPress={reset}>Reset</button>
         </div>
     }
@@ -62,6 +61,5 @@ component FeatureCard {
         .badge-unknown { font-size: 14px; padding: 4px 12px; border-radius: 12px; background: #fddddd; color: #dc2626; }
         .text { font-size: 14px; color: #6b7280; margin: 4px 0; }
         .input { padding: 12px; border: 2px solid #d4d4d8; border-radius: 8px; font-size: 16px; margin-bottom: 12px; width: 100%; box-sizing: border-box; }
-        // .card / .title / .btn-reset 已由 LearnDesign.Card / CardTitle / Button 变体提供
     }
 }

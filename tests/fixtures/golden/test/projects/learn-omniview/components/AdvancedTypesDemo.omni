@@ -1,0 +1,170 @@
+// ╔══════════════════════════════════════════════════════════════════════╗
+// ║  AdvancedTypesDemo.omni — 类型系统进阶                                ║
+// ║                                                                      ║
+// ║  ① 函数类型 fn(Param) -> Return（TypeAnnotation::Fn）                  ║
+// ║     · prop transform: fn(String) -> String = null                    ║
+// ║     · 消费者以函数引用传值：transform={fnRef}                          ║
+// ║     · on 前缀的 prop 名保留给事件绑定语法 — 回调惯例是                   ║
+// ║       event onXxx + 父级 @onXxx={handler}（见 FnFormatter）           ║
+// ║                                                                      ║
+// ║  ② match 表达式（标签联合臂 + 通配符）                                ║
+// ║     · 标签联合臂 { field } 解构 + _ 通配 —— 三目标（React /           ║
+// ║       OmniView / Flutter）均可用；Flutter 本地联合类型发射进           ║
+// ║       types.dart，臂内字段绑定 + 非穷尽 match 的 default 兜底         ║
+// ║     · 字面量臂在 JS 目标比较主体值本身（_v === value）                 ║
+// ║     · 不支持：臂内 if 守卫（guard）、模式中的 | 联合（1 | 2 =>）        ║
+// ║                                                                      ║
+// ║  ③ 泛型：类型实参（Array、Map 形式）可用；泛型声明（fn foo<T> /       ║
+// ║     component Bar<T>）不在支持范围                                    ║
+// ╚══════════════════════════════════════════════════════════════════════╝
+
+import omniview;
+import { string_to_upper } from "std/string";
+
+// ═══ ① 函数类型：fn(String) -> String ═══
+// 接收函数型 prop 的组件：transform 是 fn 类型 prop，onSelect 是事件回调。
+component FnFormatter {
+    // fn 类型注解：prop transform: fn(String) -> String（可选，默认 null）
+    prop transform: fn(String) -> String = null
+    // 事件即 on 前缀回调惯例：event 声明 + 组件内直接调用
+    event onSelect: String
+
+    signal clicks: i32 = 0
+
+    fn pickItem() {
+        clicks = clicks + 1;
+        onSelect("item #" + clicks.to_string());
+    }
+
+    view {
+        <div class: fn-card>
+            <span class: card-label>FnFormatter — fn 类型 prop</span>
+            <p class: fn-desc>
+                <code>prop transform: fn(String) -> String</code> — 在视图中直接调用：
+                {transform("hello")}
+            </p>
+            <button class: act-btn @onPress={pickItem}>
+                emit onSelect("item #N")
+            </button>
+        </div>
+    }
+    style {
+        .fn-card { padding: 12px; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; }
+        .card-label { display: block; font-size: 11px; color: #64748b; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .fn-desc { font-size: 13px; color: #334155; margin: 0 0 10px 0; }
+        code { background: #eef2ff; padding: 2px 6px; border-radius: 4px; font-size: 12px; color: #4338ca; }
+        .act-btn { padding: 8px 16px; background: #6366f1; color: white; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; }
+        .act-btn:hover { background: #4f46e5; }
+    }
+}
+
+// ═══ ② match 表达式广度 ═══
+// 本地标签联合类型：Star 携带 level 字段 | Blank 空变体
+type Rating = Star { level: i32 } | Blank
+
+component MatchBreadthDemo {
+    signal result: String = "?"
+
+    // 标签联合臂：{ field } 解构 + 字面量臂 + _ 通配
+    fn describe(r: Rating) -> String {
+        return match r {
+            Star { level } => "star Lv." + level.to_string(),
+            Blank => "no rating",
+        };
+    }
+
+    view {
+        <div class: match-card>
+            <span class: card-label>MatchBreadthDemo — match 表达式</span>
+            <div class: btn-row>
+                <button class: act-btn alt @onPress={() => { result = describe(Star { level: 5 }); }}>Star { "{ level: 5 }" }</button>
+                <button class: act-btn alt @onPress={() => { result = describe(Blank); }}>Blank</button>
+            </div>
+            <p class: match-out>match 结果: <strong>{result}</strong></p>
+        </div>
+    }
+    style {
+        .match-card { padding: 12px; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; }
+        .card-label { display: block; font-size: 11px; color: #64748b; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .btn-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+        .act-btn { padding: 8px 14px; background: #6366f1; color: white; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; }
+        .act-btn:hover { background: #4f46e5; }
+        .act-btn.alt { background: #0ea5e9; }
+        .act-btn.alt:hover { background: #0284c7; }
+        .match-out { font-size: 13px; color: #334155; margin: 0; }
+        code { background: #eef2ff; padding: 2px 6px; border-radius: 4px; font-size: 12px; color: #4338ca; }
+    }
+}
+
+// ═══ 主演示组件：fn 类型 prop + match 表达式 ═══
+component AdvancedTypesDemo {
+    signal log: String = ""
+
+    // fn 引用作为 fn 类型 prop 的值；事件处理器作为 @onXxx 绑定
+    fn handleSelect(item: String) {
+        log = "selected: " + item;
+    }
+    fn shout(s: String) -> String {
+        return string_to_upper(s);
+    }
+
+    view {
+        <div class: wrapper>
+            <h3 class: section-title>类型系统进阶</h3>
+            <p class: subtitle>fn 函数类型 · match 表达式（标签联合）</p>
+
+            <div class: demo-card>
+                <h4 class: demo-label>① 函数类型 fn(String) -> String</h4>
+                <p class: demo-desc>
+                    消费者以<strong>函数引用</strong>传值（<code>transform={ "{shout}" }</code>），
+                    子组件在视图内直接调用；<code>on</code> 前缀的回调走事件惯例
+                    （<code>event onSelect</code> + <code>@onSelect={ "{handler}" }</code>）。
+                </p>
+                <div class: demo-box>
+                    <FnFormatter transform={shout} @onSelect={handleSelect} />
+                    <p class: log-line>父组件收到事件: <strong>{log}</strong></p>
+                </div>
+            </div>
+
+            <div class: demo-card>
+                <h4 class: demo-label>② match 表达式</h4>
+                <p class: demo-desc>
+                    标签联合臂（<code>Star { "{ level }" }</code> 解构）+ <code>_</code> 通配符，
+                    三目标（React / OmniView / Flutter）均可运行
+                </p>
+                <div class: demo-box>
+                    <MatchBreadthDemo />
+                </div>
+            </div>
+
+            <!-- 技术说明：特性范围 -->
+            <div class: tech-note>
+                <h4 class: note-title>💡 特性范围</h4>
+                <ul class: note-list>
+                    <li><strong>match</strong>：标签联合臂（{ "{field}" } 解构）+ <code>_</code> 通配 + 字面量臂（JS 目标比较主体值本身）；暂不支持臂内 <code>if</code> 守卫与模式联合（1 | 2）</li>
+                    <li><strong>fn 类型</strong>：<code>fn(Param) -> Return</code> 注解可用作 prop / 返回值 / 变量类型</li>
+                    <li><strong>泛型</strong>：类型实参（Array、Map 形式）可用；泛型声明（fn foo / component Bar 的类型参数）不在支持范围</li>
+                </ul>
+            </div>
+        </div>
+    }
+
+    style {
+        .wrapper { background: white; border: 1px solid #d4d4d8; border-radius: 12px; padding: 20px; margin: 16px 0; }
+        .section-title { font-size: 18px; color: #1e293b; margin: 0 0 4px 0; }
+        .subtitle { font-size: 13px; color: #64748b; margin: 0 0 16px 0; }
+        code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+
+        .demo-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; margin-bottom: 12px; }
+        .demo-label { font-size: 14px; font-weight: 600; color: #1e293b; margin: 0 0 4px 0; }
+        .demo-desc { font-size: 12px; color: #64748b; margin: 0 0 10px 0; line-height: 1.5; }
+        .demo-box { margin-top: 10px; }
+        .log-line { margin: 10px 0 0 0; font-size: 12px; color: #475569; }
+
+        .tech-note { background: #0f172a; border-radius: 8px; padding: 14px 18px; margin-top: 12px; }
+        .note-title { font-size: 14px; color: #e2e8f0; margin: 0 0 8px 0; }
+        .note-list { margin: 0; padding-left: 18px; }
+        .note-list li { font-size: 12px; color: #94a3b8; margin-bottom: 6px; line-height: 1.5; }
+        .note-list code { background: #1e293b; color: #a5b4fc; }
+    }
+}

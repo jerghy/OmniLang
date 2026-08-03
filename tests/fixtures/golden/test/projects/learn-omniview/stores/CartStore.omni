@@ -1,5 +1,0 @@
-import omniview;
-store CartStore {
-  signal items: Array<String> = [];
-  action add(item: String) { items = [...items, item]; }
-}

@@ -388,8 +388,9 @@ learn-omniview 项目演示了完整的 4 主题系统。关键集成点：
 
 ```omni
 store ThemeStore {
-    signal mode: String = "light";
-    // ADR-044: mode 信号自动同步到 __omni_theme.set()
+    signal mode: String @theme = "light";
+    // @theme 标记：该信号是 design 块 @themes 声明的当前主题模式，
+    // 三目标自动接线（React data-theme / Flutter ThemeModeNotifier / OmniView CSS）
     action toggle() { /* light → dark → sepia → highContrast → light */ }
     action setMode(newMode: String) { /* 验证后设置 */ }
 }

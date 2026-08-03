@@ -1,11 +1,8 @@
 // ╔══════════════════════════════════════════════════════════════╗
-// ║  lib/math_ext.omni —— std/math 扩展函数演示                   ║
+// ║  components/math_ext.omni —— std/math 扩展函数演示                   ║
 // ║  演示：math_min, max, pow, sin, cos, tan, log, log2, log10,  ║
 // ║        pi, e, clamp, random_int, round                       ║
 // ║  纯逻辑文件，不写 import omniview;                              ║
-// ║  注：Map 用字面量构建（{ "key": value }）——`map.set()` 方法   ║
-// ║  调用在 JS 目标无后端实现，且 `Map<String, T>` 返回类型注解   ║
-// ║  尚未被类型检查器解析（见 .architecture/deferrals.md #28）    ║
 // ╚══════════════════════════════════════════════════════════════╝
 
 import { math_min, math_max, math_pow, math_sin, math_cos, math_tan,

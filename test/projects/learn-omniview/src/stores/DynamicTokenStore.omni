@@ -1,16 +1,10 @@
 // ╔══════════════════════════════════════════════════════════════╗
-// ║  DynamicTokenStore.omni — Phase 2 动态令牌信号存储              ║
+// ║  DynamicTokenStore.omni —— 运行时信号令牌存储                  ║
 // ║                                                              ║
 // ║  本 store 的信号被 design block 的 token 引用：               ║
 // ║    token dynamicColor: color = DynamicTokenStore.liveColor;   ║
 // ║                                                              ║
-// ║  编译器生成 __omni_effect 桥接，在运行时将信号值注入 CSS：    ║
-// ║    __omni_effect(() => {                                      ║
-// ║      document.documentElement.style.setProperty(             ║
-// ║        "--dynamicColor", signal.value);                       ║
-// ║    });                                                        ║
-// ║                                                              ║
-// ║  ADR-047 (Phase 1) + ADR-049 (Phase 2)                       ║
+// ║  编译器生成桥接，在运行时将信号值注入 CSS 变量（动态令牌）。   ║
 // ╚══════════════════════════════════════════════════════════════╝
 
 import omniview;

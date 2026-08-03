@@ -12,7 +12,7 @@
 
 | 项目 | 数值 |
 |------|------|
-| learn-omniview `.omni` 源文件 | **91 个**（`src/components/` 57, `src/pages/` 17, `src/lib/` 7, `src/stores/` 4, `src/shared/` 2, 根 4） |
+| learn-omniview `.omni` 源文件 | **93 个**（`src/components/` 59, `src/pages/` 19, `src/lib/` 7, `src/stores/` 4, 根 4） |
 | 编译器 workspace 成员 | **4 个**：`omnic`, `omnilang`, `omnilang-wasm`, `poiesis/src-tauri` |
 | 代码生成目标 | **10 个**：Python, JavaScript, TypeScript, Rust, Dart, React, Vue, Dioxus, Flutter, OmniView |
 | 各后端独立目录 | **9 个**（TypeScript 无独立目录，可能与 JavaScript 共享） |
@@ -115,7 +115,7 @@
 | [05 Stores](../omniview/05-stores.md) | ✅ 现行 | 全局 store：signal/getter/action + 内联 store |
 | [06 事件](../omniview/06-events.md) | ✅ 现行 | 20 种事件类别、自定义事件、emit |
 | [07 样式](../omniview/07-styling.md) | ✅ 现行 | style 块、CSS 变量、作用域样式 |
-| [08 设计系统](../omniview/08-design-system.md) | ⚠️ 缺 `theme` 关键字 | 仅记录 `design` 关键字（token/class/variant），**未记录 `theme` 关键字**（colors/spacing/typography/radii 分组）。`theme` 是编译器一级关键字（`TokenKind::Theme`，`parse_theme_def()`），在 learn-omniview 的 `shared/theme.omni` 中使用 |
+| [08 设计系统](../omniview/08-design-system.md) | ⚠️ 缺 `theme` 关键字（已废弃） | 仅记录 `design` 关键字（token/class/variant）。旧 `theme` 分组关键字（colors/spacing/typography/radii）已被 v2 的 `@themes`/`@theme` 信号语法取代（v2 设计文档 D1），不再存在于编译器 |
 | [09 运动](../omniview/09-motion.md) | ✅ 现行 | @motion、缓动、时间线、触发器、Hero 过渡 |
 | [10 类型系统](../omniview/10-type-system.md) | ✅ 现行 | 基础类型、struct、tagged union、可选类型 |
 | [11 表达式](../omniview/11-expressions.md) | ✅ 现行 | 运算符、块表达式、match、闭包、await |
@@ -137,7 +137,7 @@
 
 ### 2.3 learn-omniview 项目
 
-> 当前实际有 **91 个 `.omni` 源文件**（`main.omni` 头注释中的 "68+" / "74+" 已过时）
+> 当前实际有 **93 个 `.omni` 源文件**（`main.omni` 头注释中的 "68+" / "74+" 已过时）
 
 | 文档 | 日期 | 状态 | 说明 |
 |------|------|------|------|
@@ -324,7 +324,7 @@
 
 | 缺口 | 严重程度 | 说明 |
 |------|------|------|
-| **`theme` 关键字无文档** | 高 | 编译器支持 `theme` 关键字（`TokenKind::Theme`、`parse_theme_def()`），learn-omniview 的 `shared/theme.omni` 使用了它，但 `docs/omniview/08-design-system.md` 仅记录 `design` 关键字。`theme` 与 `design` 是**两个独立的一级关键字**——`theme` 用分组（colors/spacing/typography/radii），`design` 用 token/class/variant |
+| **`theme` 关键字无文档** | 高 | 已随 v2 语法迭代关闭：旧 `theme` 分组关键字被 `@themes` 声明 + `@theme` 信号标记取代（v2 设计文档 D1），demo 已迁移，无 `shared/theme.omni` |
 | **WASM 分离架构无设计文档** | 中 | `omnilang-wasm` crate 作为独立的 WASM 绑定层（cdylib + rlib），此架构决策缺乏设计文档 |
 | **omnic Rust CLI 重写无设计文档** | 中 | `omnic` 从设计中的 Python 封装改为 Rust 独立 workspace crate，此决策缺乏专门的设计文档 |
 | **标准库 API 文档不完整** | 中 | `docs/stdlib.md` 仅覆盖 3 个模块（math/async/string），实际 stdlib 有 8 个模块（缺少 array/console/http/json/storage 文档） |

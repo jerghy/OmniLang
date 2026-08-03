@@ -6,11 +6,9 @@
 // ║  (var(--surface)) 自动切换，不在 store 中维护颜色 getter。    ║
 // ║  本 store 仅管理 mode 信号和切换计数。                        ║
 // ║                                                              ║
-// ║  v2 D1：`mode` 信号标记 @theme —— 它就是「当前主题模式」。     ║
-// ║  三目标自动接线：React 订阅本 store → 写 data-theme 属性；     ║
-// ║  Flutter 生成 ThemeModeNotifier + MaterialApp(themeMode:)；   ║
-// ║  OmniView 按 @theme 信号同步 __omni_theme（不再有 mode 魔法名）。║
-// ║  切换主题 = 普通 store action（setMode / toggle）。            ║
+// ║  `mode` 信号标记 @theme —— 它就是「当前主题模式」。三目标自动   ║
+// ║  接线：React 写 data-theme 属性；Flutter 生成 ThemeModeNotifier；║
+// ║  OmniView 同步主题 CSS 变量。切换主题 = 普通 store action。    ║
 // ╚══════════════════════════════════════════════════════════════╝
 
 import omniview;
@@ -49,8 +47,8 @@ store ThemeStore {
         }
     }
 
-    // action: 初始化（主题由 CSS 的 [data-theme] 属性驱动）
+    // action: 初始化（主题由 @default-theme 与 design 块生成的 CSS 驱动）
     action load() {
-        // Nothing needed — design block's @default-theme + __omni_theme.init() handle CSS
+        // 无需额外逻辑——CSS 变量随 data-theme 自动切换
     }
 }

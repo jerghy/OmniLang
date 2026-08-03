@@ -1,5 +1,5 @@
 // ╔══════════════════════════════════════════════════════════════╗
-// ║  lib/type_system.omni —— 类型系统全覆盖演示                    ║
+// ║  components/type_system.omni —— 类型系统全覆盖演示            ║
 // ║  演示：i8, i16, i64, u8, u16, u32, u64, f32, isize, usize,  ║
 // ║        Void 类型注解                                          ║
 // ║  纯逻辑文件，不写 import omniview;                              ║

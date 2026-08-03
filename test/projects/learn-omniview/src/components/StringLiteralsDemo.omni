@@ -31,7 +31,7 @@ component StringLiteralsDemo {
 
             <div class: card>
                 <h4 class: label>反引号字符串</h4>
-                <p class: value>signal = `{"Hello \\"OmniView\\" world"}`</p>
+                <p class: value>signal = {'`Hello "OmniView" world`'}</p>
                 <p class: result>结果: {backtickResult}</p>
             </div>
 

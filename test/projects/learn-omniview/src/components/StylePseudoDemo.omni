@@ -1,21 +1,5 @@
 import omniview;
 
-// ╔══════════════════════════════════════════════════════════════╗
-// ║  🧪 Playwright Test                                         ║
-// ║                                                            ║
-// ║  **Steps:**                                                ║
-// ║  1. Navigate to StylePseudoDemo component.                  ║
-// ║  2. Verify buttons and input render with pseudo-class       ║
-// ║     styles in style block.                                  ║
-// ║  3. Check that :hover, :focus, :active pseudo-classes       ║
-// ║     parse correctly in the compiled output.                 ║
-// ║                                                            ║
-// ║  **Expected:**                                             ║
-// ║  - Hover button has :hover styles applied on hover.         ║
-// ║  - Focus input has :focus styles applied on focus.          ║
-// ║  - Active button has :active styles applied on press.       ║
-// ║  - Pseudo-class syntax compiles without errors.             ║
-// ╚══════════════════════════════════════════════════════════════╝
 
 component StylePseudoDemo {
     signal clicked: i32 = 0;

@@ -1,18 +1,5 @@
 import omniview;
 
-// ╔══════════════════════════════════════════════════════════════╗
-// ║  🧪 Playwright Test                                         ║
-// ║                                                            ║
-// ║  **Steps:**                                                ║
-// ║  1. Navigate to BlockExprDemo component.                    ║
-// ║  2. Verify computed results display.                        ║
-// ║  3. Click buttons to change numbers.                        ║
-// ║                                                            ║
-// ║  **Expected:**                                             ║
-// ║  - Block expressions compile: { stmts; expr } returns expr  ║
-// ║  - Computed values from block expressions display correctly. ║
-// ╚══════════════════════════════════════════════════════════════╝
-
 component BlockExprDemo {
     signal a: i32 = 10;
     signal b: i32 = 5;
@@ -58,7 +45,7 @@ component BlockExprDemo {
             </div>
 
             <div class: card>
-                <h4 class: label>块表达式 computed: total = { a + b, then doubled }</h4>
+                <h4 class: label>块表达式 computed: total（块内临时变量加倍）</h4>
                 <p class: value-text>total = {total}</p>
             </div>
 

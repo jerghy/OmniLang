@@ -1,5 +1,5 @@
 // ╔══════════════════════════════════════════════════════════════════╗
-// ║  SlotDefaultDemo.omni — @slot 默认回退内容（ADR-053 D5 语法）      ║
+// ║  SlotDefaultDemo.omni — @slot 默认回退内容                         ║
 // ║                                                                  ║
 // ║  插槽在组件体内声明（body-level），view 中用 {name} / {children}   ║
 // ║  插值标记投影位置：                                                ║
@@ -10,18 +10,13 @@
 // ║  消费者用命名属性投影命名插槽（name={<.../>}），匿名插槽由           ║
 // ║  子元素隐式投影：                                                  ║
 // ║    <SlotPanel header={<div>...</div>}>...</SlotPanel>             ║
-// ║                                                                  ║
-// ║  本组件演示插槽的 3 种形态：                                       ║
-// ║    1. 无默认值的空插槽 @slot name                                 ║
-// ║    2. 带默认回退内容的插槽 @slot name { 回退内容 }                  ║
-// ║    3. 匿名插槽带默认回退 @slot { 回退内容 }                        ║
 // ╚══════════════════════════════════════════════════════════════════╝
 
 import omniview;
 
 // ── SlotPanel: 接收插槽的组件 ──────────────────────────
 component SlotPanel {
-    // Body-level slot declarations (ADR-053 D5) with fallback content;
+    // Body-level slot declarations with fallback content;
     // the view references them via {header} / {children} / {footer}.
     @slot header {
         <span class: default-text>Default Header (来自 header 插槽声明的回退)</span>
@@ -133,9 +128,9 @@ component SlotDefaultDemo {
             <div class: tech-note>
                 <h4 class: note-title>💡 插槽默认内容语义</h4>
                 <ul class: note-list>
-                    <li>如果消费者<strong>没有</strong>为命名的 <code>插槽</code> 提供内容，显示其默认回退</li>
+                    <li>如果消费者<strong>没有</strong>为命名的 <code>{"@slot"}</code> 提供内容，显示其默认回退</li>
                     <li>如果消费者<strong>有</strong>提供内容，默认回退被完全替换</li>
-                    <li>不带默认值的 <code>插槽声明</code>（无回退体）在无内容时渲染空白</li>
+                    <li>不带默认值的 <code>{"@slot 声明"}</code>（无回退体）在无内容时渲染空白</li>
                     <li>匿名插槽（不写名字的声明）同样支持默认回退</li>
                     <li>回退内容可以是任意 OmniLang view 模板（元素、文本、插值、条件等）</li>
                 </ul>

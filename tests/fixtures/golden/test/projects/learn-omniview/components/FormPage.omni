@@ -54,12 +54,6 @@ component FormPage {
         return "Fill in the form";
     }
 
-    fn getStatusClass() -> String {
-        if submitted { return "status success"; }
-        if nameError != "" || emailError != "" { return "status error"; }
-        return "status idle";
-    }
-
     fn isFormValid() -> bool {
         return name != "" && email != "";
     }
@@ -70,7 +64,7 @@ component FormPage {
 
             <!-- Form demonstrating @onSubmit, @onChange, boolean attrs, aria/data attrs -->
             <form class: form @onSubmit={handleSubmit}>
-                <!-- Name field with @onFocus, @onBlur, @onChange, required, aria-label, data-testid -->
+                <!-- Name field with @onFocus, @onBlur, @onChange, required, a11y block, data-testid -->
                 <div class: field>
                     <label class: label for="name">Name</label>
                     <input
@@ -79,7 +73,7 @@ component FormPage {
                         placeholder="Your name"
                         bind:value={name}
                         required
-                        aria-label="Full name input"
+                        a11y: { label: "Full name input" }
                         data-testid="name-field"
                         data-type="text"
                         @onFocus={handleNameFocus}
@@ -100,7 +94,7 @@ component FormPage {
                         placeholder="your@email.com"
                         bind:value={email}
                         required
-                        aria-label="Email address input"
+                        a11y: { label: "Email address input" }
                         data-testid="email-field"
                         data-type="email"
                         @onFocus={handleEmailFocus}
@@ -120,15 +114,14 @@ component FormPage {
                         class: textarea
                         placeholder="Your message (optional)"
                         bind:value={message}
-                        aria-label="Message input"
+                        a11y: { label: "Message input" }
                         data-testid="msg-field"
                         @onChange={handleMessageChange}
                         @onScroll={handleScroll}
                     ></textarea>
                 </div>
 
-                <!-- Disabled field demonstration (implicit auto-bind removed —
-                     value is always exactly what the author writes) -->
+                <!-- Disabled field demonstration -->
                 <div class: field>
                     <label class: label for="disabled-field">Disabled field</label>
                     <input
@@ -136,7 +129,7 @@ component FormPage {
                         class: input
                         placeholder="This field is disabled"
                         disabled
-                        aria-label="Disabled input"
+                        a11y: { label: "Disabled input" }
                         data-testid="disabled-field"
                     ></input>
                 </div>
@@ -149,7 +142,7 @@ component FormPage {
                         class: input
                         value="Read-only value"
                         readonly
-                        aria-label="Read-only input"
+                        a11y: { label: "Read-only input" }
                         data-testid="readonly-field"
                     ></input>
                 </div>
@@ -185,14 +178,14 @@ component FormPage {
                         variant: LearnDesign.Button(color=primary, size=lg)
                         type="submit"
                         disabled={false}
-                        aria-label="Submit form"
+                        a11y: { label: "Submit form" }
                         data-testid="submit-btn"
                     >Submit</button>
                     <button
                         variant: LearnDesign.Button(color=ghost, size=lg)
                         type="button"
                         @onPress={handleReset}
-                        aria-label="Reset form"
+                        a11y: { label: "Reset form" }
                         data-testid="reset-btn"
                     >Reset</button>
                 </div>
@@ -203,7 +196,7 @@ component FormPage {
                         variant: LearnDesign.Button(color=ghost, size=md)
                         @onPress={handleSubmit}
                         disabled={false}
-                        aria-label="Conditional submit button"
+                        a11y: { label: "Conditional submit button" }
                         data-testid="conditional-btn"
                     >
                         {if isFormValid() { "Form is valid" } else { "Form incomplete" }}
@@ -244,7 +237,5 @@ component FormPage {
         .conditional-area { padding: 8px 0; }
         .focus-indicator { margin-top: 12px; padding: 8px 16px; background: #dbf0ff; border-radius: 8px; }
         .focus-text { font-size: 13px; color: #1d40d0; margin: 0; }
-        // .formpage / .title / .submit-btn / .reset-btn / .conditional-btn
-        // 已由 LearnDesign.Card / CardTitle / Button 变体提供
     }
 }

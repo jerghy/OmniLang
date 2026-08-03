@@ -12,30 +12,6 @@
 // ╚══════════════════════════════════════════════════════════════════════╝
 import omniview;
 
-// ╔══════════════════════════════════════════════════════════════╗
-// ║  🧪 Playwright Test                                         ║
-// ║                                                            ║
-// ║  **Steps:**                                                ║
-// ║  1. Navigate to EasingFunctionsDemo component page.        ║
-// ║  2. Verify all 23 easing function cards render.            ║
-// ║  3. Check Power group: ease-in, power1/2/3/4 variants.     ║
-// ║  4. Check Back group: back-in/out/in-out.                  ║
-// ║  5. Check Bounce group: bounce-in/out/in-out.              ║
-// ║  6. Check Elastic group: elastic-in/out/in-out.            ║
-// ║  7. Check Steps group: steps(6, end) / steps(6, start).    ║
-// ║  8. Check Custom group: cubic-bezier.                       ║
-// ║  9. Click "Replay All Animations" button to replay @enter  ║
-// ║     on all cards.                                          ║
-// ║                                                            ║
-// ║  **Expected:**                                             ║
-// ║  - 22 cards rendered, each with @enter motion data attr.   ║
-// ║  - easeIn card has @enter={easeInMove} (easing: ease-in).  ║
-// ║  - power4InOut card has @enter={power4InOutMove} (easing:  ║
-// ║    power4-in-out).                                         ║
-// ║  - cubicCustom card uses cubic(x1,y1,x2,y2).              ║
-// ║  - "Replay All Animations" button rendered and clickable.  ║
-// ╚══════════════════════════════════════════════════════════════╝
-
 // ══════════════════════════════════════════════════════════════════════
 //  POWER 系列 — power1 (quadratic)
 // ══════════════════════════════════════════════════════════════════════

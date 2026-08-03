@@ -1,4 +1,4 @@
-// OmniView 能力展示 — 7 域 · 4 主题 · 60+ 源文件
+// OmniView 能力展示 — 10 语义域 · 4 主题 · 93 源文件
 // 运行：omnic run    编译：omnic build --target omniview
 //
 // 架构：design（设计系统）→ components/pages（UI 组件）→ main（根组装）
@@ -15,7 +15,7 @@ import { Header } from "./components/Header";
 import { TabBar } from "./components/TabBar";
 import { LearnDesign } from "./design";
 
-// ── 7 标签页页面 ──
+// ── 9 标签页页面 ──
 import { Overview } from "./pages/Overview";
 import { UiComponents } from "./pages/UiComponents";
 import { MotionPage } from "./pages/MotionPage";
@@ -60,7 +60,7 @@ component App {
             </div>
 
             <footer class: LearnDesign.Footer>
-                <p class: LearnDesign.FooterText>OmniView 能力展示 · 9 domains · 4 themes · omnic run</p>
+                <p class: LearnDesign.FooterText>OmniView 能力展示 · 10 语义域 · 9 标签页 · 4 主题 · omnic run</p>
             </footer>
         </div>
     }

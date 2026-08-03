@@ -1,5 +1,5 @@
 // DataSubmit.omni —— HTTP POST 表单提交
-// 演示：json_stringify + http_post + await + match
+// 演示：json_stringify + http_post + await + @if 状态切换
 
 import omniview;
 import { http_post } from "std/http";
@@ -43,7 +43,7 @@ component DataSubmit {
     view {
         <div class: data-submit>
             <h3 class: title>HTTP POST Demo</h3>
-            <p class: desc>json_stringify + http_post + await + match status</p>
+            <p class: desc>json_stringify + http_post + await + @if 状态切换</p>
 
             <div class: form>
                 <label class: field-label>Title</label>

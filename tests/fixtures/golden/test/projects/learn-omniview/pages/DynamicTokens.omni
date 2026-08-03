@@ -1,5 +1,5 @@
 // DynamicTokens.omni — Dynamic Design Tokens Demo Page
-// Phase 1 (const refs) + Phase 2 (signal refs) in action
+// 编译时常量引用（const → token 值）+ 运行时信号引用（store signal → token 值）
 
 import omniview;
 import { LearnDesign } from "../design";
@@ -27,12 +27,12 @@ component DynamicTokens {
             <div class: LearnDesign.Banner>
                 <h1 class: LearnDesign.BannerTitle>Dynamic Design Tokens</h1>
                 <p class: LearnDesign.BannerSubtitle>
-                    Phase 1 Compile-time Constants  ·  Phase 2 Runtime Signals  ·  ADR-047 and ADR-049
+                    编译时常量引用  ·  运行时信号引用
                 </p>
             </div>
 
             <div class: LearnDesign.Container>
-                <h3 class: LearnDesign.CardTitle>Phase 1: Compile-time Constant References</h3>
+                <h3 class: LearnDesign.CardTitle>编译时常量引用（const → token）</h3>
                 <p class: LearnDesign.Subtitle>
                     Const values from other files can be used as token values.
                     The compiler resolves them at build time with zero runtime cost.
@@ -54,7 +54,7 @@ component DynamicTokens {
             </div>
 
             <div class: LearnDesign.Container>
-                <h3 class: LearnDesign.CardTitle>Phase 2: Runtime Signal References</h3>
+                <h3 class: LearnDesign.CardTitle>运行时信号引用（store signal → token）</h3>
                 <p class: LearnDesign.Subtitle>
                     Store signals can be referenced in token values.
                     The compiler generates a bridge that updates CSS when signals change.

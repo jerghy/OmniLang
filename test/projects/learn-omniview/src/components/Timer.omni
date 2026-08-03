@@ -1,14 +1,16 @@
 // Timer.omni — 手动步进计时器：signal + 可选事件 + @unmount 清理
 //
-// 说明：std 库暂无 timer/sleep 原语（见 docs/omniview/12-standard-library.md），
-// 因此本演示不做自动计时，改为手动步进：Start 归零并启用计数，Tick 手动 +1，
-// 达到 10 次自动完成并停止；Stop / Reset 用于停止或清零。
+// 演示：signal 计数 + 可选事件（带 ? 类型）+ @unmount 清理。
+// 本演示选择手动步进以聚焦事件模式；定时器/睡眠原语见
+// StdLibShowcase 的 async_sleep / async_demo.omni。
+// Start 归零并启用计数，Tick 手动 +1，达到 10 次自动完成并停止；
+// Stop / Reset 用于停止或清零。
 // 可选事件 onTick / onComplete 由组件发出，父级可用 @onTick / @onComplete 消费，
-// 也可以完全不处理（本展示页即未消费；已消费示例见 EmitEventDemo）。
+// 也可以完全不处理（本展示页即未消费）。
 
 import omniview;
 import { LearnDesign } from "../design";
-import { console_log, console_warn, console_error } from "std/console";
+import { console_log } from "std/console";
 
 component Timer {
     signal count: i32 = 0;
@@ -57,7 +59,7 @@ component Timer {
             <h3 class: title>Timer Demo</h3>
             <p class: count-text>Count: {count} / 10</p>
             <p class: info>Status: {if running { "Running" } else { "Stopped" }}</p>
-            <p class: info>手动步进：std 库暂无定时器原语，点击 Tick 手动 +1</p>
+            <p class: info>手动步进：点击 Tick 手动 +1（自动计时见 StdLibShowcase 的 async_sleep）</p>
 
             <div class: btn-row>
                 <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={start}>Start</button>
@@ -73,7 +75,5 @@ component Timer {
         .count-text { font-size: 36px; font-weight: bold; color: #6366f1; margin-bottom: 8px; }
         .info { font-size: 14px; color: #666; margin-bottom: 12px; }
         .btn-row { display: flex; gap: 8px; margin-bottom: 8px; }
-        // .timer / .btn-start / .btn-stop / .btn-tick / .btn-reset / .btn-sm
-        // 已由 LearnDesign.Card / Button 变体提供
     }
 }

@@ -1,7 +1,6 @@
 import omniview;
 import { LearnDesign } from "../design";
 
-// @pid:c5
 component TodoItem {
   prop id: i32 = 0;
   prop text: String = "";

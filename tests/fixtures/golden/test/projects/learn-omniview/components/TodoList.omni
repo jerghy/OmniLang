@@ -1,7 +1,7 @@
 // ╔══════════════════════════════════════════════════════════════╗
 // ║  TodoList.omni —— @for 列表渲染 + @empty 空状态 + 组件组合      ║
 // ║  演示：跨文件导入组件和 Store、@for/@empty、                      ║
-// ║        容器组件组合叶子组件、event 中继                          ║
+// ║        容器组件组合叶子组件、event 中继 → store action          ║
 // ╚══════════════════════════════════════════════════════════════╝
 
 import omniview;
@@ -10,36 +10,36 @@ import { LearnDesign } from "../design";
 import { TodoItem } from "./TodoItem";
 import { TodoStore } from "../stores/TodoStore";
 import { AddTodo } from "./AddTodo";
+import { array_filter } from "std/array";
 
 component TodoList {
-    // 引用全局 Store
+    // 引用全局 Store——列表数据以 Store 为唯一数据源
     @store TodoStore;
 
-    // prop 从父组件接收数据
-    prop items: Array<String> = [];
-    // event 中继——子组件 event → 本组件 → 父组件
-    event onDelete: i32;
-    event onAdd: String;
-
-    fn handleDelete(index: i32) {
-        onDelete(index);
-    }
-
+    // event 中继——AddTodo 的 @onAdd → 本组件 → TodoStore.add
     fn handleAdd(text: String) {
-        onAdd(text);
+        TodoStore.add(text);
     }
+
+    // event 中继——TodoItem 的 @onDelete → 本组件 → TodoStore.remove
+    fn handleDelete(id: i32) {
+        TodoStore.remove(id);
+    }
+
+    // 按 filterStatus 过滤的可见列表——FilterBar 的搜索框写入 filterStatus
+    computed visibleItems: Todo[] = array_filter(TodoStore.items, |item| TodoStore.filterStatus == "all" || item.text == TodoStore.filterStatus);
 
     view {
         <div>
             <h2 class: title>待办列表
-                <span class: LearnDesign.Badge style: { background: "#6366f1", color: "#fff" }>{items.len()}</span>
+                <span class: LearnDesign.Badge style: { background: "#6366f1", color: "#fff" }>{TodoStore.totalCount}</span>
             </h2>
 
             <AddTodo @onAdd={handleAdd} />
 
             <div class: items>
-                @for item in items {
-                    <TodoItem text={item.text} @onDelete={handleDelete} />
+                @for item in visibleItems key={item.id} {
+                    <TodoItem id={item.id} text={item.text} @onDelete={handleDelete} />
                 }
                 @empty {
                     <div class: empty-state>

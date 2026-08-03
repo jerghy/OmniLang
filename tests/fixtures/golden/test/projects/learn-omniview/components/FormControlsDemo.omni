@@ -5,7 +5,6 @@
 
 import omniview;
 import { LearnDesign } from "../design";
-import { console_log } from "std/console";
 
 component FormControlsDemo {
     signal selected: String = "option2";
@@ -77,7 +76,7 @@ component FormControlsDemo {
                 <input
                     type="number"
                     class: demo-input
-                    value={age.to_string()}
+                    bind:value={age}
                     min="0"
                     max="120"
                     step="1"
@@ -93,7 +92,7 @@ component FormControlsDemo {
                 <input
                     type="range"
                     class: demo-range
-                    value={rangeVal.to_string()}
+                    bind:value={rangeVal}
                     min="0"
                     max="100"
                     step="5"
@@ -125,6 +124,5 @@ component FormControlsDemo {
         .demo-range { width: 100%; margin: 8px 0; }
         .status-area { margin-top: 12px; padding: 10px 12px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; }
         .status-text { font-size: 14px; color: #166534; margin: 0; }
-        // .form-controls / .subtitle 已由 LearnDesign.Card / Hint 提供
     }
 }

@@ -54,12 +54,6 @@ component FormPage {
         return "Fill in the form";
     }
 
-    fn getStatusClass() -> String {
-        if submitted { return "status success"; }
-        if nameError != "" || emailError != "" { return "status error"; }
-        return "status idle";
-    }
-
     fn isFormValid() -> bool {
         return name != "" && email != "";
     }
@@ -127,8 +121,7 @@ component FormPage {
                     ></textarea>
                 </div>
 
-                <!-- Disabled field demonstration (implicit auto-bind removed —
-                     value is always exactly what the author writes) -->
+                <!-- Disabled field demonstration -->
                 <div class: field>
                     <label class: label for="disabled-field">Disabled field</label>
                     <input
@@ -244,7 +237,5 @@ component FormPage {
         .conditional-area { padding: 8px 0; }
         .focus-indicator { margin-top: 12px; padding: 8px 16px; background: #dbf0ff; border-radius: 8px; }
         .focus-text { font-size: 13px; color: #1d40d0; margin: 0; }
-        // .formpage / .title / .submit-btn / .reset-btn / .conditional-btn
-        // 已由 LearnDesign.Card / CardTitle / Button 变体提供
     }
 }

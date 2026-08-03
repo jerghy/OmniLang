@@ -1,6 +1,7 @@
 // ╔══════════════════════════════════════════════════════════════╗
 // ║  EventsDemo.omni —— 事件处理器 + HTML 语义标签全覆盖           ║
-// ║  演示：15 个未使用事件处理器 + 32 个未使用 HTML 语义标签       ║
+// ║  演示：26 个事件处理器（输入/键盘/拖拽/触摸/滚轮/媒体/动画）    ║
+// ║        + 45 个 HTML 语义标签                                   ║
 // ╚══════════════════════════════════════════════════════════════╝
 
 import omniview;
@@ -103,8 +104,7 @@ component EventsDemo {
             <!-- 媒体与资源事件 :: @onLoad @onError @onPlay @onPause @onEnded -->
             <article class: card>
                 <h3 class: card-title>媒体与资源事件</h3>
-                <!-- @onLoad/@onError 挂到真实 src 的 img 上（/dot.png 与 DataTable 一致；
-                     data: URI 会被编译期安全层拦截，见 codegen is_dangerous_url） -->
+                <!-- @onLoad/@onError 挂到真实 src 的 img 上（资源由 harness public/ 提供） -->
                 <img src="/dot.png" class: hidden-img
                     @onLoad={addLog("img-loaded")}
                     @onError={addLog("img-error")} alt="test" />

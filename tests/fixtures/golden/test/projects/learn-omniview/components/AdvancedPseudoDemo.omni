@@ -1,17 +1,5 @@
 import omniview;
 
-// ╔══════════════════════════════════════════════════════════════╗
-// ║  🧪 Playwright Test                                         ║
-// ║                                                            ║
-// ║  **Steps:**                                                ║
-// ║  1. Navigate to AdvancedPseudoDemo component.               ║
-// ║  2. Verify all cards and buttons render.                    ║
-// ║                                                            ║
-// ║  **Expected:**                                             ║
-// ║  - Compound selectors compile: .activeCard.cardActive        ║
-// ║  - Compound + pseudo-class: .darkBtn:hover                  ║
-// ║  - Complex selectors generate correct CSS output.           ║
-// ╚══════════════════════════════════════════════════════════════╝
 
 component AdvancedPseudoDemo {
     signal isActive: bool = false;

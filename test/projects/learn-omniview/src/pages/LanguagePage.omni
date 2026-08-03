@@ -15,7 +15,7 @@ import { BlockExprDemo } from "../components/BlockExprDemo";
 import { ForDirectiveKeyDemo } from "../components/ForDirectiveKeyDemo";
 import { AdvancedPseudoDemo } from "../components/AdvancedPseudoDemo";
 import { AdvancedTypesDemo } from "../components/AdvancedTypesDemo";
-// 事件与异常处理（接线孤儿文件）
+// 事件与异常处理
 import { EmitEventDemo } from "../components/EmitEventDemo";
 import { EmitKeywordDemo } from "../components/EmitKeywordDemo";
 import { ErrorHandlingDemo } from "../components/ErrorHandlingDemo";

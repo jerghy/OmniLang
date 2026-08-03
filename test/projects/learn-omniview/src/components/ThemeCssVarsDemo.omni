@@ -9,7 +9,7 @@
 // ║  CSS 变量来源：                                                  ║
 // ║    --surface, --textPrimary 等由 design.omni 的 @themes 声明      ║
 // ║    自动生成 :root { --surface } / [data-theme="dark"] { --surface } ║
-// ║    无需手动绑定 ThemeStore getter → setProperty()                 ║
+// ║    主题切换经 data-theme 属性自动生效                              ║
 // ╚══════════════════════════════════════════════════════════════════╝
 
 import omniview;
@@ -87,7 +87,7 @@ component ThemeCssVarsDemo {
                     <h4 class: card-title>Transform via CSS Variable</h4>
                     <p class: card-desc>
                         <code>transform: scale(var(--theme-scale))</code>。
-                        信号值通过 <code>setProperty("--theme-scale", boxScale.value)</code> 驱动。
+                        信号 <code>boxScale</code> 以 style: 绑定驱动该 CSS 变量。
                     </p>
                     <button class: var-action-btn @onPress={toggleScale}>
                         Toggle Scale ({boxScale})

@@ -54,6 +54,5 @@ component FeatureList {
         .title { font-size: 16px; color: #b45309; }
         .arrow { font-size: 14px; color: #a16207; }
         .list { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 12px; }
-        // .panel / .tag 已由 LearnDesign.Card / Tag 类提供
     }
 }

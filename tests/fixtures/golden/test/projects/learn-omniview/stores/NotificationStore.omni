@@ -28,8 +28,8 @@ store NotificationStore {
     action addWithPriority(title: String, body: String, priority: i32): String {
         let full = title + ": " + body;
         if priority > 5 {
-            // high priority - add at front (simulated by push)
-            notifications.push(full);
+            // 高优先级——置顶（数组头部插入）
+            notifications = [full, ...notifications];
             return "high priority added";
         }
         notifications.push(full);

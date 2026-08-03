@@ -6,9 +6,8 @@ import omniview;
 import { LearnDesign } from "../design";
 
 component Modal {
-    // Body-level slot declarations (ADR-053 D5): consumers project via
-    // named props (header={<.../>}); the legacy slot="name" children form
-    // was deleted in v2 (design D4).
+    // Body-level slot declarations: consumers project via named props
+    // (header={<.../>}) or child elements.
     @slot header
     @slot body
     @slot footer
@@ -87,6 +86,5 @@ component Modal {
         .modal-text { font-size: 15px; color: #374151; margin: 0 0 8px 0; }
         .hint-text { font-size: 12px; color: #9ca3af; margin: 0; }
         .modal-footer { display: flex; justify-content: flex-end; gap: 8px; }
-        // .trigger-btn / .cancel-btn / .confirm-btn 已由 LearnDesign.Button 变体提供
     }
 }

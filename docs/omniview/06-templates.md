@@ -227,8 +227,9 @@ component SearchBox {
 
 | 属性 | 编译为 |
 |------|--------|
-| `testId: "value"` 或 `testId="value"` | `data-testid="value"` |
+| `data-testid="value"` | 原生 `data-testid` 属性（旧 `testId:` 简写已删除） |
 | `data-*` | 原生 data 属性 |
+| `a11y: { label/role/hidden/live/alt }` | 语义可访问性块（→ aria-* / Flutter Semantics） |
 | `aria-*` | 原生 aria 属性 |
 | `id="..."` | `id` 原生属性 |
 | `href="..."` | `href` 原生属性 |
@@ -344,4 +345,5 @@ component Child {
 | 动画 | `@trigger={m}` | `@enter={fadeIn}` |
 | 引用（简写） | `ref: name` | `ref: myInput` |
 | 引用（事件风格） | `@ref={name}` | `@ref={myInput}` |
-| 测试 ID | `testId="v"` | `testId="btn-save"` |
+| 测试 ID | `data-testid="v"` | `data-testid="btn-save"` |
+| 可访问性 | `a11y: {label: "v"}` | `a11y: { label: "Close", role: "button" }` |

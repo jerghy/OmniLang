@@ -6,8 +6,8 @@ import omniview;
 import { LearnDesign } from "../design";
 
 component Modal {
-    // Body-level slot declarations (ADR-053 D5): consumers project via
-    // named props (header={<.../>}) or slot="name" children (back-compat).
+    // Body-level slot declarations: consumers project via named props
+    // (header={<.../>}) or child elements.
     @slot header
     @slot body
     @slot footer
@@ -21,17 +21,10 @@ component Modal {
     fn handleKeyDown(e) { if e.key == "Escape" { close() } }
     fn handleMouseEnter() { isHovering = true; }
     fn handleMouseLeave() { isHovering = false; }
+    // 仅点击 overlay 背景关闭——内容区点击先被 handleContentClick 拦截，
+    // 否则选择/阅读弹窗内文本也会误关（@onPress 冒泡到 overlay）
     fn handleOverlayClick() { close(); }
-
-    fn getOverlayClass() -> String {
-        if isOpen { return "overlay visible"; }
-        return "overlay hidden";
-    }
-
-    fn getModalClass() -> String {
-        if isHovering { return "modal-content hover"; }
-        return "modal-content";
-    }
+    fn handleContentClick(e) { e.stopPropagation(); }
 
     view {
         <div class: container>
@@ -46,9 +39,11 @@ component Modal {
                 >
                     <div
                         class: { modalcontent: true, hover: isHovering }
+                        tabindex="0"
                         @onKeyDown={handleKeyDown}
                         @onMouseEnter={handleMouseEnter}
                         @onMouseLeave={handleMouseLeave}
+                        @onPress={handleContentClick}
                     >
                         <!-- Named slot: header interpolation (title + close stay as static chrome) -->
                         <div class: modal-header>
@@ -91,6 +86,5 @@ component Modal {
         .modal-text { font-size: 15px; color: #374151; margin: 0 0 8px 0; }
         .hint-text { font-size: 12px; color: #9ca3af; margin: 0; }
         .modal-footer { display: flex; justify-content: flex-end; gap: 8px; }
-        // .trigger-btn / .cancel-btn / .confirm-btn 已由 LearnDesign.Button 变体提供
     }
 }
