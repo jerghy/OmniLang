@@ -1216,19 +1216,12 @@ fn test_zustand_store_with_signals_and_getters() {
         "should emit typed getter return: {}",
         result
     );
+    // Task 2.7 (perf M2): the standalone per-field selector hooks were dead
+    // code — components and the design-tokens hook subscribe inline with
+    // `useStore((s) => s.x)` — so the store file must NOT emit them.
     assert!(
-        result.contains("export function useCount() {"),
-        "should emit standalone signal selector hook: {}",
-        result
-    );
-    assert!(
-        result.contains("export function useDoubleCount() {"),
-        "should emit standalone getter selector hook: {}",
-        result
-    );
-    assert!(
-        result.contains("return useCalcStore((s) => s.count);"),
-        "selector hook should subscribe via the store hook: {}",
+        !result.contains("export function useCount() {"),
+        "standalone per-field selector hooks must not be emitted: {}",
         result
     );
 }
@@ -1298,9 +1291,10 @@ fn test_zustand_store_mutation_multiply_in_action() {
         "should emit typed action param, got: {}",
         result
     );
+    // Task 2.7 (perf M2): no standalone action selector hook either.
     assert!(
-        result.contains("export function useMultiply() {"),
-        "should emit standalone action selector hook, got: {}",
+        !result.contains("export function useMultiply() {"),
+        "standalone action selector hook must not be emitted: {}",
         result
     );
 }
@@ -2022,6 +2016,40 @@ fn compile_react_with_diags(
     (result, diags)
 }
 
+// ── useDesignTokens slice subscription (Task 2.7, ts/react M2 + perf M2) ──
+
+/// Compile a minimal design program: a `DynamicTokenStore` (signal
+/// `liveAccent`), the given design block, and an `App` root component.
+/// Returns the emitted `__design/useDesignTokens.ts` hook — the file this
+/// task rewires to per-field subscriptions (returning the whole output
+/// would let the store file's own dead selector hooks mask the shape).
+///
+/// The design block must be complete (`design Name { ... }`) and carry a
+/// dynamic token referencing `DynamicTokenStore.liveAccent` — the
+/// `useDesignTokens.ts` hook is only emitted when a token is dynamic.
+fn compile_react_with_design(design_src: &str) -> String {
+    let source = format!(
+        "store DynamicTokenStore {{\n    signal liveAccent: String = \"#f00\";\n}}\n{}\ncomponent App {{\n    view {{ <div/> }}\n}}\n",
+        design_src
+    );
+    let result = compile_react_full(&source);
+    assert!(result.success, "design compile failed: {:?}", result.errors);
+    result
+        .files
+        .get("__design/useDesignTokens.ts")
+        .expect("design block with a dynamic token must emit __design/useDesignTokens.ts")
+        .clone()
+}
+
+#[test]
+fn design_tokens_hook_uses_slices() {
+    let out = compile_react_with_design(
+        r#"design AppDesign { token accent: color = DynamicTokenStore.liveAccent; }"#,
+    );
+    // useDesignTokens 必须用 per-field selectors
+    assert!(out.contains("useDynamicTokenStore((s) => s."), "whole-store subscription in design hook: {}", out);
+}
+
 #[test]
 fn inline_store_react_hard_diagnosed() {
     let src =
@@ -2700,25 +2728,37 @@ design AppDesign {
         "useEffect must be imported. Got:\n{}",
         hook
     );
+    // Task 2.7 (ts/react M2 + perf M2): per-field slice subscriptions —
+    // one selector per referenced signal, whole-store object gone.
     assert!(
-        hook.contains("const DynamicTokenStore = useDynamicTokenStore();"),
-        "store hook must be instantiated. Got:\n{}",
+        hook.contains("const liveColor = useDynamicTokenStore((s) => s.liveColor);"),
+        "store must be subscribed per field. Got:\n{}",
+        hook
+    );
+    assert!(
+        hook.contains("const liveBg = useDynamicTokenStore((s) => s.liveBg);"),
+        "one slice per referenced signal. Got:\n{}",
+        hook
+    );
+    assert!(
+        !hook.contains("const DynamicTokenStore = useDynamicTokenStore();"),
+        "whole-store subscription must be gone. Got:\n{}",
         hook
     );
     assert!(
         hook.contains(
-            "document.documentElement.style.setProperty('--dynColor', sanitizeCss(DynamicTokenStore.liveColor));"
+            "document.documentElement.style.setProperty('--dynColor', sanitizeCss(liveColor));"
         ),
         "dynamic token must set the CSS custom property at runtime. Got:\n{}",
         hook
     );
     assert!(
-        hook.contains("}, [DynamicTokenStore.liveColor]);"),
-        "effect deps must be the exact store signal expression. Got:\n{}",
+        hook.contains("}, [liveColor]);"),
+        "effect deps must be the exact slice local. Got:\n{}",
         hook
     );
     assert!(
-        hook.contains("}, [DynamicTokenStore.liveBg]);"),
+        hook.contains("}, [liveBg]);"),
         "one effect per dynamic token. Got:\n{}",
         hook
     );

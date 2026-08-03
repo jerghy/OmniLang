@@ -14,18 +14,19 @@
 //! - `__design/useDesignTokens.ts` — a `useDesignTokens()` hook that applies
 //!   `TokenValueIR::Dynamic` token values to
 //!   `document.documentElement.style` via `useEffect` (one effect per
-//!   dynamic token, deps = the store signal expression)
+//!   dynamic token, deps = the per-field slice local — Task 2.7)
 //! - `__design/useThemeStore.ts` — the theme runtime: when a store signal is
 //!   marked `@theme` (v2 D1), a hook that subscribes to the USER's store and
 //!   applies `data-theme` to `<html>` (CSS scoping); without `@theme`, the
 //!   legacy standalone Zustand store (see `emit_theme_store`)
 
 use crate::codegen::json::escape_literal_str;
+use crate::codegen::react::component::store_slices;
 use crate::codegen::react::{relative_import_path, source_dir_prefix};
 use crate::codegen::shared::design as shared_design;
 use crate::codegen::CodeWriter;
 use crate::ir::design::{DesignIR, TokenValueIR};
-use crate::ir::{ExprIR, IRProgram};
+use crate::ir::{ComponentIR, ExprIR, IRProgram};
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 
@@ -346,13 +347,14 @@ fn emit_design_css_file(designs: &[&DesignIR]) -> String {
 /// For each dynamic token a separate effect is emitted:
 /// ```tsx
 /// useEffect(() => {
-///   document.documentElement.style.setProperty('--dynColor', sanitizeCss(CartStore.liveColor));
-/// }, [CartStore.liveColor]);
+///   document.documentElement.style.setProperty('--dynColor', sanitizeCss(liveColor));
+/// }, [liveColor]);
 /// ```
-/// The effect deps are the exact store-signal expression, so unrelated
-/// store updates do not re-fire it.  Store hooks are instantiated once per
-/// referenced store (`const CartStore = useCartStore();`), matching the
-/// component codegen convention.
+/// The effect deps are the exact store-signal slice local, so unrelated
+/// store updates do not re-fire it.  Stores are subscribed PER FIELD
+/// (`const liveColor = useCartStore((s) => s.liveColor);` — Task 2.7,
+/// perf M2), mirroring the component slice plan: a store write only
+/// re-renders the root when the CHANGED field feeds a dynamic token.
 fn emit_use_design_tokens(
     designs: &[&DesignIR],
     dir_prefix: &str,
@@ -410,11 +412,53 @@ fn emit_use_design_tokens(
     w.emit("");
     w.emit("export function useDesignTokens() {");
     w.indent();
+    // Per-field slice subscriptions (Task 2.7, perf M2): subscribe to each
+    // referenced store field — `const liveColor = useDynamicTokenStore((s) => s.liveColor);` —
+    // so a store write only re-renders the root when the CHANGED field feeds
+    // a dynamic token. Previously the whole-store object (`const
+    // DynamicTokenStore = useDynamicTokenStore();`) re-rendered App on every
+    // store write (ts/react M2 + perf M2). Mirrors the component slice plan
+    // (component/store_slices.rs); a store falls back to the whole-store
+    // object when a referenced field is unknown, collides with another
+    // store's slice local, or captures a name used by this module.
+    let mut token_field_refs: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let mut bare_refs: FxHashSet<String> = FxHashSet::default();
+    for (_, expr) in &dynamic_tokens {
+        store_slices::collect_expr_store_field_refs(expr, &mut token_field_refs, &mut bare_refs);
+    }
+    let hook_shadowing: FxHashSet<String> = [
+        "sanitizeCss",
+        "normalizeCssEscapes",
+        "useEffect",
+        "document",
+        "window",
+        "String",
+        "isNaN",
+        "parseInt",
+    ]
+    .into_iter()
+    .map(str::to_string)
+    .collect();
+    let (renames, slice_fields) = store_slices::build_slice_plan(
+        &ComponentIR::default(),
+        &token_field_refs,
+        &hook_shadowing,
+        &bare_refs,
+        &FxHashSet::default(),
+        &all_stores,
+    );
     for store_name in &known_stores {
+        if let Some(fields) = slice_fields.get(store_name.as_str()) {
+            if let Some(store) = all_stores.get(store_name.as_str()) {
+                store_slices::emit_store_slices(&mut w, store_name, store, fields);
+                continue;
+            }
+        }
         w.emit_fmt(format_args!("const {} = use{}();", store_name, store_name));
     }
     for (name, expr) in &dynamic_tokens {
-        let js_expr = super::expr::format_expr_ir_tsx(expr, &FxHashSet::default());
+        let js_expr =
+            super::expr::format_expr_ir_tsx_renamed(expr, &FxHashSet::default(), &renames);
         w.emit("useEffect(() => {");
         w.indent();
         w.emit_fmt(format_args!(
@@ -1008,11 +1052,20 @@ mod tests {
             "store hook import must resolve from inside __design/ (Task 4.4). Got:\n{}",
             content
         );
-        assert!(content.contains("const DynamicTokenStore = useDynamicTokenStore();"));
+        // Task 2.7 (ts/react M2 + perf M2): the hook must subscribe PER FIELD
+        // — the whole-store object re-rendered the root App on every store
+        // write, and the per-field slice local also keeps the effect deps
+        // precise.
+        assert!(content.contains("const liveColor = useDynamicTokenStore((s) => s.liveColor);"));
+        assert!(
+            !content.contains("const DynamicTokenStore = useDynamicTokenStore();"),
+            "whole-store subscription must be gone. Got:\n{}",
+            content
+        );
         assert!(content.contains(
-            "document.documentElement.style.setProperty('--dynColor', sanitizeCss(DynamicTokenStore.liveColor));"
+            "document.documentElement.style.setProperty('--dynColor', sanitizeCss(liveColor));"
         ));
-        assert!(content.contains("}, [DynamicTokenStore.liveColor]);"));
+        assert!(content.contains("}, [liveColor]);"));
         assert!(
             content.contains("function sanitizeCss(value: unknown): string {"),
             "sanitizer must be emitted"

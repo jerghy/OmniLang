@@ -1,5 +1,6 @@
 ---
 source: omnilang/src/codegen/tests_regression/parameterized.rs
+assertion_line: 124
 expression: "& super :: super :: format_output(& output)"
 ---
 === useAppStore.ts ===
@@ -20,15 +21,3 @@ export const useAppStore = create<AppStoreState>()((set, get) => ({
         set({ count: state.count + 1 });
     },
 }));
-
-export function useCount() {
-    return useAppStore((s) => s.count);
-}
-
-export function useDoubleCount() {
-    return useAppStore((s) => s.doubleCount);
-}
-
-export function useIncrement() {
-    return useAppStore((s) => s.increment);
-}

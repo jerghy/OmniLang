@@ -19,10 +19,12 @@
 //     wrong binding, so the qualified `TodoStore.field` form (which is
 //     unambiguous) is preserved for that store.
 //
-// The store file (useXxx.ts) is untouched: its per-field selector hooks stay
-// as public API, and components use the inline `useStore((s) => s.x)`
-// selector form (identical semantics, no import changes, no cross-store
-// hook-name collisions).
+// The store file (useXxx.ts) emits the store object only — the standalone
+// per-field selector hooks (`useCount`, `useLiveAccent`, ...) were dead
+// code: no consumer imports them (components AND the design-tokens hook
+// subscribe inline with `useStore((s) => s.x)`, identical semantics, no
+// import changes, no cross-store hook-name collisions) — removed by
+// Task 2.7 (perf M2).
 // ═══════════════════════════════════════════════════════════
 
 use crate::codegen::react::CodeWriter;
@@ -33,7 +35,7 @@ use rustc_hash::FxHashSet;
 /// Referenced fields of one store, classified by kind (emission order:
 /// signals, getters, actions — matching the store file's hook order).
 #[derive(Debug, Default, Clone)]
-pub(super) struct SliceFields {
+pub(crate) struct SliceFields {
     pub signals: Vec<String>,
     pub getters: Vec<String>,
     pub actions: Vec<String>,
@@ -571,7 +573,10 @@ fn collect_ref_op_shadowing_names(op: &RefOpIR, acc: &mut FxHashSet<String>) {
 /// method receivers are consumed by their parent arms (never recursed into),
 /// so any IdentifierExpr reached by the walker is a BARE reference (review
 /// LOW-3).
-fn collect_expr_store_field_refs(
+///
+/// `pub(crate)`: also used by the design-tokens hook emitter
+/// (react/design.rs) to slice its dynamic-token expressions (Task 2.7).
+pub(crate) fn collect_expr_store_field_refs(
     expr: &ExprIR,
     acc: &mut FxHashMap<String, FxHashSet<String>>,
     bare: &mut FxHashSet<String>,
@@ -945,7 +950,12 @@ pub(super) fn motion_whole_store_stores(
 ///
 /// Returns `(store_field_renames, slice_fields_by_store)`. Stores absent
 /// from `slice_fields_by_store` keep the whole-store object.
-pub(super) fn build_slice_plan(
+///
+/// `pub(crate)`: also used by the design-tokens hook emitter
+/// (react/design.rs) with an empty (default) component — the component is
+/// only consulted for its effect deps, of which the hook file has none
+/// (Task 2.7).
+pub(crate) fn build_slice_plan(
     comp: &ComponentIR,
     store_field_refs: &FxHashMap<String, FxHashSet<String>>,
     shadowing_names: &FxHashSet<String>,
@@ -1055,7 +1065,11 @@ pub(super) fn build_slice_plan(
 
 /// Emit one slice-selector subscription per referenced field:
 /// `const items = useTodoStore((s) => s.items);`
-pub(super) fn emit_store_slices(
+///
+/// `pub(crate)`: also used by the design-tokens hook emitter
+/// (react/design.rs) — the hook subscribes per field like a component
+/// (Task 2.7).
+pub(crate) fn emit_store_slices(
     w: &mut CodeWriter,
     store_ref: &str,
     _store: &StoreIR,

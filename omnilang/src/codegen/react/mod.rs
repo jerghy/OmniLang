@@ -231,9 +231,12 @@ pub(super) fn relative_import_path(
 impl ReactCodegen {
     /// Generate a Zustand v5 store (useStoreName.ts).
     ///
-    /// Emits `create<T>()(...)` with signals, getter accessors and actions,
-    /// followed by standalone selector hooks (`useCount`, `useDoubleCount`,
-    /// `useIncrement`, ...) so components subscribe to individual slices.
+    /// Emits `create<T>()(...)` with signals, getter accessors and actions.
+    /// Subscription happens at the consumer: components and the
+    /// design-tokens hook use inline `useStore((s) => s.x)` slice selectors
+    /// (store_slices.rs / design.rs, Task 2.7) — the standalone per-field
+    /// selector hooks were dead code (nothing imported them) and are no
+    /// longer emitted (perf M2).
     fn gen_zustand_store(&self, name: &str, store: &StoreIR) -> String {
         let mut w = CodeWriter::new();
         w.emit_fmt(format_args!(
@@ -373,38 +376,8 @@ impl ReactCodegen {
         w.dedent();
         w.emit("}));");
 
-        // Standalone selector hooks — one per signal, getter and action
-        for sig_name in store.signals.keys() {
-            emit_zustand_selector_hook(&mut w, name, sig_name);
-        }
-        for getter_name in store.getters.keys() {
-            emit_zustand_selector_hook(&mut w, name, getter_name);
-        }
-        for action in &store.actions {
-            emit_zustand_selector_hook(&mut w, name, &action.name);
-        }
-
         w.into_string()
     }
-}
-
-/// Emit a standalone selector hook for one store field:
-/// `export function useCount() { return useAppStore((s) => s.count); }`
-fn emit_zustand_selector_hook(w: &mut CodeWriter, store_name: &str, field: &str) {
-    let hook_name = format!("use{}", super::capitalize_first(field));
-    // Avoid colliding with the main store hook (e.g. store "Count" + signal "count")
-    if hook_name == format!("use{}", store_name) {
-        return;
-    }
-    w.emit("");
-    w.emit_fmt(format_args!("export function {}() {{", hook_name));
-    w.indent();
-    w.emit_fmt(format_args!(
-        "return use{}((s) => s.{});",
-        store_name, field
-    ));
-    w.dedent();
-    w.emit("}");
 }
 
 /// Generate a statement inside a Zustand store action body.

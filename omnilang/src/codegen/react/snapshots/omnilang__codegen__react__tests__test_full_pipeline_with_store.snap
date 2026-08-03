@@ -12,7 +12,3 @@ interface AppStoreState {
 export const useAppStore = create<AppStoreState>()((set) => ({
     count: 0,
 }));
-
-export function useCount() {
-    return useAppStore((s) => s.count);
-}

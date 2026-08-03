@@ -42,11 +42,3 @@ export const useAppStore = create<AppStoreState>()((set, get) => ({
         set({ count: state.count + 1 });
     },
 }));
-
-export function useCount() {
-    return useAppStore((s) => s.count);
-}
-
-export function useIncrement() {
-    return useAppStore((s) => s.increment);
-}
