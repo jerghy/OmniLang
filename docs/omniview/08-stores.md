@@ -24,7 +24,7 @@ store TodoStore {
 
     // 3. 修改方法（store 中用 action）
     action add(text: String) {
-        items = [...items, { id: items.len(), text: text, done: false }];
+        items = [...items, { id: items.len(), text, done: false }];
     }
 
     action remove(id: i32) {
@@ -118,7 +118,7 @@ store TodoStore {
 
     getter totalCount: i32 = items.len();
 
-    action add(text: String) { items = [...items, { id: items.len(), text: text, done: false }]; }
+    action add(text: String) { items = [...items, { id: items.len(), text, done: false }]; }
     action clear() { items = []; }
 }
 

@@ -204,8 +204,10 @@ design App {
 **Restrictions:**
 - Dynamic tokens (Phase 2) cannot have theme overrides. Use store-level
   theme switching instead.
-- Design blocks are currently only supported on the OmniView target.
-  Compiling to React, Flutter, or other targets will produce a warning.
+- Design blocks are fully supported on the P0 targets — OmniView, React,
+  and Flutter (tokens / classes / variants / themes all codegen to native
+  primitives). Non-P0 targets (Python / JS / Dart / Rust / Dioxus / Vue)
+  produce a **hard error** — design is never silently dropped (spec §4.7).
 
 ---
 

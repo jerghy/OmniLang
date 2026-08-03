@@ -28,8 +28,10 @@ Block inclusion:
 
 Usage:
   python scripts/verify-docs.py [--omnic PATH] [--check|--inspect] [-v]
-  --check    exit 1 if any block fails (CI gate mode; default with --omnic)
-  --inspect  report without failing (audit mode)
+  (default)  gate mode — exit 1 if any block fails (CI passes --check
+             explicitly for clarity)
+  --check    gate mode, explicit
+  --inspect  audit mode — never exit nonzero
 """
 import argparse
 import json
@@ -68,7 +70,6 @@ CODE_KEYWORD_RE = re.compile(
 PARSE_ERROR_PREFIXES = (
     "Unexpected token",
     "Unexpected end",
-    "expected ",
     "Unclosed",
     "Unterminated",
     "Unbalanced",
@@ -76,8 +77,21 @@ PARSE_ERROR_PREFIXES = (
     "Missing",
     "Invalid",
 )
+# Semantic type-mismatch messages also start with "expected X, got Y" —
+# exclude that shape so it stays a note, not a parse failure.
+SEMANTIC_EXPECTED_RE = re.compile(r"^expected [^,]+, got\b")
 # Diagnoses that never fail the gate (teaching context, not syntax).
 NON_FAILING_CODES = ("E_IMPORT",)
+
+
+def is_parse_error(message):
+    """True when a diagnostic message is a genuine PARSE error (parser
+    messages use `expected X — found Y` / quoted tokens; semantic type
+    mismatches use the `expected X, got Y` shape and must not fail the gate
+    for wrapped fragments)."""
+    if message.startswith("expected "):
+        return not SEMANTIC_EXPECTED_RE.match(message)
+    return message.startswith(PARSE_ERROR_PREFIXES)
 
 BNF_RE = re.compile(r"^\s*[\w:\-']+(\s+)?::=")
 
@@ -216,7 +230,7 @@ def check_block(omnic, tmpdir, content, fragment=False):
             continue
         if d.get("code") in NON_FAILING_CODES:
             notes.append(d)
-        elif fragment and not d.get("message", "").startswith(PARSE_ERROR_PREFIXES):
+        elif fragment and not is_parse_error(d.get("message", "")):
             notes.append(d)
         else:
             hard.append(d)
@@ -252,8 +266,7 @@ def audit(omnic, paths, verbose):
                 ok, hard, soft = check_block(omnic, tmpdir, text)
                 used_kind = "complete" if complete else "fragment"
                 may_fallback = not complete or not any(
-                    d.get("message", "").startswith(PARSE_ERROR_PREFIXES)
-                    for d in hard
+                    is_parse_error(d.get("message", "")) for d in hard
                 )
                 if not ok and may_fallback:
                     for wrap in wrappers_for(text):
@@ -318,7 +331,9 @@ def main():
     if args.verbose or args.inspect:
         for rel, lineno, kind, d in notes:
             print(f"NOTE [{rel}:{lineno} {kind}] {d.get('message')} ({d.get('code','')})")
-    if args.check and failures:
+    # Gate mode is the default: failures exit nonzero unless --inspect
+    # (audit mode) explicitly opts out.
+    if failures and not args.inspect:
         print("\nGATE FAILED: fix the DOC blocks above (compiler is ground truth).")
         return 1
     return 0
