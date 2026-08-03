@@ -592,11 +592,14 @@ impl FormatExpr for DartFormatExpr {
     ) -> String {
         match method {
             // `arr.get(i)` — the `!` is needed only when the indexer is
-            // nullable (Map indexers); a typed NON-nullable Array receiver
-            // makes it unnecessary_non_null_assertion (DataTable:94).
+            // nullable (Map indexers); typed NON-nullable Array receivers
+            // make it unnecessary_non_null_assertion (DataTable:94), and
+            // String receivers (typed identifiers or literals — the doc's
+            // `"abc".get(1)`) index to a non-nullable single-character
+            // String (review MEDIUM/LOW, fix round 1/5).
             "get" if !is_optional => {
                 let idx = arg_strs.first().map(|s| s.as_str()).unwrap_or("0");
-                if expr_is_typed_array(object) {
+                if expr_is_typed_array(object) || expr_is_string_shape(object) {
                     format!("({obj_str})[{idx}]")
                 } else {
                     format!("({obj_str})[{idx}]!")
@@ -1104,6 +1107,14 @@ fn expr_is_typed_string(e: &ExprIR) -> bool {
     )
 }
 
+/// STRING-SHAPE check for the `get` arm (review MEDIUM/LOW, fix round 1/5):
+/// a typed String identifier OR a string literal — Dart's String indexer
+/// returns a NON-nullable single-character String, so the `!` is
+/// unnecessary for both (12-standard-library.md's `"abc".get(1)` → `"b"`).
+fn expr_is_string_shape(e: &ExprIR) -> bool {
+    expr_is_typed_string(e) || matches!(e, ExprIR::LiteralExpr { value } if value.is_string())
+}
+
 /// Array-SHAPE check for `concat` args: a typed array variable OR an array
 /// literal — the string-shape heuristic extended to typed variable
 /// references (Task 5.8a MEDIUM-2).
@@ -1129,13 +1140,14 @@ fn is_int_arithmetic_closure_body(e: &ExprIR) -> bool {
         ExprIR::BinaryOpExpr {
             op, left, right, ..
         } => {
+            // DIV is excluded (review MEDIUM, fix round 1/5): Dart's
+            // `int / int` returns DOUBLE — `(x / 2) as int` throws for every
+            // int argument, so the language's `int/int -> Int` semantic rule
+            // is NOT sound on the Dart target. Add/Sub/Mul/Mod are
+            // int-closed in Dart and stay narrowed.
             matches!(
                 op,
-                BinaryOpIR::Add
-                    | BinaryOpIR::Sub
-                    | BinaryOpIR::Mul
-                    | BinaryOpIR::Div
-                    | BinaryOpIR::Mod
+                BinaryOpIR::Add | BinaryOpIR::Sub | BinaryOpIR::Mul | BinaryOpIR::Mod
             ) && (has_int_literal_operand(left) || has_int_literal_operand(right))
         }
         _ => false,
@@ -1486,6 +1498,45 @@ mod tests {
     }
 
     #[test]
+    fn dart_closure_div_body_not_narrowed() {
+        // Review MEDIUM (fix round 1/5): DIV is excluded from the narrowing
+        // set — Dart's `int / int` returns DOUBLE, so `(x / 2) as int`
+        // throws at runtime for every int argument (the language's
+        // `int/int -> Int` semantic rule does NOT hold on the Dart target).
+        // Add/Sub/Mul/Mod are int-closed and stay narrowed.
+        let expr = ExprIR::ClosureExpr {
+            params: vec!["x".into()],
+            body: Box::new(ExprIR::BinaryOpExpr {
+                op: BinaryOpIR::Div,
+                left: Box::new(ident("x", None)),
+                right: Box::new(ExprIR::LiteralExpr {
+                    value: serde_json::json!(2),
+                }),
+            }),
+        };
+        assert_eq!(dart_fmt().format_expr(&expr), "((dynamic x) => x / 2)");
+    }
+
+    #[test]
+    fn dart_closure_mod_body_stays_narrowed() {
+        // `int % int` is int-closed in Dart — Mod stays in the narrowing set.
+        let expr = ExprIR::ClosureExpr {
+            params: vec!["x".into()],
+            body: Box::new(ExprIR::BinaryOpExpr {
+                op: BinaryOpIR::Mod,
+                left: Box::new(ident("x", None)),
+                right: Box::new(ExprIR::LiteralExpr {
+                    value: serde_json::json!(3),
+                }),
+            }),
+        };
+        assert_eq!(
+            dart_fmt().format_expr(&expr),
+            "((dynamic x) => (x % 3) as int)"
+        );
+    }
+
+    #[test]
     fn dart_closure_string_concat_body_not_narrowed() {
         // `|a, b| a + b` (string concat closure) is NOT narrowed — no int
         // literal operand.
@@ -1623,6 +1674,37 @@ mod tests {
             }],
         );
         assert_eq!(dart_fmt().format_expr(&expr), "(cfg)['90']!");
+    }
+
+    #[test]
+    fn dart_get_on_typed_string_omits_bang() {
+        // Review MEDIUM/LOW (fix round 1/5): the doc's built-in `.get` on
+        // String (`"abc".get(1)` → `"b"`, 12-standard-library.md) — Dart's
+        // String indexer returns a NON-nullable single-character String, so
+        // the `!` was unnecessary_non_null_assertion. Typed String
+        // receivers emit the plain index.
+        let expr = method_call(
+            ident("s", Some("String")),
+            "get",
+            vec![ident("i", Some("i32"))],
+        );
+        assert_eq!(dart_fmt().format_expr(&expr), "(s)[i]");
+    }
+
+    #[test]
+    fn dart_get_on_string_literal_omits_bang() {
+        // The doc example `"abc".get(1)` — a string LITERAL receiver also
+        // has a non-nullable indexer.
+        let expr = method_call(
+            ExprIR::LiteralExpr {
+                value: serde_json::json!("abc"),
+            },
+            "get",
+            vec![ExprIR::LiteralExpr {
+                value: serde_json::json!(1),
+            }],
+        );
+        assert_eq!(dart_fmt().format_expr(&expr), "('abc')[1]");
     }
 
     #[test]
