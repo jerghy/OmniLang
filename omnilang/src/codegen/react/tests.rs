@@ -319,7 +319,7 @@ fn test_tsx_stmt_let() {
         &FxHashSet::default(),
         &FxHashMap::default(),
     );
-    assert_eq!(w.into_string(), "const x = 42;\n");
+    assert_eq!(w.into_string(), "let x = 42;\n");
 }
 
 #[test]
@@ -617,7 +617,7 @@ fn test_tsx_stmt_if() {
     );
     let out = w.into_string();
     assert!(out.contains("if (cond) {"));
-    assert!(out.contains("const x = 1;"));
+    assert!(out.contains("let x = 1;"));
     assert!(out.contains("}"));
 }
 
@@ -4805,7 +4805,7 @@ component AliasView {
         content
     );
     assert!(
-        content.contains("const s = AliasStore;"),
+        content.contains("let s = AliasStore;"),
         "bare alias reference must stay qualified. Got:\n{}",
         content
     );
@@ -4899,13 +4899,49 @@ component OptView {
         content
     );
     assert!(
-        content.contains("const a = s?.items;"),
+        content.contains("let a = s?.items;"),
         "non-store optional chain must stay qualified. Got:\n{}",
         content
     );
     assert!(
         !content.contains("OptStore?.items"),
         "store optional chain must be rewritten to the slice local. Got:\n{}",
+        content
+    );
+}
+
+/// Task 2.1 side-fix: optional-chain METHOD calls must run through the
+/// method table — `user?.len()` must emit `user?.length`. The shared
+/// default emits `?.len()` verbatim, which fails tsc (TS2339 'len' on
+/// string) — exposed by the fresh learn-omniview regen during the 2.1
+/// verification (OptionalChainDemo computed `nameLen`).
+#[test]
+fn react_optional_chain_method_len_translates_to_length() {
+    let source = r#"
+import omniview;
+component OptLen {
+    signal s: String = "abc";
+    computed n: i32 = s?.len() ?? 0;
+    view {
+        <p>{n}</p>
+    }
+}
+"#;
+    let output = compile_react(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        content.contains("s?.length"),
+        "optional-chain len() must translate to ?.length, got:\n{}",
+        content
+    );
+    assert!(
+        !content.contains("s?.len()"),
+        "no verbatim ?.len() may survive, got:\n{}",
         content
     );
 }

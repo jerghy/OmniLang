@@ -131,6 +131,22 @@ impl FormatExpr for ReactFormatExpr {
         translate_method_call(obj, method, args)
     }
 
+    /// Optional-chain method call (`obj?.method(args)`) — translate known
+    /// stdlib methods exactly like plain calls while PRESERVING the `?.`
+    /// so null-safety survives translation. The shared default emits
+    /// `?.method()` verbatim, which fails tsc for translated names
+    /// (`user?.len()` → TS2339 'len' on string — exposed by the fresh
+    /// learn-omniview regen, task 2.1 verification).
+    fn format_optional_method_call(&self, obj: &str, method: &str, args: &[String]) -> String {
+        match method {
+            // len → length is a PROPERTY access — the optional chain lands
+            // on the receiver: `user?.len()` → `user?.length`.
+            "len" => format!("{obj}?.length"),
+            // Everything else keeps the shared default shape.
+            _ => format!("{obj}?.{method}({})", args.join(", ")),
+        }
+    }
+
     /// Store reads/actions formatted through the shared dispatch — when the
     /// store is subscribed per field, emit the slice local instead of the
     /// qualified `Store.field` name (Task 3.3, perf HIGH-1/H2).
@@ -317,7 +333,14 @@ impl FormatStmt for ReactStmtFormatter {
     }
 
     fn use_const_for_immutable(&self) -> bool {
-        true
+        // BUG-A (deferral #36): LetStmtIR carries no mut flag, so the React
+        // target cannot distinguish `let mut` (reassigned → `const` emission
+        // throws "Assignment to constant variable" at runtime and unmounts
+        // the whole app) from immutable bindings. Cheap fix: emit `let`
+        // unconditionally — the harness eslint config disables prefer-const
+        // for generated output, so the gate stays green. The IR mut flag
+        // that restores `const` for immutable bindings lands in Phase 5.1.
+        false
     }
 
     fn for_in_keyword(&self) -> &str {

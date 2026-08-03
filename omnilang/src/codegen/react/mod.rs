@@ -391,7 +391,11 @@ fn gen_zustand_action_stmt(
                 .as_ref()
                 .map(|v| fmt_expr(v, renames))
                 .unwrap_or_else(|| "null".into());
-            w.emit_fmt(format_args!("const {} = {};", name, rhs));
+            // BUG-A (deferral #36): unconditional `let` — LetStmtIR carries
+            // no mut flag, so `const` emission breaks `let mut` reassignment
+            // at runtime ("Assignment to constant variable"). IR mut flag
+            // lands in Phase 5.1 (see react/expr.rs use_const_for_immutable).
+            w.emit_fmt(format_args!("let {} = {};", name, rhs));
         }
         StatementIR::IfStmtIR {
             condition,

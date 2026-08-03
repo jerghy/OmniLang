@@ -26,6 +26,14 @@ export default tseslint.config(
     rules: {
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'error',
+      // Generated output emits `let` for EVERY LetStmtIR because the IR
+      // carries no mut flag (deferral #36, task 2.1): `const` emission
+      // breaks `let mut` reassignment at runtime ("Assignment to constant
+      // variable", BUG-A). typescript-eslint recommended enables
+      // prefer-const, which would flag every non-reassigned `let` — disable
+      // it for generated code until Phase 5.1 threads the mut flag and
+      // restores `const` for immutable bindings.
+      'prefer-const': 'off',
     },
   },
 );

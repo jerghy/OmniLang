@@ -14,11 +14,14 @@ import { test, expect, Page } from '@playwright/test';
 //
 // Tests marked fixme reference RECORDED React codegen bugs
 // (task-7.1-report §5; un-fixme when the root cause lands):
-//   A. `let mut` vars emitted as `const` (TS2588 class) — DataTable
+//   A/B. `let mut` vars emitted as `const` (TS2588 class) — DataTable
 //      getBonusTotal + ErrorHandlingDemo try_catch_finally_divide
 //      throw "Assignment to constant variable" DURING RENDER → the
 //      whole app unmounts on the UI / Language tabs.
-//   B. (same crash on the Language tab.)
+//      FIXED (task 2.1): LetStmtIR now emits `let` unconditionally —
+//      the tests below were un-fixme'd and guard this behavior until
+//      Phase 5.1 threads the IR mut flag (restoring `const` for
+//      immutable bindings).
 //   C. Inline-store actions reference an undefined CartStore object
 //      (TS2304 class — inline-store actions have no emission path).
 //   D. `&` in static text is escaped to `&amp;` INSIDE JSX string
@@ -76,7 +79,7 @@ test.describe('OmniView React — 9 标签页验证', () => {
       }
     });
 
-    test.fixme('02 - CapabilityCard navigates to tab (React bug A: UI tab crashes the app)', async ({ page }) => {
+    test('02 - CapabilityCard navigates to tab (React bug A: UI tab crashes the app)', async ({ page }) => {
       await switchToTab(page, 0);
       await page.getByText('UI Components').first().click();
       await page.waitForTimeout(400);
@@ -90,7 +93,7 @@ test.describe('OmniView React — 9 标签页验证', () => {
 
   // ═══ TAB 1: UI ═══
   test.describe('Tab 1: 🎨 UI', () => {
-    test.fixme('04 - ValidationInput validate flow (React bug A: UI tab crashes the app)', async ({ page }) => {
+    test('04 - ValidationInput validate flow (React bug A: UI tab crashes the app)', async ({ page }) => {
       await switchToTab(page, 1);
       await visible(page, 'ValidationInput Demo');
       await visible(page, 'Waiting for input');
@@ -100,7 +103,7 @@ test.describe('OmniView React — 9 标签页验证', () => {
       await visible(page, 'Result ready');
     });
 
-    test.fixme('05 - Modal open/close (React bug A)', async ({ page }) => {
+    test('05 - Modal open/close (React bug A)', async ({ page }) => {
       await switchToTab(page, 1);
       await clickBtn(page, 'Open Modal');
       await page.waitForTimeout(300);
@@ -109,7 +112,7 @@ test.describe('OmniView React — 9 标签页验证', () => {
       await page.waitForTimeout(300);
     });
 
-    test.fixme('06 - TabPanel switching (React bug A)', async ({ page }) => {
+    test('06 - TabPanel switching (React bug A)', async ({ page }) => {
       await switchToTab(page, 1);
       await clickBtn(page, 'About');
       await page.waitForTimeout(200);
@@ -119,7 +122,7 @@ test.describe('OmniView React — 9 标签页验证', () => {
       await visible(page, 'Settings Tab');
     });
 
-    test.fixme('07 - FormPage validation state (React bug A)', async ({ page }) => {
+    test('07 - FormPage validation state (React bug A)', async ({ page }) => {
       await switchToTab(page, 1);
       await visible(page, 'FormPage Demo');
       await visible(page, 'Form incomplete');
@@ -129,17 +132,19 @@ test.describe('OmniView React — 9 标签页验证', () => {
       await visible(page, 'Form is valid');
     });
 
-    test.fixme('08 - FormControlsDemo select/checkbox (React bug A)', async ({ page }) => {
+    test('08 - FormControlsDemo select/checkbox (React bug A)', async ({ page }) => {
       await switchToTab(page, 1);
-      await page.locator('select').first().selectOption('option3');
+      // EventsDemo renders an earlier <select> whose options carry no
+      // value attributes — target the demo-select by its option value.
+      await page.locator('select').filter({ has: page.locator('option[value="option3"]') }).selectOption('option3');
       await page.waitForTimeout(200);
-      await visible(page, 'Value: option3');
+      await visible(page, /Value:\s*option3/);
       await page.locator('input[type="checkbox"]').first().check({ force: true });
       await page.waitForTimeout(200);
-      await visible(page, 'Status: Checked');
+      await visible(page, /Status:\s*Checked/);
     });
 
-    test.fixme('09 - NotificationsPanel add (React bug A)', async ({ page }) => {
+    test('09 - NotificationsPanel add (React bug A)', async ({ page }) => {
       await switchToTab(page, 1);
       await visible(page, 'No notifications');
       await clickBtn(page, 'Add');
@@ -147,14 +152,14 @@ test.describe('OmniView React — 9 标签页验证', () => {
       await visible(page, 'Total:');
     });
 
-    test.fixme('10 - A11yDemo img alt (React bug A)', async ({ page }) => {
+    test('10 - A11yDemo img alt (React bug A)', async ({ page }) => {
       await switchToTab(page, 1);
       await visible(page, '可访问性');
       const img = page.locator('img[src="/dot.png"][alt="演示用小圆点"]').first();
       await expect(img).toBeVisible();
     });
 
-    test.fixme('11 - DataTable rows + sort (React bug A: getBonusTotal const reassignment)', async ({ page }) => {
+    test('11 - DataTable rows + sort (React bug A: getBonusTotal const reassignment)', async ({ page }) => {
       await switchToTab(page, 1);
       await visible(page, 'DataTable Demo');
       await visible(page, 'Alpha');
@@ -164,7 +169,7 @@ test.describe('OmniView React — 9 标签页验证', () => {
       await visible(page, 'Alpha');
     });
 
-    test.fixme('12 - no runtime errors (React bug A crash + bug E/F warnings)', async ({ page }) => {
+    test.fixme('12 - no runtime errors (React bug E: kebab-case style props; bug F: lowercase event handlers)', async ({ page }) => {
       await expectNoErrors(page, 'tab1', () => switchToTab(page, 1));
     });
   });
@@ -263,7 +268,7 @@ test.describe('OmniView React — 9 标签页验证', () => {
 
   // ═══ TAB 5: Language ═══
   test.describe('Tab 5: 🔤 Language', () => {
-    test.fixme('23 - OptionalChainDemo interactions (React bug B: Language tab crashes the app)', async ({ page }) => {
+    test('23 - OptionalChainDemo interactions (React bug B: Language tab crashes the app)', async ({ page }) => {
       await switchToTab(page, 5);
       await visible(page, 'Optional Chain ( ?. ) Demo');
       await clickBtn(page, /Set "Bob"/);
@@ -273,21 +278,21 @@ test.describe('OmniView React — 9 标签页验证', () => {
       await page.waitForTimeout(200);
     });
 
-    test.fixme('24 - TernaryExprDemo grade buttons (React bug B)', async ({ page }) => {
+    test('24 - TernaryExprDemo grade buttons (React bug B)', async ({ page }) => {
       await switchToTab(page, 5);
       await visible(page, 'Ternary ( ? : )');
       await clickBtn(page, '95 → A');
       await page.waitForTimeout(200);
-      await visible(page, '等级: A');
+      await visible(page, /等级:\s*A/);
     });
 
-    test.fixme('25 - TypeSystemDemo values (React bug B)', async ({ page }) => {
+    test('25 - TypeSystemDemo values (React bug B)', async ({ page }) => {
       await switchToTab(page, 5);
       await visible(page, '类型系统全覆盖');
       await visible(page, /i8[\s\S]*127/);
     });
 
-    test.fixme('26 - list add/remove/reorder (React bug B: tab crashes)', async ({ page }) => {
+    test('26 - list add/remove/reorder (React bug B: tab crashes)', async ({ page }) => {
       await switchToTab(page, 5);
       await visible(page, /@for\s*key=/);
       // add two items
@@ -295,20 +300,25 @@ test.describe('OmniView React — 9 标签页验证', () => {
       await page.waitForTimeout(150);
       await clickBtn(page, 'Add Item');
       await page.waitForTimeout(200);
-      await visible(page, 'Total: 5');
+      await visible(page, /Total:\s*5/);
       // move last to front — React keyed reconciliation must reorder
       await clickBtn(page, 'Move Last to Front');
       await page.waitForTimeout(200);
-      const order = await page.locator('li.list-item').allTextContents();
-      expect(order[0].replace(/\s+/g, ' ').trim()).toContain('#5 — Fruit-5');
-      expect(order[1].replace(/\s+/g, ' ').trim()).toContain('#1 — Apple');
+      // React emits CSS-module-hashed classes — match the hashed
+      // list-item class instead of the literal one (OmniView keeps
+      // literal class names; React hashes them via *.module.css).
+      const order = await page.locator('li[class*="list-item"]').allTextContents();
+      // React drops spaces around interpolations — match with \s* like
+      // the other multi-token assertions in this suite.
+      expect(order[0].replace(/\s+/g, ' ').trim()).toMatch(/#\s*5\s*—\s*Fruit-5/);
+      expect(order[1].replace(/\s+/g, ' ').trim()).toMatch(/#\s*1\s*—\s*Apple/);
       // remove last
       await clickBtn(page, 'Remove Last');
       await page.waitForTimeout(200);
-      await visible(page, 'Total: 4');
+      await visible(page, /Total:\s*4/);
     });
 
-    test.fixme('27 - BlockExprDemo + StringLiterals (React bug B)', async ({ page }) => {
+    test('27 - BlockExprDemo + StringLiterals (React bug B)', async ({ page }) => {
       await switchToTab(page, 5);
       await visible(page, 'Block Expression Demo');
       await clickBtn(page, 'a + 5');
@@ -317,7 +327,7 @@ test.describe('OmniView React — 9 标签页验证', () => {
       await visible(page, '异常处理');
     });
 
-    test.fixme('28 - no runtime errors (React bug B crash)', async ({ page }) => {
+    test('28 - no runtime errors (React bug B crash)', async ({ page }) => {
       await expectNoErrors(page, 'tab5', () => switchToTab(page, 5));
     });
   });

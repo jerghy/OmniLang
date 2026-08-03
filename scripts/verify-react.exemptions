@@ -61,12 +61,11 @@ components/TodoItem.tsx	TS2722	[T1.6] possibly-undefined event-handler prop invo
 components/FnFormatter.tsx	TS2722	[T1.6] possibly-undefined event-handler prop invocation	1	#61
 components/CapabilityCard.tsx	TS2722	[T1.6] possibly-undefined event-handler prop invocation	1	#61
 components/AddTodo.tsx	TS2722	[T1.6] possibly-undefined event-handler prop invocation	1	#61
-# TS2588 — assign to const: `let mut` vars emitted as const; LetStmtIR carries
-#           no mut flag (IR change, follow-up; exposed by C1 now emitting fns)
-components/ValidationInput.tsx	TS2588	[T1.6] let-mut emitted as const (count/i)	2	#36
-components/ErrorHandlingDemo.tsx	TS2588	[T1.6] let-mut emitted as const (status)	2	#36
-components/DataTable.tsx	TS2588	[T1.6] let-mut emitted as const (total/i)	2	#36
-components/StatsDashboard.tsx	TS2588	[T1.6] let-mut emitted as const (x)	1	#36
+# TS2588 — REMOVED (task 2.1): `let mut` vars were emitted as `const`
+#           (LetStmtIR carries no mut flag, deferral #36); the React target
+#           now emits `let` unconditionally — no TS2588 class remains. The
+#           IR mut flag that restores `const` for immutable bindings lands
+#           in Phase 5.1.
 # TS18048 — possibly-undefined ref access (ElementRefDemo)
 pages/ElementRefDemo.tsx	TS18048	[T1.6] possibly-undefined ref access	4	#63
 # TS2554 — wrong callback arity (bind:value callbacks)

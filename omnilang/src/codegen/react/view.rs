@@ -982,13 +982,14 @@ pub(super) fn gen_view_node_tsx(
             }
         }
         ViewTree::Text(text) => {
-            // Skip empty text nodes and text containing only syntax artifacts from IR lowering
+            // Skip empty/whitespace-only text nodes. Punctuation-only text
+            // (e.g. `#` in `<li>#{item.id} — {item.name}</li>`) is LEGITIMATE
+            // source content and must render — the OmniView target keeps it,
+            // and the punctuation clause here dropped it on React only
+            // (task 2.1 verification: test 26 list rendering). The `{`-leading
+            // injection guard below is unaffected.
             let text_trimmed = text.trim();
-            if text_trimmed.is_empty()
-                || text_trimmed
-                    .chars()
-                    .all(|c| c.is_ascii_punctuation() || c.is_ascii_whitespace())
-            {
+            if text_trimmed.is_empty() {
                 return;
             }
             // NOTE: `{`-leading text is NOT special-cased — legit
