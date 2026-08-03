@@ -2,7 +2,7 @@
 //!
 //! Extracted from `mod.rs` to keep that file below 800 lines.
 
-use crate::error::ParseError;
+use crate::error::{DiagnosticKind, ParseError};
 use crate::lexer::{Span, TokenKind};
 use crate::parser::ast::*;
 use crate::parser::stmt::keyword_as_ident_name;
@@ -646,6 +646,17 @@ impl<'a> Parser<'a> {
                 }
             };
             return Ok(ElementProp::Ref(ref_name));
+        }
+        // @paused was deleted in the semantic DSL (ADR-053): it used to parse
+        // as a generic event binding with no runtime effect. v2 (Task 5.3)
+        // hard-errors with a migration hint — pause/resume via @if conditional
+        // rendering instead (design doc 域 2 诊断表).
+        if event_name == "paused" {
+            return Err(ParseError::with_kind(
+                DiagnosticKind::EPausedRemoved,
+                "paused 已删除，用 @if 条件渲染替代",
+                t.span,
+            ));
         }
 
         let handler = self.parse_event_handler_value()?;

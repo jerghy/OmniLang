@@ -127,6 +127,8 @@ pub enum DiagnosticKind {
     EArrayMethod,
     #[error("effect dependency error")]
     EEffectDepsMissing,
+    #[error("paused playback keyword removed")]
+    EPausedRemoved,
     #[error("omniview warning")]
     WOmniviewMarker,
     #[error("motion warning")]
@@ -159,6 +161,7 @@ impl DiagnosticKind {
             Self::EClosureArrow => "E_CLOSURE_ARROW",
             Self::EArrayMethod => "E_ARRAY_METHOD",
             Self::EEffectDepsMissing => "E_EFFECT_DEPS_MISSING",
+            Self::EPausedRemoved => "E_PAUSED_REMOVED",
             Self::WOmniviewMarker => "W_OMNIVIEW_MARKER",
             Self::WMotion => "W0001",
             Self::ELint(_) => "E_LINT",
@@ -204,6 +207,7 @@ impl<'de> Deserialize<'de> for DiagnosticKind {
                     "E_CLOSURE_ARROW" => Ok(DiagnosticKind::EClosureArrow),
                     "E_ARRAY_METHOD" => Ok(DiagnosticKind::EArrayMethod),
                     "E_EFFECT_DEPS_MISSING" => Ok(DiagnosticKind::EEffectDepsMissing),
+                    "E_PAUSED_REMOVED" => Ok(DiagnosticKind::EPausedRemoved),
                     "W_OMNIVIEW_MARKER" => Ok(DiagnosticKind::WOmniviewMarker),
                     "W0001" => Ok(DiagnosticKind::WMotion),
                     "E_LINT" => Ok(DiagnosticKind::ELint("E_LINT".into())),
@@ -665,6 +669,35 @@ mod tests {
         let json = serde_json::to_value(DiagnosticJson::from(&diag)).unwrap();
         assert_eq!(json["code"], "E_EFFECT_DEPS_MISSING");
         assert_eq!(json["severity"], "error");
+    }
+
+    #[test]
+    fn paused_removed_code_registered_and_carried() {
+        // E_PAUSED_REMOVED must be a registered diagnostic code: code_str,
+        // serde round-trip, and ParseError → Diagnostic propagation.
+        assert_eq!(
+            DiagnosticKind::EPausedRemoved.code_str(),
+            "E_PAUSED_REMOVED"
+        );
+        let json = serde_json::to_value(DiagnosticKind::EPausedRemoved).unwrap();
+        assert_eq!(json, "E_PAUSED_REMOVED");
+        let back: DiagnosticKind = serde_json::from_value(json).unwrap();
+        assert_eq!(back, DiagnosticKind::EPausedRemoved);
+
+        let diag: Diagnostic = ParseError::with_kind(
+            DiagnosticKind::EPausedRemoved,
+            "paused 已删除，用 @if 条件渲染替代",
+            Span {
+                start: 0,
+                end: 2,
+                line: 1,
+                col: 1,
+            },
+        )
+        .into();
+        assert_eq!(diag.kind, DiagnosticKind::EPausedRemoved);
+        assert_eq!(diag.severity, Severity::Error);
+        assert!(diag.message.contains("@if"));
     }
 
     #[test]

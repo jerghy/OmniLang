@@ -1,4 +1,4 @@
-use crate::error::ParseError;
+use crate::error::{DiagnosticKind, ParseError};
 use crate::lexer::{Span, TokenKind};
 use crate::parser::ast::*;
 use crate::parser::stmt::keyword_as_ident_name;
@@ -317,7 +317,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    /// Parse playback properties (loop, direction, fill, delay, paused)
+    /// Parse playback properties (loop, direction, fill, delay)
     fn parse_playback_props(&mut self) -> Result<Vec<PlaybackProp>, ParseError> {
         let mut props = Vec::new();
         loop {
@@ -375,8 +375,16 @@ impl<'a> Parser<'a> {
                     props.push(PlaybackProp::Delay(self.parse_expr()?));
                 }
                 Some(ref s) if s == "paused" => {
-                    self.advance();
-                    props.push(PlaybackProp::Paused(true));
+                    // `paused` was deleted in the semantic DSL (ADR-053): it
+                    // used to be parsed for syntax compatibility and silently
+                    // ignored at runtime. v2 (Task 5.3) hard-errors with a
+                    // migration hint — pause/resume via @if conditional
+                    // rendering instead.
+                    return Err(ParseError::with_kind(
+                        DiagnosticKind::EPausedRemoved,
+                        "paused 已删除，用 @if 条件渲染替代",
+                        self.peek_span(),
+                    ));
                 }
                 _ => break,
             }
@@ -460,6 +468,41 @@ mod tests {
             "@motion a { from { opacity: 0, scaleX: 0.5, translateY: -20, rotate: 45 } to { opacity: 1, scaleX: 1, translateY: 0, rotate: 0 } }",
         );
         assert_eq!(kf.stops[0].properties.len(), 4);
+    }
+
+    #[test]
+    fn motion_paused_playback_keyword_rejected() {
+        // `paused` was deleted in the semantic DSL (ADR-053): it used to be
+        // parsed for syntax compatibility and silently ignored at runtime.
+        // v2 (Task 5.3) hard-errors with a migration hint.
+        let source = "@motion a { from { opacity: 0 } to { opacity: 1 } paused }";
+        let tokens = tokenize(source);
+        let (_program, errors) = parse(tokens, source);
+        assert!(
+            errors.iter().any(|e| {
+                e.kind == Some(DiagnosticKind::EPausedRemoved)
+                    && e.message.contains("paused 已删除，用 @if 条件渲染替代")
+            }),
+            "expected E_PAUSED_REMOVED error with migration hint, got: {:?}",
+            errors.iter().map(|e| e.message.clone()).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn motion_paused_colon_true_rejected() {
+        // The colon form (`paused: true`) must produce the same hard error,
+        // not a generic "expected '}'" from the trailing ':'.
+        let source = "@motion a { from { opacity: 0 } to { opacity: 1 } paused: true }";
+        let tokens = tokenize(source);
+        let (_program, errors) = parse(tokens, source);
+        assert!(
+            errors.iter().any(|e| {
+                e.kind == Some(DiagnosticKind::EPausedRemoved)
+                    && e.message.contains("paused 已删除，用 @if 条件渲染替代")
+            }),
+            "expected E_PAUSED_REMOVED error with migration hint, got: {:?}",
+            errors.iter().map(|e| e.message.clone()).collect::<Vec<_>>()
+        );
     }
 
     #[test]

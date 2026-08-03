@@ -2135,6 +2135,24 @@ mod roundtrip_tests {
     }
 
     #[test]
+    fn view_paused_attr_clear_error() {
+        // @paused is deleted syntax (ADR-053) — it used to parse as a
+        // generic event binding with no runtime effect. v2 (Task 5.3) must
+        // report the E_PAUSED_REMOVED diagnostic with a migration hint.
+        let src = "component App { view { <div @paused={isPaused}/> } }";
+        let tokens = tokenize(src);
+        let (_, errs) = parse(tokens, src);
+        assert!(
+            errs.iter().any(|e| {
+                e.kind == Some(crate::error::DiagnosticKind::EPausedRemoved)
+                    && e.message.contains("paused 已删除，用 @if 条件渲染替代")
+            }),
+            "expected a paused-specific error, got: {:?}",
+            errs.iter().map(|e| &e.message).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
     fn view_text_trigger_words_not_dropped() {
         // Other trigger keywords in text must keep their literal @-spelling
         // (token_text fallback must not collapse them to empty strings).

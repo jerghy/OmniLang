@@ -70,7 +70,7 @@ OmniView 提供声明式动画系统：`@motion` 定义补间动画参数，通�
 | `delay` | `{N}` | 首次播放延迟 N 毫秒 |
 | `fill` | `none` `forwards` `backwards` `both` | 动画前后的样式填充模式 |
 
-> `paused` 播放关键字仅作语法兼容解析、运行时不生效（`PlaybackIR.paused` 已按 ADR-053 删除）；元素属性 `@paused={signal}` 也已移除，运行时暂停/恢复请用条件渲染。
+> `paused` 播放关键字与元素属性 `@paused={signal}` 均已删除（ADR-053；v2 起解析期硬诊断「paused 已删除，用 @if 条件渲染替代」）；运行时暂停/恢复请用条件渲染。
 
 ## 缓动函数
 

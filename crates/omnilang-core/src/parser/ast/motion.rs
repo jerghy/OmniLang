@@ -53,7 +53,6 @@ pub enum PlaybackProp {
     Direction(DirectionValue),
     Fill(FillValue),
     Delay(Expr),
-    Paused(bool),
 }
 
 #[derive(Debug, Clone, Serialize)]

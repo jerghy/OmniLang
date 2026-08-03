@@ -1039,9 +1039,9 @@ playback_prop ::= 'loop' (int)?                    // bare `loop` = infinite
 }
 ```
 
-> `paused` is still parsed for syntax compatibility but has **no runtime
-> effect** (`PlaybackIR.paused` was deleted per ADR-053) — accepted and
-> ignored. The element-level `@paused={...}` attribute was removed entirely.
+> `paused` (playback keyword) and the element-level `@paused={...}` attribute
+> were **deleted** (ADR-053; `PlaybackIR.paused` removed). Both now produce a
+> hard parse error with a migration hint: 「paused 已删除，用 @if 条件渲染替代」.
 
 ### 7.4 Motion Triggers (Element Props)
 
@@ -1085,7 +1085,7 @@ KeyframeBody ::= {
     stops: Vec<KeyframeStop>,      // from/to/percentage stops
     over: Expr,                    // duration (default 0.3)
     easing: Option<EasingExpr>,
-    playback: Vec<PlaybackProp>,   // Loop | Direction | Fill | Delay | Paused
+    playback: Vec<PlaybackProp>,   // Loop | Direction | Fill | Delay
 }
 
 KeyframeStop ::= { position: StopPosition,   // From | To | Percent(f64)
@@ -1096,7 +1096,7 @@ EasingExpr ::= Named(String) | CubicBezier { x1, y1, x2, y2 } | Steps { count, d
              | Back { direction } | Elastic { direction }
 
 PlaybackProp ::= Loop(LoopValue) | Direction(DirectionValue)
-               | Fill(FillValue) | Delay(Expr) | Paused(bool)
+               | Fill(FillValue) | Delay(Expr)
 
 TriggerKind ::= Enter | Hover | Press | Focus | InView | Scroll
               | DragHorizontal | DragVertical

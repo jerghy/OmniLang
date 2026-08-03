@@ -167,9 +167,6 @@ impl SemanticAnalyzer {
                         }
                     }
                 }
-                PlaybackProp::Paused(_) => {
-                    // No conflict, just a state flag
-                }
                 PlaybackProp::Delay(_) => {}
             }
         }

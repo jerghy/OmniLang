@@ -12,8 +12,8 @@
 // ║  @scroll-start/@scroll-end/@scroll-scrub/@drag-constraints/ ║
 // ║  @drag-elastic/@drag-scrub/@drag-momentum）与元素级          ║
 // ║  @paused 属性已按 semantic-level DSL 规范移除，              ║
-// ║  待独立属性重新实现后恢复。paused 播放关键字仅作语法兼容     ║
-// ║  解析、运行时不生效（PlaybackIR.paused 已按 ADR-053 删除）。║
+// ║  待独立属性重新实现后恢复。paused 播放关键字也已删除，       ║
+// ║  使用即报错「paused 已删除，用 @if 条件渲染替代」。          ║
 // ╚══════════════════════════════════════════════════════════════╝
 
 import omniview;
@@ -320,9 +320,9 @@ component KeyframeAnimationDemo {
             </div>
 
             <!-- ═══ 元素级 @paused 属性已移除 ═══
-                 按 semantic-level DSL 规范，@paused={expr} 元素属性已被移除
-                 （条件渲染可替代该语义）；paused 播放关键字仅作语法兼容解析、
-                 运行时不生效（PlaybackIR.paused 已按 ADR-053 删除）。 -->
+                 按 semantic-level DSL 规范，@paused={expr} 元素属性已被移除；
+                 paused 播放关键字也已删除（条件渲染可替代该语义），
+                 使用即解析期硬诊断「paused 已删除，用 @if 条件渲染替代」。 -->
         </div>
     }
 

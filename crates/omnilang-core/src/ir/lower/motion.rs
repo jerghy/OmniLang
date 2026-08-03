@@ -144,11 +144,6 @@ pub(super) fn lower_playback_props(
             crate::parser::ast::PlaybackProp::Delay(e) => {
                 pb.delay = Some(lower_expr(e, variant_map, None, semantics));
             }
-            crate::parser::ast::PlaybackProp::Paused(_) => {
-                // `paused` playback keyword: still parsed for syntax
-                // compatibility, but PlaybackIR.paused was deleted per
-                // semantic-level DSL spec §11 (ADR-053) — accepted and ignored.
-            }
         }
     }
     pb

@@ -255,7 +255,8 @@ playback_prop ::= 'loop' int?                       // 裸 `loop` = 无限循环
                 | 'direction' ('normal' | 'reverse' | 'alternate' | 'alternateReverse')
                 | 'fill' ('none' | 'forwards' | 'backwards' | 'both')
                 | 'delay' expr                      // 空格形式（无冒号），首次播放延迟 ms
-                | 'paused'                          // 语法兼容解析，运行时不生效（PlaybackIR.paused 已删除，ADR-053）
+                // 已删除（v2 Task 5.3）：'paused' 不再被解析——解析期硬诊断
+                // 「paused 已删除，用 @if 条件渲染替代」（ADR-053；PlaybackIR.paused 已删除）
 ```
 
 > **parser 对齐说明**（2026-08-01）：以上为 parser 实际接受的形式——
