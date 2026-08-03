@@ -12,19 +12,22 @@
 //! | measure    | (none — inline `RenderBox` reads) | `ref.measure()` / `ref.width` / `ref.height` / `ref.position` |
 //! | pointer capture | (none — hard error) | `ref.capturePointer()`/`ref.releasePointer()` — unsupported on Flutter; compile error + generated `throw UnsupportedError` (design D3 / spec §10.3) |
 //!
-//! Semantic bindings (`focus={sig}`, `scroll-x/y={sig}`, `value={sig}`) are
-//! applied by a `_syncSemanticBindings()` State method registered as a
-//! post-frame callback from `build` — re-applied after every setState-driven
-//! rebuild, giving reactive parity with React's `useEffect(..., [deps])`.
-//! `value={sig}` additionally installs a controller listener so user edits
-//! flow back into the bound signal through `setState`, guarded by a flag so
-//! the programmatic sync never fights (or echoes) the user's typing.
+//! Semantic bindings (`focus={sig}`, `scroll-x/y={sig}`) are applied by a
+//! `_syncSemanticBindings()` State method registered as a post-frame
+//! callback from `build` — dep-scoped (Task 5.6): each binding snapshots its
+//! value and is re-applied only when the value CHANGED, giving reactive
+//! parity with React's `useEffect(..., [deps])` without re-yanking focus or
+//! replaying scroll animations on unrelated rebuilds. `bind:value` (design
+//! D2) additionally installs a controller listener so user edits flow back
+//! into the bound signal through `setState`, guarded by a flag so the
+//! programmatic sync never fights (or echoes) the user's typing.
 
 use crate::codegen::shared::expr::{DartFormatExpr, FormatExpr};
 use crate::codegen::{CodeWriter, JsonFormatConfig, Target};
 use crate::error::{Diagnostic, DiagnosticKind, Severity};
 use crate::ir::*;
 use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 
 /// Compile-error hint for pointer capture on Flutter — verbatim from the v2
 /// design doc 域 1 诊断表 / spec §10.3. Pointer capture is floor-outside on
@@ -634,15 +637,162 @@ pub(crate) fn emit_semantic_binding_listeners(w: &mut CodeWriter, comp: &Compone
     }
 }
 
+/// Snapshot field name for a semantic binding kind on a ref
+/// (`focus` + `inputBox` → `_prevFocusInputBox`).
+fn binding_prev_field(kind: &str, ref_name: &str) -> String {
+    let cap = capitalize_first(ref_name);
+    match kind {
+        "focus" => format!("_prevFocus{cap}"),
+        "scroll-x" => format!("_prevScrollX{cap}"),
+        "scroll-y" => format!("_prevScrollY{cap}"),
+        _ => format!("_prevValue{cap}"),
+    }
+}
+
+/// Local name for the snapshotted value inside `_syncSemanticBindings`
+/// (`focus` + `inputBox` → `syncFocusInputBox`).
+fn binding_sync_local(kind: &str, ref_name: &str) -> String {
+    let cap = capitalize_first(ref_name);
+    let kind_cap = match kind {
+        "focus" => "Focus",
+        "scroll-x" => "ScrollX",
+        "scroll-y" => "ScrollY",
+        _ => "Value",
+    };
+    format!("sync{kind_cap}{cap}")
+}
+
+/// Resolve the `TypeIR` of a binding expression when it is a plain
+/// identifier (component signal/computed/prop) or a store field access
+/// (`Store.sig`) — the two shapes the binding forms produce. Anything else
+/// falls back to `None` (the caller uses the kind's default type).
+fn binding_expr_type<'a>(
+    comp: &'a ComponentIR,
+    ir: &'a IRProgram,
+    expr: &ExprIR,
+) -> Option<&'a TypeIR> {
+    match expr {
+        ExprIR::IdentifierExpr { name, .. } => comp
+            .signals
+            .iter()
+            .find(|s| s.name == *name)
+            .map(|s| &s.r#type)
+            .or_else(|| {
+                comp.computeds
+                    .iter()
+                    .find(|c| c.name == *name)
+                    .map(|c| &c.r#type)
+            })
+            .or_else(|| comp.props.get(name)),
+        ExprIR::FieldAccessExpr { object, field } => match object.as_ref() {
+            ExprIR::IdentifierExpr { name: store, .. } => ir
+                .all_stores()
+                .get(store.as_str())
+                .and_then(|s| s.signals.get(field.as_str())),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+/// Dart annotation for a binding's snapshot field: the bound expression's
+/// type when resolvable (else the kind's default — bool for focus, double
+/// for scroll, String for value), widened to nullable so the field can be
+/// read before the first sync (a null previous value means "apply").
+fn binding_prev_ann(kind: &str, expr: &ExprIR, comp: &ComponentIR, ir: &IRProgram) -> String {
+    let default = match kind {
+        "focus" => "bool",
+        "scroll-x" | "scroll-y" => "double",
+        _ => "String",
+    };
+    let ty = binding_expr_type(comp, ir, expr);
+    let ann = ty
+        .map(|t| crate::codegen::dart::dart_type(t.kind.as_str(), &t.type_args))
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| default.to_string());
+    if ty.is_some_and(|t| t.is_nullable) {
+        ann
+    } else {
+        format!("{ann}?")
+    }
+}
+
+/// Emit the previous-value snapshot fields for semantic bindings (Task 5.6):
+/// `_prevFocus{Ref}` / `_prevScrollY{Ref}` / `_prevScrollX{Ref}` /
+/// `_prevValue{Ref}`. `_syncSemanticBindings` compares each binding against
+/// its field so a binding is re-applied ONLY when its value CHANGED — an
+/// unrelated setState-driven rebuild must not re-request focus (focus
+/// stealing, review HIGH-2) or replay the scroll animation (parity with
+/// React's deps-scoped effect, unlike the previous unconditional re-apply).
+///
+/// Returns whether any field was emitted (the caller appends the separating
+/// blank line).
+pub(crate) fn emit_semantic_binding_prev_fields(
+    w: &mut CodeWriter,
+    comp: &ComponentIR,
+    ir: &IRProgram,
+) -> bool {
+    let Some(view) = &comp.view else {
+        return false;
+    };
+    let mut bindings: Vec<RefBinding> = Vec::new();
+    collect_ref_bindings(view, &mut bindings);
+    let mut value_bindings: Vec<(&str, &str)> = Vec::new();
+    collect_binding_refs(view, &mut value_bindings);
+    let mut emitted = false;
+    // Dedupe by field name: duplicate @ref bindings (a warning-level
+    // semantic violation) must never emit duplicate field declarations —
+    // that would be a generated-code compile error.
+    let mut seen: FxHashSet<String> = FxHashSet::default();
+    for (ref_name, ref_bindings) in &bindings {
+        // Deterministic per-ref order: focus, scroll-y, scroll-x.
+        for kind in ["focus", "scroll-y", "scroll-x"] {
+            for (k, expr) in ref_bindings {
+                if *k != kind {
+                    continue;
+                }
+                let field = binding_prev_field(kind, ref_name);
+                if !seen.insert(field.clone()) {
+                    continue;
+                }
+                // binding_prev_ann already widens to nullable (a null
+                // previous value means "first sync — apply").
+                let ann = binding_prev_ann(kind, expr, comp, ir);
+                w.emit_fmt(format_args!("{} {};", ann, field));
+                emitted = true;
+            }
+        }
+    }
+    for (ref_name, name) in &value_bindings {
+        let field = binding_prev_field("value", ref_name);
+        if !seen.insert(field.clone()) {
+            continue;
+        }
+        let expr = binding_name_to_expr(name);
+        let ann = binding_prev_ann("value", &expr, comp, ir);
+        w.emit_fmt(format_args!("{} {};", ann, field));
+        emitted = true;
+    }
+    emitted
+}
+
 /// Emit the `_syncSemanticBindings()` State method — re-applies every
 /// semantic binding (`focus={sig}`, `scroll-x/y={sig}`) and the `bind:value`
 /// two-way value bindings.
 ///
 /// The method is registered as a post-frame callback from `build`, so it
-/// re-runs after every setState-driven rebuild — reactive parity with
-/// React's `useEffect(..., [deps])` (HIGH #2): flipping `active` re-focuses,
-/// moving `pos` re-scrolls, and programmatic `text` writes reach the
-/// TextField after mount.
+/// re-runs after every setState-driven rebuild. Dep-scoped (Task 5.6, review
+/// HIGH-2): each binding's value is snapshotted into a `_prev{Kind}{Ref}`
+/// field and re-applied ONLY when it CHANGED — parity with React's
+/// `useEffect(..., [deps])`. Previously every rebuild re-requested focus
+/// (typing in a sibling field through `bind:value` yanked the focus back)
+/// and replayed the 300ms scroll animation. Flipping `active` re-focuses,
+/// moving `pos` re-scrolls, and programmatic `text` writes still reach the
+/// TextField after mount — but only when the bound value actually changed.
+///
+/// The `bind:value` re-apply additionally skips the controller write when
+/// the controller already holds the bound text, so typing in the field does
+/// not reset the caret on every rebuild.
 ///
 /// Store-backed binding expressions are rewritten to `ref.read(...)` — the
 /// callback-legal Riverpod 3.0 form of the view-context `ref.watch(...)`
@@ -667,6 +817,9 @@ pub(crate) fn emit_semantic_binding_sync(
 
     w.emit("void _syncSemanticBindings() {");
     w.indent();
+    // Dedupe by (kind, ref): duplicate @ref bindings (a warning-level
+    // semantic violation) must not emit duplicate locals (compile error).
+    let mut seen: FxHashSet<String> = FxHashSet::default();
     for (ref_name, ref_bindings) in &bindings {
         // Deterministic per-ref order: focus, scroll-y, scroll-x.
         for kind in ["focus", "scroll-y", "scroll-x"] {
@@ -674,11 +827,21 @@ pub(crate) fn emit_semantic_binding_sync(
                 if *k != kind {
                     continue;
                 }
+                let key = format!("{kind}:{ref_name}");
+                if !seen.insert(key) {
+                    continue;
+                }
                 let val = format_binding_expr(expr, store_provider_map, ir);
+                let local = binding_sync_local(kind, ref_name);
+                let prev = binding_prev_field(kind, ref_name);
                 match kind {
                     "focus" => {
                         let focus = ref_focus_name(ref_name);
-                        w.emit_fmt(format_args!("if ({}) {{", val));
+                        w.emit_fmt(format_args!("final {} = {};", local, val));
+                        w.emit_fmt(format_args!("if ({} != {}) {{", local, prev));
+                        w.indent();
+                        w.emit_fmt(format_args!("{} = {};", prev, local));
+                        w.emit_fmt(format_args!("if ({}) {{", local));
                         w.indent();
                         w.emit_fmt(format_args!("{}.requestFocus();", focus));
                         w.dedent();
@@ -687,18 +850,26 @@ pub(crate) fn emit_semantic_binding_sync(
                         w.emit_fmt(format_args!("{}.unfocus();", focus));
                         w.dedent();
                         w.emit("}");
+                        w.dedent();
+                        w.emit("}");
                     }
                     "scroll-y" | "scroll-x" => {
                         // Axis is determined by the attached Scrollable — a
                         // single ScrollController covers whichever axis the
                         // bound element scrolls in.
                         let scroll = ref_scroll_name(ref_name);
+                        w.emit_fmt(format_args!("final {} = {};", local, val));
+                        w.emit_fmt(format_args!("if ({} != {}) {{", local, prev));
+                        w.indent();
+                        w.emit_fmt(format_args!("{} = {};", prev, local));
                         w.emit_fmt(format_args!("if ({}.hasClients) {{", scroll));
                         w.indent();
                         w.emit_fmt(format_args!(
                             "{}.animateTo({}, duration: Duration(milliseconds: 300), curve: Curves.easeInOut);",
-                            scroll, val
+                            scroll, local
                         ));
+                        w.dedent();
+                        w.emit("}");
                         w.dedent();
                         w.emit("}");
                     }
@@ -707,15 +878,33 @@ pub(crate) fn emit_semantic_binding_sync(
             }
         }
     }
-    // bind:value re-apply: signal → controller text, guarded against echo.
+    // bind:value re-apply: signal → controller text, guarded against echo
+    // AND against re-applying the identical text (typing in the field must
+    // not reset the caret on every rebuild).
     for (ref_name, name) in &value_bindings {
+        let key = format!("value:{ref_name}");
+        if !seen.insert(key) {
+            continue;
+        }
         let expr = binding_name_to_expr(name);
         let val = format_binding_expr(&expr, store_provider_map, ir);
         let text = ref_text_name(ref_name);
         let guard = ref_text_guard_name(ref_name);
+        let local = binding_sync_local("value", ref_name);
+        let prev = binding_prev_field("value", ref_name);
+        w.emit_fmt(format_args!("final {} = {};", local, val));
+        w.emit_fmt(format_args!("if ({} != {}) {{", local, prev));
+        w.indent();
+        w.emit_fmt(format_args!("{} = {};", prev, local));
+        w.emit_fmt(format_args!("if ({}.text != {}) {{", text, local));
+        w.indent();
         w.emit_fmt(format_args!("{} = true;", guard));
-        w.emit_fmt(format_args!("{}.text = {};", text, val));
+        w.emit_fmt(format_args!("{}.text = {};", text, local));
         w.emit_fmt(format_args!("{} = false;", guard));
+        w.dedent();
+        w.emit("}");
+        w.dedent();
+        w.emit("}");
     }
     w.dedent();
     w.emit("}");

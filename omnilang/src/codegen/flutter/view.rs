@@ -1314,7 +1314,7 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
             );
         }
 
-        // Handle @in-view trigger: wrap with _OmniInViewWidget
+        // Handle @in-view trigger: wrap with OmniInViewWidget
         if has_inview {
             let threshold = match el
                 .motion_behavior()
@@ -1345,13 +1345,13 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                 let ctrl_name = format!("_{}Controller", motion_name);
                 let active_name = format!("_{}Active", motion_name);
                 result = format!(
-                    "_OmniInViewWidget(\n  once: {},\n  threshold: {},\n  onInView: () {{ {} = true; {}.forward(); }},\n  child: {},\n)",
+                    "OmniInViewWidget(\n  once: {},\n  threshold: {},\n  onInView: () {{ {} = true; {}.forward(); }},\n  child: {},\n)",
                     once, threshold, active_name, ctrl_name, result
                 );
             }
         }
 
-        // Handle @scroll trigger: wrap with _OmniScrollDrivenWidget
+        // Handle @scroll trigger: wrap with OmniScrollDrivenWidget
         if has_scroll {
             let motion_ref = el
                 .motion_behavior()
@@ -1413,13 +1413,13 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                 let ctrl_name = format!("_{}Controller", motion_name);
                 let active_name = format!("_{}Active", motion_name);
                 result = format!(
-                    "_OmniScrollDrivenWidget(\n{}  scrub: {},\n  onProgress: (p) {{ {} = true; {}.value = p; }},\n  child: {},\n)",
+                    "OmniScrollDrivenWidget(\n{}  scrub: {},\n  onProgress: (p) {{ {} = true; {}.value = p; }},\n  child: {},\n)",
                     scroll_range_args, scrub, active_name, ctrl_name, result
                 );
             }
         }
 
-        // Handle @drag-horizontal / @drag-vertical trigger: wrap with _OmniDragWidget
+        // Handle @drag-horizontal / @drag-vertical trigger: wrap with OmniDragWidget
         let has_drag = el.motion_behavior().is_some_and(|m| {
             m.triggers.iter().any(|t| {
                 matches!(
@@ -1536,7 +1536,7 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                                 _ => ("0.0".to_string(), "0.0".to_string(), "2000.0".to_string()),
                             };
                             result = format!(
-                                "{extent_warning}_OmniDragWidget(\n  axis: {},\n  constraints: '',\n{}  elastic: {},\n  threshold: {},\n  velocityMax: {},\n  dragExtent: {},\n  onDragStart: () {{ {} = true; }},\n  onDragProgress: (p) {{ {} = true; {}.value = p; }},\n  onDragEnd: (completed) {{ if (completed) {{ {}.forward(); }} else {{ {}.reverse().whenComplete(() {{ if (mounted && {}.value == 0.0) setState(() {{ {} = false; }}); }}); }} }},\n  child: {},\n)",
+                                "{extent_warning}OmniDragWidget(\n  axis: {},\n{}  elastic: {},\n  threshold: {},\n  velocityMax: {},\n  dragExtent: {},\n  onDragStart: () {{ {} = true; }},\n  onDragProgress: (p) {{ {} = true; {}.value = p; }},\n  onDragEnd: (completed) {{ if (completed) {{ {}.forward(); }} else {{ {}.reverse().whenComplete(() {{ if (mounted && {}.value == 0.0) setState(() {{ {} = false; }}); }}); }} }},\n  child: {},\n)",
                                 axis_type, constraints_args, elastic_val, threshold_val, velocity_max_val, extent_dart, active_name, active_name, ctrl_name, ctrl_name, ctrl_name, ctrl_name, active_name, result,
                                 extent_warning = extent_warning
                             );

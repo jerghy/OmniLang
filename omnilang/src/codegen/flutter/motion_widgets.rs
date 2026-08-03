@@ -29,18 +29,23 @@ pub(crate) fn has_trigger_kind_scroll(node: &ViewTree) -> bool {
     })
 }
 
-/// Emit the _OmniInViewWidget class for @in-view support.
+/// Emit the OmniInViewWidget class for @in-view support.
+///
+/// Public class names (no underscore): the helpers live in the shared
+/// `_omniview_runtime.dart` (Task 5.6) and are imported by every component
+/// that uses the trigger — Dart privacy is library-scoped, so an imported
+/// `_private` name would not be visible to the component files.
 pub(crate) fn emit_inview_widget_class(w: &mut CodeWriter) {
     w.emit("// ── InView wrapper widget (@in-view support) ──");
     w.emit("");
-    w.emit("class _OmniInViewWidget extends StatefulWidget {");
+    w.emit("class OmniInViewWidget extends StatefulWidget {");
     w.indent();
     w.emit("final Widget child;");
     w.emit("final bool once;");
     w.emit("final double threshold;");
     w.emit("final VoidCallback onInView;");
     w.emit("");
-    w.emit("const _OmniInViewWidget({");
+    w.emit("const OmniInViewWidget({");
     w.indent();
     w.emit("required this.child,");
     w.emit("this.once = true,");
@@ -50,11 +55,11 @@ pub(crate) fn emit_inview_widget_class(w: &mut CodeWriter) {
     w.emit("});");
     w.emit("");
     w.emit("@override");
-    w.emit("State<_OmniInViewWidget> createState() => _OmniInViewWidgetState();");
+    w.emit("State<OmniInViewWidget> createState() => _OmniInViewWidgetState();");
     w.dedent();
     w.emit("}");
     w.emit("");
-    w.emit("class _OmniInViewWidgetState extends State<_OmniInViewWidget> {");
+    w.emit("class _OmniInViewWidgetState extends State<OmniInViewWidget> {");
     w.indent();
     w.emit("ScrollPosition? _scrollPosition;");
     w.emit("bool _hasTriggered = false;");
@@ -125,15 +130,20 @@ pub(crate) fn emit_inview_widget_class(w: &mut CodeWriter) {
     w.emit("}");
 }
 
-/// Emit the _OmniScrollDrivenWidget class for @scroll support.
+/// Emit the OmniScrollDrivenWidget class for @scroll support.
+///
+/// Public class name (no underscore): the helper lives in the shared
+/// `_omniview_runtime.dart` (Task 5.6) and is imported by trigger-using
+/// component files.
 pub(crate) fn emit_scroll_widget_class(w: &mut CodeWriter) {
     w.emit("// ── Scroll-driven wrapper widget (@scroll support) ──");
     w.emit("// start/end are the v1 numeric scroll range (Task 5.1) — absolute");
     w.emit("// scroll positions where the mapping starts/ends. When null the");
-    w.emit("// widget falls back to the legacy viewport-relative string configs");
-    w.emit("// (\"top 80%\" / \"bottom 20%\").");
+    w.emit("// widget falls back to the legacy viewport-relative defaults");
+    w.emit("// (top edge 80% → 20% of the viewport) compiled to typed");
+    w.emit("// constants — no runtime string parsing (Task 5.6).");
     w.emit("");
-    w.emit("class _OmniScrollDrivenWidget extends StatefulWidget {");
+    w.emit("class OmniScrollDrivenWidget extends StatefulWidget {");
     w.indent();
     w.emit("final Widget child;");
     w.emit("final double? start;");
@@ -141,7 +151,7 @@ pub(crate) fn emit_scroll_widget_class(w: &mut CodeWriter) {
     w.emit("final double scrub;");
     w.emit("final ValueChanged<double> onProgress;");
     w.emit("");
-    w.emit("const _OmniScrollDrivenWidget({");
+    w.emit("const OmniScrollDrivenWidget({");
     w.indent();
     w.emit("required this.child,");
     w.emit("this.start,");
@@ -152,14 +162,19 @@ pub(crate) fn emit_scroll_widget_class(w: &mut CodeWriter) {
     w.emit("});");
     w.emit("");
     w.emit("@override");
-    w.emit("State<_OmniScrollDrivenWidget> createState() => _OmniScrollDrivenWidgetState();");
+    w.emit("State<OmniScrollDrivenWidget> createState() => _OmniScrollDrivenWidgetState();");
     w.dedent();
     w.emit("}");
     w.emit("");
-    w.emit("class _OmniScrollDrivenWidgetState extends State<_OmniScrollDrivenWidget> {");
+    w.emit("class _OmniScrollDrivenWidgetState extends State<OmniScrollDrivenWidget> {");
     w.indent();
     w.emit("ScrollPosition? _scrollPosition;");
     w.emit("double _currentProgress = 0.0;");
+    w.emit("// Frame clock of the last progress update (Task 5.6): scrub");
+    w.emit("// smoothing derives elapsed time from the ticker-driven frame");
+    w.emit("// timestamps instead of assuming 60fps.");
+    w.emit("Duration _lastUpdate = Duration.zero;");
+    w.emit("bool _hasLastUpdate = false;");
     w.emit("");
     w.emit("@override");
     w.emit("void initState() {");
@@ -231,35 +246,16 @@ pub(crate) fn emit_scroll_widget_class(w: &mut CodeWriter) {
     w.dedent();
     w.emit("} else {");
     w.indent();
-    w.emit("// Legacy viewport-relative configs: \"top 80%\" -> edge=top, pct=0.8");
-    w.emit("final startCfg = 'top 80%';");
-    w.emit("final endCfg = 'bottom 20%';");
-    w.emit("final startParts = startCfg.split(' ');");
-    w.emit("final startEdge = startParts.isNotEmpty ? startParts[0] : 'top';");
-    w.emit("final startPct = (startParts.length == 2)");
-    w.emit("    ? (double.tryParse(startParts[1].replaceAll('%', '')) ?? 80.0) / 100.0");
-    w.emit("    : 0.8;");
+    w.emit("// Legacy viewport-relative bridge (pre-v1): the element's top edge");
+    w.emit("// crossing the 80% → 20% viewport band. The former \"top 80%\" /");
+    w.emit("// \"bottom 20%\" string configs are compiled to typed constants —");
+    w.emit("// no runtime string parsing (Task 5.6).");
+    w.emit("final double startY = viewportHeight * 0.8;");
+    w.emit("final double endY = viewportHeight * 0.2;");
+    w.emit("final double elementStartEdge = elementTop;");
     w.emit("");
-    w.emit("final endParts = endCfg.split(' ');");
-    w.emit("final endPct = (endParts.length == 2)");
-    w.emit("    ? (double.tryParse(endParts[1].replaceAll('%', '')) ?? 20.0) / 100.0");
-    w.emit("    : 0.2;");
-    w.emit("");
-    w.emit("// Compute element edge position based on edge keyword");
-    w.emit("double getEdgePosition(String edge) {");
-    w.emit("  switch (edge) {");
-    w.emit("    case 'center': return elementTop + elementHeight / 2;");
-    w.emit("    case 'bottom': return elementTop + elementHeight;");
-    w.emit("    default: return elementTop; // 'top'");
-    w.emit("  }");
-    w.emit("}");
-    w.emit("");
-    w.emit("final startY = viewportHeight * startPct;");
-    w.emit("final endY = viewportHeight * endPct;");
-    w.emit("final elementStartEdge = getEdgePosition(startEdge);");
-    w.emit("");
-    w.emit("final totalDistance = startY - (endY - elementHeight);");
-    w.emit("final elementProgress = startY - elementStartEdge;");
+    w.emit("final double totalDistance = startY - (endY - elementHeight);");
+    w.emit("final double elementProgress = startY - elementStartEdge;");
     w.emit("");
     w.emit("if (totalDistance <= 0) return;");
     w.emit("");
@@ -270,7 +266,22 @@ pub(crate) fn emit_scroll_widget_class(w: &mut CodeWriter) {
     w.emit("");
     w.emit("if (widget.scrub > 0) {");
     w.indent();
-    w.emit("_currentProgress += (progress - _currentProgress) * (1.0 / (widget.scrub * 60.0));");
+    w.emit("// Frame-rate-independent smoothing: the previous math moved");
+    w.emit("// 1 / (scrub * 60.0) of the way per frame — a 60fps hardcode that");
+    w.emit("// over-smooths on 120Hz displays. Elapsed time comes from the");
+    w.emit("// ticker-driven frame clock (WidgetsBinding.currentFrameTimeStamp —");
+    w.emit("// the scheduler's frame timestamp, the same clock the ticker runs");
+    w.emit("// on), and the factor is the exact exponential-smoothing term");
+    w.emit("// whose 60Hz value matches the old curve (Task 5.6). scrub is the");
+    w.emit("// time constant in seconds.");
+    w.emit("final Duration now = WidgetsBinding.instance.currentFrameTimeStamp;");
+    w.emit("final double dtSeconds = _hasLastUpdate");
+    w.emit("    ? (now - _lastUpdate).inMicroseconds / 1000000.0");
+    w.emit("    : (1.0 / 60.0);");
+    w.emit("_lastUpdate = now;");
+    w.emit("_hasLastUpdate = true;");
+    w.emit("final double factor = 1.0 - math.exp(-dtSeconds / widget.scrub);");
+    w.emit("_currentProgress += (progress - _currentProgress) * factor;");
     w.emit("_currentProgress = _currentProgress.clamp(0.0, 1.0);");
     w.dedent();
     w.emit("} else {");
@@ -303,18 +314,24 @@ pub(crate) fn has_trigger_kind_drag(node: &ViewTree) -> bool {
     })
 }
 
-/// Emit the _OmniDragWidget class for @drag-horizontal / @drag-vertical support.
+/// Emit the OmniDragWidget class for @drag-horizontal / @drag-vertical support.
+///
+/// Public class name (no underscore): the helper lives in the shared
+/// `_omniview_runtime.dart` (Task 5.6) and is imported by trigger-using
+/// component files. The legacy stringly-typed `constraints` field
+/// ("left:0 right:300") is removed — the codegen always emits the typed
+/// `constraintsMin`/`constraintsMax` pair (Task 5.6, verified against the
+/// emission sites), so the runtime-parsed fallback was dead code.
 pub(crate) fn emit_drag_widget_class(w: &mut CodeWriter) {
     w.emit("// ── Drag gesture wrapper widget (@drag-horizontal / @drag-vertical support) ──");
     w.emit("");
-    w.emit("class _OmniDragWidget extends StatefulWidget {");
+    w.emit("class OmniDragWidget extends StatefulWidget {");
     w.indent();
     w.emit("final Widget child;");
     w.emit("final Axis axis;");
     // v1 numeric constraints (Task 5.1): constraintsMin/Max define the drag
-    // range directly. The legacy `constraints` string ("left:0 right:300")
-    // remains as a runtime-parsed fallback when the typed pair is absent.
-    w.emit("final String constraints;");
+    // range directly; the stringly-typed `constraints` fallback is removed
+    // (Task 5.6 — the codegen never emits it).
     w.emit("final double? constraintsMin;");
     w.emit("final double? constraintsMax;");
     w.emit("final double elastic;");
@@ -332,11 +349,10 @@ pub(crate) fn emit_drag_widget_class(w: &mut CodeWriter) {
     w.emit("final ValueChanged<double> onDragProgress;");
     w.emit("final ValueChanged<bool> onDragEnd;");
     w.emit("");
-    w.emit("const _OmniDragWidget({");
+    w.emit("const OmniDragWidget({");
     w.indent();
     w.emit("required this.child,");
     w.emit("required this.axis,");
-    w.emit("this.constraints = '',");
     w.emit("this.constraintsMin,");
     w.emit("this.constraintsMax,");
     w.emit("this.elastic = 0.0,");
@@ -350,11 +366,11 @@ pub(crate) fn emit_drag_widget_class(w: &mut CodeWriter) {
     w.emit("});");
     w.emit("");
     w.emit("@override");
-    w.emit("State<_OmniDragWidget> createState() => _OmniDragWidgetState();");
+    w.emit("State<OmniDragWidget> createState() => _OmniDragWidgetState();");
     w.dedent();
     w.emit("}");
     w.emit("");
-    w.emit("class _OmniDragWidgetState extends State<_OmniDragWidget> {");
+    w.emit("class _OmniDragWidgetState extends State<OmniDragWidget> {");
     w.indent();
     w.emit("double _currentDelta = 0;");
     w.emit("int _lastMoveTime = 0;");
@@ -377,24 +393,9 @@ pub(crate) fn emit_drag_widget_class(w: &mut CodeWriter) {
     w.emit("minVal = widget.constraintsMin!;");
     w.emit("maxVal = widget.constraintsMax!;");
     w.dedent();
-    w.emit("} else if (widget.constraints.isNotEmpty) {");
-    w.indent();
-    w.emit("// Parse legacy constraints string: \"left:0 right:300\" or \"top:0 bottom:500\"");
-    w.emit("final parts = widget.constraints.split(' ');");
-    w.emit("for (final part in parts) {");
-    w.indent();
-    w.emit("final kv = part.split(':');");
-    w.emit("if (kv.length != 2) continue;");
-    w.emit("final key = kv[0];");
-    w.emit("final val = double.tryParse(kv[1]) ?? 0;");
-    w.emit("if (key == 'left' || key == 'top') minVal = val;");
-    w.emit("if (key == 'right' || key == 'bottom') maxVal = val;");
-    w.dedent();
-    w.emit("}");
-    w.dedent();
     w.emit("}");
     w.emit("");
-    w.emit("final maxExtent = hasTypedConstraints || widget.constraints.isNotEmpty");
+    w.emit("final maxExtent = hasTypedConstraints");
     w.indent();
     w.emit("? (maxVal - minVal).abs().clamp(1.0, double.infinity)");
     w.emit(": (widget.dragExtent > 0 ? widget.dragExtent : double.infinity);");
@@ -479,6 +480,45 @@ pub(crate) fn emit_drag_widget_class(w: &mut CodeWriter) {
     w.emit("}");
     w.dedent();
     w.emit("}");
+}
+
+/// Whether a view uses any trigger-helper wrapper (@in-view, @scroll, or
+/// @drag-*) — gates the `_omniview_runtime.dart` import on component files
+/// and the shared runtime emission on the program (Task 5.6).
+pub(crate) fn view_uses_trigger_helpers(view: &ViewTree) -> bool {
+    has_trigger_kind_in_view(view) || has_trigger_kind_scroll(view) || has_trigger_kind_drag(view)
+}
+
+/// Emit the shared `_omniview_runtime.dart` — the Omni* trigger wrapper
+/// classes emitted ONCE per program and imported by every component that
+/// uses @in-view/@scroll/@drag triggers (Task 5.6).
+///
+/// Mirrors the design.dart "emit once, import everywhere" pattern: the
+/// helpers previously landed verbatim (~90 lines each) in every component
+/// file that used the trigger, so multi-component apps drifted. The classes
+/// are public (Dart privacy is library-scoped — an imported `_private` name
+/// would not be visible to component files); their State subclasses stay
+/// private inside this library.
+pub(crate) fn emit_trigger_helpers_runtime() -> String {
+    let mut w = CodeWriter::new();
+    w.emit("// Generated by OmniLang \u{2014} Flutter trigger-helper runtime");
+    w.emit("//");
+    w.emit("// Shared wrapper widgets for the @in-view / @scroll / @drag-* motion");
+    w.emit("// triggers (Task 5.6). Emitted ONCE per program and imported by every");
+    w.emit("// component file that uses the triggers — the previous per-file");
+    w.emit("// re-emission drifted across components of a multi-component app.");
+    w.emit("");
+    w.emit("import 'package:flutter/material.dart';");
+    // math.exp — frame-rate-independent scrub smoothing (Ticker-derived
+    // elapsed time replaces the old 60fps hardcode).
+    w.emit("import 'dart:math' as math;");
+    w.emit("");
+    emit_inview_widget_class(&mut w);
+    w.emit("");
+    emit_scroll_widget_class(&mut w);
+    w.emit("");
+    emit_drag_widget_class(&mut w);
+    w.into_string()
 }
 
 // ═══════════════════════════════════════════════════════════════

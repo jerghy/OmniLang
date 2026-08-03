@@ -5971,10 +5971,21 @@ fn test_bind_value_ref_text_field_two_way() {
         "TextField must attach the controller. Got:\n{}",
         dart
     );
+    // Dep-scoped re-apply (T5.6): the value binding snapshots the bound
+    // value and re-applies only on change — and skips the controller write
+    // when it already holds the text (typing must not reset the caret).
     assert!(
-        dart.contains("_syncingInputBoxText = true;")
-            && dart.contains("_inputBoxText.text = text;"),
-        "_syncSemanticBindings must re-apply the signal to the controller. Got:\n{}",
+        dart.contains("_prevValueInputBox")
+            && dart.contains("syncValueInputBox != _prevValueInputBox"),
+        "_syncSemanticBindings must compare against the previous value. Got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("_inputBoxText.text != syncValueInputBox")
+            && dart.contains("_syncingInputBoxText = true;")
+            && dart.contains("_inputBoxText.text = syncValueInputBox;"),
+        "_syncSemanticBindings must re-apply the signal to the controller \
+         (guarded against echo). Got:\n{}",
         dart
     );
 }
@@ -6071,17 +6082,19 @@ fn test_semantic_binding_post_frame_setup() {
     assert!(dart.contains("setState(() {"));
     assert!(dart.contains("text = _inputBoxText.text;"));
 
-    // Reactive sync method re-applying all binding kinds after every
-    // rebuild (parity with React's useEffect-on-deps)
+    // Reactive sync method re-applying all binding kinds only when the
+    // bound value CHANGED (T5.6 dep-scoped — parity with React's
+    // useEffect-on-deps without re-yanking focus on unrelated rebuilds)
     assert!(dart.contains("void _syncSemanticBindings() {"));
-    assert!(dart.contains("if (active) {"));
+    assert!(dart.contains("if (syncFocusInputBox != _prevFocusInputBox) {"));
     assert!(dart.contains("_inputBoxFocus.requestFocus();"));
     assert!(dart.contains("_inputBoxFocus.unfocus();"));
     assert!(dart.contains(
-        "_paneScroll.animateTo(pos, duration: Duration(milliseconds: 300), curve: Curves.easeInOut);"
+        "_paneScroll.animateTo(syncScrollYPane, duration: Duration(milliseconds: 300), curve: Curves.easeInOut);"
     ));
+    assert!(dart.contains("if (syncScrollYPane != _prevScrollYPane) {"));
     assert!(dart.contains("_syncingInputBoxText = true;"));
-    assert!(dart.contains("_inputBoxText.text = text;"));
+    assert!(dart.contains("_inputBoxText.text = syncValueInputBox;"));
     assert!(dart.contains("_syncingInputBoxText = false;"));
 
     // build registers the sync post-frame with a mounted guard (prevents
@@ -6817,7 +6830,7 @@ fn scroll_trigger_passes_typed_start_end_to_widget() {
     );
     assert!(
         out.contains(
-            "_OmniScrollDrivenWidget(
+            "OmniScrollDrivenWidget(
   start: 0,
   end: 1000,"
         ),
@@ -6826,8 +6839,8 @@ fn scroll_trigger_passes_typed_start_end_to_widget() {
         &out[..out.len().min(1200)]
     );
     assert!(
-        out.contains("class _OmniScrollDrivenWidget extends StatefulWidget"),
-        "scroll widget class must be emitted"
+        out.contains("class OmniScrollDrivenWidget extends StatefulWidget"),
+        "scroll widget class must be emitted (in the shared runtime)"
     );
     assert!(
         out.contains("final double? start;"),
@@ -6894,12 +6907,317 @@ fn scroll_without_params_omits_typed_args() {
     );
     assert!(
         !out.contains(
-            "_OmniScrollDrivenWidget(
+            "OmniScrollDrivenWidget(
   start:"
         ),
         "no typed start/end args when sub-params absent, got:
 {}",
         &out[..out.len().min(800)]
+    );
+}
+
+/// T5.6: the `_Omni*` trigger helper classes are emitted ONCE into the shared
+/// `_omniview_runtime.dart` and imported by every component that uses
+/// @in-view/@scroll/@drag triggers — the review MEDIUM flagged the helpers
+/// being re-emitted verbatim into every component file (copy-paste divergence
+/// across a multi-component app).
+#[test]
+fn trigger_helpers_shared_runtime_single_emission_and_imports() {
+    let result = compile_flutter(
+        "@motion fadeA { from { opacity: 0.3 } to { opacity: 1 } over: 500ms }
+         @motion fadeB { from { opacity: 0.3 } to { opacity: 1 } over: 500ms }
+         @motion drift { from { translateX: 0 } to { translateX: 100 } over: 300ms }
+         component First {
+             view {
+                 <div @in-view={fadeA}>first</div>
+             }
+         }
+         component Second {
+             view {
+                 <div @scroll start: 0 end: 1000 ={fadeB}>second</div>
+                 <div @drag-horizontal={drift}>drag</div>
+             }
+         }
+         component Plain {
+             view {
+                 <div>plain</div>
+             }
+         }",
+    )
+    .expect("trigger fixture must compile");
+    let files = &result.files;
+    // The shared runtime file exists — one copy for the whole program.
+    let runtime = files.get("_omniview_runtime.dart").unwrap_or_else(|| {
+        panic!(
+            "shared trigger runtime missing; files: {:?}",
+            files.keys().collect::<Vec<_>>()
+        )
+    });
+    // Each helper class appears exactly once, in the shared file.
+    for cls in [
+        "class OmniInViewWidget",
+        "class OmniScrollDrivenWidget",
+        "class OmniDragWidget",
+    ] {
+        assert_eq!(
+            runtime.matches(cls).count(),
+            1,
+            "'{cls}' must be emitted exactly once in the shared runtime"
+        );
+    }
+    // Trigger-using components import the runtime instead of inlining ~90
+    // lines of helper per file.
+    let first = files.get("First.dart").unwrap();
+    assert!(
+        first.contains("import './_omniview_runtime.dart';"),
+        "First must import the shared runtime, got:\n{first}"
+    );
+    assert!(
+        !first.contains("class OmniInViewWidget"),
+        "no inline helper duplication may remain in First, got:\n{first}"
+    );
+    let second = files.get("Second.dart").unwrap();
+    assert!(
+        second.contains("import './_omniview_runtime.dart';"),
+        "Second must import the shared runtime, got:\n{second}"
+    );
+    assert!(
+        !second.contains("class OmniScrollDrivenWidget")
+            && !second.contains("class OmniDragWidget"),
+        "no inline helper duplication may remain in Second, got:\n{second}"
+    );
+    // Components without triggers do not import the runtime.
+    let plain = files.get("Plain.dart").unwrap();
+    assert!(
+        !plain.contains("_omniview_runtime.dart"),
+        "Plain has no triggers and must not import the runtime, got:\n{plain}"
+    );
+}
+
+/// T5.6: trigger configurations are typed — the runtime-parsed legacy string
+/// paths ('top 80%' viewport configs, the drag `constraints: 'left:0 right:300'`
+/// string) are gone from the emitted code; the legacy scroll fallback is
+/// compiled to typed constants.
+#[test]
+fn trigger_widget_configs_typed_no_runtime_string_parsing() {
+    let result = compile_flutter(
+        "@motion fadeScroll { from { opacity: 0.3 } to { opacity: 1 } over: 500ms }
+         @motion dragX { from { translateX: 0 } to { translateX: 300 } over: 300ms }
+         component Test {
+             view {
+                 <div @scroll start: 0 end: 1000 scrub: true ={fadeScroll}>scroll me</div>
+                 <div @drag-horizontal constraints: [-100, 100] ={dragX}>drag me</div>
+             }
+         }",
+    )
+    .expect("trigger fixture must compile");
+    let files = &result.files;
+    let runtime = files.get("_omniview_runtime.dart").unwrap();
+    assert!(
+        !runtime.contains("'top 80%'") && !runtime.contains("'bottom 20%'"),
+        "legacy viewport string configs must be compiled to typed values, got:\n{runtime}"
+    );
+    assert!(
+        !runtime.contains("split(' '))") && !runtime.contains("startCfg.split"),
+        "no runtime string parsing may remain in the scroll widget, got:\n{runtime}"
+    );
+    assert!(
+        !runtime.contains("final String constraints") && !runtime.contains("constraints.split"),
+        "the stringly-typed drag constraints field and its parser must be gone, got:\n{runtime}"
+    );
+    // The legacy scroll fallback survives as a documented bridge with typed
+    // constants (0.8 = 'top 80%', 0.2 = 'bottom 20%' — old-style usage still
+    // emits start/end-less triggers).
+    assert!(
+        runtime.contains("0.8") && runtime.contains("0.2"),
+        "legacy fallback constants must be typed, got:\n{runtime}"
+    );
+    // The drag call site no longer passes the dead `constraints: ''` arg.
+    let test_dart = files.get("Test.dart").unwrap();
+    assert!(
+        !test_dart.contains("constraints: ''"),
+        "no dead constraints string arg may be emitted, got:\n{test_dart}"
+    );
+    assert!(
+        test_dart.contains("constraintsMin: -100,") && test_dart.contains("constraintsMax: 100,"),
+        "typed constraints must flow to the constructor, got:\n{test_dart}"
+    );
+}
+
+/// T5.6: the scroll scrub smoothing must derive elapsed time from the
+/// ticker-driven frame clock instead of assuming 60fps
+/// (`1.0 / (scrub * 60.0)` per frame over-smooths on 120Hz displays).
+#[test]
+fn scroll_scrub_uses_ticker_elapsed_time_not_60fps_hardcode() {
+    let result = compile_flutter(
+        "@motion fadeScroll { from { opacity: 0.3 } to { opacity: 1 } over: 500ms }
+         component Test {
+             view {
+                 <div @scroll start: 0 end: 1000 scrub: true ={fadeScroll}>scroll me</div>
+             }
+         }",
+    )
+    .expect("scroll fixture must compile");
+    let runtime = result.files.get("_omniview_runtime.dart").unwrap();
+    assert!(
+        runtime.contains("WidgetsBinding.instance.currentFrameTimeStamp"),
+        "scrub must read the ticker-driven frame clock, got:\n{runtime}"
+    );
+    assert!(
+        runtime.contains("math.exp"),
+        "scrub must use frame-rate-independent exponential smoothing, got:\n{runtime}"
+    );
+    assert!(
+        !runtime.contains("widget.scrub * 60.0"),
+        "the 60fps hardcode must be gone, got:\n{runtime}"
+    );
+}
+
+/// T5.6: the `_startPos` dead field flagged by the review must not exist in
+/// the emitted drag widget.
+#[test]
+fn drag_widget_has_no_startpos_dead_field() {
+    let result = compile_flutter(
+        "@motion dragX { from { translateX: 0 } to { translateX: 300 } over: 300ms }
+         component Test {
+             view {
+                 <div @drag-horizontal={dragX}>drag me</div>
+             }
+         }",
+    )
+    .expect("drag fixture must compile");
+    let runtime = result.files.get("_omniview_runtime.dart").unwrap();
+    assert!(
+        !runtime.contains("_startPos"),
+        "the dead _startPos field must not be emitted, got:\n{runtime}"
+    );
+}
+
+/// T5.6 (review HIGH-2): `_syncSemanticBindings` must snapshot each bound
+/// expression's value and re-apply focus/scroll/value ONLY when the value
+/// CHANGED — an unrelated setState-driven rebuild must not re-request focus
+/// (focus stealing) or replay the scroll animation (parity with React's
+/// deps-scoped effect).
+#[test]
+fn semantic_binding_sync_snapshots_prev_values_before_reapply() {
+    let codegen = FlutterCodegen;
+    let mut el_input = ref_el(
+        "input",
+        Some("inputBox"),
+        &[("focus", ExprIR::ident("active"))],
+    );
+    el_input.bindings.insert(
+        "value".to_string(),
+        SignalRefIR {
+            name: "text".to_string(),
+        },
+    );
+    let el_pane = ref_el("div", Some("pane"), &[("scroll-y", ExprIR::ident("pos"))]);
+    let view = ViewTree::Fragment(vec![
+        ViewTree::Element(Box::new(el_input)),
+        ViewTree::Element(Box::new(el_pane)),
+    ]);
+    let signals = vec![
+        SignalIntent {
+            name: "active".into(),
+            r#type: TypeIR {
+                kind: "bool".into(),
+                type_args: vec![],
+                is_nullable: false,
+            },
+            initial_value: ExprIR::LiteralExpr {
+                value: serde_json::json!(false),
+            },
+        },
+        SignalIntent {
+            name: "text".into(),
+            r#type: TypeIR {
+                kind: "string".into(),
+                type_args: vec![],
+                is_nullable: false,
+            },
+            initial_value: ExprIR::LiteralExpr {
+                value: serde_json::json!(""),
+            },
+        },
+        SignalIntent {
+            name: "pos".into(),
+            r#type: TypeIR {
+                kind: "f64".into(),
+                type_args: vec![],
+                is_nullable: false,
+            },
+            initial_value: ExprIR::LiteralExpr {
+                value: serde_json::json!(0.0),
+            },
+        },
+    ];
+    let comp = ref_component(
+        "BindDemo",
+        &["inputBox", "pane"],
+        signals,
+        vec![],
+        Some(view),
+    );
+    let mut components = FxHashMap::default();
+    components.insert("BindDemo".into(), comp);
+    let ir = make_ir(components);
+    let comp_ref = ir
+        .modules
+        .get("main")
+        .unwrap()
+        .components
+        .get("BindDemo")
+        .unwrap();
+    let component_map = build_component_map(&ir);
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let (dart, _warnings, _errors) =
+        codegen.gen_component_dart("BindDemo", comp_ref, &ir, &component_map, &component_slots);
+
+    // Snapshot fields for every binding kind, typed from the bound signal.
+    assert!(
+        dart.contains("bool? _prevFocusInputBox;"),
+        "missing focus snapshot field, got:\n{dart}"
+    );
+    assert!(
+        dart.contains("double? _prevScrollYPane;"),
+        "missing scroll snapshot field, got:\n{dart}"
+    );
+    assert!(
+        dart.contains("String? _prevValueInputBox;"),
+        "missing value snapshot field, got:\n{dart}"
+    );
+
+    // Each binding re-applies only when its value changed.
+    assert!(
+        dart.contains("if (syncFocusInputBox != _prevFocusInputBox) {"),
+        "focus must be guarded by the prev-value comparison, got:\n{dart}"
+    );
+    assert!(
+        dart.contains("_prevFocusInputBox = syncFocusInputBox;"),
+        "focus snapshot must be recorded before re-applying, got:\n{dart}"
+    );
+    assert!(
+        dart.contains("if (syncScrollYPane != _prevScrollYPane) {"),
+        "scroll must be guarded by the prev-value comparison, got:\n{dart}"
+    );
+    assert!(
+        dart.contains("if (syncValueInputBox != _prevValueInputBox) {"),
+        "value must be guarded by the prev-value comparison, got:\n{dart}"
+    );
+    // requestFocus is only reachable through the change guard — the guard
+    // wraps the apply, so a stale `if (active) {` (unconditional re-apply on
+    // every rebuild) must not exist.
+    assert!(
+        !dart.contains("if (active) {"),
+        "unconditional focus re-apply on every rebuild must be gone (focus stealing), got:\n{dart}"
+    );
+    // The value binding additionally skips the write when the controller
+    // already holds the bound text — typing in the field must not reset the
+    // caret on every rebuild.
+    assert!(
+        dart.contains("if (_inputBoxText.text != syncValueInputBox) {"),
+        "value re-apply must skip when the controller already matches, got:\n{dart}"
     );
 }
 

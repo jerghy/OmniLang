@@ -414,7 +414,10 @@ fn assert_refs_flutter(files: &FxHashMap<String, String>) {
     assert_contains(files, "SearchBox.dart", "query = _inputText.text;");
     assert_contains(files, "SearchBox.dart", "_syncingInputText");
     assert_contains(files, "SearchBox.dart", "controller: _inputText");
-    assert_contains(files, "SearchBox.dart", "_inputText.text = query");
+    // Dep-scoped re-apply (T5.6): the value binding is snapshotted and the
+    // controller write is skipped when it already holds the bound text.
+    assert_contains(files, "SearchBox.dart", "_inputText.text = syncValueInput");
+    assert_contains(files, "SearchBox.dart", "syncValueInput != _prevValueInput");
 }
 
 // ── animation.omni ──
