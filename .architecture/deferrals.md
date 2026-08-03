@@ -239,6 +239,16 @@
 
 ---
 
+## 2026-08-04 覆盖地图登记（Task 1.5：emission-surface coverage map）
+
+**新增**：#74（Task 1.5 覆盖地图枚举发现的唯一注入面缺口——只登记不修，修复排期由编排层裁决）。
+
+| # | 项目 | 触发条件 | 影响 |
+|---|------|---------|------|
+| 74 | **[LOW]** component `style {}` 块属性值无语料插入点（StyleRuleIR.properties——parser/top_level/component.rs:177-180 → lower/component.rs:184-246；发射路径 React/Vue `generate_css_style_block`（omnilang-core/codegen/helpers.rs:142-157）、OmniView `emit_style`（omniview/view/mod.rs:114-131），均经 `format_css_value`→`sanitize_css_value`） | 语料新增 style-block 插入点任务（injection.rs POINTS + emission_surface.rs 同步登记） | 防御已存在且有专属测试（css_value_rejects_structural_characters 等），缺口在端到端载荷 canary 层——语料 style 点只覆盖 inline style，不覆盖 component style 块；若未来 style 块发射路径被改写绕过 sanitize，语料不会变红（Task 1.5 覆盖地图唯一登记的注入面缺口） |
+
+---
+
 ## 跟踪约定
 
 - 每个推迟项在重新评估触发条件满足时重新打开
