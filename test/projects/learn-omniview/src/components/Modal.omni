@@ -7,7 +7,8 @@ import { LearnDesign } from "../design";
 
 component Modal {
     // Body-level slot declarations (ADR-053 D5): consumers project via
-    // named props (header={<.../>}) or slot="name" children (back-compat).
+    // named props (header={<.../>}); the legacy slot="name" children form
+    // was deleted in v2 (design D4).
     @slot header
     @slot body
     @slot footer

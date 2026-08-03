@@ -3597,11 +3597,11 @@ component Panel {
     );
 }
 
-/// Test: `@slot header: String { ... }` type constraint types the prop as
-/// `string` (fallback braces required — bare `@slot name: Type` is ambiguous
-/// with the following `</tag>` at parse time, see parser view/mod.rs).
+/// Test: `@slot header: String { ... }` — the type constraint is deleted
+/// (design D4): the parser hard-errors with the migration hint, and the
+/// constraint must NOT surface as a prop type anywhere.
 #[test]
-fn slot_type_constraint_types_prop() {
+fn slot_type_constraint_hard_error() {
     let source = r#"
 component Badge {
     view {
@@ -3611,17 +3611,18 @@ component Badge {
     }
 }
 "#;
-    let output = compile_react(source).unwrap();
-    let content: String = output
-        .files
-        .values()
-        .cloned()
-        .collect::<Vec<_>>()
-        .join("\n");
+    let output = compile_react_full(source);
     assert!(
-        content.contains("header?: string"),
-        "Expected string-typed header prop from type constraint, got:\n{}",
-        content
+        !output.success,
+        "typed slot must be a hard error, got success"
+    );
+    assert!(
+        output
+            .errors
+            .iter()
+            .any(|e| e.message.contains("类型约束与数据参数已删除")),
+        "Expected deleted-typed-slot error, got: {:?}",
+        output.errors
     );
 }
 
@@ -4005,8 +4006,9 @@ component Consumer {
     );
 }
 
-/// Test: consumer-side `slot="name"` children project into named props at
-/// the call site (with the `slot` attribute stripped).
+/// Test: consumer-side named-prop projections (`header={<h4/>}` — the only
+/// consumer form since design D4) project into named props at the call
+/// site.
 #[test]
 fn slot_projection_at_call_site() {
     let source = r#"
@@ -4022,11 +4024,10 @@ component SlotBox {
 component Consumer {
     signal title: String = "T"
     view {
-        <SlotBox>
-            <h4 slot="header">Custom Header</h4>
-            <div slot="body">
-                <p>Body content</p>
-            </div>
+        <SlotBox
+            header={<h4>Custom Header</h4>}
+            body={<div><p>Body content</p></div>}
+        >
             <span>Default child</span>
         </SlotBox>
     }
@@ -4060,8 +4061,8 @@ component Consumer {
         content
     );
     assert!(
-        !content.contains("slot=\"header\""),
-        "slot attribute must be stripped after projection, got:\n{}",
+        !content.contains("slot=\""),
+        "no slot attribute may survive in generated output, got:\n{}",
         content
     );
 }
@@ -4113,13 +4114,41 @@ component Modal {
     );
 }
 
-/// Test: a body-level `@slot name: Type` declaration types the prop with the
-/// constraint (`footer?: string`); the interpolation renders the bare prop.
+/// Test: a body-level `@slot name: Type` declaration is a deleted form
+/// (design D4) — the parser hard-errors; the plain `@slot footer` form
+/// types the prop as `ReactNode` (parent-provided content).
 #[test]
-fn body_slot_type_constraint_types_prop() {
+fn body_slot_type_constraint_hard_error() {
     let source = r#"
 component Badge {
     @slot footer: String
+    view {
+        <div>{footer}</div>
+    }
+}
+"#;
+    let output = compile_react_full(source);
+    assert!(
+        !output.success,
+        "typed body slot must be a hard error, got success"
+    );
+    assert!(
+        output
+            .errors
+            .iter()
+            .any(|e| e.message.contains("类型约束与数据参数已删除")),
+        "Expected deleted-typed-slot error, got: {:?}",
+        output.errors
+    );
+}
+
+/// Test: the plain `@slot name` form (no type) types the prop as ReactNode
+/// and the interpolation renders the bare prop.
+#[test]
+fn body_slot_plain_types_prop_reactnode() {
+    let source = r#"
+component Badge {
+    @slot footer
     view {
         <div>{footer}</div>
     }
@@ -4133,8 +4162,8 @@ component Badge {
         .collect::<Vec<_>>()
         .join("\n");
     assert!(
-        content.contains("footer?: string"),
-        "Expected string-typed slot prop from body type constraint, got:\n{}",
+        content.contains("footer?: ReactNode;"),
+        "Expected ReactNode-typed slot prop, got:\n{}",
         content
     );
     assert!(

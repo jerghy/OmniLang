@@ -174,23 +174,18 @@ pub(crate) fn view_has_slots(
     }
 }
 
-/// Collect slot declarations (name + type constraint) from a view tree.
+/// Collect slot declarations (names) from a view tree.
 /// Used to type slot props (`children` / named) in the component TS
 /// interface. Slots inside a child component's children are consumer-side
 /// projections, not declarations — they are skipped.
 pub(crate) fn collect_view_slots(
     node: &ViewTree,
     component_map: &FxHashMap<&str, &ComponentIR>,
-    acc: &mut Vec<(Option<String>, Option<TypeIR>)>,
+    acc: &mut Vec<Option<String>>,
 ) {
     match node {
-        ViewTree::Slot {
-            name,
-            type_constraint,
-            fallback,
-            ..
-        } => {
-            acc.push((name.clone(), type_constraint.clone()));
+        ViewTree::Slot { name, fallback, .. } => {
+            acc.push(name.clone());
             for child in fallback {
                 collect_view_slots(child, component_map, acc);
             }
@@ -237,15 +232,12 @@ pub(crate) fn collect_view_slots(
 /// All slot declarations of a component: body-level `@slot` declarations
 /// (ADR-053 D5) first, then view-level `@slot` directives (back-compat).
 /// Consumer-side projections are not declarations and stay excluded.
+/// v2 (design D4): slots carry no type constraint — the name is all there is.
 pub(crate) fn component_declared_slots(
     comp: &ComponentIR,
     component_map: &FxHashMap<&str, &ComponentIR>,
-) -> Vec<(Option<String>, Option<TypeIR>)> {
-    let mut acc: Vec<(Option<String>, Option<TypeIR>)> = comp
-        .slots
-        .iter()
-        .map(|s| (s.name.clone(), s.type_constraint.clone()))
-        .collect();
+) -> Vec<Option<String>> {
+    let mut acc: Vec<Option<String>> = comp.slots.iter().map(|s| s.name.clone()).collect();
     if let Some(ref view) = comp.view {
         collect_view_slots(view, component_map, &mut acc);
     }

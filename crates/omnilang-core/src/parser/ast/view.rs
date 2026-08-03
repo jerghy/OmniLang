@@ -38,7 +38,7 @@ pub struct ComponentDef {
     pub span: Span,
 }
 
-/// A body-level slot declaration: `@slot name: Type { fallback }`.
+/// A body-level slot declaration: `@slot name { fallback }`.
 /// Mirrors the fields of `ViewNode::SlotDirective` so both forms lower
 /// through the same shared logic.
 #[derive(Debug, Clone, Serialize)]
@@ -47,8 +47,6 @@ pub struct SlotDecl {
     pub name: Option<String>,
     /// Fallback content rendered when the parent provides nothing for this slot.
     pub default_content: Option<Vec<ViewNode>>,
-    /// Optional type constraint: `@slot name: Type`.
-    pub type_constraint: Option<TypeAnnotation>,
     /// Source span of the whole declaration — used for diagnostics
     /// (e.g. duplicate-slot warnings point at the second declaration).
     pub span: Span,
@@ -131,7 +129,6 @@ pub enum ViewNode {
     SlotDirective {
         name: Option<String>,
         default_content: Option<Vec<ViewNode>>,
-        type_constraint: Option<TypeAnnotation>, // NEW: @slot name: Type
     },
     Text(String),
     Interpolation(Expr),

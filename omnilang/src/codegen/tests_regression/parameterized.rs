@@ -299,7 +299,7 @@ fn assert_slots_body_omniview(files: &FxHashMap<String, String>) {
     assert_contains(files, "body.html", "<slot name=\"header\">");
     assert_contains(files, "body.html", "Default header");
     assert_contains(files, "body.html", "Default body");
-    // Typed data slot renders as an empty <slot name="footer">.
+    // Fallback-less named slot renders as an empty <slot name="footer">.
     assert_contains(files, "body.html", "<slot name=\"footer\"></slot>");
     // Consumer named-prop projection: <Modal header={<div>Custom title</div>}>
     // injects the projected div into the child's slot position.
@@ -310,11 +310,11 @@ fn assert_slots_body_omniview(files: &FxHashMap<String, String>) {
 
 fn assert_slots_body_react(files: &FxHashMap<String, String>) {
     // Body-declared slots become props: same-named for named slots,
-    // `children` for the unnamed slot, and the typed slot carries its
-    // type constraint.
+    // `children` for the unnamed slot. v2 (design D4): every slot prop is
+    // ReactNode — the type-constraint emission is deleted.
     assert_contains(files, "Modal.tsx", "header?: ReactNode;");
     assert_contains(files, "Modal.tsx", "children?: ReactNode;");
-    assert_contains(files, "Modal.tsx", "footer?: string;");
+    assert_contains(files, "Modal.tsx", "footer?: ReactNode;");
     // Interpolations render the declared slot with its fallback
     // ({header ?? (fallback)} / {children ?? (...)} / bare {footer}).
     assert_contains(files, "Modal.tsx", "{header ?? (");
@@ -346,6 +346,54 @@ fn assert_slots_body_flutter(files: &FxHashMap<String, String>) {
     assert_contains(files, "App.dart", "Custom title");
     assert_contains(files, "App.dart", "Custom body");
     assert_contains(files, "App.dart", "Modal()");
+}
+
+// ── slots_three_forms.omni (v2 D4: default + named + fallback) ──
+
+fn assert_slots_three_forms_omniview(files: &FxHashMap<String, String>) {
+    // Projection instance: named-prop projection replaces the header
+    // fallback; plain children fill the default slot.
+    assert_contains(files, "body.html", "Custom Header");
+    assert_contains(files, "body.html", "Custom Body");
+    // Bare instance: both declared fallbacks render.
+    assert_contains(files, "body.html", "Fallback Header");
+    assert_contains(files, "body.html", "Fallback Body");
+    // The slot positions themselves exist as <slot> elements.
+    assert_contains(files, "body.html", "<slot name=\"header\">");
+    assert_contains(files, "body.html", "<slot>");
+}
+
+fn assert_slots_three_forms_react(files: &FxHashMap<String, String>) {
+    // Slot props typed ReactNode (parent-provided content — no constraint
+    // emission since D4).
+    assert_contains(files, "SlotPanel.tsx", "header?: ReactNode;");
+    assert_contains(files, "SlotPanel.tsx", "children?: ReactNode;");
+    // Fallbacks: {header ?? (fallback)} / {children ?? (fallback)}.
+    assert_contains(files, "SlotPanel.tsx", "Fallback Header");
+    assert_contains(files, "SlotPanel.tsx", "Fallback Body");
+    assert_contains(files, "SlotPanel.tsx", "header ?? (");
+    assert_contains(files, "SlotPanel.tsx", "children ?? (");
+    // Consumer: named-prop projection + bare instance keeping fallbacks.
+    assert_contains(files, "App.tsx", "header={<div>");
+    assert_contains(files, "App.tsx", "Custom Header");
+    assert_contains(files, "App.tsx", "Custom Body");
+    assert_contains(files, "App.tsx", "<SlotPanel />");
+}
+
+fn assert_slots_three_forms_flutter(files: &FxHashMap<String, String>) {
+    // Widget? constructor params for both slot forms.
+    assert_contains(files, "SlotPanel.dart", "final Widget? header;");
+    assert_contains(files, "SlotPanel.dart", "final Widget? children;");
+    // Fallbacks: widget.header ?? fallback / widget.children ?? fallback.
+    assert_contains(files, "SlotPanel.dart", "Fallback Header");
+    assert_contains(files, "SlotPanel.dart", "Fallback Body");
+    assert_contains(files, "SlotPanel.dart", "widget.header ??");
+    assert_contains(files, "SlotPanel.dart", "widget.children ??");
+    // Consumer: named-prop projection + bare instance keeping fallbacks.
+    assert_contains(files, "App.dart", "header: ");
+    assert_contains(files, "App.dart", "Custom Header");
+    assert_contains(files, "App.dart", "Custom Body");
+    assert_contains(files, "App.dart", "SlotPanel()");
 }
 
 // ── refs.omni ──
@@ -536,6 +584,13 @@ gen_semantic_dsl_tests!(
     assert_slots_body_omniview,
     assert_slots_body_react,
     assert_slots_body_flutter
+);
+gen_semantic_dsl_tests!(
+    slots_three_forms,
+    "slots_three_forms.omni",
+    assert_slots_three_forms_omniview,
+    assert_slots_three_forms_react,
+    assert_slots_three_forms_flutter
 );
 gen_semantic_dsl_tests!(
     refs,

@@ -67,7 +67,6 @@ impl<'a> Parser<'a> {
                 Ok(ViewNode::SlotDirective {
                     name: slot.name,
                     default_content: slot.default_content,
-                    type_constraint: slot.type_constraint,
                 })
             }
             TokenKind::StringLiteral(s) => {
@@ -265,11 +264,14 @@ impl<'a> Parser<'a> {
     }
 
     /// Parse the shared body of a `@slot` directive: the optional name
-    /// (`@slot name`, `@slot(name)`, or `@slot default` / bare for the
-    /// default slot), optional `: Type` constraint, and optional
-    /// `{ fallback }` view content. Used by both view-level directives
-    /// (`ViewNode::SlotDirective`) and component body declarations
-    /// (`SlotDecl`), ADR-053 D5.
+    /// (`@slot name`, or `@slot default` / bare for the default slot) and
+    /// optional `{ fallback }` view content. Used by both view-level
+    /// directives (`ViewNode::SlotDirective`) and component body
+    /// declarations (`SlotDecl`), ADR-053 D5.
+    ///
+    /// v2 (design D4): the legacy `@slot(name)` directive form and the
+    /// `@slot name: Type` type constraint are deleted — both hard-error
+    /// with a migration hint (spec 域 4 diagnostic table).
     ///
     /// `in_body` selects the component-body parsing context: there, the
     /// `view`/`style` keywords after a bare `@slot` start the component's
@@ -286,18 +288,16 @@ impl<'a> Parser<'a> {
     ) -> Result<SlotDecl, ParseError> {
         let start = self.peek_span();
         self.advance(); // '@slot'
-        let name = if self.at(&TokenKind::LParen) {
-            self.advance();
-            let n = self.expect_ident("expected slot name")?;
-            self.expect_token(TokenKind::RParen, "expected ')'")?;
-            // `@slot(default)` is the default/unnamed slot — same mapping
-            // as the bare `@slot default` form.
-            if n == "default" {
-                None
-            } else {
-                Some(n)
-            }
-        } else if matches!(self.peek_kind(), TokenKind::Ident(_))
+        // D4: `@slot(name)` directive form is deleted — the body-level
+        // declaration is `@slot name { ... }` (no parens).
+        if self.at(&TokenKind::LParen) {
+            return Err(ParseError::with_kind(
+                crate::error::DiagnosticKind::ESlotRemoved,
+                "改用 body 级声明 @slot name=... ",
+                self.peek_span(),
+            ));
+        }
+        let name = if matches!(self.peek_kind(), TokenKind::Ident(_))
             || keyword_as_ident_name(self.peek_kind())
                 .is_some_and(|kw| !(in_body && (kw == "view" || kw == "style")))
         {
@@ -310,13 +310,15 @@ impl<'a> Parser<'a> {
         } else {
             None
         };
-        // Parse optional type constraint: @slot name: Type { ... }
-        let type_constraint = if self.at(&TokenKind::Colon) {
-            self.advance(); // ':'
-            Some(self.parse_type_annotation()?)
-        } else {
-            None
-        };
+        // D4: `@slot name: Type` type constraint + data_param are deleted —
+        // slot = parent-provided content only.
+        if self.at(&TokenKind::Colon) {
+            return Err(ParseError::with_kind(
+                crate::error::DiagnosticKind::ESlotRemoved,
+                "类型约束与数据参数已删除；slot = 父传内容",
+                self.peek_span(),
+            ));
+        }
         // Parse optional default content body: @slot name { ... }
         let default_content = if self.at(&TokenKind::LBrace) {
             self.advance(); // consume '{'
@@ -333,7 +335,6 @@ impl<'a> Parser<'a> {
         Ok(SlotDecl {
             name,
             default_content,
-            type_constraint,
             span: Span {
                 start: start.start,
                 end: end.end,

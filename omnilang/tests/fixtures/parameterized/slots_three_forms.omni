@@ -1,0 +1,32 @@
+// slots_three_forms.omni — v2 design D4 fixture: slot = parent-provided
+// content only, in its three pure forms:
+//   1. default (unnamed) slot — plain children flow into `{children}`
+//   2. named slot — `header={<.../>}` named-prop projection
+//   3. fallback — a consumer providing nothing renders the declared
+//      fallback content (default + named)
+//
+// The deleted forms (`@slot name: Type`, `@slot(name)`, `slot="name"`)
+// are parse-time hard errors — asserted in cross_target.rs, not here.
+// Assertions are per-backend in tests_regression/parameterized.rs.
+
+import omniview;
+
+component SlotPanel {
+    @slot header { <h4>Fallback Header</h4> }
+    @slot { <p>Fallback Body</p> }
+    view {
+        <div class: panel>
+            {header}
+            {children}
+        </div>
+    }
+}
+
+component App {
+    view {
+        <SlotPanel header={<div>Custom Header</div>}>
+            <p>Custom Body</p>
+        </SlotPanel>
+        <SlotPanel />
+    }
+}

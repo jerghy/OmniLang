@@ -1170,51 +1170,81 @@ mod roundtrip_tests {
             ViewNode::SlotDirective {
                 name,
                 default_content,
-                type_constraint,
             } => {
                 assert_eq!(name.as_deref(), Some("header"));
                 assert!(default_content.is_none());
-                assert!(type_constraint.is_none());
             }
             _ => panic!("expected SlotDirective"),
         }
     }
 
     #[test]
-    fn view_slot_directive_with_type_constraint() {
-        // @slot name: Type — optional type annotation between name and body
-        let children = view_children(
-            "component App { view { @slot header: String { Text { \"fallback\" } } } }",
+    fn view_slot_type_constraint_hard_error() {
+        // D4 (v2): `@slot name: Type` — the type constraint + data_param
+        // are deleted; slot = parent-provided content only. The parser must
+        // hard-error with the design-doc 域 4 diagnostic text.
+        let src = "component App { view { @slot header: String { Text { \"fallback\" } } } }";
+        let tokens = tokenize(src);
+        let (_, errs) = parse(tokens, src);
+        assert!(
+            errs.iter().any(|e| {
+                e.kind == Some(crate::error::DiagnosticKind::ESlotRemoved)
+                    && e.message
+                        .contains("类型约束与数据参数已删除；slot = 父传内容")
+            }),
+            "expected ESlotRemoved error with v2 migration hint, got: {:?}",
+            errs.iter().map(|e| &e.message).collect::<Vec<_>>()
         );
-        assert_eq!(children.len(), 1);
-        match &children[0] {
-            ViewNode::SlotDirective {
-                name,
-                default_content,
-                type_constraint,
-            } => {
-                assert_eq!(name.as_deref(), Some("header"));
-                assert!(matches!(
-                    type_constraint,
-                    Some(TypeAnnotation::Named { name, .. }) if name == "String"
-                ));
-                assert_eq!(default_content.as_ref().map(|c| c.len()), Some(1));
-            }
-            _ => panic!("expected SlotDirective"),
-        }
     }
 
     #[test]
-    fn view_slot_directive_generic_type_constraint() {
-        let children =
-            view_children("component App { view { @slot onSelect: fn(String) -> Void { } } }");
-        match &children[0] {
-            ViewNode::SlotDirective {
-                type_constraint: Some(TypeAnnotation::Fn { .. }),
-                ..
-            } => {}
-            other => panic!("expected SlotDirective with fn type, got {:?}", other),
-        }
+    fn view_slot_generic_type_constraint_hard_error() {
+        // fn types hit the same deleted-form diagnostic.
+        let src = "component App { view { @slot onSelect: fn(String) -> Void { } } }";
+        let tokens = tokenize(src);
+        let (_, errs) = parse(tokens, src);
+        assert!(
+            errs.iter().any(|e| {
+                e.kind == Some(crate::error::DiagnosticKind::ESlotRemoved)
+                    && e.message.contains("类型约束与数据参数已删除")
+            }),
+            "expected ESlotRemoved error for fn-type constraint, got: {:?}",
+            errs.iter().map(|e| &e.message).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn element_slot_attribute_consumption_hard_error() {
+        // D4 (v2): `slot="name"` consumption is deleted — the only consumer
+        // form is the named-props projection `name={<.../>}`.
+        let src = "component App { view { <div slot=\"header\">x</div> } }";
+        let tokens = tokenize(src);
+        let (_, errs) = parse(tokens, src);
+        assert!(
+            errs.iter().any(|e| {
+                e.kind == Some(crate::error::DiagnosticKind::ESlotRemoved)
+                    && e.message.contains("改用命名 props：name={...}")
+            }),
+            "expected ESlotRemoved error with named-props hint, got: {:?}",
+            errs.iter().map(|e| &e.message).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn element_slot_attribute_consumption_hard_error_on_component_child() {
+        // The same diagnostic fires inside a component call's children —
+        // that was the legacy `slot="name"` consumption site.
+        let src = "component A { view { <B><span slot=\"header\">H</span></B> } }";
+        let tokens = tokenize(src);
+        let (_, errs) = parse(tokens, src);
+        assert!(
+            errs.iter().any(|e| {
+                e.kind == Some(crate::error::DiagnosticKind::ESlotRemoved)
+                    && e.message.contains("改用命名 props：name={...}")
+            }),
+            "expected ESlotRemoved error at component call site, got: {:?}",
+            errs.iter().map(|e| &e.message).collect::<Vec<_>>()
+        );
     }
 
     #[test]
@@ -1293,7 +1323,6 @@ mod roundtrip_tests {
             matches!(slot.default_content, Some(ref c) if c.len() == 1),
             "fallback content must be parsed"
         );
-        assert!(slot.type_constraint.is_none());
     }
 
     #[test]
@@ -1327,33 +1356,53 @@ mod roundtrip_tests {
     }
 
     #[test]
-    fn body_slot_declaration_with_type_constraint() {
-        let comp = component_def("component Modal { @slot footer: String view { <div/> } }");
-        assert_eq!(comp.slots.len(), 1);
-        assert_eq!(comp.slots[0].name.as_deref(), Some("footer"));
-        assert!(matches!(
-            comp.slots[0].type_constraint,
-            Some(TypeAnnotation::Named { ref name, .. }) if name == "String"
-        ));
-    }
-
-    #[test]
-    fn body_slot_declaration_paren_form() {
-        // Back-compat: @slot(name) paren form still accepted in the body
-        let comp = component_def("component Modal { @slot(header) view { <div/> } }");
-        assert_eq!(comp.slots.len(), 1);
-        assert_eq!(comp.slots[0].name.as_deref(), Some("header"));
-    }
-
-    #[test]
-    fn body_slot_declaration_paren_default_is_unnamed() {
-        // `@slot(default)` maps to the default/unnamed slot — consistent
-        // with the bare `@slot default` form.
-        let comp = component_def("component Modal { @slot(default) view { <div/> } }");
-        assert_eq!(comp.slots.len(), 1);
+    fn body_slot_type_constraint_hard_error() {
+        // D4 (v2): body-level `@slot name: Type` hits the same deleted-form
+        // diagnostic as the view-level directive.
+        let src = "component Modal { @slot footer: String view { <div/> } }";
+        let tokens = tokenize(src);
+        let (_, errs) = parse(tokens, src);
         assert!(
-            comp.slots[0].name.is_none(),
-            "`@slot(default)` is the unnamed slot"
+            errs.iter().any(|e| {
+                e.kind == Some(crate::error::DiagnosticKind::ESlotRemoved)
+                    && e.message
+                        .contains("类型约束与数据参数已删除；slot = 父传内容")
+            }),
+            "expected ESlotRemoved error for body typed slot, got: {:?}",
+            errs.iter().map(|e| &e.message).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn body_slot_paren_form_hard_error() {
+        // D4 (v2): legacy `@slot(name)` directive form is deleted — the
+        // body-level declaration is `@slot name { ... }` (no parens).
+        let src = "component Modal { @slot(header) view { <div/> } }";
+        let tokens = tokenize(src);
+        let (_, errs) = parse(tokens, src);
+        assert!(
+            errs.iter().any(|e| {
+                e.kind == Some(crate::error::DiagnosticKind::ESlotRemoved)
+                    && e.message.contains("改用 body 级声明 @slot name=")
+            }),
+            "expected ESlotRemoved error for paren form, got: {:?}",
+            errs.iter().map(|e| &e.message).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn body_slot_paren_default_hard_error() {
+        // `@slot(default)` is the same deleted directive form.
+        let src = "component Modal { @slot(default) view { <div/> } }";
+        let tokens = tokenize(src);
+        let (_, errs) = parse(tokens, src);
+        assert!(
+            errs.iter().any(|e| {
+                e.kind == Some(crate::error::DiagnosticKind::ESlotRemoved)
+                    && e.message.contains("改用 body 级声明 @slot name=")
+            }),
+            "expected ESlotRemoved error for @slot(default), got: {:?}",
+            errs.iter().map(|e| &e.message).collect::<Vec<_>>()
         );
     }
 

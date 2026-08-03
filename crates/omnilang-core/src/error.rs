@@ -132,6 +132,8 @@ pub enum DiagnosticKind {
     EEffectDepsMissing,
     #[error("paused playback keyword removed")]
     EPausedRemoved,
+    #[error("deleted slot form")]
+    ESlotRemoved,
     #[error("omniview warning")]
     WOmniviewMarker,
     #[error("motion warning")]
@@ -165,6 +167,7 @@ impl DiagnosticKind {
             Self::EArrayMethod => "E_ARRAY_METHOD",
             Self::EEffectDepsMissing => "E_EFFECT_DEPS_MISSING",
             Self::EPausedRemoved => "E_PAUSED_REMOVED",
+            Self::ESlotRemoved => "E_SLOT_REMOVED",
             Self::WOmniviewMarker => "W_OMNIVIEW_MARKER",
             Self::WMotion => "W0001",
             Self::ELint(_) => "E_LINT",
@@ -211,6 +214,7 @@ impl<'de> Deserialize<'de> for DiagnosticKind {
                     "E_ARRAY_METHOD" => Ok(DiagnosticKind::EArrayMethod),
                     "E_EFFECT_DEPS_MISSING" => Ok(DiagnosticKind::EEffectDepsMissing),
                     "E_PAUSED_REMOVED" => Ok(DiagnosticKind::EPausedRemoved),
+                    "E_SLOT_REMOVED" => Ok(DiagnosticKind::ESlotRemoved),
                     "W_OMNIVIEW_MARKER" => Ok(DiagnosticKind::WOmniviewMarker),
                     "W0001" => Ok(DiagnosticKind::WMotion),
                     "E_LINT" => Ok(DiagnosticKind::ELint("E_LINT".into())),
@@ -701,6 +705,32 @@ mod tests {
         assert_eq!(diag.kind, DiagnosticKind::EPausedRemoved);
         assert_eq!(diag.severity, Severity::Error);
         assert!(diag.message.contains("@if"));
+    }
+
+    #[test]
+    fn slot_removed_code_registered_and_carried() {
+        // E_SLOT_REMOVED must be a registered diagnostic code: code_str,
+        // serde round-trip, and ParseError → Diagnostic propagation.
+        assert_eq!(DiagnosticKind::ESlotRemoved.code_str(), "E_SLOT_REMOVED");
+        let json = serde_json::to_value(DiagnosticKind::ESlotRemoved).unwrap();
+        assert_eq!(json, "E_SLOT_REMOVED");
+        let back: DiagnosticKind = serde_json::from_value(json).unwrap();
+        assert_eq!(back, DiagnosticKind::ESlotRemoved);
+
+        let diag: Diagnostic = ParseError::with_kind(
+            DiagnosticKind::ESlotRemoved,
+            "类型约束与数据参数已删除；slot = 父传内容",
+            Span {
+                start: 0,
+                end: 2,
+                line: 1,
+                col: 1,
+            },
+        )
+        .into();
+        assert_eq!(diag.kind, DiagnosticKind::ESlotRemoved);
+        assert_eq!(diag.severity, Severity::Error);
+        assert!(diag.message.contains("slot = 父传内容"));
     }
 
     #[test]

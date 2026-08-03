@@ -545,11 +545,10 @@ impl FlutterCodegen {
         // constructor params — same-named for named slots, `children` for
         // the unnamed slot. Consumer-side projections inside child
         // components are skipped (they are content, not declarations).
-        let mut declared_slots: Vec<(Option<String>, Option<TypeIR>)> = comp
-            .slots
-            .iter()
-            .map(|s| (s.name.clone(), s.type_constraint.clone()))
-            .collect();
+        // v2 (design D4): slots carry no type constraint — `Widget?` is the
+        // only param type (slot = parent-provided widget content).
+        let mut declared_slots: Vec<Option<String>> =
+            comp.slots.iter().map(|s| s.name.clone()).collect();
         if let Some(ref view) = comp.view {
             view::collect_view_slots(view, component_map, &mut declared_slots);
         }
@@ -566,7 +565,7 @@ impl FlutterCodegen {
             .chain(comp.fns.iter().map(|f| f.name.as_str()))
             .collect();
         let mut seen_slots: FxHashSet<String> = FxHashSet::default();
-        declared_slots.retain(|(n, _)| {
+        declared_slots.retain(|n| {
             let slot_prop = n.clone().unwrap_or_else(|| "children".to_string());
             !comp.props.contains_key(&slot_prop)
                 && !comp.events.iter().any(|e| e.name == slot_prop)
@@ -585,7 +584,7 @@ impl FlutterCodegen {
             .cloned()
             .chain(comp.events.iter().map(|e| e.name.clone()))
             .collect();
-        for (slot_name, _) in &declared_slots {
+        for slot_name in &declared_slots {
             widget_names.insert(slot_name.clone().unwrap_or_else(|| "children".into()));
         }
 
@@ -616,7 +615,7 @@ impl FlutterCodegen {
             for event in &comp.events {
                 w.emit_fmt(format_args!("this.{},", event.name));
             }
-            for (slot_name, _) in &declared_slots {
+            for slot_name in &declared_slots {
                 let param_name = slot_name.as_deref().unwrap_or("children");
                 w.emit_fmt(format_args!("this.{},", param_name));
             }
@@ -639,21 +638,11 @@ impl FlutterCodegen {
                     payload, event.name
                 ));
             }
-            // Field declarations for slots
-            for (slot_name, type_constraint) in &declared_slots {
+            // Field declarations for slots — v2 (design D4): the typed-slot
+            // constraint/degradation path is gone; `Widget?` is the only
+            // slot field type (slot = parent-provided widget content).
+            for slot_name in &declared_slots {
                 let param_name = slot_name.as_deref().unwrap_or("children");
-                // Typed slots (`@slot name: Type`) are deferred for Flutter:
-                // slot content renders as widgets (`widget.name ?? fallback`),
-                // so a non-Widget field type would be a static error. The
-                // constraint is surfaced as a warning until the semantic-level
-                // DSL formalizes data slots (data_param).
-                if let Some(tc) = type_constraint {
-                    warnings.push(format!(
-                        "[flutter] slot '{param_name}' declares a type constraint \
-                         ('{}') which is not yet supported; emitting Widget? instead",
-                        super::dart::dart_type(tc.kind.as_str(), &tc.type_args)
-                    ));
-                }
                 w.emit_fmt(format_args!("final Widget? {};", param_name));
             }
         }

@@ -506,8 +506,6 @@ mod tests {
         comp.view = Some(ViewTree::Slot {
             name: Some("header".to_string()),
             fallback: vec![ViewTree::Element(Box::new(make_el("div", Some("box"))))],
-            type_constraint: None,
-            data_param: None,
         });
 
         let warnings = validate_component_refs(&comp);
@@ -528,8 +526,6 @@ mod tests {
         comp.slots = vec![SlotDeclIR {
             name: Some("header".to_string()),
             fallback: vec![ViewTree::Element(Box::new(make_el("div", Some("box"))))],
-            type_constraint: None,
-            data_param: None,
         }];
 
         let warnings = validate_component_refs(&comp);

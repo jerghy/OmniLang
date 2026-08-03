@@ -286,11 +286,6 @@ fn collect_component_struct_names(
             scan_stmt_structs(s, names, out);
         }
     }
-    for s in &comp.slots {
-        if let Some(t) = &s.type_constraint {
-            collect_type_struct_names(t, names, out);
-        }
-    }
     if let Some(view) = &comp.view {
         scan_view_structs(view, names, out);
     }
@@ -811,11 +806,6 @@ fn collect_component_union_names(
         }
         for s in &f.body.statements {
             scan_stmt_unions(s, names, out);
-        }
-    }
-    for s in &comp.slots {
-        if let Some(t) = &s.type_constraint {
-            collect_type_union_names(t, names, out);
         }
     }
     if let Some(view) = &comp.view {

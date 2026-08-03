@@ -527,3 +527,49 @@ component RoundedCard {
             .collect::<Vec<_>>()
     );
 }
+
+/// Design D4 (v2): the three deleted slot forms hard-error on every P0
+/// backend with the design-doc 域 4 migration hints — the pipeline must
+/// never let a typed/legacy slot form compile silently.
+#[test]
+fn deleted_slot_forms_hard_error_on_all_backends() {
+    let cases: [(&str, &str); 3] = [
+        (
+            "component A { view { <div>@slot header: String { <span>f</span> }</div> } }",
+            "类型约束与数据参数已删除；slot = 父传内容",
+        ),
+        (
+            "component A { view { <div>@slot(header)</div> } }",
+            "改用 body 级声明 @slot name=",
+        ),
+        (
+            "component A { view { <div slot=\"header\">x</div> } }",
+            "改用命名 props：name={...}",
+        ),
+    ];
+    let mut failures: Vec<String> = Vec::new();
+    for (source, hint) in cases {
+        for (target, target_name) in p0_backends() {
+            let output = compile_source(source, target);
+            if output.errors.is_empty() {
+                failures.push(format!(
+                    "deleted slot form {source:?} → {target_name}: compiled silently"
+                ));
+                continue;
+            }
+            if !output.errors.iter().any(|e| e.message.contains(hint)) {
+                failures.push(format!(
+                    "deleted slot form {source:?} → {target_name}: missing migration \
+                     hint {hint:?}, got: {:?}",
+                    output.errors.iter().map(|e| &e.message).collect::<Vec<_>>()
+                ));
+            }
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "{} deleted-slot-form failures:\n{}",
+        failures.len(),
+        failures.join("\n"),
+    );
+}

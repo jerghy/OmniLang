@@ -203,19 +203,20 @@ mod tests {
     }
 
     #[test]
-    fn analyze_body_slot_type_constraint_becomes_symbol_type() {
-        let result =
-            analyze_source("component Modal { @slot footer: String view { <div>{footer}</div> } }");
-        let scope_idx = result
-            .symbols
-            .find_scope_by_name("component:Modal")
-            .expect("component scope should exist");
-        let slot_sym = result
-            .symbols
-            .get_scope(scope_idx)
-            .and_then(|s| s.symbols.get("footer"))
-            .expect("slot symbol 'footer' should be registered");
-        assert_eq!(slot_sym.type_ann.as_deref(), Some("String"));
+    fn analyze_typed_body_slot_is_rejected_at_parse() {
+        // v2 (design D4): `@slot name: Type` is a deleted form — the parser
+        // hard-errors with the migration hint before analysis runs.
+        let source = "component Modal { @slot footer: String view { <div>{footer}</div> } }";
+        let tokens = tokenize(source);
+        let (_, errors) = parse(tokens, source);
+        assert!(
+            errors.iter().any(|e| {
+                e.kind == Some(crate::error::DiagnosticKind::ESlotRemoved)
+                    && e.message.contains("类型约束与数据参数已删除")
+            }),
+            "expected ESlotRemoved parse error, got: {:?}",
+            errors
+        );
     }
 
     #[test]

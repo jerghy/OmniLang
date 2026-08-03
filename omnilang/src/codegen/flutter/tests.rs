@@ -4168,6 +4168,22 @@ fn compile_flutter(source: &str) -> Option<crate::InternalCompileResult> {
     }
 }
 
+/// Compile helper returning the full result (success + errors) so tests can
+/// assert on diagnostics.
+fn compile_flutter_full(source: &str) -> crate::InternalCompileResult {
+    let mut sources = FxHashMap::default();
+    sources.insert("input.omni".to_string(), source.to_string());
+    let pm = crate::path_mapping::derive_path_mapping(&sources);
+    crate::compile_multi_internal(
+        sources,
+        crate::codegen::Target::Flutter,
+        pm,
+        false,
+        false,
+        None,
+    )
+}
+
 // ── @for cross-target keyed contract (Task 5.5) ─────────────
 
 /// T5.5: a non-scroll @for emits a `Column` (document flow), NOT an
@@ -4626,9 +4642,10 @@ component Card {
     );
 }
 
-/// `@slot header: String { ... }` types the param as `String?` instead of `Widget?`.
+/// `@slot header: String { ... }` is a deleted form (design D4): the parser
+/// hard-errors with the migration hint — no deferral warning, no `String?`.
 #[test]
-fn slot_type_constraint_defers_to_widget_with_warning() {
+fn slot_type_constraint_hard_error() {
     let source = r#"
 component Badge {
     view {
@@ -4638,32 +4655,18 @@ component Badge {
     }
 }
 "#;
-    let output = compile_flutter(source).unwrap();
-    let content: String = output
-        .files
-        .values()
-        .cloned()
-        .collect::<Vec<_>>()
-        .join("\n");
-    // Typed slots are deferred: the param stays `Widget?` so the
-    // `widget.header ?? <fallback widget>` render stays statically valid.
+    let output = compile_flutter_full(source);
     assert!(
-        content.contains("final Widget? header;"),
-        "Expected Widget? header param (type constraint deferred), got:\n{}",
-        content
-    );
-    assert!(
-        !content.contains("final String? header;"),
-        "Must not emit a String-typed slot field, got:\n{}",
-        content
+        !output.success,
+        "typed slot must be a hard error, got success"
     );
     assert!(
         output
-            .warnings
+            .errors
             .iter()
-            .any(|w| w.message.contains("type constraint")),
-        "Expected type-constraint deferral warning, got: {:?}",
-        output.warnings
+            .any(|e| e.message.contains("类型约束与数据参数已删除")),
+        "Expected deleted-typed-slot error, got: {:?}",
+        output.errors
     );
 }
 
@@ -4741,9 +4744,9 @@ component Card {
     );
 }
 
-/// Consumer-side `slot="name"` children project into named constructor
-/// params at the call site (with the `slot` attribute stripped); plain
-/// children flow into the unnamed `children` param.
+/// Consumer-side named-prop projections (`header={<h4/>}` — the only
+/// consumer form since design D4) project into named constructor params at
+/// the call site; plain children flow into the unnamed `children` param.
 #[test]
 fn slot_projection_at_call_site() {
     let source = r#"
@@ -4759,11 +4762,10 @@ component SlotBox {
 
 component Consumer {
     view {
-        <SlotBox>
-            <h4 slot="header">Custom Header</h4>
-            <div slot="body">
-                <p>Body content</p>
-            </div>
+        <SlotBox
+            header={<h4>Custom Header</h4>}
+            body={<div><p>Body content</p></div>}
+        >
             <span>Default child</span>
         </SlotBox>
     }
@@ -4870,8 +4872,7 @@ component Box {
 
 component Consumer {
     view {
-        <Box>
-            <h4 slot="missing">Content</h4>
+        <Box missing={<h4>Content</h4>}>
         </Box>
     }
 }
@@ -4973,8 +4974,6 @@ fn enter_motion_in_slot_fallback_is_found() {
     let view = ViewTree::Slot {
         name: None,
         fallback: vec![ViewTree::Element(Box::new(el))],
-        type_constraint: None,
-        data_param: None,
     };
     let usage = collect_motion_element_usage(&view, &FxHashMap::default());
     assert_eq!(
@@ -7307,10 +7306,10 @@ component App {
 /// bare `widget.<name>` would be a static error in `List<Widget>`
 /// contexts; the shrink box renders nothing when no content is projected.
 #[test]
-fn body_typed_slot_without_fallback_renders_bare() {
+fn body_slot_without_fallback_renders_bare() {
     let source = r#"
 component Badge {
-    @slot footer: String
+    @slot footer
     view {
         <div>{footer}</div>
     }
@@ -7325,12 +7324,12 @@ component Badge {
         .join("\n");
     assert!(
         content.contains("widget.footer ?? SizedBox.shrink()"),
-        "expected nullable-guarded typed-slot render, got:\n{}",
+        "expected nullable-guarded slot render, got:\n{}",
         content
     );
     assert!(
         content.contains("final Widget? footer;"),
-        "typed slot param stays Widget? (constraint deferred), got:\n{}",
+        "slot param stays Widget? (parent-provided content), got:\n{}",
         content
     );
 }

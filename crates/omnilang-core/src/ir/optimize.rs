@@ -973,8 +973,6 @@ mod tests {
                         "div",
                         vec![ViewTree::Interpolation(Box::new(ident("header_val")))],
                     )],
-                    type_constraint: None,
-                    data_param: None,
                 }],
             )),
             ..ComponentIR::default()
@@ -1003,8 +1001,6 @@ mod tests {
                     "p",
                     vec![ViewTree::Interpolation(Box::new(ident("slot_val")))],
                 )],
-                type_constraint: None,
-                data_param: None,
             }),
             ..ComponentIR::default()
         };
@@ -1032,8 +1028,6 @@ mod tests {
                     "p",
                     vec![ViewTree::Interpolation(Box::new(ident("body_val")))],
                 )],
-                type_constraint: None,
-                data_param: None,
             }],
             ..ComponentIR::default()
         };

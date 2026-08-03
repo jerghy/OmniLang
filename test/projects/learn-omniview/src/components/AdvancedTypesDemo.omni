@@ -17,9 +17,8 @@
 // ║     · 不支持：臂内 if 守卫（guard）、模式中的 | 联合（1 | 2 =>）        ║
 // ║                                                                      ║
 // ║  ③ 语法状态速查（诚实标注，避免把无效果语法当功能展示）                  ║
-// ║     · @slot name: Type 类型化插槽 — 三目标均可编译，类型约束            ║
-// ║       目前是声明侧文档（React 生成 TS 类型 / Flutter 警告并退化为       ║
-// ║       Widget? / OmniView 不消费类型）                                 ║
+// ║     · @slot name: Type 类型化插槽已删除（v2 D4）——                    ║
+// ║       slot = 父传内容，三形态 default + named + fallback              ║
 // ║     · @for item in list [scroll] — 语法可解析并进入 IR，但当前          ║
 // ║       无任何代码生成目标消费该提示（Flutter ListView.builder            ║
 // ║       提示待实现；OmniView 无效果）                                   ║
@@ -160,7 +159,7 @@ component AdvancedTypesDemo {
             <div class: tech-note>
                 <h4 class: note-title>💡 语法状态速查</h4>
                 <ul class: note-list>
-                    <li><code>{"@slot name: Type"}</code> 类型化插槽：三目标均可编译，类型约束目前是<strong>声明侧文档</strong>——React 生成 <code>header?: string</code>，Flutter 警告并退化为 <code>Widget?</code>，OmniView 不消费类型</li>
+                    <li><strong>❌ <code>{"@slot name: Type"}</code> 类型化插槽已删除（v2 D4）</strong>：slot = 父传内容（default + named + fallback），写类型约束 → 编译错误「类型约束与数据参数已删除」；遗留 <code>slot="name"</code> / <code>{"@slot(name)"}</code> 形式同样硬诊断</li>
                     <li><code>{"@for item in list [scroll]"}</code>：语法可解析并进入 IR，但<strong>尚无代码生成目标消费</strong>该提示（Flutter ListView.builder 提示待实现；OmniView 无效果），此处不演示无效果语法</li>
                     <li>泛型：类型实参（Array、Map 形式）可用；泛型声明 fn foo / component Bar 的类型参数尚未支持（完整说明见文件头注释）</li>
                     <li>{"$signal"} / {"$concat"} / {"$call"}：这是 lowering 写入 style JSON 的<strong>内部标记</strong>（见 ir/lower/expr.rs），不是用户可写的源码语法</li>

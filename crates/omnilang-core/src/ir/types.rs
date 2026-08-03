@@ -735,12 +735,6 @@ pub enum ViewTree {
         /// for this slot. Preserved from the AST `default_content` during
         /// lowering (was previously discarded).
         fallback: Vec<ViewTree>,
-        /// Optional type constraint declared in the source (`@slot name: Type`).
-        /// Lowered from the AST `type_constraint`.
-        type_constraint: Option<TypeIR>,
-        /// Data variable name derived from the slot name when a type
-        /// constraint is present — used as the data variable name in codegen.
-        data_param: Option<String>,
     },
     /// Inline list of child nodes (no wrapper element) — used for slot projection.
     Fragment(Vec<ViewTree>),
@@ -882,11 +876,6 @@ pub struct SlotDeclIR {
     /// Fallback content rendered when the parent provides no content
     /// for this slot.
     pub fallback: Vec<ViewTree>,
-    /// Optional type constraint declared in the source (`@slot name: Type`).
-    pub type_constraint: Option<TypeIR>,
-    /// Data variable name derived from the slot name when a type
-    /// constraint is present.
-    pub data_param: Option<String>,
 }
 
 impl SlotDeclIR {
@@ -900,8 +889,6 @@ impl SlotDeclIR {
         ViewTree::Slot {
             name: self.name,
             fallback: self.fallback,
-            type_constraint: self.type_constraint,
-            data_param: self.data_param,
         }
     }
 }

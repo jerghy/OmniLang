@@ -86,7 +86,7 @@ pub(super) fn gen_view_node_tsx(
                 // `children` (content stays visible and the generated TS
                 // never breaks).
                 let mut declared_slot_names: FxHashSet<String> = FxHashSet::default();
-                for (slot_name, _) in component_declared_slots(child_comp, component_map) {
+                for slot_name in component_declared_slots(child_comp, component_map) {
                     if let Some(n) = slot_name {
                         declared_slot_names.insert(n);
                     }

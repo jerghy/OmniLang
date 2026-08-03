@@ -290,7 +290,7 @@ fn strip_slot_prop(node: &ViewTree) -> ViewTree {
     }
 }
 
-/// Collect slot declarations (name + type constraint) from a view tree.
+/// Collect slot declarations (names) from a view tree.
 /// Used to emit `Widget?` constructor params for declared slots. Slots
 /// inside a child component's children are consumer-side projections, not
 /// declarations — they are skipped (the child component types them via its
@@ -298,16 +298,11 @@ fn strip_slot_prop(node: &ViewTree) -> ViewTree {
 pub(crate) fn collect_view_slots(
     node: &ViewTree,
     component_map: &FxHashMap<&str, &ComponentIR>,
-    acc: &mut Vec<(Option<String>, Option<TypeIR>)>,
+    acc: &mut Vec<Option<String>>,
 ) {
     match node {
-        ViewTree::Slot {
-            name,
-            type_constraint,
-            fallback,
-            ..
-        } => {
-            acc.push((name.clone(), type_constraint.clone()));
+        ViewTree::Slot { name, fallback, .. } => {
+            acc.push(name.clone());
             for child in fallback {
                 collect_view_slots(child, component_map, acc);
             }
@@ -530,9 +525,9 @@ pub(crate) fn build_component_slot_map(
             .map(|s| s.name.clone().unwrap_or_else(|| "children".to_string()))
             .collect();
         if let Some(ref view) = comp.view {
-            let mut acc: Vec<(Option<String>, Option<TypeIR>)> = Vec::new();
+            let mut acc: Vec<Option<String>> = Vec::new();
             collect_view_slots(view, component_map, &mut acc);
-            for (n, _) in acc {
+            for n in acc {
                 slots.insert(n.unwrap_or_else(|| "children".to_string()));
             }
         }

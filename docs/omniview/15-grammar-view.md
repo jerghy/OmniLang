@@ -128,10 +128,9 @@ Two forms:
 ### 1.8 Slot Declaration
 
 ```
-slot_decl ::= '@slot' slot_name slot_type_constraint? slot_default?
+slot_decl ::= '@slot' slot_name slot_default?
 
 slot_name           ::= <ident>          // named slot (default slot: bare `@slot` or name `default`)
-slot_type_constraint ::= ':' type_annotation
 slot_default        ::= '{' (view_node)* '}'   // fallback content
 ```
 
@@ -143,9 +142,12 @@ are excluded as slot names in body context (a bare `@slot` may precede the
 ```
 @slot                     // default slot
 @slot header              // named slot
-@slot header: HeaderData  // type constraint
 @slot footer { <span>Default footer</span> }   // fallback content
 ```
+
+> v2（design D4）：slot = 父传内容，纯净三形态（default + named + fallback）。
+> `@slot name: Type` 类型约束、遗留 `@slot(name)` 指令、`slot="name"` 消费属性
+> 均已删除——写这些形式是编译错误（含迁移提示）。
 
 Slots render in the view via interpolation (`{header}`, `{children}`) and are
 filled by the parent via named props (`header={<div>...</div>}`) or child
@@ -507,10 +509,9 @@ default slot):
 </Modal>
 ```
 
-> The legacy view-level `@slot(name)` / `@slot(name) { default }` directive
-> is still parsed (`ViewNode::SlotDirective`) for compatibility, including
-> the paren form `@slot(header)`; new code should use body-level
-> declarations.
+> v2（design D4）：遗留 `@slot(name)` 指令形式已删除——它是编译错误
+> （「改用 body 级声明 @slot name=... 」）。view 内的 `@slot name { ... }`
+> 指令保留（与 body 级声明同义）。
 
 ### 3.4 @empty / @fallback / @error
 
@@ -1130,7 +1131,7 @@ When `{expr}` parsing fails inside views, the parser collects all tokens up to t
 | `@else` | View | `@else { ... }` or `@else @if (...) { ... }` / `@else if (...) { ... }` |
 | `@for` | View | `@for item in expr key={expr} [scroll]? { ... }` |
 | `@empty` | View | `@empty { ... }` (suffix after `@for` block) |
-| `@slot` | Component body | `@slot name: Type? { fallback }?` (render: `{name}` / `{children}`) |
+| `@slot` | Component body | `@slot name { fallback }?` (render: `{name}` / `{children}`; v2 D4 删除了类型约束) |
 | `@fallback` | View | `@fallback { ... }` (reserved — deferred) |
 | `@error` | View | `@error { ... }` (reserved — deferred) |
 | `@store` | Component | `@store Name;` |

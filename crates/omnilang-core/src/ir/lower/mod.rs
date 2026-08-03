@@ -1887,7 +1887,7 @@ import omniview;
 component Layout {
     view {
         <div>
-            <header>@slot(header)</header>
+            <header>@slot header</header>
             <main>@slot</main>
         </div>
     }
@@ -1938,13 +1938,16 @@ component Layout {
     }
 
     #[test]
-    fn lower_slot_preserves_fallback_and_type_constraint() {
+    fn lower_slot_preserves_fallback() {
+        // v2 (design D4): the `: Type` constraint is deleted, so the plain
+        // `@slot name { fallback }` form is the only one — fallback content
+        // must survive lowering.
         let source = r#"
 import omniview;
 component Card {
     view {
         <div>
-            @slot body: String { <p>Default body</p> }
+            @slot body { <p>Default body</p> }
         </div>
     }
 }
@@ -1956,12 +1959,7 @@ component Card {
                 assert_eq!(el.tag, "div");
                 assert_eq!(el.children.len(), 1);
                 match &el.children[0] {
-                    ViewTree::Slot {
-                        name,
-                        fallback,
-                        type_constraint,
-                        data_param,
-                    } => {
+                    ViewTree::Slot { name, fallback } => {
                         assert_eq!(name.as_deref(), Some("body"), "should be named slot 'body'");
                         assert_eq!(
                             fallback.len(),
@@ -1979,15 +1977,6 @@ component Card {
                             }
                             other => panic!("expected Element fallback, got {:?}", other),
                         }
-                        assert!(
-                            type_constraint.is_some(),
-                            "type constraint must be preserved during lowering"
-                        );
-                        assert_eq!(
-                            data_param.as_deref(),
-                            Some("body"),
-                            "data_param should derive from the slot name"
-                        );
                     }
                     other => panic!("expected Slot, got {:?}", other),
                 }
@@ -2026,8 +2015,6 @@ component Modal {
             ViewTree::Element(el) => assert_eq!(el.tag, "h4"),
             other => panic!("expected Element fallback, got {:?}", other),
         }
-        assert!(header.type_constraint.is_none());
-        assert!(header.data_param.is_none());
 
         let default_slot = &comp.slots[1];
         assert!(
@@ -2038,7 +2025,9 @@ component Modal {
     }
 
     #[test]
-    fn lower_component_body_slots_type_constraint_and_data_param() {
+    fn lower_typed_body_slot_is_rejected_at_parse() {
+        // v2 (design D4): `@slot footer: String` is a deleted form — the
+        // parser hard-errors before lowering can see a type constraint.
         let source = r#"
 import omniview;
 component Modal {
@@ -2048,19 +2037,15 @@ component Modal {
     }
 }
 "#;
-        let comp = lower_first_component(source);
-        assert_eq!(comp.slots.len(), 1);
-        let slot = &comp.slots[0];
-        assert_eq!(slot.name.as_deref(), Some("footer"));
-        assert_eq!(
-            slot.type_constraint.as_ref().map(|t| t.kind.as_str()),
-            Some("string"),
-            "type constraint must be lowered"
-        );
-        assert_eq!(
-            slot.data_param.as_deref(),
-            Some("footer"),
-            "data_param derives from the slot name"
+        let tokens = crate::lexer::tokenize(source);
+        let (_program, errors) = crate::parser::parse(tokens, source);
+        assert!(
+            errors.iter().any(|e| {
+                e.kind == Some(crate::error::DiagnosticKind::ESlotRemoved)
+                    && e.message.contains("类型约束与数据参数已删除")
+            }),
+            "expected ESlotRemoved parse error, got: {:?}",
+            errors.iter().map(|e| &e.message).collect::<Vec<_>>()
         );
     }
 
@@ -2091,20 +2076,13 @@ component App {
                 }
                 // Named slot projection as ViewTree::Slot
                 match &el.children[1] {
-                    ViewTree::Slot {
-                        name,
-                        fallback,
-                        type_constraint,
-                        data_param,
-                    } => {
+                    ViewTree::Slot { name, fallback } => {
                         assert_eq!(name.as_deref(), Some("header"));
                         assert_eq!(fallback.len(), 1, "projected content must be preserved");
                         match &fallback[0] {
                             ViewTree::Element(p) => assert_eq!(p.tag, "div"),
                             other => panic!("expected Element, got {:?}", other),
                         }
-                        assert!(type_constraint.is_none());
-                        assert!(data_param.is_none());
                     }
                     other => panic!("expected Slot child, got {:?}", other),
                 }

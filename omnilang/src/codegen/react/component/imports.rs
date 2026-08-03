@@ -29,9 +29,9 @@ pub(super) struct ComponentImports {
     /// Design runtime imports on the root component: `useDesignTokens` hook
     /// imports and `useThemeStore` side-effect imports (HIGH #2).
     pub design_import_lines: Vec<String>,
-    /// Slot declarations (name + type constraint) that become typed props in
-    /// the Props interface. Consumer-side projections are excluded.
-    pub slot_infos: Vec<(Option<String>, Option<TypeIR>)>,
+    /// Slot declarations (names) that become `ReactNode`-typed props in the
+    /// Props interface. Consumer-side projections are excluded.
+    pub slot_infos: Vec<Option<String>>,
 }
 
 /// Collect all import data needed by the component.
@@ -208,10 +208,11 @@ impl ComponentImports {
                 ));
             }
             // Slot props — unnamed slot → `children`, named slots → same-named
-            // prop. Typed as ReactNode unless the source declared a type
-            // constraint (`@slot header: String` → `header?: string`).
-            // Dedup guards against parser artifacts where the literal text
-            // "@slot …" inside view content is parsed as a directive.
+            // prop. v2 (design D4): slots are parent-provided CONTENT, so
+            // every slot prop is typed `ReactNode` (the type-constraint →
+            // prop-type emission is deleted). Dedup guards against parser
+            // artifacts where the literal text "@slot …" inside view content
+            // is parsed as a directive.
             let mut emitted_slot_props: FxHashSet<String> = FxHashSet::default();
             let slot_collides: FxHashSet<&str> = comp
                 .signals
@@ -220,7 +221,7 @@ impl ComponentImports {
                 .chain(comp.computeds.iter().map(|c| c.name.as_str()))
                 .chain(comp.fns.iter().map(|f| f.name.as_str()))
                 .collect();
-            for (slot_name, type_constraint) in &self.slot_infos {
+            for slot_name in &self.slot_infos {
                 let slot_prop = slot_name.as_deref().unwrap_or("children");
                 if comp.props.contains_key(slot_prop)
                     || comp.events.iter().any(|e| e.name == slot_prop)
@@ -229,18 +230,7 @@ impl ComponentImports {
                 {
                     continue;
                 }
-                let ts_type = match type_constraint {
-                    Some(ty) => {
-                        let t = JsTypeFormatter.format_type(ty.kind.as_str(), &ty.type_args);
-                        if t.is_empty() {
-                            "ReactNode".to_string()
-                        } else {
-                            t
-                        }
-                    }
-                    None => "ReactNode".to_string(),
-                };
-                w.emit_fmt(format_args!("  {}?: {};", slot_prop, ts_type));
+                w.emit_fmt(format_args!("  {}?: ReactNode;", slot_prop));
             }
             w.emit("}");
             w.emit("");

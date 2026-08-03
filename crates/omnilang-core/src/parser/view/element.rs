@@ -133,6 +133,18 @@ impl<'a> Parser<'a> {
                     TokenKind::StringLiteral(_) => {
                         let t = self.advance();
                         if let TokenKind::StringLiteral(s) = &t.kind {
+                            // D4 (v2): `slot="name"` consumption is deleted —
+                            // the only consumer form is the named-props
+                            // projection `name={<.../>}` (design doc 域 4
+                            // diagnostic table). Hard-error instead of
+                            // silently projecting at codegen time.
+                            if name == "slot" {
+                                return Err(ParseError::with_kind(
+                                    crate::error::DiagnosticKind::ESlotRemoved,
+                                    "改用命名 props：name={...}",
+                                    t.span,
+                                ));
+                            }
                             Ok(ElementProp::Static {
                                 name,
                                 value: Expr::Literal(Literal::String(s.clone()), t.span),

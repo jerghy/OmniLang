@@ -118,7 +118,11 @@ fn computed_references_prop_with_default() {
 
 #[test]
 fn slot_name_exact_match_not_substring() {
-    // A slot named "head" should NOT match a child with slot="header"
+    // A slot named "head" should NOT match a `header={<.../>}` projection
+    // (named-prop matching is exact; the substring false-positive is the
+    // regression being guarded). v2 (design D4): named-prop projections are
+    // the only consumer form — the legacy `slot="..."` attribute is a
+    // parse-time hard error.
     let src = r#"
 component Card {
     view {
@@ -129,10 +133,10 @@ component Card {
 }
 component Page {
     view {
-        Card {
-            <div slot="header">Header content</div>
-            <div slot="head">Head content</div>
-        }
+        <Card
+            header={<div>Header content</div>}
+            head={<div>Head content</div>}
+        />
     }
 }
 "#;
@@ -143,14 +147,15 @@ component Page {
         result.errors
     );
     let html = result.files.unwrap().html;
-    // With the fix, slot="head" should match named slot "head" exactly,
-    // but slot="header" should NOT match (substring false-positive).
+    // With the fix, the "head" projection should match named slot "head"
+    // exactly, but the "header" projection should NOT match (substring
+    // false-positive).
     assert!(
         html.contains("Head content"),
-        "named slot 'head' should receive its child with slot=\"head\""
+        "named slot 'head' should receive its head={{<.../>}} projection"
     );
     assert!(
         !html.contains("Header content"),
-        "slot=\"header\" should NOT match named slot \"head\" (substring false-positive)"
+        "header={{<.../>}} should NOT match named slot \"head\" (substring false-positive)"
     );
 }

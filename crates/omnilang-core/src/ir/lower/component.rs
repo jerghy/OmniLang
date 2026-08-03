@@ -171,7 +171,6 @@ pub(super) fn lower_component(
             let shape = SlotDeclShape {
                 name: &s.name,
                 default_content: &s.default_content,
-                type_constraint: &s.type_constraint,
             };
             lower_slot_common(&shape, variant_map, semantics, &fns, &signal_like_names)
         })

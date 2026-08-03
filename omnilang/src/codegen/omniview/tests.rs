@@ -1780,8 +1780,6 @@ fn slot_projection_inlines_parent_children_into_default_slot() {
     btn_div.children = vec![ViewTree::Slot {
         name: None,
         fallback: Vec::new(),
-        type_constraint: None,
-        data_param: None,
     }];
     module.components.insert(
         "Button".to_string(),
@@ -1822,14 +1820,10 @@ fn slot_projection_maps_named_slots_correctly() {
         ViewTree::Slot {
             name: Some("header".into()),
             fallback: Vec::new(),
-            type_constraint: None,
-            data_param: None,
         },
         ViewTree::Slot {
             name: None,
             fallback: Vec::new(),
-            type_constraint: None,
-            data_param: None,
         },
     ];
     module.components.insert(
@@ -2090,8 +2084,6 @@ fn body_slot_declaration_renders_fallback_at_interpolation() {
             slots: vec![SlotDeclIR {
                 name: Some("header".into()),
                 fallback: vec![ViewTree::Element(Box::new(h4))],
-                type_constraint: None,
-                data_param: None,
             }],
             view: Some(ViewTree::Element(Box::new(panel_div))),
             ..make_component("Panel")
@@ -2138,14 +2130,10 @@ fn consumer_named_prop_projects_into_body_declared_slot() {
                 SlotDeclIR {
                     name: Some("header".into()),
                     fallback: vec![ViewTree::Element(Box::new(h4))],
-                    type_constraint: None,
-                    data_param: None,
                 },
                 SlotDeclIR {
                     name: None,
                     fallback: vec![ViewTree::Element(Box::new(p_default))],
-                    type_constraint: None,
-                    data_param: None,
                 },
             ],
             view: Some(ViewTree::Element(Box::new(panel_div))),
@@ -2166,8 +2154,6 @@ fn consumer_named_prop_projects_into_body_declared_slot() {
         ViewTree::Slot {
             name: Some("header".into()),
             fallback: vec![ViewTree::Element(Box::new(proj_div))],
-            type_constraint: None,
-            data_param: None,
         },
     ];
     module.components.insert(
@@ -2215,8 +2201,6 @@ fn slot_injection_skips_nested_component_children() {
     inner_el.children = vec![ViewTree::Slot {
         name: Some("header".into()),
         fallback: vec![ViewTree::Element(Box::new(inner_proj_p))],
-        type_constraint: None,
-        data_param: None,
     }];
     let mut outer_div = make_element("div");
     outer_div.children = vec![
@@ -2224,8 +2208,6 @@ fn slot_injection_skips_nested_component_children() {
         ViewTree::Slot {
             name: Some("header".into()),
             fallback: Vec::new(),
-            type_constraint: None,
-            data_param: None,
         },
     ];
     module.components.insert(
@@ -2234,8 +2216,6 @@ fn slot_injection_skips_nested_component_children() {
             slots: vec![SlotDeclIR {
                 name: Some("header".into()),
                 fallback: Vec::new(),
-                type_constraint: None,
-                data_param: None,
             }],
             view: Some(ViewTree::Element(Box::new(outer_div))),
             ..make_component("Outer")
@@ -2256,8 +2236,6 @@ fn slot_injection_skips_nested_component_children() {
     app_el.children = vec![ViewTree::Slot {
         name: Some("header".into()),
         fallback: vec![ViewTree::Element(Box::new(outer_hdr_div))],
-        type_constraint: None,
-        data_param: None,
     }];
     module.components.insert(
         "App".to_string(),

@@ -2,7 +2,6 @@
 //!
 //! Includes: `lower_view_block`, `lower_view_node`.
 
-use super::component::lower_type;
 use super::expr::lower_expr;
 use super::stmt::lower_block;
 use crate::error::{Diagnostic, DiagnosticKind};
@@ -213,12 +212,10 @@ pub(super) fn lower_view_node(
         ViewNode::SlotDirective {
             name,
             default_content,
-            type_constraint,
         } => {
             let shape = SlotDeclShape {
                 name,
                 default_content,
-                type_constraint,
             };
             lower_slot_common(&shape, variant_map, semantics, fns, signal_like_names)
                 .into_view_tree()
@@ -232,11 +229,11 @@ pub(super) fn lower_view_node(
 pub(super) struct SlotDeclShape<'a> {
     pub name: &'a Option<String>,
     pub default_content: &'a Option<Vec<ViewNode>>,
-    pub type_constraint: &'a Option<TypeAnnotation>,
 }
 
-/// Lower the shared slot declaration shape (name + fallback + type
-/// constraint) into `SlotDeclIR`.
+/// Lower the shared slot declaration shape (name + fallback) into
+/// `SlotDeclIR`. v2 (design D4): no type constraint / data_param — slot =
+/// parent-provided content only.
 pub(super) fn lower_slot_common(
     slot: &SlotDeclShape,
     variant_map: &FxHashMap<String, String>,
@@ -254,19 +251,9 @@ pub(super) fn lower_slot_common(
                 .collect()
         })
         .unwrap_or_default();
-    let (tc, dp) = if let Some(tc) = slot.type_constraint {
-        (
-            Some(lower_type(tc)),
-            Some(slot.name.clone().unwrap_or_default()),
-        )
-    } else {
-        (None, None)
-    };
     SlotDeclIR {
         name: slot.name.clone(),
         fallback,
-        type_constraint: tc,
-        data_param: dp,
     }
 }
 
@@ -627,8 +614,6 @@ fn lower_element(
                 slot_projections.push(ViewTree::Slot {
                     name: Some(name.clone()),
                     fallback,
-                    type_constraint: None,
-                    data_param: None,
                 });
             }
         }

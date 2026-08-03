@@ -110,17 +110,18 @@ impl SemanticAnalyzer {
             }
 
             // Body-level slot declarations (ADR-053 D5) register their names
-            // as symbols so `{header}` interpolations resolve to a typed
+            // as symbols so `{header}` interpolations resolve to a slot
             // symbol instead of relying on interpolation suppression.
             // Duplicate slot names surface as E0002 warnings via
             // declare_or_warn. The unnamed (`@slot default`) slot has no
-            // name to register.
+            // name to register. v2 (design D4): slots carry no type — the
+            // type constraint was deleted (slot = parent-provided content).
             for slot in &comp.slots {
                 if let Some(ref name) = slot.name {
                     self.declare_or_warn(Symbol {
                         name: name.clone(),
                         kind: SymbolKind::Slot,
-                        type_ann: slot.type_constraint.as_ref().map(type_to_string),
+                        type_ann: None,
                         mutable: false,
                         declared_at: slot.span.start,
                     });

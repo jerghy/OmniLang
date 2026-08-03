@@ -444,7 +444,7 @@ impl ReactCodegen {
                 .chain(comp.computeds.iter().map(|c| c.name.as_str()))
                 .chain(comp.fns.iter().map(|f| f.name.as_str()))
                 .collect();
-            for (slot_name, _) in &declared_slots {
+            for slot_name in &declared_slots {
                 let slot_prop = slot_name.as_deref().unwrap_or("children").to_string();
                 if !prop_list.iter().any(|p| p == &slot_prop)
                     && !slot_collides.contains(slot_prop.as_str())
@@ -897,10 +897,14 @@ fn mutation_has_pointer_ops(intent: &MutationIntent) -> bool {
 /// True when an expression subtree contains a CapturePointer/ReleasePointer op.
 fn expr_has_pointer_ops(expr: &ExprIR) -> bool {
     match expr {
-        ExprIR::RefOpExpr { op, .. } => matches!(op, RefOpIR::CapturePointer | RefOpIR::ReleasePointer),
+        ExprIR::RefOpExpr { op, .. } => {
+            matches!(op, RefOpIR::CapturePointer | RefOpIR::ReleasePointer)
+        }
         ExprIR::FieldAccessExpr { object, .. }
         | ExprIR::OptionalChainExpr { object, .. }
-        | ExprIR::UnaryOpExpr { operand: object, .. }
+        | ExprIR::UnaryOpExpr {
+            operand: object, ..
+        }
         | ExprIR::AwaitExpr { operand: object } => expr_has_pointer_ops(object),
         ExprIR::BinaryOpExpr { left, right, .. } => {
             expr_has_pointer_ops(left) || expr_has_pointer_ops(right)
@@ -922,9 +926,9 @@ fn expr_has_pointer_ops(expr: &ExprIR) -> bool {
             object: _,
             index: operand,
         } => expr_has_pointer_ops(operand),
-        ExprIR::StructExpr { fields, .. } | ExprIR::VariantLiteral { fields, .. } => fields
-            .iter()
-            .any(|(_, v)| expr_has_pointer_ops(v)),
+        ExprIR::StructExpr { fields, .. } | ExprIR::VariantLiteral { fields, .. } => {
+            fields.iter().any(|(_, v)| expr_has_pointer_ops(v))
+        }
         ExprIR::MapExpr { entries } => entries
             .iter()
             .any(|(k, v)| expr_has_pointer_ops(k) || expr_has_pointer_ops(v)),
@@ -972,12 +976,18 @@ fn view_has_pointer_ops(node: &ViewTree) -> bool {
             cond.branches.iter().any(|b| {
                 expr_has_pointer_ops(&b.condition)
                     || b.body.as_ref().is_some_and(|v| view_has_pointer_ops(v))
-            }) || cond.fallback.as_ref().is_some_and(|v| view_has_pointer_ops(v))
+            }) || cond
+                .fallback
+                .as_ref()
+                .is_some_and(|v| view_has_pointer_ops(v))
         }
         ViewTree::ListRendering(list) => {
             expr_has_pointer_ops(&list.iterable)
                 || list.body.as_ref().is_some_and(|v| view_has_pointer_ops(v))
-                || list.empty_body.as_ref().is_some_and(|v| view_has_pointer_ops(v))
+                || list
+                    .empty_body
+                    .as_ref()
+                    .is_some_and(|v| view_has_pointer_ops(v))
         }
         ViewTree::Interpolation(expr) => expr_has_pointer_ops(expr),
         ViewTree::Slot { fallback, .. } => fallback.iter().any(view_has_pointer_ops),

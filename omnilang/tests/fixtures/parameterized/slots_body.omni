@@ -4,16 +4,19 @@
 // The slots.omni fixture covers the view-level `@slot` back-compat form;
 // this fixture covers body-level declarations: named + unnamed slots with
 // fallbacks referenced from the view via `{header}` / `{children}`
-// interpolations, a typed data slot (`@slot footer: String`), a consumer
-// projecting named content via the new syntax, and a consumer providing no
-// named content (exercises the declared fallback path).
+// interpolations, a consumer projecting named content via the new syntax,
+// and a consumer providing no named content (exercises the declared
+// fallback path).
+//
+// v2 (design D4): the typed data slot (`@slot footer: String`) is deleted —
+// slots are parent-provided content only (default + named + fallback).
 
 import omniview;
 
 component Modal {
     @slot header { <h4>Default header</h4> }
     @slot { <p>Default body</p> }
-    @slot footer: String
+    @slot footer
     view {
         <div class: modal>
             {header}

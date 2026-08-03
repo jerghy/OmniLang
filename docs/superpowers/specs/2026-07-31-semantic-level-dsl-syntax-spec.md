@@ -640,19 +640,20 @@ store ThemeStore {
 
 ### 5.1 语义定义
 
-Slot 的语义：**组件声明"这里可以由父组件填充内容"**，可以带默认内容（fallback），可以有名字，可以带类型约束。
+Slot 的语义：**组件声明"这里可以由父组件填充内容"**，可以带默认内容（fallback），可以有名字。
+v2（design D4）：slot 纯净为「父传内容」——默认（default）+ 命名（named）+ 回退（fallback）
+三形态；**类型约束与 data 参数已删除**（`@slot name: Type` → 编译错误「类型约束与数据参数已删除；
+slot = 父传内容」；遗留 `@slot(name)` 指令与 `slot="name"` 消费同样硬诊断）。
 
 ### 5.2 BNF 语法
 
 ```
 // ── Slot 声明（在 component body 中）──
 
-slot_decl ::= '@slot' slot_name slot_type_constraint? slot_default?
+slot_decl ::= '@slot' slot_name slot_default?
 
 slot_name ::= <ident>                             // 命名 slot
             | 'default'                           // 默认 slot
-
-slot_type_constraint ::= ':' <type_annotation>    // 类型约束
 
 slot_default ::= '{' view_nodes '}'               // fallback 内容
 
@@ -660,13 +661,17 @@ slot_default ::= '{' view_nodes '}'               // fallback 内容
 
 slot_render ::= '{' <ident> '}'                   // 渲染命名 slot: {header}
               | '{' 'children' '}'                // 渲染默认 slot: {children}
+
+// ── Slot 消费（v2 BNF：仅命名 props 投影）──
+
+slot_consume ::= ident '=' '{' view_tree '}'      // name={<.../>}
 ```
 
 ### 5.3 完整示例
 
 ```omni
 component Modal {
-  @slot header: HeaderData { <DefaultHeader /> }
+  @slot header { <DefaultHeader /> }
   @slot default
   @slot footer { <DefaultFooter /> }
 
@@ -700,22 +705,23 @@ component Modal {
 | 默认 slot | `{children}` (props.children) | `Widget? child` | 直接 children |
 | 命名 slot | `{header}` (命名 prop) | `Widget? header` | named slot |
 | Fallback | `{header ?? <DefaultHeader />}` | `header ?? DefaultHeader()` | fallback |
-| 类型约束 + data | `header?: (data: T) => ReactNode` render prop | `Widget Function(T)? header` builder | — |
 | 消费侧 children | JSX children 自动透传 | 声明 `child:` / `children:` param | 自动透传 |
 
-### 5.5 IR 形态（2026-08-01：已实现）
+> v2（design D4）：删除「类型约束 + data」行——React 不再生成约束型 prop 类型
+> （全部 slot prop 为 `ReactNode`），Flutter 不再有 `Widget?` 降级警告路径，
+> OmniView 本就无类型消费。
+
+### 5.5 IR 形态（2026-08-01：已实现；2026-08-03：D4 纯净化）
 
 **历史 bug**：`ViewTree::Slot(Option<String>)` 是叶子节点，`default_content`
 在 lowering 时丢弃——已修复（ADR-053 D5 实现时完成）。
 
-当前形态：
+当前形态（v2 D4：`type_constraint` / `data_param` 已删除）：
 ```rust
 // crates/omnilang-core/src/ir/types.rs
 ViewTree::Slot {
     name: Option<String>,              // None = 默认 slot
     fallback: Vec<ViewTree>,            // fallback 内容（原 default_content，lowering 保留）
-    type_constraint: Option<TypeIR>,     // 类型约束
-    data_param: Option<String>,         // data 注入参数名
 }
 ```
 
@@ -1231,7 +1237,7 @@ ExcludeSemantics(
 |------|-----|------|
 | `semantic/validate_ref_ops.rs` | 新增 | ✅ 已实现：ref 上的合法语义方法（focus/blur/scrollTo/scrollBy/select/setSelection/measure/capturePointer/releasePointer）→ RefOpIR；非法操作（getBoundingClientRect、offsetWidth 等）→ compile error + 替代建议 |
 | `ir/types.rs` — `RefOpIR` 枚举 | 新增 | ✅ 已实现（10 ops）：Focus, Blur, ScrollTo, ScrollBy, Measure, Select, SetSelection, Value, CapturePointer, ReleasePointer |
-| `ir/types.rs` — `ViewTree::Slot` | 修改 | ✅ 已实现：`Slot { name, fallback, type_constraint, data_param }`（见 §5.5） |
+| `ir/types.rs` — `ViewTree::Slot` | 修改 | ✅ 已实现：`Slot { name, fallback }`（v2 D4 删除 type_constraint/data_param，见 §5.5） |
 | `ir/lower/view.rs` — slot lowering | 修复 | ✅ 已实现：`default_content` 保留并填入 `fallback`；消费者命名属性投影同样转 `ViewTree::Slot` |
 | `ir/lower/lower_inline_motions.rs` | 新增 | ⚠️ **未实现**：内联动画体语法不解析（见 §3.7），此模块待实现 |
 | `ir/types_motion.rs` | 修改 | 删除 `PlaybackIR.paused`、`MotionBehavior.paused_override`；新增 `TriggerKind::Focus` |
