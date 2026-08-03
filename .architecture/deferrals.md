@@ -190,7 +190,7 @@
 | 44 | **[LOW]** 裸 `design` 关键字破坏元素文本 run | 用户写以 design 开头的文本 | 既有 parser 怪癖（T6.1 deferral-candidate + T7.0 ③；demo workaround） |
 | 45 | **[LOW]** Flutter CLI 与库路径诊断口径不一致（capturePointer 硬中止 exit 1 vs 门禁过滤） | Flutter CLI 门禁统一任务 | `omnic build --target flutter` CLI smoke 红、零输出；库路径 dart analyze 绿（T7.0 ④/T7.1 §4.3，非回归） |
 | 46 | **[LOW]** Map 字面量返回类型不推断（`Map<String, <unknown>>`） | 用户依赖 Map 字面量类型推断 | T7.0 ②；需类型检查器字面量形状传播 |
-| 47 | **[LOW]** CSS identity-escape（\j）残留于 Rust 参考实现 | 扩展 normalize_css_escapes 单文件变更任务 | T3.2 deferral-candidate；`\` 后非 hex 字母处理与浏览器行为分歧（\a 洞已修，\j 类残留） |
+| 47 | **[LOW]** CSS identity-escape（\j）残留于 Rust 参考实现 | 扩展 normalize_css_escapes 单文件变更任务 | T3.2 deferral-candidate；`\` 后非 hex 字母处理与浏览器行为分歧（\a 洞已修，\j 类残留）。**2026-08-03 最终评审注记**：修复时同步扩展语料——CSS identity-escape（`\j`）用例加入注入载荷集（`injection.rs`）与 `test_sanitizers.js`（现仅 hex 用例），防同类编码绕过回潮 |
 | 48 | **[LOW]** plain-Dart 后端裸 enum 发射 | plain-Dart 进入门禁 / 用户使用 field-carrying union | dart/visitor.rs field-carrying 变体仍坏、无门禁（T1.4 deferral-candidate；formatter 侧已修） |
 | 49 | **[MEDIUM]** React 不发射用户 struct → `useState<RowItem[]>` 不可达（10 处 never[] 诚实豁免） | React 用户类型发射任务 | T1.6 deferral-candidate ①；typed useState 落空 |
 | 50 | **[MEDIUM]** Flutter 非 ref 元素 bind:value 单向 no-op + Checkbox/Switch/Slider onChanged:null | controller 合成任务 | D2「唯一双向」在部分 Flutter 表面未完全兑现（T2.3 deferral-candidate） |
@@ -198,6 +198,22 @@
 | 52 | **[LOW]** OmniView CSP meta `frame-ancestors` 被 Chrome 忽略 | CSP 部署任务 | 应改用 X-Frame-Options 或 HTTP 头（T7.1 note） |
 | 53 | **[LOW]** esbuild 锁 build/debug | CI 工具链升级时 | T7.0 ⑤；展示项目构建锁定 esbuild 版本 |
 | 54 | **[MEDIUM]** poiesis 编辑器 codegen warnings 不可读（rustCompiler.ts 手维护副本无 warnings 字段） | poiesis 问题面板接线任务 | T0.6 important (tracked)；poiesis 侧，非编译器范围 |
+| 55 | **[MEDIUM]** 数组方法未映射后端 verbatim 发射（T1.2 ①：python/rust/dioxus 原样发射 `items.filter(|x| …)`——静默不可用输出、无诊断；与 T1.5 同批 out-of-floor 后端的 BlockExpr E_CODEGEN 硬诊断处理不一致） | 语言方法映射任务覆盖 python/rust/dioxus（Dart 族方法表 `.len()`/`.get(i)` + Python filter 内置陷阱） | ledger T1.2 ①；五个实质性「minor (deferred)」入行之一（2026-08-03 最终评审注册，非 cosmetic） |
+| 56 | **[MEDIUM]** plain-prop 路径静默发射非法 Dart（T5.7 ①：`fontWeight="bolder"`/`color="red"` 无 warn 通道） | plain-prop 值转换层扩展（warn 通道 + 已知值表） | ledger T5.7 ①；展示项目不触及 |
+| 57 | **[LOW]** OmniView wrapper null 时静默跳过 vs 注释承诺 loud（T2.2 ①，跨后端行为分歧） | 用户对缺失元素执行 ref 操作并依赖报错 | ledger T2.2 ① |
+| 58 | **[LOW]** Dioxus 非字面插值分支发射裸 `"{formatted}"`（T3.1 ①：parser 可达，编译失败 fail-closed） | Dioxus 插值发射路径任务 | ledger T3.1 ① |
+| 59 | **[MEDIUM]** 裸非信号标识符在 style 中仍发 `$signal`（T1.3 ④） | style 表达式通道判别扩展（非信号标识符 → 直接标识符发射或诊断） | ledger T1.3 ④ |
+| 60 | **[MEDIUM]** OmniView 44-test 浏览器套件未接入 CI（e2e job 仅跑默认 React config，`playwright.omniview.config.ts` 为手动运行） | CI e2e 浏览器门禁统一任务（接线 omniview config） | 分支核心声明「OmniView 浏览器 44/0」仅本地终端验证、非 CI 强制（2026-08-03 最终评审 §4 注记） |
+
+---
+
+## 2026-08-03 最终评审修正（final-review fix wave）
+
+**新增**：#55-#59（五个实质性「minor (deferred)」从 ledger 行升格注册——T1.2 ① / T5.7 ① / T2.2 ① / T3.1 ① / T1.3 ④，与 T7.3 报告 §5-4「实质性 follow-up 已全部入行」的声明矛盾，非 cosmetic）+ #60（OmniView 浏览器套件入 CI）。均带触发条件。
+
+**更新**：#47 行补注记——identity-escape（`\j`）修复时同步扩展注入语料与 `test_sanitizers.js` 用例。
+
+**依据**：最终整支评审（`.superpowers/sdd/2026-08-02-semantic-syntax-v2/final-review.md`）must-fix #3 + follow-up 注册；纯台账修正，零代码变更。
 
 ---
 

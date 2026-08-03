@@ -1314,6 +1314,8 @@ git commit -m "feat(slots): remove typed slots and legacy forms — slot = paren
 - Test: learn-omniview 全量（92 文件）
 
 - [ ] **Step 1: React 全量**——`omnic build -t react` → `tsc --noEmit --strict` 0 错误 + eslint 0 告警（verify-react.sh 豁免清单清空）
+
+> **偏差注记（2026-08-03 最终评审修正——计划为契约，出口须诚实）**：字面目标「0 错误 + 豁免清单清空」**未按字面达成**。最终状态：**166 tsc + 121 eslint 错误全数豁免**（verify-react.sh GATE PASSED，豁免清单**未清空**——21 条全带任务引用、零失效条目）；React 浏览器套件 16 passed + **19/35 fixme**（UI/Language 两标签页因 BUG-A/BUG-C 崩溃，fixme 标记保留至修复，对应 deferral #36/#37）。诚实出口已在设计文档 §4.2 陈述（「全豁免且零失效条目」）并在 T7.1 报告记录（accept-deviation）；本行与本计划退出条件同步为该最终状态，不再声称豁免清空。
 - [ ] **Step 2: Flutter 全量**——`omnic build -t flutter` → `dart analyze` 0 错误 0 警告
 - [ ] **Step 3: OmniView 全量**——`omnic build -t omniview` → 浏览器 9 标签页全测（渲染 + 动画 + 交互 + 主题切换 + 列表重排保状态）
 - [ ] **Step 4: 修复终验发现的任何回归**（回归即回到对应任务修复，验证后重跑）

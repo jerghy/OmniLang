@@ -11,7 +11,7 @@
 
 - **新插入点 `a11y`**（T4.5 表面）：`a11y: { label: "x{payload}", role: "x{payload}" }`——a11y 块字符串值走独立发射路径（React `a11y_react_attrs` JSX 属性 / Flutter `wrap_a11y` Dart 字符串与降级注释 / OmniView `emit_a11y_attr` HTML 属性），与既有 `attr` 点（静态 props 循环）不同。Vue/Dioxus 静默丢弃 a11y（T4.5 既有，P1 不在 floor），无发射面。
 - **新载荷 `x*/ alert(1) //`**（注释终结逃逸形状）。
-- 语料现为 **5 后端 × 9 插入点 × 18 载荷** = 810 tuples + 9 控制组 + 2 专项断言。
+- 语料现为 **5 后端 × 9 插入点 × 19 载荷**（6 字符 + 4 实体 + 9 利用）= **855 tuples** + 45 控制组编译（9 点 × 5 后端，防空过）+ 2 专项断言。（计数修正 2026-08-03 最终评审：本报告初稿与 ledger/设计文档均记「5×9×18 = 810」——**安全方向漏计**，文件实为 19 载荷；门禁实际断言多于报告值。）
 - **不新增的表面**（判定）：motion `easing:` 为白名单解析（非自由字符串，payload 不解析）；`@slot name = "x"` 泛解析错误 fail-closed（T6.1 已证）；`live` 被 semantic 限定 polite/assertive（载荷硬错）。
 
 **发现并修复 2 个 Flutter 注入缺口**（双双 RED 实证，TDD）：
@@ -44,7 +44,7 @@
 `docs/superpowers/specs/2026-08-02-semantic-syntax-v2-design.md`：
 - 状态 **Design → Implemented**（附终验摘要）。
 - **§4 验证协议逐项 ✅**：§4.2 终验 ✅（T7.0-7.3 证据链）+「每完成 3 域」✅（逐域浏览器实证 + BNF 逐域同步）；§4.4 八项基础设施全部 ✅（Task 0.1-0.8 证据，含已知-gap 诚实注记）。
-- **§5 十域验证清单全部勾选**（逐项附任务证据，延续域 2 fade/域 10 既有惯例）——含域 9 注入语料行更新为 5×9×18 与 T7.3 两项修复。
+- **§5 十域验证清单全部勾选**（逐项附任务证据，延续域 2 fade/域 10 既有惯例）——含域 9 注入语料行更新为 5×9×19 = 855 与 T7.3 两项修复（原报告「5×9×18」为安全方向漏计，2026-08-03 最终评审修正）。
 
 ## 4. 全量套件终跑（最终绿声明）
 
@@ -64,12 +64,12 @@
 1. **终验浏览器套件未重跑**：T7.1/T7.1a 全绿后，本次编译器改动仅触及 a11y 载荷路径（正常 a11y 属性发射不变——label 转义仅在含 `$` 时生效，role 注释仅在 unmappable 时消毒），无浏览器面行为变化。判定：不需要重跑 9 标签页套件；如需绝对确认可补跑（命令见 T7.1 报告 §6）。
 2. **#28 计划偏离已如实记录**：计划声称「Map.set 随域 8 处理」，实际未实现——终验探针证实后已在台账行内记录「未落地」+ 证据，保持 open 带触发条件（诚实降级，非隐藏缺口）。
 3. **#33 维持 open**：嵌套 #root 为 ADR-055 已知 deferral，三次浏览器全测 0 runtime error，修复涉及 WASM/editor 共用输出消费方式验证（触发条件未满足）。
-4. **cosmetic minor 未全部开行**：ledger 的 minor (deferred) 行多为报告计数/注释陈旧/fmt 漂移类，按台账「deferral-candidate/tracked/important 注册」既有纪律处理；实质性 follow-up 已全部入行（#36-#54）。
+4. **cosmetic minor 未全部开行**：ledger 的 minor (deferred) 行多为报告计数/注释陈旧/fmt 漂移类，按台账「deferral-candidate/tracked/important 注册」既有纪律处理；实质性 follow-up 已全部入行（#36-#54）。**2026-08-03 最终评审修正**：五项**实质性**「minor (deferred)」——T1.2 ①（python/rust/dioxus 数组方法 verbatim 发射）、T5.7 ①（plain-prop 静默非法 Dart）、T2.2 ①（OmniView wrapper-null 静默跳过分歧）、T3.1 ①（Dioxus 裸 `"{formatted}"`）、T1.3 ④（style 裸标识符仍发 `$signal`）——非 cosmetic，已升格注册为 deferral #55-#59（见台账）。
 5. **Vue/Dioxus a11y 静默丢弃**（T4.5 既有，P1 不在 floor）：语料 a11y 点对这些后端无发射面，未新增行为。
 
 ## 6. 与 brief/controller 指令对照
 
-- Step 1 载荷语料全后端回归（含 Flutter/Dart 字符串、OmniView HTML/JS）：✅ 5×9×18 全绿 + 2 缺口闭环。
+- Step 1 载荷语料全后端回归（含 Flutter/Dart 字符串、OmniView HTML/JS）：✅ 5×9×19 = 855 全绿 + 2 缺口闭环（原「5×9×18」为安全方向漏计，2026-08-03 最终评审修正）。
 - Step 2 deferrals 收口：#28/#33 处置（证据更新 + 保持 defer-with-trigger）✅；#19 关闭 ✅；#30 验证 + un-ignore 注记 ✅；#34 验证 ✅；#20 补划 ✅；新行 #36-#54 ✅。
 - Step 3 设计文档 Design→Implemented + §4 逐项 ✅（含 §5 十域验收对照）✅。
 - Step 4 Commit：2 commits（fix + chore）✅。

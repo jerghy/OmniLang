@@ -93,12 +93,12 @@ Workspace: .superpowers/sdd/2026-08-02-semantic-syntax-v2/
 - Task 3.4: complete (commits 32096432..be281f14, fix round 1/5: F1 computed props deps, re-review ADDRESSED ✅) — ClosureExpr 臂（FilterBar [searchText, demoFrameworks]）+ validate_effect_deps pass（E_EFFECT_DEPS_MISSING 字段级匹配）+ demo 迁移 + computed deps 补 props
 - Task 3.4: minor (deferred): ① 内联 store 读取不验证（false-negative only）② F2 no-arg-effect React 文档分歧（既有）③ F3 walker 部分覆盖（IndexExpr 等，与 signal deps 同级既有限制）
 - Task 3.5: complete (commits be281f14..418ddc70, review clean ✅) — store BNF 统一（顶层/内联 signal|getter|action，fn 两层报「store 内 fn 成员不允许；用 getter 或 action」+ BNF spec §6.2 同步 + $counter 文档删除）+ React mutation 三修（M2 自读函数式更新 setCount((c)=>c+1)/useStore.setState((s)=>({...}))、M4 action 连续 set() 单对象合并（重复目标防丢写）、M3 空事件对象零 Object.assign + 无参箭头）+ demo 重建 verify-react GATE PASSED（162 tsc / 119 eslint 全豁免）
-- Task 3.5: minor (deferred): ① Vue 同款空 Object.assign 噪音（template.rs:99）未修（controller 范围限定 React）② array_sort 回归测试形状随 M2 更新（functional-updater 形式，行为更优）③ 错误恢复的 stray-brace 噪音（store fn 错误后组件/ store 丢弃，既有 recovery 语义）④ eslint 117→119 +2 组成未验证（豁免类内通过，出口检查项）
+- Task 3.5: minor (deferred): ① Vue 同款空 Object.assign 噪音（template.rs:99）未修（controller 范围限定 React）② array_sort 回归测试形状随 M2 更新（functional-updater 形式，行为更优）③ 错误恢复的 stray-brace 噪音（store fn 错误后组件/ store 丢弃，既有 recovery 语义）④ eslint 117→119 +2 组成未验证（豁免类内通过，出口检查项）——**2026-08-03 closed-by-gate**（见下方出口核验行）
 
 ## Phase 3 出口核验（✅ 全部达成，1 项检查项）
 
 - ✅ 注入载荷语料回归（5×8×17，CRITICAL 群闭环）· ✅ 消毒器单一来源一致性（22 用例双拷贝）· ✅ React 切片订阅 + effect deps 验证（FilterBar [searchText, demoFrameworks] + node eval 实证）· ✅ store BNF 统一 · ✅ BNF spec §6 同步（§4 → Phase 4 域 3 同步时处理）
-- ⏳ 出口检查项：eslint +2 组成确认（豁免类内，无害）
+- ✅ 出口检查项（**closed-by-gate**，2026-08-03 最终评审处置）：eslint 117→119 +2 组成——增长均落在豁免类内，门禁 per-class 匹配验证组成（T7.3：121 全豁免、零失效条目）；类内增长未逐条计数与 T0.4 ①「豁免计数未强制」同源已跟踪项。记录处置使本项不再悬挂。
 
 - Task 4.1: complete (commits 418ddc70..316986dd, fix round 1/5: F1-F4, re-review PASS ✅) — @themes/@theme 语法 + IR + 跨文件语义 pass + 成员检查/String? 拒绝/重复声明错误/span 锚定 + spec §4 同步 + theme= 虚构删除
 - Task 4.1: minor (deferred): ① RUNTIME_EXPR_SENTINEL 硬编码重复（drift 风险）② DesignDef.span 缺 serde(default)（当前惰性）
@@ -129,8 +129,8 @@ Workspace: .superpowers/sdd/2026-08-02-semantic-syntax-v2/
 - Task 5.3: complete (commits bfbe8e08..315d221b, review clean ✅) — paused 双形式硬诊断（E_PAUSED_REMOVED verbatim）+ PlaybackProp::Paused 死变体删除 + 文档清剿（spec 实际行 :258/15-grammar-view/11-motion 教学点/demo）
 - Task 5.3: note (Phase 7) — golden KeyframeAnimationDemo 预存在 playAll 漂移（非本任务，需 resync）
 
-- Task 5.4: complete (commits 315d221b..99900bb7, review clean ✅) — fade 经 AnimatedSwitcher（KeyedSubtree + 相异 ValueKey 触发过渡，IR fallback 形状精确验证）；wait 字节不变；T0.8 契约测试瘦身至 T5.5-only
-- Task 5.4: minor (deferred): ① flutter_control_flow_contract 注释精度（仅 key 断言失败非全部）② ConditionalIntent.transition_mode 字段注释缺 "fade"（既有漂移）
+- Task 5.4: complete (commits 315d221b..99900bb7, review clean ✅) — fade 经 AnimatedSwitcher（KeyedSubtree + 相异 ValueKey 触发过渡，IR fallback 形状精确验证）；wait 字节不变；T0.8 契约测试瘦身至 T5.5-only。补充细节（终验时与文件尾部重复段合并，2026-08-03 最终评审清理）：`mode:"fade"` Flutter 真实现——AnimatedSwitcher 默认过渡 300ms（DSL 无时长参数，v2 BNF transition_mode 为裸字符串，与 wait 发射一致）+ 分支/fallback 稳定 ValueKey（omni_if_0 / omni_if_fb；AnimatedSwitcher 需要子 key 变化才触发过渡——Widget.canUpdate 对同 runtimeType 无 key 子组件视为同一组件原地更新）；`"wait"` 发射字节不变（降级注释仅 React/OmniView 有，Flutter 路径未动）；契约测试拆分为 fade 断言进活跃 assert_control_flow_flutter，`flutter_control_flow_contract` 缩为 T5.5-only（key: ValueKey(item)）保持 #[ignore]；验证 538 lib tests + 全集成套件绿；dart analyze 门禁 15 fixtures 零 error 零 warning（control_flow.omni 含新形状）；widget-test 基建不存在（无 Flutter test 工程），shape 断言 + 真实 dart analyze 替代（T4.5 a11y 同先例）；设计文档同步：域 2 映射表 fade 行「已实现」+ 验证清单勾选
+- Task 5.4: minor (deferred): ① flutter_control_flow_contract 注释精度（仅 key 断言失败非全部）② ConditionalIntent.transition_mode 字段注释缺 "fade"（既有漂移）③ widget-test 验证本身（切换可见性 → 淡入过程存在）待补基建（设计文档已注记；shape 断言 + 真实 dart analyze 替代，T4.5 同先例）④ @elif 链 key 形状（omni_if_1...）由同一循环路径覆盖，无专门断言（YAGNI）
 
 - Task 5.5: complete (commits 99900bb7..3a9e7d99, fix round 1/5: MEDIUM map 字面量分类, re-review ADDRESSED ✅) — @for 契约（Flutter Column/ValueKey 分派 + React 索引 key/单次求值 + for-key lint + 契约测试 un-ignore 全绿 + node 行为实证含 key 碰撞证明）
 - Task 5.5: minor (deferred): ① 数组字面量首元素启发式（既有对称行为）② typed const 仅值推断（空类型数组假阴性）③ React [scroll] no-op 为 spec 文档化行为 ④ 嵌套滚动列表警告为设计文档行（非 spec，deferral 候选）
@@ -178,12 +178,21 @@ Workspace: .superpowers/sdd/2026-08-02-semantic-syntax-v2/
 - Task 7.2: parser-divergences (recorded for follow-up) — union `;` 不一致、@themes/@default-theme `;` 不对称、style-entry `;` 要求、class-value 字符串优先规则、fn-type-param E0010、import 诊断误导、view-text 宽容
 - Task 7.2: minor (deferred): ① is_parse_error 单元断言未提交（ad-hoc 验证）② --check 死标志（文档化有意）
 
-- Task 7.3: complete (commits 4ecdee96 + docs commit, review clean ✅) — **注入载荷最终回归 + deferrals 收口 + 设计文档 Implemented**：① 语料扩展——新 `a11y` 插入点（T4.5 表面：a11y 块字符串 → React JSX 属性/Flutter Dart 字符串与降级注释/OmniView HTML 属性）+ `x*/ alert(1) //` 注释终结载荷 → 5 后端 × 9 插入点 × 18 载荷，全绿。发现并修复 **2 个 Flutter 注入缺口**（双双 RED 实证）：a11y `label` 未做 Dart `$` 转义（`Semantics(label: 'x${alert(1)}')` 字面插值可执行）；unmappable `role` 降级注释逐字嵌入（`*/` 终止块注释留代码）。修复：label 走 `$`→`\$`（镜像文本路径）+ role 注释 `*/`→`* /` 消毒 + 2 个单测（`test_a11y_label_dollar_escaped_and_role_comment_sanitized`）。② deferrals 收口（.architecture/deferrals.md）：**#19 关闭**（T5.1 默认 extent 推导证据）、**#20 关闭**（2026-08-01 修复补划）、#30 un-ignore 条件达成注记（T5.8a）、#28/#33 实编译探针复核（`m.set("key", 2)` 逐字发射 → TypeError；innerHTML 仍重包 #root，`[data-component="App"]` 2 命中——均保持 open 附证据）、#34 复核一致；**新增 #36-#54 共 19 行**（T7.1 BUG-A/C/D/E/F/2 + T7.2 parser 分歧批次 + T7.0 五项 + T6.1 design 关键字 + T3.2 identity-escape + T1.4/1.6/2.3/3.3 deferral-candidates + T7.1 note 级 + T0.6 poiesis warnings，全带触发条件）。③ 设计文档：状态 Design→**Implemented** + §4 验证协议逐项 ✅（§4.2 终验 + §4.4 八项，附任务证据）+ §5 十域验证清单全部勾选。④ 全量套件终跑：omnilang-core 925 + omnilang all-backends 785/14 suites + generated_code_validation flutter 5/5（learn-omniview dart analyze 0 错误 0 警告）+ verify-react GATE PASSED（166/121 全豁免）+ docs gate 232 块 0 失败 + learn-omniview omniview 构建 0 错误
+- Task 7.3: complete (commits 4ecdee96 + docs commit, review clean ✅) — **注入载荷最终回归 + deferrals 收口 + 设计文档 Implemented**：① 语料扩展——新 `a11y` 插入点（T4.5 表面：a11y 块字符串 → React JSX 属性/Flutter Dart 字符串与降级注释/OmniView HTML 属性）+ `x*/ alert(1) //` 注释终结载荷 → 5 后端 × 9 插入点 × 19 载荷（6 字符 + 4 实体 + 9 利用 = **855 元组**）+ 45 控制编译（9 点 × 5 后端），全绿。（计数修正 2026-08-03 最终评审：原记「5×9×18 = 810」为**安全方向漏计**——实为 19 载荷，门禁断言多于报告值；ledger/报告/设计文档三处同步修正）发现并修复 **2 个 Flutter 注入缺口**（双双 RED 实证）：a11y `label` 未做 Dart `$` 转义（`Semantics(label: 'x${alert(1)}')` 字面插值可执行）；unmappable `role` 降级注释逐字嵌入（`*/` 终止块注释留代码）。修复：label 走 `$`→`\$`（镜像文本路径）+ role 注释 `*/`→`* /` 消毒 + 2 个单测（`test_a11y_label_dollar_escaped_and_role_comment_sanitized`）。② deferrals 收口（.architecture/deferrals.md）：**#19 关闭**（T5.1 默认 extent 推导证据）、**#20 关闭**（2026-08-01 修复补划）、#30 un-ignore 条件达成注记（T5.8a）、#28/#33 实编译探针复核（`m.set("key", 2)` 逐字发射 → TypeError；innerHTML 仍重包 #root，`[data-component="App"]` 2 命中——均保持 open 附证据）、#34 复核一致；**新增 #36-#54 共 19 行**（T7.1 BUG-A/C/D/E/F/2 + T7.2 parser 分歧批次 + T7.0 五项 + T6.1 design 关键字 + T3.2 identity-escape + T1.4/1.6/2.3/3.3 deferral-candidates + T7.1 note 级 + T0.6 poiesis warnings，全带触发条件）。③ 设计文档：状态 Design→**Implemented** + §4 验证协议逐项 ✅（§4.2 终验 + §4.4 八项，附任务证据）+ §5 十域验证清单全部勾选。④ 全量套件终跑：omnilang-core 925 + omnilang all-backends 785/14 suites + generated_code_validation flutter 5/5（learn-omniview dart analyze 0 错误 0 警告）+ verify-react GATE PASSED（166/121 全豁免）+ docs gate 232 块 0 失败 + learn-omniview omniview 构建 0 错误
 - Task 7.3: minor (deferred): ① 语料 a11y 点未覆盖 `live`（semantic 限定 polite/assertive，载荷硬错 fail-closed，无独立发射面）② Vue/Dioxus 静默丢弃 a11y（T4.5 既有，P1 不在 floor）③ 注释逃逸消毒仅覆盖 Flutter role 降级注释（其他后端无同类 verbatim 注释嵌入面）④ 终验浏览器套件未重跑（T7.1 全绿后无编译器行为变更触及浏览器面——注入修复仅影响 a11y 载荷路径）
 
 ## Phase 7 出口核验（✅ 全部达成）
 
-- ✅ learn-omniview 三目标全量绿（React verify-react GATE PASSED 166/121 全豁免零失效 / Flutter dart analyze 0 错误 0 警告 un-ignore / OmniView 构建 0 错误）· ✅ 9 标签页浏览器全测 0 runtime error（T7.1 全量 + T7.1a 修复后 44 passed/0 failed，fixme 自移除）· ✅ 16 篇文档与编译器事实一致（T7.2 232 块审计 0 失败 + docs-gate CI + T7.3 复核）· ✅ 设计文档 §4 验证协议逐项 ✅（Design→Implemented）· ✅ 注入载荷语料最终回归 5×9×18 全绿（含 a11y 新表面 2 缺口闭环）· ✅ deferrals 收口（#19/#20 关闭、#28/#33 证据更新、#36-#54 注册）
+- ✅ learn-omniview 三目标全量绿（React verify-react GATE PASSED 166/121 全豁免零失效 / Flutter dart analyze 0 错误 0 警告 un-ignore / OmniView 构建 0 错误）· ✅ 9 标签页浏览器全测 0 runtime error（T7.1 全量 + T7.1a 修复后 44 passed/0 failed，fixme 自移除）· ✅ 16 篇文档与编译器事实一致（T7.2 232 块审计 0 失败 + docs-gate CI + T7.3 复核）· ✅ 设计文档 §4 验证协议逐项 ✅（Design→Implemented）· ✅ 注入载荷语料最终回归 5×9×19 = 855 全绿（原「5×9×18 = 810」为安全方向漏计，2026-08-03 最终评审修正；含 a11y 新表面 2 缺口闭环）· ✅ deferrals 收口（#19/#20 关闭、#28/#33 证据更新、#36-#54 注册）
 
-- Task 5.4: complete (commit 99900bb7) — `mode:"fade"` Flutter 真实现：AnimatedSwitcher（默认过渡，300ms——DSL 无时长参数，v2 BNF transition_mode 为裸字符串，与 wait 发射一致）+ 分支/fallback 稳定 ValueKey（omni_if_0 / omni_if_fb；AnimatedSwitcher 需要子 key 变化才触发过渡——Widget.canUpdate 对同 runtimeType 无 key 子组件视为同一组件原地更新）；`"wait"` 发射字节不变（降级注释仅 React/OmniView 有，Flutter 路径未动）。契约测试拆分为：fade 断言进入活跃 assert_control_flow_flutter，`flutter_control_flow_contract` 缩为 T5.5-only（key: ValueKey(item)）保持 #[ignore]。验证：538 lib tests + 全集成套件绿；dart analyze 门禁 15 fixtures 零 error 零 warning（control_flow.omni 含新形状）；widget-test 基建不存在（无 Flutter test 工程），shape 断言 + 真实 dart analyze 替代（T4.5 a11y 同先例）。设计文档同步：域 2 映射表 fade 行「已实现」+ 验证清单勾选。
-- Task 5.4: minor (deferred) — ① widget-test 验证本身（切换可见性 → 淡入过程存在）待 Phase 5 门禁后补基建（设计文档已注记）② @elif 链 key 形状（omni_if_1...）由同一循环路径覆盖，无专门断言（YAGNI）
+---
+
+## Final-review fix wave（2026-08-03，最终整支评审 MINOR-FIXES 处置——纯文档/台账修正，零代码变更）
+
+- **计划 T7.1 出口改述**：`docs/superpowers/plans/2026-08-02-semantic-syntax-v2.md` T7.1 Step 1 补偏差注记——字面「0 错误 + 豁免清单清空」未达成，最终状态为 166 tsc + 121 eslint 全豁免（清单未清空、零失效）+ React 浏览器 16 passed + 19/35 fixme（BUG-A/BUG-C）；与设计文档 §4.2 诚实出口对齐。
+- **语料计数修正**：19 载荷（6 字符 + 4 实体 + 9 利用）× 9 插入点 × 5 后端 = 855 元组 + 45 控制编译（9 点 × 5 后端）；原「18/810」为安全方向漏计，ledger/T7.3 报告/设计文档三处同步修正（早前 5×8×17 为 T3.1 时代历史快照，保持）。
+- **五个实质性 minor 入行**：T1.2 ① / T5.7 ① / T2.2 ① / T3.1 ① / T1.3 ④ 已升格注册为 deferral **#55-#59**（见 `.architecture/deferrals.md`，全带触发条件）；T7.3 报告 §5-4「实质性已全部入行」声明同步注记修正。
+- **T3.5 出口检查项关闭**：eslint +2 组成——closed-by-gate（门禁 per-class 匹配验证组成，T7.3 121 全豁免零失效；类内增长未计数与 T0.4 ① 同源已跟踪）。
+- **follow-up 注册**：#60 OmniView 44-test 浏览器套件入 CI（e2e job 仅跑 React config）；#47 行补 identity-escape（`\j`）语料扩展注记。
+- **清理**：文件尾部重复的 T5.4 段已并入主线条目后删除（最终评审 blemish）。
+

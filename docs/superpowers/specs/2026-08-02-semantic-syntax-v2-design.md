@@ -45,7 +45,7 @@
 
 - ✅ **每完成 3 域**：全量浏览器测试 + 文档/BNF 一致性审计（仿 deferrals #24/#25 模式）— 逐域浏览器实证（T2.2 指针捕获/T2.3 值绑定/T4.2 主题/T5.1 node 实证）+ BNF spec 逐域同步（§2/§3/§4/§5/§6/§7/§11）+ 全量 9 标签页浏览器与文档审计归 Phase 7 终验（T7.1/T7.2，见下）
 - **终验**：learn-omniview 三目标全量编译（React: tsc --strict 0 错误 + eslint 0 告警；Flutter: dart analyze 0 错误；OmniView: 浏览器 9 标签页全测）+ 16 篇文档全量对齐 + 注入载荷语料回归
-  - ✅ 2026-08-03（Phase 7 终验，Tasks 7.0-7.3）：React `verify-react.sh` GATE PASSED（tsc strict + eslint 全豁免且零失效条目）· Flutter `learn_omniview_flutter_output_passes_dart_analyze` un-ignore 后 0 错误 0 警告（T5.8a 达成，T7.1 复核）· OmniView 9 标签页浏览器套件 41 绿 + React 套件 17 绿 + theme-wiring 实证，0 failures（T7.1；P0 缺陷 BUG-1/BUG-3 于 T7.1a 修复后 fixme 自移除）· 232 块文档全量审计 0 失败 + docs-gate CI job（T7.2）· 注入载荷语料最终回归 5 后端 × 9 插入点 × 18 载荷，含 a11y 新表面（T7.3，2 个 Flutter 注入缺口发现并修复）
+  - ✅ 2026-08-03（Phase 7 终验，Tasks 7.0-7.3）：React `verify-react.sh` GATE PASSED（tsc strict + eslint 全豁免且零失效条目）· Flutter `learn_omniview_flutter_output_passes_dart_analyze` un-ignore 后 0 错误 0 警告（T5.8a 达成，T7.1 复核）· OmniView 9 标签页浏览器套件 41 绿 + React 套件 17 绿 + theme-wiring 实证，0 failures（T7.1；P0 缺陷 BUG-1/BUG-3 于 T7.1a 修复后 fixme 自移除）· 232 块文档全量审计 0 失败 + docs-gate CI job（T7.2）· 注入载荷语料最终回归 5 后端 × 9 插入点 × 19 载荷 = 855 元组，含 a11y 新表面（T7.3，2 个 Flutter 注入缺口发现并修复；原「18 载荷/810」为安全方向漏计，2026-08-03 最终评审按文件实计数修正）
 
 ### 4.3 破坏性政策
 
@@ -612,7 +612,7 @@ style_inline   ::= 'style:' '{' (css_prop ':' expr)+ '}' (* 保留 v1；值通�
 
 #### 验证清单
 
-- [x] 注入载荷语料回归（`'`/`"`/`\`/反引号/`${`/`</` 在 class/style/text/attr/event 每插入点，per-backend 安全快照）— Task 3.1：5 后端 × 8 插入点 × 17 载荷语料（含实体载荷 + fallback 形状 + 控制组防空过）；**T7.3 最终回归扩展**：新增 a11y 插入点 + `x*/ alert(1) //` 注释终结载荷 → 5 后端 × 9 插入点 × 18 载荷全绿（发现并修复 2 个 Flutter 注入缺口：a11y label `$` 插值 + role 降级注释 `*/` 逃逸）
+- [x] 注入载荷语料回归（`'`/`"`/`\`/反引号/`${`/`</` 在 class/style/text/attr/event 每插入点，per-backend 安全快照）— Task 3.1：5 后端 × 8 插入点 × 17 载荷语料（含实体载荷 + fallback 形状 + 控制组防空过）；**T7.3 最终回归扩展**：新增 a11y 插入点 + `x*/ alert(1) //` 注释终结载荷 → 5 后端 × 9 插入点 × 19 载荷（6 字符 + 4 实体 + 9 利用）= 855 元组全绿（发现并修复 2 个 Flutter 注入缺口：a11y label `$` 插值 + role 降级注释 `*/` 逃逸；原「18 载荷/810」为安全方向漏计，2026-08-03 最终评审按文件实计数修正）
 - [x] `class: "x',alert(1),'"` 编译错误（不产出可编译载荷）— Task 3.1：lowering 字符集校验（E0006 类名仅允许字母数字下划线连字符）+ codegen 双保险转义 + 全后端编译错误断言
 - [x] 消毒器行为一致性测试（Rust/React 运行时/OmniView 运行时三份同源）— Task 3.2：单一来源 `shared/sanitize.rs::sanitize_css_helpers_js`（双调用点）+ 22 用例双拷贝断言 + `\a` 洞修复 + RED 实证
 
