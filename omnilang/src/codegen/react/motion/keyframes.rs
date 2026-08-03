@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════
 
 use crate::codegen::react::expr;
-use crate::codegen::{format_json_value, JSON_REACT};
+use crate::codegen::{escape_literal_str, format_json_value, JSON_REACT};
 use crate::ir::*;
 use rustc_hash::FxHashSet;
 
@@ -172,8 +172,22 @@ fn format_transform_part(prop: &str, value: &ExprIR) -> String {
     match value {
         ExprIR::LiteralExpr { value: v } => {
             if let Some(s) = v.as_str() {
-                // Literal string: already carries its own unit, if any
-                return format!("{}({})", prop, s);
+                // Literal string: already carries its own unit, if any.
+                // Escape for BOTH JS string contexts the entry wrapper may
+                // use (security HIGH-1, verified `[alert(1)]` vector):
+                // - the plain `"…"` string: a raw `"` in the value would
+                //   re-close the literal and leave the rest of the payload
+                //   in code position;
+                // - the template literal used when a sibling part is an
+                //   expression: a raw `` ` `` would terminate the template
+                //   and a raw `${` would start interpolation.
+                // `\${` and `` \` `` are inert in plain strings and escape
+                // the template forms; JS drops the backslash of
+                // non-escape sequences, so the runtime value is unchanged.
+                let escaped = escape_literal_str(s, '"')
+                    .replace('`', "\\`")
+                    .replace("${", "\\${");
+                return format!("{}({})", prop, escaped);
             }
             // Non-numeric non-string literal (bool/null) — emit as-is
             let js = expr::format_expr_ir_tsx(value, &FxHashSet::default());

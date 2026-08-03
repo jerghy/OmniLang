@@ -754,6 +754,99 @@ fn injection_payload_corpus() {
     }
 }
 
+/// Task 1.2 dedicated regression — React motion transform string escaping
+/// (security HIGH-1, the verified `[alert(1)]` computed-key vector).
+/// Keyframe string values inline into `translateX(<value>)`; a raw `"` in
+/// the value re-closes the generated JS string literal, leaving the rest of
+/// the payload in code position, and a raw `` ` `` / `${` breaks out of the
+/// template-literal wrapper used when a sibling stop part is an expression.
+/// The escape must neutralize BOTH shapes (the corpus's motion-transform
+/// point is the acceptance gate — this test pins the escaped shapes).
+#[test]
+fn motion_transform_string_is_escaped() {
+    // `"`-reclose shape: the decoded `"` must be emitted as `\"` so it
+    // cannot terminate the generated string.
+    let reclose = r#"component App {
+    @motion slide {
+        from { translateX: "10px\", [alert(1)] : \"" }
+        to   { translateX: "100px" }
+        over: 300ms
+    }
+    view {
+        <div @enter={slide}/>
+    }
+}
+"#;
+    let result = compile_target(reclose, Target::React);
+    assert!(
+        result.success,
+        "control source must compile: {:?}",
+        result.errors
+    );
+    let out: String = result
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    // The escaped literal is emitted — `\"` for the payload's decoded `"`.
+    assert!(
+        out.contains(r#"translateX(10px\", [alert(1)] : \")"#),
+        "expected escaped literal, got: {}",
+        out
+    );
+    // `alert(` must not survive in EXECUTABLE position — string content is
+    // inert (corpus semantics: scan the string-stripped code).
+    let stripped = strip_strings_and_comments(&out, ScanLang::Js);
+    assert!(
+        !stripped.contains("alert("),
+        "motion string leaked into JS code position: {}",
+        out
+    );
+
+    // `${`-template shape: a literal `${`/backtick in the value must not
+    // become template interpolation or terminate the template literal.
+    let tpl = r#"component App {
+    @motion slide {
+        from { translateX: "10px${alert(1)}`" }
+        to   { translateX: "100px" }
+        over: 300ms
+    }
+    view {
+        <div @enter={slide}/>
+    }
+}
+"#;
+    let tpl_result = compile_target(tpl, Target::React);
+    assert!(
+        tpl_result.success,
+        "control source must compile: {:?}",
+        tpl_result.errors
+    );
+    let tpl_out: String = tpl_result
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    let tpl_stripped = strip_strings_and_comments(&tpl_out, ScanLang::Js);
+    assert!(
+        !tpl_stripped.contains("alert("),
+        "motion template breakout leaked into JS code position: {}",
+        tpl_out
+    );
+    assert!(
+        !tpl_stripped.contains("${"),
+        "motion template interpolation leaked into JS code position: {}",
+        tpl_out
+    );
+    assert!(
+        tpl_out.contains(r#"translateX(10px\${alert(1)}\`)"#),
+        "expected template-escaped literal, got: {}",
+        tpl_out
+    );
+}
+
 /// The review's exact exploit payload, per backend: must be a compile error
 /// carrying the charset-validation message (the full-pipeline shape of the
 /// react-only `class_name_injection_rejected` test).
