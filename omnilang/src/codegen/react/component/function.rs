@@ -53,7 +53,27 @@ impl ReactCodegen {
             // Emit body into temp writer for post-processing
             let mut body_w = crate::codegen::CodeWriter::new();
             body_w.indent();
-            for stmt in &fun.body.statements {
+            let tail_idx = fun.body.statements.len().saturating_sub(1);
+            for (i, stmt) in fun.body.statements.iter().enumerate() {
+                if i == tail_idx {
+                    if let StatementIR::ExprStmtIR { .. } = stmt {
+                        // H1: the fn's trailing expression IS its return
+                        // value — emit `return <expr>;` instead of the bare
+                        // `{expr};` the generic machinery produces (which
+                        // silently dropped match/block/identifier tail
+                        // values — `error_message` returned undefined and
+                        // DataFetching's success branch was unreachable).
+                        emit_fn_tail_return(
+                            &mut body_w,
+                            stmt,
+                            signal_names,
+                            store_signal_owners,
+                            ref_names,
+                            store_field_renames,
+                        );
+                        continue;
+                    }
+                }
                 expr::generate_statement_tsx(
                     &mut body_w,
                     stmt,
@@ -99,6 +119,47 @@ impl ReactCodegen {
             w.emit("");
         }
     }
+}
+
+/// Emit a fn body's TAIL expression statement as `return <expr>;`.
+///
+/// The DSL's trailing expression IS the fn's value (H1, ts/react): before
+/// this fix the tail `ExprStmtIR` was emitted as a bare `{expr};`
+/// statement, so match/block/identifier tail values were silently dropped
+/// and the fn returned undefined — DataFetching's `error_message` always
+/// produced falsy and its success branch was unreachable.
+///
+/// The statement is formatted through the FULL statement machinery
+/// (array_push/array_pop interception, store-field renames, setter
+/// dispatch) into a temp writer, then re-emitted with `return` prepended —
+/// statement emission always produces exactly one line. The param/setter
+/// renames applied later in `gen_functions` are string replacements over
+/// the whole body, so they cover this line too.
+pub(super) fn emit_fn_tail_return(
+    w: &mut CodeWriter,
+    stmt: &StatementIR,
+    signal_names: &FxHashSet<String>,
+    store_signal_owners: &FxHashMap<String, String>,
+    ref_names: &FxHashSet<String>,
+    renames: &FxHashMap<String, String>,
+) {
+    let mut tmp = crate::codegen::CodeWriter::new();
+    expr::generate_statement_tsx(
+        &mut tmp,
+        stmt,
+        signal_names,
+        store_signal_owners,
+        ref_names,
+        renames,
+    );
+    let line = tmp.into_string();
+    let line = line.trim_end_matches(['\n', '\r']);
+    if line.is_empty() {
+        // Formatted to nothing (null value) — nothing to return.
+        return;
+    }
+    let core = line.strip_suffix(';').unwrap_or(line);
+    w.emit_fmt(format_args!("return {};", core));
 }
 
 // ═══════════════════════════════════════════════════════════

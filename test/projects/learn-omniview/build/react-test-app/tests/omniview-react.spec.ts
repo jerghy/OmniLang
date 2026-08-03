@@ -392,6 +392,26 @@ test.describe('OmniView React — 9 标签页验证', () => {
     test('33 - no runtime errors', async ({ page }) => {
       await expectNoErrors(page, 'tab7', () => switchToTab(page, 7));
     });
+
+    // H1 (task 2.3): error_message's MATCH tail must RETURN its value.
+    // Before the fix the match IIFE ran as a bare statement, error_message
+    // returned undefined and `msg === ""` always fell into the error
+    // branch — the success path was unreachable. The upstream fetch is
+    // route-intercepted so the test is deterministic and offline-safe.
+    test('36 - DataFetching API success path (tail match return)', async ({ page }) => {
+      await switchToTab(page, 7);
+      await visible(page, 'HTTP GET Demo');
+      await page.route('https://jsonplaceholder.typicode.com/todos/1', async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          headers: { 'access-control-allow-origin': '*' },
+          body: '[{"id":1,"title":"delectus aut autem"}]',
+        });
+      });
+      await clickBtn(page, 'API');
+      await visible(page, 'api.omni fetch_demo OK');
+    });
   });
 
   // ═══ TAB 8: Tokens ═══

@@ -4979,3 +4979,75 @@ component OptLen {
         content
     );
 }
+
+// ═══════════════════════════════════════════════════════════
+// H1 (ts/react): fn tail expression return
+// ── match/block tail values were silently dropped — the trailing
+// ExprStmtIR emitted as a bare `{expr};` statement, the fn returned
+// undefined (DataFetching `error_message` → `msg === ""` always false,
+// success branch unreachable). Task 2.3.
+// ═══════════════════════════════════════════════════════════
+
+/// T2.3: a fn whose body ENDS in a match expression must emit the match
+/// as the fn's return value — `return (() => { const _v = ...; ... })();`.
+/// Before the fix the match IIFE ran as a bare statement and the fn
+/// returned undefined.
+#[test]
+fn fn_tail_match_emits_return() {
+    let src = r#"
+import omniview;
+import { console_log } from "std/console";
+component V {
+    fn score(item) { match item { 1 => "a", _ => "b" } }
+    view {
+        <button @click={() => { console_log(score(1)); }}>go</button>
+    }
+}
+"#;
+    let out = compile_react_full(src);
+    if !out.success {
+        panic!("compile errors: {:?}", out.errors);
+    }
+    let content: String = out
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        content.contains("return (() => { const _v = item;"),
+        "tail match must emit return of the match IIFE, got:\n{}",
+        content
+    );
+}
+
+/// T2.3: a fn whose body ENDS in a bare tail expression must emit
+/// `return <expr>;` — `fn f(x) { let y = x + 1; y }` must return y,
+/// not drop it.
+#[test]
+fn fn_tail_block_emits_return() {
+    let src = r#"
+import omniview;
+component V {
+    fn f(x) { let y = x + 1; y }
+    view {
+        <button @click={() => { f(1); }}>go</button>
+    }
+}
+"#;
+    let out = compile_react_full(src);
+    if !out.success {
+        panic!("compile errors: {:?}", out.errors);
+    }
+    let content: String = out
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        content.contains("return y;"),
+        "tail block value lost: fn must return the tail expression, got:\n{}",
+        content
+    );
+}

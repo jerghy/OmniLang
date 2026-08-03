@@ -455,19 +455,19 @@ fn gen_zustand_action_stmt(
             let cond = fmt_expr(condition, renames);
             w.emit_fmt(format_args!("if ({}) {{", cond));
             w.indent();
-            gen_zustand_action_stmts(w, &then_body.statements, renames);
+            gen_zustand_action_stmts_inner(w, &then_body.statements, renames, false);
             w.dedent();
             for (elif_cond, elif_body) in else_ifs {
                 let elif = fmt_expr(elif_cond, renames);
                 w.emit_fmt(format_args!("}} else if ({}) {{", elif));
                 w.indent();
-                gen_zustand_action_stmts(w, &elif_body.statements, renames);
+                gen_zustand_action_stmts_inner(w, &elif_body.statements, renames, false);
                 w.dedent();
             }
             if let Some(ref eb) = else_body {
                 w.emit("} else {");
                 w.indent();
-                gen_zustand_action_stmts(w, &eb.statements, renames);
+                gen_zustand_action_stmts_inner(w, &eb.statements, renames, false);
                 w.dedent();
             }
             w.emit("}");
@@ -483,7 +483,7 @@ fn gen_zustand_action_stmt(
             let cond = fmt_expr(condition, renames);
             w.emit_fmt(format_args!("while ({}) {{", cond));
             w.indent();
-            gen_zustand_action_stmts(w, &body.statements, renames);
+            gen_zustand_action_stmts_inner(w, &body.statements, renames, false);
             w.dedent();
             w.emit("}");
         }
@@ -495,14 +495,14 @@ fn gen_zustand_action_stmt(
             let iter = fmt_expr(iterable, renames);
             w.emit_fmt(format_args!("for (const {} of {}) {{", var_name, iter));
             w.indent();
-            gen_zustand_action_stmts(w, &body.statements, renames);
+            gen_zustand_action_stmts_inner(w, &body.statements, renames, false);
             w.dedent();
             w.emit("}");
         }
         StatementIR::BlockStmtIR { body } => {
             w.emit("{");
             w.indent();
-            gen_zustand_action_stmts(w, &body.statements, renames);
+            gen_zustand_action_stmts_inner(w, &body.statements, renames, false);
             w.dedent();
             w.emit("}");
         }
@@ -518,7 +518,7 @@ fn gen_zustand_action_stmt(
         } => {
             w.emit("try {");
             w.indent();
-            gen_zustand_action_stmts(w, &try_body.statements, renames);
+            gen_zustand_action_stmts_inner(w, &try_body.statements, renames, false);
             w.dedent();
             if let Some(ref cv) = catch_var {
                 w.emit_fmt(format_args!("}} catch ({}) {{", cv));
@@ -527,13 +527,13 @@ fn gen_zustand_action_stmt(
             }
             if let Some(ref cb) = catch_body {
                 w.indent();
-                gen_zustand_action_stmts(w, &cb.statements, renames);
+                gen_zustand_action_stmts_inner(w, &cb.statements, renames, false);
                 w.dedent();
             }
             if let Some(ref fb) = finally_body {
                 w.emit("} finally {");
                 w.indent();
-                gen_zustand_action_stmts(w, &fb.statements, renames);
+                gen_zustand_action_stmts_inner(w, &fb.statements, renames, false);
                 w.dedent();
             }
             w.emit("}");
@@ -862,6 +862,20 @@ fn gen_zustand_action_stmts(
     stmts: &[StatementIR],
     renames: &FxHashMap<String, String>,
 ) {
+    gen_zustand_action_stmts_inner(w, stmts, renames, true);
+}
+
+/// Inner statement loop. `tail_returns` is true ONLY for the top-level
+/// action body: a trailing expression statement there is the action's
+/// return value (`return <expr>;`, H1 — same silent-value-drop fix as
+/// component fns). Nested blocks (if/while/for/try bodies) never return
+/// their last expression — a `return` inside them would exit the action.
+fn gen_zustand_action_stmts_inner(
+    w: &mut CodeWriter,
+    stmts: &[StatementIR],
+    renames: &FxHashMap<String, String>,
+    tail_returns: bool,
+) {
     let mut i = 0;
     while i < stmts.len() {
         if let StatementIR::MutationStmt {
@@ -890,6 +904,14 @@ fn gen_zustand_action_stmts(
                 }
                 w.emit_fmt(format_args!("set({{ {} }});", parts.join(", ")));
                 i = j;
+                continue;
+            }
+        }
+        if tail_returns && i + 1 == stmts.len() {
+            if let StatementIR::ExprStmtIR { expr } = &stmts[i] {
+                let line = expr::format_expr_ir_tsx_renamed(expr, &FxHashSet::default(), renames);
+                w.emit_fmt(format_args!("return {};", line));
+                i += 1;
                 continue;
             }
         }

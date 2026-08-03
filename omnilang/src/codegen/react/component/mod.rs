@@ -381,7 +381,26 @@ impl ReactCodegen {
             w.indent();
             let mut body_w = crate::codegen::CodeWriter::new();
             body_w.indent();
-            for stmt in &fun.body.statements {
+            let tail_idx = fun.body.statements.len().saturating_sub(1);
+            for (i, stmt) in fun.body.statements.iter().enumerate() {
+                if i == tail_idx {
+                    if let StatementIR::ExprStmtIR { .. } = stmt {
+                        // H1 (ts/react): the lib fn's trailing expression IS
+                        // its return value — `return <expr>;` (the generic
+                        // `{expr};` emission dropped match/block tail values;
+                        // DataFetching's `error_message` returned undefined
+                        // and its success branch was unreachable).
+                        function::emit_fn_tail_return(
+                            &mut body_w,
+                            stmt,
+                            &FxHashSet::default(),
+                            &store_signal_owners,
+                            &ref_names,
+                            &FxHashMap::default(),
+                        );
+                        continue;
+                    }
+                }
                 // No store-field renames here: lib fns are module-scope and
                 // the slice locals (or whole-store const) live inside the
                 // component — qualified output kept (review LOW-4).
