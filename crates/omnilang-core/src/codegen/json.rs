@@ -120,9 +120,22 @@ pub fn format_json_value(value: &serde_json::Value, cfg: &JsonFormatConfig) -> S
         },
         serde_json::Value::Object(obj) => match cfg.object_fmt {
             JsonObjectFmt::Bracket => {
+                // Keys are string literals in the generated code: escape and
+                // quote them (injection hardening — raw keys could terminate
+                // the literal early on the target side).
                 let items: Vec<_> = obj
                     .iter()
-                    .map(|(k, v)| format!("{}: {}", k, format_json_value(v, cfg)))
+                    .map(|(k, v)| {
+                        let mut escaped_key = escape_literal_str(k, cfg.quote);
+                        if cfg.dollar_escape {
+                            escaped_key = escaped_key.replace('$', "\\$");
+                        }
+                        format!(
+                            "{c}{escaped_key}{c}: {}",
+                            format_json_value(v, cfg),
+                            c = cfg.quote
+                        )
+                    })
                     .collect();
                 format!("{{ {} }}", items.join(", "))
             }
@@ -203,3 +216,34 @@ pub const JSON_PYTHON: JsonFormatConfig = JsonFormatConfig {
     large_integer_suffix: "",
     dollar_escape: false,
 };
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn json_object_keys_are_escaped_and_quoted() {
+        let value = serde_json::json!({ "a\"b": 1 });
+        let s = format_json_value(&value, &JSON_JS);
+        assert!(!s.contains("a\"b"), "raw key leaked: {}", s);
+        assert!(
+            s.contains("\"a\\\"b\": 1"),
+            "expected escaped quoted key: {}",
+            s
+        );
+    }
+
+    #[test]
+    fn json_object_keys_escape_backslash_and_dollar() {
+        // A backslash in a key must not terminate the quote; a Dart `$` in a
+        // key must not interpolate (mirrors string-value hardening).
+        let value = serde_json::json!({ "a\\b": 1, "price$": 2 });
+        let js = format_json_value(&value, &JSON_JS);
+        assert!(js.contains("\"a\\\\b\""), "backslash key not escaped: {js}");
+        let dart = format_json_value(&value, &JSON_DART);
+        assert!(
+            dart.contains(r"price\$"),
+            "dollar key not escaped for Dart: {dart}"
+        );
+    }
+}
