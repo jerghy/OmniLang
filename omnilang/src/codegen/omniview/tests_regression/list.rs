@@ -204,9 +204,9 @@ fn test_list_with_key_and_empty_state() {
     );
 
     // Keyed lists must NOT clear the DOM at the top level: surviving clones
-    // stay in place and are only appended when new (isNew). An unconditional
-    // clear here detaches every existing clone without re-appending it,
-    // dropping all pre-existing items on every re-render.
+    // stay in place (identity tracked by key; every clone — new or reused —
+    // is appended below, so appends MOVE reused clones into the reorder
+    // position; an unconditional clear would only add detach/reattach churn).
     // (Indent-qualified to distinguish from the 4-space empty-branch loop —
     // bare substring matching can't tell them apart.)
     assert!(
@@ -279,6 +279,124 @@ fn test_list_with_key_and_empty_state() {
 
     // No warnings
     assert!(gen.warnings.is_empty(), "no warnings expected");
+}
+
+/// BUG-1 (task-7.1): keyFn hardcoded the loop variable `item`. A keyed @for
+/// whose DSL loop variable is anything else (e.g. DataTable's `@for row in
+/// rows key={row.id}`) generated `keyFn(item)` → ReferenceError on the first
+/// iteration, aborting the whole renderer (DataTable rows never rendered;
+/// every sort re-threw). The keyFn parameter and call must use the ACTUAL
+/// loop variable.
+#[test]
+fn test_keyed_for_keyfn_uses_loop_variable() {
+    let mut gen = OmniViewGenerator::default();
+    let list = ListRenderingIntent {
+        iterable: ExprIR::LiteralExpr {
+            value: serde_json::json!([1, 2, 3]),
+        },
+        item_binding: BindingIR {
+            name: "row".into(),
+            r#type: None,
+        },
+        body: None,
+        key_expr: Some(ExprIR::ident("row")),
+        empty_body: None,
+        scroll_hint: false,
+    };
+    let _html = gen.emit_list_rendering_html(&list, 0);
+
+    assert!(
+        gen.js.contains("const keyFn = (row) =>"),
+        "keyFn parameter must be the DSL loop variable, not hardcoded `item`. JS:\n{}",
+        gen.js
+    );
+    assert!(
+        gen.js.contains("const _key = keyFn(row)"),
+        "keyFn call must pass the DSL loop variable, not hardcoded `item`. JS:\n{}",
+        gen.js
+    );
+    assert!(
+        !gen.js.contains("keyFn(item)"),
+        "no hardcoded `item` reference may remain in the keyed path. JS:\n{}",
+        gen.js
+    );
+}
+
+/// BUG-3 (task-7.1): keyed @for reorder never re-rendered the new order.
+/// Reused clones were only appended when new (`if (isNew) frag.appendChild`)
+/// so appendChild never MOVED them, and the emitted keyed rebind fn was
+/// invoked nowhere outside the component-instance event path. Reused clones
+/// must be appended (appendChild on an existing node re-inserts it) and
+/// rebound from the CURRENT loop item via the rebind fn.
+#[test]
+fn test_keyed_for_reused_clones_move_and_rebind() {
+    let mut gen = OmniViewGenerator::default();
+
+    // Body with a text interpolation so for_text_bindings is populated and
+    // the keyed rebind fn is actually emitted.
+    let body = ViewTree::Element(Box::new(ElementIR {
+        tag: "span".into(),
+        props: FxHashMap::default(),
+        bindings: FxHashMap::default(),
+        events: FxHashMap::default(),
+        style_classes: None,
+        inline_style: None,
+        children: vec![ViewTree::Interpolation(Box::new(ExprIR::ident("row")))],
+        construction_kind: ConstructionKind::Static,
+        class_map_bindings: FxHashMap::default(),
+        source_span: None,
+        motion: None,
+        ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
+        a11y: None,
+    }));
+
+    let list = ListRenderingIntent {
+        iterable: ExprIR::LiteralExpr {
+            value: serde_json::json!([1, 2, 3]),
+        },
+        item_binding: BindingIR {
+            name: "row".into(),
+            r#type: None,
+        },
+        body: Some(body),
+        key_expr: Some(ExprIR::ident("row")),
+        empty_body: None,
+        scroll_hint: false,
+    };
+    let _html = gen.emit_list_rendering_html(&list, 0);
+
+    // Reused clones must be appended (moved) regardless of isNew — the
+    // isNew-only append left reordered clones in their old DOM order.
+    assert!(
+        gen.js.contains("frag.appendChild(clone);"),
+        "every keyed clone (new or reused) must be appended so reorders \
+         move reused clones. JS:\n{}",
+        gen.js
+    );
+    assert!(
+        !gen.js.contains("if (isNew) { frag.appendChild(clone); }"),
+        "the isNew-only append guard must be gone. JS:\n{}",
+        gen.js
+    );
+
+    // The emitted keyed rebind fn must be invoked for reused clones, wired
+    // to the current loop item through __omni_forItemVar.
+    assert!(
+        gen.js.contains("if (!isNew && typeof __omni_rebind__row === 'function')"),
+        "reused keyed clones must trigger the rebind fn. JS:\n{}",
+        gen.js
+    );
+    assert!(
+        gen.js.contains("__omni_forItemVar = row"),
+        "rebind must run against the current loop item. JS:\n{}",
+        gen.js
+    );
+    assert!(
+        gen.js.contains("__omni_rebind__row(clone)"),
+        "rebind fn must be called with the reused clone. JS:\n{}",
+        gen.js
+    );
 }
 
 /// Tests @for with events on the body element, verifying delegated event

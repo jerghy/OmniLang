@@ -142,10 +142,9 @@ impl OmniViewGenerator {
         // Non-keyed lists: clear all rendered items (elements between tpl
         // template and container marker) and re-clone from scratch.
         // Keyed lists: existing clones stay in the DOM (identity tracked by
-        // key); emit_list_dom reuses them and the per-key cleanup below
-        // removes only keys that disappeared. Clearing here would detach
-        // surviving clones without re-appending them (append is isNew-only),
-        // making every re-render drop all pre-existing items.
+        // key — no detach/reattach churn for unchanged items); emit_list_dom
+        // reuses them (appending MOVES them into the new order on reorder)
+        // and the per-key cleanup below removes only keys that disappeared.
         if list.key_expr.is_none() {
             self.js.push_str("  // Clear existing rendered items\n");
             self.js
@@ -160,8 +159,14 @@ impl OmniViewGenerator {
             let key_js = self.expr_to_js(key_expr);
             self.js
                 .push_str("  const _forKeys = ctr._forKeys || (ctr._forKeys = new Map());\n");
-            self.js
-                .push_str("  const keyFn = (item) => { try { return String(");
+            // BUG-1: the keyFn parameter must be the DSL loop variable, not a
+            // hardcoded `item` — the key expression body references it (e.g.
+            // DataTable's key={row.id}), so any other loop-var name threw
+            // `ReferenceError: item is not defined` on the first iteration.
+            let _ = writeln!(
+                self.js,
+                "  const keyFn = ({item_var}) => {{ try {{ return String("
+            );
             self.js.push_str(&key_js);
             self.js.push_str(
                 "); } catch(e) { __omni_reportError(\"error:list:key\", e); return null; } };\n",
@@ -234,6 +239,7 @@ impl OmniViewGenerator {
     /// set up by emit_list_state_init in the same _effect IIFE.
     pub(super) fn emit_list_dom(&mut self, list: &ListRenderingIntent) {
         let has_key = list.key_expr.is_some();
+        let item_var = &list.item_binding.name;
 
         // Event types for the delegated listener were collected during item
         // template generation (emit_element_events), which sees events inside
@@ -249,11 +255,7 @@ impl OmniViewGenerator {
         self.js.push_str("  var frag = document.createDocumentFragment();\n");
 
         // Iterate and clone
-        let _ = writeln!(
-            self.js,
-            "  data.forEach(({}, _idx) => {{",
-            &list.item_binding.name
-        );
+        let _ = writeln!(self.js, "  data.forEach(({item_var}, _idx) => {{");
 
         // Helper: clone template content, unwrapping <fragment> wrapper if present.
         self.js
@@ -272,7 +274,9 @@ impl OmniViewGenerator {
 
         self.js.push_str("    var clone = null;\n");
         if has_key {
-            self.js.push_str("    const _key = keyFn(item);\n");
+            // BUG-1: pass the actual loop variable (same fix as the keyFn
+            // parameter in emit_list_state_init).
+            let _ = writeln!(self.js, "    const _key = keyFn({item_var});\n");
             self.js
                 .push_str("    if (_key != null) newKeys.add(_key);\n");
             self.js
@@ -456,8 +460,21 @@ impl OmniViewGenerator {
         }
 
         if has_key {
-            self.js
-                .push_str("    if (isNew) { frag.appendChild(clone); }\n");
+            // BUG-3: append EVERY clone — appendChild on an existing node
+            // MOVES it, so reused clones land in their new order on reorder
+            // (the old isNew-only append left reordered clones in place).
+            self.js.push_str("    frag.appendChild(clone);\n");
+            // Reused clones carry creation-time bindings; refresh them through
+            // the keyed rebind fn (emitted below) wired to the CURRENT loop
+            // item via __omni_forItemVar. New clones were just bound from the
+            // loop item by the pre-compiled bindings above.
+            if let Some(ref rebind_fn) = self.scope.for_rebind_fn {
+                let _ = writeln!(
+                    self.js,
+                    "    if (!isNew && typeof {} === 'function') {{ __omni_forItemVar = {}; {}(clone); }}",
+                    rebind_fn, item_var, rebind_fn
+                );
+            }
         } else {
             self.js.push_str("    frag.appendChild(clone);\n");
         }

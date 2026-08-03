@@ -17,24 +17,18 @@ import { test, expect, Page } from '@playwright/test';
 //
 // KNOWN runtime errors filtered by the per-tab zero-console-error
 // checks — each is a RECORDED issue, remove the filter when fixed:
-//   1. 'item is not defined' — COMPILER BUG #1 (task-7.1-report):
-//      omnilang/src/codegen/omniview/list.rs emits `keyFn(item)` with
-//      a hardcoded loop-var name — DataTable's `@for row in rows
-//      key={row.id}` throws ReferenceError on first iteration and the
-//      renderer aborts (table never renders). Affects ANY keyed @for
-//      whose DSL loop variable is not literally named `item`.
-//      → DataTable behavior tests below are marked fixme for this.
-//   2. 'frame-ancestors' — Chrome console warning: frame-ancestors is
+//   1. 'frame-ancestors' — Chrome console warning: frame-ancestors is
 //      ignored in a <meta> CSP (browser-internal, harmless; compiler
 //      emits it in the meta CSP — low-severity codegen note).
+//      (Compiler bug #1 'item is not defined' — keyed @for keyFn
+//      hardcoded loop var — FIXED in task-7.1a; filter removed.)
 // ════════════════════════════════════════════════════════════════
 
 const BASE = 'http://localhost:5174';
 const TABS = ['📋 Overview', '🎨 UI', '🎬 Motion', '💅 Design', '⚡ State', '🔤 Language', '🔗 Ref', '⚙️ Compiler', '🔮 Tokens'];
 
 const KNOWN_ERRORS = [
-  'frame-ancestors', // Chrome meta-CSP warning (see header note 2)
-  'item is not defined', // compiler bug #1 (see header note 1)
+  'frame-ancestors', // Chrome meta-CSP warning (see header note 1)
 ];
 
 async function switchToTab(page: Page, index: number) {
@@ -172,22 +166,23 @@ test.describe('OmniView — 9 标签页全量验证', () => {
       await visible(page, 'Dashboard 组合演示');
     });
 
-    test.fixme('11 - DataTable renders rows (compiler bug #1: keyFn hardcodes loop var)', async ({ page }) => {
+    test('11 - DataTable renders rows (fixed: bug #1 keyFn used loop var)', async ({ page }) => {
       await switchToTab(page, 1);
       await visible(page, 'DataTable Demo');
       await visible(page, 'Alpha');
-      await visible(page, 'Sort:ASC');
+      // interpolation span sits on its own line → \s* between tokens
+      await visible(page, /Sort:\s*ASC/);
     });
 
-    test.fixme('12 - DataTable sort re-renders rows (compiler bug #1)', async ({ page }) => {
+    test('12 - DataTable sort re-renders rows (fixed: bug #1)', async ({ page }) => {
       await switchToTab(page, 1);
       await clickBtn(page, /Toggle Sort/);
       await page.waitForTimeout(300);
-      await visible(page, 'Sort:DESC');
+      await visible(page, /Sort:\s*DESC/);
       await visible(page, 'Alpha'); // rows must still be present after sort
     });
 
-    test('13 - no console errors (known: bug #1)', async ({ page }) => {
+    test('13 - no console errors', async ({ page }) => {
       await expectNoErrors(page, 'tab1', () => switchToTab(page, 1));
     });
   });
@@ -374,19 +369,23 @@ test.describe('OmniView — 9 标签页全量验证', () => {
       await visible(page, 'Total: 4');
     });
 
-    test.fixme('31b - list reorder renders the new order (runtime bug #3: reused clones never move/rebind)', async ({ page }) => {
+    test('31b - list reorder renders the new order (fixed: bug #3 reused clones move/rebind)', async ({ page }) => {
       // REPRO (task-7.1-report bug #3): moveLastToFront updates the signal
-      // (ctr._forData becomes [5,1,2,3,4]) but the DOM keeps [1..5] with
-      // stale content — keyed clones are reused in place and the emitted
-      // keyed rebind fn is never invoked.
+      // but keyed clones were reused in place — never moved, and the emitted
+      // keyed rebind fn was never invoked. Fixed in task-7.1a: every clone
+      // (new or reused) is appended (appendChild MOVES reused clones) and
+      // reused clones are rebound from the current item.
       await switchToTab(page, 5);
       await clickBtn(page, 'Add Item');
       await page.waitForTimeout(150);
       await clickBtn(page, 'Move Last to Front');
       await page.waitForTimeout(300);
-      const order = await page.locator('li.list-item').filter({ visible: true }).allTextContents();
-      expect(order[0]).toContain('#4 — Fruit-4');
-      expect(order[1]).toContain('#1 — Apple');
+      // allTextContents returns RAW text with the generated HTML's
+      // newline/indent between text nodes — normalize like getByText does.
+      const order = (await page.locator('li.list-item').filter({ visible: true }).allTextContents())
+        .map(t => t.replace(/\s+/g, ' ').trim());
+      expect(order[0]).toContain('# 4 — Fruit-4');
+      expect(order[1]).toContain('# 1 — Apple');
     });
 
     test('32 - BlockExprDemo + StringLiterals + ErrorHandling', async ({ page }) => {
