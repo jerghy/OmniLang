@@ -210,7 +210,7 @@ TweenAnimationBuilder<double>(
 | borderRadius/fontSize 动画 | WAAPI 原生 | `BorderRadiusTween` / `TextStyle.lerp` | runtime transition |
 | @scroll start/end/scrub | 滚动区间 → progress 映射 | 同左（`_OmniScrollDrivenWidget` 参数类型化） | 既有模式扩展 |
 | @drag constraints/elastic/threshold | 手势映射 + extent 推导（既有 WARNING 升级为实现） | 同左（`_OmniDragWidget` 参数类型化 + 约束解算） | 既有模式扩展 |
-| @if mode:"fade" | CSS 淡入（既有） | **AnimatedSwitcher 真实现**（当前静默无效果） | CSS transition |
+| @if mode:"fade" | CSS 淡入（既有） | **AnimatedSwitcher 真实现**（已实现；分支带 ValueKey，默认过渡） | CSS transition |
 | steps() | WAAPI 原生 | warning + `Curves.linear` 回退（保留，spec 同步为 warning） | 原生 |
 
 **Flutter helper 重构**（评审 MEDIUM）：`_OmniInViewWidget`/`_OmniScrollDrivenWidget`/`_OmniDragWidget` 从「每文件重复发射」改为单一共享生成文件 `_omniview_runtime.dart`；start/end/constraints 等配置编译期类型化（当前字符串运行时解析）；scrub 用 Ticker 时间而非 60fps 硬编码。
@@ -229,7 +229,7 @@ TweenAnimationBuilder<double>(
 - [ ] borderRadius/fontSize 三目标动画运行（浏览器 + 快照）
 - [ ] @scroll start/end/scrub：滚动区间行为（浏览器实测进度 → 动画）
 - [ ] @drag constraints/elastic：拖拽范围限制 + 弹性回弹（浏览器手势）
-- [ ] @if mode:"fade" Flutter 视觉淡入（widget-test 或浏览器）
+- [x] @if mode:"fade" Flutter 视觉淡入（shape 断言 + 真实 dart analyze 替代——仓库无 widget-test 基建，T4.5 a11y 同先例）
 - [ ] paused → error + 迁移提示
 - [ ] Flutter 共享 runtime 文件生成（多组件不重复）
 

@@ -1569,6 +1569,13 @@ fn format_conditional(
         return "SizedBox()".to_string();
     }
 
+    // mode:"fade" — the AnimatedSwitcher below only animates when its child
+    // CHANGES identity. Widget.canUpdate treats keyless children of the same
+    // runtimeType as the same widget (an in-place update, no transition), so
+    // each branch (and the fallback) gets a distinct, stable ValueKey that
+    // flips whenever the active branch flips.
+    let keyed_branches = cond.transition_mode.as_deref() == Some("fade");
+
     let mut result = String::new();
     for (i, branch) in cond.branches.iter().enumerate() {
         let cond_str = ctx.format_expr(&branch.condition);
@@ -1578,7 +1585,14 @@ fn format_conditional(
         let body_str = branch
             .body
             .as_ref()
-            .map(|b| format_single_view(b, motions, ctx))
+            .map(|b| {
+                let inner = format_single_view(b, motions, ctx);
+                if keyed_branches {
+                    format!("KeyedSubtree(key: ValueKey('omni_if_{i}'), child: {inner})")
+                } else {
+                    inner
+                }
+            })
             .unwrap_or_else(|| "SizedBox()".to_string());
         if i == 0 {
             let _ = write!(result, "{} ? {}", cond_str, body_str);
@@ -1589,18 +1603,40 @@ fn format_conditional(
 
     // Fallback
     if let Some(ref fb) = cond.fallback {
-        let _ = write!(result, " : {}", format_single_view(fb, motions, ctx));
+        let fb_str = format_single_view(fb, motions, ctx);
+        let fb_str = if keyed_branches {
+            format!("KeyedSubtree(key: ValueKey('omni_if_fb'), child: {fb_str})")
+        } else {
+            fb_str
+        };
+        let _ = write!(result, " : {fb_str}");
     } else {
         result.push_str(" : SizedBox()");
     }
 
     // For wait mode, wrap with AnimatedSwitcher for enter/leave sequencing
+    // (unchanged — the ADR-054 wait degradation comments live on the
+    // OmniView/React backends).
+    //
+    // For fade mode, wrap with AnimatedSwitcher using the DEFAULT transition
+    // (the design doc's Flutter mapping: fade → AnimatedSwitcher). The DSL
+    // exposes no fade duration (transition_mode is a bare string token per
+    // the v2 BNF), so the duration matches the wait-mode emission's 300ms.
     if let Some(ref mode) = cond.transition_mode {
-        if mode == "wait" {
-            result = format!(
-                "AnimatedSwitcher(\n  duration: Duration(milliseconds: 300),\n  switchInCurve: Curves.easeOut,\n  switchOutCurve: Curves.easeIn,\n  transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: child),\n  child: {},\n)",
-                result
-            );
+        match mode.as_str() {
+            "wait" => {
+                result = format!(
+                    "AnimatedSwitcher(\n  duration: Duration(milliseconds: 300),\n  switchInCurve: Curves.easeOut,\n  switchOutCurve: Curves.easeIn,\n  transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: child),\n  child: {},\n)",
+                    result
+                );
+            }
+            "fade" => {
+                result = format!(
+                    "AnimatedSwitcher(\n  duration: Duration(milliseconds: 300),\n  child: {},\n)",
+                    result
+                );
+            }
+            _ => {}
         }
     }
 

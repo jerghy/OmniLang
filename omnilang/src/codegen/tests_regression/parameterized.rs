@@ -649,44 +649,52 @@ fn assert_control_flow_react(files: &FxHashMap<String, String>) {
 }
 
 fn assert_control_flow_flutter(files: &FxHashMap<String, String>) {
-    // Today-passing subset. The keyed @for contract (key: ValueKey(expr))
-    // and @if mode:"fade" (AnimatedSwitcher) are the Task 5.5 TARGET
-    // contract — asserted in the #[ignore]d `flutter_control_flow_contract`
-    // test below (current codegen ignores key_expr and fade mode silently).
+    // Keyed @for renders as ListView.builder; the key_expr contract
+    // (key: ValueKey(expr)) is the Task 5.5 TARGET — asserted in the
+    // #[ignore]d `flutter_control_flow_contract` test below.
     assert_contains(files, "ListPage.dart", "ListView.builder(");
     // Empty body → Builder with isEmpty switch.
     assert_contains(files, "ListPage.dart", "isEmpty ?");
     assert_contains(files, "ListPage.dart", "No items");
+    // @if mode:"fade" (T5.4) → AnimatedSwitcher with the DEFAULT transition
+    // (the design doc's Flutter mapping). The branches carry distinct
+    // ValueKeys (omni_if_*) so the switcher animates on branch change —
+    // Widget.canUpdate treats keyless same-runtimeType children as the same
+    // widget, which would update in place with no transition. An @else
+    // branch lowers to the conditional's fallback (omni_if_fb); the
+    // omni_if_<n> keys cover @elif chains.
+    assert_contains(files, "ListPage.dart", "AnimatedSwitcher(");
+    assert_contains(files, "ListPage.dart", "ValueKey('omni_if_0')");
+    assert_contains(files, "ListPage.dart", "ValueKey('omni_if_fb')");
     assert_contains(files, "ListPage.dart", "shown");
     assert_contains(files, "ListPage.dart", "hidden");
 }
 
-/// T5.4/T5.5 TARGET contract for Flutter control flow: @if fade + keyed @for.
+/// T5.5 TARGET contract for Flutter keyed @for: `key_expr` → `key:
+/// ValueKey(expr)` in the item builder.
 ///
 /// Today the Flutter codegen ignores `key_expr` (unconditional
-/// ListView.builder with no ValueKey) and `@if mode:"fade"` is a silent
-/// no-op (no AnimatedSwitcher) — known #30-era gaps owned by Task 5.4
-/// (`@if mode:"fade"` → AnimatedSwitcher) and Task 5.5 (key_expr →
-/// `key: ValueKey(expr)`; [scroll] → ListView.builder dispatch) of the
-/// 2026-08-02-semantic-syntax-v2 plan (§5.4/§5.5; design doc mapping
-/// table). The assertions below are the TARGET shape and FAIL on the
-/// current codegen, so the test stays #[ignore]d until 5.4/5.5 land.
-// TODO(T5.4/T5.5): Flutter @if fade AnimatedSwitcher + keyed @for
-// ValueKey/scroll dispatch — un-ignore when Tasks 5.4/5.5 land
-// (key_expr → key: ValueKey(expr); [scroll] → ListView.builder
-// dispatch; @if mode:"fade" → AnimatedSwitcher).
+/// ListView.builder with no ValueKey) — the remaining #30-era gap owned by
+/// Task 5.5 (key_expr → `key: ValueKey(expr)`; [scroll] → ListView.builder
+/// dispatch) of the 2026-08-02-semantic-syntax-v2 plan (§5.5; design doc
+/// mapping table). `@if mode:"fade"` → AnimatedSwitcher landed in Task 5.4
+/// and is asserted by the active `assert_control_flow_flutter` above. The
+/// assertions below are the TARGET shape and FAIL on the current codegen,
+/// so the test stays #[ignore]d until 5.5 lands.
+// TODO(T5.5): Flutter @for key_expr → key: ValueKey(expr) + [scroll]
+// dispatch — un-ignore when Task 5.5 lands (key_expr → key: ValueKey(expr);
+// [scroll] → ListView.builder dispatch).
 #[cfg(feature = "codegen-flutter")]
 #[test]
-#[ignore = "T5.4/T5.5: Flutter @if fade AnimatedSwitcher + keyed @for ValueKey — known gaps, owned by Tasks 5.4/5.5"]
+#[ignore = "T5.5: Flutter @for key_expr → key: ValueKey(expr) — known gap, owned by Task 5.5"]
 fn flutter_control_flow_contract() {
     let source = include_str!("../../../tests/fixtures/parameterized/control_flow.omni");
     let files = compile_source_fixture(source, crate::codegen::Target::Flutter);
     assert_flutter_files(&files);
     // key_expr → key: ValueKey(expr) in the item builder (T5.5).
-    assert_contains(&files, "ListPage.dart", "ValueKey");
-    assert_contains(&files, "ListPage.dart", "ValueKey(item)");
-    // @if mode:"fade" → AnimatedSwitcher (currently a silent no-op) (T5.4).
-    assert_contains(&files, "ListPage.dart", "AnimatedSwitcher");
+    assert_contains(&files, "ListPage.dart", "key: ValueKey(item)");
+    // [scroll] → ListView.builder dispatch (T5.5).
+    assert_contains(&files, "ListPage.dart", "ListView.builder(");
 }
 
 gen_semantic_dsl_tests!(
