@@ -162,8 +162,12 @@ fn infer_item_kind(
             .first()
             .map(|e| infer_element_kind(e, typed, consts))
             .unwrap_or(ItemKind::Unknown),
-        // Iterating a map literal yields entry/record-like items.
-        Expr::MapLiteral { .. } => ItemKind::Object,
+        // `@for v in {k: v, ...}` — classify from the first VALUE entry when
+        // known (mirrors the array-literal heuristic; empty maps → Unknown).
+        Expr::MapLiteral { entries, .. } => entries
+            .first()
+            .map(|(_, v)| infer_element_kind(v, typed, consts))
+            .unwrap_or(ItemKind::Unknown),
         _ => ItemKind::Unknown,
     }
 }
@@ -392,6 +396,34 @@ component App {
 "#,
         );
         assert_eq!(warn_count(&program, "test.omni"), 0);
+    }
+
+    #[test]
+    fn map_literal_of_primitives_does_not_warn() {
+        let program = parse(
+            r#"
+component App {
+    view {
+        @for v in {a: 1, b: 2} { <div>{v}</div> }
+    }
+}
+"#,
+        );
+        assert_eq!(warn_count(&program, "test.omni"), 0);
+    }
+
+    #[test]
+    fn map_literal_of_objects_warns() {
+        let program = parse(
+            r#"
+component App {
+    view {
+        @for v in {a: {id: 1}, b: {id: 2}} { <div>row</div> }
+    }
+}
+"#,
+        );
+        assert_eq!(warn_count(&program, "test.omni"), 1);
     }
 
     #[test]
