@@ -1,6 +1,6 @@
 # 推迟项跟踪
 
-> 创建：2026-07-27 | 最后更新：2026-08-02
+> 创建：2026-07-27 | 最后更新：2026-08-03
 > 来源：`.architecture/reviews/implementation-plan-2026-07-26.md`
 > **⚠️ 注意：本文件中的推迟项已被 ADR-006 重新分类。详见下方各条目。**
 
@@ -120,8 +120,8 @@
 |---|------|---------|------|
 | 17 | ~~**[HIGH]** Flutter widget codegen 生成不可编译 Dart（6 处）~~ | ~~`dart analyze` 门禁扩展到全部生成文件~~ | ✅ 2026-08-02 已关闭（Task 0.5 附证据）：6 个原始 CRITICAL 已修复——commit a17e6e0d（多元素根/onPressed/slot 回退 Text(child:)/List 未判空/VoidCallback (e)/Text 内非 String/design 断言 + 门禁扩展至全部生成文件）、commit 5c1db2bc（slot 投影组件导入、bind:value 默认去重、VoidCallback 字段丢弃警告对称化）；门禁已从白名单改为**全量枚举**——`flutter_output_compiles_with_dart_analyze` 对每个 parameterized fixture 的**全部**生成 .dart 文件跑 `dart analyze`（`flutter_analyze_targets`，compilability 评审 systems-architect 实测确认）；展示项目 Flutter 门禁与 match 缺口见 #30 |
 | 18 | **[MEDIUM]** AtFocus/AtHero parser 缺口 | 用户使用 `@focus` 文本内容 / AtHero 元素属性 | `is_text_token`（`parser/view/style.rs:564-604`）未含 AtFocus——文本中的字面 `@focus` 静默截断子节点 + hard error；AtHero token 无元素属性解析臂（hard error）。AtHero demo 文件已不在活项目中 |
-| 19 | **[MEDIUM]** Drag 触发器无约束时失效 | 拖拽触发器恢复可用之前 | `parseConstraint("")` 返回 ±Infinity → `maxExtent=Infinity` → `progress=0` → 拖拽盒不位移（`react/motion/transforms.rs:276,301`）。旧 `@drag-constraints` 已按 ADR-053 移除；codegen 需从 keyframe 范围推导默认 extent，或演示文案软化（ElementRefDemo 已注明"当前拖动无位移"） |
-| 20 | **[MEDIUM]** Style 读取未计入 lint 信号读取 | 用户仅通过 `style:` 使用信号 | `semantic/lints/ast_collectors.rs` 死代码 lint 不把 `ElementProp::Style` 计入信号读取——style-only 信号被误报 "never used"（React useState 已修复缺口的镜像） |
+| 19 | ~~**[MEDIUM]** Drag 触发器无约束时失效~~ | ~~拖拽触发器恢复可用之前~~ | ✅ 2026-08-03 已关闭（Task 5.1 附证据）：`@drag-*` 控制维度恢复（v2 BNF + non_exhaustive enums + 三后端消费 + node 实证——constraints [-100,100] elastic 0.5 → 过冲 -150 约束至 -125 → 0.625 弹性回弹）——无 constraints 时 codegen 从 motion keyframe 范围推导默认 extent（`react/motion/transforms.rs` 无约束分支 emit 推导值 + 注释；仅当无字面 translateX/Y 关键帧时才 warning + Infinity 诚实降级）；`parseConstraint("")` ±Infinity → progress=0 路径不再可达于正常用例 |
+| 20 | ~~**[MEDIUM]** Style 读取未计入 lint 信号读取~~ | ~~用户仅通过 `style:` 使用信号~~ | ✅ 2026-08-01 已关闭（见下方状态节，表格行补划）：`semantic/lints/ast_collectors.rs` 新增 `ElementProp::Style` 臂 + 测试（镜像 #27 修复），style-only 信号不再误报 "never used"（React useState 缺口的镜像修复） |
 | 21 | **[MEDIUM]** 跨文件 slot 转发检测缺失 | 组件跨文件导入时转发 slot | E0006 slot 转发警告是模块局部的（`module_component_names` 只含当前文件组件）——导入的组件绕过该警告 |
 | 22 | ~~**[MEDIUM]** `--all-features` 测试编译失败（历史遗留）~~ | ~~`cargo test --all-features`~~ | ✅ 2026-08-02 已关闭（Task 0.7 实测证据）：`cargo check -p omnilang --features all-backends --tests` 通过（exit 0，仅 17 个既有 unused-variable 警告、无错误）。促成修复：T0.3/T0.3a `is_dangerous_url` 移入 shared + vue/dioxus sibling-backend 解耦（commits de48bcde/36ca42fe/dabdbf79，dioxus feature-matrix 实测 green），旧 IR 字段引用与 `vue/tests.rs` 括号问题随重构清理。注：CI `test-all-backends` job 仍为 `if: false`（禁用），编译级后端口由 T0.3 新增的 per-backend `feature-matrix` job 覆盖（见 #7） |
 | 23 | **[MEDIUM]** omni-animation TS 运行时缺口 | 使用 kebab 缓动名或 translateX/Y/Z 关键帧 | `easing.ts` 无 kebab 别名（`power1-in` 降级为 linear）；`keyframes.ts` `TRANSFORM_MAP` 缺 translateX/Y/Z |
@@ -148,13 +148,13 @@
 
 | # | 项目 | 触发条件 | 影响 |
 |---|------|---------|------|
-| 28 | **[MEDIUM]** `Map.set` 方法调用无后端实现 + `Map<String, T>` 返回注解未被类型检查器解析 | 用户代码需要 Map 就地变更 / 泛型 Map 返回注解 | ① `map.set(k, v)`：MethodCallExpr 无 `set` 翻译臂，OmniView/React 发射原生 `.set` → 运行时 `TypeError: map.set is not a function`。demo 已改写为字面量构建 `{ "key": value }`（datetime_demo/math_ext/string_ext/error_handling），Map 读取 `.get()` 正常。② `-> Map<String, i32>` 返回注解：`parse_type_string`（semantic/types.rs:73）不解析泛型、回退 `Named`，与字面量推断的 `Map<String, Any>` 不兼容 → E0010；demo 已去掉此类返回注解。修复方向：codegen 增加 `set` 方法臂（Object.assign/spread）+ `parse_type_string` 泛型解析 |
+| 28 | **[MEDIUM]** `Map.set` 方法调用无后端实现 + `Map<String, T>` 返回注解未被类型检查器解析 | 用户代码需要 Map 就地变更 / 泛型 Map 返回注解 | ① `map.set(k, v)`：MethodCallExpr 无 `set` 翻译臂，OmniView/React 发射原生 `.set` → 运行时 `TypeError: map.set is not a function`。demo 已改写为字面量构建 `{ "key": value }`（datetime_demo/math_ext/string_ext/error_handling），Map 读取 `.get()` 正常。② `-> Map<String, i32>` 返回注解：`parse_type_string`（semantic/types.rs:73）不解析泛型、回退 `Named`，与字面量推断的 `Map<String, Any>` 不兼容 → E0010；demo 已去掉此类返回注解。修复方向：codegen 增加 `set` 方法臂（Object.assign/spread）+ `parse_type_string` 泛型解析。**2026-08-03 终验复核（T7.3）**：计划「Map.set 随域 8 处理」未落地——T1.2/1.5 覆盖数组方法（filter/map/count/push/pop/sort/splice）与 `contains` map-aware（T1.6），但 `set` 翻译臂三后端均无（react/expr.rs `translate_method_call` 落默认臂，omnilang-core JSON/OmniView/Flutter 方法表同无）；实编译探针 `m.set("key", 2)` 逐字发射进 index.js:317 → 运行期 `TypeError`。保持 defer-with-trigger |
 | 29 | **[LOW]** encode hex/base64 仅覆盖 Latin1 | 非 ASCII 输入 | JS 臂 `charCodeAt`/`btoa` 对非 Latin1 字符失真（demo 仅用 ASCII——encode_demo 注释已注明）；修复需 TextEncoder/码点分片 |
-| 30 | ~~**[HIGH]** match Flutter 变体臂 + 本地类型发射（learn-omniview Flutter 输出不可编译）~~ | ~~展示项目纳入 codegen-validate 门禁后~~ | ✅ **2026-08-02 已关闭（Task 1.4 附 scoped 证据）**：原缺口——match 变体臂无运行时字段支撑（`switch (n._variant)`）+ 本地类型（`Rating` 类）发射缺失——2026-08-02 实测 `MatchBreadthDemo.dart:649-666`：`Undefined class 'Rating'` / `Undefined name 'level'` / `return_of_invalid_type`。修复：① IR 合并漏掉 `module.enums`（`analyse.rs merge_file_ir_into` 只合并 structs/type_aliases，tagged union 被静默丢弃——根因），补 `existing.enums.extend(...)`；② Flutter 新增 `types.rs`：被引用联合发射进合并 `types.dart`（`Rating.Star({ required this.level })` + 公开 `variant` 判别字段——`_` 前缀成员跨库不可见）+ 组件/store 按需 `import './types.dart'`；③ `DartFormatExpr::format_match`：变体臂绑定字段（`final level = _v.level;`，未用绑定 `_` 前缀）、无通配符时追加 `default: throw StateError('Unmatched variant');`（消除 `return_of_invalid_type`）、IIFE 绑定 `final _v = <subject>`；④ Dart 家族补 `to_string` → `.toString()` 方法映射（镜像 React，match 臂体内字符串拼接可运行）。scoped 测试 `match_variant_arms_flutter_compiles`（`generated_code_validation.rs`）：全项目编译 → `MatchBreadthDemo.dart` 专项 `dart analyze` 无 Rating/level/return_of_invalid_type 错误（实测该文件剩余错误仅 Phase 5 类别：Curves 缓动名/重复 motion controller/String→Color）。**门禁 `learn_omniview_flutter_output_passes_dart_analyze` 保持 `#[ignore]`**——全项目仍 RED 于 Phase 5 Flutter 批次缺口（Curves 缓动名 312、重复 motion controller 225、stdlib 方法发射 202、String→Color props 84 等，共 1125 错误/21 类，见 compilability 评审），un-ignore 条件 = Task 5.5/5.6/5.7 完成后全量 `dart analyze` 0 错误。② 语义 DSL 时代记录（ADR-054:88,144、compilability 评审 MEDIUM-10、design doc §7、Task 1.4）均以 **#30** 编号本条 |
+| 30 | ~~**[HIGH]** match Flutter 变体臂 + 本地类型发射（learn-omniview Flutter 输出不可编译）~~ | ~~展示项目纳入 codegen-validate 门禁后~~ | ✅ **2026-08-02 已关闭（Task 1.4 附 scoped 证据）**：原缺口——match 变体臂无运行时字段支撑（`switch (n._variant)`）+ 本地类型（`Rating` 类）发射缺失——2026-08-02 实测 `MatchBreadthDemo.dart:649-666`：`Undefined class 'Rating'` / `Undefined name 'level'` / `return_of_invalid_type`。修复：① IR 合并漏掉 `module.enums`（`analyse.rs merge_file_ir_into` 只合并 structs/type_aliases，tagged union 被静默丢弃——根因），补 `existing.enums.extend(...)`；② Flutter 新增 `types.rs`：被引用联合发射进合并 `types.dart`（`Rating.Star({ required this.level })` + 公开 `variant` 判别字段——`_` 前缀成员跨库不可见）+ 组件/store 按需 `import './types.dart'`；③ `DartFormatExpr::format_match`：变体臂绑定字段（`final level = _v.level;`，未用绑定 `_` 前缀）、无通配符时追加 `default: throw StateError('Unmatched variant');`（消除 `return_of_invalid_type`）、IIFE 绑定 `final _v = <subject>`；④ Dart 家族补 `to_string` → `.toString()` 方法映射（镜像 React，match 臂体内字符串拼接可运行）。scoped 测试 `match_variant_arms_flutter_compiles`（`generated_code_validation.rs`）：全项目编译 → `MatchBreadthDemo.dart` 专项 `dart analyze` 无 Rating/level/return_of_invalid_type 错误（实测该文件剩余错误仅 Phase 5 类别：Curves 缓动名/重复 motion controller/String→Color）。**门禁 `learn_omniview_flutter_output_passes_dart_analyze` 保持 `#[ignore]`**——全项目仍 RED 于 Phase 5 Flutter 批次缺口（Curves 缓动名 312、重复 motion controller 225、stdlib 方法发射 202、String→Color props 84 等，共 1125 错误/21 类，见 compilability 评审），un-ignore 条件 = Task 5.5/5.6/5.7 完成后全量 `dart analyze` 0 错误（**该条件已于 T5.8a 达成**：learn-omniview Flutter 全量 0 错误 0 警告，门禁 5/5 un-ignore 绿，T7.3 终验复核确认）。② 语义 DSL 时代记录（ADR-054:88,144、compilability 评审 MEDIUM-10、design doc §7、Task 1.4）均以 **#30** 编号本条 |
 | 31 | **[LOW]** `math_random_int` 区间退化未防御 | `hi - lo + 1 == 0` | JS `Math.random()*(0)` 恒返回 lo；Rust `rem_euclid(0)` 与 Dart `nextInt(0)` 会 panic/抛错。修复：codegen 夹取最小区间 |
 | 32 | **[MEDIUM]** 非 pub 模块函数不被任何后端发射 | pub 函数调用同模块私有辅助函数 | `ir::all_functions()`（ir/types.rs）过滤 `Visibility::Public`，OmniView/React 等后端只发射 pub 函数——被 pub 函数调用的私有辅助函数编译产物中缺失 → 运行时 ReferenceError（async_demo.omni 的 task_a/task_b/slow_task/fast_task 已改 pub 规避）。修复：按调用图保留被引用函数，或后端发射全部模块函数 |
-| 33 | **[LOW]** OmniView 输出嵌套 `#root` 结构缺陷 | 编辑器/WASM 桥接层消费 `output.html` 的方式 | 静态 body.html 含 `<div id="root" data-component="App">` 包装，JS `document.getElementById("root").innerHTML` 模板又包一层 → 运行时 2 个嵌套 `#root`（`[data-component="App"]` 匹配 2 元素）。功能无碍（2026-08-02 两轮浏览器全量测试 0 errors），但结构不干净且 `[data-component="App"]` 查询命中 2 元素。修复方向：`emit_dom_and_bindings` 的 innerHTML 模板剥离外层 root 包装（或 body.html 不再含包装）——涉及 WASM/editor 共用输出，需先验证两端消费方式（2026-08-02 发现，ADR-055 记录） |
-| 34 | **[LOW]** `regex_match` 语义跨目标不一致 | 无锚点模式 | JS `RegExp.test` 部分匹配 vs Python `re.fullmatch` 全匹配——无 `^...$` 锚点结果不同（demo 模式均带锚点）。编号说明：原 #30 于 2026-08-02 让位给 match Flutter 变体臂（#30 见上——语义 DSL 时代记录 ADR-054/compilability 评审/design doc/Task 1.4 均以 #30 指 match 缺口），本条内容不变仅重编号 |
+| 33 | **[LOW]** OmniView 输出嵌套 `#root` 结构缺陷 | 编辑器/WASM 桥接层消费 `output.html` 的方式 | 静态 body.html 含 `<div id="root" data-component="App">` 包装，JS `document.getElementById("root").innerHTML` 模板又包一层 → 运行时 2 个嵌套 `#root`（`[data-component="App"]` 匹配 2 元素）。功能无碍（2026-08-02 两轮 + 2026-08-03 终验浏览器全量测试 0 errors），但结构不干净且 `[data-component="App"]` 查询命中 2 元素。修复方向：`emit_dom_and_bindings` 的 innerHTML 模板剥离外层 root 包装（或 body.html 不再含包装）——涉及 WASM/editor 共用输出，需先验证两端消费方式（2026-08-02 发现，ADR-055 记录）。**2026-08-03 终验复核（T7.3）**：结构依旧——`emit_dom_and_bindings`（omniview/view/mod.rs:90）innerHTML 模板仍以 `<div id="root" data-component="App">` 开头（实编译探针 index.js:324），与静态 index.html/body.html 包装重复；T5.5（Flutter @for）/T7.1a（OmniView keyed rebind）未触及此面。保持 defer-with-trigger |
+| 34 | **[LOW]** `regex_match` 语义跨目标不一致 | 无锚点模式 | JS `RegExp.test` 部分匹配 vs Python `re.fullmatch` 全匹配——无 `^...$` 锚点结果不同（demo 模式均带锚点）。编号说明：原 #30 于 2026-08-02 让位给 match Flutter 变体臂（#30 见上——语义 DSL 时代记录 ADR-054/compilability 评审/design doc/Task 1.4 均以 #30 指 match 缺口），本条内容不变仅重编号。**2026-08-03 终验复核（T7.3）**：行状态一致，保持 open（LOW 语义分歧，demo 模式均带锚点无实际破坏） |
 | 35 | **[LOW]** 裸 `\`（字符串外反斜杠）lexer 报错中断流 | 用户源码出现字符串外裸 `\`（如 Windows 路径字面量） | 语义 DSL 时代已知残余（ADR-054:144 记录时代 #31，2026-08-02 补登台账）：`lexer/mod.rs` 回退臂（~L297-316）对字符串外 `\` 产生 `TokenKind::Error("Unexpected character")`，错误 token 中断后续词法流（解析层报 Unexpected token）。现为显式报错（非静默，符合诚实降级原则），修复属全局语义变化（定义裸 `\` 的合理语义或带 span 的错误恢复策略）。字符串内 `\` 转义（`read_unicode_escape` 等）与 Text 内 `\` 显式报错均正常，不受本条影响 |
 
 ---
@@ -166,6 +166,38 @@
 **新增**：#35（裸 `\` lexer Error token 中断流——ADR-054 时代残余 #31 补登，见上表）。
 
 **验证**：本更新仅记录已验证事实（本地 cargo check 实测 + 既有行状态核对），未修改其他行。
+
+---
+
+## 2026-08-03 状态更新（语义语法 v2 终验 T7.3 收口）
+
+**已关闭**：#19（Drag 无约束失效——Task 5.1 默认 extent 推导 + warning 降级，见上表附证据）、#20（Style 读取 lint——2026-08-01 已修复，#27 同源，表格行补划）。**#30 收尾**：un-ignore 条件已于 T5.8a 达成（learn-omniview Flutter 0 错误 0 警告，门禁 5/5 un-ignore 绿），行内注记已补。
+
+**复核未关闭**（附终验证据）：#28（`Map.set`——计划「随域 8 处理」未落地，T1.2/1.5 数组方法不含 `set` 臂，实编译探针逐字发射 → 运行期 TypeError；`parse_type_string` 仍无泛型解析）、#33（嵌套 `#root`——innerHTML 模板仍重包 root，`[data-component="App"]` 2 命中；T5.5/T7.1a 未触及）、#34（regex_match 语义分歧，行状态一致）。其余行状态经 T7.3 终验复核无变化。
+
+**新增**（本计划注册的 follow-up，均带触发条件，见下表 #36-#54）：
+
+| # | 项目 | 触发条件 | 影响 |
+|---|------|---------|------|
+| 36 | **[HIGH]** React `let mut` 发射为 `const`（TS2588 → 渲染期 `Assignment to constant variable`，整应用卸载；BUG-A） | LetStmtIR 增 mut 标志的 IR 变更任务排期（~75 构造点） | 与 T1.6 deferral-candidate ② 同根。DataTable/ErrorHandlingDemo 两标签页浏览器实测整站崩溃（T7.1 §4.2-A；UI 与 Language 标签页不可用） |
+| 37 | **[HIGH]** React 内联 store 不发射（BUG-C：CartStore 对象从未生成 → ReferenceError） | IR 携带内联 store body 的独立任务 | 与 T3.3「内联 store action 未发射」同根（InlineStoreDemo 购物车永不更新，T7.1 §4.2-C） |
+| 38 | **[MEDIUM]** React 静态文本 `&` 渲染为字面 `&amp;`（BUG-D） | 用户报告 & 文本显示异常 | JSX 表达式字符串不解码 HTML 实体（SignalPatternsDemo 标题，T7.1 §4.2-D，aria 快照实证） |
+| 39 | **[MEDIUM]** React style 对象发射 kebab-case 属性（BUG-E，TS2353 类运行时形态） | 用户使用 kebab 样式名 | 浏览器控制台 `Unsupported style property 'border-radius'`（Design 标签页，T7.1 §4.2-E） |
+| 40 | **[LOW]** React 事件处理器小写名（BUG-F：onAnimationend 等 4 条） | 用户使用小写复合事件名 | 需映射表补 camelCase 别名（T7.1 §4.2-F） |
+| 41 | **[MEDIUM]** OmniView `focus={sig}` 在隐藏分支内失效（BUG-2） | 用户对 @if 分支内元素做 focus 绑定 | effect 在脚本求值期执行（分支 display:none），分支显示后不重跑（ElementRefDemo 自动聚焦丢失，T7.1 §4.1-BUG-2） |
+| 42 | **[LOW]** parser 分歧批次（T7.2 记录 7 项） | BNF spec 对齐任务排期 / 任一分歧致用户困惑 | union `;` 不一致、@themes/@default-theme `;` 不对称、style-entry `;` 要求、class-value 字符串优先规则、fn-type-param E0010、import 诊断误导、view-text 宽容（T7.2 parser-divergences） |
+| 43 | **[MEDIUM]** unused-import lint 系统性假阳性 | lint 精度任务排期 | 元素标签/DesignClass/@store 未计为使用 → 123 条虚假警告（T7.0 ①；learn-omniview 构建持续出现） |
+| 44 | **[LOW]** 裸 `design` 关键字破坏元素文本 run | 用户写以 design 开头的文本 | 既有 parser 怪癖（T6.1 deferral-candidate + T7.0 ③；demo workaround） |
+| 45 | **[LOW]** Flutter CLI 与库路径诊断口径不一致（capturePointer 硬中止 exit 1 vs 门禁过滤） | Flutter CLI 门禁统一任务 | `omnic build --target flutter` CLI smoke 红、零输出；库路径 dart analyze 绿（T7.0 ④/T7.1 §4.3，非回归） |
+| 46 | **[LOW]** Map 字面量返回类型不推断（`Map<String, <unknown>>`） | 用户依赖 Map 字面量类型推断 | T7.0 ②；需类型检查器字面量形状传播 |
+| 47 | **[LOW]** CSS identity-escape（\j）残留于 Rust 参考实现 | 扩展 normalize_css_escapes 单文件变更任务 | T3.2 deferral-candidate；`\` 后非 hex 字母处理与浏览器行为分歧（\a 洞已修，\j 类残留） |
+| 48 | **[LOW]** plain-Dart 后端裸 enum 发射 | plain-Dart 进入门禁 / 用户使用 field-carrying union | dart/visitor.rs field-carrying 变体仍坏、无门禁（T1.4 deferral-candidate；formatter 侧已修） |
+| 49 | **[MEDIUM]** React 不发射用户 struct → `useState<RowItem[]>` 不可达（10 处 never[] 诚实豁免） | React 用户类型发射任务 | T1.6 deferral-candidate ①；typed useState 落空 |
+| 50 | **[MEDIUM]** Flutter 非 ref 元素 bind:value 单向 no-op + Checkbox/Switch/Slider onChanged:null | controller 合成任务 | D2「唯一双向」在部分 Flutter 表面未完全兑现（T2.3 deferral-candidate） |
+| 51 | **[LOW]** parser 文本 run 空格剥离 | 文本 run 解析重写 | 指令 token 起始的文本 run 丢空格（T7.1 note；`@for key= 身份追踪 Demo` → `@forkey=...`，与 #44 同类） |
+| 52 | **[LOW]** OmniView CSP meta `frame-ancestors` 被 Chrome 忽略 | CSP 部署任务 | 应改用 X-Frame-Options 或 HTTP 头（T7.1 note） |
+| 53 | **[LOW]** esbuild 锁 build/debug | CI 工具链升级时 | T7.0 ⑤；展示项目构建锁定 esbuild 版本 |
+| 54 | **[MEDIUM]** poiesis 编辑器 codegen warnings 不可读（rustCompiler.ts 手维护副本无 warnings 字段） | poiesis 问题面板接线任务 | T0.6 important (tracked)；poiesis 侧，非编译器范围 |
 
 ---
 

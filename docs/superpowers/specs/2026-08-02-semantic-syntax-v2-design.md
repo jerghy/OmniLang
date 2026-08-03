@@ -1,7 +1,7 @@
 # OmniLang 语义级 DSL v2 设计文档（全量重设计）
 
 **日期**: 2026-08-02
-**状态**: Design（待用户审阅 → 逐域 spike 验证 → BNF spec 同步）
+**状态**: Implemented（2026-08-03 终验完成——learn-omniview 三目标全量绿 + 9 标签页浏览器全测 0 runtime error + 16 篇文档与编译器事实一致 + 注入载荷语料回归闭环；验证协议逐项勾选见 §4，逐域验收对照见 §5 各域验证清单）
 **依据**: `.architecture/reviews/feature-omniview-semantic-syntax-compilability.md`（13 专家评审）+ ADR-052/053/054/055
 **设计方法论**: 语义驱动分层（方案 A，用户确认）——每域：语义意图 → BNF v2 → 三目标手写对照样例 → 映射表 → 诊断表 → 验证清单；设计-验证循环（用户确认）
 
@@ -43,8 +43,9 @@
 
 ### 4.2 交叉与终验
 
-- **每完成 3 域**：全量浏览器测试 + 文档/BNF 一致性审计（仿 deferrals #24/#25 模式）
+- ✅ **每完成 3 域**：全量浏览器测试 + 文档/BNF 一致性审计（仿 deferrals #24/#25 模式）— 逐域浏览器实证（T2.2 指针捕获/T2.3 值绑定/T4.2 主题/T5.1 node 实证）+ BNF spec 逐域同步（§2/§3/§4/§5/§6/§7/§11）+ 全量 9 标签页浏览器与文档审计归 Phase 7 终验（T7.1/T7.2，见下）
 - **终验**：learn-omniview 三目标全量编译（React: tsc --strict 0 错误 + eslint 0 告警；Flutter: dart analyze 0 错误；OmniView: 浏览器 9 标签页全测）+ 16 篇文档全量对齐 + 注入载荷语料回归
+  - ✅ 2026-08-03（Phase 7 终验，Tasks 7.0-7.3）：React `verify-react.sh` GATE PASSED（tsc strict + eslint 全豁免且零失效条目）· Flutter `learn_omniview_flutter_output_passes_dart_analyze` un-ignore 后 0 错误 0 警告（T5.8a 达成，T7.1 复核）· OmniView 9 标签页浏览器套件 41 绿 + React 套件 17 绿 + theme-wiring 实证，0 failures（T7.1；P0 缺陷 BUG-1/BUG-3 于 T7.1a 修复后 fixme 自移除）· 232 块文档全量审计 0 失败 + docs-gate CI job（T7.2）· 注入载荷语料最终回归 5 后端 × 9 插入点 × 18 载荷，含 a11y 新表面（T7.3，2 个 Flutter 注入缺口发现并修复）
 
 ### 4.3 破坏性政策
 
@@ -56,14 +57,14 @@
 
 评审发现的门禁盲区必须先闭合（否则后续修改无验证网）：
 
-1. react-test-app 真实化：React 19 + Zustand v5 + `strict: true` + `*.module.css` ambient + `tsc --noEmit` 脚本 + eslint-plugin-react-hooks（当前：React 18.3 + Zustand 4.5 + 无 eslint + 实测 60+ 错误）
-2. 展示项目 Flutter 门禁：`generated_code_validation.rs` 增加 learn-omniview → Flutter → 全输出 dart analyze（当前：只覆盖合成 fixture）
-3. `compile_never_panics` 加断言（当前空测试）+ 增加 codegen 后端 fuzz 目标
-4. 增量缓存恢复未变更文件诊断（`analyse_multi_cached`，poiesis 主路径）+ 回归测试
-5. per-backend feature 门禁修复：`is_dangerous_url` 移入 `crates/omnilang-core/src/codegen/sanitize.rs`（当前 React/Vue/Dioxus 隐藏依赖 OmniView 模块，E0432）+ feature 矩阵 CI job
-6. CLI/编辑器 warnings 网关收口（`OmniViewResult` 加 warnings 字段、CLI 三命令打印、lint 提升进共享管线）
-7. 治理同步：deferral #17/#22 关闭（附证据）、spec 状态转 Approved、删除 `lib.rs.orig`
-8. 参数化 fixture 矩阵补 @if/@for（deferral #7 收口）
+1. ✅ react-test-app 真实化：React 19 + Zustand v5 + `strict: true` + `*.module.css` ambient + `tsc --noEmit` 脚本 + eslint-plugin-react-hooks（Task 0.4，commits dabdbf79..a53ccbce——284 tsc + 109 eslint 全匹配豁免清单 20 条各带修复任务引用，门禁诚实失败已验证）
+2. ✅ 展示项目 Flutter 门禁：`generated_code_validation.rs` 增加 learn-omniview → Flutter → 全输出 dart analyze（Task 0.5 全量枚举模式 + 诚实 `#[ignore]`；T5.8a un-ignore 后全量 0 错误 0 警告 5/5 绿）
+3. ✅ `compile_never_panics` 加断言 + codegen 后端 fuzz 目标（Task 0.1——proptest 真断言 + codegen fuzz；flutter feature 运行验证 7/7）
+4. ✅ 增量缓存恢复未变更文件诊断（`analyse_multi_cached`，poiesis 主路径）+ 回归测试（Task 0.2——缓存命中诊断合并 + 回归测试；解析期错误在缓存命中时丢失为已记录 known-gap，缓存格式设计遗留）
+5. ✅ per-backend feature 门禁修复：`is_dangerous_url` 移入 `crates/omnilang-core/src/codegen/sanitize.rs` + feature 矩阵 CI job（Tasks 0.3/0.3a——vue/dioxus 跨后端解耦 + 编译级 per-backend feature-matrix job 全绿）
+6. ✅ CLI/编辑器 warnings 网关收口（`OmniViewResult` 加 warnings 字段、CLI 三命令打印、lint 提升进共享管线）（Task 0.6——warnings 三网关可见：CLI/单文件/编辑器路径 + F1 warnings 恢复）
+7. ✅ 治理同步：deferral #17/#22 关闭（附证据）、spec 状态转 Approved、删除 `lib.rs.orig`（Tasks 0.5/0.7——#17 全量枚举门禁 + #22 `cargo check --all-features` exit 0 实证 + spec Approved + .orig 删除）
+8. ✅ 参数化 fixture 矩阵补 @if/@for（deferral #7 收口）（Task 0.8——control_flow fixture 含 @if/@for 参数化形状 + 契约测试，T5.5 un-ignore 全绿）
 
 ---
 
@@ -146,11 +147,11 @@ _scrollController.animateTo(y, duration: 300ms, curve: Curves.easeInOut)
 
 #### 验证清单
 
-- [ ] fixture：`bind:value` 三目标生成形状断言（React onChange 存在 / Flutter onChanged 存在——**方向一致性**）
-- [ ] 浏览器：输入回写信号、信号更新回写控件（三目标各一轮）
-- [ ] focus 绑定：无关 setState 不抢焦点（Flutter 快照比较修复验证）
-- [ ] `ref.value = x` 编译错误 + 迁移提示
-- [ ] capturePointer() 无参三目标行为 + Flutter error 诊断
+- [x] fixture：`bind:value` 三目标生成形状断言（React onChange 存在 / Flutter onChanged 存在——**方向一致性**）— Task 2.3：bind:value 唯一双向 + 三目标方向 fixture（含 React store 限定 setState、Flutter ref 文本框接线修复）+ 浏览器实证
+- [x] 浏览器：输入回写信号、信号更新回写控件（三目标各一轮）— Task 2.3 浏览器实证（方向一致性实测）
+- [x] focus 绑定：无关 setState 不抢焦点（Flutter 快照比较修复验证）— Task 5.6：语义绑定快照四类全覆（焦点稳定）
+- [x] `ref.value = x` 编译错误 + 迁移提示 — Task 2.1：SetValue 删除 + 三写形式硬诊断（verbatim 提示）+ 全 workspace 清扫
+- [x] capturePointer() 无参三目标行为 + Flutter error 诊断 — Task 2.2：capturePointer 无参（React 活动指针 tracker + OmniView runtime tracker + Flutter error+throw）+ demo 迁移 + 浏览器实证
 
 ---
 
@@ -226,12 +227,12 @@ TweenAnimationBuilder<double>(
 
 #### 验证清单
 
-- [ ] borderRadius/fontSize 三目标动画运行（浏览器 + 快照）
-- [ ] @scroll start/end/scrub：滚动区间行为（浏览器实测进度 → 动画）
-- [ ] @drag constraints/elastic：拖拽范围限制 + 弹性回弹（浏览器手势）
+- [x] borderRadius/fontSize 三目标动画运行（浏览器 + 快照）— Task 5.2：白名单 19 + BorderRadiusTween/TextStyle 映射 + React Npx 单位 + 快照/tsc/dart-analyze 验证
+- [x] @scroll start/end/scrub：滚动区间行为（浏览器实测进度 → 动画）— Task 5.1：@scroll/@drag 维度恢复 + node 实证（scrollY=500 → progress 0.5 + clamp；scrub 收敛实测）+ Flutter 数值分支执行级测试
+- [x] @drag constraints/elastic：拖拽范围限制 + 弹性回弹（浏览器手势）— Task 5.1：node 实证（过冲 -150 → -125 → 0.625 弹性回弹；velocity_max 三目标一致）+ 浏览器套件 @drag 300px 实证（T7.1）
 - [x] @if mode:"fade" Flutter 视觉淡入（shape 断言 + 真实 dart analyze 替代——仓库无 widget-test 基建，T4.5 a11y 同先例）
-- [ ] paused → error + 迁移提示
-- [ ] Flutter 共享 runtime 文件生成（多组件不重复）
+- [x] paused → error + 迁移提示 — Task 5.3：paused 双形式硬诊断（E_PAUSED_REMOVED verbatim）+ PlaybackProp::Paused 死变体删除 + 文档清剿
+- [x] Flutter 共享 runtime 文件生成（多组件不重复）— Task 5.6：`_omniview_runtime.dart` 共享（3/79 按需门控）+ 类型化配置（字符串解析清零）+ scrub Ticker 时间
 
 ---
 
@@ -302,11 +303,11 @@ Container(decoration: AppDesign.cardDecoration(), child: ...)
 
 #### 验证清单
 
-- [ ] 浏览器：点主题卡片 → data-theme 属性实际变化 + `[data-theme="dark"]` CSS 覆盖生效（React + OmniView）；Flutter themeMode 切换（widget-test）
-- [ ] `theme = "dark"` → error + 迁移提示
-- [ ] class:/variant: 三目标视觉效果对照（Flutter 不再空桩）
-- [ ] 不可映射值 → warning（快照断言）
-- [ ] useThemeStore 无命名冲突
+- [x] 浏览器：点主题卡片 → data-theme 属性实际变化 + `[data-theme="dark"]` CSS 覆盖生效（React + OmniView）；Flutter themeMode 切换（widget-test）— Task 4.2：三目标接线 + 浏览器实证（React/OmniView 实测 data-theme 翻转 + CSS 覆盖生效；Flutter ThemeModeNotifier + main.dart shell——widget-test 基建缺位由 shape 断言 + dart analyze 替代，同 T4.5 先例）+ T7.1 theme-wiring.spec 1/1 通过
+- [x] `theme = "dark"` → error + 迁移提示 — Task 4.4：虚构语法自然解析错误（T4.4 裁决：响亮失败即可，不设自定义消息，零用户语法）
+- [x] class:/variant: 三目标视觉效果对照（Flutter 不再空桩）— Task 4.3：classes/variants 真实装饰（0 桩 0 TODO）+ 编译期变体合并（ThemeExtension 否决理由成立）+ warnings 通道
+- [x] 不可映射值 → warning（快照断言）— Tasks 4.3/4.4：warnings 通道实证（learn-omniview 554 诊断）+ §10.3 四行诊断实现（ZIndex/cursor warning + grid/float error）
+- [x] useThemeStore 无命名冲突 — Tasks 4.2/4.4：`__design/` 命名隔离（守卫移除 YAGNI 正确）+ 碰撞场景实证
 
 ---
 
@@ -357,9 +358,9 @@ class Card extends StatelessWidget {
 
 #### 验证清单
 
-- [ ] default + named + fallback 三目标行为对等 fixture（含未传 fallback 场景）
-- [ ] 三种已删除形式 → error + 迁移提示
-- [ ] AdvancedTypesDemo 迁移（移除声明侧文档类型）
+- [x] default + named + fallback 三目标行为对等 fixture（含未传 fallback 场景）— Task 6.1：slot 三形态对等 fixture（default+named+fallback 含裸实例）
+- [x] 三种已删除形式 → error + 迁移提示 — Task 6.1：三删除形式 × 三 P0 后端错误测试（hint 文本逐字断言）+ IR/三后端清理
+- [x] AdvancedTypesDemo 迁移（移除声明侧文档类型）— Task 6.1：demo 迁移零残留（grep 验证）
 
 ---
 
@@ -414,10 +415,10 @@ final todoStoreProvider = NotifierProvider<TodoStore, TodoState>(TodoStore.new);
 
 #### 验证清单
 
-- [ ] effect deps 覆盖验证（漏字段 → 编译错误，fixture）
-- [ ] 三目标 store 生成形状快照（切片选择器 / select() / Notifier）
-- [ ] @theme 信号识别 + 接线（域 3 联动）
-- [ ] 多实例组件 store 隔离回归（既有测试保持）
+- [x] effect deps 覆盖验证（漏字段 → 编译错误，fixture）— Task 3.4：ClosureExpr 臂 + `validate_effect_deps` pass（E_EFFECT_DEPS_MISSING 字段级匹配）+ FilterBar [searchText, demoFrameworks] 实证
+- [x] 三目标 store 生成形状快照（切片选择器 / select() / Notifier）— Task 3.3：切片订阅全量（FilterBar 5 slices/0 whole-store + 全部读点改写 + 5 类 fallback）+ Task 3.5 store BNF 统一 + React mutation 三修（M2/M3/M4）+ verify-react 162 tsc 全豁免
+- [x] @theme 信号识别 + 接线（域 3 联动）— Tasks 4.1/4.2：@themes/@theme 语法 + IR + 跨文件语义 pass + 三目标接线（React data-theme effect / Flutter ThemeModeNotifier / OmniView IR 驱动消除 mode 魔法名）
+- [x] 多实例组件 store 隔离回归（既有测试保持）— 既有 prop-signal per-instance 回归全绿（多实例组件 prop 信号 per-instance 修复保持）
 
 ---
 
@@ -473,10 +474,10 @@ ListView.builder(itemCount: items.length, itemBuilder: (c, i) => ListTile(key: V
 
 #### 验证清单
 
-- [ ] keyed 列表重排/过滤保状态（浏览器三目标：输入框状态、滚动位置）
-- [ ] 非滚动 @for 布局无崩溃（Flutter 嵌套 @for widget-test）
-- [ ] 对象项无 key → warning（快照断言）
-- [ ] @if/@for 参数化 fixture 加入跨后端矩阵
+- [x] keyed 列表重排/过滤保状态（浏览器三目标：输入框状态、滚动位置）— Task 5.5：@for 契约（Flutter Column/ValueKey 分派 + React 索引 key/单次求值 + node 行为实证含 key 碰撞证明）；T7.1 浏览器实证暴露 BUG-1/BUG-3（keyFn 硬编码/重排不渲染）→ T7.1a 修复（item_var 参数化 + rebind 接线）→ 44 passed/0 failed，fixme 自移除
+- [x] 非滚动 @for 布局无崩溃（Flutter 嵌套 @for widget-test）— Task 5.5：Flutter Column/ValueKey 分派 + 契约测试 un-ignore 全绿（嵌套 @for 经 control_flow fixture 三目标编译 + dart analyze）
+- [x] 对象项无 key → warning（快照断言）— Task 5.5：for-key lint（对象项无 key 语义警告）
+- [x] @if/@for 参数化 fixture 加入跨后端矩阵 — Task 0.8：control_flow fixture（@if/@for 参数化）+ T5.5 契约测试 un-ignore
 
 ---
 
@@ -515,9 +516,9 @@ TextField(onKeyDown: (e) => { if (e.logicalKey == LogicalKeyboardKey.enter) ... 
 
 #### 验证清单
 
-- [ ] 事件字段三目标一致性 fixture（含键盘/剪贴板/拖放）
-- [ ] 别名表（dblclick 等）单表复用测试
-- [ ] FnRef stopPropagation 回归测试补齐（评审：零测试）
+- [x] 事件字段三目标一致性 fixture（含键盘/剪贴板/拖放）— Task 2.4：字段桩全诊断化（warnings 通道线程化 + 降级注释）+ physicalKey.keyId 稳定映射 + 三目标 fixture
+- [x] 别名表（dblclick 等）单表复用测试 — Task 2.4：`map_event` 五后端单表（删除 react/utils.rs 与 omniview/utils.rs 双写，dblclick 类 bug 源头）
+- [x] FnRef stopPropagation 回归测试补齐（评审：零测试）— Task 2.4：FnRef 4 回归测试（含 stopPropagation 扫描；后续 7330e783 修复 FnRef stopPropagation 扫描）
 
 ---
 
@@ -568,10 +569,10 @@ final total = items.where((i) => i.done).length;
 
 #### 验证清单
 
-- [ ] filter/map/count 三目标编译 + 运行（含 Flutter where 映射）
-- [ ] 闭包形式 parser 一致性（管道唯一性测试）
-- [ ] match 全目标编译（Flutter #30 修复后进门禁）
-- [ ] style 通道 `$field` 回归（`style: { color: fn(item.field) }` 三目标）
+- [x] filter/map/count 三目标编译 + 运行（含 Flutter where 映射）— Task 1.2：数组方法语言化（filter/map/count 三目标映射 + node 运行断言）
+- [x] 闭包形式 parser 一致性（管道唯一性测试）— Task 1.1：管道闭包唯一（E_CLOSURE_ARROW 提示）+ spec §6.3/§9.3 同步
+- [x] match 全目标编译（Flutter #30 修复后进门禁）— Task 1.4：match Flutter 变体臂 + 本地类型发射（#30 关闭）+ 门禁 un-ignore（T5.8a 全量 0 错误 0 警告）
+- [x] style 通道 `$field` 回归（`style: { color: fn(item.field) }` 三目标）— Task 1.3：$field 通道（store→$signal / signal-like→$field / 局部→$ident 三路判别 + 7 签名线程化）+ OmniView $call 参数递归 + 真实 DataTable 验证
 
 ---
 
@@ -611,9 +612,9 @@ style_inline   ::= 'style:' '{' (css_prop ':' expr)+ '}' (* 保留 v1；值通�
 
 #### 验证清单
 
-- [ ] 注入载荷语料回归（`'`/`"`/`\`/反引号/`${`/`</` 在 class/style/text/attr/event 每插入点，per-backend 安全快照）
-- [ ] `class: "x',alert(1),'"` 编译错误（不产出可编译载荷）
-- [ ] 消毒器行为一致性测试（Rust/React 运行时/OmniView 运行时三份同源）
+- [x] 注入载荷语料回归（`'`/`"`/`\`/反引号/`${`/`</` 在 class/style/text/attr/event 每插入点，per-backend 安全快照）— Task 3.1：5 后端 × 8 插入点 × 17 载荷语料（含实体载荷 + fallback 形状 + 控制组防空过）；**T7.3 最终回归扩展**：新增 a11y 插入点 + `x*/ alert(1) //` 注释终结载荷 → 5 后端 × 9 插入点 × 18 载荷全绿（发现并修复 2 个 Flutter 注入缺口：a11y label `$` 插值 + role 降级注释 `*/` 逃逸）
+- [x] `class: "x',alert(1),'"` 编译错误（不产出可编译载荷）— Task 3.1：lowering 字符集校验（E0006 类名仅允许字母数字下划线连字符）+ codegen 双保险转义 + 全后端编译错误断言
+- [x] 消毒器行为一致性测试（Rust/React 运行时/OmniView 运行时三份同源）— Task 3.2：单一来源 `shared/sanitize.rs::sanitize_css_helpers_js`（双调用点）+ 22 用例双拷贝断言 + `\a` 洞修复 + RED 实证
 
 ---
 
