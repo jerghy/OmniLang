@@ -27,11 +27,13 @@
 # TS2322 14, TS2353 14, TS2345 14, TS2304 10, TS2722 23, TS2588 7, TS2554 6,
 # TS18048 4, TS7005 2, TS7034 1, TS2367 2; exhaustive-deps 91, no-unused-vars
 # 17, no-var 10, no-control-regex 2, no-explicit-any 1.
-# Current snapshot (task 2.6, 2026-08-04): tsc 140 errors + 32 eslint
-# problems (all exempted). exhaustive-deps 91 → 2: the 8 @unmount/_M
+# Current snapshot (task 2.9, 2026-08-04): tsc 140 errors + 31 eslint
+# problems (all exempted). exhaustive-deps 91 → 1: the 8 @unmount/_M
 # entries below are REMOVED (task 2.6 — cleanup reads enter deps; _M hoisted
-# to module scope); remaining 2 are FilterBar (new-array demoFrameworks
-# useMemo dep) + UserSettings (saveSettings fn dep), pre-existing classes.
+# to module scope); FilterBar REMOVED (task 2.9 — literal signal hoisted to
+# a module-scope const; the const is filtered OUT of the computed deps, so
+# the exhaustive-deps error class is gone; the UserSettings saveSettings fn
+# dep remains, pre-existing class).
 #
 # tsc — C1 class (function/typed-state emission) → Task 1.6
 # TS7006 — implicit-any fn/closure params: untyped source params + codegen-
@@ -134,7 +136,6 @@ components/EventsDemo.tsx	TS2339	[T3.3] event-data typing (EventTarget scrollTop
 #           reads now enter the deps array (`}, [count]);` — stale-closure
 #           fix, final count correct).
 pages/UserSettings.tsx	react-hooks/exhaustive-deps	[T1.6] missing/new-array deps	1	#68
-components/FilterBar.tsx	react-hooks/exhaustive-deps	[T1.6] missing/new-array deps	1	#68
 # @typescript-eslint/no-unused-vars — generated unused identifiers (_b/_i)
 pages/MotionTriggersDemo.tsx	@typescript-eslint/no-unused-vars	[T1.6] generated unused identifier (_b/_i)	3	#70
 pages/KeyframeAnimationDemo.tsx	@typescript-eslint/no-unused-vars	[T1.6] generated unused identifier (_b/_i)	3	#70

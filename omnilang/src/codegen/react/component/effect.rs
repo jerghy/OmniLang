@@ -24,6 +24,7 @@ impl ReactCodegen {
         ref_names: &FxHashSet<String>,
         store_field_renames: &FxHashMap<String, String>,
         store_fields: &FxHashMap<String, FxHashSet<String>>,
+        hoisted_signals: &FxHashSet<String>,
     ) {
         // Effects (useEffect) — wrap in async IIFE if body contains await
         for effect in &comp.effects {
@@ -31,9 +32,14 @@ impl ReactCodegen {
             // a slice-subscribed store field deps on the slice local
             // (`[notes]`, T3.3); otherwise the qualified name
             // (`NotificationStore.notifications`) or the bare name.
+            // Hoisted signals (perf M3) are module-scope consts — never
+            // reactive — and must not enter the dep array (eslint
+            // react-hooks flags outer-scope values as "unnecessary
+            // dependency").
             let deps: Vec<String> = effect
                 .deps
                 .iter()
+                .filter(|d| !hoisted_signals.contains(*d))
                 .map(|d| {
                     let qualified = store_signal_map
                         .get(d)
@@ -175,6 +181,7 @@ impl ReactCodegen {
                         store_signal_map,
                         store_field_renames,
                         store_fields,
+                        hoisted_signals,
                     );
                     let deps_str = unmount_deps.join(", ");
                     w.emit_fmt(format_args!("}}, [{}]);", deps_str));
@@ -238,18 +245,26 @@ impl ReactCodegen {
 /// setState setters, store actions, function calls, and body locals never
 /// enter the deps (stable or non-reactive — including them would re-register
 /// the cleanup on every render and change the one-shot unmount semantics).
+/// Hoisted signals (perf M3) are module-scope consts — never reactive — and
+/// are excluded like the other stable names.
 fn unmount_deps(
     body: &BlockIR,
     comp: &ComponentIR,
     store_signal_map: &FxHashMap<String, String>,
     store_field_renames: &FxHashMap<String, String>,
     store_fields: &FxHashMap<String, FxHashSet<String>>,
+    hoisted_signals: &FxHashSet<String>,
 ) -> Vec<String> {
     // Reactive bare names: component signals/computeds/props + store signal
     // names. Store ALIASES are excluded — a `Store.x` read resolves to the
     // qualified field (or slice local), never the whole-store alias.
     let mut reactive: FxHashSet<&str> = FxHashSet::default();
-    reactive.extend(comp.signals.iter().map(|s| s.name.as_str()));
+    reactive.extend(
+        comp.signals
+            .iter()
+            .map(|s| s.name.as_str())
+            .filter(|n| !hoisted_signals.contains(*n)),
+    );
     reactive.extend(comp.computeds.iter().map(|c| c.name.as_str()));
     reactive.extend(comp.props.keys().map(String::as_str));
     reactive.extend(store_signal_map.keys().map(String::as_str));
@@ -393,10 +408,19 @@ pub(super) fn fn_read_deps(
     store_fields: &FxHashMap<String, FxHashSet<String>>,
     store_actions: &FxHashMap<String, FxHashSet<String>>,
     used_store_refs: &FxHashSet<String>,
+    hoisted_signals: &FxHashSet<String>,
 ) -> Vec<String> {
-    // Bare-name universe the rule treats as reactive.
+    // Bare-name universe the rule treats as reactive. Hoisted signals
+    // (perf M3) are module-scope consts — excluded like the other stable
+    // names (a hoisted const in the dep array is an eslint
+    // "unnecessary dependency" error).
     let mut reactive: FxHashSet<String> = FxHashSet::default();
-    reactive.extend(comp.signals.iter().map(|s| s.name.clone()));
+    reactive.extend(
+        comp.signals
+            .iter()
+            .map(|s| s.name.clone())
+            .filter(|n| !hoisted_signals.contains(n)),
+    );
     reactive.extend(comp.computeds.iter().map(|c| c.name.clone()));
     reactive.extend(comp.props.keys().cloned());
     reactive.extend(comp.events.iter().map(|e| e.name.clone()));

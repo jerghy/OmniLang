@@ -10,6 +10,10 @@ use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 
 /// Generate useMemo / useCallback hooks for all @computed declarations.
+/// `hoisted_signals` (perf M3) are module-scope consts — never reactive —
+/// so they must NOT enter the dep arrays (eslint react-hooks flags outer-
+/// scope values in deps as "unnecessary dependency").
+#[allow(clippy::too_many_arguments)]
 pub(super) fn gen_computed_values(
     w: &mut CodeWriter,
     comp: &ComponentIR,
@@ -18,6 +22,7 @@ pub(super) fn gen_computed_values(
     store_signal_owners: &FxHashMap<String, String>,
     ref_names: &FxHashSet<String>,
     store_field_renames: &FxHashMap<String, String>,
+    hoisted_signals: &FxHashSet<String>,
 ) {
     for computed in &comp.computeds {
         let mut deps_list: Vec<String> = Vec::new();
@@ -28,6 +33,9 @@ pub(super) fn gen_computed_values(
         // `[TodoStore]` dep would recompute on unrelated updates.
         let store_deps = collect_store_field_deps(&computed.body, store_field_renames);
         for sig_name in known_signal_names {
+            if hoisted_signals.contains(sig_name) {
+                continue;
+            }
             let is_sliced_store_ref = store_deps
                 .iter()
                 .any(|(store, _)| store == sig_name.as_str());

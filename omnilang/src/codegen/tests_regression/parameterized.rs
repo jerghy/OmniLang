@@ -659,7 +659,19 @@ fn assert_array_methods_react(files: &FxHashMap<String, String>) {
     // The useMemo deps array must track the subject signal — regression
     // guard: the computed-deps collector used to miss ExprIR::ArrayMethod
     // (`_ => false`), emitting `useMemo(..., [])` and stale computeds.
-    assert_contains(files, "ArrayMethodsDemo.tsx", "}, [items]);");
+    // perf M3: `items` is a literal-initialized never-mutated signal —
+    // hoisted to a MODULE-scope const; the computed deps must NOT track it
+    // (a constant is not reactive — eslint exhaustive-deps rejects
+    // outer-scope values in deps). The computeds read the const via scope
+    // hoisting; with no reactive deps the memo recomputes never, which is
+    // correct (items is constant).
+    assert_contains(files, "ArrayMethodsDemo.tsx", "const items = [1, 2, 3, 4, 5, 6];");
+    assert_contains(files, "ArrayMethodsDemo.tsx", "}, []);");
+    assert!(
+        !files["ArrayMethodsDemo.tsx"].contains("}, [items]);"),
+        "hoisted const must not enter computed deps:\n{}",
+        &files["ArrayMethodsDemo.tsx"]
+    );
 }
 
 fn assert_array_methods_flutter(files: &FxHashMap<String, String>) {

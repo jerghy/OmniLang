@@ -514,6 +514,44 @@ impl ReactCodegen {
             w.emit("");
         }
 
+        // ── Task 2.9 (perf M3): hoist never-mutated literal signals ──
+        // A signal initialized with a pure literal (`signal items =
+        // ["a", "b"]`) and never mutated was re-allocated inside the
+        // component function on EVERY render; a computed/memo depending on
+        // it recomputed every render because the deps compared a fresh
+        // array identity (FilterBar `demoFrameworks` + `filteredFrameworks`
+        // memo). Hoisted to module scope: one allocation per module, stable
+        // identity across renders. The hoist must agree with the useState
+        // decision (never-mutated only) and must not collide with the
+        // module-scope bindings already in this file (component fn name,
+        // imports, lib fns, memo aliases, internal tables) — a duplicate
+        // `const` at module scope is a redeclaration SyntaxError.
+        let mut module_reserved_names: FxHashSet<String> = FxHashSet::default();
+        module_reserved_names.insert(name.to_string());
+        module_reserved_names.insert("_M".to_string());
+        module_reserved_names.insert("__omni_activePointerId".to_string());
+        module_reserved_names.insert("React".to_string());
+        module_reserved_names.extend(hooks.iter().cloned());
+        if has_styles {
+            module_reserved_names.insert("styles".to_string());
+        }
+        module_reserved_names.extend(used_store_refs.iter().map(|r| format!("use{}", r)));
+        module_reserved_names.extend(lib_fn_names.iter().cloned());
+        module_reserved_names.extend(
+            prop_fn_ctx
+                .memo_children
+                .iter()
+                .map(|c| format!("Memoized{}", c)),
+        );
+        module_reserved_names.extend(design_wiring.hook_calls.iter().cloned());
+        let hoisted_signals = state::collect_hoistable_literal_signals(
+            comp,
+            &read_signals,
+            &mutated_signals,
+            &module_reserved_names,
+        );
+        state::gen_hoisted_signal_consts(&mut w, comp, &hoisted_signals, &store_field_renames);
+
         // Component function signature
         if !has_props {
             w.emit_fmt(format_args!("export function {}() {{", name));
@@ -605,6 +643,7 @@ impl ReactCodegen {
             comp,
             &read_signals,
             &mutated_signals,
+            &hoisted_signals,
             &fn_names,
             &store_field_renames,
         );
@@ -642,6 +681,7 @@ impl ReactCodegen {
             &ref_names,
             &store_field_renames,
             &store_fields,
+            &hoisted_signals,
         );
         state::gen_semantic_binding_effects(
             &mut w,
@@ -649,6 +689,7 @@ impl ReactCodegen {
             &store_signal_map,
             &ref_names,
             &store_field_renames,
+            &hoisted_signals,
         );
 
         // Computed values (useMemo / useCallback)
@@ -664,6 +705,7 @@ impl ReactCodegen {
             &store_signal_owners,
             &ref_names,
             &store_field_renames,
+            &hoisted_signals,
         );
 
         // Component-local function declarations
@@ -698,6 +740,7 @@ impl ReactCodegen {
                         &store_fields,
                         &store_actions,
                         &used_store_refs,
+                        &hoisted_signals,
                     );
                     w.emit_fmt(format_args!(
                         "const __omni_cb_{} = useCallback({}, [{}]);",

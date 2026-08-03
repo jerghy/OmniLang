@@ -896,12 +896,18 @@ component App {
 
 /// The perf HIGH-3 repro: a computed whose only read of `searchText` is
 /// inside a pipe closure — the React useMemo deps MUST include searchText.
+/// (searchText is initialized from a PROP, not a literal — perf M3 hoists
+/// literal-initialized never-mutated signals to module-scope consts, and a
+/// constant correctly needs no deps; a prop-backed signal is reactive and
+/// must keep its dep. demoFrameworks is the literal-hoisted case — it is
+/// filtered out of the deps.)
 const COMPUTED_CLOSURE_READ_FIXTURE: &str = r##"
 import omniview;
 import { array_filter } from "std/array";
 
 component App {
-    signal searchText: String = "";
+    prop defaultSearch: String = "";
+    signal searchText: String = defaultSearch;
     signal demoFrameworks: Array<String> = ["React", "Vue"];
 
     computed filteredFrameworks: Array<String> = array_filter(demoFrameworks, |f| f == searchText);
@@ -1009,10 +1015,19 @@ fn computed_closure_signal_read_lands_in_memo_deps() {
     // perf HIGH-3 repro (FilterBar case): before the ClosureExpr arm in
     // getter_expr_contains_ident this emitted `}, [demoFrameworks]);` and
     // typing never re-filtered the computed.
+    // perf M3 (task 2.9): demoFrameworks is a literal-initialized
+    // never-mutated signal — hoisted to a module-scope const and filtered
+    // OUT of the computed deps (a constant is not reactive); searchText
+    // stays, so typing still re-filters the computed.
     let out = compile_react(COMPUTED_CLOSURE_READ_FIXTURE);
     assert!(
-        out.contains("}, [searchText, demoFrameworks]);"),
+        out.contains("}, [searchText]);"),
         "the closure-internal searchText read must be a useMemo dep. Got:\n{}",
+        out
+    );
+    assert!(
+        !out.contains("}, [searchText, demoFrameworks]);"),
+        "hoisted demoFrameworks must not enter the deps. Got:\n{}",
         out
     );
 }

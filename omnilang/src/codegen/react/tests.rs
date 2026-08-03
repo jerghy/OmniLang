@@ -1017,11 +1017,17 @@ fn test_tsx_component_with_lifecycle_mount() {
 /// cleanup reads must enter the deps array: with `}, [count]);` React
 /// re-registers the cleanup on every count change, so the unmount cleanup
 /// closes over the LATEST count.
+///
+/// (The signal is initialized from a PROP, not a literal — a literal
+/// initializer would be hoisted to a module-scope const by perf M3 and a
+/// constant correctly needs no deps. A prop-backed signal is reactive and
+/// must keep its dep.)
 #[test]
 fn effect_cleanup_reads_are_deps() {
     let src = r#"
         component Timer {
-            signal count: i32 = 0;
+            prop initial: i32 = 0;
+            signal count: i32 = initial;
             @unmount {
                 println("Timer unmounted, final count: " + count.to_string());
             }
@@ -1150,6 +1156,34 @@ fn motion_table_hoisted_to_module_scope() {
         tsx.matches("const _M").count(),
         1,
         "_M must be emitted exactly once (module scope). Got:\n{}",
+        tsx
+    );
+}
+
+/// perf M3: a never-mutated signal initialized with a literal is hoisted to
+/// module scope — it was re-allocated inside the component function on EVERY
+/// render, and a computed/memo depending on it recomputed every render (the
+/// fresh array identity defeats the memo deps). Module scope: one allocation
+/// per module, stable identity across renders. (The brief's `view V {...}`
+/// shorthand does not parse — the standard `component V { ... }` form is
+/// used; test name, assertion and failure message are kept verbatim.)
+#[test]
+fn literal_never_mutated_signal_hoisted() {
+    let out = compile_react(
+        r#"
+        component V {
+            signal items: Array<String> = ["a", "b"];
+            view { <div>{items.length}</div> }
+        }
+        "#,
+    )
+    .expect("compile must succeed");
+    let tsx = out.files.get("V.tsx").expect("V.tsx emitted");
+    let fn_start = tsx.find("function V").expect("component function emitted");
+    let decl = tsx.find("const items =").expect("signal const emitted");
+    assert!(
+        decl < fn_start,
+        "literal signal must be module-scoped: {}",
         tsx
     );
 }
@@ -3321,8 +3355,10 @@ component TypedRefs {
 fn test_react_semantic_bindings_generate_effects() {
     let source = r#"
 component SearchBox {
-  signal active: Bool = false
-  signal pos: Float = 0
+  prop defaultActive: Bool = false
+  prop defaultPos: Float = 0
+  signal active: Bool = defaultActive
+  signal pos: Float = defaultPos
   ref field: Element
   view {
     <input ref:field focus={active} scroll-y={pos} />
@@ -3476,11 +3512,14 @@ component StoreBinding {
 }
 
 /// Test: scroll-x semantic binding emits scrollTo({ left: sig }).
+/// (Prop-backed signal — a literal-initialized one is hoisted to a
+/// module-scope const by perf M3 and a constant correctly needs no deps.)
 #[test]
 fn test_react_semantic_binding_scroll_x() {
     let source = r#"
 component Carousel {
-  signal pos: Float = 0
+  prop defaultPos: Float = 0
+  signal pos: Float = defaultPos
   ref track: Element
   view {
     <div ref:track scroll-x={pos}>items</div>

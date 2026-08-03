@@ -18,17 +18,26 @@ impl ReactCodegen {
     /// Generate useState hooks for component state signals.
     /// Only generates setter if signal is mutated; non-mutated signals use plain const.
     /// Skips states never read in view/computeds/effects/lifecycles/called-fns.
+    /// `hoisted_signals` (perf M3) were already emitted as module-scope consts
+    /// before the component function — they are skipped here entirely.
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn gen_state_hooks(
         &self,
         w: &mut CodeWriter,
         comp: &ComponentIR,
         read_signals: &FxHashSet<String>,
         mutated_signals: &FxHashSet<String>,
+        hoisted_signals: &FxHashSet<String>,
         fn_names: &FxHashSet<String>,
         store_field_renames: &FxHashMap<String, String>,
     ) {
         for state in &comp.signals {
             if !read_signals.contains(&state.name) {
+                continue;
+            }
+            // Hoisted to module scope (perf M3) — in-function references
+            // resolve to the module const via scope hoisting unchanged.
+            if hoisted_signals.contains(&state.name) {
                 continue;
             }
             // A signal initializer may read a store field
@@ -69,6 +78,89 @@ impl ReactCodegen {
                 w.emit_fmt(format_args!("const {} = {};", state.name, init_val));
             }
         }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════
+// perf M3: never-mutated literal signals → module-scope consts
+// ═══════════════════════════════════════════════════════════
+
+/// Whether an expression is a pure literal subtree — scalar literals
+/// (string/number/bool/null), array literals, and object literals whose
+/// keys and values are all themselves pure literals. Anything referencing
+/// runtime state (identifiers, store fields, calls, spreads, ...)
+/// disqualifies the subtree — conservative by design: only values that are
+/// compile-time constants may leave the component function.
+fn expr_is_pure_literal(expr: &ExprIR) -> bool {
+    match expr {
+        ExprIR::LiteralExpr { value } => {
+            value.is_null() || value.is_boolean() || value.is_number() || value.is_string()
+        }
+        ExprIR::ArrayExpr { elements } => elements.iter().all(expr_is_pure_literal),
+        ExprIR::MapExpr { entries } => entries
+            .iter()
+            .all(|(k, v)| expr_is_pure_literal(k) && expr_is_pure_literal(v)),
+        _ => false,
+    }
+}
+
+/// Collect the signals eligible for module-scope hoisting (perf M3):
+/// read in the component, never mutated, initialized with a pure literal,
+/// and not colliding with an existing module-scope binding in the generated
+/// file (the component fn name, imported names, lib fns, memo aliases and
+/// internal module tables — a duplicate `const` at module scope is a
+/// redeclaration SyntaxError).
+///
+/// The never-mutated requirement keeps the hoist decision identical to the
+/// useState decision (a mutated signal must stay useState — it can never
+/// hoist); the pure-literal requirement guarantees the const carries no
+/// store/prop/runtime dependencies (a store-field initializer must keep
+/// referencing the slice local, a prop initializer the destructured prop).
+pub(super) fn collect_hoistable_literal_signals(
+    comp: &ComponentIR,
+    read_signals: &FxHashSet<String>,
+    mutated_signals: &FxHashSet<String>,
+    module_reserved_names: &FxHashSet<String>,
+) -> FxHashSet<String> {
+    comp.signals
+        .iter()
+        .filter(|s| {
+            read_signals.contains(&s.name)
+                && !mutated_signals.contains(&s.name)
+                && !module_reserved_names.contains(&s.name)
+                && expr_is_pure_literal(&s.initial_value)
+        })
+        .map(|s| s.name.clone())
+        .collect()
+}
+
+/// Emit module-scope consts for hoisted literal signals (perf M3). Called
+/// before the component function declaration — references inside the
+/// component resolve to these consts via scope hoisting unchanged.
+pub(super) fn gen_hoisted_signal_consts(
+    w: &mut CodeWriter,
+    comp: &ComponentIR,
+    hoisted_signals: &FxHashSet<String>,
+    store_field_renames: &FxHashMap<String, String>,
+) {
+    let mut emitted = false;
+    for state in &comp.signals {
+        if !hoisted_signals.contains(&state.name) {
+            continue;
+        }
+        // Pure-literal initializers carry no identifiers, so the rename map
+        // cannot apply — passed for signature symmetry with the in-function
+        // emission (which the module const replaces).
+        let init_val = expr::format_expr_ir_tsx_renamed(
+            &state.initial_value,
+            &FxHashSet::default(),
+            store_field_renames,
+        );
+        w.emit_fmt(format_args!("const {} = {};", state.name, init_val));
+        emitted = true;
+    }
+    if emitted {
+        w.emit("");
     }
 }
 
@@ -957,6 +1049,7 @@ pub(super) fn gen_semantic_binding_effects(
     store_signal_map: &FxHashMap<String, String>,
     ref_names: &FxHashSet<String>,
     store_field_renames: &FxHashMap<String, String>,
+    hoisted_signals: &FxHashSet<String>,
 ) {
     let Some(ref view) = view else {
         return;
@@ -968,6 +1061,7 @@ pub(super) fn gen_semantic_binding_effects(
         store_signal_map,
         ref_names,
         store_field_renames,
+        hoisted_signals,
         &mut emitted,
     );
 }
@@ -978,6 +1072,7 @@ fn walk_semantic_binding_effects(
     store_signal_map: &FxHashMap<String, String>,
     ref_names: &FxHashSet<String>,
     store_field_renames: &FxHashMap<String, String>,
+    hoisted_signals: &FxHashSet<String>,
     emitted: &mut bool,
 ) {
     match node {
@@ -991,6 +1086,7 @@ fn walk_semantic_binding_effects(
                         store_signal_map,
                         ref_names,
                         store_field_renames,
+                        hoisted_signals,
                         emitted,
                     );
                 }
@@ -1002,6 +1098,7 @@ fn walk_semantic_binding_effects(
                     store_signal_map,
                     ref_names,
                     store_field_renames,
+                    hoisted_signals,
                     emitted,
                 );
             }
@@ -1015,6 +1112,7 @@ fn walk_semantic_binding_effects(
                         store_signal_map,
                         ref_names,
                         store_field_renames,
+                        hoisted_signals,
                         emitted,
                     );
                 }
@@ -1026,6 +1124,7 @@ fn walk_semantic_binding_effects(
                     store_signal_map,
                     ref_names,
                     store_field_renames,
+                    hoisted_signals,
                     emitted,
                 );
             }
@@ -1038,6 +1137,7 @@ fn walk_semantic_binding_effects(
                     store_signal_map,
                     ref_names,
                     store_field_renames,
+                    hoisted_signals,
                     emitted,
                 );
             }
@@ -1048,6 +1148,7 @@ fn walk_semantic_binding_effects(
                     store_signal_map,
                     ref_names,
                     store_field_renames,
+                    hoisted_signals,
                     emitted,
                 );
             }
@@ -1060,6 +1161,7 @@ fn walk_semantic_binding_effects(
                     store_signal_map,
                     ref_names,
                     store_field_renames,
+                    hoisted_signals,
                     emitted,
                 );
             }
@@ -1072,6 +1174,7 @@ fn walk_semantic_binding_effects(
                     store_signal_map,
                     ref_names,
                     store_field_renames,
+                    hoisted_signals,
                     emitted,
                 );
             }
@@ -1083,6 +1186,7 @@ fn walk_semantic_binding_effects(
 }
 
 /// Emit one useEffect per semantic binding on a ref-bound element.
+#[allow(clippy::too_many_arguments)]
 fn emit_element_binding_effects(
     w: &mut CodeWriter,
     ref_name: &str,
@@ -1090,12 +1194,14 @@ fn emit_element_binding_effects(
     store_signal_map: &FxHashMap<String, String>,
     ref_names: &FxHashSet<String>,
     store_field_renames: &FxHashMap<String, String>,
+    hoisted_signals: &FxHashSet<String>,
     emitted: &mut bool,
 ) {
     let base = format!("{}Ref.current", ref_name);
     for (kind, expr) in bindings {
         let val = expr::format_expr_ir_tsx_renamed(expr, ref_names, store_field_renames);
-        let deps_str = semantic_binding_deps(expr, store_signal_map, store_field_renames);
+        let deps_str =
+            semantic_binding_deps(expr, store_signal_map, store_field_renames, hoisted_signals);
         if !*emitted {
             w.emit("");
             *emitted = true;
@@ -1154,10 +1260,14 @@ fn emit_element_binding_effects(
 /// - A bare signal depends on its own name (resolved through the store
 ///   signal map for future-proofing); anything else falls back to collecting
 ///   identifiers, sorted for deterministic output.
+/// - Hoisted signals (perf M3) are module-scope consts — never reactive —
+///   and are excluded from the deps (eslint react-hooks flags outer-scope
+///   values as "unnecessary dependency").
 fn semantic_binding_deps(
     expr: &ExprIR,
     store_signal_map: &FxHashMap<String, String>,
     store_field_renames: &FxHashMap<String, String>,
+    hoisted_signals: &FxHashSet<String>,
 ) -> String {
     if let ExprIR::FieldAccessExpr { object, field } = expr {
         if let ExprIR::IdentifierExpr { name, .. } = object.as_ref() {
@@ -1171,6 +1281,9 @@ fn semantic_binding_deps(
     let mut acc = FxHashSet::default();
     collect_expr_identifiers(expr, &mut acc);
     for id in acc {
+        if hoisted_signals.contains(&id) {
+            continue;
+        }
         let qualified = store_signal_map
             .get(&id)
             .cloned()

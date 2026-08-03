@@ -232,6 +232,29 @@ test.describe('OmniView React — 9 标签页验证', () => {
         `cleanup must log the LATEST count after exactly 3 ticks. Logs: ${JSON.stringify(logs)}`,
       ).toBe(true);
     });
+
+    test('38 - FilterBar input filtering survives literal-signal hoisting (task 2.9: perf M3)', async ({ page }) => {
+      // demoFrameworks is a literal-initialized never-mutated signal —
+      // task 2.9 hoists it to a module-scope const and filters it OUT of
+      // the filteredFrameworks useMemo deps (a constant is not reactive;
+      // the deps become [searchText]). searchText stays in the deps, so
+      // typing must still re-filter the computed (5/5 → 1/5 for "React")
+      // — the hoist must NOT freeze the filter. React drops the space
+      // after the colon, so the count text is "Filtered frameworks:5/5".
+      await switchToTab(page, 1);
+      await visible(page, /Filtered frameworks:\s*5\/5/);
+      const filterCard = page.locator('div.Card', { has: page.getByText(/Filtered frameworks:/) });
+      const filterInput = filterCard.locator('input[placeholder="Filter todos..."]');
+      await filterInput.fill('React');
+      await page.waitForTimeout(300);
+      await visible(page, /Filtered frameworks:\s*1\/5/);
+      // Clearing the filter (empty the input — same searchText change path
+      // as the X button, which an unrelated demo element overlays)
+      // restores the full list — the memo must recompute back to 5/5.
+      await filterInput.fill('');
+      await page.waitForTimeout(300);
+      await visible(page, /Filtered frameworks:\s*5\/5/);
+    });
   });
 
   // ═══ TAB 2: Motion ═══
