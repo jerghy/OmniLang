@@ -8,6 +8,7 @@ use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
 use crate::codegen::shared::build_component_map;
 use crate::codegen::shared::types::{FormatType, JsTypeFormatter};
 use crate::codegen::{format_json_value, JSON_REACT};
+use crate::error::{Diagnostic, DiagnosticKind, Severity};
 use crate::ir::*;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
@@ -27,6 +28,23 @@ pub struct ReactCodegen;
 
 impl Codegen for ReactCodegen {
     fn generate(&self, ir: &IRProgram, source_files: &FxHashMap<String, String>) -> CompileOutput {
+        // BUG-C hard diagnostic (Task 2.2, deferral #37): inline stores
+        // (`store Name { ... }` in a component body) have NO React emission
+        // path — they are flattened into the component and never enter
+        // ModuleIR.stores, so action calls compile to bare undefined
+        // references (`CartStore.addItem(...)` → TS2304 → runtime
+        // ReferenceError) while their state freezes to `const []` locals.
+        // Fail honestly with a migration hint instead of emitting that
+        // broken shape; real inline-store emission lands in Phase 5.2
+        // (IR wave).
+        if let Some(errors) = inline_store_react_diagnostics(ir) {
+            return CompileOutput {
+                files: vec![],
+                errors,
+                source_map: vec![],
+                warnings: vec![],
+            };
+        }
         let mut output = self.generate_per_component(ir, source_files);
         // Module-level design blocks → design.css + design runtime files
         // (useDesignTokens.ts / useThemeStore.ts) in a dedicated `__design/`
@@ -65,6 +83,37 @@ impl Codegen for ReactCodegen {
             path: format!("{}use{}.ts", dir_prefix, name),
             content,
         }]
+    }
+}
+
+/// Collect one E_CODEGEN diagnostic per inline store declaration (BUG-C,
+/// deferral #37). `None` when the program has no inline stores — the
+/// normal compile path. Each diagnostic names the store and the owning
+/// component and carries the migration hint.
+fn inline_store_react_diagnostics(ir: &IRProgram) -> Option<Vec<Diagnostic>> {
+    let mut diags = Vec::new();
+    for (comp_name, comp) in ir.all_components() {
+        for store_name in &comp.inline_stores {
+            diags.push(Diagnostic {
+                severity: Severity::Error,
+                kind: DiagnosticKind::ECodegen,
+                message: format!(
+                    "inline store `{}` in component `{}` 在 React 目标暂不支持——移至顶层 store（src/stores/ 下定义并 import），或等待 IR wave（Phase 5.2）加入内联 store 发射；当前会生成冻结状态与未定义的 store 引用（deferral #37）",
+                    store_name, comp_name
+                ),
+                file: comp.source_file.clone(),
+                line: 0,
+                col: 0,
+                end_line: None,
+                end_col: None,
+                suggestion: None,
+            });
+        }
+    }
+    if diags.is_empty() {
+        None
+    } else {
+        Some(diags)
     }
 }
 

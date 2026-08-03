@@ -1,49 +1,17 @@
 // ╔══════════════════════════════════════════════════════════════╗
-// ║  InlineStoreDemo.omni —— 内联 Store 演示                       ║
-// ║  演示：在 component 内部使用 store Name { ... } 定义局部 store   ║
+// ║  InlineStoreDemo.omni —— Store 引用演示                       ║
+// ║  演示：组件通过 @store 引用顶层 store（CartStore）            ║
+// ║  迁移说明：原为组件内联 store（component 内 store { ... }），  ║
+// ║  React 目标对 inline store 硬诊断 E_CODEGEN（Task 2.2，       ║
+// ║  BUG-C / deferral #37），故迁至 src/stores/CartStore.omni。   ║
 // ╚══════════════════════════════════════════════════════════════╝
 
 import omniview;
 import { LearnDesign } from "../design";
-import { array_get } from "std/array";
+import { CartStore } from "../stores/CartStore";
 
 component InlineStoreDemo {
-    // 内联 store 定义在 component 内部，不导出到外部
-    store CartStore {
-        signal items: Array<String> = [];
-        // 与 items 平行记录单价，removeLast 才能扣减正确金额
-        signal prices: Array<f64> = [];
-        signal totalPrice: f64 = 0.0;
-
-        getter itemCount: i32 = items.len();
-        getter summary: String = if items.len() == 0 {
-            "cart empty"
-        } else {
-            "total: " + items.len().to_string() + " items"
-        };
-
-        action addItem(name: String, price: f64) {
-            items.push(name);
-            prices.push(price);
-            totalPrice = totalPrice + price;
-        }
-
-        action removeLast() {
-            if items.len() > 0 {
-                let lastPrice = array_get(prices, items.len() - 1);
-                items.pop();
-                prices.pop();
-                totalPrice = totalPrice - lastPrice;
-            }
-        }
-
-        action clear() {
-            items = [];
-            prices = [];
-            totalPrice = 0.0;
-        }
-    }
-
+    @store CartStore;
 
     signal log: String = "";
 
@@ -75,9 +43,9 @@ component InlineStoreDemo {
     view {
         <div class: LearnDesign.Container>
             <h3 class: LearnDesign.CardTitle>Inline Store Demo</h3>
-            <p>Items: {itemCount}</p>
-            <p>Summary: {summary}</p>
-            <p>Total: {totalPrice}</p>
+            <p>Items: {CartStore.itemCount}</p>
+            <p>Summary: {CartStore.summary}</p>
+            <p>Total: {CartStore.totalPrice}</p>
             <div class: LearnDesign.Row>
                 <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={addApple}>
                     Add Apple

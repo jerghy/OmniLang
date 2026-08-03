@@ -59,7 +59,8 @@ component SlotBox {
 // ═══════════════════════════════════════════════════════════════
 component SignalPatternsDemo {
     // ── 本地 signal + computed ──
-    // (Inline store 模式见 InlineStoreDemo.omni)
+    // (Store 引用模式见 InlineStoreDemo.omni——顶层 store 模式；
+    //  React 目标对 inline store 硬诊断 E_CODEGEN，Task 2.2)
     signal count: i32 = 0;
     signal name: String = "";
     signal email: String = "";

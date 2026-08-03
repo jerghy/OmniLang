@@ -38,15 +38,18 @@ components/StdLibShowcase.tsx	TS7006	[T1.6] implicit-any fn/closure params	2	#67
 components/Modal.tsx	TS7006	[T1.6] implicit-any fn/closure params	2	#67
 components/EventsDemo.tsx	TS7006	[T1.6] implicit-any fn/closure params	2	#67
 components/DataTable.tsx	TS7006	[T1.6] implicit-any fn/closure params	1	#67
-# TS7005/TS7034 — implicit any[] store slice vars (InlineStoreDemo)
-components/InlineStoreDemo.tsx	TS7005	[T1.6] implicit any[] var (untyped store slice)	2	#67
-components/InlineStoreDemo.tsx	TS7034	[T1.6] implicit any[] partial inference	1	#67
+# TS7005/TS7034 — REMOVED (task 2.2): the frozen `const items = []` locals
+#           were the inline-store zero-emission shape; InlineStoreDemo now
+#           references the top-level CartStore (slice selectors) and the
+#           implicit any[] vars are gone.
 # TS2304 — undefined names: inline store ACTIONS have no emission path (T3.3
 #           slice selectors need a module store), union/struct type names never
 #           emitted by React target, mutated-unread signal setter
-components/InlineStoreDemo.tsx	TS2304	[T1.6] inline store action name unresolved (CartStore; needs module store for T3.3 selectors)	5	#37
+#           REMOVED (task 2.2): the CartStore entry (deferral #37) is gone —
+#           inline stores now hard-diagnose E_CODEGEN on React (BUG-C interim)
+#           and InlineStoreDemo was migrated to a top-level store.
 components/AdvancedPseudoDemo.tsx	TS2304	[T1.6] mutated-unread signal setter (setVariant)	2	#72
-stores/useTodoStore.ts	TS2304	[T1.6] inline store action name unresolved	1	#37
+stores/useTodoStore.ts	TS2304	[T1.6] struct type name never emitted by React target (Todo in TodoStoreState)	1	#49
 pages/DataFetching.tsx	TS2304	[T1.6] struct type name never emitted by React target (ApiResult)	1	#49
 components/MatchBreadthDemo.tsx	TS2304	[T1.6] union type name never emitted by React target (Rating)	1	#49
 # TS2722 — invoke of possibly-undefined event-handler props → needs `?.()`
@@ -115,7 +118,6 @@ pages/AnimPropertiesDemo.tsx	react-hooks/exhaustive-deps	[T1.6] missing/new-arra
 pages/MotionDemo.tsx	react-hooks/exhaustive-deps	[T1.6] missing/new-array deps	14	#68
 pages/MotionTriggersDemo.tsx	react-hooks/exhaustive-deps	[T1.6] missing/new-array deps	5	#68
 pages/ElementRefDemo.tsx	react-hooks/exhaustive-deps	[T1.6] missing/new-array deps	3	#68
-components/InlineStoreDemo.tsx	react-hooks/exhaustive-deps	[T1.6] missing/new-array deps	2	#68
 pages/UserSettings.tsx	react-hooks/exhaustive-deps	[T1.6] missing/new-array deps	1	#68
 components/Timer.tsx	react-hooks/exhaustive-deps	[T1.6] missing/new-array deps	1	#68
 components/StatsDashboard.tsx	react-hooks/exhaustive-deps	[T1.6] missing/new-array deps	1	#68

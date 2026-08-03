@@ -15,6 +15,7 @@ use crate::codegen::{
     binary_op_to_str, camel_to_kebab, capitalize_first, format_json_value, CodeWriter, Codegen,
     JSON_REACT,
 };
+use crate::error::DiagnosticKind;
 use crate::ir::*;
 use crate::ir::{ConstructionKind, ModuleIR};
 use crate::path_mapping;
@@ -1895,6 +1896,39 @@ fn compile_react_full(source: &str) -> crate::InternalCompileResult {
         false,
         None,
     )
+}
+
+// ── BUG-C hard diagnostic (Task 2.2): inline stores on React ──
+
+/// Compile helper returning (result, diagnostics) so hard-diagnostic tests
+/// can assert on the emitted E_CODEGEN errors.
+fn compile_react_with_diags(
+    source: &str,
+) -> (crate::InternalCompileResult, Vec<crate::error::Diagnostic>) {
+    let result = compile_react_full(source);
+    let diags = result.errors.clone();
+    (result, diags)
+}
+
+#[test]
+fn inline_store_react_hard_diagnosed() {
+    let src =
+        r#"component Inline { store Cart { signal items: Array<String> = []; } view { <div/> } }"#;
+    let (_, diags) = compile_react_with_diags(src);
+    let d = diags
+        .iter()
+        .find(|d| d.kind == DiagnosticKind::ECodegen)
+        .expect("inline store must diagnose on react");
+    assert!(
+        d.message.contains("inline store"),
+        "expected migration hint, got: {}",
+        d.message
+    );
+    assert!(
+        d.message.contains("顶层 store"),
+        "expected migration hint, got: {}",
+        d.message
+    );
 }
 
 // ── @for cross-target keyed contract (Task 5.5) ─────────────
