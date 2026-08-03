@@ -121,6 +121,31 @@ pub fn camel_to_kebab(s: &str) -> String {
     camel_to_separated(s, '-')
 }
 
+/// Convert a kebab-case CSS property name to camelCase — the key shape
+/// React's style object requires ("font-size" → "fontSize",
+/// "-webkit-line-clamp" → "WebkitLineClamp" per the CSSOM vendor-prefix
+/// convention). CSS custom properties (starting with "--") are returned
+/// unchanged: they are case-sensitive and must never be camelCased.
+#[must_use]
+pub fn kebab_to_camel(s: &str) -> String {
+    if s.starts_with("--") {
+        return s.to_string();
+    }
+    let mut result = String::with_capacity(s.len());
+    let mut upper_next = false;
+    for c in s.chars() {
+        if c == '-' {
+            upper_next = true;
+        } else if upper_next {
+            result.push(c.to_ascii_uppercase());
+            upper_next = false;
+        } else {
+            result.push(c);
+        }
+    }
+    result
+}
+
 /// Extract a CSS value string from an IR expression node.
 /// Strings are sanitized via sanitize_css_value; numbers are emitted as-is
 /// (callers are responsible for appending units like "px" when needed).

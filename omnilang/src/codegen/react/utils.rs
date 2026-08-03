@@ -266,6 +266,22 @@ fn react_prop_for_canonical(canonical: &str) -> String {
         "dragover" => "onDragOver".into(),
         "dragleave" => "onDragLeave".into(),
         "drop" => "onDrop".into(),
+        // Animation/transition — React's synthetic event set. The generic
+        // `on{} + capitalize_first` fallback mangles compound canonical
+        // names ("animationend" → "onAnimationend"), and a non-synthetic
+        // prop name is DROPPED by React — no listener attached, silent dead
+        // event + "React does not recognize" console error (ts/react M3).
+        // The full React synthetic list per the React docs:
+        // onAnimationEnd / onAnimationIteration / onAnimationStart /
+        // onTransitionEnd / onTransitionRun / onTransitionStart /
+        // onTransitionCancel.
+        "animationstart" => "onAnimationStart".into(),
+        "animationend" => "onAnimationEnd".into(),
+        "animationiteration" => "onAnimationIteration".into(),
+        "transitionend" => "onTransitionEnd".into(),
+        "transitionrun" => "onTransitionRun".into(),
+        "transitionstart" => "onTransitionStart".into(),
+        "transitioncancel" => "onTransitionCancel".into(),
         other => format!("on{}", capitalize_first(other)),
     }
 }

@@ -5098,3 +5098,61 @@ component V {
         content
     );
 }
+
+// ── Task 2.5: style key camelCase + React synthetic event names ─────
+
+/// Inline style keys must be camelCased (`font-size` → `fontSize`) — React's
+/// style object only accepts camelCase keys; kebab-case keys emit an
+/// "Unsupported style property" console error and never apply (ts/react M3,
+/// TodoList.tsx). CSS custom properties (`--*`) are NOT camelCased — they are
+/// case-sensitive and React accepts them quoted verbatim.
+#[test]
+fn style_keys_are_camel_cased() {
+    let src = r#"
+import omniview;
+component V {
+    view {
+        <div style: { font-size: "16px" }/>
+    }
+}
+"#;
+    let output = compile_react(src).expect("style map must compile");
+    let out: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(!out.contains("font-size"), "kebab style key leaked: {}", out);
+    assert!(out.contains("fontSize"), "expected camelCase: {}", out);
+}
+
+/// Animation/transition events must emit React's synthetic handler names
+/// (`onAnimationEnd`, not the lowercase `onAnimationend`) — non-synthetic
+/// prop names are dropped by React (no listener attached — silent dead
+/// event) and warn "React does not recognize" (ts/react M3, EventsDemo.tsx).
+#[test]
+fn animation_events_use_synthetic_names() {
+    let src = r#"
+import omniview;
+component V {
+    fn f() {}
+    view {
+        <div @onAnimationEnd={f}/>
+    }
+}
+"#;
+    let output = compile_react(src).expect("animation event must compile");
+    let out: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        !out.contains("onAnimationend"),
+        "must emit React synthetic name: {}",
+        out
+    );
+    assert!(out.contains("onAnimationEnd"), "expected onAnimationEnd: {}", out);
+}

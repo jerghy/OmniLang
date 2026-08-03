@@ -80,11 +80,16 @@ pub(crate) fn canonical_event_name(event_name: &str) -> Option<&'static str> {
         "ended" => Some("ended"),
         "load" => Some("load"),
         "error" => Some("error"),
-        // animation / transition
+        // animation / transition — the full DOM family; React maps these to
+        // its synthetic handler set (onAnimationStart/End/Iteration,
+        // onTransitionEnd/Run/Start/Cancel) in react/utils.rs
         "animationstart" => Some("animationstart"),
         "animationend" => Some("animationend"),
         "animationiteration" => Some("animationiteration"),
         "transitionend" => Some("transitionend"),
+        "transitionrun" => Some("transitionrun"),
+        "transitionstart" => Some("transitionstart"),
+        "transitioncancel" => Some("transitioncancel"),
         _ => None,
     }
 }
@@ -117,6 +122,22 @@ mod tests {
             "DblClick",
         ],
         &["onTouchCancel", "touchcancel", "onTouchcancel"],
+        // Task 2.5: animation/transition spellings must resolve to ONE
+        // canonical name per backend — React's synthetic set, never the
+        // mangled lowercase `onAnimationend` (silent dead event, ts/react
+        // M3).
+        &[
+            "onAnimationEnd",
+            "animationend",
+            "onAnimationend",
+            "AnimationEnd",
+        ],
+        &[
+            "onTransitionEnd",
+            "transitionend",
+            "onTransitionend",
+            "TransitionEnd",
+        ],
     ];
 
     #[test]
@@ -254,6 +275,9 @@ mod tests {
             "onAnimationEnd",
             "onAnimationIteration",
             "onTransitionEnd",
+            "onTransitionRun",
+            "onTransitionStart",
+            "onTransitionCancel",
         ];
         for name in ir_events {
             assert!(

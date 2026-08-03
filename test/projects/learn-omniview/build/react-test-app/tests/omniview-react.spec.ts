@@ -40,8 +40,15 @@ import { test, expect, Page } from '@playwright/test';
 //      remains only on the JSXText/HTML paths. Test 19 un-fixme'd.
 //   E. Kebab-case style props ("border-radius") → React console errors
 //      (TS2353 class).
+//      FIXED (task 2.5): codegen camelCases style keys (font-size →
+//      fontSize, -webkit-* → Webkit*) while keeping CSS custom
+//      properties (--*) quoted verbatim. Tests 12 + 18 un-fixme'd.
 //   F. Lowercase event handlers (onAnimationend / onTransitionend)
 //      → React console errors.
+//      FIXED (task 2.5): codegen maps the animation/transition family to
+//      React's synthetic set (onAnimationEnd / onAnimationIteration /
+//      onAnimationStart / onTransitionEnd / onTransitionRun /
+//      onTransitionStart / onTransitionCancel). Tests 12 + 18 un-fixme'd.
 // ════════════════════════════════════════════════════════════════
 
 const BASE = 'http://localhost:5173';
@@ -181,7 +188,7 @@ test.describe('OmniView React — 9 标签页验证', () => {
       await visible(page, 'Alpha');
     });
 
-    test.fixme('12 - no runtime errors (React bug E: kebab-case style props; bug F: lowercase event handlers)', async ({ page }) => {
+    test('12 - no runtime errors (React bugs E+F: kebab style props + lowercase event handlers — fixed by task 2.5)', async ({ page }) => {
       await expectNoErrors(page, 'tab1', () => switchToTab(page, 1));
     });
   });
@@ -239,7 +246,7 @@ test.describe('OmniView React — 9 标签页验证', () => {
       await visible(page, 'CSS 变量与单位');
     });
 
-    test.fixme('18 - no runtime errors (React bug E: kebab-case style props; bug F: lowercase event handlers)', async ({ page }) => {
+    test('18 - no runtime errors (React bugs E+F: kebab style props + lowercase event handlers — fixed by task 2.5)', async ({ page }) => {
       await expectNoErrors(page, 'tab3', () => switchToTab(page, 3));
     });
   });

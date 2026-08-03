@@ -4,25 +4,34 @@
 //! strings used by the React (`:style` JSX objects) and Vue (`:style`
 //! binding objects) backends.
 
+use crate::codegen::kebab_to_camel;
 use crate::codegen::sanitize_css_value;
 use rustc_hash::FxHashSet;
 
 /// Format a CSS property key for use in a JSX style object.
-/// Quotes the key if it starts with `--` (custom property) or contains hyphens.
+///
+/// Standard CSS properties are kebab→camelCased (`font-size` → `fontSize`):
+/// React's style object only accepts camelCase keys — a kebab key emits an
+/// "Unsupported style property" console error and never applies (ts/react
+/// M3). Vendor prefixes follow the CSSOM convention (`-webkit-line-clamp` →
+/// `WebkitLineClamp`). The camelCased result contains no hyphens, so no
+/// quoting is needed. Vue accepts camelCase keys too, so the shared
+/// function is safe for both consumers.
+///
+/// CSS custom properties (`--*`) are exempt: they are case-sensitive and
+/// must stay quoted verbatim — camelCasing them would silently break the
+/// `var()` reference.
 pub fn format_style_prop_key(key: &str) -> String {
-    if key.starts_with("--") || key.contains('-') {
+    if key.starts_with("--") {
         format!("'{}'", key)
     } else {
-        key.to_string()
+        kebab_to_camel(key)
     }
 }
 
 /// Translate an inline style value from the IR JSON representation into a TSX expression.
 /// Handles $signal, $call, and $concat meta-objects.
-pub fn format_style_value_expr(
-    val: &serde_json::Value,
-    ref_names: &FxHashSet<String>,
-) -> String {
+pub fn format_style_value_expr(val: &serde_json::Value, ref_names: &FxHashSet<String>) -> String {
     match val {
         // Static string: 'value' (with CSS sanitization)
         serde_json::Value::String(s) => {

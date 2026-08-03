@@ -222,7 +222,9 @@ pub fn map_event_data_kind(event_name: &str) -> Option<EventDataKind> {
         "onAnimationStart" | "onAnimationEnd" | "onAnimationIteration" => {
             Some(EventDataKind::AnimationEvent)
         }
-        "onTransitionEnd" => Some(EventDataKind::TransitionEvent),
+        "onTransitionEnd" | "onTransitionRun" | "onTransitionStart" | "onTransitionCancel" => {
+            Some(EventDataKind::TransitionEvent)
+        }
         _ => None,
     }
 }
