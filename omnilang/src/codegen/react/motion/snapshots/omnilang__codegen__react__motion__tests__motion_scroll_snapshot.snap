@@ -1,6 +1,5 @@
 ---
 source: omnilang/src/codegen/react/motion/tests.rs
-assertion_line: 323
 expression: "&output"
 ---
 === MotionScroll.module.css ===
@@ -13,14 +12,14 @@ expression: "&output"
 
 import React, { useEffect, useRef } from 'react';
 
+// -- Motion definitions --
+const _M={
+    fadeScroll:{kf:[{offset:0,opacity:0.3},{offset:1,opacity:1}],opts:{duration:500,easing:"ease-out",fill:"forwards"} as KeyframeAnimationOptions},
+};
+
 export function MotionScroll() {
     const __el_0Ref = useRef<HTMLDivElement>(null);
     const __el_1Ref = useRef<HTMLDivElement>(null);
-
-    // -- Motion definitions --
-    const _M={
-        fadeScroll:{kf:[{offset:0,opacity:0.3},{offset:1,opacity:1}],opts:{duration:500,easing:"ease-out",fill:"forwards"} as KeyframeAnimationOptions},
-    };
 
     // @scroll: element 0 — scroll-driven progress
     useEffect(() => {

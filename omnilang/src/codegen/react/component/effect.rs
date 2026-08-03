@@ -5,6 +5,7 @@
 use crate::codegen::react::expr;
 use crate::codegen::react::ReactCodegen;
 use crate::codegen::CodeWriter;
+use crate::ir::walk::walk_stmt;
 use crate::ir::*;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
@@ -22,6 +23,7 @@ impl ReactCodegen {
         signal_names: &FxHashSet<String>,
         ref_names: &FxHashSet<String>,
         store_field_renames: &FxHashMap<String, String>,
+        store_fields: &FxHashMap<String, FxHashSet<String>>,
     ) {
         // Effects (useEffect) — wrap in async IIFE if body contains await
         for effect in &comp.effects {
@@ -150,7 +152,22 @@ impl ReactCodegen {
                     w.dedent();
                     w.emit("};");
                     w.dedent();
-                    w.emit("}, []);");
+                    // Task 2.6 (ts/react M4): the cleanup closure reads must
+                    // enter the deps — with `[]` the cleanup runs at unmount
+                    // with the FIRST-render values (Timer's `final count`
+                    // was always 0). Derived from the body reads: with
+                    // `[count]` React re-registers the cleanup on every
+                    // count change, so the unmount cleanup closes over the
+                    // LATEST value.
+                    let unmount_deps = unmount_deps(
+                        &lc.body,
+                        comp,
+                        store_signal_map,
+                        store_field_renames,
+                        store_fields,
+                    );
+                    let deps_str = unmount_deps.join(", ");
+                    w.emit_fmt(format_args!("}}, [{}]);", deps_str));
                 }
                 LifecycleKind::Effect => {
                     let body_has_await = lc.body.statements.iter().any(stmt_contains_await);
@@ -191,6 +208,174 @@ impl ReactCodegen {
                     }
                 }
             }
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════
+// Unmount cleanup deps derivation (task 2.6, ts/react M4)
+// ═══════════════════════════════════════════════════════════
+
+/// Derive the useEffect deps for an `@unmount` cleanup from its body reads.
+///
+/// The cleanup closure runs at unmount with the values captured when the
+/// effect was last registered — a read not in the deps closes over the
+/// FIRST-render value (stale cleanup, Timer final-count bug). Every reactive
+/// read enters the deps:
+///   - component signals / computeds / props (bare names)
+///   - store fields `Store.field` (resolved through the slice renames like
+///     `@effect` deps — slice local, or the qualified whole-store read stays)
+/// setState setters, store actions, function calls, and body locals never
+/// enter the deps (stable or non-reactive — including them would re-register
+/// the cleanup on every render and change the one-shot unmount semantics).
+fn unmount_deps(
+    body: &BlockIR,
+    comp: &ComponentIR,
+    store_signal_map: &FxHashMap<String, String>,
+    store_field_renames: &FxHashMap<String, String>,
+    store_fields: &FxHashMap<String, FxHashSet<String>>,
+) -> Vec<String> {
+    // Reactive bare names: component signals/computeds/props + store signal
+    // names. Store ALIASES are excluded — a `Store.x` read resolves to the
+    // qualified field (or slice local), never the whole-store alias.
+    let mut reactive: FxHashSet<&str> = FxHashSet::default();
+    reactive.extend(comp.signals.iter().map(|s| s.name.as_str()));
+    reactive.extend(comp.computeds.iter().map(|c| c.name.as_str()));
+    reactive.extend(comp.props.keys().map(String::as_str));
+    reactive.extend(store_signal_map.keys().map(String::as_str));
+
+    // Body locals (let-bound / for-in vars / catch vars) shadow reactive
+    // names and never enter the deps.
+    let mut locals: FxHashSet<&str> = FxHashSet::default();
+    collect_body_locals(&body.statements, &mut locals);
+
+    let mut reads: Vec<String> = Vec::new();
+    let mut seen: FxHashSet<String> = FxHashSet::default();
+    for stmt in &body.statements {
+        walk_stmt(stmt, &mut |expr| match expr {
+            // `Store.field` / `Store?.field` — qualified read (the store
+            // alias itself is never a bare dep).
+            ExprIR::FieldAccessExpr { object, field }
+            | ExprIR::OptionalChainExpr { object, field } => {
+                if let ExprIR::IdentifierExpr { name, .. } = object.as_ref() {
+                    if store_fields
+                        .get(name.as_str())
+                        .is_some_and(|f| f.contains(field.as_str()))
+                    {
+                        push_read(format!("{}.{}", name, field), &mut seen, &mut reads);
+                    }
+                }
+            }
+            ExprIR::StoreFieldAccessExpr {
+                store_alias,
+                field_name,
+                ..
+            } => {
+                if store_fields
+                    .get(store_alias.as_str())
+                    .is_some_and(|f| f.contains(field_name.as_str()))
+                {
+                    push_read(
+                        format!("{}.{}", store_alias, field_name),
+                        &mut seen,
+                        &mut reads,
+                    );
+                }
+            }
+            // `Store.method(...)` — a store-field method call is a read
+            // (e.g. `Store.items.len()` via its inner FieldAccessExpr arm
+            // above); a store ACTION call (`Store.clear()`) never is.
+            ExprIR::MethodCallExpr { object, method, .. } => {
+                if let ExprIR::IdentifierExpr { name, .. } = object.as_ref() {
+                    if store_fields
+                        .get(name.as_str())
+                        .is_some_and(|f| f.contains(method.as_str()))
+                    {
+                        push_read(format!("{}.{}", name, method), &mut seen, &mut reads);
+                    }
+                }
+            }
+            // Bare identifier reads (signals/computeds/props/store signals),
+            // excluding body locals.
+            ExprIR::IdentifierExpr { name, .. } => {
+                if reactive.contains(name.as_str()) && !locals.contains(name.as_str()) {
+                    push_read(name.clone(), &mut seen, &mut reads);
+                }
+            }
+            _ => {}
+        });
+    }
+
+    // Resolve like `@effect` deps: bare store-signal names → `Store.field`,
+    // then the slice renames → slice local (the qualified whole-store read
+    // stays when no rename exists).
+    reads
+        .into_iter()
+        .map(|read| {
+            let qualified = store_signal_map.get(&read).cloned().unwrap_or(read);
+            store_field_renames
+                .get(&qualified)
+                .cloned()
+                .unwrap_or(qualified)
+        })
+        .collect()
+}
+
+/// Push a read unless already seen (dedupe — the walker visits nested
+/// expressions like `count.to_string()`'s object twice).
+fn push_read(read: String, seen: &mut FxHashSet<String>, reads: &mut Vec<String>) {
+    if seen.insert(read.clone()) {
+        reads.push(read);
+    }
+}
+
+/// Collect locally-bound names in a statement list — they shadow reactive
+/// names and never belong in the deps.
+fn collect_body_locals<'a>(stmts: &'a [StatementIR], acc: &mut FxHashSet<&'a str>) {
+    for stmt in stmts {
+        match stmt {
+            StatementIR::LetStmtIR { name, .. } => {
+                acc.insert(name.as_str());
+            }
+            StatementIR::ForInStmtIR { var_name, body, .. } => {
+                acc.insert(var_name.as_str());
+                collect_body_locals(&body.statements, acc);
+            }
+            StatementIR::IfStmtIR {
+                then_body,
+                else_ifs,
+                else_body,
+                ..
+            } => {
+                collect_body_locals(&then_body.statements, acc);
+                for (_, b) in else_ifs {
+                    collect_body_locals(&b.statements, acc);
+                }
+                if let Some(b) = else_body {
+                    collect_body_locals(&b.statements, acc);
+                }
+            }
+            StatementIR::WhileStmtIR { body, .. } => collect_body_locals(&body.statements, acc),
+            StatementIR::BlockStmtIR { body } => collect_body_locals(&body.statements, acc),
+            StatementIR::TryCatchStmtIR {
+                try_body,
+                catch_var,
+                catch_body,
+                finally_body,
+                ..
+            } => {
+                collect_body_locals(&try_body.statements, acc);
+                if let Some(cv) = catch_var {
+                    acc.insert(cv);
+                }
+                if let Some(b) = catch_body {
+                    collect_body_locals(&b.statements, acc);
+                }
+                if let Some(b) = finally_body {
+                    collect_body_locals(&b.statements, acc);
+                }
+            }
+            _ => {}
         }
     }
 }

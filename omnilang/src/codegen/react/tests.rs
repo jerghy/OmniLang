@@ -1009,6 +1009,118 @@ fn test_tsx_component_with_lifecycle_mount() {
     assert!(tsx.contains("}, []);"));
 }
 
+// ── Task 2.6: @unmount cleanup reads enter deps + _M hoist ─
+
+/// Timer class (ts/react M4): the `@unmount` cleanup body reads `count` but
+/// the emitted useEffect deps were hardcoded `[]` — the cleanup closure ran
+/// at unmount with the FIRST-render count (final count always 0). The
+/// cleanup reads must enter the deps array: with `}, [count]);` React
+/// re-registers the cleanup on every count change, so the unmount cleanup
+/// closes over the LATEST count.
+#[test]
+fn effect_cleanup_reads_are_deps() {
+    let src = r#"
+        component Timer {
+            signal count: i32 = 0;
+            @unmount {
+                println("Timer unmounted, final count: " + count.to_string());
+            }
+            view { <div/> }
+        }
+    "#;
+    let (result, diags) = compile_react_with_diags(src);
+    assert!(
+        diags
+            .iter()
+            .all(|d| d.kind != DiagnosticKind::EEffectDepsMissing),
+        "cleanup read must be accepted as dep — got: {:?}",
+        diags
+            .iter()
+            .map(|d| (d.kind.code_str(), d.message.clone()))
+            .collect::<Vec<_>>()
+    );
+    let tsx = result.files.get("Timer.tsx").expect("Timer.tsx emitted");
+    assert!(
+        tsx.contains("useEffect(() => {") && tsx.contains("return () => {"),
+        "unmount must remain a cleanup closure. Got:\n{}",
+        tsx
+    );
+    assert!(
+        tsx.contains("}, [count]);"),
+        "cleanup read `count` must enter the deps array (stale-closure fix). Got:\n{}",
+        tsx
+    );
+}
+
+/// Store-field read inside an `@unmount` cleanup must resolve through the
+/// T3.3 slice renames exactly like `@effect` deps — the slice local enters
+/// the deps array (`[level]`), never the undefined whole-store alias.
+#[test]
+fn unmount_store_field_read_resolves_deps_via_slice() {
+    let src = r#"
+        store LogStore {
+            signal level: i32 = 0;
+        }
+        component T {
+            @store LogStore;
+            @unmount {
+                println("level: " + LogStore.level.to_string());
+            }
+            view { <div/> }
+        }
+    "#;
+    let out = compile_react(src).expect("compile must succeed");
+    let tsx = out.files.get("T.tsx").expect("T.tsx emitted");
+    assert!(
+        tsx.contains("const level = useLogStore((s) => s.level);"),
+        "unmount read must subscribe via slice selector. Got:\n{}",
+        tsx
+    );
+    assert!(
+        tsx.contains("}, [level]);"),
+        "store-field cleanup read must enter deps via the slice local. Got:\n{}",
+        tsx
+    );
+}
+
+/// perf L1: the `_M` motion table is a compile-time constant (motion defs
+/// are literals) — it was re-allocated inside the component function on
+/// EVERY render, and each re-allocation made every `_M["x"]` use site a
+/// fresh object identity (exhaustive-deps errors at every reference).
+/// Module scope: one allocation per module, stable identity.
+#[test]
+fn motion_table_hoisted_to_module_scope() {
+    let out = compile_react(
+        r#"
+        @motion fadeIn {
+            from { opacity: 0 }
+            to   { opacity: 1 }
+            over: 300ms
+        }
+        component V {
+            view { <div @hover={fadeIn}/> }
+        }
+    "#,
+    )
+    .expect("compile must succeed");
+    let tsx = out.files.get("V.tsx").expect("V.tsx emitted");
+    let fn_start = tsx
+        .find("export function V")
+        .expect("component function emitted");
+    let table = tsx.find("const _M").expect("_M table emitted");
+    assert!(
+        table < fn_start,
+        "_M must be module-scoped (before `export function V`), not per-render. Got:\n{}",
+        tsx
+    );
+    assert_eq!(
+        tsx.matches("const _M").count(),
+        1,
+        "_M must be emitted exactly once (module scope). Got:\n{}",
+        tsx
+    );
+}
+
 // ── Zustand store codegen tests ───────────────────────────
 
 #[test]

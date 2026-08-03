@@ -49,6 +49,13 @@ import { test, expect, Page } from '@playwright/test';
 //      React's synthetic set (onAnimationEnd / onAnimationIteration /
 //      onAnimationStart / onTransitionEnd / onTransitionRun /
 //      onTransitionStart / onTransitionCancel). Tests 12 + 18 un-fixme'd.
+//   G. @unmount cleanup closed over FIRST-render values — the emitted
+//      `useEffect(() => () => {...}, [])` deps were hardcoded `[]`, so
+//      Timer's "final count" logged 0 even after ticking (stale cleanup).
+//      FIXED (task 2.6): cleanup reads now enter the deps array
+//      (`}, [count]);` — React re-registers the cleanup on every count
+//      change, so the unmount cleanup closes over the LATEST values).
+//      Test 37 guards the final-count behavior.
 // ════════════════════════════════════════════════════════════════
 
 const BASE = 'http://localhost:5173';
@@ -190,6 +197,36 @@ test.describe('OmniView React — 9 标签页验证', () => {
 
     test('12 - no runtime errors (React bugs E+F: kebab style props + lowercase event handlers — fixed by task 2.5)', async ({ page }) => {
       await expectNoErrors(page, 'tab1', () => switchToTab(page, 1));
+    });
+
+    test('37 - Timer unmount logs the FINAL count (task 2.6: stale cleanup)', async ({ page }) => {
+      // The @unmount cleanup used to close over the FIRST-render count
+      // (hardcoded `}, []);`) — after Start + 3 Ticks the unmount log
+      // still said "final count: 0". Cleanup reads now enter the deps
+      // (`}, [count]);`), so the cleanup re-registers with the latest
+      // count and the unmount log must show the real value.
+      await switchToTab(page, 1);
+      await visible(page, 'Timer Demo');
+      const card = page.locator('div.Card', { has: page.getByText('Timer Demo') });
+      await card.getByRole('button', { name: 'Start' }).click();
+      await card.getByRole('button', { name: 'Tick' }).click();
+      await card.getByRole('button', { name: 'Tick' }).click();
+      await card.getByRole('button', { name: 'Tick' }).click();
+      await page.waitForTimeout(200);
+      const logs: string[] = [];
+      const onLog = (m: any) => {
+        const t = m.text();
+        if (t.includes('Timer unmounted')) logs.push(t);
+      };
+      page.on('console', onLog);
+      // Leave the UI tab in-app (no reload) — Timer unmounts
+      await page.locator('button:has-text("📋 Overview")').first().click();
+      await page.waitForTimeout(400);
+      page.removeListener('console', onLog);
+      expect(
+        logs.some((l) => /final count: [1-9]/.test(l)),
+        `cleanup must log the LATEST count (ticked 3x), not the first-render 0. Logs: ${JSON.stringify(logs)}`,
+      ).toBe(true);
     });
   });
 

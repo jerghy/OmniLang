@@ -29,6 +29,38 @@ pub(super) fn format_motion_to_animate(motion: &MotionBodyIR) -> String {
     )
 }
 
+/// Whether a motion body is a compile-time constant — every keyframe stop
+/// value, `over`, and `delay` must be a literal (numbers/strings/bools, with
+/// literal negation). Non-literal values (store fields, signals, calls) are
+/// resolved at render time and keep the `_M` table inside the component
+/// function (task 2.6 — the table hoist is only sound for constants).
+pub(super) fn motion_body_is_constant(body: &MotionBodyIR) -> bool {
+    if !expr_is_constant(&body.over) {
+        return false;
+    }
+    if let Some(ref delay) = body.playback.delay {
+        if !expr_is_constant(delay) {
+            return false;
+        }
+    }
+    body.stops
+        .iter()
+        .all(|stop| stop.properties.values().all(expr_is_constant))
+}
+
+/// A literal-only expression (negative literals included — `-5` lowers to
+/// `UnaryOpExpr(Neg, 5)`); anything else is render-time dependent.
+fn expr_is_constant(expr: &ExprIR) -> bool {
+    match expr {
+        ExprIR::LiteralExpr { .. } => true,
+        ExprIR::UnaryOpExpr {
+            op: UnaryOpIR::Neg,
+            operand,
+        } => expr_is_constant(operand),
+        _ => false,
+    }
+}
+
 /// Transform-family semantic properties, in canonical composition order.
 /// FxHashMap iteration order is nondeterministic, so transform parts are
 /// always emitted in this fixed order for deterministic output.

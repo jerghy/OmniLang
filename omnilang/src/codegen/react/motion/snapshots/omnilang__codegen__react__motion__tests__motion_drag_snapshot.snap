@@ -1,6 +1,5 @@
 ---
 source: omnilang/src/codegen/react/motion/tests.rs
-assertion_line: 525
 expression: "&output"
 ---
 === MotionDrag.module.css ===
@@ -13,16 +12,16 @@ expression: "&output"
 
 import React, { useEffect, useRef } from 'react';
 
+// -- Motion definitions --
+const _M={
+    swipeX:{kf:[{offset:0,transform:"translateX(0px)"},{offset:1,transform:"translateX(300px)"}],opts:{duration:300,fill:"forwards"} as KeyframeAnimationOptions},
+    swipeY:{kf:[{offset:0,transform:"translateY(0px)"},{offset:1,transform:"translateY(150px)"}],opts:{duration:300,fill:"forwards"} as KeyframeAnimationOptions},
+};
+
 export function MotionDrag() {
     const __el_0Ref = useRef<HTMLDivElement>(null);
     const __el_1Ref = useRef<HTMLDivElement>(null);
     const __el_2Ref = useRef<HTMLDivElement>(null);
-
-    // -- Motion definitions --
-    const _M={
-        swipeX:{kf:[{offset:0,transform:"translateX(0px)"},{offset:1,transform:"translateX(300px)"}],opts:{duration:300,fill:"forwards"} as KeyframeAnimationOptions},
-        swipeY:{kf:[{offset:0,transform:"translateY(0px)"},{offset:1,transform:"translateY(150px)"}],opts:{duration:300,fill:"forwards"} as KeyframeAnimationOptions},
-    };
 
     // @drag-x: element 0 — gesture-driven progress
     useEffect(() => {

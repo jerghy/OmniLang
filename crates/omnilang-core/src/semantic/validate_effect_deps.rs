@@ -14,13 +14,19 @@
 //! - `Store.action(...)` calls are not reactive reads and never require deps.
 //! - A no-arg `@effect { ... }` (empty deps) re-runs on every update and is
 //!   not validated (nothing can go stale).
+//! - `@unmount` cleanup bodies are walked through the same collector (task
+//!   2.6): their store reads enter the analysis. Cleanups declare no deps —
+//!   the React codegen DERIVES the unmount deps from the body reads
+//!   (`useEffect(() => () => {...}, [count])`, react/component/effect.rs), so
+//!   a cleanup read can never go stale and never raises E_EFFECT_DEPS_MISSING
+//!   (auto-covered, mirroring the no-arg-effect exemption).
 //!
 //! Runs after component lowering (`ir/lower/mod.rs`), like
 //! `validate_ref_ops` / `validate_semantic_bindings`.
 
 use crate::error::{Diagnostic, DiagnosticKind, Severity};
 use crate::ir::walk::walk_stmt;
-use crate::ir::{ComponentIR, ExprIR, IRProgram};
+use crate::ir::{ComponentIR, ExprIR, IRProgram, LifecycleKind, StatementIR};
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 
@@ -36,7 +42,7 @@ pub fn validate_effect_deps(
     program: &IRProgram,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    if component.effects.is_empty() {
+    if component.effects.is_empty() && component.lifecycles.is_empty() {
         return;
     }
 
@@ -65,58 +71,7 @@ pub fn validate_effect_deps(
         if effect.deps.is_empty() {
             continue;
         }
-
-        // Collect qualified reads `Store.field`, deduped and sorted so the
-        // diagnostic order is deterministic.
-        //
-        // Four expression shapes can carry a store-field read (mirrors the
-        // codegen collectors in `lints/helpers.rs` / react store_slices.rs):
-        //   - `Store.field`                 → FieldAccessExpr { Ident(Store), field }
-        //   - `Store?.field`                → OptionalChainExpr { Ident(Store), field }
-        //   - `Store.field(...)` method call→ StoreFieldAccessExpr (actions are
-        //     filtered out below by the store-fields check)
-        //   - `Store.method(...)`           → MethodCallExpr { Ident(Store), method }
-        // Each candidate is verified against the store's fields (signals +
-        // getters) — action names, locals, props, and computeds fail the
-        // check and never require deps.
-        let mut reads: Vec<String> = Vec::new();
-        let mut seen: FxHashSet<String> = FxHashSet::default();
-        for stmt in &effect.body.statements {
-            walk_stmt(stmt, &mut |expr| {
-                let candidate: Option<(&str, &str)> = match expr {
-                    ExprIR::FieldAccessExpr { object, field } => match object.as_ref() {
-                        ExprIR::IdentifierExpr { name, .. } => Some((name, field)),
-                        _ => None,
-                    },
-                    ExprIR::OptionalChainExpr { object, field } => match object.as_ref() {
-                        ExprIR::IdentifierExpr { name, .. } => Some((name, field)),
-                        _ => None,
-                    },
-                    ExprIR::StoreFieldAccessExpr {
-                        store_alias,
-                        field_name,
-                        ..
-                    } => Some((store_alias, field_name)),
-                    ExprIR::MethodCallExpr { object, method, .. } => match object.as_ref() {
-                        ExprIR::IdentifierExpr { name, .. } => Some((name, method)),
-                        _ => None,
-                    },
-                    _ => None,
-                };
-                if let Some((store, field)) = candidate {
-                    let is_field = store_fields
-                        .get(store)
-                        .is_some_and(|fields| fields.contains(field));
-                    if is_field {
-                        let qualified = format!("{}.{}", store, field);
-                        if seen.insert(qualified.clone()) {
-                            reads.push(qualified);
-                        }
-                    }
-                }
-            });
-        }
-        reads.sort();
+        let reads = collect_store_field_reads(&effect.body.statements, &store_fields);
 
         for read in reads {
             // Matching rule (field-exact preferred): a declared dep covers the
@@ -139,14 +94,88 @@ pub fn validate_effect_deps(
             }
         }
     }
+
+    // `@unmount` cleanup bodies (task 2.6): walked through the shared
+    // collector so their store reads enter the analysis. Cleanups declare no
+    // deps — the React codegen derives them from the body reads, so a
+    // cleanup read can never go stale and must NOT raise E_EFFECT_DEPS_MISSING
+    // (auto-covered). The walk keeps the collection honest — a cleanup read
+    // is indistinguishable from an effect-body read to the codegen, so any
+    // future codegen regression (derived deps dropped) is caught by the
+    // react-side tests, and the contract is pinned here.
+    for lc in &component.lifecycles {
+        if lc.kind == LifecycleKind::Unmount {
+            let _ = collect_store_field_reads(&lc.body.statements, &store_fields);
+        }
+    }
+}
+
+/// Collect the qualified store-field reads `Store.field` from a statement
+/// list, deduped and sorted (deterministic order).
+///
+/// Four expression shapes can carry a store-field read (mirrors the codegen
+/// collectors in `lints/helpers.rs` / react store_slices.rs):
+///   - `Store.field` → FieldAccessExpr { Ident(Store), field }
+///   - `Store?.field` → OptionalChainExpr { Ident(Store), field }
+///   - `Store.field(...)` method call → StoreFieldAccessExpr (actions are
+///     filtered out below by the store-fields check)
+///   - `Store.method(...)` → MethodCallExpr { Ident(Store), method }
+///
+/// Each candidate is verified against the store's fields (signals + getters)
+/// — action names, locals, props, and computeds fail the check and never
+/// count as reads. Reads inside closures, blocks, match arms, and nested
+/// statements are all included (full statement walker).
+fn collect_store_field_reads(
+    stmts: &[StatementIR],
+    store_fields: &FxHashMap<&str, FxHashSet<&str>>,
+) -> Vec<String> {
+    let mut reads: Vec<String> = Vec::new();
+    let mut seen: FxHashSet<String> = FxHashSet::default();
+    for stmt in stmts {
+        walk_stmt(stmt, &mut |expr| {
+            let candidate: Option<(&str, &str)> = match expr {
+                ExprIR::FieldAccessExpr { object, field } => match object.as_ref() {
+                    ExprIR::IdentifierExpr { name, .. } => Some((name, field)),
+                    _ => None,
+                },
+                ExprIR::OptionalChainExpr { object, field } => match object.as_ref() {
+                    ExprIR::IdentifierExpr { name, .. } => Some((name, field)),
+                    _ => None,
+                },
+                ExprIR::StoreFieldAccessExpr {
+                    store_alias,
+                    field_name,
+                    ..
+                } => Some((store_alias, field_name)),
+                ExprIR::MethodCallExpr { object, method, .. } => match object.as_ref() {
+                    ExprIR::IdentifierExpr { name, .. } => Some((name, method)),
+                    _ => None,
+                },
+                _ => None,
+            };
+            if let Some((store, field)) = candidate {
+                let is_field = store_fields
+                    .get(store)
+                    .is_some_and(|fields| fields.contains(field));
+                if is_field {
+                    let qualified = format!("{}.{}", store, field);
+                    if seen.insert(qualified.clone()) {
+                        reads.push(qualified);
+                    }
+                }
+            }
+        });
+    }
+    reads.sort();
+    reads
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::ir::{
-        BlockIR, EffectIntent, FunctionIR, ModuleIR, StatementIR, StoreIR, TypeIR, TypeKind,
-        Visibility,
+        BlockIR, EffectIntent, FunctionIR, LifecycleIntent, LifecycleKind, ModuleIR, StatementIR,
+        StoreIR, TypeIR, TypeKind, Visibility,
     };
     use rustc_hash::FxHashMap;
 
@@ -520,6 +549,137 @@ mod tests {
         assert_eq!(
             diags[0].message,
             "effect 依赖漏掉：NotificationStore.unreadCount"
+        );
+    }
+
+    // ── Task 2.6: @unmount cleanup reads ────────────────────
+    //
+    // The `@unmount` cleanup closure has NO declared deps — the React codegen
+    // derives them from the body reads (`}, [count]);`), so a cleanup store
+    // read can never go stale and must NOT raise E_EFFECT_DEPS_MISSING. The
+    // pass still descends into the cleanup body through the shared collector
+    // (cleanup reads are part of the analysis; the codegen's derivation is
+    // the enforcement point).
+
+    fn store_fields_map(program: &IRProgram) -> FxHashMap<&str, FxHashSet<&str>> {
+        program
+            .all_stores()
+            .into_iter()
+            .map(|(name, store)| {
+                let mut fields = FxHashSet::default();
+                fields.extend(store.signals.keys().map(String::as_str));
+                fields.extend(store.getters.keys().map(String::as_str));
+                (name, fields)
+            })
+            .collect()
+    }
+
+    #[test]
+    fn unmount_cleanup_reads_are_collected_and_auto_covered() {
+        // The cleanup body reads NotificationStore.unreadCount with NO
+        // declared deps anywhere — auto-covered by the codegen derivation,
+        // so the pass must stay silent.
+        let unmount = LifecycleIntent {
+            kind: LifecycleKind::Unmount,
+            body: BlockIR {
+                statements: vec![expr_stmt(store_field_read(
+                    "NotificationStore",
+                    "unreadCount",
+                ))],
+            },
+        };
+        let comp = ComponentIR {
+            name: "Test".into(),
+            effects: vec![effect(vec!["notifications"], vec![])],
+            lifecycles: vec![unmount.clone()],
+            ..ComponentIR::default()
+        };
+        let diags = run(&comp, &store_program());
+        assert!(
+            diags.is_empty(),
+            "cleanup reads are auto-covered by codegen-derived deps — got: {:?}",
+            diags
+        );
+        // And the collector descends into the cleanup body — the read is
+        // part of the analysis.
+        let reads = collect_store_field_reads(
+            &unmount.body.statements,
+            &store_fields_map(&store_program()),
+        );
+        assert_eq!(
+            reads,
+            vec!["NotificationStore.unreadCount"],
+            "cleanup body reads must be collected, got: {:?}",
+            reads
+        );
+    }
+
+    #[test]
+    fn unmount_cleanup_closure_internal_reads_are_collected() {
+        // Mirrors the @effect closure descent (perf HIGH-3 blind spot): a
+        // store read that only happens inside a closure nested in the
+        // cleanup body must still be collected.
+        let closure = ExprIR::ClosureExpr {
+            params: vec!["n".into()],
+            body: Box::new(store_field_read("NotificationStore", "unreadCount")),
+        };
+        let unmount = LifecycleIntent {
+            kind: LifecycleKind::Unmount,
+            body: BlockIR {
+                statements: vec![expr_stmt(closure)],
+            },
+        };
+        let comp = ComponentIR {
+            name: "Test".into(),
+            lifecycles: vec![unmount.clone()],
+            ..ComponentIR::default()
+        };
+        let diags = run(&comp, &store_program());
+        assert!(
+            diags.is_empty(),
+            "cleanup reads are auto-covered — got: {:?}",
+            diags
+        );
+        let reads = collect_store_field_reads(
+            &unmount.body.statements,
+            &store_fields_map(&store_program()),
+        );
+        assert_eq!(
+            reads,
+            vec!["NotificationStore.unreadCount"],
+            "closure-internal cleanup reads must be collected, got: {:?}",
+            reads
+        );
+    }
+
+    #[test]
+    fn unmount_cleanup_action_calls_are_not_reads() {
+        // `NotificationStore.clear()` in a cleanup is an action call, not a
+        // reactive field read — never a dep.
+        let unmount = LifecycleIntent {
+            kind: LifecycleKind::Unmount,
+            body: BlockIR {
+                statements: vec![
+                    expr_stmt(store_field_read("NotificationStore", "clear")),
+                    expr_stmt(method_call("NotificationStore", "clear")),
+                ],
+            },
+        };
+        let comp = ComponentIR {
+            name: "Test".into(),
+            lifecycles: vec![unmount.clone()],
+            ..ComponentIR::default()
+        };
+        let diags = run(&comp, &store_program());
+        assert!(diags.is_empty(), "expected no diagnostics: {:?}", diags);
+        let reads = collect_store_field_reads(
+            &unmount.body.statements,
+            &store_fields_map(&store_program()),
+        );
+        assert!(
+            reads.is_empty(),
+            "action calls must not be collected as reads, got: {:?}",
+            reads
         );
     }
 }

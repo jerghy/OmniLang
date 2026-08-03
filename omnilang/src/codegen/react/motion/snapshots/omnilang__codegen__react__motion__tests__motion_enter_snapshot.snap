@@ -12,13 +12,13 @@ expression: "&output"
 
 import React, { useEffect, useRef } from 'react';
 
+// -- Motion definitions --
+const _M={
+    fadeIn:{kf:[{offset:0,transform:"translateY(20px)",opacity:0},{offset:1,transform:"translateY(0px)",opacity:1}],opts:{duration:400,easing:"ease-out",fill:"forwards"} as KeyframeAnimationOptions},
+};
+
 export function MotionEnter() {
     const __el_0Ref = useRef<HTMLHeadingElement>(null);
-
-    // -- Motion definitions --
-    const _M={
-        fadeIn:{kf:[{offset:0,transform:"translateY(20px)",opacity:0},{offset:1,transform:"translateY(0px)",opacity:1}],opts:{duration:400,easing:"ease-out",fill:"forwards"} as KeyframeAnimationOptions},
-    };
 
     // @enter: element 0 — mount animation
     useEffect(() => {

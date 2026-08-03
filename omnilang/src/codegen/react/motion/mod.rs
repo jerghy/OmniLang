@@ -132,9 +132,7 @@ pub(super) fn view_has_fade_conditional(node: &ViewTree) -> bool {
                     .is_some_and(view_has_fade_conditional)
         }
         ViewTree::ListRendering(list) => {
-            list.body
-                .as_ref()
-                .is_some_and(view_has_fade_conditional)
+            list.body.as_ref().is_some_and(view_has_fade_conditional)
                 || list
                     .empty_body
                     .as_ref()
@@ -168,10 +166,38 @@ pub(super) fn view_has_interactive_triggers(
     found
 }
 
+/// Emit the `_M` motion table at MODULE scope (task 2.6, perf L1): motion
+/// definitions are compile-time constants, so the table was re-allocated
+/// inside the component function on EVERY render — and each re-allocation
+/// made every `_M["x"]` use site a fresh object identity (exhaustive-deps
+/// errors at every reference). Returns whether the table was hoisted; when
+/// false the caller emits it in-function (a referenced motion carries
+/// non-literal values — store fields/signals — resolved at render time;
+/// the 2.10 slice channel unblocks those, deferred).
+pub(super) fn emit_motion_table_module_scope(
+    w: &mut CodeWriter,
+    node: &ViewTree,
+    motion_bodies: &FxHashMap<String, MotionBodyIR>,
+) -> bool {
+    let Some(sorted) = collect_defined_motion_refs(node, motion_bodies) else {
+        return false;
+    };
+    let all_constant = sorted
+        .iter()
+        .all(|name| keyframes::motion_body_is_constant(&motion_bodies[name.as_str()]));
+    if !all_constant {
+        return false;
+    }
+    emit_motion_table(w, &sorted, motion_bodies);
+    true
+}
+
 /// Emit React hooks for all motion triggers in the view tree.
 ///
 /// 1. A `_M` constant mapping motion names → `{kf:...,opts:...}` objects
-///    (WAAPI keyframes + animate options).
+///    (WAAPI keyframes + animate options). Emitted at MODULE scope when
+///    `table_hoisted` (the table is a compile-time constant — see
+///    [`emit_motion_table_module_scope`]), else in-function.
 /// 2. Per motion element, in DFS order:
 ///    - `useCallback` handlers for @hover / @press (wired into the JSX by
 ///      view.rs as onMouseEnter/onMouseLeave, onPointerDown/onPointerUp)
@@ -185,38 +211,19 @@ pub(super) fn emit_motion_effects_tsx(
     node: &ViewTree,
     motion_bodies: &FxHashMap<String, MotionBodyIR>,
     component_map: &FxHashMap<&str, &ComponentIR>,
+    table_hoisted: bool,
 ) {
-    // Collect all unique motion names referenced by triggers in this tree
-    let motion_refs = collect_all_motion_refs(node);
-    if motion_refs.is_empty() {
+    let Some(sorted) = collect_defined_motion_refs(node, motion_bodies) else {
         return;
-    }
+    };
 
-    // Filter to only those we have definitions for
-    let defined_refs: FxHashSet<&String> = motion_refs
-        .iter()
-        .filter(|name| motion_bodies.contains_key(name.as_str()))
-        .collect();
-    if defined_refs.is_empty() {
-        return;
+    if !table_hoisted {
+        // ── Emit the MOTION_DEFS constant in-function ──
+        // (a referenced motion carries non-literal values resolved at
+        // render time — store fields / signals — 2.10 slice channel
+        // unblocks the hoist for the store case)
+        emit_motion_table(w, &sorted, motion_bodies);
     }
-
-    // ── Emit the MOTION_DEFS constant ──
-    w.emit("// -- Motion definitions --");
-    w.emit("const _M={");
-    w.indent();
-
-    let mut sorted: Vec<&String> = defined_refs.into_iter().collect();
-    sorted.sort();
-    for name in &sorted {
-        if let Some(body) = motion_bodies.get(name.as_str()) {
-            let def_js = keyframes::format_motion_to_animate(body);
-            w.emit_fmt(format_args!("{}:{},", name, def_js));
-        }
-    }
-    w.dedent();
-    w.emit("};");
-    w.emit("");
 
     // ── Per-element effects ──
     walk_motion_elements(node, component_map, |el, idx| {
@@ -227,6 +234,49 @@ pub(super) fn emit_motion_effects_tsx(
         let ref_ident = format!("{}Ref.current", ref_name);
         emit_element_motion(w, el, idx, &ref_ident, motion_bodies);
     });
+}
+
+/// The sorted names of the motions the view references AND has definitions
+/// for; `None` when the view references no defined motion (nothing to emit).
+fn collect_defined_motion_refs(
+    node: &ViewTree,
+    motion_bodies: &FxHashMap<String, MotionBodyIR>,
+) -> Option<Vec<String>> {
+    // Collect all unique motion names referenced by triggers in this tree
+    let motion_refs = collect_all_motion_refs(node);
+    if motion_refs.is_empty() {
+        return None;
+    }
+    // Filter to only those we have definitions for
+    let mut sorted: Vec<String> = motion_refs
+        .into_iter()
+        .filter(|name| motion_bodies.contains_key(name.as_str()))
+        .collect();
+    if sorted.is_empty() {
+        return None;
+    }
+    sorted.sort();
+    Some(sorted)
+}
+
+/// Emit the `_M` motion table body: `const _M={name:{kf:...,opts:...},...};`.
+fn emit_motion_table(
+    w: &mut CodeWriter,
+    sorted: &[String],
+    motion_bodies: &FxHashMap<String, MotionBodyIR>,
+) {
+    w.emit("// -- Motion definitions --");
+    w.emit("const _M={");
+    w.indent();
+    for name in sorted {
+        if let Some(body) = motion_bodies.get(name.as_str()) {
+            let def_js = keyframes::format_motion_to_animate(body);
+            w.emit_fmt(format_args!("{}:{},", name, def_js));
+        }
+    }
+    w.dedent();
+    w.emit("};");
+    w.emit("");
 }
 
 /// Emit all motion hooks for a single motion element (in a fixed order:

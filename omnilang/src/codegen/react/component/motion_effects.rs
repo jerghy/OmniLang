@@ -10,6 +10,9 @@ use crate::codegen::react::motion;
 
 /// Emit all motion effect blocks:
 ///   1. `_M` motion definition table (named @motion defs, WAAPI keyframes)
+///      — at MODULE scope when `table_hoisted` (task 2.6: the table is a
+///      compile-time constant and was re-allocated per render), else
+///      in-function (a referenced motion carries render-time values).
 ///   2. Per motion element: useCallback handlers for @hover/@press and
 ///      useEffect blocks for @enter/@focus/@in-view/@scroll/@drag-*
 ///
@@ -19,16 +22,10 @@ use crate::codegen::react::motion;
 pub(super) fn gen_motion_effects(
     w: &mut CodeWriter,
     view: &ViewTree,
-    ir: &IRProgram,
+    motion_map: &FxHashMap<String, MotionBodyIR>,
     component_map: &FxHashMap<&str, &ComponentIR>,
+    table_hoisted: bool,
 ) {
-    // Build complete motion definition map (module-level + component-level
-    // motions; inline bodies are hoisted to named motions by lowering)
-    let mut motion_map: FxHashMap<String, MotionBodyIR> = FxHashMap::default();
-    for m in ir.modules.values().flat_map(|m| &m.motions) {
-        motion_map.insert(m.name.clone(), m.body.clone());
-    }
-
     // Per-element @enter/@hover/@press/@focus/@in-view/@scroll/@drag effects
-    motion::emit_motion_effects_tsx(w, view, &motion_map, component_map);
+    motion::emit_motion_effects_tsx(w, view, motion_map, component_map, table_hoisted);
 }

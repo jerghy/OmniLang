@@ -12,17 +12,17 @@ expression: "&output"
 
 import React, { useCallback, useEffect, useRef } from 'react';
 
+// -- Motion definitions --
+const _M={
+    fadeIn:{kf:[{offset:0,transform:"translateY(20px)",opacity:0},{offset:1,transform:"translateY(0px)",opacity:1}],opts:{duration:400,easing:"ease-out",fill:"forwards"} as KeyframeAnimationOptions},
+    pulse:{kf:[{offset:0},{offset:1,transform:"scale(1.05)"}],opts:{duration:200,easing:"ease-out",fill:"forwards"} as KeyframeAnimationOptions},
+    slideIn:{kf:[{offset:0,transform:"translateX(-30px)",opacity:0},{offset:1,transform:"translateX(0px)",opacity:1}],opts:{duration:500,easing:"ease-out",fill:"forwards"} as KeyframeAnimationOptions},
+};
+
 export function MotionCombined() {
     const __el_0Ref = useRef<HTMLHeadingElement>(null);
     const __el_1Ref = useRef<HTMLButtonElement>(null);
     const __el_2Ref = useRef<HTMLDivElement>(null);
-
-    // -- Motion definitions --
-    const _M={
-        fadeIn:{kf:[{offset:0,transform:"translateY(20px)",opacity:0},{offset:1,transform:"translateY(0px)",opacity:1}],opts:{duration:400,easing:"ease-out",fill:"forwards"} as KeyframeAnimationOptions},
-        pulse:{kf:[{offset:0},{offset:1,transform:"scale(1.05)"}],opts:{duration:200,easing:"ease-out",fill:"forwards"} as KeyframeAnimationOptions},
-        slideIn:{kf:[{offset:0,transform:"translateX(-30px)",opacity:0},{offset:1,transform:"translateX(0px)",opacity:1}],opts:{duration:500,easing:"ease-out",fill:"forwards"} as KeyframeAnimationOptions},
-    };
 
     // @enter: element 0 — mount animation
     useEffect(() => {

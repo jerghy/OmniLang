@@ -12,13 +12,13 @@ expression: "&output"
 
 import React, { useCallback, useEffect, useRef } from 'react';
 
+// -- Motion definitions --
+const _M={
+    pulse:{kf:[{offset:0},{offset:1,transform:"scale(1.05)"}],opts:{duration:200,easing:"ease-out",fill:"forwards"} as KeyframeAnimationOptions},
+};
+
 export function MotionHover() {
     const __el_0Ref = useRef<HTMLButtonElement>(null);
-
-    // -- Motion definitions --
-    const _M={
-        pulse:{kf:[{offset:0},{offset:1,transform:"scale(1.05)"}],opts:{duration:200,easing:"ease-out",fill:"forwards"} as KeyframeAnimationOptions},
-    };
 
     // @hover: element 0 — enter/leave handlers
     const handleEnter_0 = useCallback(() => {

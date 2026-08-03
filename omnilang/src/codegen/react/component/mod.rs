@@ -13,6 +13,7 @@ pub(super) mod store_slices;
 
 use super::expr;
 use super::{escape_js_ident, CodeWriter, ReactCodegen};
+use crate::codegen::react::motion;
 use crate::ir::*;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
@@ -243,6 +244,16 @@ impl ReactCodegen {
             .flat_map(|m| &m.motions)
             .map(|m| m.name.clone())
             .collect();
+        // Motion name → body map (module-level + component-level @motion
+        // defs; inline bodies are hoisted to named motions by lowering).
+        // Shared by the module-scoped `_M` table emitter and the per-element
+        // effects emitter.
+        let motion_map: FxHashMap<String, MotionBodyIR> = ir
+            .modules
+            .values()
+            .flat_map(|m| &m.motions)
+            .map(|m| (m.name.clone(), m.body.clone()))
+            .collect();
 
         // ── Design runtime wiring (root component only) ──
         // The root component mounts the design system: it imports and calls
@@ -349,8 +360,7 @@ impl ReactCodegen {
         // whole-store const exist, so their store references keep the
         // pre-existing (qualified) output.
         let shadowing_names = store_slices::collect_shadowing_names(comp, view);
-        let motion_stores =
-            store_slices::motion_whole_store_stores(view, ir, component_map);
+        let motion_stores = store_slices::motion_whole_store_stores(view, ir, component_map);
         let (store_field_renames, slice_fields) = store_slices::build_slice_plan(
             comp,
             &comp_store_field_refs,
@@ -429,6 +439,19 @@ impl ReactCodegen {
         if !lib_fns.is_empty() {
             w.emit("");
         }
+
+        // ── Module-scoped motion table (task 2.6, perf L1) ──
+        // `_M` maps motion names → WAAPI keyframes; motion definitions are
+        // compile-time constants, so the table was re-allocated inside the
+        // component function on every render (perf L1) and every `_M["x"]`
+        // use site saw a fresh object identity (exhaustive-deps errors).
+        // Hoisted to module scope when every referenced motion is constant;
+        // a motion carrying non-literal values (store fields, signals —
+        // resolved at render time) keeps the table in-function (the 2.10
+        // slice channel unblocks the store case, deferred).
+        let motion_table_hoisted = view
+            .map(|v| motion::emit_motion_table_module_scope(&mut w, v, &motion_map))
+            .unwrap_or(false);
 
         // Component function signature
         if !has_props {
@@ -526,6 +549,19 @@ impl ReactCodegen {
             &store_field_renames,
         );
         state::gen_ref_hooks(&mut w, comp, &ref_tags, &motion_internal_refs);
+        // Store alias → reactive fields (signals + getters) — the unmount
+        // cleanup dep derivation distinguishes field reads from action calls
+        // against this map (mirrors the semantic validate_effect_deps
+        // universe; actions are never reactive).
+        let store_fields: FxHashMap<String, FxHashSet<String>> = all_stores
+            .iter()
+            .map(|(name, store)| {
+                let mut fields = FxHashSet::default();
+                fields.extend(store.signals.keys().cloned());
+                fields.extend(store.getters.keys().cloned());
+                (name.to_string(), fields)
+            })
+            .collect();
         self.gen_effects(
             &mut w,
             comp,
@@ -534,6 +570,7 @@ impl ReactCodegen {
             &signal_names,
             &ref_names,
             &store_field_renames,
+            &store_fields,
         );
         state::gen_semantic_binding_effects(
             &mut w,
@@ -572,7 +609,13 @@ impl ReactCodegen {
 
         // Motion animation effects — per-ref native effects (all triggers)
         if let Some(view) = view {
-            motion_effects::gen_motion_effects(&mut w, view, ir, component_map);
+            motion_effects::gen_motion_effects(
+                &mut w,
+                view,
+                &motion_map,
+                component_map,
+                motion_table_hoisted,
+            );
         }
 
         w.emit("");
@@ -867,9 +910,9 @@ fn stmt_has_pointer_ops(stmt: &StatementIR) -> bool {
             ..
         } => expr_has_pointer_ops(condition) || body.statements.iter().any(stmt_has_pointer_ops),
         StatementIR::BlockStmtIR { body } => body.statements.iter().any(stmt_has_pointer_ops),
-        StatementIR::MutationStmt { intent } => intent
-            .as_ref()
-            .is_some_and(|i| mutation_has_pointer_ops(i)),
+        StatementIR::MutationStmt { intent } => {
+            intent.as_ref().is_some_and(|i| mutation_has_pointer_ops(i))
+        }
         StatementIR::TryCatchStmtIR {
             try_body,
             catch_body,

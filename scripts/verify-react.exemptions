@@ -27,6 +27,11 @@
 # TS2322 14, TS2353 14, TS2345 14, TS2304 10, TS2722 23, TS2588 7, TS2554 6,
 # TS18048 4, TS7005 2, TS7034 1, TS2367 2; exhaustive-deps 91, no-unused-vars
 # 17, no-var 10, no-control-regex 2, no-explicit-any 1.
+# Current snapshot (task 2.6, 2026-08-04): tsc 140 errors + 32 eslint
+# problems (all exempted). exhaustive-deps 91 → 2: the 8 @unmount/_M
+# entries below are REMOVED (task 2.6 — cleanup reads enter deps; _M hoisted
+# to module scope); remaining 2 are FilterBar (new-array demoFrameworks
+# useMemo dep) + UserSettings (saveSettings fn dep), pre-existing classes.
 #
 # tsc — C1 class (function/typed-state emission) → Task 1.6
 # TS7006 — implicit-any fn/closure params: untyped source params + codegen-
@@ -118,15 +123,17 @@ components/EventsDemo.tsx	TS2339	[T3.3] event-data typing (EventTarget scrollTop
 # eslint — react-hooks + TS rules on generated code → Task 1.6
 # react-hooks/exhaustive-deps — missing/new-array deps (codegen dependency-
 #         array emission)
-pages/EasingFunctionsDemo.tsx	react-hooks/exhaustive-deps	[T1.6] missing/new-array deps	25	#68
-pages/KeyframeAnimationDemo.tsx	react-hooks/exhaustive-deps	[T1.6] missing/new-array deps	22	#68
-pages/AnimPropertiesDemo.tsx	react-hooks/exhaustive-deps	[T1.6] missing/new-array deps	16	#68
-pages/MotionDemo.tsx	react-hooks/exhaustive-deps	[T1.6] missing/new-array deps	14	#68
-pages/MotionTriggersDemo.tsx	react-hooks/exhaustive-deps	[T1.6] missing/new-array deps	5	#68
-pages/ElementRefDemo.tsx	react-hooks/exhaustive-deps	[T1.6] missing/new-array deps	3	#68
+# REMOVED (task 2.6): EasingFunctionsDemo 25 + KeyframeAnimationDemo 22 +
+#           AnimPropertiesDemo 16 + MotionDemo 14 + MotionTriggersDemo 5 +
+#           ElementRefDemo 3 — the `_M` class: the motion table was
+#           re-allocated inside the component function on every render, so
+#           every `_M["x"]` use site was a fresh object identity. `_M` is now
+#           emitted at module scope (motion defs are compile-time constants;
+#           store-referencing motions keep the in-function table until 2.10).
+#           Timer 1 + StatsDashboard 1 — the @unmount cleanup class: cleanup
+#           reads now enter the deps array (`}, [count]);` — stale-closure
+#           fix, final count correct).
 pages/UserSettings.tsx	react-hooks/exhaustive-deps	[T1.6] missing/new-array deps	1	#68
-components/Timer.tsx	react-hooks/exhaustive-deps	[T1.6] missing/new-array deps	1	#68
-components/StatsDashboard.tsx	react-hooks/exhaustive-deps	[T1.6] missing/new-array deps	1	#68
 components/FilterBar.tsx	react-hooks/exhaustive-deps	[T1.6] missing/new-array deps	1	#68
 # @typescript-eslint/no-unused-vars — generated unused identifiers (_b/_i)
 pages/MotionTriggersDemo.tsx	@typescript-eslint/no-unused-vars	[T1.6] generated unused identifier (_b/_i)	3	#70
