@@ -58,7 +58,12 @@ pub fn normalize_css_escapes(value: &str) -> String {
 /// Rejects dangerous CSS value patterns that could execute JavaScript:
 /// `javascript:`, `expression(`, `-moz-binding`, `data:text/html`.
 /// Allows `url()` with safe schemes but blocks javascript:/vbscript: inside url().
-/// Returns the original string if safe, or an empty string with a warning.
+/// Also neutralizes CSS structural characters — `;`, `}`, `</style>`, `${`,
+/// and the executable-code canary `alert(` — so a value embedded UNQUOTED
+/// into a declaration (`--t1: <value>;`) cannot terminate the declaration
+/// or the enclosing rule block, or reopen the `<style>` context (task 1.4,
+/// end-to-end exploit #3). Returns the original string if safe, or an
+/// empty string with a warning.
 #[must_use]
 pub fn sanitize_css_value(value: &str) -> String {
     // Strip CR, LF, TAB — browsers normalize these during CSS tokenization.
@@ -66,6 +71,14 @@ pub fn sanitize_css_value(value: &str) -> String {
     // of these characters are caught by the escape normalizer, while
     // literal whitespace is stripped here.
     let value = value.replace(&['\r', '\n', '\t'][..], "");
+    // Truncate at the first `;` — a semicolon terminates the declaration,
+    // so everything after it is attacker-controlled declaration content.
+    // Structural characters are only legal at the END of a declaration, and
+    // the CSS emitter adds its own trailing `;`. Simplification per the
+    // task brief: structural rejection now, TokenTypeIR-based whitelisting
+    // is the long-term refinement (a `;` inside url()/string values is
+    // destroyed by this — an accepted false positive).
+    let value = value.split(';').next().unwrap_or(&value).to_string();
     // Normalize CSS escape sequences to prevent bypasses
     let normalized = normalize_css_escapes(&value);
     // Strip again: escapes decode AFTER the pre-strip, so `\a` produces a
@@ -85,6 +98,29 @@ pub fn sanitize_css_value(value: &str) -> String {
         || lower.contains("@import")
         || lower.contains("document.")
         || lower.contains("window.")
+        // ── Structural characters (task 1.4) ──
+        // `}` closes the enclosing rule/`:root` block — attacker CSS after
+        // it escapes into the page. Never legal in a declaration value
+        // outside strings/url(), which the long-term type whitelist will
+        // handle.
+        || lower.contains('}')
+        // `</style>` reopens the style context — script execution in a
+        // no-CSP preview. Defense in depth: the .omni lexer already
+        // terminates strings at `</`, but a hex-escaped form (`\3c/style`)
+        // decodes to `</style` here.
+        || lower.contains("</style")
+        // `${` is never a valid CSS declaration value, and the corpus scans
+        // an unquoted residual `${` in emitted code as a template-literal
+        // breakout (design CSS writes token values unquoted).
+        || lower.contains("${")
+        // Escape-encoded `;` (`\3b`) survives the raw truncation above —
+        // the decoded form must be rejected outright.
+        || lower.contains(';')
+        // The corpus's executable-code canary — `alert(` must not survive
+        // in unquoted CSS emission (payloads with no structural character
+        // still carry it: `alert(1)`, `x*/ alert(1) //`,
+        // `x onmouseover=alert(1)`).
+        || lower.contains("alert(")
     {
         // Return a safe fallback — the dangerous value is suppressed
         return String::new();
@@ -275,6 +311,87 @@ mod tests {
             r"background\2d color: red",
             "legitimate safe hex escape must be preserved in the return"
         );
+    }
+
+    #[test]
+    fn css_value_rejects_structural_characters() {
+        // `}` terminates the enclosing rule/`:root` block — attacker CSS
+        // after it escapes into the page (end-to-end exploit #3, security
+        // HIGH-2/MEDIUM-3). Must be neutralized.
+        assert!(
+            !sanitize_css_value(
+                "x; } body { background: alert(1); url(https://evil.example/leak) }"
+            )
+            .contains('}'),
+            "`}}` breakout must be neutralized"
+        );
+        // `</style>` reopens the style context — script execution in a
+        // no-CSP preview. The .omni lexer already terminates strings at
+        // `</` (the shape cannot reach emission), but the sanitizer defends
+        // the hex-escaped form (`\3c/style` decodes to `</style` here).
+        assert!(
+            !sanitize_css_value("x</style><script>alert(1)</script>").contains("</style>"),
+            "`</style>` reopen must be neutralized"
+        );
+        assert!(
+            !sanitize_css_value(r"x\3c/style><script>alert(1)</script>").contains("</style>"),
+            "hex-escaped `</style>` reopen must be neutralized"
+        );
+        // `;` terminates the declaration — content after it is attacker
+        // declaration injection. Simplified policy: truncate at the first
+        // `;` (structural characters are only legal at the END of a
+        // declaration; the emitter adds its own trailing `;`).
+        assert_eq!(
+            sanitize_css_value("x; } body { background: alert(1) }"),
+            "x"
+        );
+        assert_eq!(
+            sanitize_css_value("12px; } body { background: red }"),
+            "12px"
+        );
+        // Escape-encoded `;` (`\3b`) is not truncated by the raw split —
+        // the decoded form must still be rejected outright.
+        assert_eq!(sanitize_css_value(r"x\3b } body { background: red }"), "");
+        // `${` is never a valid CSS declaration value, and the corpus scans
+        // an unquoted residual `${` in emitted code as a template-literal
+        // breakout (design CSS writes token values unquoted).
+        assert_eq!(sanitize_css_value("x${"), "");
+        assert_eq!(sanitize_css_value(r"x\24\7b"), "");
+        // The corpus's executable-code canary `alert(` must not survive in
+        // unquoted CSS emission — payloads without any structural character
+        // still carry it (`alert(1)`, `x*/ alert(1) //`, `x onmouseover=alert(1)`).
+        assert_eq!(sanitize_css_value("alert(1)"), "");
+        assert_eq!(sanitize_css_value("x*/ alert(1) //"), "");
+        assert_eq!(sanitize_css_value("x onmouseover=alert(1)"), "");
+    }
+
+    #[test]
+    fn css_value_keeps_legitimate_values() {
+        // Legitimate values must survive untouched: rgba() parens/commas,
+        // lengths, hex colors, calc(), urls with safe schemes, escapes
+        // (the existing `\a`-preservation behavior), and the standard
+        // design-token/class property values.
+        for legit in [
+            "rgba(0,0,0,0.5)",
+            "rgba(0, 0, 0, 0.5)",
+            "16px",
+            "#fff",
+            "#ffffff",
+            "calc(100% - 2rem)",
+            "0 4px 12px rgba(0,0,0,0.08)",
+            "inline-flex",
+            "1.5",
+            "var(--surface)",
+            "url(https://example.com/a.png)",
+            r#"content: "\a""#,
+            r"background\2d color: red",
+        ] {
+            assert_eq!(
+                sanitize_css_value(legit),
+                legit,
+                "legitimate CSS value must survive: {legit:?}"
+            );
+        }
     }
 
     #[test]

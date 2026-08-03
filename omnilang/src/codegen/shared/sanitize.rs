@@ -10,12 +10,20 @@
 //! `\6a\61\76\61\73\63\72\69\70\74\3a alert(1)` (hex-escaped "javascript:")
 //! bypassed it at runtime (three-copy drift, task 3.2).
 //!
-//! The emitted logic mirrors `sanitize_css_value` in
-//! `crates/omnilang-core/src/codegen/sanitize.rs` 1:1: pre-strip CR/LF/TAB,
+//! The emitted logic mirrors the keyword/url checks of `sanitize_css_value`
+//! in `crates/omnilang-core/src/codegen/sanitize.rs`: pre-strip CR/LF/TAB,
 //! decode CSS hex escapes, post-strip escape-decoded CR/LF/TAB (the `\a`
 //! → LF hole), then the keyword block and the url() context check. The
 //! runtime copies additionally RETURN the decoded-and-stripped value so the
 //! DOM receives exactly what was checked (no residual escape interpretation).
+//!
+//! The compile-time structural-char rejection added in task 1.4 (`;`
+//! truncation; `}` / `</style>` / `${` / `alert(` rejection) is deliberately
+//! NOT mirrored here: it guards the UNQUOTED CSS emission path (design.css
+//! and static style rules), while runtime values always land via
+//! `el.style.setProperty(...)` / property assignment, which confine the
+//! value to a single declaration — no block/declaration breakout is
+//! possible there.
 
 use std::fmt::Write as _;
 
