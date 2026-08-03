@@ -322,12 +322,15 @@ fn assert_slots_body_react(files: &FxHashMap<String, String>) {
     assert_contains(files, "Modal.tsx", "Default header");
     assert_contains(files, "Modal.tsx", "Default body");
     assert_contains(files, "Modal.tsx", "{footer}");
-    // Consumer named-prop projection; a bare <Modal /> keeps the declared
-    // fallbacks.
+    // Consumer named-prop projection; a bare instance keeps the declared
+    // fallbacks (task 2.8: children-free instances instantiate the
+    // React.memo alias — fallback rendering is unaffected, it lives inside
+    // the child).
     assert_contains(files, "App.tsx", "header={<div>");
     assert_contains(files, "App.tsx", "Custom title");
     assert_contains(files, "App.tsx", "Custom body");
-    assert_contains(files, "App.tsx", "<Modal />");
+    assert_contains(files, "App.tsx", "<MemoizedModal />");
+    assert_contains(files, "App.tsx", "React.memo(Modal)");
 }
 
 fn assert_slots_body_flutter(files: &FxHashMap<String, String>) {
@@ -373,11 +376,13 @@ fn assert_slots_three_forms_react(files: &FxHashMap<String, String>) {
     assert_contains(files, "SlotPanel.tsx", "Fallback Body");
     assert_contains(files, "SlotPanel.tsx", "header ?? (");
     assert_contains(files, "SlotPanel.tsx", "children ?? (");
-    // Consumer: named-prop projection + bare instance keeping fallbacks.
+    // Consumer: named-prop projection + bare instance keeping fallbacks
+    // (task 2.8: bare children-free instance uses the React.memo alias).
     assert_contains(files, "App.tsx", "header={<div>");
     assert_contains(files, "App.tsx", "Custom Header");
     assert_contains(files, "App.tsx", "Custom Body");
-    assert_contains(files, "App.tsx", "<SlotPanel />");
+    assert_contains(files, "App.tsx", "<MemoizedSlotPanel />");
+    assert_contains(files, "App.tsx", "React.memo(SlotPanel)");
 }
 
 fn assert_slots_three_forms_flutter(files: &FxHashMap<String, String>) {

@@ -16,6 +16,7 @@ impl ReactCodegen {
     /// `motion_counter` is the shared ordinal counter for motion elements
     /// (see `motion::classify_motion_el`) — it must run in the same DFS
     /// order as the motion effect emitter so ref/handler names match.
+    /// `prop_fn_ctx` carries the task 2.8 useCallback/memo decisions.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn gen_jsx_return(
         &self,
@@ -30,6 +31,7 @@ impl ReactCodegen {
         ref_names: &FxHashSet<String>,
         store_field_renames: &FxHashMap<String, String>,
         motion_counter: &mut usize,
+        prop_fn_ctx: &view::PropFnMemoCtx,
     ) {
         w.emit("return (");
         w.indent();
@@ -53,6 +55,7 @@ impl ReactCodegen {
                 ref_names,
                 store_field_renames,
                 motion_counter,
+                prop_fn_ctx,
             );
         } else {
             w.emit("<div className={styles.container}>");

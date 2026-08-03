@@ -684,8 +684,10 @@ fn fn_referenced_by_value_in_prop_is_emitted() {
         out
     );
     assert!(
-        out.contains("transform={shout}"),
-        "prop value reference must be emitted. Got:\n{}",
+        out.contains("transform={__omni_cb_shout}"),
+        "prop value reference must be emitted via the stable useCallback \
+         wrapper (task 2.8 — the bare fn const is recreated every render). \
+         Got:\n{}",
         out
     );
 }

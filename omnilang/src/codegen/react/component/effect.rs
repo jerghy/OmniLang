@@ -259,9 +259,26 @@ fn unmount_deps(
     let mut locals: FxHashSet<&str> = FxHashSet::default();
     collect_body_locals(&body.statements, &mut locals);
 
+    let reads = collect_reactive_reads(&body.statements, &reactive, &locals, store_fields);
+    resolve_reads(reads, store_signal_map, store_field_renames)
+}
+
+/// Collect reactive reads from a statement list — the walk shared by
+/// `unmount_deps` (task 2.6) and `fn_read_deps` (task 2.8):
+///   - qualified store-field reads (`Store.field`, `Store?.field`,
+///     store-field methods) — resolved through the slice renames later;
+///   - bare identifier reads in the `reactive` set, excluding
+///     `locals`-shadowed names (let-bound / for-in / catch vars, and — for
+///     fn bodies — the fn's own params).
+fn collect_reactive_reads(
+    stmts: &[StatementIR],
+    reactive: &FxHashSet<&str>,
+    locals: &FxHashSet<&str>,
+    store_fields: &FxHashMap<String, FxHashSet<String>>,
+) -> Vec<String> {
     let mut reads: Vec<String> = Vec::new();
     let mut seen: FxHashSet<String> = FxHashSet::default();
-    for stmt in &body.statements {
+    for stmt in stmts {
         walk_stmt(stmt, &mut |expr| match expr {
             // `Store.field` / `Store?.field` — qualified read (the store
             // alias itself is never a bare dep).
@@ -307,18 +324,25 @@ fn unmount_deps(
             }
             // Bare identifier reads (signals/computeds/props/store signals),
             // excluding body locals.
-            ExprIR::IdentifierExpr { name, .. } => {
-                if reactive.contains(name.as_str()) && !locals.contains(name.as_str()) {
-                    push_read(name.clone(), &mut seen, &mut reads);
-                }
+            ExprIR::IdentifierExpr { name, .. }
+                if reactive.contains(name.as_str()) && !locals.contains(name.as_str()) =>
+            {
+                push_read(name.clone(), &mut seen, &mut reads);
             }
             _ => {}
         });
     }
+    reads
+}
 
-    // Resolve like `@effect` deps: bare store-signal names → `Store.field`,
-    // then the slice renames → slice local (the qualified whole-store read
-    // stays when no rename exists).
+/// Resolve reads like `@effect` deps: bare store-signal names →
+/// `Store.field`, then the slice renames → slice local (the qualified
+/// whole-store read stays when no rename exists).
+fn resolve_reads(
+    reads: Vec<String>,
+    store_signal_map: &FxHashMap<String, String>,
+    store_field_renames: &FxHashMap<String, String>,
+) -> Vec<String> {
     reads
         .into_iter()
         .map(|read| {
@@ -329,6 +353,493 @@ fn unmount_deps(
                 .unwrap_or(qualified)
         })
         .collect()
+}
+
+/// The useCallback dep array for a component-local fn passed BY VALUE to a
+/// child component (task 2.8, perf M4).
+///
+/// The React gate (verify-react.sh, eslint-plugin-react-hooks v7) RESOLVES
+/// the callback identifier and flags every dependency divergence against
+/// the EMITTED body — so this collector mirrors the emitted body's
+/// references, not the raw IR reads:
+///   - component signals / computeds / props / event props / store signal
+///     bare names → bare deps (resolved through the slice renames);
+///   - qualified store refs (`TodoStore.items`, `TodoStore.add(x)`) → the
+///     slice local when subscribed per field, else the qualified name
+///     (whole-store alias);
+///   - component-local fn calls → the fn name (the const is recreated every
+///     render);
+///   - whole-store alias referenced as a value → the alias name (only when
+///     no slice renames exist for the alias — a sliced alias is never
+///     emitted as a const, so the dep would be TS2304).
+///
+/// Excluded — stable per the rule: useState setters, useRef objects,
+/// module-scope lib fns/imports, fn params, body locals, and closure
+/// params. Also excluded: mutation TARGET references — `count = count + 1`
+/// emits `setCount((s) => s + 1)` (no `count` reference) and
+/// `TodoStore.items.push(x)` emits `useTodoStore.setState(...)` (no bare
+/// `TodoStore`/`items` reference) — including them would be an
+/// "unnecessary dependency" error.
+///
+/// The fn's own params shadow reactive names — a param in the dep array
+/// would be TS2304 at the wrapper site (it is not in scope there).
+#[allow(clippy::too_many_arguments)]
+pub(super) fn fn_read_deps(
+    fun: &FunctionIR,
+    comp: &ComponentIR,
+    local_fn_names: &FxHashSet<String>,
+    store_signal_map: &FxHashMap<String, String>,
+    store_field_renames: &FxHashMap<String, String>,
+    store_fields: &FxHashMap<String, FxHashSet<String>>,
+    store_actions: &FxHashMap<String, FxHashSet<String>>,
+    used_store_refs: &FxHashSet<String>,
+) -> Vec<String> {
+    // Bare-name universe the rule treats as reactive.
+    let mut reactive: FxHashSet<String> = FxHashSet::default();
+    reactive.extend(comp.signals.iter().map(|s| s.name.clone()));
+    reactive.extend(comp.computeds.iter().map(|c| c.name.clone()));
+    reactive.extend(comp.props.keys().cloned());
+    reactive.extend(comp.events.iter().map(|e| e.name.clone()));
+    reactive.extend(store_signal_map.keys().cloned());
+
+    let mut locals: FxHashSet<&str> = FxHashSet::default();
+    locals.extend(fun.params.iter().map(|p| p.name.as_str()));
+    collect_body_locals(&fun.body.statements, &mut locals);
+
+    let mut seen: FxHashSet<String> = FxHashSet::default();
+    let mut reads: Vec<String> = Vec::new();
+    let collector = EmittedRefCollector {
+        reactive: &reactive,
+        store_fields,
+        store_actions,
+        store_signal_map,
+        renames: store_field_renames,
+        local_fns: local_fn_names,
+        used_store_refs,
+    };
+    for stmt in &fun.body.statements {
+        collector.walk_stmt(stmt, &locals, &mut reads, &mut seen);
+    }
+
+    // Resolve like `@effect` deps (bare store-signal names → `Store.field`,
+    // then the slice renames → slice local), deduping post-resolution — a
+    // read referenced both bare (`items`) and qualified (`TodoStore.items`)
+    // converges on the same slice local.
+    let mut resolved: Vec<String> = Vec::new();
+    let mut seen_resolved: FxHashSet<String> = FxHashSet::default();
+    for read in reads {
+        let qualified = store_signal_map.get(&read).cloned().unwrap_or(read);
+        let final_name = store_field_renames
+            .get(&qualified)
+            .cloned()
+            .unwrap_or(qualified);
+        if seen_resolved.insert(final_name.clone()) {
+            resolved.push(final_name);
+        }
+    }
+    resolved
+}
+
+/// Context for [`EmittedRefCollector`] — the emitted-body reference mirror
+/// described on [`fn_read_deps`].
+struct EmittedRefCollector<'a> {
+    /// Bare reactive names: signals ∪ computeds ∪ props ∪ event props ∪
+    /// store signal names.
+    reactive: &'a FxHashSet<String>,
+    /// Store alias → fields+getters (qualified-read detection).
+    store_fields: &'a FxHashMap<String, FxHashSet<String>>,
+    /// Store alias → actions (qualified-action-call detection).
+    store_actions: &'a FxHashMap<String, FxHashSet<String>>,
+    /// Bare store-signal name → `Store.field` (resolution step 1).
+    store_signal_map: &'a FxHashMap<String, String>,
+    /// Qualified `Store.field` → slice local (resolution step 2).
+    renames: &'a FxHashMap<String, String>,
+    /// Component-local fn names (call sites emit the fn name).
+    local_fns: &'a FxHashSet<String>,
+    /// Used store aliases (a bare alias ref can only be whole-store).
+    used_store_refs: &'a FxHashSet<String>,
+}
+
+impl<'a> EmittedRefCollector<'a> {
+    /// Whether the alias is whole-store: no slice rename exists for it, so
+    /// `const TodoStore = useTodoStore();` IS emitted and bare alias refs
+    /// are valid deps.
+    fn alias_is_whole_store(&self, alias: &str) -> bool {
+        let prefix = format!("{}.", alias);
+        !self.renames.keys().any(|k| k.starts_with(&prefix))
+    }
+
+    fn push(&self, name: &str, reads: &mut Vec<String>, seen: &mut FxHashSet<String>) {
+        if seen.insert(name.to_string()) {
+            reads.push(name.to_string());
+        }
+    }
+
+    /// A bare identifier reference in the emitted body.
+    fn push_ident(
+        &self,
+        name: &str,
+        locals: &FxHashSet<&str>,
+        reads: &mut Vec<String>,
+        seen: &mut FxHashSet<String>,
+    ) {
+        if locals.contains(name) {
+            return;
+        }
+        if self.reactive.contains(name) {
+            self.push(name, reads, seen);
+            return;
+        }
+        // Whole-store alias referenced as a value (`return TodoStore;`).
+        if self.used_store_refs.contains(name) && self.alias_is_whole_store(name) {
+            self.push(name, reads, seen);
+        }
+    }
+
+    /// A qualified store reference (`TodoStore.items` / `TodoStore.add(x)`)
+    /// — the emitted form is the slice local, or the qualified member
+    /// expression for whole-store aliases.
+    fn push_qualified(
+        &self,
+        alias: &str,
+        member: &str,
+        reads: &mut Vec<String>,
+        seen: &mut FxHashSet<String>,
+    ) {
+        let qualified = format!("{}.{}", alias, member);
+        if let Some(local) = self.renames.get(&qualified) {
+            self.push(local, reads, seen);
+        } else {
+            self.push(&qualified, reads, seen);
+        }
+    }
+
+    fn walk_block(
+        &self,
+        body: &BlockIR,
+        locals: &FxHashSet<&str>,
+        reads: &mut Vec<String>,
+        seen: &mut FxHashSet<String>,
+    ) {
+        for stmt in &body.statements {
+            self.walk_stmt(stmt, locals, reads, seen);
+        }
+    }
+
+    fn walk_stmt(
+        &self,
+        stmt: &StatementIR,
+        locals: &FxHashSet<&str>,
+        reads: &mut Vec<String>,
+        seen: &mut FxHashSet<String>,
+    ) {
+        match stmt {
+            StatementIR::ExprStmtIR { expr } => self.walk_expr(expr, locals, reads, seen),
+            StatementIR::LetStmtIR { value, .. } => {
+                if let Some(ref v) = value {
+                    self.walk_expr(v, locals, reads, seen);
+                }
+            }
+            StatementIR::ReturnStmtIR { value } => {
+                if let Some(ref v) = value {
+                    self.walk_expr(v, locals, reads, seen);
+                }
+            }
+            StatementIR::IfStmtIR {
+                condition,
+                then_body,
+                else_ifs,
+                else_body,
+            } => {
+                self.walk_expr(condition, locals, reads, seen);
+                self.walk_block(then_body, locals, reads, seen);
+                for (cond, body) in else_ifs {
+                    self.walk_expr(cond, locals, reads, seen);
+                    self.walk_block(body, locals, reads, seen);
+                }
+                if let Some(ref eb) = else_body {
+                    self.walk_block(eb, locals, reads, seen);
+                }
+            }
+            StatementIR::WhileStmtIR { condition, body } => {
+                self.walk_expr(condition, locals, reads, seen);
+                self.walk_block(body, locals, reads, seen);
+            }
+            StatementIR::ForInStmtIR { iterable, body, .. } => {
+                self.walk_expr(iterable, locals, reads, seen);
+                self.walk_block(body, locals, reads, seen);
+            }
+            StatementIR::BlockStmtIR { body } => self.walk_block(body, locals, reads, seen),
+            StatementIR::MutationStmt { intent } => {
+                // Mutation targets never appear in the emitted code:
+                // component signals emit setter calls (`setX(...)`), store
+                // signals emit `useStore.setState((s) => ...)`. Walk the
+                // value/amount/item with the target excluded.
+                let (target, exprs): (Option<&SignalRefIR>, Vec<&ExprIR>) = match intent {
+                    None => (None, Vec::new()),
+                    Some(MutationIntent::DirectAssign { target, value, .. }) => {
+                        (Some(target), value.as_deref().into_iter().collect())
+                    }
+                    Some(MutationIntent::Increment { target, amount })
+                    | Some(MutationIntent::Decrement { target, amount })
+                    | Some(MutationIntent::Multiply { target, amount })
+                    | Some(MutationIntent::Divide { target, amount })
+                    | Some(MutationIntent::Modulo { target, amount }) => {
+                        (Some(target), amount.as_deref().into_iter().collect())
+                    }
+                    Some(MutationIntent::Push { target, item }) => {
+                        (Some(target), item.as_deref().into_iter().collect())
+                    }
+                    Some(MutationIntent::Pop { target }) => (Some(target), Vec::new()),
+                    // MutationIntent is #[non_exhaustive] — cross-crate
+                    // matches need a wildcard.
+                    #[allow(unreachable_patterns)]
+                    _ => (None, Vec::new()),
+                };
+                let mut local_reads: Vec<String> = Vec::new();
+                let mut local_seen: FxHashSet<String> = FxHashSet::default();
+                for expr in exprs {
+                    self.walk_expr(expr, locals, &mut local_reads, &mut local_seen);
+                }
+                if let Some(target) = target {
+                    local_reads.retain(|r| r != &target.name);
+                    if let Some(owner) = self.store_signal_map.get(&target.name) {
+                        let qualified = format!("{}.{}", owner, target.name);
+                        local_reads.retain(|r| r != &qualified);
+                    }
+                }
+                for read in local_reads {
+                    self.push(&read, reads, seen);
+                }
+            }
+            StatementIR::ThrowStmtIR { expr } => self.walk_expr(expr, locals, reads, seen),
+            StatementIR::TryCatchStmtIR {
+                try_body,
+                catch_body,
+                finally_body,
+                ..
+            } => {
+                self.walk_block(try_body, locals, reads, seen);
+                if let Some(ref cb) = catch_body {
+                    self.walk_block(cb, locals, reads, seen);
+                }
+                if let Some(ref fb) = finally_body {
+                    self.walk_block(fb, locals, reads, seen);
+                }
+            }
+            StatementIR::EventEmitStmtIR { event_name, args } => {
+                // `emit onX(v)` emits `onX(v);` — the event prop is a
+                // reference the rule flags.
+                self.push_ident(event_name, locals, reads, seen);
+                for arg in args {
+                    self.walk_expr(arg, locals, reads, seen);
+                }
+            }
+            StatementIR::BreakStmtIR | StatementIR::ContinueStmtIR => {}
+            #[allow(unreachable_patterns)]
+            _ => unreachable!("Unknown StatementIR variant — update codegen for new variant"),
+        }
+    }
+
+    fn walk_expr(
+        &self,
+        expr: &ExprIR,
+        locals: &FxHashSet<&str>,
+        reads: &mut Vec<String>,
+        seen: &mut FxHashSet<String>,
+    ) {
+        match expr {
+            ExprIR::IdentifierExpr { name, .. } => self.push_ident(name, locals, reads, seen),
+            ExprIR::FieldAccessExpr { object, field }
+            | ExprIR::OptionalChainExpr { object, field } => {
+                if let ExprIR::IdentifierExpr { name, .. } = object.as_ref() {
+                    if self
+                        .store_fields
+                        .get(name.as_str())
+                        .is_some_and(|f| f.contains(field.as_str()))
+                    {
+                        self.push_qualified(name, field, reads, seen);
+                        return;
+                    }
+                }
+                self.walk_expr(object, locals, reads, seen);
+            }
+            ExprIR::MethodCallExpr {
+                object,
+                method,
+                args,
+                ..
+            } => {
+                if let ExprIR::IdentifierExpr { name, .. } = object.as_ref() {
+                    if self
+                        .store_fields
+                        .get(name.as_str())
+                        .is_some_and(|f| f.contains(method.as_str()))
+                        || self
+                            .store_actions
+                            .get(name.as_str())
+                            .is_some_and(|a| a.contains(method.as_str()))
+                    {
+                        // `TodoStore.items.length` / `TodoStore.add(x)` —
+                        // the whole call resolves to the slice local (or
+                        // stays qualified for whole-store aliases); the
+                        // object's bare alias is never emitted separately.
+                        self.push_qualified(name, method, reads, seen);
+                        for arg in args {
+                            self.walk_expr(arg, locals, reads, seen);
+                        }
+                        return;
+                    }
+                }
+                self.walk_expr(object, locals, reads, seen);
+                for arg in args {
+                    self.walk_expr(arg, locals, reads, seen);
+                }
+            }
+            ExprIR::StoreFieldAccessExpr {
+                store_alias,
+                field_name,
+                call_args,
+            } => {
+                if self
+                    .store_fields
+                    .get(store_alias.as_str())
+                    .is_some_and(|f| f.contains(field_name.as_str()))
+                    || self
+                        .store_actions
+                        .get(store_alias.as_str())
+                        .is_some_and(|a| a.contains(field_name.as_str()))
+                {
+                    self.push_qualified(store_alias, field_name, reads, seen);
+                }
+                for arg in call_args {
+                    self.walk_expr(arg, locals, reads, seen);
+                }
+            }
+            ExprIR::CallExpr { name, args } => {
+                // Component-local fn call — the fn const is recreated every
+                // render, so the name is a dependency. Lib fns (module
+                // scope) and imports never are.
+                if self.local_fns.contains(name) {
+                    self.push(name, reads, seen);
+                }
+                for arg in args {
+                    self.walk_expr(arg, locals, reads, seen);
+                }
+            }
+            ExprIR::ClosureExpr { params, body } => {
+                // Closure params shadow reactive names — they are local to
+                // the closure and never flagged by the rule.
+                let mut shadowed = locals.clone();
+                shadowed.extend(params.iter().map(String::as_str));
+                self.walk_expr(body, &shadowed, reads, seen);
+            }
+            ExprIR::BinaryOpExpr { left, right, .. } => {
+                self.walk_expr(left, locals, reads, seen);
+                self.walk_expr(right, locals, reads, seen);
+            }
+            ExprIR::UnaryOpExpr { operand, .. } => self.walk_expr(operand, locals, reads, seen),
+            ExprIR::TernaryIR {
+                cond,
+                then_expr,
+                else_expr,
+            } => {
+                self.walk_expr(cond, locals, reads, seen);
+                self.walk_expr(then_expr, locals, reads, seen);
+                self.walk_expr(else_expr, locals, reads, seen);
+            }
+            ExprIR::ArrayExpr { elements } => {
+                for elem in elements {
+                    self.walk_expr(elem, locals, reads, seen);
+                }
+            }
+            ExprIR::MapExpr { entries } => {
+                for (k, v) in entries {
+                    self.walk_expr(k, locals, reads, seen);
+                    self.walk_expr(v, locals, reads, seen);
+                }
+            }
+            ExprIR::BlockExpr { statements, tail } => {
+                for stmt in statements {
+                    self.walk_stmt(stmt, locals, reads, seen);
+                }
+                self.walk_expr(tail, locals, reads, seen);
+            }
+            ExprIR::MatchExpr { matched, arms } => {
+                self.walk_expr(matched, locals, reads, seen);
+                for arm in arms {
+                    self.walk_block(&arm.body, locals, reads, seen);
+                }
+            }
+            ExprIR::VariantLiteral { fields, .. } | ExprIR::StructExpr { fields, .. } => {
+                for (_, v) in fields {
+                    self.walk_expr(v, locals, reads, seen);
+                }
+            }
+            ExprIR::SpreadExpr { operand } => self.walk_expr(operand, locals, reads, seen),
+            ExprIR::IndexExpr { object, index } => {
+                self.walk_expr(object, locals, reads, seen);
+                self.walk_expr(index, locals, reads, seen);
+            }
+            ExprIR::AwaitExpr { operand } => self.walk_expr(operand, locals, reads, seen),
+            ExprIR::ArrayMethod {
+                subject, predicate, ..
+            } => {
+                self.walk_expr(subject, locals, reads, seen);
+                self.walk_expr(predicate, locals, reads, seen);
+            }
+            ExprIR::RefOpExpr { op, .. } => {
+                // Ref ops carry only value expressions (scrollTo(x, y)…);
+                // ref names themselves are stable (useRef) and never deps.
+                collect_ref_op_value_exprs(op, locals, reads, seen, self);
+            }
+            ExprIR::LiteralExpr { .. } => {}
+            #[allow(unreachable_patterns)]
+            _ => unreachable!("Unknown ExprIR variant — update codegen for new variant"),
+        }
+    }
+}
+
+/// Walk the value expressions carried by a `RefOpIR` (the ref object itself
+/// is stable — useRef — and never a dependency).
+fn collect_ref_op_value_exprs<'a>(
+    op: &RefOpIR,
+    locals: &FxHashSet<&str>,
+    reads: &mut Vec<String>,
+    seen: &mut FxHashSet<String>,
+    collector: &EmittedRefCollector<'a>,
+) {
+    match op {
+        RefOpIR::Focus
+        | RefOpIR::Blur
+        | RefOpIR::Measure { .. }
+        | RefOpIR::Select
+        | RefOpIR::Value
+        | RefOpIR::CapturePointer
+        | RefOpIR::ReleasePointer => {}
+        RefOpIR::ScrollTo { x, y } => {
+            if let Some(x) = x {
+                collector.walk_expr(x, locals, reads, seen);
+            }
+            if let Some(y) = y {
+                collector.walk_expr(y, locals, reads, seen);
+            }
+        }
+        RefOpIR::ScrollBy { dx, dy } => {
+            if let Some(dx) = dx {
+                collector.walk_expr(dx, locals, reads, seen);
+            }
+            if let Some(dy) = dy {
+                collector.walk_expr(dy, locals, reads, seen);
+            }
+        }
+        RefOpIR::SetSelection { start, end } => {
+            collector.walk_expr(start, locals, reads, seen);
+            collector.walk_expr(end, locals, reads, seen);
+        }
+        #[allow(unreachable_patterns)]
+        _ => {}
+    }
 }
 
 /// Push a read unless already seen (dedupe — the walker visits nested

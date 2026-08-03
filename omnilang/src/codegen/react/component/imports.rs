@@ -39,6 +39,7 @@ pub(super) struct ComponentImports {
 /// Extracts store-hook imports (by checking `used_store_refs` against
 /// `ir.all_stores()`) and child-component imports (via
 /// [`jsx::collect_view_child_components`]).
+#[allow(clippy::too_many_arguments)]
 pub(super) fn collect_component_imports(
     comp: &ComponentIR,
     ir: &IRProgram,
@@ -47,6 +48,7 @@ pub(super) fn collect_component_imports(
     hooks: &[String],
     has_styles: bool,
     design_import_lines: &[String],
+    has_memo_aliases: bool,
 ) -> ComponentImports {
     // ── Store hook imports ──────────────────────────────────
     let all_stores = ir.all_stores();
@@ -111,15 +113,14 @@ pub(super) fn collect_component_imports(
         })
         .collect();
 
-    // ── React default import (React.Fragment from @for) ─────
-    // `@for` renders `<React.Fragment key=...>`, which requires the React
-    // default import even when the component uses no hooks (read-only
-    // signals/props). Without it tsc reports TS2686 ("React refers to a UMD
-    // global") — the hook-driven import below used to be the only trigger.
-    let needs_react_default = comp
-        .view
-        .as_ref()
-        .is_some_and(view_has_list_rendering);
+    // ── React default import (React.Fragment from @for / React.memo) ────
+    // `@for` renders `<React.Fragment key=...>` and task 2.8 emits
+    // `React.memo(<Child>)` aliases at module scope — both require the
+    // React default import even when the component uses no hooks. Without
+    // it tsc reports TS2686 ("React refers to a UMD global") — the
+    // hook-driven import below used to be the only trigger.
+    let needs_react_default =
+        comp.view.as_ref().is_some_and(view_has_list_rendering) || has_memo_aliases;
 
     ComponentImports {
         hooks,

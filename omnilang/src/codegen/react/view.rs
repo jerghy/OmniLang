@@ -47,6 +47,7 @@ pub(super) fn gen_view_node_tsx(
     ref_names: &FxHashSet<String>,
     store_field_renames: &FxHashMap<String, String>,
     motion_counter: &mut usize,
+    prop_fn_ctx: &PropFnMemoCtx,
 ) {
     match node {
         ViewTree::Element(el) => {
@@ -67,6 +68,7 @@ pub(super) fn gen_view_node_tsx(
                         ref_names,
                         store_field_renames,
                         motion_counter,
+                        prop_fn_ctx,
                     );
                 }
                 return;
@@ -78,24 +80,44 @@ pub(super) fn gen_view_node_tsx(
                 if el.ref_binding.is_some() {
                     // Only native HTML elements support @ref in the current phase
                 }
-                // Slots the child component actually declares — children
-                // carrying a `slot="name"` attribute, or a consumer-position
-                // `@slot name { ... }` / `name={<.../>}` projection (both
-                // lower to `ViewTree::Slot` children), project into the
-                // matching named prop; anything else flows into the
-                // `children` prop. Unknown slot names fall back into
+                // Partition children: elements carrying a literal
+                // `slot="name"` attribute, or consumer-position
+                // `@slot name { ... }` projections, matching a declared slot
+                // project into the named prop; everything else goes to the
+                // default `children` prop. Unknown slot names fall back into
                 // `children` (content stays visible and the generated TS
                 // never breaks).
-                let mut declared_slot_names: FxHashSet<String> = FxHashSet::default();
-                for slot_name in component_declared_slots(child_comp, component_map) {
-                    if let Some(n) = slot_name {
-                        declared_slot_names.insert(n);
-                    }
-                }
+                let (default_children, named_children) =
+                    partition_component_children(el, child_comp, component_map);
+                // Task 2.8 (perf M4): a children-free instance whose every
+                // prop/event value is render-stable (literals / signals /
+                // computeds / props / store refs / useCallback-wrapped fns)
+                // instantiates the `Memoized<Child>` alias — the memo
+                // shallow-compare skips the child on prop-equal re-renders
+                // (list-cascade elimination). Fresh arrows and dynamic
+                // expressions disqualify the instance (memo would never hit).
+                let instance_tag = if prop_fn_ctx.memo_children.contains(el.tag.as_str())
+                    && component_instance_memoizable(
+                        el,
+                        !default_children.is_empty() || !named_children.is_empty(),
+                        prop_fn_ctx,
+                    ) {
+                    format!("Memoized{}", el.tag)
+                } else {
+                    el.tag.clone()
+                };
                 let mut comp_attrs: Vec<String> = Vec::new();
                 for (prop_name, prop_value) in &el.props {
-                    let js_val =
-                        format_expr_ir_tsx_renamed(prop_value, ref_names, store_field_renames);
+                    // A local fn passed BY VALUE is emitted as its stable
+                    // `__omni_cb_<fn>` useCallback wrapper (task 2.8).
+                    let js_val = match prop_value {
+                        ExprIR::IdentifierExpr { name, .. }
+                            if prop_fn_ctx.wrapped_fns.contains(name) =>
+                        {
+                            format!("__omni_cb_{}", name)
+                        }
+                        _ => format_expr_ir_tsx_renamed(prop_value, ref_names, store_field_renames),
+                    };
                     comp_attrs.push(format!("{}={{{}}}", prop_name, js_val));
                 }
                 // a11y block → aria-* props on the component element (React
@@ -106,7 +128,15 @@ pub(super) fn gen_view_node_tsx(
                     let jsx_event = to_react_event(event_name);
                     match handler {
                         EventHandlerIR::FnRef { r#ref, .. } => {
-                            comp_attrs.push(format!("{}={{{}}}", jsx_event, r#ref));
+                            // Bare fn-ref events on a component instance use
+                            // the stable useCallback wrapper when the ref is
+                            // a local fn (task 2.8).
+                            let ref_emitted = if prop_fn_ctx.wrapped_fns.contains(r#ref) {
+                                format!("__omni_cb_{}", r#ref)
+                            } else {
+                                r#ref.clone()
+                            };
+                            comp_attrs.push(format!("{}={{{}}}", jsx_event, ref_emitted));
                         }
                         EventHandlerIR::InlineFn { body, params, .. } => {
                             let handler_str = format_inline_handler(
@@ -132,21 +162,6 @@ pub(super) fn gen_view_node_tsx(
                         }
                     }
                 }
-                // Partition children: elements carrying a literal
-                // `slot="name"` attribute, or consumer-position
-                // `@slot name { ... }` projections, matching a declared slot
-                // project into the named prop; everything else goes to the
-                // default `children` prop.
-                let mut default_children: Vec<&ViewTree> = Vec::new();
-                let mut named_children: Vec<(String, &ViewTree)> = Vec::new();
-                for child in &el.children {
-                    match child_slot_name(child) {
-                        Some(slot_name) if declared_slot_names.contains(&slot_name) => {
-                            named_children.push((slot_name, child));
-                        }
-                        _ => default_children.push(child),
-                    }
-                }
                 for (slot_name, child) in &named_children {
                     // Render the projected content into the named prop and
                     // strip the `slot` attribute so it never leaks into the
@@ -163,6 +178,7 @@ pub(super) fn gen_view_node_tsx(
                         ref_names,
                         store_field_renames,
                         motion_counter,
+                        prop_fn_ctx,
                     );
                     let child_jsx = child_w.into_string();
                     let trimmed = child_jsx.trim();
@@ -172,9 +188,9 @@ pub(super) fn gen_view_node_tsx(
                 }
                 let attrs_str = comp_attrs.join(" ");
                 if default_children.is_empty() {
-                    w.emit_fmt(format_args!("<{} {}/>", el.tag, attrs_str));
+                    w.emit_fmt(format_args!("<{} {}/>", instance_tag, attrs_str));
                 } else {
-                    w.emit_fmt(format_args!("<{} {}>", el.tag, attrs_str));
+                    w.emit_fmt(format_args!("<{} {}>", instance_tag, attrs_str));
                     w.indent();
                     for child in default_children {
                         gen_consumer_child_tsx(
@@ -188,10 +204,11 @@ pub(super) fn gen_view_node_tsx(
                             ref_names,
                             store_field_renames,
                             motion_counter,
+                            prop_fn_ctx,
                         );
                     }
                     w.dedent();
-                    w.emit_fmt(format_args!("</{}>", el.tag));
+                    w.emit_fmt(format_args!("</{}>", instance_tag));
                 }
                 return; // IMPORTANT: skip HTML element handling
             }
@@ -718,6 +735,7 @@ pub(super) fn gen_view_node_tsx(
                     ref_names,
                     store_field_renames,
                     motion_counter,
+                    prop_fn_ctx,
                 );
             }
             w.dedent();
@@ -756,6 +774,7 @@ pub(super) fn gen_view_node_tsx(
                         ref_names,
                         store_field_renames,
                         motion_counter,
+                        prop_fn_ctx,
                     );
                     emit_fade_branch_close(w, is_fade);
                 }
@@ -786,6 +805,7 @@ pub(super) fn gen_view_node_tsx(
                         ref_names,
                         store_field_renames,
                         motion_counter,
+                        prop_fn_ctx,
                     );
                 }
                 emit_fade_branch_close(w, is_fade);
@@ -826,6 +846,7 @@ pub(super) fn gen_view_node_tsx(
                     ref_names,
                     store_field_renames,
                     motion_counter,
+                    prop_fn_ctx,
                 );
             }
             emit_fade_branch_close(w, is_fade);
@@ -852,6 +873,7 @@ pub(super) fn gen_view_node_tsx(
                         ref_names,
                         store_field_renames,
                         motion_counter,
+                        prop_fn_ctx,
                     );
                 }
                 emit_fade_branch_close(w, is_fade);
@@ -874,6 +896,7 @@ pub(super) fn gen_view_node_tsx(
                     ref_names,
                     store_field_renames,
                     motion_counter,
+                    prop_fn_ctx,
                 );
                 emit_fade_branch_close(w, is_fade);
                 w.dedent();
@@ -933,6 +956,7 @@ pub(super) fn gen_view_node_tsx(
                         ref_names,
                         store_field_renames,
                         motion_counter,
+                        prop_fn_ctx,
                     );
                 }
                 w.dedent();
@@ -963,6 +987,7 @@ pub(super) fn gen_view_node_tsx(
                     ref_names,
                     store_field_renames,
                     motion_counter,
+                    prop_fn_ctx,
                 );
             }
             w.dedent();
@@ -1031,6 +1056,7 @@ pub(super) fn gen_view_node_tsx(
                     ref_names,
                     store_field_renames,
                     motion_counter,
+                    prop_fn_ctx,
                 );
             }
         }
@@ -1058,6 +1084,7 @@ pub(super) fn gen_view_node_tsx(
                     ref_names,
                     store_field_renames,
                     motion_counter,
+                    prop_fn_ctx,
                 );
                 w.dedent();
                 w.emit(")}");
@@ -1089,6 +1116,7 @@ pub(super) fn gen_branch_body_tsx(
     ref_names: &FxHashSet<String>,
     store_field_renames: &FxHashMap<String, String>,
     motion_counter: &mut usize,
+    prop_fn_ctx: &PropFnMemoCtx,
 ) {
     let is_multi = match body {
         // Lowering wraps multi-node bodies in an element with tag "fragment";
@@ -1112,6 +1140,7 @@ pub(super) fn gen_branch_body_tsx(
         ref_names,
         store_field_renames,
         motion_counter,
+        prop_fn_ctx,
     );
     if is_multi {
         w.dedent();
@@ -1165,6 +1194,130 @@ fn child_slot_name(node: &ViewTree) -> Option<String> {
     }
 }
 
+/// Task 2.8 (perf M4) codegen context — built by
+/// `component::collect_prop_fn_memo_ctx` (per component file) and threaded
+/// through the JSX emission so component instantiations can use the
+/// useCallback wrappers (`__omni_cb_<fn>`) and the `Memoized<Child>`
+/// aliases.
+pub(super) struct PropFnMemoCtx {
+    /// Component-local fns passed BY VALUE to child component instances
+    /// (bare identifier props / bare FnRef events). Each emits
+    /// `const __omni_cb_<name> = useCallback(<name>, [reads]);` — the fn
+    /// const is recreated every render, and a memoized child would otherwise
+    /// see a fresh fn identity on every render (memo never hits).
+    pub wrapped_fns: FxHashSet<String>,
+    /// Child component names with a module-scope `const Memoized<Name> =
+    /// React.memo(<Name>);` alias — the child received at least one
+    /// memoizable (children-free, stable-props) instance.
+    pub memo_children: FxHashSet<String>,
+    /// Identifier names whose identity is render-stable: signals, computeds,
+    /// props, store aliases/fields, slice locals, wrapped-fn wrapper names,
+    /// and lib fns. The memo instance check accepts only these plus scalar
+    /// literals.
+    pub stable_idents: FxHashSet<String>,
+    /// Library fn names — module-scope consts, stable by construction (the
+    /// event side of the memo check accepts these without a wrapper).
+    pub lib_fns: FxHashSet<String>,
+}
+
+/// Task 2.8: whether a child component instance is a React.memo candidate —
+/// it receives NO children/slot projections, and every prop/event value is
+/// a render-stable form (scalar literal / stable identifier /
+/// useCallback-wrapped fn). Fresh arrow handlers (event_data extraction,
+/// inline fns, store-action wrappers) and dynamic a11y expressions
+/// disqualify the instance — memo's shallow prop compare would never hit
+/// and the wrap would be pure overhead.
+///
+/// Conservative by design: a false negative only costs a missed memo hit —
+/// there is no correctness consequence (memo never skips a render whose
+/// props are unequal; a memoized child with internal store subscriptions is
+/// unaffected — zustand's useSyncExternalStore forceUpdate bypasses memo).
+pub(super) fn component_instance_memoizable(
+    el: &ElementIR,
+    has_projected_children: bool,
+    ctx: &PropFnMemoCtx,
+) -> bool {
+    if has_projected_children {
+        // children / named-slot props are a fresh element tree every render.
+        return false;
+    }
+    for prop_value in el.props.values() {
+        match prop_value {
+            ExprIR::LiteralExpr { value } => {
+                // Scalar literals (string/number/bool/null) are stable;
+                // object/array literals are fresh per render.
+                if value.is_object() || value.is_array() {
+                    return false;
+                }
+            }
+            ExprIR::IdentifierExpr { name, .. } => {
+                if !ctx.stable_idents.contains(name) {
+                    return false;
+                }
+            }
+            _ => return false,
+        }
+    }
+    for handler in el.events.values() {
+        match handler {
+            EventHandlerIR::FnRef {
+                r#ref, event_data, ..
+            } => {
+                if event_data.is_some() {
+                    return false; // fresh `(e) => { fn(e) }` arrow
+                }
+                if !(ctx.wrapped_fns.contains(r#ref) || ctx.lib_fns.contains(r#ref)) {
+                    return false;
+                }
+            }
+            // InlineFn / StoreAction — a fresh arrow each render.
+            _ => return false,
+        }
+    }
+    if let Some(a11y) = &el.a11y {
+        // Static-string a11y entries are stable; dynamic entries (hidden,
+        // non-literal alt) are fresh expressions per render.
+        if a11y.hidden.is_some() {
+            return false;
+        }
+        if let Some(alt) = &a11y.alt {
+            if !matches!(alt, ExprIR::LiteralExpr { .. }) {
+                return false;
+            }
+        }
+    }
+    true
+}
+
+/// Partition a component instantiation's children into named slot
+/// projections (elements carrying a literal `slot="name"` matching a
+/// declared slot, or consumer-position `@slot` projections) and default
+/// children. Shared by the JSX emitter and the task 2.8 memo analysis so
+/// the "receives children?" decision can never diverge between the two.
+pub(super) fn partition_component_children<'a>(
+    el: &'a ElementIR,
+    child_comp: &ComponentIR,
+    component_map: &FxHashMap<&str, &ComponentIR>,
+) -> (Vec<&'a ViewTree>, Vec<(String, &'a ViewTree)>) {
+    let mut declared_slot_names: FxHashSet<String> = FxHashSet::default();
+    for slot_name in component_declared_slots(child_comp, component_map) {
+        if let Some(n) = slot_name {
+            declared_slot_names.insert(n);
+        }
+    }
+    let mut default_children: Vec<&ViewTree> = Vec::new();
+    let mut named_children: Vec<(String, &ViewTree)> = Vec::new();
+    for child in &el.children {
+        match child_slot_name(child) {
+            Some(slot_name) if declared_slot_names.contains(&slot_name) => {
+                named_children.push((slot_name, child));
+            }
+            _ => default_children.push(child),
+        }
+    }
+    (default_children, named_children)
+}
+
 /// Render a child of a component instantiation (consumer-side projection
 /// content). Consumer-position `@slot name { ... }` directives render their
 /// fallback — that IS the projected content — instead of the slot placeholder.
@@ -1181,6 +1334,7 @@ fn gen_consumer_child_tsx(
     ref_names: &FxHashSet<String>,
     store_field_renames: &FxHashMap<String, String>,
     motion_counter: &mut usize,
+    prop_fn_ctx: &PropFnMemoCtx,
 ) {
     match child {
         ViewTree::Slot { fallback, .. } => {
@@ -1195,6 +1349,7 @@ fn gen_consumer_child_tsx(
                 ref_names,
                 store_field_renames,
                 motion_counter,
+                prop_fn_ctx,
             );
         }
         _ => {
@@ -1209,6 +1364,7 @@ fn gen_consumer_child_tsx(
                 ref_names,
                 store_field_renames,
                 motion_counter,
+                prop_fn_ctx,
             );
         }
     }

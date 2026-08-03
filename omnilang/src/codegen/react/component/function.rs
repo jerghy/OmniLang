@@ -403,7 +403,7 @@ fn collect_called_fns_from_style_json(val: &serde_json::Value, acc: &mut FxHashS
     }
 }
 
-fn collect_called_fns_from_stmt(stmt: &StatementIR, acc: &mut FxHashSet<String>) {
+pub(super) fn collect_called_fns_from_stmt(stmt: &StatementIR, acc: &mut FxHashSet<String>) {
     match stmt {
         StatementIR::ExprStmtIR { expr } => {
             collect_called_fns_from_expr(expr, acc);

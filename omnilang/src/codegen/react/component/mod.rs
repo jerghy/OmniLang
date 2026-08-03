@@ -14,6 +14,8 @@ pub(super) mod store_slices;
 use super::expr;
 use super::{escape_js_ident, CodeWriter, ReactCodegen};
 use crate::codegen::react::motion;
+use crate::codegen::react::view;
+use crate::codegen::react::view::{component_instance_memoizable, PropFnMemoCtx};
 use crate::ir::*;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
@@ -117,6 +119,19 @@ impl ReactCodegen {
             .signals
             .iter()
             .any(|s| read_signals.contains(&s.name) && mutated_signals.contains(&s.name));
+        // Component-local fn names — used by the task 2.8 prop-fn analysis
+        // (fns passed by value to child components) and by the fn emission
+        // and state hooks below.
+        let fn_names: FxHashSet<String> = comp.fns.iter().map(|f| f.name.clone()).collect();
+        // Task 2.8 (perf M4) pass 1: local fns passed BY VALUE to child
+        // component instances (bare identifier props / bare FnRef events).
+        // Each becomes `const __omni_cb_<fn> = useCallback(<fn>, [reads])` —
+        // the fn consts are recreated every render, and a memoized child
+        // would see a fresh fn identity per render. The full memo ctx is
+        // built later once the store/lib-fn sets exist.
+        let wrapped_prop_fns: FxHashSet<String> = view
+            .map(|v| collect_wrapped_prop_fns(v, component_map, &fn_names))
+            .unwrap_or_default();
         let mut hooks: Vec<String> = Vec::new();
         if has_mutable_states {
             hooks.push("useState".to_string());
@@ -124,7 +139,7 @@ impl ReactCodegen {
         if has_computeds {
             hooks.push("useMemo".to_string());
         }
-        if has_fn_form_computed || has_interactive_motion {
+        if has_fn_form_computed || has_interactive_motion || !wrapped_prop_fns.is_empty() {
             hooks.push("useCallback".to_string());
         }
         if has_effects_or_lifecycles || has_motion || has_semantic_bindings {
@@ -272,18 +287,6 @@ impl ReactCodegen {
             }
         };
 
-        // ── Emit imports ──
-        let comp_imports = imports::collect_component_imports(
-            comp,
-            ir,
-            component_map,
-            &used_store_refs,
-            &hooks,
-            has_styles,
-            &design_wiring.import_lines,
-        );
-        comp_imports.emit(&mut w, name, comp, has_props);
-
         // ── Active-pointer tracker (design D3) ──
         // `capturePointer()`/`releasePointer()` are parameterless — they act
         // on the ACTIVE pointer. Ref ops can be called from fns/effects/
@@ -370,6 +373,43 @@ impl ReactCodegen {
             &all_stores,
         );
 
+        // ── Task 2.8 (perf M4): prop-fn useCallback + React.memo for
+        // slot-free children ──
+        // ① A component-local fn passed BY VALUE to a child component
+        // instance is recreated every render (`const handleAdd = ...` sits
+        // inside the component body) — wrapping it in useCallback keeps the
+        // identity stable. ② A children-free instance whose props are all
+        // render-stable forms (literals / signals / computeds / props /
+        // store refs / wrapped fns) instantiates the `Memoized<Child>`
+        // React.memo alias — ① is the precondition that keeps fn props from
+        // defeating the shallow compare; slot-receiving instances are never
+        // memoized (children is a fresh element tree every render).
+        let lib_fn_names: FxHashSet<String> = lib_fns.iter().map(|f| f.name.clone()).collect();
+        let prop_fn_ctx = collect_prop_fn_memo_ctx(
+            view,
+            comp,
+            component_map,
+            &fn_names,
+            &lib_fn_names,
+            &store_signal_map,
+            &used_store_refs,
+            &store_field_renames,
+            &wrapped_prop_fns,
+        );
+
+        // ── Emit imports ──
+        let comp_imports = imports::collect_component_imports(
+            comp,
+            ir,
+            component_map,
+            &used_store_refs,
+            &hooks,
+            has_styles,
+            &design_wiring.import_lines,
+            !prop_fn_ctx.memo_children.is_empty(),
+        );
+        comp_imports.emit(&mut w, name, comp, has_props);
+
         for fun in &lib_fns {
             let param_names: Vec<(String, bool)> = fun
                 .params
@@ -452,6 +492,27 @@ impl ReactCodegen {
         let motion_table_hoisted = view
             .map(|v| motion::emit_motion_table_module_scope(&mut w, v, &motion_map))
             .unwrap_or(false);
+
+        // ── Task 2.8 (perf M4): React.memo aliases for children with
+        // memoizable instances ──
+        // `Memoized<Child>` wraps the imported child component; children-free
+        // instances whose props are all render-stable (literals / signals /
+        // computeds / props / store refs / useCallback-wrapped fns)
+        // instantiate the alias, so prop-shallow-equal re-renders skip the
+        // child entirely (list-cascade elimination). The local fns passed as
+        // props are useCallback-wrapped inside the component below — without
+        // stable fn identity the shallow compare would never hit.
+        if !prop_fn_ctx.memo_children.is_empty() {
+            let mut memo_children: Vec<&String> = prop_fn_ctx.memo_children.iter().collect();
+            memo_children.sort();
+            for child in memo_children {
+                w.emit_fmt(format_args!(
+                    "const Memoized{} = React.memo({});",
+                    child, child
+                ));
+            }
+            w.emit("");
+        }
 
         // Component function signature
         if !has_props {
@@ -539,7 +600,6 @@ impl ReactCodegen {
         }
 
         // State hooks + effects
-        let fn_names: FxHashSet<String> = comp.fns.iter().map(|f| f.name.clone()).collect();
         self.gen_state_hooks(
             &mut w,
             comp,
@@ -560,6 +620,17 @@ impl ReactCodegen {
                 fields.extend(store.signals.keys().cloned());
                 fields.extend(store.getters.keys().cloned());
                 (name.to_string(), fields)
+            })
+            .collect();
+        // Store alias → action names — the task 2.8 deps collector resolves
+        // `TodoStore.add(x)` calls to the action slice local (or the
+        // qualified name) exactly like signal-field reads.
+        let store_actions: FxHashMap<String, FxHashSet<String>> = all_stores
+            .iter()
+            .map(|(name, store)| {
+                let mut actions = FxHashSet::default();
+                actions.extend(store.actions.iter().map(|a| a.name.clone()));
+                (name.to_string(), actions)
             })
             .collect();
         self.gen_effects(
@@ -607,6 +678,38 @@ impl ReactCodegen {
             &store_field_renames,
         );
 
+        // ── Task 2.8 (perf M4): useCallback wrappers for prop fns ──
+        // The fn consts above are recreated every render, so a memoized
+        // child would see a fresh fn identity per render (the memo shallow
+        // compare never hits). Deps derive from the fn's reactive reads
+        // (2.6 collector + fn-param shadowing + transitive local-fn calls) —
+        // the wrapper re-creates exactly when a captured value changes.
+        if !prop_fn_ctx.wrapped_fns.is_empty() {
+            let mut wrapped_fns: Vec<String> = prop_fn_ctx.wrapped_fns.iter().cloned().collect();
+            wrapped_fns.sort();
+            for fn_name in &wrapped_fns {
+                if let Some(fun) = comp.fns.iter().find(|f| f.name == *fn_name) {
+                    let deps = effect::fn_read_deps(
+                        fun,
+                        comp,
+                        &fn_names,
+                        &store_signal_map,
+                        &store_field_renames,
+                        &store_fields,
+                        &store_actions,
+                        &used_store_refs,
+                    );
+                    w.emit_fmt(format_args!(
+                        "const __omni_cb_{} = useCallback({}, [{}]);",
+                        fn_name,
+                        fn_name,
+                        deps.join(", ")
+                    ));
+                }
+            }
+            w.emit("");
+        }
+
         // Motion animation effects — per-ref native effects (all triggers)
         if let Some(view) = view {
             motion_effects::gen_motion_effects(
@@ -635,6 +738,7 @@ impl ReactCodegen {
             &ref_names,
             &store_field_renames,
             &mut motion_counter,
+            &prop_fn_ctx,
         );
         w.dedent();
         w.emit("}");
@@ -1184,5 +1288,220 @@ fn collect_mutation_identifiers(intent: &MutationIntent, acc: &mut FxHashSet<Str
         MutationIntent::Pop { .. } => {}
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown MutationIntent variant — update codegen for new variant"),
+    }
+}
+
+// ═══════════════════════════════════════════════════════════
+// Task 2.8 (perf M4): prop-fn useCallback + React.memo analysis
+// ═══════════════════════════════════════════════════════════
+
+/// Pass 1 of the task 2.8 analysis: component-local fns passed BY VALUE to
+/// child component instances — a bare identifier prop (`transform={fn}`) or
+/// a bare `FnRef` event (`onAdd={fn}`). Each becomes a useCallback wrapper.
+/// `event_data`-carrying FnRefs are excluded: the emitted value is a fresh
+/// `(e) => { fn(e) }` arrow anyway, so stabilizing the inner fn buys
+/// nothing (and the instance's memo decision already disqualifies it).
+fn collect_wrapped_prop_fns(
+    node: &ViewTree,
+    component_map: &FxHashMap<&str, &ComponentIR>,
+    local_fn_names: &FxHashSet<String>,
+) -> FxHashSet<String> {
+    let mut wrapped: FxHashSet<String> = FxHashSet::default();
+    collect_wrapped_prop_fns_inner(node, component_map, local_fn_names, &mut wrapped);
+    wrapped
+}
+
+fn collect_wrapped_prop_fns_inner(
+    node: &ViewTree,
+    component_map: &FxHashMap<&str, &ComponentIR>,
+    local_fn_names: &FxHashSet<String>,
+    wrapped: &mut FxHashSet<String>,
+) {
+    match node {
+        ViewTree::Element(el) => {
+            if component_map.contains_key(el.tag.as_str()) && el.tag != "fragment" {
+                for prop_value in el.props.values() {
+                    if let ExprIR::IdentifierExpr { name, .. } = prop_value {
+                        if local_fn_names.contains(name) {
+                            wrapped.insert(name.clone());
+                        }
+                    }
+                }
+                for handler in el.events.values() {
+                    if let EventHandlerIR::FnRef {
+                        r#ref, event_data, ..
+                    } = handler
+                    {
+                        if event_data.is_none() && local_fn_names.contains(r#ref) {
+                            wrapped.insert(r#ref.clone());
+                        }
+                    }
+                }
+            }
+            for child in &el.children {
+                collect_wrapped_prop_fns_inner(child, component_map, local_fn_names, wrapped);
+            }
+        }
+        ViewTree::Conditional(cond) => {
+            for branch in &cond.branches {
+                if let Some(ref body) = branch.body {
+                    collect_wrapped_prop_fns_inner(body, component_map, local_fn_names, wrapped);
+                }
+            }
+            if let Some(ref fb) = cond.fallback {
+                collect_wrapped_prop_fns_inner(fb, component_map, local_fn_names, wrapped);
+            }
+        }
+        ViewTree::ListRendering(list) => {
+            if let Some(ref body) = list.body {
+                collect_wrapped_prop_fns_inner(body, component_map, local_fn_names, wrapped);
+            }
+            if let Some(ref empty_body) = list.empty_body {
+                collect_wrapped_prop_fns_inner(empty_body, component_map, local_fn_names, wrapped);
+            }
+        }
+        ViewTree::Fragment(children) => {
+            for child in children {
+                collect_wrapped_prop_fns_inner(child, component_map, local_fn_names, wrapped);
+            }
+        }
+        ViewTree::Slot { fallback, .. } => {
+            for child in fallback {
+                collect_wrapped_prop_fns_inner(child, component_map, local_fn_names, wrapped);
+            }
+        }
+        ViewTree::Text(_) | ViewTree::Interpolation(_) => {}
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
+    }
+}
+
+/// Build the task 2.8 codegen context for one component file:
+/// the useCallback wrapper set (pass 1, precomputed) plus the children that
+/// get `Memoized<Child>` React.memo aliases (pass 2 — evaluated against the
+/// COMPLETE wrapper set, so a fn wrapped by a sibling instance of the same
+/// child already counts as stable here).
+///
+/// Stable identifiers for the memo instance check: component signals,
+/// computeds, props, store aliases/fields (bare names + slice locals),
+/// lib fns (module-scope consts), and the wrapped fn names (their emitted
+/// form is the stable `__omni_cb_*` wrapper).
+#[allow(clippy::too_many_arguments)]
+fn collect_prop_fn_memo_ctx(
+    view: Option<&ViewTree>,
+    comp: &ComponentIR,
+    component_map: &FxHashMap<&str, &ComponentIR>,
+    local_fn_names: &FxHashSet<String>,
+    lib_fn_names: &FxHashSet<String>,
+    store_signal_map: &FxHashMap<String, String>,
+    used_store_refs: &FxHashSet<String>,
+    store_field_renames: &FxHashMap<String, String>,
+    wrapped_prop_fns: &FxHashSet<String>,
+) -> PropFnMemoCtx {
+    let mut stable_idents: FxHashSet<String> = FxHashSet::default();
+    stable_idents.extend(comp.signals.iter().map(|s| s.name.clone()));
+    stable_idents.extend(comp.computeds.iter().map(|c| c.name.clone()));
+    stable_idents.extend(comp.props.keys().cloned());
+    stable_idents.extend(store_signal_map.keys().cloned());
+    stable_idents.extend(used_store_refs.iter().cloned());
+    stable_idents.extend(store_field_renames.values().cloned());
+    stable_idents.extend(lib_fn_names.iter().cloned());
+    stable_idents.extend(wrapped_prop_fns.iter().cloned());
+    // Defensive: an UNWRAPPED local fn read as a prop is NOT stable — its
+    // emitted form is the per-render fn const (never the wrapper). Wrapped
+    // fns stay: their emitted form IS the stable `__omni_cb_*` wrapper.
+    for fn_name in local_fn_names {
+        if !wrapped_prop_fns.contains(fn_name) {
+            stable_idents.remove(fn_name);
+        }
+    }
+
+    let ctx = PropFnMemoCtx {
+        wrapped_fns: wrapped_prop_fns.clone(),
+        memo_children: FxHashSet::default(),
+        stable_idents,
+        lib_fns: lib_fn_names.clone(),
+    };
+    let mut memo_children: FxHashSet<String> = FxHashSet::default();
+    if let Some(view) = view {
+        collect_memo_children(
+            view,
+            component_map,
+            &ctx,
+            comp.name.as_str(),
+            &mut memo_children,
+        );
+    }
+    PropFnMemoCtx {
+        wrapped_fns: ctx.wrapped_fns,
+        memo_children,
+        stable_idents: ctx.stable_idents,
+        lib_fns: ctx.lib_fns,
+    }
+}
+
+/// Pass 2 of the task 2.8 analysis: children with at least one memoizable
+/// instance — children-free instances whose props/events/a11y are all
+/// render-stable (see `component_instance_memoizable`). The alias name
+/// collision guard: `Memoized<Child>` must not shadow THIS component's own
+/// function name (`export function MemoizedX` + `const MemoizedX` in one
+/// module is a redeclaration error) — such children stay unmemoized.
+fn collect_memo_children(
+    node: &ViewTree,
+    component_map: &FxHashMap<&str, &ComponentIR>,
+    ctx: &PropFnMemoCtx,
+    comp_name: &str,
+    memo_children: &mut FxHashSet<String>,
+) {
+    match node {
+        ViewTree::Element(el) => {
+            if el.tag != "fragment" {
+                if let Some(child_comp) = component_map.get(el.tag.as_str()) {
+                    let (default_children, named_children) =
+                        view::partition_component_children(el, child_comp, component_map);
+                    let has_children = !default_children.is_empty() || !named_children.is_empty();
+                    if component_instance_memoizable(el, has_children, ctx) {
+                        let alias = format!("Memoized{}", el.tag);
+                        if alias != comp_name {
+                            memo_children.insert(el.tag.clone());
+                        }
+                    }
+                }
+            }
+            for child in &el.children {
+                collect_memo_children(child, component_map, ctx, comp_name, memo_children);
+            }
+        }
+        ViewTree::Conditional(cond) => {
+            for branch in &cond.branches {
+                if let Some(ref body) = branch.body {
+                    collect_memo_children(body, component_map, ctx, comp_name, memo_children);
+                }
+            }
+            if let Some(ref fb) = cond.fallback {
+                collect_memo_children(fb, component_map, ctx, comp_name, memo_children);
+            }
+        }
+        ViewTree::ListRendering(list) => {
+            if let Some(ref body) = list.body {
+                collect_memo_children(body, component_map, ctx, comp_name, memo_children);
+            }
+            if let Some(ref empty_body) = list.empty_body {
+                collect_memo_children(empty_body, component_map, ctx, comp_name, memo_children);
+            }
+        }
+        ViewTree::Fragment(children) => {
+            for child in children {
+                collect_memo_children(child, component_map, ctx, comp_name, memo_children);
+            }
+        }
+        ViewTree::Slot { fallback, .. } => {
+            for child in fallback {
+                collect_memo_children(child, component_map, ctx, comp_name, memo_children);
+            }
+        }
+        ViewTree::Text(_) | ViewTree::Interpolation(_) => {}
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
     }
 }

@@ -1083,6 +1083,39 @@ fn unmount_store_field_read_resolves_deps_via_slice() {
     );
 }
 
+/// perf M4 (task 2.8): a component fn passed as a child component's prop
+/// must be wrapped in useCallback (stable identity across renders), and a
+/// child instance receiving no children/slots must be React.memo-wrapped —
+/// together they kill list-cascade re-renders.
+#[test]
+fn prop_fn_wrapped_in_use_callback() {
+    let out = compile_react(r#"
+        store TodoStore {
+            signal items: Array<String> = [];
+            action add(item: String) {
+                items.push(item);
+            }
+        }
+        component AddTodo {
+            event onAdd: String;
+            view { <button/> }
+        }
+        component TodoList {
+            @store TodoStore;
+            fn handleAdd(x) { TodoStore.add(x) }
+            view { <AddTodo onAdd={handleAdd}/> }
+        }
+    "#)
+    .expect("compile must succeed");
+    let tsx = out.files.get("TodoList.tsx").expect("TodoList.tsx emitted");
+    assert!(tsx.contains("useCallback"), "prop fn must be memoized: {}", tsx);
+    assert!(
+        tsx.contains("React.memo(AddTodo)") || tsx.contains("memo(AddTodo)"),
+        "child must be memoized: {}",
+        tsx
+    );
+}
+
 /// perf L1: the `_M` motion table is a compile-time constant (motion defs
 /// are literals) — it was re-allocated inside the component function on
 /// EVERY render, and each re-allocation made every `_M["x"]` use site a
@@ -4410,8 +4443,9 @@ component App {
         app
     );
     assert!(
-        app.contains("<Modal />"),
-        "Expected bare instantiation to keep declared fallbacks, got:\n{}",
+        app.contains("<MemoizedModal />"),
+        "Expected bare instantiation to keep declared fallbacks (task 2.8: \
+         children-free instances instantiate the React.memo alias), got:\n{}",
         app
     );
     // The consumer must not declare slots itself.
