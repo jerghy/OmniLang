@@ -37,9 +37,11 @@ export default defineConfig({
     trace: 'retain-on-failure',
   },
   webServer: {
-    // Static server for the OmniView target output (../build = the
-    // `omnic build --target omniview` output dir). Requires python3+.
-    command: 'python -m http.server 5174 --directory ../build',
+    // Static server for the OmniView target output. This config lives at
+    // build/react-test-app/, so the omniview output (index.html + index.js)
+    // is ONE level up: --directory .. (NOT ../build — that resolves to
+    // build/build, which does not exist, and every request 404s).
+    command: 'python -m http.server 5174 --directory ..',
     port: 5174,
     timeout: 30000,
     reuseExistingServer: true,

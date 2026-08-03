@@ -231,6 +231,47 @@ jobs:
           path: test/projects/learn-omniview/build/react-test-app/playwright-report/
           if-no-files-found: warn
 
+  # OmniView-target browser suite (closes deferral #60). Regenerates the
+  # gitignored OmniView output (build/index.html + index.js) from source and
+  # runs the 44-test suite (tests/omniview-browser.spec.ts via
+  # playwright.omniview.config.ts) against the FRESH output — the same
+  # "regenerate then test" gate as the React e2e job, for the omniview target.
+  omniview-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build omnic (release)
+        run: cargo build --release -p omnic
+      - name: Regenerate OmniView output
+        run: ./target/release/omnic build test/projects/learn-omniview/src --target omniview -o test/projects/learn-omniview/build
+      - name: Install test app dependencies
+        working-directory: test/projects/learn-omniview/build/react-test-app
+        run: npm ci
+      - name: Install Playwright browsers
+        working-directory: test/projects/learn-omniview/build/react-test-app
+        run: npx playwright install chromium --with-deps
+      - name: Run OmniView suite
+        working-directory: test/projects/learn-omniview/build/react-test-app
+        run: npx playwright test --config=playwright.omniview.config.ts
+      - name: Upload OmniView test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: omniview-playwright-test-results
+          path: test/projects/learn-omniview/build/react-test-app/test-results/
+          if-no-files-found: warn
+      - name: Upload OmniView report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: omniview-playwright-report
+          path: test/projects/learn-omniview/build/react-test-app/playwright-report/
+          if-no-files-found: warn
+
   smoke-test:
     runs-on: ubuntu-latest
     needs: rust
