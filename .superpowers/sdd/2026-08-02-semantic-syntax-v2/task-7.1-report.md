@@ -1,7 +1,7 @@
 # Task 7.1 Report — 三目标全量编译 + 浏览器全测（learn-omniview 终验）
 
 **Status: DONE_WITH_CONCERNS**
-**Commit: `待提交`** — `test: full three-target validation of learn-omniview`
+**Commit: `5e3191ce`** — `test: full three-target validation of learn-omniview`
 **Working tree: clean (after commit)**
 
 ---
