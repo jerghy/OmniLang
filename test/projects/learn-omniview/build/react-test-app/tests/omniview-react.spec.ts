@@ -223,9 +223,13 @@ test.describe('OmniView React — 9 标签页验证', () => {
       await page.locator('button:has-text("📋 Overview")').first().click();
       await page.waitForTimeout(400);
       page.removeListener('console', onLog);
+      // EXACT count: ticked exactly 3x → the unmount cleanup must log the
+      // latest count (3). A stale closure logs 0; a cleanup that killed the
+      // running gate (state write inside the cleanup, review Important-1)
+      // would leave the count at 1 — both must fail this assertion.
       expect(
-        logs.some((l) => /final count: [1-9]/.test(l)),
-        `cleanup must log the LATEST count (ticked 3x), not the first-render 0. Logs: ${JSON.stringify(logs)}`,
+        logs.some((l) => /final count: 3$/.test(l)),
+        `cleanup must log the LATEST count after exactly 3 ticks. Logs: ${JSON.stringify(logs)}`,
       ).toBe(true);
     });
   });

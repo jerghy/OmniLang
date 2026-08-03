@@ -159,6 +159,16 @@ impl ReactCodegen {
                     // `[count]` React re-registers the cleanup on every
                     // count change, so the unmount cleanup closes over the
                     // LATEST value.
+                    //
+                    // CONTRACT CONFLICT (mid-term item, review Important-1):
+                    // derived deps re-run the WHOLE cleanup on every dep
+                    // change — a state WRITE inside the cleanup executes
+                    // early (Timer's `running = false` fired on every tick
+                    // and killed the `if running` gate; the demo write was
+                    // removed). Cleanups should only READ — a write + read
+                    // shape needs a ref channel (latest-value ref, deps `[]`)
+                    // or an explicit once-only contract. Tracked for the
+                    // orchestrator (task 2.6 report concerns).
                     let unmount_deps = unmount_deps(
                         &lc.body,
                         comp,

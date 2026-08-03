@@ -48,9 +48,10 @@ component Timer {
         }
     }
 
-    // @unmount cleanup
+    // @unmount cleanup（task 2.6 起 React 推导 deps——cleanup 读取 count 进 deps，
+    // 每次 count 变化先执行上一次 cleanup 再重注册；此处不得写入 running：
+    // 写入会在每次 tick 提前生效，破坏 if running 门控的演示）
     @unmount {
-        running = false;
         console_log("Timer unmounted, final count: " + count.to_string());
     }
 
