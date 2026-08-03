@@ -358,6 +358,7 @@ fn fmt_view_with_program_and_map<'a>(
     let ref_usage: FxHashMap<String, RefUsage> = FxHashMap::default();
     let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
     let design_resolver = DesignResolver::new(ir);
+    let mut motion_counter = 0usize;
     let mut ctx = ViewContext {
         component_map,
         store_provider_map: &store_provider_map,
@@ -366,6 +367,7 @@ fn fmt_view_with_program_and_map<'a>(
         ir,
         design: &design_resolver,
         warnings: &mut warnings,
+        motion_counter: &mut motion_counter,
     };
     let result = format_view_tree(node, &[], &mut ctx);
     (result, warnings)
@@ -378,6 +380,7 @@ fn fmt_view_in(node: &ViewTree, motions: &[MotionIntent], ir: &IRProgram) -> (St
     let ref_usage: FxHashMap<String, RefUsage> = FxHashMap::default();
     let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
     let design_resolver = DesignResolver::new(ir);
+    let mut motion_counter = 0usize;
     let mut ctx = ViewContext {
         component_map: &component_map,
         store_provider_map: &store_provider_map,
@@ -386,6 +389,7 @@ fn fmt_view_in(node: &ViewTree, motions: &[MotionIntent], ir: &IRProgram) -> (St
         ir,
         design: &design_resolver,
         warnings: &mut warnings,
+        motion_counter: &mut motion_counter,
     };
     let result = format_view_tree(node, motions, &mut ctx);
     (result, warnings)
@@ -507,7 +511,7 @@ fn design_test_program() -> IRProgram {
 fn test_format_text_node() {
     let node = ViewTree::Text("Hello".into());
     let (expr, _) = fmt_view(&node);
-    assert_eq!(expr, "Text('Hello')");
+    assert_eq!(expr, "const Text('Hello')");
 }
 
 #[test]
@@ -518,7 +522,7 @@ fn test_format_text_with_interpolation() {
     // interpolations arrive as ViewTree::Interpolation nodes.
     let node = ViewTree::Text("{name}".into());
     let (expr, _) = fmt_view(&node);
-    assert_eq!(expr, "Text('{name}')");
+    assert_eq!(expr, "const Text('{name}')");
 }
 
 #[test]
@@ -562,7 +566,7 @@ fn test_format_element_with_text_child() {
         a11y: None,
     };
     let (expr, _) = fmt_view(&ViewTree::Element(Box::new(el)));
-    assert_eq!(expr, "Container(child: Text('Hello'))");
+    assert_eq!(expr, "Container(child: const Text('Hello'))");
 }
 
 #[test]
@@ -771,7 +775,10 @@ fn test_format_element_with_multiple_children() {
         a11y: None,
     };
     let (expr, _) = fmt_view(&ViewTree::Element(Box::new(el)));
-    assert_eq!(expr, "Column(children: [Text('First'), Text('Second')])");
+    assert_eq!(
+        expr,
+        "const Column(children: [const Text('First'), const Text('Second')])"
+    );
 }
 
 #[test]
@@ -800,7 +807,7 @@ fn test_format_element_div_multiple_children_wraps_column() {
     let (expr, _) = fmt_view(&ViewTree::Element(Box::new(el)));
     assert_eq!(
         expr,
-        "Container(child: Column(children: [Text('First'), Text('Second')]))"
+        "Container(child: Column(children: [const Text('First'), const Text('Second')]))"
     );
 }
 
@@ -1137,9 +1144,10 @@ fn test_format_element_with_class_map_bindings_and_child_warns_unknown_class() {
         a11y: None,
     };
     let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
-    // An unresolvable dynamic class leaves the element unwrapped (warned).
+    // An unresolvable dynamic class leaves the element unwrapped (warned) —
+    // the element itself is not const (class_map_bindings), the child text is.
     assert_eq!(
-        expr, "Container(child: Text('Hello'))",
+        expr, "Container(child: const Text('Hello'))",
         "unresolved class must not wrap the child: {}",
         expr
     );
@@ -2010,6 +2018,107 @@ fn test_store_dart_with_getters() {
     );
 }
 
+// ── T5.7: store state ==/hashCode + nullable-safe copyWith ──
+
+/// A store with one non-nullable and one nullable signal. Nullable types
+/// lower to `Option<T>` (the Dart formatter maps it to `T?`).
+fn nullable_mixed_store() -> StoreIR {
+    let mut signals = FxHashMap::default();
+    signals.insert(
+        "count".into(),
+        TypeIR {
+            kind: "i32".into(),
+            type_args: vec![],
+            is_nullable: false,
+        },
+    );
+    signals.insert(
+        "note".into(),
+        TypeIR {
+            kind: "Option".into(),
+            type_args: vec![TypeIR {
+                kind: "string".into(),
+                type_args: vec![],
+                is_nullable: false,
+            }],
+            is_nullable: false,
+        },
+    );
+    let mut defaults = FxHashMap::default();
+    defaults.insert("count".into(), serde_json::json!(0));
+    defaults.insert("note".into(), serde_json::Value::Null);
+    StoreIR {
+        name: "MixedStore".into(),
+        signals,
+        signal_defaults: defaults,
+        getters: FxHashMap::default(),
+        actions: vec![],
+        ..Default::default()
+    }
+}
+
+#[test]
+fn test_store_state_equality_generated() {
+    let codegen = FlutterCodegen;
+    let store_dart =
+        codegen.gen_store_dart("MixedStore", &nullable_mixed_store(), &IRProgram::default());
+    assert!(
+        store_dart.contains("bool operator ==(Object other)"),
+        "state class must implement operator ==: {}",
+        store_dart
+    );
+    assert!(
+        store_dart.contains("runtimeType == other.runtimeType"),
+        "== must guard on runtimeType: {}",
+        store_dart
+    );
+    assert!(
+        store_dart.contains("count == other.count &&") && store_dart.contains("note == other.note"),
+        "== must compare all signal fields: {}",
+        store_dart
+    );
+    assert!(
+        store_dart.contains("int get hashCode => Object.hash(count, note)"),
+        "hashCode must hash all fields via Object.hash: {}",
+        store_dart
+    );
+}
+
+#[test]
+fn test_store_copy_with_sentinel_allows_nulling_nullable_fields() {
+    let codegen = FlutterCodegen;
+    let store_dart =
+        codegen.gen_store_dart("MixedStore", &nullable_mixed_store(), &IRProgram::default());
+    // Sentinel-based copyWith: `?? this.x` could never set a nullable field
+    // back to null — the sentinel disambiguates "not passed" from "null".
+    assert!(
+        store_dart.contains("static const _unset = Object();"),
+        "copyWith must use a _unset sentinel: {}",
+        store_dart
+    );
+    assert!(
+        store_dart.contains("Object? count = _unset")
+            && store_dart.contains("Object? note = _unset"),
+        "copyWith params must default to the sentinel: {}",
+        store_dart
+    );
+    assert!(
+        store_dart.contains("count: count == _unset ? this.count : count as int"),
+        "non-nullable field must keep this.x when unset: {}",
+        store_dart
+    );
+    assert!(
+        store_dart.contains("note: note == _unset ? this.note : note as String?"),
+        "nullable field must be settable to null via the sentinel: {}",
+        store_dart
+    );
+    assert!(
+        !store_dart.contains("?? this.note"),
+        "the `?? this.x` form cannot null a nullable field and must be gone: {}",
+        store_dart
+    );
+}
+
 // ── Motion codegen tests ───────────────────────────────
 
 #[test]
@@ -2108,25 +2217,27 @@ fn test_motion_enter_controller_init() {
     let (dart, _warnings, _errors) =
         codegen.gen_component_dart("App", comp_ref, &ir, &component_map, &component_slots);
 
-    // Field declarations
+    // Field declarations — controllers are PER ELEMENT (T5.7: one controller
+    // per motion NAME shared across elements made hovering one play both).
+    // This element is the 0th motion element → `_fadeInController_0`.
     assert!(
-        dart.contains("late final AnimationController _fadeInController;"),
-        "should declare _fadeInController field"
+        dart.contains("late final AnimationController _fadeInController_0;"),
+        "should declare the per-element _fadeInController_0 field"
     );
     assert!(
-        dart.contains("late final Animation<double> _fadeInOpacity;"),
-        "should declare per-property _fadeInOpacity field: {}",
+        dart.contains("late final Animation<double> _fadeInOpacity_0;"),
+        "should declare the per-element _fadeInOpacity_0 field: {}",
         dart
     );
     assert!(
-        dart.contains("bool _fadeInActive = false;"),
-        "should declare the motion active flag: {}",
+        dart.contains("bool _fadeInActive_0 = false;"),
+        "should declare the per-element active flag: {}",
         dart
     );
 
     // initState: AnimationController init
     assert!(
-        dart.contains("_fadeInController = AnimationController("),
+        dart.contains("_fadeInController_0 = AnimationController("),
         "should init AnimationController: {}",
         dart
     );
@@ -2138,48 +2249,48 @@ fn test_motion_enter_controller_init() {
 
     // Per-property Tween + Curve
     assert!(
-        dart.contains("_fadeInOpacity = Tween<double>(begin: 0.0, end: 1.0).chain(CurveTween(curve: Curves.easeOut)).animate(_fadeInController);"),
+        dart.contains("_fadeInOpacity_0 = Tween<double>(begin: 0.0, end: 1.0).chain(CurveTween(curve: Curves.easeOut)).animate(_fadeInController_0);"),
         "should create per-property Tween: {}",
         dart
     );
 
     // @enter → activate + forward() on mount
     assert!(
-        dart.contains("_fadeInActive = true;"),
+        dart.contains("_fadeInActive_0 = true;"),
         "should activate the motion on mount: {}",
         dart
     );
     assert!(
-        dart.contains("_fadeInController.forward();"),
-        "should call forward() for @enter trigger: {}",
+        dart.contains("_fadeInController_0.forward();"),
+        "should call forward() for the @enter trigger: {}",
         dart
     );
 
-    // AnimatedBuilder wrapping in build method — listens to the shared
+    // AnimatedBuilder wrapping in build method — listens to the PER-ELEMENT
     // controller, reads per-property animation values, and gates the
-    // wrappers on the active flag (natural style while inactive)
+    // wrappers on the per-element active flag (natural style while inactive)
     assert!(
         dart.contains("AnimatedBuilder("),
         "should emit AnimatedBuilder in build: {}",
         dart
     );
     assert!(
-        dart.contains("animation: _fadeInController"),
-        "AnimatedBuilder should listen to the shared controller: {}",
+        dart.contains("animation: _fadeInController_0"),
+        "AnimatedBuilder should listen to the per-element controller: {}",
         dart
     );
     assert!(
         dart.contains(
-            "_fadeInActive ? Opacity(opacity: _fadeInOpacity.value, child: child) : child ?? const SizedBox.shrink()"
+            "_fadeInActive_0 ? Opacity(opacity: _fadeInOpacity_0.value, child: child) : child ?? const SizedBox.shrink()"
         ),
-        "builder body should gate per-property animation value on the active flag: {}",
+        "builder body should gate per-property animation value on the per-element active flag: {}",
         dart
     );
 
     // dispose
     assert!(
-        dart.contains("_fadeInController.dispose();"),
-        "should dispose controller"
+        dart.contains("_fadeInController_0.dispose();"),
+        "should dispose the per-element controller"
     );
 }
 
@@ -2221,6 +2332,9 @@ fn test_motion_hover_mouse_region_wrapping() {
         "Container(child: Text('Hover me'))".into(),
         &triggers,
         &motions,
+        // Per-element ordinal (T5.7): controllers are named per element
+        // instance so hovering one element never plays another's animation.
+        0,
     );
 
     assert!(
@@ -2230,13 +2344,13 @@ fn test_motion_hover_mouse_region_wrapping() {
     );
     assert!(
         result.contains(
-            "onEnter: (_) { _scaleOnHoverActive = true; _scaleOnHoverController.forward(); }"
+            "onEnter: (_) { _scaleOnHoverActive_0 = true; _scaleOnHoverController_0.forward(); }"
         ),
         "should activate and forward on mouse enter: {}",
         result
     );
     assert!(
-        result.contains("onExit: (_) { _scaleOnHoverController.reverse().whenComplete(() { if (mounted && _scaleOnHoverController.value == 0.0) setState(() { _scaleOnHoverActive = false; }); }); }"),
+        result.contains("onExit: (_) { _scaleOnHoverController_0.reverse().whenComplete(() { if (mounted && _scaleOnHoverController_0.value == 0.0) setState(() { _scaleOnHoverActive_0 = false; }); }); }"),
         "should reverse and deactivate on mouse exit: {}",
         result
     );
@@ -2396,7 +2510,7 @@ fn test_motion_inline_body_handling() {
 
     // Numeric duration init
     assert!(
-        dart.contains("_popInController = AnimationController("),
+        dart.contains("_popInController_0 = AnimationController("),
         "should init AnimationController for popIn"
     );
     assert!(
@@ -2414,7 +2528,7 @@ fn test_motion_inline_body_handling() {
 
     // @enter → forward()
     assert!(
-        dart.contains("_popInController.forward();"),
+        dart.contains("_popInController_0.forward();"),
         "should call forward() for @enter"
     );
 
@@ -2439,19 +2553,19 @@ fn test_motion_inline_body_handling() {
         dart
     );
     assert!(
-        dart.contains("Transform.scale(scale: _popInScale.value"),
+        dart.contains("Transform.scale(scale: _popInScale_0.value"),
         "should wrap with Transform.scale: {}",
         dart
     );
     assert!(
-        dart.contains("Opacity(opacity: _popInOpacity.value"),
+        dart.contains("Opacity(opacity: _popInOpacity_0.value"),
         "should wrap with Opacity: {}",
         dart
     );
 
     // dispose
     assert!(
-        dart.contains("_popInController.dispose();"),
+        dart.contains("_popInController_0.dispose();"),
         "should dispose popIn controller"
     );
 }
@@ -2478,13 +2592,204 @@ fn test_motion_format_named_curve() {
     // Back / Bounce / Elastic
     assert_eq!(format_named_curve("backOut"), "Curves.easeOutBack");
     assert_eq!(format_named_curve("bounceOut"), "Curves.bounceOut");
-    assert_eq!(format_named_curve("elasticOut"), "Curves.easeOutElastic");
+    assert_eq!(format_named_curve("elasticIn"), "Curves.elasticIn");
+    assert_eq!(format_named_curve("elasticOut"), "Curves.elasticOut");
+    assert_eq!(format_named_curve("elasticInOut"), "Curves.elasticInOut");
 
     // Unknown name → fallback
     assert_eq!(
         format_named_curve("nonexistent"),
         "Curves.linear",
         "unknown easing should fall back to Curves.linear"
+    );
+}
+
+// ── T5.7: per-element motion controllers ─────────────────
+
+#[test]
+fn test_motion_two_elements_same_motion_get_separate_controllers() {
+    // Two elements on the same motion NAME previously shared one controller —
+    // hovering one played both. Each element instance gets its own controller
+    // (React-style ordinal naming: `_{motion}Controller_{idx}`).
+    let result = compile_flutter(
+        "@motion fadeIn { from { opacity: 0 } to { opacity: 1 } over: 300ms }
+         component App {
+             view {
+                 <div @enter={fadeIn}><p>First</p></div>
+                 <div @enter={fadeIn}><p>Second</p></div>
+             }
+         }",
+    )
+    .expect("motion fixture must compile");
+    let dart: String = result
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        dart.contains("late final AnimationController _fadeInController_0;")
+            && dart.contains("late final AnimationController _fadeInController_1;"),
+        "each motion element must declare its own controller: {}",
+        dart
+    );
+    assert!(
+        dart.contains("_fadeInController_0 = AnimationController(")
+            && dart.contains("_fadeInController_1 = AnimationController("),
+        "each controller must be created in initState: {}",
+        dart
+    );
+    assert!(
+        dart.contains("_fadeInActive_0 = true;") && dart.contains("_fadeInActive_1 = true;"),
+        "each element's @enter must activate its own flag: {}",
+        dart
+    );
+    assert!(
+        dart.contains("_fadeInController_0.forward();")
+            && dart.contains("_fadeInController_1.forward();"),
+        "each element's @enter must play its own controller: {}",
+        dart
+    );
+    assert!(
+        dart.contains("animation: _fadeInController_0")
+            && dart.contains("animation: _fadeInController_1"),
+        "each AnimatedBuilder must listen to its own controller: {}",
+        dart
+    );
+    assert!(
+        dart.contains("_fadeInController_0.dispose();")
+            && dart.contains("_fadeInController_1.dispose();"),
+        "each controller must be disposed: {}",
+        dart
+    );
+    // The old shared per-motion controller is gone
+    assert!(
+        !dart.contains("late final AnimationController _fadeInController;")
+            && !dart.contains("_fadeInController.forward();"),
+        "the shared per-motion controller must be gone: {}",
+        dart
+    );
+}
+
+#[test]
+fn test_motion_unreferenced_and_unused_motions_are_pruned() {
+    // Two motions are declared; App references only fadeIn; Quiet references
+    // none. Only the referenced controller may be emitted (previously EVERY
+    // module motion got a controller in EVERY component).
+    let result = compile_flutter(
+        "@motion fadeIn { from { opacity: 0 } to { opacity: 1 } over: 300ms }
+         @motion slideIn { from { translateX: -50 } to { translateX: 0 } over: 300ms }
+         component App {
+             view { <div @enter={fadeIn}>Hello</div> }
+         }
+         component Quiet {
+             view { <p>No motion here</p> }
+         }",
+    )
+    .expect("motion fixture must compile");
+    let app = result.files.get("App.dart").expect("App.dart generated");
+    assert!(
+        app.contains("_fadeInController_0"),
+        "referenced motion must be emitted: {}",
+        app
+    );
+    assert!(
+        !app.contains("_slideInController"),
+        "unreferenced motion must be pruned from App: {}",
+        app
+    );
+    let quiet = result
+        .files
+        .get("Quiet.dart")
+        .expect("Quiet.dart generated");
+    assert!(
+        !quiet.contains("AnimationController"),
+        "motion-free component must declare no controllers: {}",
+        quiet
+    );
+    assert!(
+        !quiet.contains("TickerProviderStateMixin"),
+        "motion-free component must not get the TickerProviderStateMixin: {}",
+        quiet
+    );
+}
+
+// ── T5.7: conservative const injection ──────────────────
+
+#[test]
+fn test_const_injected_on_literal_subtrees() {
+    // Plain literal text nodes are always const
+    let (expr, _) = fmt_view(&ViewTree::Text("Hello".into()));
+    assert_eq!(expr, "const Text('Hello')");
+
+    // A literal-only element subtree is const (children are const too —
+    // nested const inside a const context is valid Dart) — BUT only for
+    // widgets whose SDK constructor is const: Container is NOT
+    // (const_with_non_const in this SDK), so a <div> stays non-const
+    // while its literal text child is const.
+    let mut el = props_el("div", vec![("padding", lit(serde_json::json!("16px")))]);
+    el.children = vec![ViewTree::Text("Hi".into())];
+    let (expr, _) = fmt_view(&ViewTree::Element(Box::new(el)));
+    assert_eq!(
+        expr,
+        "Container(padding: EdgeInsets.all(16.0), child: const Text('Hi'))"
+    );
+
+    // A <p> with a single literal text child → const Text (Text IS const)
+    let mut el = props_el("p", vec![]);
+    el.children = vec![ViewTree::Text("Hello".into())];
+    let (expr, _) = fmt_view(&ViewTree::Element(Box::new(el)));
+    assert_eq!(expr, "const Text('Hello')");
+
+    // A <column> with two literal text children → const Column (Column IS
+    // const; the const context propagates to the children)
+    let mut el = props_el("column", vec![]);
+    el.children = vec![ViewTree::Text("A".into()), ViewTree::Text("B".into())];
+    let (expr, _) = fmt_view(&ViewTree::Element(Box::new(el)));
+    assert_eq!(
+        expr,
+        "const Column(children: [const Text('A'), const Text('B')])"
+    );
+}
+
+#[test]
+fn test_no_const_on_dynamic_subtrees() {
+    // Interpolation child → not const
+    let mut el = props_el("div", vec![]);
+    el.children = vec![ViewTree::Interpolation(Box::new(ExprIR::IdentifierExpr {
+        name: "count".into(),
+        type_ann: None,
+    }))];
+    let (expr, _) = fmt_view(&ViewTree::Element(Box::new(el)));
+    assert_eq!(expr, "Container(child: Text('${count}'))");
+
+    // Event handler → not const
+    let mut el = props_el("button", vec![]);
+    el.events.insert(
+        "click".into(),
+        EventHandlerIR::FnRef {
+            r#ref: "onClick".into(),
+            params: vec![],
+            event_data: None,
+            used_fields: None,
+            needs_prevent_default: false,
+            needs_stop_propagation: false,
+        },
+    );
+    let (expr, _) = fmt_view(&ViewTree::Element(Box::new(el)));
+    assert!(
+        !expr.starts_with("const "),
+        "event-bound elements must not be const: {}",
+        expr
+    );
+
+    // Image.network has no const constructor → never const
+    let el = props_el("img", vec![("src", lit(serde_json::json!("x.png")))]);
+    let (expr, _) = fmt_view(&ViewTree::Element(Box::new(el)));
+    assert!(
+        !expr.starts_with("const "),
+        "Image.network must never be const: {}",
+        expr
     );
 }
 
@@ -3073,19 +3378,19 @@ fn test_build_animated_builder_body_per_property() {
         ]),
         source_span: None,
     };
-    let body = build_animated_builder_body(&motion, "popIn");
+    let body = build_animated_builder_body(&motion, "popIn", 0);
     assert!(
-        body.contains("Opacity(opacity: _popInOpacity.value"),
+        body.contains("Opacity(opacity: _popInOpacity_0.value"),
         "opacity wrapper: {}",
         body
     );
     assert!(
-        body.contains("Transform.translate(offset: Offset(_popInTranslateX.value, 0.0)"),
+        body.contains("Transform.translate(offset: Offset(_popInTranslateX_0.value, 0.0)"),
         "translate wrapper: {}",
         body
     );
     assert!(
-        body.contains("Transform.rotate(angle: _popInRotate.value"),
+        body.contains("Transform.rotate(angle: _popInRotate_0.value"),
         "rotate wrapper: {}",
         body
     );
@@ -3115,19 +3420,19 @@ fn test_build_animated_builder_body_color_and_size() {
         ]),
         source_span: None,
     };
-    let body = build_animated_builder_body(&motion, "tint");
+    let body = build_animated_builder_body(&motion, "tint", 0);
     assert!(
-        body.contains("Container(color: _tintBackgroundColor.value"),
+        body.contains("Container(color: _tintBackgroundColor_0.value"),
         "backgroundColor wrapper: {}",
         body
     );
     assert!(
-        body.contains("DefaultTextStyle(style: TextStyle(color: _tintColor.value)"),
+        body.contains("DefaultTextStyle(style: TextStyle(color: _tintColor_0.value)"),
         "color wrapper: {}",
         body
     );
     assert!(
-        body.contains("SizedBox(width: _tintWidth.value"),
+        body.contains("SizedBox(width: _tintWidth_0.value"),
         "width wrapper: {}",
         body
     );
@@ -3157,10 +3462,10 @@ fn test_build_animated_builder_body_border_radius_and_font_size() {
         ]),
         source_span: None,
     };
-    let body = build_animated_builder_body(&motion, "soften");
+    let body = build_animated_builder_body(&motion, "soften", 0);
     assert!(
         body.contains(
-            "Container(decoration: BoxDecoration(borderRadius: _softenBorderRadius.value)"
+            "Container(decoration: BoxDecoration(borderRadius: _softenBorderRadius_0.value)"
         ),
         "borderRadius wrapper: {}",
         body
@@ -3173,12 +3478,12 @@ fn test_build_animated_builder_body_border_radius_and_font_size() {
         body
     );
     assert!(
-        body.contains("DefaultTextStyle(style: TextStyle(fontSize: _softenFontSize.value"),
+        body.contains("DefaultTextStyle(style: TextStyle(fontSize: _softenFontSize_0.value"),
         "fontSize wrapper: {}",
         body
     );
     assert!(
-        body.contains("_softenActive ?"),
+        body.contains("_softenActive_0 ?"),
         "wrappers gated on the active flag: {}",
         body
     );
@@ -3201,10 +3506,10 @@ fn test_build_animated_builder_body_border_radius_and_font_size() {
         ]),
         source_span: None,
     };
-    let body = build_animated_builder_body(&motion, "growText");
+    let body = build_animated_builder_body(&motion, "growText", 0);
     assert_eq!(
         body,
-        "_growTextActive ? DefaultTextStyle(style: TextStyle(fontSize: _growTextFontSize.value), \
+        "_growTextActive_0 ? DefaultTextStyle(style: TextStyle(fontSize: _growTextFontSize_0.value), \
          child: child ?? const SizedBox.shrink()) : child ?? const SizedBox.shrink()"
     );
 }
@@ -3222,7 +3527,7 @@ fn test_build_animated_builder_body_no_wrappers() {
         source_span: None,
     };
     assert_eq!(
-        build_animated_builder_body(&motion, "skew"),
+        build_animated_builder_body(&motion, "skew", 0),
         "child ?? const SizedBox.shrink()"
     );
 }
@@ -3371,12 +3676,12 @@ fn test_motion_pipeline_warnings_and_playback() {
 
     // Per-property animations: opacity Tween + width Tween
     assert!(
-        dart.contains("_pulseOpacity = Tween<double>(begin: 0.0, end: 1.0)"),
+        dart.contains("_pulseOpacity_0 = Tween<double>(begin: 0.0, end: 1.0)"),
         "opacity tween: {}",
         dart
     );
     assert!(
-        dart.contains("_pulseWidth = Tween<double>(begin: 100.0, end: 200.0)"),
+        dart.contains("_pulseWidth_0 = Tween<double>(begin: 100.0, end: 200.0)"),
         "width tween: {}",
         dart
     );
@@ -3391,7 +3696,7 @@ fn test_motion_pipeline_warnings_and_playback() {
     // Playback: loop + delay → delayed repeat (mounted-guarded)
     assert!(
         dart.contains(
-            "Future.delayed(Duration(milliseconds: 1000), () { if (mounted) { _pulseActive = true; _pulseController.repeat(); } });"
+            "Future.delayed(Duration(milliseconds: 1000), () { if (mounted) { _pulseActive_0 = true; _pulseController_0.repeat(); } });"
         ),
         "delayed repeat: {}",
         dart
@@ -3399,7 +3704,7 @@ fn test_motion_pipeline_warnings_and_playback() {
 
     // Builder body wraps both properties
     assert!(
-        dart.contains("SizedBox(width: _pulseWidth.value"),
+        dart.contains("SizedBox(width: _pulseWidth_0.value"),
         "width wrapper: {}",
         dart
     );
@@ -3975,29 +4280,29 @@ component MotionCheck {
 
     // Per-property Animation fields (lowerCamelCase, no underscores mid-name)
     assert!(
-        content.contains("late final Animation<double> _enterFadeUpOpacity;"),
+        content.contains("late final Animation<double> _enterFadeUpOpacity_0;"),
         "opacity field: {}",
         content
     );
     assert!(
-        content.contains("late final Animation<double> _enterFadeUpTranslateY;"),
+        content.contains("late final Animation<double> _enterFadeUpTranslateY_0;"),
         "translate field: {}",
         content
     );
     assert!(
-        content.contains("late final Animation<Color> _multiStopDemoBackgroundColor;"),
+        content.contains("late final Animation<Color> _multiStopDemoBackgroundColor_1;"),
         "color field: {}",
         content
     );
 
     // 2 stops → Tween; 3 stops → weight-proportional TweenSequence
     assert!(
-        content.contains("_enterFadeUpOpacity = Tween<double>(begin: 0.0, end: 1.0)"),
+        content.contains("_enterFadeUpOpacity_0 = Tween<double>(begin: 0.0, end: 1.0)"),
         "2-stop tween: {}",
         content
     );
     assert!(
-        content.contains("_multiStopDemoOpacity = TweenSequence<double>(["),
+        content.contains("_multiStopDemoOpacity_1 = TweenSequence<double>(["),
         "3-stop sequence: {}",
         content
     );
@@ -4014,13 +4319,13 @@ component MotionCheck {
     // Color tweens use CurvedAnimation — CurveTween is Animatable<double>
     // and cannot chain onto Tween<Color>
     assert!(
-        content.contains("]).animate(CurvedAnimation(parent: _multiStopDemoController, curve: Curves.easeInOut));"),
+        content.contains("]).animate(CurvedAnimation(parent: _multiStopDemoController_1, curve: Curves.easeInOut));"),
         "color CurvedAnimation: {}",
         content
     );
     // rotate is declared in degrees → emitted as radians (360deg = 2π)
     assert!(
-        content.contains("_spinLoopRotate = Tween<double>(begin: 0.0, end: 6.283185307179586)"),
+        content.contains("_spinLoopRotate_2 = Tween<double>(begin: 0.0, end: 6.283185307179586)"),
         "rotate radians: {}",
         content
     );
@@ -4028,24 +4333,24 @@ component MotionCheck {
     // Playback: loop → repeat(); delay+fill backwards → active immediately,
     // delayed forward, deactivated (natural style) on completion
     assert!(
-        content.contains("_spinLoopController.repeat();"),
+        content.contains("_spinLoopController_2.repeat();"),
         "loop: {}",
         content
     );
     assert!(
-        content.contains("_fillBackwardsActive = true;"),
+        content.contains("_fillBackwardsActive_3 = true;"),
         "fill backwards activation: {}",
         content
     );
-    assert!(content.contains("Future.delayed(Duration(milliseconds: 500), () { if (mounted) { _fillBackwardsController.forward().whenComplete(() { if (mounted && _fillBackwardsController.value == 1.0) setState(() { _fillBackwardsActive = false; }); }); } });"), "delay+fill: {}", content);
+    assert!(content.contains("Future.delayed(Duration(milliseconds: 500), () { if (mounted) { _fillBackwardsController_3.forward().whenComplete(() { if (mounted && _fillBackwardsController_3.value == 1.0) setState(() { _fillBackwardsActive_3 = false; }); }); } });"), "delay+fill: {}", content);
 
     // Builder body: per-property wrappers gated on the active flag
     assert!(
-        content.contains("_enterFadeUpActive ? Transform.translate(offset: Offset(0.0, _enterFadeUpTranslateY.value), child: Opacity(opacity: _enterFadeUpOpacity.value, child: child)) : child ?? const SizedBox.shrink()"),
+        content.contains("_enterFadeUpActive_0 ? Transform.translate(offset: Offset(0.0, _enterFadeUpTranslateY_0.value), child: Opacity(opacity: _enterFadeUpOpacity_0.value, child: child)) : child ?? const SizedBox.shrink()"),
         "enter body: {}",
         content
     );
-    assert!(content.contains("_multiStopDemoActive ? Container(color: _multiStopDemoBackgroundColor.value, child: Transform.scale(scale: _multiStopDemoScale.value, child: Opacity(opacity: _multiStopDemoOpacity.value, child: child))) : child ?? const SizedBox.shrink()"), "multi-property body: {}", content);
+    assert!(content.contains("_multiStopDemoActive_1 ? Container(color: _multiStopDemoBackgroundColor_1.value, child: Transform.scale(scale: _multiStopDemoScale_1.value, child: Opacity(opacity: _multiStopDemoOpacity_1.value, child: child))) : child ?? const SizedBox.shrink()"), "multi-property body: {}", content);
 
     // Diagnostics: steps() easing warning
     assert!(
@@ -4125,7 +4430,7 @@ component Card {
         content
     );
     assert!(
-        content.contains("widget.header ?? Text('Default Header')"),
+        content.contains("widget.header ?? const Text('Default Header')"),
         "Expected fallback-wrapped header render, got:\n{}",
         content
     );
@@ -4239,7 +4544,7 @@ component Card {
         .join("\n");
     assert!(
         content.contains(
-            "widget.header ?? Column(mainAxisSize: MainAxisSize.min, children: [Text('Title'), Text('Subtitle')])"
+            "widget.header ?? Column(mainAxisSize: MainAxisSize.min, children: [const Text('Title'), const Text('Subtitle')])"
         ),
         "Expected Column-wrapped multi-node fallback, got:\n{}",
         content
@@ -4282,17 +4587,17 @@ component Consumer {
         .collect::<Vec<_>>()
         .join("\n");
     assert!(
-        content.contains("header: Text('Custom Header')"),
+        content.contains("header: const Text('Custom Header')"),
         "Expected named slot projected to header param, got:\n{}",
         content
     );
     assert!(
-        content.contains("body: Container(child: Text('Body content'))"),
+        content.contains("body: Container(child: const Text('Body content'))"),
         "Expected named slot projected to body param, got:\n{}",
         content
     );
     assert!(
-        content.contains("children: Text('Default child')"),
+        content.contains("children: const Text('Default child')"),
         "Expected default children param, got:\n{}",
         content
     );
@@ -4341,13 +4646,13 @@ component Consumer {
         .collect::<Vec<_>>()
         .join("\n");
     assert!(
-        consumer.contains("header: Text('Custom Header')"),
+        consumer.contains("header: const Text('Custom Header')"),
         "Expected projected header param, got:\n{}",
         consumer
     );
     assert!(
         consumer.contains(
-            "children: Column(mainAxisSize: MainAxisSize.min, children: [Text('Body content'), Text('Default child')])"
+            "children: Column(mainAxisSize: MainAxisSize.min, children: [const Text('Body content'), const Text('Default child')])"
         ),
         "Expected Column-wrapped default children projection, got:\n{}",
         consumer
@@ -4397,7 +4702,7 @@ component Consumer {
         .collect::<Vec<_>>()
         .join("\n");
     assert!(
-        content.contains("children: Text('Content')"),
+        content.contains("children: const Text('Content')"),
         "Unknown slot content should fall back to default children, got:\n{}",
         content
     );
@@ -4481,11 +4786,16 @@ fn enter_motion_in_slot_fallback_is_found() {
         type_constraint: None,
         data_param: None,
     };
-    let motions = find_enter_motions(&view);
+    let usage = collect_motion_element_usage(&view, &FxHashMap::default());
     assert_eq!(
-        motions,
-        vec!["fadeIn".to_string()],
+        usage.len(),
+        1,
         "enter motion inside a slot fallback must be found"
+    );
+    assert_eq!(
+        usage[0].motions,
+        vec![("fadeIn".to_string(), true)],
+        "the fallback element is element 0 referencing fadeIn with an @enter trigger"
     );
 }
 
@@ -5139,12 +5449,19 @@ fn test_text_style_props_wrapped_in_text_style() {
         a11y: None,
     };
     let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
-    // fontSize/fontWeight are TextStyle members — merged into a single style: arg
+    // fontSize/fontWeight are TextStyle members — merged into a single style: arg,
+    // with string literals converted to typed values (HIGH-4: `fontWeight: 'bold'`
+    // was invalid Dart — TextStyle.fontWeight is FontWeight?, not String).
     assert!(
         expr.contains("style: TextStyle(")
-            && expr.contains("fontSize: 16")
-            && expr.contains("fontWeight: 'bold'"),
-        "Text style props must merge into TextStyle: {}",
+            && expr.contains("fontSize: 16.0")
+            && expr.contains("fontWeight: FontWeight.w700"),
+        "Text style props must merge into TextStyle with TYPED values: {}",
+        expr
+    );
+    assert!(
+        !expr.contains("fontWeight: 'bold'"),
+        "fontWeight must not stay a raw String literal: {}",
         expr
     );
     assert!(
@@ -5155,6 +5472,255 @@ fn test_text_style_props_wrapped_in_text_style() {
     assert!(
         warnings.is_empty(),
         "wrapped props must not warn: {:?}",
+        warnings
+    );
+}
+
+// ── T5.7: per-widget literal prop type conversion ──────────
+
+/// Build a literal ExprIR value.
+fn lit(value: serde_json::Value) -> ExprIR {
+    ExprIR::LiteralExpr { value }
+}
+
+/// Build a minimal element with the given props.
+fn props_el(tag: &str, props: Vec<(&str, ExprIR)>) -> ElementIR {
+    ElementIR {
+        class_map_bindings: FxHashMap::default(),
+        tag: tag.into(),
+        props: props.into_iter().map(|(k, v)| (k.into(), v)).collect(),
+        bindings: FxHashMap::default(),
+        events: FxHashMap::default(),
+        style_classes: None,
+        inline_style: None,
+        children: vec![],
+        construction_kind: ConstructionKind::Component,
+        source_span: None,
+        motion: None,
+        ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
+        a11y: None,
+    }
+}
+
+#[test]
+fn test_literal_prop_conversion_table() {
+    // fontWeight string → FontWeight.*
+    assert_eq!(
+        convert_literal_prop_value("Text", "fontWeight", &lit(serde_json::json!("bold"))),
+        Some("FontWeight.w700".into())
+    );
+    assert_eq!(
+        convert_literal_prop_value("Text", "fontWeight", &lit(serde_json::json!("normal"))),
+        Some("FontWeight.w400".into())
+    );
+    assert_eq!(
+        convert_literal_prop_value("Text", "fontWeight", &lit(serde_json::json!("600"))),
+        Some("FontWeight.w600".into())
+    );
+    assert_eq!(
+        convert_literal_prop_value("Text", "fontWeight", &lit(serde_json::json!("w300"))),
+        Some("FontWeight.w300".into())
+    );
+    // Unmappable weight → None (caller keeps the raw string + warns)
+    assert_eq!(
+        convert_literal_prop_value("Text", "fontWeight", &lit(serde_json::json!("bolder"))),
+        None
+    );
+    // fontSize: CSS length string or number → double
+    assert_eq!(
+        convert_literal_prop_value("Text", "fontSize", &lit(serde_json::json!("16px"))),
+        Some("16.0".into())
+    );
+    assert_eq!(
+        convert_literal_prop_value("Text", "fontSize", &lit(serde_json::json!(14))),
+        Some("14.0".into())
+    );
+    // color → Color(...)
+    assert_eq!(
+        convert_literal_prop_value("Container", "color", &lit(serde_json::json!("#ff0000"))),
+        Some("Color(0xFFFF0000)".into())
+    );
+    // textAlign / overflow / fit → enum values
+    assert_eq!(
+        convert_literal_prop_value("Text", "textAlign", &lit(serde_json::json!("center"))),
+        Some("TextAlign.center".into())
+    );
+    assert_eq!(
+        convert_literal_prop_value("Text", "textAlign", &lit(serde_json::json!("left"))),
+        Some("TextAlign.left".into())
+    );
+    assert_eq!(
+        convert_literal_prop_value("Text", "overflow", &lit(serde_json::json!("hidden"))),
+        Some("TextOverflow.clip".into())
+    );
+    assert_eq!(
+        convert_literal_prop_value("Image.network", "fit", &lit(serde_json::json!("cover"))),
+        Some("BoxFit.cover".into())
+    );
+    // lengths → double / EdgeInsets
+    assert_eq!(
+        convert_literal_prop_value("Container", "width", &lit(serde_json::json!("300px"))),
+        Some("300.0".into())
+    );
+    assert_eq!(
+        convert_literal_prop_value("Container", "padding", &lit(serde_json::json!("16px"))),
+        Some("EdgeInsets.all(16.0)".into())
+    );
+    // Icon size → double
+    assert_eq!(
+        convert_literal_prop_value("Icon", "size", &lit(serde_json::json!(24))),
+        Some("24.0".into())
+    );
+    // Non-literal expressions are never converted
+    assert_eq!(
+        convert_literal_prop_value(
+            "Text",
+            "fontWeight",
+            &ExprIR::IdentifierExpr {
+                name: "w".into(),
+                type_ann: None
+            }
+        ),
+        None
+    );
+    // Unmappable strings stay unconverted (caller decides)
+    assert_eq!(
+        convert_literal_prop_value("Text", "textAlign", &lit(serde_json::json!("middle"))),
+        None
+    );
+}
+
+#[test]
+fn test_img_network_emits_positional_src_not_named_image() {
+    let el = props_el(
+        "img",
+        vec![
+            ("src", lit(serde_json::json!("icon.png"))),
+            ("alt", lit(serde_json::json!("Settings icon"))),
+        ],
+    );
+    let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
+    assert!(
+        expr.starts_with("Image.network('icon.png'"),
+        "src must be the POSITIONAL arg — `Image.network(image: ...)` is invalid Dart: {}",
+        expr
+    );
+    assert!(
+        !expr.contains("image:"),
+        "Image.network must not receive a named `image:` param: {}",
+        expr
+    );
+    assert!(
+        expr.contains("semanticLabel: 'Settings icon'"),
+        "alt must map to semanticLabel: {}",
+        expr
+    );
+    assert!(
+        warnings.is_empty(),
+        "valid img props must not warn: {:?}",
+        warnings
+    );
+}
+
+#[test]
+fn test_img_named_image_prop_warns_and_is_skipped() {
+    // A literal `image=` prop would emit `Image.network(image: ...)` — invalid
+    // Dart (the whitelist must NOT contain `image`). It warns and is skipped.
+    let el = props_el("img", vec![("image", lit(serde_json::json!("x.png")))]);
+    let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
+    assert!(
+        !expr.contains("image:"),
+        "Image.network must not receive a named `image:` param: {}",
+        expr
+    );
+    assert!(
+        warnings.iter().any(|w| w.contains("'image'")),
+        "unmappable image prop must warn: {:?}",
+        warnings
+    );
+}
+
+#[test]
+fn test_icon_emits_icons_positional() {
+    let el = props_el(
+        "icon",
+        vec![
+            ("name", lit(serde_json::json!("home"))),
+            ("size", lit(serde_json::json!(24))),
+        ],
+    );
+    let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
+    assert!(
+        expr.contains("Icon(Icons.home"),
+        "icon name must map to the positional Icons.<name> arg: {}",
+        expr
+    );
+    assert!(
+        expr.contains("size: 24.0"),
+        "icon size must be a typed double: {}",
+        expr
+    );
+    assert!(
+        warnings.is_empty(),
+        "known icon name must not warn: {:?}",
+        warnings
+    );
+}
+
+#[test]
+fn test_icon_unknown_name_warns_and_falls_back() {
+    let el = props_el(
+        "icon",
+        vec![("name", lit(serde_json::json!("definitelyNotAnIcon")))],
+    );
+    let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
+    assert!(
+        warnings.iter().any(|w| w.contains("definitelyNotAnIcon")),
+        "unmappable icon name must produce a diagnostic: {:?}",
+        warnings
+    );
+    // The required positional `icon` must still be satisfied (Icon() with no
+    // args is invalid Dart) — fall back to a visible placeholder icon.
+    assert!(
+        expr.contains("Icon(Icons.help_outline"),
+        "unmappable icon name must fall back to a compile-able icon: {}",
+        expr
+    );
+}
+
+#[test]
+fn test_container_color_prop_converted_to_color() {
+    let el = props_el("div", vec![("color", lit(serde_json::json!("#ff0000")))]);
+    let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
+    assert!(
+        expr.contains("color: Color(0xFFFF0000)"),
+        "color prop must convert to a Color literal — `color: '#ff0000'` is invalid Dart: {}",
+        expr
+    );
+    assert!(
+        warnings.is_empty(),
+        "mappable color must not warn: {:?}",
+        warnings
+    );
+}
+
+#[test]
+fn test_inline_style_color_respects_widget_whitelist() {
+    // `<p style: { color: "#f59e0b" }>` — inline-style props must go through
+    // the same per-widget whitelist as plain props (Text has no `color` param;
+    // emitting one was invalid Dart — the review's String->Color class).
+    let mut el = props_el("p", vec![]);
+    el.inline_style = Some(serde_json::json!({ "color": "#f59e0b" }));
+    let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
+    assert!(
+        !expr.contains("color: Color"),
+        "Text must not receive an inline-style color param: {}",
+        expr
+    );
+    assert!(
+        warnings.iter().any(|w| w.contains("color")),
+        "inline-style color on Text must warn: {:?}",
         warnings
     );
 }
@@ -5317,6 +5883,7 @@ fn test_store_action_in_inline_handler_body() {
     let ref_usage: FxHashMap<String, RefUsage> = FxHashMap::default();
     let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
     let design_resolver = DesignResolver::new(&ir);
+    let mut motion_counter = 0usize;
     let mut ctx = ViewContext {
         component_map: &component_map,
         store_provider_map: &store_provider_map,
@@ -5325,6 +5892,7 @@ fn test_store_action_in_inline_handler_body() {
         ir: &ir,
         design: &design_resolver,
         warnings: &mut warnings,
+        motion_counter: &mut motion_counter,
     };
     let expr = format_view_tree(&view, &[], &mut ctx);
     assert!(
@@ -5414,6 +5982,7 @@ fn test_store_action_method_call_form_in_handler() {
     let ref_usage: FxHashMap<String, RefUsage> = FxHashMap::default();
     let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
     let design_resolver = DesignResolver::new(&ir);
+    let mut motion_counter = 0usize;
     let mut ctx = ViewContext {
         component_map: &component_map,
         store_provider_map: &store_provider_map,
@@ -5422,6 +5991,7 @@ fn test_store_action_method_call_form_in_handler() {
         ir: &ir,
         design: &design_resolver,
         warnings: &mut warnings,
+        motion_counter: &mut motion_counter,
     };
     let expr = format_view_tree(&view, &[], &mut ctx);
     assert!(
@@ -5596,6 +6166,7 @@ fn test_ref_key_on_widget_and_controller_attachment() {
     let store_provider_map: FxHashMap<String, String> = FxHashMap::default();
     let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
     let design_resolver = DesignResolver::new(&ir);
+    let mut motion_counter = 0usize;
     let mut ctx = ViewContext {
         component_map: &component_map,
         store_provider_map: &store_provider_map,
@@ -5604,6 +6175,7 @@ fn test_ref_key_on_widget_and_controller_attachment() {
         ir: &ir,
         design: &design_resolver,
         warnings: &mut warnings,
+        motion_counter: &mut motion_counter,
     };
     let view = ViewTree::Element(Box::new(el));
     let expr = format_view_tree(&view, &[], &mut ctx);
@@ -5631,6 +6203,7 @@ fn test_ref_key_on_widget_and_controller_attachment() {
     let mut warnings2 = Vec::new();
     let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
     let design_resolver2 = DesignResolver::new(&ir);
+    let mut motion_counter = 0usize;
     let mut ctx2 = ViewContext {
         component_map: &component_map,
         store_provider_map: &store_provider_map,
@@ -5639,6 +6212,7 @@ fn test_ref_key_on_widget_and_controller_attachment() {
         ir: &ir,
         design: &design_resolver2,
         warnings: &mut warnings2,
+        motion_counter: &mut motion_counter,
     };
     let view2 = ViewTree::Element(Box::new(el2));
     let expr2 = format_view_tree(&view2, &[], &mut ctx2);
@@ -5661,6 +6235,7 @@ fn test_ref_key_on_widget_and_controller_attachment() {
     let mut warnings3 = Vec::new();
     let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
     let design_resolver3 = DesignResolver::new(&ir);
+    let mut motion_counter = 0usize;
     let mut ctx3 = ViewContext {
         component_map: &component_map,
         store_provider_map: &store_provider_map,
@@ -5669,6 +6244,7 @@ fn test_ref_key_on_widget_and_controller_attachment() {
         ir: &ir,
         design: &design_resolver3,
         warnings: &mut warnings3,
+        motion_counter: &mut motion_counter,
     };
     let view3 = ViewTree::Element(Box::new(el3));
     let expr3 = format_view_tree(&view3, &[], &mut ctx3);
@@ -6169,7 +6745,10 @@ fn test_format_ref_op_flutter_variants() {
         "if (_boxScroll.hasClients) { _boxScroll.animateTo(_boxScroll.position.pixels + 50, duration: Duration(milliseconds: 200), curve: Curves.easeInOut); }"
     );
 
-    // Measure — width / height / position
+    // Measure — width / height / position. T5.7: the `as RenderBox?` cast
+    // THROWS a TypeError for non-RenderBox render objects (RenderViewport,
+    // ...) — the safe `is RenderBox ? box : null` pattern degrades to null
+    // instead (matching React's `?.` semantics).
     assert_eq!(
         format_expr_ir_flutter(&op(
             "box",
@@ -6177,7 +6756,7 @@ fn test_format_ref_op_flutter_variants() {
                 what: MeasureWhat::Width
             }
         )),
-        "(_boxKey.currentContext?.findRenderObject() as RenderBox?)?.size.width"
+        "(_boxKey.currentContext?.findRenderObject() is RenderBox ? _boxKey.currentContext?.findRenderObject() : null)?.size.width"
     );
     assert_eq!(
         format_expr_ir_flutter(&op(
@@ -6186,7 +6765,7 @@ fn test_format_ref_op_flutter_variants() {
                 what: MeasureWhat::Height
             }
         )),
-        "(_boxKey.currentContext?.findRenderObject() as RenderBox?)?.size.height"
+        "(_boxKey.currentContext?.findRenderObject() is RenderBox ? _boxKey.currentContext?.findRenderObject() : null)?.size.height"
     );
     assert_eq!(
         format_expr_ir_flutter(&op(
@@ -6195,7 +6774,7 @@ fn test_format_ref_op_flutter_variants() {
                 what: MeasureWhat::Position
             }
         )),
-        "(_boxKey.currentContext?.findRenderObject() as RenderBox?)?.localToGlobal(Offset.zero)"
+        "(_boxKey.currentContext?.findRenderObject() is RenderBox ? _boxKey.currentContext?.findRenderObject() : null)?.localToGlobal(Offset.zero)"
     );
 
     // Value read (the imperative write op was removed — bind:value covers it)

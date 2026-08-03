@@ -14,8 +14,151 @@
 use crate::codegen::flutter::{capitalize_first, css_color_to_dart, format_expr_ir_flutter};
 use crate::ir::*;
 
+use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 use std::cmp::Ordering;
+
+// ═══════════════════════════════════════════════════════════════════
+// Per-element motion usage (T5.7)
+// ═══════════════════════════════════════════════════════════════════
+//
+// Controllers are PER ELEMENT INSTANCE, not per motion NAME: two elements
+// sharing `hover: pulse` previously drove ONE shared controller — hovering
+// either element played both (review HIGH-4). The naming mirrors the React
+// backend's synthesized `__el_{idx}` refs: each motion element gets a
+// zero-based ordinal (DFS pre-order among motion elements) and its
+// controllers/animations/active flags carry that ordinal
+// (`_{motion}Controller_{idx}`, `_{motion}{Prop}_{idx}`, `_{motion}Active_{idx}`).
+// The declaration/initState/dispose emitters in mod.rs and the widget
+// wrappers in view.rs must assign IDENTICAL ordinals — both use
+// [`is_flutter_motion_element`] with the same traversal order
+// (the contract React documents for its own two emitters).
+
+/// Per-element motion usage: the element's ordinal among motion elements and
+/// the motion names it references, each with whether an `@enter` trigger
+/// references it (drive initState playback).
+#[derive(Debug, Clone)]
+pub(crate) struct MotionElementUsage {
+    pub idx: usize,
+    /// `(motion name, has @enter trigger)` — trigger order, deduplicated.
+    pub motions: Vec<(String, bool)>,
+}
+
+/// Whether an element qualifies for motion wrapper emission on Flutter —
+/// the EXACT rule `format_element` applies (non-empty triggers or an
+/// `@in-view` binding). Component instances never qualify: format_element
+/// returns at the component branch before any motion wrapping.
+pub(crate) fn is_flutter_motion_element(
+    el: &ElementIR,
+    component_map: &FxHashMap<&str, &ComponentIR>,
+) -> bool {
+    if component_map.contains_key(el.tag.as_str()) {
+        return false;
+    }
+    el.motion_behavior().is_some_and(|m| {
+        !m.triggers.is_empty() || m.in_view_once.is_some() || m.in_view_repeat.is_some()
+    })
+}
+
+/// Collect per-element motion usage over a view tree in DFS pre-order.
+/// `format_element` assigns the same ordinals via the shared
+/// `ViewContext.motion_counter`, so both sides agree on `_{motion}..._{idx}`
+/// names (the React `classify_motion_el` contract, mirrored).
+pub(crate) fn collect_motion_element_usage(
+    view: &ViewTree,
+    component_map: &FxHashMap<&str, &ComponentIR>,
+) -> Vec<MotionElementUsage> {
+    let mut counter = 0usize;
+    let mut acc = Vec::new();
+    collect_motion_usage_inner(view, component_map, &mut counter, &mut acc);
+    acc
+}
+
+fn collect_motion_usage_inner(
+    node: &ViewTree,
+    component_map: &FxHashMap<&str, &ComponentIR>,
+    counter: &mut usize,
+    acc: &mut Vec<MotionElementUsage>,
+) {
+    match node {
+        ViewTree::Element(el) => {
+            if is_flutter_motion_element(el, component_map) {
+                let idx = *counter;
+                *counter += 1;
+                let mut motions: Vec<(String, bool)> = Vec::new();
+                for trigger in el
+                    .motion_behavior()
+                    .map_or(&[] as &[TriggerIntent], |m| &m.triggers)
+                {
+                    if let Some(ref name) = trigger.motion_ref {
+                        let has_enter = matches!(trigger.kind, TriggerKind::Enter);
+                        if let Some(entry) = motions.iter_mut().find(|(n, _)| n == name) {
+                            entry.1 |= has_enter;
+                        } else {
+                            motions.push((name.clone(), has_enter));
+                        }
+                    }
+                }
+                acc.push(MotionElementUsage { idx, motions });
+            }
+            for child in &el.children {
+                collect_motion_usage_inner(child, component_map, counter, acc);
+            }
+        }
+        ViewTree::Conditional(cond) => {
+            for branch in &cond.branches {
+                if let Some(ref body) = branch.body {
+                    collect_motion_usage_inner(body, component_map, counter, acc);
+                }
+            }
+            if let Some(ref fb) = cond.fallback {
+                collect_motion_usage_inner(fb, component_map, counter, acc);
+            }
+        }
+        ViewTree::ListRendering(list) => {
+            if let Some(ref body) = list.body {
+                collect_motion_usage_inner(body, component_map, counter, acc);
+            }
+            if let Some(ref empty) = list.empty_body {
+                collect_motion_usage_inner(empty, component_map, counter, acc);
+            }
+        }
+        ViewTree::Fragment(children) => {
+            for c in children {
+                collect_motion_usage_inner(c, component_map, counter, acc);
+            }
+        }
+        ViewTree::Slot { fallback, .. } => {
+            for c in fallback {
+                collect_motion_usage_inner(c, component_map, counter, acc);
+            }
+        }
+        ViewTree::Text(_) | ViewTree::Interpolation(_) => {}
+        #[allow(unreachable_patterns)]
+        _ => {}
+    }
+}
+
+/// Per-element AnimationController field name — `_{motion}Controller_{idx}`
+/// (one per element instance; the old shared `_{motion}Controller` let one
+/// element's trigger play every element's animation).
+pub(crate) fn motion_ctrl_name(motion: &str, idx: usize) -> String {
+    format!("_{}Controller_{}", motion, idx)
+}
+
+/// Per-element animated-wrapper gate flag — `_{motion}Active_{idx}`.
+pub(crate) fn motion_active_name(motion: &str, idx: usize) -> String {
+    format!("_{}Active_{}", motion, idx)
+}
+
+/// Find a module-level motion by name (all modules — motions are module
+/// scoped and components reference them by name).
+pub(crate) fn find_module_motion<'a>(ir: &'a IRProgram, name: &str) -> Option<&'a MotionIntent> {
+    ir.modules
+        .values()
+        .flat_map(|m| &m.motions)
+        .find(|m| m.name == name)
+}
 
 // ═══════════════════════════════════════════════════════════════════
 // Motion / Animation codegen helpers
@@ -106,9 +249,18 @@ pub(crate) fn prop_anim_type(prop: &str) -> &'static str {
 ///
 /// `_{motion}{Prop}` (e.g. `_fadeInOpacity`, `_fadeInTranslateX`) — the
 /// lowerCamelCase form keeps generated Dart `non_constant_identifier_names`
-/// clean.
+/// clean. Base-naming contract, exercised by the unit tests; production
+/// emission uses the per-element [`prop_anim_field_for`].
+#[cfg(test)]
 pub(crate) fn prop_anim_field(motion_name: &str, prop: &str) -> String {
     format!("_{}{}", motion_name, capitalize_first(prop))
+}
+
+/// Per-element variant of [`prop_anim_field`] — `_{motion}{Prop}_{idx}`
+/// (T5.7: each element instance owns its Animation, driven by its own
+/// controller).
+pub(crate) fn prop_anim_field_for(motion_name: &str, prop: &str, idx: usize) -> String {
+    format!("_{}{}_{}", motion_name, capitalize_first(prop), idx)
 }
 
 /// Format an f64 as a Dart double literal: integral values get a `.0`
@@ -346,10 +498,13 @@ pub(crate) fn format_easing_flutter(ease: &Option<EasingIR>) -> String {
             Some("inout") => "Curves.easeInOutBack".to_string(),
             _ => "Curves.easeOutBack".to_string(),
         },
+        // Flutter's Curves class names elastic curves `elasticIn/elasticOut/
+        // elasticInOut` — the SDK has NO easeInElastic/easeOutElastic
+        // getters (T5.7: the wrong names were 300+ analyzer errors).
         Some(EasingIR::Elastic { direction }) => match direction.as_deref() {
-            Some("in") => "Curves.easeInElastic".to_string(),
-            Some("inout") => "Curves.easeInOutElastic".to_string(),
-            _ => "Curves.easeOutElastic".to_string(),
+            Some("in") => "Curves.elasticIn".to_string(),
+            Some("inout") => "Curves.elasticInOut".to_string(),
+            _ => "Curves.elasticOut".to_string(),
         },
         None => "Curves.linear".to_string(),
         // #[non_exhaustive] — future easing kinds fall back to linear.
@@ -437,14 +592,18 @@ fn text_style_child_arg(body: &str) -> &str {
 /// Transform.rotate, Container, DefaultTextStyle, SizedBox; borderRadius and
 /// fontSize join the Container/DefaultTextStyle families — Task 5.2).
 ///
-/// The wrappers are gated on the motion's `_{motion}Active` flag: while
-/// inactive the element keeps its natural style. This is what lets
+/// The wrappers are gated on the motion's per-element `_{motion}Active_{idx}`
+/// flag: while inactive the element keeps its natural style. This is what lets
 /// `fill: none`/`backwards` return to the natural appearance on completion
 /// (instead of holding the 0% keyframe), and it keeps trigger animations
 /// (e.g. to-only hover scales) from being visible at their synthesized
 /// begin value before the first trigger fires.
-pub(crate) fn build_animated_builder_body(motion: &MotionIntent, motion_name: &str) -> String {
-    let active_name = format!("_{}Active", motion_name);
+pub(crate) fn build_animated_builder_body(
+    motion: &MotionIntent,
+    motion_name: &str,
+    element_idx: usize,
+) -> String {
+    let active_name = motion_active_name(motion_name, element_idx);
     let kf = &motion.body;
     let properties = extract_keyframe_properties(kf);
     if properties.is_empty() {
@@ -461,7 +620,7 @@ pub(crate) fn build_animated_builder_body(motion: &MotionIntent, motion_name: &s
     if has("opacity") {
         body = format!(
             "Opacity(opacity: {}.value, child: {})",
-            prop_anim_field(motion_name, "opacity"),
+            prop_anim_field_for(motion_name, "opacity", element_idx),
             body
         );
     }
@@ -470,7 +629,7 @@ pub(crate) fn build_animated_builder_body(motion: &MotionIntent, motion_name: &s
     if has("scale") {
         body = format!(
             "Transform.scale(scale: {}.value, child: {})",
-            prop_anim_field(motion_name, "scale"),
+            prop_anim_field_for(motion_name, "scale", element_idx),
             body
         );
     }
@@ -478,12 +637,18 @@ pub(crate) fn build_animated_builder_body(motion: &MotionIntent, motion_name: &s
     // Translate
     if has("translateX") || has("translateY") {
         let x = if has("translateX") {
-            format!("{}.value", prop_anim_field(motion_name, "translateX"))
+            format!(
+                "{}.value",
+                prop_anim_field_for(motion_name, "translateX", element_idx)
+            )
         } else {
             "0.0".to_string()
         };
         let y = if has("translateY") {
-            format!("{}.value", prop_anim_field(motion_name, "translateY"))
+            format!(
+                "{}.value",
+                prop_anim_field_for(motion_name, "translateY", element_idx)
+            )
         } else {
             "0.0".to_string()
         };
@@ -497,7 +662,7 @@ pub(crate) fn build_animated_builder_body(motion: &MotionIntent, motion_name: &s
     if has("rotate") {
         body = format!(
             "Transform.rotate(angle: {}.value, child: {})",
-            prop_anim_field(motion_name, "rotate"),
+            prop_anim_field_for(motion_name, "rotate", element_idx),
             body
         );
     }
@@ -506,7 +671,7 @@ pub(crate) fn build_animated_builder_body(motion: &MotionIntent, motion_name: &s
     if has("backgroundColor") {
         body = format!(
             "Container(color: {}.value, child: {})",
-            prop_anim_field(motion_name, "backgroundColor"),
+            prop_anim_field_for(motion_name, "backgroundColor", element_idx),
             body
         );
     }
@@ -521,7 +686,7 @@ pub(crate) fn build_animated_builder_body(motion: &MotionIntent, motion_name: &s
     if has("borderRadius") {
         body = format!(
             "Container(decoration: BoxDecoration(borderRadius: {}.value), clipBehavior: Clip.antiAlias, child: {})",
-            prop_anim_field(motion_name, "borderRadius"),
+            prop_anim_field_for(motion_name, "borderRadius", element_idx),
             body
         );
     }
@@ -535,7 +700,7 @@ pub(crate) fn build_animated_builder_body(motion: &MotionIntent, motion_name: &s
         let child_arg = text_style_child_arg(&body);
         body = format!(
             "DefaultTextStyle(style: TextStyle(color: {}.value), child: {child_arg})",
-            prop_anim_field(motion_name, "color"),
+            prop_anim_field_for(motion_name, "color", element_idx),
         );
     }
 
@@ -546,7 +711,7 @@ pub(crate) fn build_animated_builder_body(motion: &MotionIntent, motion_name: &s
         let child_arg = text_style_child_arg(&body);
         body = format!(
             "DefaultTextStyle(style: TextStyle(fontSize: {}.value), child: {child_arg})",
-            prop_anim_field(motion_name, "fontSize"),
+            prop_anim_field_for(motion_name, "fontSize", element_idx),
         );
     }
 
@@ -554,14 +719,14 @@ pub(crate) fn build_animated_builder_body(motion: &MotionIntent, motion_name: &s
     if has("width") {
         body = format!(
             "SizedBox(width: {}.value, child: {})",
-            prop_anim_field(motion_name, "width"),
+            prop_anim_field_for(motion_name, "width", element_idx),
             body
         );
     }
     if has("height") {
         body = format!(
             "SizedBox(height: {}.value, child: {})",
-            prop_anim_field(motion_name, "height"),
+            prop_anim_field_for(motion_name, "height", element_idx),
             body
         );
     }
@@ -726,6 +891,7 @@ pub(crate) fn wrap_with_motion_widgets(
     inner: String,
     triggers: &[TriggerIntent],
     motions: &[MotionIntent],
+    element_idx: usize,
 ) -> String {
     if triggers.is_empty() {
         return inner;
@@ -752,12 +918,12 @@ pub(crate) fn wrap_with_motion_widgets(
     };
 
     // For each motion ref, wrap with AnimatedBuilder. The builder listens to
-    // the shared controller (the per-property Animation<T> fields are all
-    // driven by it), and the body reads each property's animation value.
+    // the element's own controller (the per-property Animation<T> fields are
+    // all driven by it), and the body reads each property's animation value.
     for motion_ref in &motion_refs {
         if let Some(motion) = motions.iter().find(|m| m.name == *motion_ref) {
-            let ctrl_name = format!("_{}Controller", motion_ref);
-            let builder_body = build_animated_builder_body(motion, motion_ref);
+            let ctrl_name = motion_ctrl_name(motion_ref, element_idx);
+            let builder_body = build_animated_builder_body(motion, motion_ref, element_idx);
             result = format!(
                 "AnimatedBuilder(\n  animation: {},\n  builder: (context, child) => {},\n  child: {},\n)",
                 ctrl_name, builder_body, result
@@ -775,10 +941,10 @@ pub(crate) fn wrap_with_motion_widgets(
             .find(|t| matches!(t.kind, TriggerKind::Hover))
             .and_then(|t| t.motion_ref.as_ref());
         let hover_ctrl = hover_motion
-            .map(|name| format!("_{}Controller", name))
+            .map(|name| motion_ctrl_name(name, element_idx))
             .unwrap_or_else(|| "_controller".to_string());
         let hover_active = hover_motion
-            .map(|name| format!("_{}Active", name))
+            .map(|name| motion_active_name(name, element_idx))
             .unwrap_or_else(|| "_active".to_string());
 
         result = format!(
@@ -794,10 +960,10 @@ pub(crate) fn wrap_with_motion_widgets(
             .find(|t| matches!(t.kind, TriggerKind::Press))
             .and_then(|t| t.motion_ref.as_ref());
         let press_ctrl = press_motion
-            .map(|name| format!("_{}Controller", name))
+            .map(|name| motion_ctrl_name(name, element_idx))
             .unwrap_or_else(|| "_controller".to_string());
         let press_active = press_motion
-            .map(|name| format!("_{}Active", name))
+            .map(|name| motion_active_name(name, element_idx))
             .unwrap_or_else(|| "_active".to_string());
 
         result = format!(
@@ -810,66 +976,3 @@ pub(crate) fn wrap_with_motion_widgets(
 }
 
 // wrap_flutter_states removed — StatesIR subsystem removed per ADR-032
-
-/// Traverse the view tree to find motion names used with @enter triggers.
-pub(crate) fn find_enter_motions(node: &ViewTree) -> Vec<String> {
-    let mut result = Vec::new();
-    find_enter_inner(node, &mut result);
-    result
-}
-
-fn find_enter_inner(node: &ViewTree, result: &mut Vec<String>) {
-    match node {
-        ViewTree::Element(el) => {
-            for trigger in el
-                .motion_behavior()
-                .map_or(&[] as &[TriggerIntent], |m| &m.triggers)
-            {
-                if matches!(trigger.kind, TriggerKind::Enter) {
-                    if let Some(ref name) = trigger.motion_ref {
-                        if !result.contains(name) {
-                            result.push(name.clone());
-                        }
-                    }
-                }
-            }
-            for child in &el.children {
-                find_enter_inner(child, result);
-            }
-        }
-        ViewTree::Conditional(cond) => {
-            for branch in &cond.branches {
-                if let Some(ref body) = branch.body {
-                    find_enter_inner(body, result);
-                }
-            }
-            if let Some(ref fb) = cond.fallback {
-                find_enter_inner(fb, result);
-            }
-        }
-        ViewTree::ListRendering(list) => {
-            if let Some(ref body) = list.body {
-                find_enter_inner(body, result);
-            }
-            if let Some(ref empty) = list.empty_body {
-                find_enter_inner(empty, result);
-            }
-        }
-        ViewTree::Fragment(children) => {
-            for child in children {
-                find_enter_inner(child, result);
-            }
-        }
-        ViewTree::Slot { fallback, .. } => {
-            // Enter-triggered motions inside slot fallbacks play when the
-            // fallback renders — their controllers must be created in
-            // initState too.
-            for child in fallback {
-                find_enter_inner(child, result);
-            }
-        }
-        ViewTree::Text(_) | ViewTree::Interpolation(_) => {}
-        #[allow(unreachable_patterns)]
-        _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
-    }
-}

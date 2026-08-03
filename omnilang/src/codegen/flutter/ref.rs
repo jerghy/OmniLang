@@ -1267,7 +1267,11 @@ fn format_ref_op_flutter(ref_name: &str, op: &RefOpIR, fmt: &impl FormatExpr) ->
         RefOpIR::Measure { what } => {
             // RenderBox read at call time via the GlobalKey — safe before
             // layout via `?.` (degrades to null, matching React's `?.`).
-            let box_expr = format!("({}.currentContext?.findRenderObject() as RenderBox?)", key);
+            // T5.7: the old `as RenderBox?` cast THREW a TypeError when the
+            // render object is not a RenderBox (RenderViewport, ...) — the
+            // `is RenderBox ? box : null` pattern degrades to null instead.
+            let render = format!("{}.currentContext?.findRenderObject()", key);
+            let box_expr = format!("({render} is RenderBox ? {render} : null)");
             match what {
                 MeasureWhat::Width => format!("{}?.size.width", box_expr),
                 MeasureWhat::Height => format!("{}?.size.height", box_expr),

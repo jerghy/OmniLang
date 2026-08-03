@@ -13,14 +13,17 @@ use super::design::DesignResolver;
 use super::design::{class_factory_expr, decoration_fields_to_expr, merge_decoration_fields};
 use super::design::{resolve_class_decoration, resolve_variant_decoration, DecorationFields};
 use super::expr::{format_expr_ir_flutter, rewrite_stmt_store_accesses, rewrite_store_accesses};
-use super::motion::wrap_with_motion_widgets;
+use super::motion::{
+    is_flutter_motion_element, motion_active_name, motion_ctrl_name, wrap_with_motion_widgets,
+};
 use super::motion_widgets::{emit_event_object_flutter, field_extract_flutter};
 use super::r#ref::{ref_focus_name, ref_key_name, ref_scroll_name, ref_text_name, RefUsage};
 use super::stmt::{generate_statement_flutter, FlutterStmtFormatter};
 use super::utils::{
-    binding_to_flutter_param, callback_is_void, css_color_to_dart, event_to_flutter_callback,
-    lower_first, prop_to_flutter_param_name, tag_to_flutter_widget, widget_allows_event,
-    widget_allows_param, widget_param_rename, widget_param_wrapper,
+    binding_to_flutter_param, callback_is_void, convert_literal_prop_value, css_color_to_dart,
+    event_to_flutter_callback, icon_name_to_dart, lower_first, prop_to_flutter_param_name,
+    tag_to_flutter_widget, widget_allows_event, widget_allows_param, widget_has_const_constructor,
+    widget_param_rename, widget_param_wrapper,
 };
 use std::fmt::Write;
 
@@ -45,6 +48,12 @@ pub(crate) struct ViewContext<'a> {
     pub(crate) design: &'a DesignResolver<'a>,
     /// Compiler warnings accumulated during view formatting (C6).
     pub(crate) warnings: &'a mut Vec<String>,
+    /// Motion-element ordinal counter (T5.7): assigns each motion element
+    /// its DFS pre-order index so its controllers are named per element
+    /// instance (`_{motion}Controller_{idx}`). MUST increment with the same
+    /// rule and order as `collect_motion_element_usage` (the contract
+    /// mod.rs's declaration/initState/dispose emitters rely on).
+    pub(crate) motion_counter: &'a mut usize,
 }
 
 impl ViewContext<'_> {
@@ -81,7 +90,11 @@ pub(crate) fn format_view_tree(
             // so an unescaped `$` from text content executes code
             // (injection corpus finding, Task 3.1).
             let escaped = escape_literal_str(text, '\'');
-            format!("Text('{}')", escaped.replace('$', "\\$"))
+            // T5.7 const injection: a plain literal text node is a constant
+            // expression — `const Text(...)` avoids re-allocating it on every
+            // build. The `\$` escaping is a plain string escape (still a
+            // constant expression).
+            format!("const Text('{}')", escaped.replace('$', "\\$"))
         }
         ViewTree::Interpolation(expr) => {
             let dart_expr = ctx.format_expr(expr);
@@ -787,6 +800,72 @@ fn wrap_a11y(el: &ElementIR, inner: String, ctx: &mut ViewContext) -> String {
     }
 }
 
+// ═══════════════════════════════════════════════════════════════
+// Conservative const injection (T5.7)
+// ═══════════════════════════════════════════════════════════════
+
+/// Whether a view node formats to a constant widget expression.
+fn view_node_is_const(node: &ViewTree, ctx: &ViewContext) -> bool {
+    match node {
+        ViewTree::Text(_) => true,
+        ViewTree::Element(el) => element_is_const(el, ctx),
+        _ => false,
+    }
+}
+
+/// Whether an element's widget constructor can be emitted `const` —
+/// CONSERVATIVE, statically decidable only:
+///
+/// - no events, bindings, refs, a11y, design classes/variants, inline
+///   styles, or motion behavior (any of them introduces a non-constant
+///   expression or a runtime wrapper)
+/// - every prop is a literal scalar (string/number/bool/null) — convertible
+///   values format to constant expressions (Color(...), EdgeInsets.all(...),
+///   FontWeight.w700, ...); raw literals are constants too
+/// - every child is const-able (literal text or a const-able element) — the
+///   `const` context propagates to them implicitly
+///
+/// Exclusions: component instantiations (user constructors are const but
+/// prop expressions are not decidable here) and every widget whose SDK
+/// constructor is NOT const (Container, AppBar, ListView, Image.network,
+/// ... — see [`widget_has_const_constructor`]).
+fn element_is_const(el: &ElementIR, ctx: &ViewContext) -> bool {
+    if ctx.component_map.contains_key(el.tag.as_str()) {
+        return false;
+    }
+    // The widget's constructor must BE const in the SDK — Container, AppBar,
+    // ListView, Image.network, ... are not (`const_with_non_const` error).
+    if !widget_has_const_constructor(tag_to_flutter_widget(&el.tag)) {
+        return false;
+    }
+    if !el.events.is_empty()
+        || !el.bindings.is_empty()
+        || el.ref_binding.is_some()
+        || !el.class_map_bindings.is_empty()
+        || el.style_classes.is_some()
+        || el.inline_style.is_some()
+        || el.a11y.is_some()
+        || el.motion_behavior().is_some_and(|m| {
+            !m.triggers.is_empty() || m.in_view_once.is_some() || m.in_view_repeat.is_some()
+        })
+    {
+        return false;
+    }
+    if el.props.contains_key("class") || el.props.contains_key("_design_variant") {
+        return false;
+    }
+    for (_, v) in &el.props {
+        if !matches!(
+            v,
+            ExprIR::LiteralExpr { value }
+                if value.is_string() || value.is_number() || value.is_boolean() || value.is_null()
+        ) {
+            return false;
+        }
+    }
+    el.children.iter().all(|c| view_node_is_const(c, ctx))
+}
+
 /// Format an ElementIR node as a Flutter widget constructor expression.
 /// Wraps with motion animation widgets (AnimatedBuilder, MouseRegion, GestureDetector)
 /// when the element has motion triggers.
@@ -891,6 +970,17 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
     let widget = tag_to_flutter_widget(&el.tag);
     let mut args: Vec<String> = Vec::new();
 
+    // T5.7: motion-element ordinal — every element that will receive motion
+    // wrappers is counted (same rule/order as `collect_motion_element_usage`
+    // in mod.rs, so declarations/initState/dispose agree on the names).
+    let motion_idx = if is_flutter_motion_element(el, ctx.component_map) {
+        let idx = *ctx.motion_counter;
+        *ctx.motion_counter += 1;
+        Some(idx)
+    } else {
+        None
+    };
+
     // Props -> widget constructor parameters (C6: per-widget whitelist —
     // unmapped params emit a compiler warning instead of invalid Dart).
     // Params that belong to a sub-object (TextStyle/InputDecoration) are
@@ -903,19 +993,54 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
         if name == "_design_variant" {
             continue;
         }
-        let formatted = ctx.format_expr(value);
         // Image.network takes the URL as a POSITIONAL argument —
         // `src` maps to the first positional arg, NOT a named `image:`
         // param (`Image.network(image: ...)` is invalid Dart — the named
         // param list has no `image`; the fixture gate surfaced this).
         if widget == "Image.network" && name == "src" {
-            args.insert(0, formatted);
+            args.insert(0, ctx.format_expr(value));
+            continue;
+        }
+        // Icon's `icon` positional argument is REQUIRED — `Icon()` with no
+        // args is invalid Dart (review HIGH-4). `name`/`icon` props map to
+        // `Icons.<name>` via the known-name map; unmappable names warn and
+        // fall back to a compile-able placeholder.
+        if widget == "Icon" && (name == "name" || name == "icon") {
+            let known = match value {
+                ExprIR::LiteralExpr { value } => value.as_str().and_then(icon_name_to_dart),
+                _ => None,
+            };
+            match known {
+                Some(icon) => args.insert(0, icon.to_string()),
+                None => {
+                    let bad = match value {
+                        ExprIR::LiteralExpr { value } => value
+                            .as_str()
+                            .map(|s| format!("'{s}'"))
+                            .unwrap_or_else(|| "(non-string literal)".into()),
+                        _ => "(non-literal)".into(),
+                    };
+                    ctx.warnings.push(format!(
+                        "[flutter] icon name {bad} has no Material Icons mapping; \
+                         falling back to Icons.help_outline"
+                    ));
+                    args.insert(0, "Icons.help_outline".to_string());
+                }
+            }
             continue;
         }
         let param = widget_param_rename(widget, prop_to_flutter_param_name(name));
         if param.is_empty() {
             continue; // slug props (class/style/id/value/...) — intentionally dropped
         }
+        // T5.7: literal values convert to typed expressions for the params
+        // that need them (`fontWeight:"bold"` → FontWeight.w700,
+        // `color:"#ff0000"` → Color(...), `textAlign:"center"` → TextAlign.*,
+        // ...). Unmappable literals keep the raw value and warn below.
+        let formatted = match convert_literal_prop_value(widget, param, value) {
+            Some(converted) => converted,
+            None => ctx.format_expr(value),
+        };
         if let Some((wrapper, member)) = widget_param_wrapper(widget, param) {
             match wrapped.iter_mut().find(|(w, _)| *w == wrapper) {
                 Some((_, members)) => members.push(format!("{}: {}", member, formatted)),
@@ -962,7 +1087,21 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
     {
         for (css_prop, css_val) in obj {
             let css_val_str = css_val.as_str().unwrap_or("");
-            match css_prop_to_flutter_param(css_prop) {
+            // T5.7: inline-style props go through the same per-widget
+            // whitelist as plain props — `Text(style: { color: ... })` used
+            // to emit `color: Color(...)` on a widget with no `color` param
+            // (invalid Dart; review's String->Color error class).
+            let inline_param = css_prop_to_flutter_param(css_prop);
+            if let Some(param) = inline_param {
+                if !widget_allows_param(widget, param) {
+                    ctx.warnings.push(format!(
+                        "[flutter] inline style property '{css_prop}' → param '{param}' \
+                         is not supported on '{widget}'; skipped"
+                    ));
+                    continue;
+                }
+            }
+            match inline_param {
                 Some("padding") | Some("margin") => {
                     if css_val_str.ends_with("px")
                         || css_val_str.ends_with("em")
@@ -1269,6 +1408,17 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
         None => inner,
     };
 
+    // ── Conservative const injection (T5.7) ──
+    // Literal-only subtrees (no events/bindings/refs/design/a11y/motion,
+    // all props literal scalars, all children const-able) get a `const`
+    // constructor so they are not re-allocated on every build. The const
+    // context propagates to the children automatically.
+    let inner = if element_is_const(el, ctx) {
+        format!("const {}", inner)
+    } else {
+        inner
+    };
+
     // ── Design classes/variants (Task 4.3) ──
     // `class: Design.Card`, `variant: Design.Button(...)`, and
     // `class: { active: cond }` resolve against the design IR to REAL
@@ -1298,19 +1448,18 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
             .iter()
             .any(|t| matches!(&t.kind, TriggerKind::Scroll { .. }))
     });
-    let result = if el.motion_behavior().is_some_and(|m| !m.triggers.is_empty())
-        || has_inview
-        || has_scroll
-    {
+    let result = if let Some(motion_idx) = motion_idx {
         let mut result = inner;
 
-        // Standard motion triggers (enter, hover, press, etc.)
+        // Standard motion triggers (enter, hover, press, etc.) — all
+        // controller references carry the element's ordinal (T5.7)
         if el.motion_behavior().is_some_and(|m| !m.triggers.is_empty()) {
             result = wrap_with_motion_widgets(
                 result,
                 el.motion_behavior()
                     .map_or(&[] as &[TriggerIntent], |m| &m.triggers),
                 motions,
+                motion_idx,
             );
         }
 
@@ -1342,8 +1491,8 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                 .and_then(|t| t.motion_ref.as_ref());
 
             if let Some(motion_name) = motion_ref {
-                let ctrl_name = format!("_{}Controller", motion_name);
-                let active_name = format!("_{}Active", motion_name);
+                let ctrl_name = motion_ctrl_name(motion_name, motion_idx);
+                let active_name = motion_active_name(motion_name, motion_idx);
                 result = format!(
                     "OmniInViewWidget(\n  once: {},\n  threshold: {},\n  onInView: () {{ {} = true; {}.forward(); }},\n  child: {},\n)",
                     once, threshold, active_name, ctrl_name, result
@@ -1410,8 +1559,8 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
             };
 
             if let Some(motion_name) = motion_ref {
-                let ctrl_name = format!("_{}Controller", motion_name);
-                let active_name = format!("_{}Active", motion_name);
+                let ctrl_name = motion_ctrl_name(motion_name, motion_idx);
+                let active_name = motion_active_name(motion_name, motion_idx);
                 result = format!(
                     "OmniScrollDrivenWidget(\n{}  scrub: {},\n  onProgress: (p) {{ {} = true; {}.value = p; }},\n  child: {},\n)",
                     scroll_range_args, scrub, active_name, ctrl_name, result
@@ -1443,8 +1592,8 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                             } else {
                                 "Axis.vertical"
                             };
-                            let ctrl_name = format!("_{}Controller", motion_name);
-                            let active_name = format!("_{}Active", motion_name);
+                            let ctrl_name = motion_ctrl_name(motion_name, motion_idx);
+                            let active_name = motion_active_name(motion_name, motion_idx);
                             // v1 control dimensions (Task 5.1): numeric
                             // constraints pass straight into the widget as
                             // typed constructor args; when none are given,

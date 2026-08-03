@@ -226,6 +226,17 @@ impl FlutterCodegen {
         let needs_text_listeners = has_text_listeners(comp);
         let refs_to_dispose = has_ref_dispose(comp, &ref_usage);
 
+        // Per-element motion usage (T5.7): which elements reference which
+        // motions, in DFS pre-order — drives the per-element controller
+        // declarations/initState/dispose below AND prunes motions the
+        // component never references (previously EVERY module motion got a
+        // controller in EVERY component — 10k+ unused-field warnings and
+        // duplicate definitions in the showcase).
+        let motion_usage: Vec<MotionElementUsage> = view
+            .map(|v| motion::collect_motion_element_usage(v, component_map))
+            .unwrap_or_default();
+        let has_motions = !motion_usage.is_empty();
+
         let state_name = format!("_{}State", name);
 
         // Determine widget/state base classes
@@ -328,10 +339,13 @@ impl FlutterCodegen {
         w.emit("");
 
         // ── State class ──
-        let state_mixin = if ir.modules.values().all(|m| m.motions.is_empty()) {
-            String::new()
-        } else {
+        // T5.7: the TickerProvider mixin is needed only when THIS component
+        // actually uses motions (previously any module-level motion forced
+        // the mixin onto every component).
+        let state_mixin = if has_motions {
             " with TickerProviderStateMixin".to_string()
+        } else {
+            String::new()
         };
         w.emit_fmt(format_args!(
             "class {} extends {}<{}>{} {{",
@@ -383,28 +397,37 @@ impl FlutterCodegen {
         }
 
         // AnimationController/Animation field declarations for motion animations.
-        // One controller per motion (shared clock); one Animation<T> per
-        // animated property (per-property Tween/TweenSequence, Task 5.4).
-        // `_{motion}Active` gates the animated wrappers (only declared when
-        // the motion has wrappers): while false the element keeps its natural
-        // style — fill: none/backwards reset to natural on completion instead
-        // of holding the 0% keyframe.
-        for motion in ir.modules.values().flat_map(|m| &m.motions) {
-            let ctrl_name = format!("_{}Controller", motion.name);
-            w.emit_fmt(format_args!(
-                "late final AnimationController {};",
-                ctrl_name
-            ));
-            for prop in flutter_motion_properties(&motion.body) {
-                let field = prop_anim_field(&motion.name, &prop);
-                let ann = prop_anim_type(&prop);
-                w.emit_fmt(format_args!("late final Animation<{}> {};", ann, field));
-            }
-            if !flutter_motion_properties(&motion.body).is_empty() {
-                w.emit_fmt(format_args!("bool _{}Active = false;", motion.name));
+        // T5.7: PER ELEMENT INSTANCE — one controller per (element, motion)
+        // pair (`_{motion}Controller_{idx}`), one Animation<T> per animated
+        // property per element (`_{motion}{Prop}_{idx}`), and a per-element
+        // `_{motion}Active_{idx}` gate for the animated wrappers (while false
+        // the element keeps its natural style — fill: none/backwards reset to
+        // natural on completion instead of holding the 0% keyframe). Only
+        // motions the component's view actually references are declared.
+        for usage in &motion_usage {
+            for (motion_name, _) in &usage.motions {
+                let Some(motion) = find_module_motion(ir, motion_name) else {
+                    continue;
+                };
+                let ctrl_name = motion_ctrl_name(motion_name, usage.idx);
+                w.emit_fmt(format_args!(
+                    "late final AnimationController {};",
+                    ctrl_name
+                ));
+                for prop in flutter_motion_properties(&motion.body) {
+                    let field = prop_anim_field_for(motion_name, &prop, usage.idx);
+                    let ann = prop_anim_type(&prop);
+                    w.emit_fmt(format_args!("late final Animation<{}> {};", ann, field));
+                }
+                if !flutter_motion_properties(&motion.body).is_empty() {
+                    w.emit_fmt(format_args!(
+                        "bool {} = false;",
+                        motion_active_name(motion_name, usage.idx)
+                    ));
+                }
             }
         }
-        if !ir.modules.values().all(|m| m.motions.is_empty()) {
+        if has_motions {
             w.emit("");
         }
 
@@ -429,79 +452,81 @@ impl FlutterCodegen {
             .iter()
             .any(|lc| lc.kind == LifecycleKind::Mount);
         let has_effects = !comp.effects.is_empty();
-        let has_motions = !ir.modules.values().all(|m| m.motions.is_empty());
         if has_mount || has_effects || has_motions || needs_text_listeners {
             w.emit("@override");
             w.emit("void initState() {");
             w.indent();
             w.emit("super.initState();");
 
-            // Determine which motions have @enter triggers (forward on mount)
-            let enter_motions: Vec<String> = comp
-                .view
-                .as_ref()
-                .map(find_enter_motions)
-                .unwrap_or_default();
+            // Create the PER-ELEMENT AnimationControllers and per-property
+            // Animations for each (element, motion) the view references
+            // (T5.7). Motion-level diagnostics are deduped per motion name.
+            let mut diag_seen: FxHashSet<String> = FxHashSet::default();
+            for usage in &motion_usage {
+                for (motion_name, has_enter) in &usage.motions {
+                    let Some(motion) = find_module_motion(ir, motion_name) else {
+                        continue;
+                    };
+                    let ctrl_name = motion_ctrl_name(motion_name, usage.idx);
+                    let kf = &motion.body;
+                    let duration_ms = extract_duration_ms(&kf.over);
+                    let ease_str = format_easing_flutter(&kf.ease);
 
-            // Create AnimationController and per-property Animations for each motion
-            for motion in ir.modules.values().flat_map(|m| &m.motions) {
-                let ctrl_name = format!("_{}Controller", motion.name);
-                let kf = &motion.body;
-                let duration_ms = extract_duration_ms(&kf.over);
-                let ease_str = format_easing_flutter(&kf.ease);
-                let has_enter = enter_motions.contains(&motion.name);
-
-                // Motion-level diagnostics (Task 5.4): steps() easing has no
-                // Flutter Curves equivalent; width/height are layout-dependent;
-                // skew and unknown properties are skipped.
-                if let Some(diag) = easing_flutter_diagnostic(&motion.name, &kf.ease) {
-                    warnings.push(diag);
-                }
-                for prop in extract_keyframe_properties(kf) {
-                    if let Some(diag) = prop_flutter_diagnostic(&motion.name, &prop) {
-                        warnings.push(diag);
+                    // Motion-level diagnostics (Task 5.4): steps() easing has
+                    // no Flutter Curves equivalent; width/height are
+                    // layout-dependent; skew and unknown properties are
+                    // skipped.
+                    if diag_seen.insert(motion_name.clone()) {
+                        if let Some(diag) = easing_flutter_diagnostic(motion_name, &kf.ease) {
+                            warnings.push(diag);
+                        }
+                        for prop in extract_keyframe_properties(kf) {
+                            if let Some(diag) = prop_flutter_diagnostic(motion_name, &prop) {
+                                warnings.push(diag);
+                            }
+                        }
                     }
-                }
 
-                // Create AnimationController
-                w.emit_fmt(format_args!(
-                    "{0} = AnimationController(\n  duration: Duration(milliseconds: {1}),\n  vsync: this,\n);",
-                    ctrl_name, duration_ms
-                ));
-                // Per-property Animation<T>: Tween (2 stops) or TweenSequence
-                // (3+ stops), chained with the motion-level curve. Color
-                // tweens use CurvedAnimation — CurveTween is Animatable<double>
-                // and cannot chain onto Tween<Color>. `direction: reverse`
-                // with a loop swaps the tween direction (Flutter can only
-                // repeat forward passes).
-                let reverse_tweens = kf.playback.loop_count.is_some()
-                    && matches!(kf.playback.direction, Some(DirectionValue::Reverse));
-                for prop in flutter_motion_properties(kf) {
-                    let field = prop_anim_field(&motion.name, &prop);
-                    let tween = build_prop_tween_expr(kf, &prop, reverse_tweens);
-                    if motion_prop_kind(&prop) == MotionPropKind::Color {
-                        w.emit_fmt(format_args!(
-                            "{0} = {1}.animate(CurvedAnimation(parent: {2}, curve: {3}));",
-                            field, tween, ctrl_name, ease_str
-                        ));
-                    } else {
-                        w.emit_fmt(format_args!(
-                            "{0} = {1}.chain(CurveTween(curve: {2})).animate({3});",
-                            field, tween, ease_str, ctrl_name
-                        ));
+                    // Create AnimationController
+                    w.emit_fmt(format_args!(
+                        "{0} = AnimationController(\n  duration: Duration(milliseconds: {1}),\n  vsync: this,\n);",
+                        ctrl_name, duration_ms
+                    ));
+                    // Per-property Animation<T>: Tween (2 stops) or
+                    // TweenSequence (3+ stops), chained with the motion-level
+                    // curve. Color tweens use CurvedAnimation — CurveTween is
+                    // Animatable<double> and cannot chain onto Tween<Color>.
+                    // `direction: reverse` with a loop swaps the tween
+                    // direction (Flutter can only repeat forward passes).
+                    let reverse_tweens = kf.playback.loop_count.is_some()
+                        && matches!(kf.playback.direction, Some(DirectionValue::Reverse));
+                    for prop in flutter_motion_properties(kf) {
+                        let field = prop_anim_field_for(motion_name, &prop, usage.idx);
+                        let tween = build_prop_tween_expr(kf, &prop, reverse_tweens);
+                        if motion_prop_kind(&prop) == MotionPropKind::Color {
+                            w.emit_fmt(format_args!(
+                                "{0} = {1}.animate(CurvedAnimation(parent: {2}, curve: {3}));",
+                                field, tween, ctrl_name, ease_str
+                            ));
+                        } else {
+                            w.emit_fmt(format_args!(
+                                "{0} = {1}.chain(CurveTween(curve: {2})).animate({3});",
+                                field, tween, ease_str, ctrl_name
+                            ));
+                        }
                     }
-                }
 
-                // @enter trigger: start playback honoring
-                // loop_count/direction/fill/delay (and gate the animated
-                // wrappers on the active flag)
-                if has_enter {
-                    let active_name = (!flutter_motion_properties(kf).is_empty())
-                        .then(|| format!("_{}Active", motion.name));
-                    for stmt in
-                        emit_playback_start(&ctrl_name, active_name.as_deref(), &kf.playback)
-                    {
-                        w.emit(&stmt);
+                    // @enter trigger: start playback honoring
+                    // loop_count/direction/fill/delay (and gate the animated
+                    // wrappers on the active flag)
+                    if *has_enter {
+                        let active_name = (!flutter_motion_properties(kf).is_empty())
+                            .then(|| motion_active_name(motion_name, usage.idx));
+                        for stmt in
+                            emit_playback_start(&ctrl_name, active_name.as_deref(), &kf.playback)
+                        {
+                            w.emit(&stmt);
+                        }
                     }
                 }
             }
@@ -584,10 +609,15 @@ impl FlutterCodegen {
                     }
                 }
             }
-            // Dispose motion AnimationControllers
-            for motion in ir.modules.values().flat_map(|m| &m.motions) {
-                let ctrl_name = format!("_{}Controller", motion.name);
-                w.emit_fmt(format_args!("{}.dispose();", ctrl_name));
+            // Dispose the per-element motion AnimationControllers (T5.7)
+            for usage in &motion_usage {
+                for (motion_name, _) in &usage.motions {
+                    if find_module_motion(ir, motion_name).is_none() {
+                        continue;
+                    }
+                    let ctrl_name = motion_ctrl_name(motion_name, usage.idx);
+                    w.emit_fmt(format_args!("{}.dispose();", ctrl_name));
+                }
             }
             // Dispose on-demand ref controllers (Task 5.2)
             emit_ref_dispose(&mut w, comp, &ref_usage);
@@ -656,6 +686,7 @@ impl FlutterCodegen {
                 .cloned()
                 .collect::<Vec<_>>();
             let design_resolver = design::DesignResolver::new(ir);
+            let mut motion_counter = 0usize;
             let mut ctx = view::ViewContext {
                 component_map,
                 store_provider_map: &store_provider_map,
@@ -664,6 +695,7 @@ impl FlutterCodegen {
                 ir,
                 design: &design_resolver,
                 warnings: &mut warnings,
+                motion_counter: &mut motion_counter,
             };
             // Multi-node root fragments are wrapped in a Column —
             // `return Text('a'), Text('b');` would be invalid Dart
@@ -773,13 +805,63 @@ impl FlutterCodegen {
             w.emit("});");
         }
 
-        // copyWith
+        // Equality (T5.7): `==`/`hashCode` over ALL signal fields with a
+        // runtimeType guard — the Riverpod-docs pattern (no Equatable
+        // dependency). `provider.select((s) => s.field)` consumers compare
+        // state instances; identity-only comparison made every state change
+        // look like a change even when the values were equal.
+        w.emit("");
+        w.emit("@override");
+        w.emit("bool operator ==(Object other) =>");
+        w.indent();
+        let mut eq_lines: Vec<String> = vec![
+            "identical(this, other)".into(),
+            format!("other is {}", state_name),
+            "runtimeType == other.runtimeType".into(),
+        ];
+        eq_lines.extend(
+            store
+                .signals
+                .keys()
+                .map(|sig| format!("{} == other.{}", sig, sig)),
+        );
+        for (i, line) in eq_lines.iter().enumerate() {
+            let suffix = if i == 0 {
+                " ||"
+            } else if i + 1 == eq_lines.len() {
+                ";"
+            } else {
+                " &&"
+            };
+            w.emit_fmt(format_args!("{}{}", line, suffix));
+        }
+        w.dedent();
+        w.emit("");
+        w.emit("@override");
+        // `Object.hash` requires TWO+ positional args in Dart — single-field
+        // states hash the field directly; empty states fall back to the
+        // runtimeType (consistent with the == runtimeType guard).
+        let hash_fields: Vec<String> = store.signals.keys().cloned().collect();
+        let hash_expr = match hash_fields.len() {
+            0 => "runtimeType.hashCode".to_string(),
+            1 => format!("{}.hashCode", hash_fields[0]),
+            _ => format!("Object.hash({})", hash_fields.join(", ")),
+        };
+        w.emit_fmt(format_args!("int get hashCode => {};", hash_expr));
+
+        // copyWith — sentinel-based (T5.7): `T? x = _unset` with an
+        // `== _unset ? this.x : x as T` restore. The old `x ?? this.x`
+        // form could never set a NULLABLE field back to null (null meant
+        // "keep"), and a raw `T? x` param made `copyWith(note: null)`
+        // ambiguous. The private `_unset` const disambiguates "not passed"
+        // from "explicitly null".
+        w.emit("");
+        w.emit("static const _unset = Object();");
         w.emit("");
         w.emit_fmt(format_args!("{} copyWith({{", state_name));
         w.indent();
-        for (sig_name, sig_type) in &store.signals {
-            let ann = super::dart::dart_type(sig_type.kind.as_str(), &sig_type.type_args);
-            w.emit_fmt(format_args!("{}? {},", ann, sig_name));
+        for sig_name in store.signals.keys() {
+            w.emit_fmt(format_args!("Object? {} = _unset,", sig_name));
         }
         w.dedent();
         w.emit("}) {");
@@ -789,10 +871,11 @@ impl FlutterCodegen {
         } else {
             w.emit_fmt(format_args!("return {}(", state_name));
             w.indent();
-            for sig_name in store.signals.keys() {
+            for (sig_name, sig_type) in &store.signals {
+                let ann = super::dart::dart_type(sig_type.kind.as_str(), &sig_type.type_args);
                 w.emit_fmt(format_args!(
-                    "{}: {} ?? this.{},",
-                    sig_name, sig_name, sig_name
+                    "{}: {} == _unset ? this.{} : {} as {},",
+                    sig_name, sig_name, sig_name, sig_name, ann
                 ));
             }
             w.dedent();

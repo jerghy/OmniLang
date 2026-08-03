@@ -181,17 +181,17 @@ pub const NAMED_EASINGS: &[(&str, &str, &str)] = &[
     (
         "elasticIn",
         "cubic-bezier(0.600,0.040,0.980,0.335)",
-        "Curves.easeInElastic",
+        "Curves.elasticIn",
     ),
     (
         "elasticOut",
         "cubic-bezier(0.250,0.460,0.450,0.940)",
-        "Curves.easeOutElastic",
+        "Curves.elasticOut",
     ),
     (
         "elasticInOut",
         "cubic-bezier(0.680,-0.550,0.265,1.550)",
-        "Curves.easeInOutElastic",
+        "Curves.elasticInOut",
     ),
     // Spring → generic bouncy (no dedicated Flutter Curves constant)
     (
@@ -236,17 +236,17 @@ pub const NAMED_EASINGS: &[(&str, &str, &str)] = &[
     (
         "elastic-in",
         "cubic-bezier(0.600,0.040,0.980,0.335)",
-        "Curves.easeInElastic",
+        "Curves.elasticIn",
     ),
     (
         "elastic-out",
         "cubic-bezier(0.250,0.460,0.450,0.940)",
-        "Curves.easeOutElastic",
+        "Curves.elasticOut",
     ),
     (
         "elastic-in-out",
         "cubic-bezier(0.680,-0.550,0.265,1.550)",
-        "Curves.easeInOutElastic",
+        "Curves.elasticInOut",
     ),
     ("step-start", "steps(1,start)", "Curves.linear"),
     ("step-end", "steps(1,end)", "Curves.linear"),

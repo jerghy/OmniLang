@@ -487,16 +487,17 @@ component RoundedCard {
             flutter.files.iter().map(|f| &f.content).collect::<Vec<_>>()
         );
         assert!(
-            has(&flutter, "TextStyle(fontSize: _growTextFontSize.value)"),
+            has(&flutter, "TextStyle(fontSize: _growTextFontSize_1.value)"),
             "Flutter must apply fontSize through TextStyle(fontSize: ...): {:?}",
             flutter.files.iter().map(|f| &f.content).collect::<Vec<_>>()
         );
         assert!(
             has(
                 &flutter,
-                "late final Animation<BorderRadius?> _softenBorderRadius;"
+                "late final Animation<BorderRadius?> _softenBorderRadius_0;"
             ),
-            "Flutter field for borderRadius must be Animation<BorderRadius?>: {:?}",
+            "Flutter field for borderRadius must be Animation<BorderRadius?> \
+             (per-element ordinal — the soften element is element 0): {:?}",
             flutter.files.iter().map(|f| &f.content).collect::<Vec<_>>()
         );
         assert!(

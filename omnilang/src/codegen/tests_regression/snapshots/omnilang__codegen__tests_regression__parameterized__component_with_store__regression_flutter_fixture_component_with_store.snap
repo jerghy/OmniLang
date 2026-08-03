@@ -21,7 +21,7 @@ class CounterWithStore extends ConsumerStatefulWidget {
 class _CounterWithStoreState extends ConsumerState<CounterWithStore> {
     @override
     Widget build(BuildContext context) {
-        return Container(child: Column(children: [Text('Count: '), Text('${ref.watch(appStoreProvider.select(((s) => s.count)))}')]));
+        return Container(child: Column(children: [const Text('Count: '), Text('${ref.watch(appStoreProvider.select(((s) => s.count)))}')]));
     }
 }
 === AppStore_store.dart ===
@@ -37,11 +37,23 @@ class AppStoreState {
         required this.count,
     });
 
+    @override
+    bool operator ==(Object other) =>
+        identical(this, other) ||
+        other is AppStoreState &&
+        runtimeType == other.runtimeType &&
+        count == other.count;
+
+    @override
+    int get hashCode => count.hashCode;
+
+    static const _unset = Object();
+
     AppStoreState copyWith({
-        int? count,
+        Object? count = _unset,
     }) {
         return AppStoreState(
-            count: count ?? this.count,
+            count: count == _unset ? this.count : count as int,
         );
     }
 }
