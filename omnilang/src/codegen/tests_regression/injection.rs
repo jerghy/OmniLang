@@ -14,6 +14,16 @@
 //! live Flutter gaps: the a11y `label` emitted raw Dart `${...}`
 //! interpolation, and the unmappable-`role` degradation comment embedded
 //! the role verbatim (`*/` terminated the block comment).
+//!
+//! v3-fixes additions (task 1.1): the `motion-transform` and `design-token`
+//! insertion points (security HIGH-3 / HIGH-2 — keyframe string values and
+//! design-token declaration values reach emission paths the existing nine
+//! points do not: React inlines keyframe literals raw into
+//! `translateX(<value>)`, and the shared CSS emitter writes token values
+//! UNQUOTED into `--t1: <value>;`), the unquoted handler-attribute shapes
+//! (bare `onmouseover=` forms in raw HTML), and the `.html` inline-`<script>`
+//! EXEC_PATTERNS scan. The corpus goes RED here (emission fixes land in
+//! tasks 1.2-1.4); the failure shapes below are their acceptance baseline.
 
 use rustc_hash::FxHashMap;
 
@@ -52,6 +62,23 @@ const EXPLOIT_PAYLOADS: &[&str] = &[
     // which a string value is embedded verbatim (Flutter a11y role
     // degradation comment), leaving `alert(1)` in code position.
     "x*/ alert(1) //",
+    // Motion-transform breakout (security HIGH-3): keyframe string values
+    // are inlined raw into `translateX(<value>)` — the raw `"` re-closes
+    // the generated string, leaving `[alert(1)]` in code position. The
+    // `x',alert(1),'` single-quote twin is the pre-existing payload above.
+    "x\", [alert(1)] : \"",
+    // Design-token / CSS declaration-value breakout (security HIGH-2):
+    // token values emit UNQUOTED into `--t1: <value>;` — `}` terminates the
+    // `:root` block, letting attacker CSS escape into the page. The
+    // `</style><script` re-open shape is terminated by the .omni lexer
+    // before lowering (compile error — safe outcome) but stays in the
+    // corpus as a record for the emitted-HTML guard.
+    "x; } body { background: url(https://evil.example/leak) }",
+    "x</style><script>alert(1)</script>",
+    // Unquoted inline-handler attribute (security HIGH-2 shape): a value
+    // carrying `onmouseover=` without a quote forms a REAL handler
+    // attribute in raw HTML (`<div title=x onmouseover=alert(1)>`).
+    "x onmouseover=alert(1)",
 ];
 
 /// Executable-code patterns that must never survive in generated output.
@@ -74,6 +101,14 @@ const JS_TEMPLATE_PATTERN: &str = "${";
 /// was formed. No backend emits inline event-handler attributes legitimately
 /// (verified across the codegen). A lone `</script>` IS legitimate in the
 /// OmniView HTML wrapper, so the script check targets a re-opened tag.
+///
+/// The trailing bare forms (`onmouseover=` etc., no quote) catch handler
+/// attributes formed WITHOUT quotes — also executable raw HTML. They are
+/// matched exemption-aware (see [`contains_unquoted_handler`]): a bare form
+/// immediately followed by an entity-escaped quote (`onmouseover=&quot;`)
+/// is escaped inert data, not an attribute boundary. The `</style><script`
+/// form catches a CSS-escape payload re-opening a `<style>` context to
+/// inject `<script>` (design-token values emit into CSS).
 const HTML_PATTERNS: &[&str] = &[
     "onmouseover=\"",
     "onerror=\"",
@@ -84,7 +119,61 @@ const HTML_PATTERNS: &[&str] = &[
     "onload='",
     "onclick='",
     "</script><script",
+    "onmouseover=",
+    "onerror=",
+    "onload=",
+    "onclick=",
+    "</style><script",
 ];
+
+/// True if `pat` is a bare handler-attribute name (`onmouseover=`-style,
+/// ending in `=` with no quote) — matched with the entity-exemption rule.
+fn is_bare_handler_pattern(pat: &str) -> bool {
+    pat.ends_with('=') && !pat.contains('"') && !pat.contains('\'')
+}
+
+/// Whether raw HTML contains `pat` forming a REAL handler attribute. The
+/// bare handler patterns must not flag `onmouseover=&quot;` (entity-escaped
+/// quote = inert data, per the [`HTML_PATTERNS`] contract): an occurrence
+/// immediately followed by an entity-escaped quote is skipped.
+fn contains_unquoted_handler(content: &str, pat: &str) -> bool {
+    let mut rest = content;
+    while let Some(idx) = rest.find(pat) {
+        let after = &rest[idx + pat.len()..];
+        let escaped_quote = after.starts_with("&quot;")
+            || after.starts_with("&#34;")
+            || after.starts_with("&#x22;")
+            || after.starts_with("&apos;")
+            || after.starts_with("&#39;")
+            || after.starts_with("&#x27;");
+        if !escaped_quote {
+            return true;
+        }
+        rest = after;
+    }
+    false
+}
+
+/// Split raw HTML into its `<script …>…</script>` regions — the only CODE
+/// positions in a `.html` file. Markup text and attribute values are inert
+/// and must not trip the EXEC_PATTERNS scan (payload text like `alert(1)`
+/// legitimately renders into element text).
+fn extract_script_regions(content: &str) -> Vec<&str> {
+    let mut regions = Vec::new();
+    let mut rest = content;
+    while let Some(open) = rest.find("<script") {
+        let after_open = &rest[open + "<script".len()..];
+        let tag_end = after_open.find('>').unwrap_or(after_open.len());
+        let body_start = open + "<script".len() + tag_end + 1;
+        let Some(close_rel) = rest[body_start..].find("</script>") else {
+            regions.push(&rest[body_start..]);
+            break;
+        };
+        regions.push(&rest[body_start..body_start + close_rel]);
+        rest = &rest[body_start + close_rel + "</script>".len()..];
+    }
+    regions
+}
 
 /// Escape a payload for embedding inside a double-quoted .omni string
 /// literal, so it stays string CONTENT (the attack model: attacker-controlled
@@ -266,9 +355,7 @@ fn scan_vue(content: &str) -> String {
             }
             let open_end = (j + 1).min(n);
             let mut k = open_end;
-            while k + 8 < n
-                && chars[k..k + 9].iter().collect::<String>() != "</script>"
-            {
+            while k + 8 < n && chars[k..k + 9].iter().collect::<String>() != "</script>" {
                 k += 1;
             }
             let region: String = chars[open_end..k].iter().collect();
@@ -353,10 +440,28 @@ fn assert_no_executable_patterns(
         }
         if path.ends_with(".html") {
             for pat in HTML_PATTERNS {
+                let hit = if is_bare_handler_pattern(pat) {
+                    contains_unquoted_handler(content, pat)
+                } else {
+                    content.contains(pat)
+                };
                 assert!(
-                    !content.contains(pat),
+                    !hit,
                     "[{backend}/{point}] raw HTML breakout {pat:?} leaked into {path} for payload {payload:?}:\n{content}"
                 );
+            }
+            // Inline `<script>` regions are the only code positions in a
+            // `.html` file: string/comment-strip each and run EXEC_PATTERNS,
+            // so a payload breaking out of a string inside an inline script
+            // is caught while inert markup text/attribute content is not.
+            for (region_idx, region) in extract_script_regions(content).iter().enumerate() {
+                let code = strip_strings_and_comments(region, ScanLang::Js);
+                for pat in EXEC_PATTERNS {
+                    assert!(
+                        !code.contains(pat),
+                        "[{backend}/{point}] executable pattern {pat:?} leaked into {path} <script> region {region_idx} for payload {payload:?}:\n{content}"
+                    );
+                }
             }
             continue;
         }
@@ -389,7 +494,8 @@ fn assert_no_executable_patterns(
 }
 
 /// Insertion-point source templates: payload embedded into a `class:` value,
-/// a style value, a text node, an attribute value, and an event handler.
+/// a style value, a text node, an attribute value, an event handler, motion
+/// keyframe strings, and design-token declaration values.
 struct Point {
     name: &'static str,
     make_src: fn(&str) -> String,
@@ -467,6 +573,42 @@ fn event_src(payload: &str) -> String {
     )
 }
 
+/// Motion keyframe string values (security HIGH-3): `translateX`-style
+/// values flow from MotionBodyIR stops into the backend keyframe emissions.
+/// The React emitter inlines literal string values raw into
+/// `translateX(<value>)` — an embedded `"` re-closes the generated string
+/// and leaves the rest of the payload in code position (`[alert(1)]`). The
+/// motion must be REFERENCED by a trigger (`@enter={slide}`) — unreferenced
+/// motions are dropped by the codegen, which would make the point vacuously
+/// green.
+fn motion_src(payload: &str) -> String {
+    // Both stops are STRING literals: the semantic layer's keyframe
+    // type-mismatch check compares stop types per property, so mixing a
+    // string `from` with a number `to` would be rejected before codegen.
+    format!(
+        "component App {{\n    @motion slide {{\n        from {{ translateX: \"x{payload}\" }}\n        to   {{ translateX: \"100px\" }}\n        over: 300ms\n    }}\n    view {{\n        <div @enter={{slide}}/>\n    }}\n}}\n"
+    )
+}
+
+/// Design token declaration values (security HIGH-2): `token` values flow
+/// from DesignIR into the shared CSS emitter as `--t1: <value>;` — written
+/// UNQUOTED, so a `}` breakout terminates the `:root` block and payload
+/// text lands in CSS declaration position.
+fn design_src(payload: &str) -> String {
+    format!(
+        "design D {{\n    token t1: color = \"x{payload}\";\n}}\ncomponent App {{\n    view {{\n        <div class=\"Card\"/>\n    }}\n}}\n"
+    )
+}
+
+/// Design blocks compile only on the OmniView, React, and Flutter targets —
+/// Dioxus and Vue reject them outright (ECodegen diagnostic: "Design blocks
+/// are only supported on the OmniView, React, and Flutter targets"), so the
+/// `design-token` point is skipped there (every payload is a compile error
+/// — safe, but the control source would not compile either).
+fn design_target_supported(target: &Target) -> bool {
+    matches!(target, Target::React | Target::OmniView | Target::Flutter)
+}
+
 const POINTS: &[Point] = &[
     Point {
         name: "class",
@@ -504,6 +646,14 @@ const POINTS: &[Point] = &[
         name: "fallback_str",
         make_src: fallback_str_src,
     },
+    Point {
+        name: "motion-transform",
+        make_src: motion_src,
+    },
+    Point {
+        name: "design-token",
+        make_src: design_src,
+    },
 ];
 
 /// The five UI backends. The corpus runs only when all are enabled
@@ -527,6 +677,9 @@ const BACKENDS: &[(Target, &str)] = &[
 fn injection_payload_corpus() {
     for (target, backend) in BACKENDS {
         for point in POINTS {
+            if point.name == "design-token" && !design_target_supported(target) {
+                continue;
+            }
             // Control: the template itself must compile with a safe payload —
             // otherwise the corpus would pass vacuously.
             let control = compile_target(&(point.make_src)("ok"), *target);
