@@ -114,11 +114,36 @@ impl ReactCodegen {
             state::collect_view_inline_handler_reads(view, &mut read_signals);
         }
 
+        // Task 2.11 — write-only signal DCE: a signal whose VALUE is never
+        // consumed by the generated output (its only reads are its own
+        // mutation RHS, which emit as functional updaters `setX((c) => ...)`
+        // that never reference the state value) gets NO useState hook and
+        // its mutations are pruned — otherwise the state value lints as
+        // unused (@typescript-eslint/no-unused-vars, the `playAll` class)
+        // and the setter references an undeclared name. Mutated signals
+        // that are never READ AT ALL keep the pre-existing behavior (their
+        // setters still emit — deferral #72 documents the TS2304 class).
+        // The prune is further restricted to signals whose mutations are
+        // ALL call-free: a mutation with a call-carrying value may have
+        // observable effects (and the setter-emission contract — e.g. the
+        // array_sort comparator path in tests_regression — stays intact).
+        let value_consumed = collect_value_consumed_signals(comp);
+        let mutation_call_targets = collect_call_mutation_targets(comp);
+        let pruned_signals: FxHashSet<String> = read_signals
+            .iter()
+            .filter(|s| {
+                mutated_signals.contains(*s)
+                    && !value_consumed.contains(*s)
+                    && !mutation_call_targets.contains(*s)
+            })
+            .cloned()
+            .collect();
+
         // Determine if any state actually needs useState (has active setter)
         let has_mutable_states = comp
             .signals
             .iter()
-            .any(|s| read_signals.contains(&s.name) && mutated_signals.contains(&s.name));
+            .any(|s| value_consumed.contains(&s.name) && mutated_signals.contains(&s.name));
         // Component-local fn names — used by the task 2.8 prop-fn analysis
         // (fns passed by value to child components) and by the fn emission
         // and state hooks below.
@@ -142,7 +167,11 @@ impl ReactCodegen {
         if has_fn_form_computed || has_interactive_motion || !wrapped_prop_fns.is_empty() {
             hooks.push("useCallback".to_string());
         }
-        if has_effects_or_lifecycles || has_motion || has_semantic_bindings {
+        if has_effects_or_lifecycles
+            || has_motion
+            || has_semantic_bindings
+            || component_uses_pointer_ops(comp, view)
+        {
             hooks.push("useEffect".to_string());
         }
 
@@ -305,19 +334,22 @@ impl ReactCodegen {
         // ── Active-pointer tracker (design D3) ──
         // `capturePointer()`/`releasePointer()` are parameterless — they act
         // on the ACTIVE pointer. Ref ops can be called from fns/effects/
-        // lifecycles where no event object is in scope, so the module-scope
-        // tracker records the most recent pointerdown's id (capture-phase so
-        // it fires before element-level handlers). Emitted only when the
-        // component actually uses the pointer-capture ops.
+        // lifecycles where no event object is in scope, so the tracker
+        // records the most recent pointerdown's id (capture-phase so it
+        // fires before element-level handlers). The state lives at module
+        // scope (ref ops reference it from any context); the LISTENER
+        // registers in a mount effect inside the component — a module-level
+        // `window.addEventListener` is a module-scope side effect (task
+        // 2.11, L1). Emitted only when the component actually uses the
+        // pointer-capture ops.
         if component_uses_pointer_ops(comp, view) {
             w.emit("");
             w.emit("// Active pointer tracking for ref.capturePointer()/releasePointer()");
             w.emit("// (parameterless DSL form — the most recent pointerdown's id is retained,");
             w.emit("// so a later releasePointer() can release it).");
             w.emit("let __omni_activePointerId: number | null = null;");
-            w.emit("if (typeof window !== \"undefined\") {");
-            w.emit("  window.addEventListener(\"pointerdown\", (e) => { __omni_activePointerId = e.pointerId; }, true);");
-            w.emit("}");
+            w.emit("// The capture-phase pointerdown listener registers in a mount effect");
+            w.emit("// (see the component body) and is removed on unmount.");
         }
 
         // ── Library functions ──
@@ -460,6 +492,7 @@ impl ReactCodegen {
                             &store_signal_owners,
                             &ref_names,
                             &FxHashMap::default(),
+                            &FxHashSet::default(),
                         );
                         continue;
                     }
@@ -474,6 +507,7 @@ impl ReactCodegen {
                     &store_signal_owners,
                     &ref_names,
                     &FxHashMap::default(),
+                    &FxHashSet::default(),
                 );
             }
             let mut body_str = body_w.into_string();
@@ -650,17 +684,47 @@ impl ReactCodegen {
             }
         }
 
-        // State hooks + effects
+        // State hooks + effects. gen_state_hooks skips signals whose value
+        // is never consumed (write-only DCE, task 2.11 — a signal read only
+        // via its own mutation RHS emits a functional-update setter and the
+        // state value stays unread).
         self.gen_state_hooks(
             &mut w,
             comp,
-            &read_signals,
+            &value_consumed,
             &mutated_signals,
             &hoisted_signals,
             &fn_names,
             &store_field_renames,
         );
         state::gen_ref_hooks(&mut w, comp, &ref_tags, &motion_internal_refs);
+        // ── Active-pointer tracker listener (task 2.11, L1) ──
+        // Registered in a mount effect, removed on unmount — the old
+        // module-level `if (typeof window ...) window.addEventListener(...)`
+        // was a module-scope side effect (fires on import, never removed).
+        // `e` is inferred as PointerEvent by the addEventListener overload
+        // (same inference the previous module-level arrow used).
+        if component_uses_pointer_ops(comp, view) {
+            w.emit("useEffect(() => {");
+            w.indent();
+            // Explicit PointerEvent: a const-arrow passed to addEventListener
+            // does NOT get contextual typing in tsc (the drag handlers'
+            // `(e) =>` params are TS7006-exempted for the same reason) — an
+            // untyped param here would add a NEW TS7006 to the gate.
+            w.emit("const onPointerDown = (e: PointerEvent) => {");
+            w.indent();
+            w.emit("__omni_activePointerId = e.pointerId;");
+            w.dedent();
+            w.emit("};");
+            w.emit("window.addEventListener(\"pointerdown\", onPointerDown, true);");
+            w.emit("return () => {");
+            w.indent();
+            w.emit("window.removeEventListener(\"pointerdown\", onPointerDown, true);");
+            w.dedent();
+            w.emit("};");
+            w.dedent();
+            w.emit("}, []);");
+        }
         // Store alias → reactive fields (signals + getters) — the unmount
         // cleanup dep derivation distinguishes field reads from action calls
         // against this map (mirrors the semantic validate_effect_deps
@@ -695,6 +759,7 @@ impl ReactCodegen {
             &store_field_renames,
             &store_fields,
             &hoisted_signals,
+            &pruned_signals,
         );
         state::gen_semantic_binding_effects(
             &mut w,
@@ -719,6 +784,7 @@ impl ReactCodegen {
             &ref_names,
             &store_field_renames,
             &hoisted_signals,
+            &pruned_signals,
         );
 
         // Component-local function declarations
@@ -731,6 +797,7 @@ impl ReactCodegen {
             &fn_names,
             &ref_names,
             &store_field_renames,
+            &pruned_signals,
         );
 
         // ── Task 2.8 (perf M4): useCallback wrappers for prop fns ──
@@ -799,6 +866,7 @@ impl ReactCodegen {
             name,
             &ref_names,
             &store_field_renames,
+            &pruned_signals,
             &mut motion_counter,
             &prop_fn_ctx,
         );
@@ -1314,6 +1382,369 @@ pub(super) fn collect_stmt_identifiers(stmt: &StatementIR, acc: &mut FxHashSet<S
             // `emit onX(...)` emits the event prop name + argument
             // expressions verbatim — both must count as reads or the
             // generated call references an undeclared name (TS2304).
+            acc.insert(event_name.clone());
+            for arg in args {
+                collect_expr_identifiers(arg, acc);
+            }
+        }
+        StatementIR::BreakStmtIR | StatementIR::ContinueStmtIR => {}
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown StatementIR variant — update codegen for new variant"),
+    }
+}
+
+// ═══════════════════════════════════════════════════════════
+// Task 2.11 — value-consumption analysis (write-only signal DCE)
+// ═══════════════════════════════════════════════════════════
+
+/// The signal name a mutation writes — `None` only for defensive/unknown
+/// intents. Local mirror of `super::mutation_target_name` (which returns
+/// the name as a `String` for Zustand set-key coalescing); the consumption
+/// analysis needs an `Option<&str>` for set removal.
+fn mutation_target_name_opt(intent: &MutationIntent) -> Option<&str> {
+    match intent {
+        MutationIntent::DirectAssign { target, .. }
+        | MutationIntent::Increment { target, .. }
+        | MutationIntent::Decrement { target, .. }
+        | MutationIntent::Multiply { target, .. }
+        | MutationIntent::Divide { target, .. }
+        | MutationIntent::Modulo { target, .. }
+        | MutationIntent::Push { target, .. }
+        | MutationIntent::Pop { target } => Some(&target.name),
+        #[allow(unreachable_patterns)]
+        _ => None,
+    }
+}
+
+/// Signals mutated with a CALL-CARRYING value anywhere in the component
+/// (fns, effects, lifecycles, computed block bodies, inline handlers).
+/// Such mutations may have observable effects (the call itself), so the
+/// write-only DCE must NOT prune the signal — the setter emission contract
+/// stays (task 2.11 restriction; the array_sort comparator path in
+/// tests_regression is the guarded example).
+fn collect_call_mutation_targets(comp: &ComponentIR) -> FxHashSet<String> {
+    let mut acc: FxHashSet<String> = FxHashSet::default();
+    for fun in &comp.fns {
+        for stmt in &fun.body.statements {
+            collect_call_mutation_targets_stmt(stmt, &mut acc);
+        }
+    }
+    for e in &comp.effects {
+        for stmt in &e.body.statements {
+            collect_call_mutation_targets_stmt(stmt, &mut acc);
+        }
+    }
+    for lc in &comp.lifecycles {
+        for stmt in &lc.body.statements {
+            collect_call_mutation_targets_stmt(stmt, &mut acc);
+        }
+    }
+    for c in &comp.computeds {
+        if let ExprIR::BlockExpr { statements, .. } = &c.body {
+            for stmt in statements {
+                collect_call_mutation_targets_stmt(stmt, &mut acc);
+            }
+        }
+    }
+    if let Some(ref view) = comp.view {
+        collect_call_mutation_targets_view(view, &mut acc);
+    }
+    acc
+}
+
+fn collect_call_mutation_targets_view(node: &ViewTree, acc: &mut FxHashSet<String>) {
+    match node {
+        ViewTree::Element(el) => {
+            for handler in el.events.values() {
+                if let EventHandlerIR::InlineFn { body, .. } = handler {
+                    for stmt in &body.statements {
+                        collect_call_mutation_targets_stmt(stmt, acc);
+                    }
+                }
+            }
+            for child in &el.children {
+                collect_call_mutation_targets_view(child, acc);
+            }
+        }
+        ViewTree::Conditional(cond) => {
+            for branch in &cond.branches {
+                if let Some(ref body) = branch.body {
+                    collect_call_mutation_targets_view(body, acc);
+                }
+            }
+            if let Some(ref fb) = cond.fallback {
+                collect_call_mutation_targets_view(fb, acc);
+            }
+        }
+        ViewTree::ListRendering(list) => {
+            if let Some(ref body) = list.body {
+                collect_call_mutation_targets_view(body, acc);
+            }
+            if let Some(ref empty_body) = list.empty_body {
+                collect_call_mutation_targets_view(empty_body, acc);
+            }
+        }
+        ViewTree::Fragment(children) => {
+            for child in children {
+                collect_call_mutation_targets_view(child, acc);
+            }
+        }
+        ViewTree::Slot { fallback, .. } => {
+            for child in fallback {
+                collect_call_mutation_targets_view(child, acc);
+            }
+        }
+        ViewTree::Text(_) | ViewTree::Interpolation(_) => {}
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
+    }
+}
+
+/// Recursive statement walker: record every mutation whose value carries a
+/// call (side effects) under its target signal name.
+fn collect_call_mutation_targets_stmt(stmt: &StatementIR, acc: &mut FxHashSet<String>) {
+    match stmt {
+        StatementIR::MutationStmt { intent } => {
+            if let Some(intent) = intent {
+                if let Some(target) = mutation_target_name_opt(intent) {
+                    if super::expr::mutation_value_expr(intent)
+                        .is_some_and(super::expr::expr_contains_call)
+                    {
+                        acc.insert(target.to_string());
+                    }
+                }
+            }
+        }
+        StatementIR::IfStmtIR {
+            then_body,
+            else_ifs,
+            else_body,
+            ..
+        } => {
+            for s in &then_body.statements {
+                collect_call_mutation_targets_stmt(s, acc);
+            }
+            for (_, b) in else_ifs {
+                for s in &b.statements {
+                    collect_call_mutation_targets_stmt(s, acc);
+                }
+            }
+            if let Some(ref eb) = else_body {
+                for s in &eb.statements {
+                    collect_call_mutation_targets_stmt(s, acc);
+                }
+            }
+        }
+        StatementIR::WhileStmtIR { body, .. } | StatementIR::ForInStmtIR { body, .. } => {
+            for s in &body.statements {
+                collect_call_mutation_targets_stmt(s, acc);
+            }
+        }
+        StatementIR::BlockStmtIR { body } => {
+            for s in &body.statements {
+                collect_call_mutation_targets_stmt(s, acc);
+            }
+        }
+        StatementIR::TryCatchStmtIR {
+            try_body,
+            catch_body,
+            finally_body,
+            ..
+        } => {
+            for s in &try_body.statements {
+                collect_call_mutation_targets_stmt(s, acc);
+            }
+            if let Some(ref cb) = catch_body {
+                for s in &cb.statements {
+                    collect_call_mutation_targets_stmt(s, acc);
+                }
+            }
+            if let Some(ref fb) = finally_body {
+                for s in &fb.statements {
+                    collect_call_mutation_targets_stmt(s, acc);
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Signals whose VALUE is consumed by the generated output — read outside
+/// their own mutation expressions.
+///
+/// A mutation like `count = count + 1` emits as the functional updater
+/// `setCount((c) => c + 1)` (M2), which never references the state value —
+/// so the mutation RHS read is a PHANTOM read: it keeps the signal's
+/// useState alive while eslint flags the state value as unused (task 2.11,
+/// the `playAll` class: `signal playAll; fn toggleAll() { playAll =
+/// !playAll; }` emits `setPlayAll((p) => !p)` and an unread state). A
+/// mutated signal absent from this set is write-only dead state: its
+/// useState hook is skipped and its mutations are pruned (see
+/// `pruned_signals` in `gen_component_tsx`).
+///
+/// Mirrors the `read_signals` collection surfaces (view, computeds, effect
+/// deps + bodies, lifecycles, called fns, inline handlers) — but walks
+/// statements with [`collect_consumed_stmt_identifiers`], which drops
+/// self-mutation reads.
+fn collect_value_consumed_signals(comp: &ComponentIR) -> FxHashSet<String> {
+    let called_fns = function::collect_called_local_fns(comp);
+    let mut consumed: FxHashSet<String> = FxHashSet::default();
+    if let Some(ref view) = comp.view {
+        // View reads are real reads — the view has no mutation contexts.
+        consumed.extend(state::collect_view_read_signals(view));
+    }
+    for computed in &comp.computeds {
+        collect_expr_identifiers(&computed.body, &mut consumed);
+    }
+    for effect in &comp.effects {
+        // Effect dep arrays are emitted verbatim — real reads.
+        for dep in &effect.deps {
+            consumed.insert(dep.clone());
+        }
+        for stmt in &effect.body.statements {
+            collect_consumed_stmt_identifiers(stmt, &mut consumed);
+        }
+    }
+    for lc in &comp.lifecycles {
+        for stmt in &lc.body.statements {
+            collect_consumed_stmt_identifiers(stmt, &mut consumed);
+        }
+    }
+    for fun in &comp.fns {
+        if called_fns.contains(&fun.name) {
+            for stmt in &fun.body.statements {
+                collect_consumed_stmt_identifiers(stmt, &mut consumed);
+            }
+        }
+    }
+    if let Some(ref view) = comp.view {
+        state::collect_view_inline_handler_consumed_reads(view, &mut consumed);
+    }
+    consumed
+}
+
+/// Statement walker for the consumption analysis — identical to
+/// [`collect_stmt_identifiers`] except that phantom reads are dropped:
+///
+/// - A mutation's own target reads: `count = count + 1` emits
+///   `setCount((c) => c + 1)` (functional updater, M2), so every
+///   occurrence of the target's name inside its own mutation value is
+///   replaced by the updater param — removing the name after the value
+///   walk is exactly equivalent to skipping those occurrences (a read of
+///   the target in ANOTHER signal's mutation, `x = count + 1`, stays).
+/// - `array_push`/`array_pop` first (target) argument: they emit
+///   `setX(prev => [...prev, item])` — the target is likewise replaced by
+///   the updater param.
+fn collect_consumed_stmt_identifiers(stmt: &StatementIR, acc: &mut FxHashSet<String>) {
+    match stmt {
+        StatementIR::ExprStmtIR { expr } => {
+            if let ExprIR::CallExpr { name, args, .. } = expr {
+                if (name == "array_push" || name == "array_pop") && !args.is_empty() {
+                    // `array_push(items, x)` emits `setItems(prev => [...prev,
+                    // x])` — the FIRST (target) arg is replaced by the
+                    // updater param. Scope the removal to this call's own
+                    // reads: a real read of the target elsewhere (view,
+                    // another fn) must survive.
+                    let mut local: FxHashSet<String> = FxHashSet::default();
+                    collect_expr_identifiers(expr, &mut local);
+                    if let ExprIR::IdentifierExpr { name: target, .. } = &args[0] {
+                        local.remove(target.as_str());
+                    }
+                    acc.extend(local);
+                    return;
+                }
+            }
+            collect_expr_identifiers(expr, acc);
+        }
+        StatementIR::LetStmtIR { name: _, value, .. } => {
+            if let Some(ref v) = value {
+                collect_expr_identifiers(v, acc);
+            }
+        }
+        StatementIR::ReturnStmtIR { value } => {
+            if let Some(ref v) = value {
+                collect_expr_identifiers(v, acc);
+            }
+        }
+        StatementIR::IfStmtIR {
+            condition,
+            then_body,
+            else_ifs,
+            else_body,
+        } => {
+            collect_expr_identifiers(condition, acc);
+            for s in &then_body.statements {
+                collect_consumed_stmt_identifiers(s, acc);
+            }
+            for (cond, body) in else_ifs {
+                collect_expr_identifiers(cond, acc);
+                for s in &body.statements {
+                    collect_consumed_stmt_identifiers(s, acc);
+                }
+            }
+            if let Some(ref eb) = else_body {
+                for s in &eb.statements {
+                    collect_consumed_stmt_identifiers(s, acc);
+                }
+            }
+        }
+        StatementIR::WhileStmtIR { condition, body } => {
+            collect_expr_identifiers(condition, acc);
+            for s in &body.statements {
+                collect_consumed_stmt_identifiers(s, acc);
+            }
+        }
+        StatementIR::ForInStmtIR { iterable, body, .. } => {
+            collect_expr_identifiers(iterable, acc);
+            for s in &body.statements {
+                collect_consumed_stmt_identifiers(s, acc);
+            }
+        }
+        StatementIR::BlockStmtIR { body } => {
+            for s in &body.statements {
+                collect_consumed_stmt_identifiers(s, acc);
+            }
+        }
+        StatementIR::MutationStmt { intent } => {
+            if let Some(intent) = intent {
+                // Scope the phantom-read removal to THIS mutation's own
+                // value reads: `count = count + 1` emits the functional
+                // updater `setCount((c) => c + 1)` (the value's `count`
+                // occurrences are replaced by the param), but a REAL read of
+                // `count` elsewhere (view, another fn) is genuine
+                // consumption and must survive the removal.
+                let mut local: FxHashSet<String> = FxHashSet::default();
+                collect_mutation_identifiers(intent, &mut local);
+                if let Some(target) = mutation_target_name_opt(intent) {
+                    local.remove(target);
+                }
+                acc.extend(local);
+            }
+        }
+        StatementIR::ThrowStmtIR { expr } => {
+            collect_expr_identifiers(expr, acc);
+        }
+        StatementIR::TryCatchStmtIR {
+            try_body,
+            catch_body,
+            finally_body,
+            ..
+        } => {
+            for s in &try_body.statements {
+                collect_consumed_stmt_identifiers(s, acc);
+            }
+            if let Some(ref cb) = catch_body {
+                for s in &cb.statements {
+                    collect_consumed_stmt_identifiers(s, acc);
+                }
+            }
+            if let Some(ref fb) = finally_body {
+                for s in &fb.statements {
+                    collect_consumed_stmt_identifiers(s, acc);
+                }
+            }
+        }
+        StatementIR::EventEmitStmtIR { event_name, args } => {
             acc.insert(event_name.clone());
             for arg in args {
                 collect_expr_identifiers(arg, acc);

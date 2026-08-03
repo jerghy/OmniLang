@@ -489,6 +489,14 @@ fn emit_sanitize_css(w: &mut CodeWriter) {
         "normalizeCssEscapes",
         true,
     );
+    // The shared emitter produces one ES5 body (`var` declarations) serving
+    // BOTH runtimes — the OmniView runtime enforces ES5, the React .ts
+    // output must not (no-var, task 2.11). Emit a `let` copy here; the
+    // shared source stays ES5 (single-source-drift discipline, task 3.2).
+    // `var ` appears only as a declaration keyword in the emitted helpers
+    // (10 declarations — the exact no-var count), never inside a string
+    // literal, so the plain replacement is safe.
+    let helpers = helpers.replace("var ", "let ");
     for line in helpers.lines() {
         w.emit(line);
     }
@@ -1068,6 +1076,19 @@ mod tests {
         assert!(
             content.contains("function sanitizeCss(value: unknown): string {"),
             "sanitizer must be emitted"
+        );
+        // Task 2.11 (no-var): the shared sanitizer emitter produces one ES5
+        // body serving BOTH runtimes — the React .ts copy must be emitted
+        // with `let` (the shared source stays ES5 for the OmniView runtime).
+        assert!(
+            !content.contains("var "),
+            "the React copy must not contain ES5 var declarations (no-var). Got:\n{}",
+            content
+        );
+        assert!(
+            content.contains("let result = '';") && content.contains("let str = String(value);"),
+            "the React copy must emit let declarations. Got:\n{}",
+            content
         );
         // The React helper must come from the SHARED sanitizer emitter — the
         // full keyword block + hex-escape normalization + url() context

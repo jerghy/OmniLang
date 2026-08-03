@@ -449,6 +449,15 @@ component Test {
 {}",
         &output[..output.len().min(700)]
     );
+    // Task 2.11: the parser DEFINITION is emitted only in the string-config
+    // branch — a numeric-range @scroll never references it, so defining it
+    // unconditionally linted as an unused variable.
+    assert!(
+        !output.contains("const parseScrollTrigger = (cfg)"),
+        "numeric range must not define the unused parser:
+{}",
+        &output[..output.len().min(700)]
+    );
 }
 
 #[test]
@@ -504,15 +513,26 @@ component Test {
 {}",
         &output[..output.len().min(800)]
     );
+    // Task 2.11: the drag-velocity tracker was REMOVED — its `velocity`
+    // variable was written every pointermove but never read (inertia decay
+    // is unimplemented on every target, ADR-054), so it linted as an unused
+    // variable. velocity_max is accepted but a no-op; an explicit value only
+    // keeps the honest-degradation comment.
     assert!(
-        output.contains("const velocityMax = 500;"),
-        "velocity_max must be wired into the velocity tracker, got partial:
+        !output.contains("const velocityMax"),
+        "velocity tracker must be pruned (no consumer), got partial:
 {}",
         &output[..output.len().min(800)]
     );
     assert!(
-        output.contains("velocity = Math.min(velocityMax, dp / dt * 1000);"),
-        "velocity tracker must clamp at velocityMax, got partial:
+        !output.contains("velocity = Math.min"),
+        "velocity computation must be pruned, got partial:
+{}",
+        &output[..output.len().min(800)]
+    );
+    assert!(
+        output.contains("velocity_max is accepted but unused"),
+        "an explicit velocity_max must keep the honest-degradation comment, got partial:
 {}",
         &output[..output.len().min(800)]
     );

@@ -46,6 +46,7 @@ pub(super) fn gen_view_node_tsx(
     motion_names: &FxHashSet<String>,
     ref_names: &FxHashSet<String>,
     store_field_renames: &FxHashMap<String, String>,
+    pruned_signal_names: &FxHashSet<String>,
     motion_counter: &mut usize,
     prop_fn_ctx: &PropFnMemoCtx,
 ) {
@@ -67,6 +68,7 @@ pub(super) fn gen_view_node_tsx(
                         motion_names,
                         ref_names,
                         store_field_renames,
+                        pruned_signal_names,
                         motion_counter,
                         prop_fn_ctx,
                     );
@@ -146,6 +148,7 @@ pub(super) fn gen_view_node_tsx(
                                 params,
                                 ref_names,
                                 store_field_renames,
+                                pruned_signal_names,
                             );
                             comp_attrs.push(format!("{}={{{}}}", jsx_event, handler_str));
                         }
@@ -177,6 +180,7 @@ pub(super) fn gen_view_node_tsx(
                         motion_names,
                         ref_names,
                         store_field_renames,
+                        pruned_signal_names,
                         motion_counter,
                         prop_fn_ctx,
                     );
@@ -203,6 +207,7 @@ pub(super) fn gen_view_node_tsx(
                             motion_names,
                             ref_names,
                             store_field_renames,
+                            pruned_signal_names,
                             motion_counter,
                             prop_fn_ctx,
                         );
@@ -439,6 +444,7 @@ pub(super) fn gen_view_node_tsx(
                                     store_signal_owners,
                                     ref_names,
                                     store_field_renames,
+                                    pruned_signal_names,
                                 );
                             }
                             let content = merged_hw.into_string();
@@ -479,6 +485,7 @@ pub(super) fn gen_view_node_tsx(
                                         store_signal_owners,
                                         ref_names,
                                         store_field_renames,
+                                        pruned_signal_names,
                                     );
                                 }
                                 let content = merged_hw.into_string();
@@ -516,6 +523,7 @@ pub(super) fn gen_view_node_tsx(
                                     params,
                                     ref_names,
                                     store_field_renames,
+                                    pruned_signal_names,
                                 );
                                 attrs.push(format!("{}={{{}}}", react_event, handler_str));
                             }
@@ -734,6 +742,7 @@ pub(super) fn gen_view_node_tsx(
                     motion_names,
                     ref_names,
                     store_field_renames,
+                    pruned_signal_names,
                     motion_counter,
                     prop_fn_ctx,
                 );
@@ -773,6 +782,7 @@ pub(super) fn gen_view_node_tsx(
                         motion_names,
                         ref_names,
                         store_field_renames,
+                        pruned_signal_names,
                         motion_counter,
                         prop_fn_ctx,
                     );
@@ -804,6 +814,7 @@ pub(super) fn gen_view_node_tsx(
                         motion_names,
                         ref_names,
                         store_field_renames,
+                        pruned_signal_names,
                         motion_counter,
                         prop_fn_ctx,
                     );
@@ -845,6 +856,7 @@ pub(super) fn gen_view_node_tsx(
                     motion_names,
                     ref_names,
                     store_field_renames,
+                    pruned_signal_names,
                     motion_counter,
                     prop_fn_ctx,
                 );
@@ -872,6 +884,7 @@ pub(super) fn gen_view_node_tsx(
                         motion_names,
                         ref_names,
                         store_field_renames,
+                        pruned_signal_names,
                         motion_counter,
                         prop_fn_ctx,
                     );
@@ -895,6 +908,7 @@ pub(super) fn gen_view_node_tsx(
                     motion_names,
                     ref_names,
                     store_field_renames,
+                    pruned_signal_names,
                     motion_counter,
                     prop_fn_ctx,
                 );
@@ -955,6 +969,7 @@ pub(super) fn gen_view_node_tsx(
                         motion_names,
                         ref_names,
                         store_field_renames,
+                        pruned_signal_names,
                         motion_counter,
                         prop_fn_ctx,
                     );
@@ -986,6 +1001,7 @@ pub(super) fn gen_view_node_tsx(
                     motion_names,
                     ref_names,
                     store_field_renames,
+                    pruned_signal_names,
                     motion_counter,
                     prop_fn_ctx,
                 );
@@ -1055,6 +1071,7 @@ pub(super) fn gen_view_node_tsx(
                     motion_names,
                     ref_names,
                     store_field_renames,
+                    pruned_signal_names,
                     motion_counter,
                     prop_fn_ctx,
                 );
@@ -1083,6 +1100,7 @@ pub(super) fn gen_view_node_tsx(
                     motion_names,
                     ref_names,
                     store_field_renames,
+                    pruned_signal_names,
                     motion_counter,
                     prop_fn_ctx,
                 );
@@ -1115,6 +1133,7 @@ pub(super) fn gen_branch_body_tsx(
     motion_names: &FxHashSet<String>,
     ref_names: &FxHashSet<String>,
     store_field_renames: &FxHashMap<String, String>,
+    pruned_signal_names: &FxHashSet<String>,
     motion_counter: &mut usize,
     prop_fn_ctx: &PropFnMemoCtx,
 ) {
@@ -1139,6 +1158,7 @@ pub(super) fn gen_branch_body_tsx(
         motion_names,
         ref_names,
         store_field_renames,
+        pruned_signal_names,
         motion_counter,
         prop_fn_ctx,
     );
@@ -1333,6 +1353,7 @@ fn gen_consumer_child_tsx(
     motion_names: &FxHashSet<String>,
     ref_names: &FxHashSet<String>,
     store_field_renames: &FxHashMap<String, String>,
+    pruned_signal_names: &FxHashSet<String>,
     motion_counter: &mut usize,
     prop_fn_ctx: &PropFnMemoCtx,
 ) {
@@ -1348,6 +1369,7 @@ fn gen_consumer_child_tsx(
                 motion_names,
                 ref_names,
                 store_field_renames,
+                pruned_signal_names,
                 motion_counter,
                 prop_fn_ctx,
             );
@@ -1363,6 +1385,7 @@ fn gen_consumer_child_tsx(
                 motion_names,
                 ref_names,
                 store_field_renames,
+                pruned_signal_names,
                 motion_counter,
                 prop_fn_ctx,
             );
@@ -1397,6 +1420,7 @@ fn format_inline_handler(
     params: &[String],
     ref_names: &FxHashSet<String>,
     store_field_renames: &FxHashMap<String, String>,
+    pruned_signal_names: &FxHashSet<String>,
 ) -> String {
     // Generate the body content first to check which params are actually used
     let mut body_w = CodeWriter::new();
@@ -1408,6 +1432,7 @@ fn format_inline_handler(
             store_signal_owners,
             ref_names,
             store_field_renames,
+            pruned_signal_names,
         );
     }
     let body_content = body_w.into_string();
@@ -1448,6 +1473,7 @@ fn format_inline_handler(
             store_signal_owners,
             ref_names,
             store_field_renames,
+            pruned_signal_names,
         )
     })
 }

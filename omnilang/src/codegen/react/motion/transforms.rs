@@ -158,26 +158,6 @@ pub(super) fn emit_scroll_effect_tsx(
     // handler — `anim` is created once per effect, so `getTiming()` yields
     // the same value on every event; per-event re-evaluation was pure waste.
     w.emit("const duration = Number(anim.effect?.getTiming()?.duration) || 300;");
-    w.emit("const parseScrollTrigger = (cfg) => {");
-    w.indent();
-    w.emit("if (!cfg || typeof cfg !== 'string') return 0;");
-    w.emit("const parts = cfg.split(' ');");
-    w.emit("if (parts.length < 2) return 0;");
-    w.emit("const edge = parts[0];");
-    w.emit("const offset = parts[1];");
-    w.emit("const vh = window.innerHeight;");
-    w.emit("const elRect = el.getBoundingClientRect();");
-    w.emit("let elPos;");
-    w.emit("if (edge === 'top') elPos = elRect.top;");
-    w.emit("else if (edge === 'center') elPos = elRect.top + elRect.height / 2;");
-    w.emit("else if (edge === 'bottom') elPos = elRect.bottom;");
-    w.emit("else elPos = elRect.top;");
-    w.emit("if (offset.endsWith('%')) return window.scrollY + elPos - vh * (parseFloat(offset) / 100);");
-    w.emit("else if (offset === 'bottom') return window.scrollY + elPos - vh;");
-    w.emit("else if (offset === 'top') return window.scrollY + elPos;");
-    w.emit("return window.scrollY + elPos - vh * 0.5;");
-    w.dedent();
-    w.emit("};");
     if let (Some(start), Some(end)) = (start_expr, end_expr) {
         // v1 numeric scroll range: progress = (scrollY - start) / (end - start)
         let start_js =
@@ -191,6 +171,30 @@ pub(super) fn emit_scroll_effect_tsx(
         w.emit_fmt(format_args!("const startPos = {};", start_js));
         w.emit_fmt(format_args!("const endPos = {};", end_js));
     } else {
+        // The legacy viewport-relative string configs need the string
+        // parser — emitted ONLY in this branch: a numeric-range @scroll
+        // never references parseScrollTrigger, so emitting it there too
+        // linted as an unused variable (task 2.11).
+        w.emit("const parseScrollTrigger = (cfg) => {");
+        w.indent();
+        w.emit("if (!cfg || typeof cfg !== 'string') return 0;");
+        w.emit("const parts = cfg.split(' ');");
+        w.emit("if (parts.length < 2) return 0;");
+        w.emit("const edge = parts[0];");
+        w.emit("const offset = parts[1];");
+        w.emit("const vh = window.innerHeight;");
+        w.emit("const elRect = el.getBoundingClientRect();");
+        w.emit("let elPos;");
+        w.emit("if (edge === 'top') elPos = elRect.top;");
+        w.emit("else if (edge === 'center') elPos = elRect.top + elRect.height / 2;");
+        w.emit("else if (edge === 'bottom') elPos = elRect.bottom;");
+        w.emit("else elPos = elRect.top;");
+        w.emit("if (offset.endsWith('%')) return window.scrollY + elPos - vh * (parseFloat(offset) / 100);");
+        w.emit("else if (offset === 'bottom') return window.scrollY + elPos - vh;");
+        w.emit("else if (offset === 'top') return window.scrollY + elPos;");
+        w.emit("return window.scrollY + elPos - vh * 0.5;");
+        w.dedent();
+        w.emit("};");
         w.emit_fmt(format_args!(
             "const startPos = parseScrollTrigger(\"{}\");",
             start_str
@@ -299,10 +303,6 @@ pub(super) fn emit_drag_effect_tsx(
         || "0".to_string(),
         |e| expr::format_expr_ir_tsx_renamed(e, &FxHashSet::default(), store_field_renames),
     );
-    let velocity_max_js = velocity_expr.map_or_else(
-        || "2000".to_string(),
-        |e| expr::format_expr_ir_tsx_renamed(e, &FxHashSet::default(), store_field_renames),
-    );
 
     w.emit_fmt(format_args!(
         "// @drag-{}: element {} — gesture-driven progress",
@@ -342,11 +342,16 @@ pub(super) fn emit_drag_effect_tsx(
     }
     w.emit_fmt(format_args!("const elastic = {};", elastic_js));
     w.emit_fmt(format_args!("const threshold = {};", threshold_js));
-    // v1 velocity_max (Task 5.1): cap for the drag-velocity tracker (px/s),
-    // mirroring the OmniView drag tracker. Inertia decay after release is
-    // not implemented on any target (honest degradation, ADR-054) — the
-    // velocity is tracked and clamped during the drag only.
-    w.emit_fmt(format_args!("const velocityMax = {};", velocity_max_js));
+    // v1 velocity_max (Task 5.1) — accepted but UNUSED on React (task 2.11):
+    // the drag-velocity tracker was removed. Its `velocity` variable was
+    // written every pointermove but never read — inertia decay after release
+    // is not implemented on any target (honest degradation, ADR-054), so the
+    // tracker was dead machinery that linted as an unused variable. A
+    // user-supplied velocity_max is a no-op; the comment below preserves the
+    // honest-degradation note when the source actually set it.
+    if velocity_expr.is_some() {
+        w.emit("// velocity_max is accepted but unused — the drag-velocity tracker was removed (no consumer; inertia decay is not implemented, ADR-054)");
+    }
     w.emit("const parseConstraint = (cfg) => {");
     w.indent();
     w.emit("if (!cfg) return { min: -Infinity, max: Infinity };");
@@ -395,7 +400,6 @@ pub(super) fn emit_drag_effect_tsx(
         w.emit("const maxExtent = Number.POSITIVE_INFINITY;");
     }
     w.emit("let startPos = 0, currentDelta = 0, isDragging = false;");
-    w.emit("let lastMoveTime = 0, lastMovePos = 0, velocity = 0;");
     // Task 2.10 (perf M5): equality guard for the move-time seek.
     w.emit("let lastProgress = -1;");
     w.emit("const onPointerDown = (e) => {");
@@ -403,9 +407,6 @@ pub(super) fn emit_drag_effect_tsx(
     w.emit("isDragging = true;");
     w.emit("startPos = axis === 'x' ? e.clientX : e.clientY;");
     w.emit("currentDelta = 0;");
-    w.emit("lastMoveTime = 0;");
-    w.emit("lastMovePos = 0;");
-    w.emit("velocity = 0;");
     w.emit("lastProgress = -1;");
     w.emit("el.setPointerCapture(e.pointerId);");
     w.dedent();
@@ -414,17 +415,6 @@ pub(super) fn emit_drag_effect_tsx(
     w.indent();
     w.emit("if (!isDragging) return;");
     w.emit("const raw = (axis === 'x' ? e.clientX : e.clientY) - startPos;");
-    w.emit("// velocity_max: track drag velocity (px/s) capped at velocityMax");
-    w.emit("const now = performance.now();");
-    w.emit("if (lastMoveTime > 0) {");
-    w.indent();
-    w.emit("const dt = now - lastMoveTime;");
-    w.emit("const dp = Math.abs(raw - lastMovePos);");
-    w.emit("if (dt > 0) velocity = Math.min(velocityMax, dp / dt * 1000);");
-    w.dedent();
-    w.emit("}");
-    w.emit("lastMoveTime = now;");
-    w.emit("lastMovePos = raw;");
     w.emit("let constrained = raw;");
     w.emit("if (raw < constraint.min) {");
     w.indent();

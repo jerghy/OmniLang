@@ -18,6 +18,11 @@ impl ReactCodegen {
     /// Generate useState hooks for component state signals.
     /// Only generates setter if signal is mutated; non-mutated signals use plain const.
     /// Skips states never read in view/computeds/effects/lifecycles/called-fns.
+    /// Task 2.11: the read set is the VALUE-CONSUMED set — a signal whose
+    /// only reads are its own mutation RHS (which emit as functional
+    /// updaters that never reference the state value) is write-only dead
+    /// state and is skipped here too (its mutations are pruned by the
+    /// statement emitter, so no setter references remain).
     /// `hoisted_signals` (perf M3) were already emitted as module-scope consts
     /// before the component function — they are skipped here entirely.
     #[allow(clippy::too_many_arguments)]
@@ -25,14 +30,14 @@ impl ReactCodegen {
         &self,
         w: &mut CodeWriter,
         comp: &ComponentIR,
-        read_signals: &FxHashSet<String>,
+        consumed_signals: &FxHashSet<String>,
         mutated_signals: &FxHashSet<String>,
         hoisted_signals: &FxHashSet<String>,
         fn_names: &FxHashSet<String>,
         store_field_renames: &FxHashMap<String, String>,
     ) {
         for state in &comp.signals {
-            if !read_signals.contains(&state.name) {
+            if !consumed_signals.contains(&state.name) {
                 continue;
             }
             // Hoisted to module scope (perf M3) — in-function references
@@ -459,6 +464,63 @@ pub(super) fn collect_view_inline_handler_reads(node: &ViewTree, acc: &mut FxHas
         ViewTree::Slot { fallback, .. } => {
             for child in fallback {
                 collect_view_inline_handler_reads(child, acc);
+            }
+        }
+        ViewTree::Text(_) | ViewTree::Interpolation(_) => {}
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
+    }
+}
+
+/// Task 2.11: inline-handler walker for the VALUE-CONSUMPTION analysis —
+/// identical to [`collect_view_inline_handler_reads`] but walks handler
+/// statements with the consumed walker (`collect_consumed_stmt_identifiers`
+/// in component/mod.rs), which drops self-mutation phantom reads (`count =
+/// count + 1` emits `setCount((c) => c + 1)`, so the RHS `count` never
+/// appears in generated code).
+pub(super) fn collect_view_inline_handler_consumed_reads(
+    node: &ViewTree,
+    acc: &mut FxHashSet<String>,
+) {
+    match node {
+        ViewTree::Element(el) => {
+            for handler in el.events.values() {
+                if let EventHandlerIR::InlineFn { body, .. } = handler {
+                    for stmt in &body.statements {
+                        super::collect_consumed_stmt_identifiers(stmt, acc);
+                    }
+                }
+            }
+            for child in &el.children {
+                collect_view_inline_handler_consumed_reads(child, acc);
+            }
+        }
+        ViewTree::Conditional(cond) => {
+            for branch in &cond.branches {
+                if let Some(ref body) = branch.body {
+                    collect_view_inline_handler_consumed_reads(body, acc);
+                }
+            }
+            if let Some(ref fb) = cond.fallback {
+                collect_view_inline_handler_consumed_reads(fb, acc);
+            }
+        }
+        ViewTree::ListRendering(list) => {
+            if let Some(ref body) = list.body {
+                collect_view_inline_handler_consumed_reads(body, acc);
+            }
+            if let Some(ref empty_body) = list.empty_body {
+                collect_view_inline_handler_consumed_reads(empty_body, acc);
+            }
+        }
+        ViewTree::Fragment(children) => {
+            for child in children {
+                collect_view_inline_handler_consumed_reads(child, acc);
+            }
+        }
+        ViewTree::Slot { fallback, .. } => {
+            for child in fallback {
+                collect_view_inline_handler_consumed_reads(child, acc);
             }
         }
         ViewTree::Text(_) | ViewTree::Interpolation(_) => {}

@@ -30,6 +30,7 @@ impl ReactCodegen {
         name: &str,
         ref_names: &FxHashSet<String>,
         store_field_renames: &FxHashMap<String, String>,
+        pruned_signal_names: &FxHashSet<String>,
         motion_counter: &mut usize,
         prop_fn_ctx: &view::PropFnMemoCtx,
     ) {
@@ -54,6 +55,7 @@ impl ReactCodegen {
                 motion_names,
                 ref_names,
                 store_field_renames,
+                pruned_signal_names,
                 motion_counter,
                 prop_fn_ctx,
             );

@@ -25,6 +25,7 @@ impl ReactCodegen {
         store_field_renames: &FxHashMap<String, String>,
         store_fields: &FxHashMap<String, FxHashSet<String>>,
         hoisted_signals: &FxHashSet<String>,
+        pruned_signal_names: &FxHashSet<String>,
     ) {
         // Effects (useEffect) — wrap in async IIFE if body contains await
         for effect in &comp.effects {
@@ -66,6 +67,7 @@ impl ReactCodegen {
                         store_signal_owners,
                         ref_names,
                         store_field_renames,
+                        pruned_signal_names,
                     );
                 }
                 w.dedent();
@@ -83,6 +85,7 @@ impl ReactCodegen {
                         store_signal_owners,
                         ref_names,
                         store_field_renames,
+                        pruned_signal_names,
                     );
                 }
                 w.dedent();
@@ -108,6 +111,7 @@ impl ReactCodegen {
                                 store_signal_owners,
                                 ref_names,
                                 store_field_renames,
+                                pruned_signal_names,
                             );
                         }
                         w.dedent();
@@ -125,6 +129,7 @@ impl ReactCodegen {
                                 store_signal_owners,
                                 ref_names,
                                 store_field_renames,
+                                pruned_signal_names,
                             );
                         }
                         w.dedent();
@@ -149,6 +154,7 @@ impl ReactCodegen {
                             store_signal_owners,
                             ref_names,
                             store_field_renames,
+                            pruned_signal_names,
                         );
                     }
                     if body_has_await {
@@ -201,6 +207,7 @@ impl ReactCodegen {
                                 store_signal_owners,
                                 ref_names,
                                 store_field_renames,
+                                pruned_signal_names,
                             );
                         }
                         w.dedent();
@@ -218,6 +225,7 @@ impl ReactCodegen {
                                 store_signal_owners,
                                 ref_names,
                                 store_field_renames,
+                                pruned_signal_names,
                             );
                         }
                         w.dedent();

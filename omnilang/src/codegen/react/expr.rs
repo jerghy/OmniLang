@@ -239,18 +239,25 @@ impl FormatExpr for ReactFormatExpr {
                         let destructure = if bindings.is_empty() {
                             String::new()
                         } else {
-                            // Prefix unused bindings with _ to suppress ESLint no-unused-vars
+                            // Only destructure the bindings the arm body
+                            // actually uses. Unused bindings were previously
+                            // emitted `_`-prefixed (`const { _data } = _v;`),
+                            // which the `_`-prefix convention doesn't cover
+                            // for destructured vars — @typescript-eslint/
+                            // no-unused-vars still flagged them (task 2.11).
+                            // A destructure with NO used binding is skipped
+                            // entirely (the `_variant` guard needs no
+                            // bindings).
                             let names: Vec<String> = bindings
                                 .iter()
-                                .map(|b| {
-                                    if body.contains(b) {
-                                        b.clone()
-                                    } else {
-                                        format!("_{}", b)
-                                    }
-                                })
+                                .filter(|b| body.contains(b.as_str()))
+                                .cloned()
                                 .collect();
-                            format!("const {{ {} }} = _v; ", names.join(", "))
+                            if names.is_empty() {
+                                String::new()
+                            } else {
+                                format!("const {{ {} }} = _v; ", names.join(", "))
+                            }
                         };
                         format!(
                             "if (_v._variant === \"{}\") {{ {}return {}; }}",
@@ -829,8 +836,165 @@ fn pick_updater_param(base: &str, value: &ExprIR) -> String {
     unreachable!("updater param search always terminates")
 }
 
+/// The signal name a mutation writes (mirrors component/mod.rs's
+/// `mutation_target_name`) — used by the task 2.11 write-only DCE.
+fn mutation_target_name(intent: &MutationIntent) -> Option<&str> {
+    match intent {
+        MutationIntent::DirectAssign { target, .. }
+        | MutationIntent::Increment { target, .. }
+        | MutationIntent::Decrement { target, .. }
+        | MutationIntent::Multiply { target, .. }
+        | MutationIntent::Divide { target, .. }
+        | MutationIntent::Modulo { target, .. }
+        | MutationIntent::Push { target, .. }
+        | MutationIntent::Pop { target } => Some(&target.name),
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown MutationIntent variant — update codegen for new variant"),
+    }
+}
+
+/// The value expression a mutation writes — `None` for value-less intents
+/// (`Pop`). `pub(super)`: also used by the component emitter's write-only
+/// DCE restriction (collect_call_mutation_targets, task 2.11).
+pub(super) fn mutation_value_expr(intent: &MutationIntent) -> Option<&ExprIR> {
+    match intent {
+        MutationIntent::DirectAssign { value, .. } => value.as_deref(),
+        MutationIntent::Increment { amount, .. }
+        | MutationIntent::Decrement { amount, .. }
+        | MutationIntent::Multiply { amount, .. }
+        | MutationIntent::Divide { amount, .. }
+        | MutationIntent::Modulo { amount, .. } => amount.as_deref(),
+        MutationIntent::Push { item, .. } => item.as_deref(),
+        MutationIntent::Pop { .. } => None,
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown MutationIntent variant — update codegen for new variant"),
+    }
+}
+
+/// Whether an expression subtree contains a call (or store action call, or
+/// await) — a pruned mutation whose value carries calls must keep the value
+/// as a bare expression statement, or the calls' side effects would be
+/// silently discarded. `pub(super)`: also used by the component emitter's
+/// write-only DCE restriction (collect_call_mutation_targets, task 2.11).
+pub(super) fn expr_contains_call(expr: &ExprIR) -> bool {
+    match expr {
+        ExprIR::CallExpr { .. } | ExprIR::MethodCallExpr { .. } | ExprIR::AwaitExpr { .. } => {
+            true
+        }
+        ExprIR::StoreFieldAccessExpr { call_args, .. } => !call_args.is_empty(),
+        ExprIR::BinaryOpExpr { left, right, .. } => {
+            expr_contains_call(left) || expr_contains_call(right)
+        }
+        ExprIR::UnaryOpExpr { operand, .. } => expr_contains_call(operand),
+        ExprIR::FieldAccessExpr { object, .. } | ExprIR::OptionalChainExpr { object, .. } => {
+            expr_contains_call(object)
+        }
+        ExprIR::IndexExpr { object, index } => {
+            expr_contains_call(object) || expr_contains_call(index)
+        }
+        ExprIR::TernaryIR {
+            cond,
+            then_expr,
+            else_expr,
+        } => {
+            expr_contains_call(cond)
+                || expr_contains_call(then_expr)
+                || expr_contains_call(else_expr)
+        }
+        ExprIR::ArrayExpr { elements } => elements.iter().any(expr_contains_call),
+        ExprIR::MapExpr { entries } => {
+            entries.iter().any(|(k, v)| expr_contains_call(k) || expr_contains_call(v))
+        }
+        ExprIR::ClosureExpr { body, .. } => expr_contains_call(body),
+        ExprIR::BlockExpr { statements, tail } => {
+            statements.iter().any(stmt_contains_call) || expr_contains_call(tail)
+        }
+        ExprIR::MatchExpr { matched, arms } => {
+            expr_contains_call(matched)
+                || arms
+                    .iter()
+                    .any(|arm| arm.body.statements.iter().any(stmt_contains_call))
+        }
+        ExprIR::VariantLiteral { fields, .. } | ExprIR::StructExpr { fields, .. } => fields
+            .iter()
+            .any(|(_, v)| expr_contains_call(v)),
+        ExprIR::SpreadExpr { operand } => expr_contains_call(operand),
+        ExprIR::ArrayMethod {
+            subject, predicate, ..
+        } => expr_contains_call(subject) || expr_contains_call(predicate),
+        ExprIR::RefOpExpr { .. }
+        | ExprIR::IdentifierExpr { .. }
+        | ExprIR::LiteralExpr { .. } => false,
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown ExprIR variant — update codegen for new variant"),
+    }
+}
+
+/// Whether a statement subtree contains a call (used by
+/// [`expr_contains_call`] for block/match bodies).
+fn stmt_contains_call(stmt: &StatementIR) -> bool {
+    match stmt {
+        StatementIR::ExprStmtIR { expr } | StatementIR::ThrowStmtIR { expr } => {
+            expr_contains_call(expr)
+        }
+        StatementIR::LetStmtIR { value, .. } | StatementIR::ReturnStmtIR { value } => {
+            value.as_ref().is_some_and(expr_contains_call)
+        }
+        StatementIR::IfStmtIR {
+            condition,
+            then_body,
+            else_ifs,
+            else_body,
+        } => {
+            expr_contains_call(condition)
+                || then_body.statements.iter().any(stmt_contains_call)
+                || else_ifs
+                    .iter()
+                    .any(|(c, b)| expr_contains_call(c) || b.statements.iter().any(stmt_contains_call))
+                || else_body
+                    .as_ref()
+                    .is_some_and(|b| b.statements.iter().any(stmt_contains_call))
+        }
+        StatementIR::WhileStmtIR { condition, body }
+        | StatementIR::ForInStmtIR {
+            iterable: condition,
+            body,
+            ..
+        } => expr_contains_call(condition) || body.statements.iter().any(stmt_contains_call),
+        StatementIR::BlockStmtIR { body } => body.statements.iter().any(stmt_contains_call),
+        StatementIR::MutationStmt { intent } => intent
+            .as_ref()
+            .and_then(mutation_value_expr)
+            .is_some_and(expr_contains_call),
+        StatementIR::TryCatchStmtIR {
+            try_body,
+            catch_body,
+            finally_body,
+            ..
+        } => {
+            try_body.statements.iter().any(stmt_contains_call)
+                || catch_body
+                    .as_ref()
+                    .is_some_and(|b| b.statements.iter().any(stmt_contains_call))
+                || finally_body
+                    .as_ref()
+                    .is_some_and(|b| b.statements.iter().any(stmt_contains_call))
+        }
+        StatementIR::EventEmitStmtIR { args, .. } => args.iter().any(expr_contains_call),
+        StatementIR::BreakStmtIR | StatementIR::ContinueStmtIR => false,
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown StatementIR variant — update codegen for new variant"),
+    }
+}
+
 /// Statement generation with store-field renames (`"Store.field"` → slice
 /// local, Task 3.3) applied at expression level (reads and action calls).
+///
+/// `pruned_signal_names` (task 2.11) — write-only component signals whose
+/// state hook was skipped: mutations of them would emit an undefined setter
+/// reference (TS2304). Such mutations are DCE'd; a mutation value carrying
+/// calls is kept as a bare expression statement so the calls' side effects
+/// survive.
 pub(super) fn generate_statement_tsx(
     w: &mut CodeWriter,
     stmt: &StatementIR,
@@ -838,7 +1002,28 @@ pub(super) fn generate_statement_tsx(
     store_signal_owners: &FxHashMap<String, String>,
     ref_names: &FxHashSet<String>,
     renames: &FxHashMap<String, String>,
+    pruned_signal_names: &FxHashSet<String>,
 ) {
+    // Task 2.11 — write-only signal mutation DCE: the signal's state hook
+    // was skipped (its value is never consumed), so a setter call here
+    // would reference an undeclared name. Skip the mutation; keep the
+    // value when it carries calls (side effects).
+    if let StatementIR::MutationStmt {
+        intent: Some(intent),
+    } = stmt
+    {
+        if let Some(target) = mutation_target_name(intent) {
+            if pruned_signal_names.contains(target) {
+                if let Some(v) = mutation_value_expr(intent) {
+                    if expr_contains_call(v) {
+                        let line = format_expr_ir_tsx_renamed(v, ref_names, renames);
+                        w.emit_fmt(format_args!("{};", line));
+                    }
+                }
+                return;
+            }
+        }
+    }
     // Intercept array_push / array_pop calls on signals — these should
     // be emitted as setter/setState-based mutations, not pure expressions.
     if let StatementIR::ExprStmtIR {
@@ -850,6 +1035,11 @@ pub(super) fn generate_statement_tsx(
                 name: target_name, ..
             }) = args.first()
             {
+                // A pruned (write-only) signal has no setter — skip the
+                // interception and emit nothing (task 2.11).
+                if pruned_signal_names.contains(target_name.as_str()) {
+                    return;
+                }
                 if signal_names.contains(target_name.as_str())
                     || store_signal_owners.contains_key(target_name.as_str())
                 {

@@ -27,6 +27,7 @@ impl ReactCodegen {
         fn_names: &FxHashSet<String>,
         ref_names: &FxHashSet<String>,
         store_field_renames: &FxHashMap<String, String>,
+        pruned_signal_names: &FxHashSet<String>,
     ) {
         for fun in &comp.fns {
             if !called_fns.contains(&fun.name) {
@@ -70,6 +71,7 @@ impl ReactCodegen {
                             store_signal_owners,
                             ref_names,
                             store_field_renames,
+                            pruned_signal_names,
                         );
                         continue;
                     }
@@ -81,6 +83,7 @@ impl ReactCodegen {
                     store_signal_owners,
                     ref_names,
                     store_field_renames,
+                    pruned_signal_names,
                 );
             }
             // Build setter renames for states whose setters conflict with function names
@@ -142,6 +145,7 @@ pub(super) fn emit_fn_tail_return(
     store_signal_owners: &FxHashMap<String, String>,
     ref_names: &FxHashSet<String>,
     renames: &FxHashMap<String, String>,
+    pruned_signal_names: &FxHashSet<String>,
 ) {
     let mut tmp = crate::codegen::CodeWriter::new();
     expr::generate_statement_tsx(
@@ -151,6 +155,7 @@ pub(super) fn emit_fn_tail_return(
         store_signal_owners,
         ref_names,
         renames,
+        pruned_signal_names,
     );
     let line = tmp.into_string();
     let line = line.trim_end_matches(['\n', '\r']);

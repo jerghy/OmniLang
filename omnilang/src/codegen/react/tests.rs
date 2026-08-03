@@ -319,6 +319,7 @@ fn test_tsx_stmt_let() {
         &FxHashMap::default(),
         &FxHashSet::default(),
         &FxHashMap::default(),
+        &FxHashSet::default(),
     );
     assert_eq!(w.into_string(), "let x = 42;\n");
 }
@@ -339,6 +340,7 @@ fn test_tsx_stmt_return() {
         &FxHashMap::default(),
         &FxHashSet::default(),
         &FxHashMap::default(),
+        &FxHashSet::default(),
     );
     assert_eq!(w.into_string(), "return result;\n");
 }
@@ -365,6 +367,7 @@ fn test_tsx_stmt_mutation_increment_local() {
         &FxHashMap::default(),
         &FxHashSet::default(),
         &FxHashMap::default(),
+        &FxHashSet::default(),
     );
     assert_eq!(w.into_string(), "count = count + 1;\n");
 }
@@ -393,6 +396,7 @@ fn test_tsx_stmt_mutation_increment_signal() {
         &FxHashMap::default(),
         &FxHashSet::default(),
         &FxHashMap::default(),
+        &FxHashSet::default(),
     );
     assert_eq!(w.into_string(), "setCount(prev => prev + 1);\n");
 }
@@ -420,6 +424,7 @@ fn test_tsx_stmt_mutation_assign_local() {
         &FxHashMap::default(),
         &FxHashSet::default(),
         &FxHashMap::default(),
+        &FxHashSet::default(),
     );
     assert_eq!(w.into_string(), "name = \"alice\";\n");
 }
@@ -449,6 +454,7 @@ fn test_tsx_stmt_mutation_assign_store() {
         &FxHashMap::default(),
         &FxHashSet::default(),
         &FxHashMap::default(),
+        &FxHashSet::default(),
     );
     assert_eq!(w.into_string(), "name = \"alice\";\n");
 }
@@ -485,6 +491,7 @@ fn test_tsx_stmt_mutation_assign_signal_self_read_functional_updater() {
         &FxHashMap::default(),
         &FxHashSet::default(),
         &FxHashMap::default(),
+        &FxHashSet::default(),
     );
     assert_eq!(w.into_string(), "setCount((c) => c + 1);\n");
 }
@@ -512,6 +519,7 @@ fn test_tsx_stmt_mutation_assign_signal_external_value_keeps_direct() {
         &FxHashMap::default(),
         &FxHashSet::default(),
         &FxHashMap::default(),
+        &FxHashSet::default(),
     );
     assert_eq!(w.into_string(), "setCount(step);\n");
 }
@@ -550,6 +558,7 @@ fn test_tsx_stmt_mutation_assign_store_signal_self_read_functional() {
         &owners,
         &FxHashSet::default(),
         &FxHashMap::default(),
+        &FxHashSet::default(),
     );
     assert_eq!(
         w.into_string(),
@@ -584,6 +593,7 @@ fn test_tsx_stmt_mutation_assign_signal_updater_param_avoids_collision() {
         &FxHashMap::default(),
         &FxHashSet::default(),
         &FxHashMap::default(),
+        &FxHashSet::default(),
     );
     assert_eq!(w.into_string(), "setCount((c1) => c1 + c);\n");
 }
@@ -615,6 +625,7 @@ fn test_tsx_stmt_if() {
         &FxHashMap::default(),
         &FxHashSet::default(),
         &FxHashMap::default(),
+        &FxHashSet::default(),
     );
     let out = w.into_string();
     assert!(out.contains("if (cond) {"));
@@ -3737,12 +3748,29 @@ component RefOps {
             content
         );
     }
-    // The module-scope active-pointer tracker is emitted only because the
-    // component uses the pointer-capture ops (D3 parameterless form).
+    // The active-pointer tracker is emitted only because the component uses
+    // the pointer-capture ops (D3 parameterless form). Task 2.11 (L1): the
+    // STATE stays at module scope (ref ops reference it from fn bodies) but
+    // the LISTENER registers in a mount effect with an unmount cleanup —
+    // the old module-level `if (typeof window ...) addEventListener` was a
+    // module-scope side effect.
     assert!(
-        content.contains("let __omni_activePointerId: number | null = null;")
-            && content.contains("window.addEventListener(\"pointerdown\""),
-        "pointer ops must emit the active-pointer tracker. Got:\n{}",
+        content.contains("let __omni_activePointerId: number | null = null;"),
+        "pointer ops must emit the tracker state. Got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("window.addEventListener(\"pointerdown\", onPointerDown, true);")
+            && content.contains(
+                "window.removeEventListener(\"pointerdown\", onPointerDown, true);"
+            )
+            && content.contains("useEffect(() => {"),
+        "pointer listener must register in a mount effect with unmount cleanup. Got:\n{}",
+        content
+    );
+    assert!(
+        !content.contains("if (typeof window !== \"undefined\")"),
+        "the module-level guarded addEventListener must be gone. Got:\n{}",
         content
     );
 }
@@ -3773,6 +3801,158 @@ component RefOpsNoPtr {
         !content.contains("__omni_activePointerId"),
         "no pointer ops \u{2192} no tracker expected. Got:\n{}",
         content
+    );
+}
+
+/// Task 2.11 — write-only signal DCE: a signal whose VALUE is never consumed
+/// (its only reads are its own mutation RHS, which emit as functional
+/// updaters `setPlayAll((p) => !p)` that never reference the state) gets no
+/// useState hook, its mutations are pruned, and the toggling fn becomes a
+/// no-op. The button binding stays valid (the fn still exists).
+#[test]
+fn test_write_only_signal_is_pruned() {
+    let source = r#"
+component ToggleDemo {
+    signal playAll: bool = false;
+    fn toggleAll() { playAll = !playAll; }
+    view {
+        <button @click={toggleAll}>Replay</button>
+    }
+}
+"#;
+    let output = compile_react(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        !content.contains("playAll"),
+        "write-only signal must be pruned entirely. Got:\n{}",
+        content
+    );
+    assert!(
+        !content.contains("useState"),
+        "no state hook for a value-unconsumed signal. Got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("const toggleAll = () => {") && content.contains("};"),
+        "the toggle fn must still exist (button binding) as a no-op. Got:\n{}",
+        content
+    );
+}
+
+/// Task 2.11 — write-only signal DCE keeps VALUE-CONSUMED mutations intact:
+/// `x = playAll + 1` (target x, value reads playAll) emits the direct setter
+/// form and DOES read playAll — the state must be emitted and the mutation
+/// must stay.
+#[test]
+fn test_signal_mutated_from_other_value_is_kept() {
+    let source = r#"
+component KeepDemo {
+    signal count: i32 = 0;
+    signal other: i32 = 5;
+    fn bump() { count = other + 1; }
+    view {
+        <button @click={bump}>Go</button>
+        <span>{count}</span>
+    }
+}
+"#;
+    let output = compile_react(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        content.contains("const [count, setCount] = useState"),
+        "count is read in the view — state must be emitted. Got:\n{}",
+        content
+    );
+    // `other` is read by count's mutation but never itself mutated — the
+    // perf M3 hoist moves it to a module-scope const (still a real read).
+    assert!(
+        content.contains("const other = 5;"),
+        "other is read by count's mutation — it must stay emitted (hoisted const). Got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("setCount(other + 1)"),
+        "a mutation reading ANOTHER signal must stay. Got:\n{}",
+        content
+    );
+}
+
+/// Task 2.11 — match arms whose variant bindings are all unused skip the
+/// destructure entirely (previously `const { _data } = _v;` linted as an
+/// unused variable — `_`-prefixing does not exempt destructured vars).
+#[test]
+fn test_match_arm_unused_bindings_skip_destructure() {
+    // `data` is bound by the arm but never referenced by the body — the
+    // old emission prefixed it `_data` (still flagged by
+    // @typescript-eslint/no-unused-vars, task 2.11); the arm now skips the
+    // destructure entirely. The `error` arm USES its binding and must keep
+    // `const { error } = _v;`.
+    let expr = ExprIR::MatchExpr {
+        matched: Box::new(ExprIR::IdentifierExpr {
+            name: "result".into(),
+            type_ann: None,
+        }),
+        arms: vec![
+            MatchArmIR {
+                pattern: MatchPatternIR {
+                    kind: MatchPatternKindIR::Variant {
+                        name: "Ok".into(),
+                        bindings: vec!["data".into()],
+                    },
+                },
+                body: BlockIR {
+                    statements: vec![StatementIR::ReturnStmtIR {
+                        value: Some(ExprIR::LiteralExpr {
+                            value: serde_json::json!(""),
+                        }),
+                    }],
+                },
+                union_type: None,
+            },
+            MatchArmIR {
+                pattern: MatchPatternIR {
+                    kind: MatchPatternKindIR::Variant {
+                        name: "Err".into(),
+                        bindings: vec!["error".into()],
+                    },
+                },
+                body: BlockIR {
+                    statements: vec![StatementIR::ReturnStmtIR {
+                        value: Some(ExprIR::IdentifierExpr {
+                            name: "error".into(),
+                            type_ann: None,
+                        }),
+                    }],
+                },
+                union_type: None,
+            },
+        ],
+    };
+    let out = format_expr_ir_tsx(&expr, &FxHashSet::default());
+    assert!(
+        !out.contains("_data") && !out.contains("const {  } = _v;"),
+        "an unused variant binding must not emit a destructured const. Output: {}",
+        out
+    );
+    assert!(
+        out.contains("if (_v._variant === \"Ok\") { return \"\"; }"),
+        "the arm must skip the empty destructure, keeping the guard. Output: {}",
+        out
+    );
+    assert!(
+        out.contains("const { error } = _v;"),
+        "USED bindings must still destructure. Output: {}",
+        out
     );
 }
 
