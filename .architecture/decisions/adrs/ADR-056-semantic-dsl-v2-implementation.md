@@ -42,7 +42,7 @@ v2 诊断消息 = 设计文档诊断表原文（中文），首个实例 E_CLOSU
 
 | 门禁 | 终态 |
 |------|------|
-| React | strict tsc + eslint-react-hooks，豁免清单 21 条各带修复任务引用、stale 双向强制 |
+| React | strict tsc + eslint-react-hooks，豁免清单 18 条各带修复任务引用、stale 双向强制 |
 | Flutter 展示项目 | un-ignore 全量 dart analyze **0 错误 0 警告**（1125→0） |
 | 浏览器 | OmniView 44 测试 + React 套件（0 failures，fixme 标记已知 bug）——**未接入 CI（#60）** |
 | docs-gate | 232 可编译代码块全量 parse-check（0 失败） |
@@ -79,7 +79,7 @@ learn-omniview 作为「可执行文档」经 v2 纯净重构：69 文件审计�
 
 ### Negative
 
-* **门禁豁免体系是已知债**：React 166 tsc + 121 eslint 全豁免（21 条），BUG-A（let-mut→const）导致 UI/Language 标签页运行时卸载——fixme 标记诚实呈现，修复需 IR 变更（75 构造点）
+* **门禁豁免体系是已知债**：React 166 tsc + 121 eslint 全豁免（18 条），BUG-A（let-mut→const）导致 UI/Language 标签页运行时卸载——fixme 标记诚实呈现，修复需 IR 变更（75 构造点）
 * **浏览器套件未接入 CI（#60）**：44 测试当前为手动终验运行，非持续门禁
 * **诊断消息中文政策**：与代码库英文惯例首次分歧（可逆决策，ledger 记录）
 * **deferrals 扩展**：#36-#60（25 行），含 T7.1 浏览器暴露的编译器 bug 群（BUG-A/C/D/E/F/2）与 T7.2 parser 分歧 7 项

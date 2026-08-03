@@ -237,7 +237,9 @@ const REACT_TSCONFIG: &str = r#"{
 /// same C1 codegen residue the React gate documents in
 /// `scripts/verify-react.exemptions` (task T1.6: implicit-any params TS7006,
 /// implicit any[] vars TS7005/TS7034 — untyped SOURCE params/vars, not the
-/// typed emission path). Map: (fixture output path, error code) -> instance
+/// typed emission path). Root cause registered as deferrals #67 (implicit-any
+/// residue, rides #49 React user-type emission) — keep both ledgers in sync.
+/// Map: (fixture output path, error code) -> instance
 /// cap; caps equal the snapshot counts (2026-08-03, strict:true). A fixture
 /// error not listed here — or exceeding its cap — fails the test, and a
 /// stale (unused) entry fails it too (same discipline as the gate).

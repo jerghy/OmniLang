@@ -217,6 +217,28 @@
 
 ---
 
+## 2026-08-03 豁免台账重连（Task 0.6：React gate 豁免 → deferral 编号）
+
+**背景**：T0.4 门禁收窄后 `scripts/verify-react.exemptions` 为 18 个根因类（79 条路径级豁免，166 tsc + 121 eslint），但 13 个根因类未在台账登记——豁免无法追溯到修复任务。本批补登（全部带触发条件），编号与豁免清单第 5 列一一对应；审计脚本 `scripts/check_exemption_ledger.sh` 强制无「无编号」豁免。已有映射：TS2588→#36（let-mut）、TS2304 内联 store→#37（CartStore）、TS2304/TS2322/TS2339 结构体类→#49（用户类型发射）。
+
+| # | 项目 | 触发条件 | 影响 |
+|---|------|---------|------|
+| 61 | **[MEDIUM]** React 事件处理器 prop 可选调用未发射（TS2722 → 23 实例/10 条豁免：TabBar/EmitEventChild/SignalPatternsDemo 等） | Task 5.6（事件处理器 `?.()` 安全调用发射） | 豁免台账 T1.6 事件 prop 调用点；纯类型错误清除，零行为风险 |
+| 62 | **[MEDIUM]** bind:value 回调 arity 不匹配（TS2554 → 6 实例/2 条豁免：FormPage/FormControlsDemo） | bind:value 回调签名发射任务（5.x 表单控件批次） | 豁免台账 T1.6 回调 arity |
+| 63 | **[MEDIUM]** React ref 访问未判空（TS18048 → 4 实例/1 条豁免：ElementRefDemo） | BindingRef 完整版（计划 P4 标注 5.5 后长期项——触发条件：下次 IR 变更时评估） | 豁免台账 T1.6 ref 访问 |
+| 64 | **[MEDIUM]** SetStateAction 类型转换不匹配（TS2345 → 14 实例/8 条豁免：Option/void/unknown/null 值、bind:value string→number 强转、Record 参数字面量） | 表达式类型化任务（值域转换发射） | 豁免台账 T1.6 |
+| 65 | **[LOW]** 无重叠比较（TS2367 → 2 实例/2 条豁免：DataFetching fetch typing、ComputedFnFormDemo 字面量比较） | fetch typing + const folding 类型化 | 豁免台账 T1.6 |
+| 66 | **[MEDIUM]** CSS 自定义属性（--var）被 React.CSSProperties 拒绝（TS2353 → 14 实例/4 条豁免：DesignTokenPanel/CssVarsDemo 等） | style 通道任务（CSS custom properties 发射；v2 T1.3 残余） | 豁免台账 C2 类（style 通道） |
+| 67 | **[MEDIUM]** implicit-any 残留（TS7006 45 + TS7005 2 + TS7034 1 实例/9 条豁免 + 测试 fixture `FIXTURE_STRICT_ALLOWANCE` 30 实例——`generated_code_validation.rs` 注释引用本条） | 随 #49（React 用户类型发射任务）覆盖部分 + 生成物类型化收尾 | 豁免台账 T1.6 implicit-any；fixture 门禁同根因（T0.4 遗留协调点） |
+| 68 | **[MEDIUM]** react-hooks/exhaustive-deps 缺失/新数组依赖（91 实例/11 条豁免：EasingFunctionsDemo/KeyframeAnimationDemo 等） | 随 Task 2.6（cleanup 依赖收集 + _M 表提升）+ 5.x | 豁免台账 T1.6 依赖数组发射 |
+| 69 | **[LOW]** 生成物 ES5 var 残留（no-var → 10 实例/1 条豁免：useDesignTokens.ts 共享 ES5 sanitizer 单源双输出） | 随 Task 2.11（ES5 var→let 生成物清理批次） | 豁免台账 T3.2 |
+| 70 | **[LOW]** 生成未用标识符（@typescript-eslint/no-unused-vars → 17 实例/11 条豁免：_b/_i） | 随 Task 2.11（未用标识符清理批次） | 豁免台账 T1.6 |
+| 71 | **[LOW]** 生成注解与正则残留（no-explicit-any 1 + no-control-regex 2 实例/2 条豁免：FnFormatter any 注解、StdLibShowcase 控制字符 regex） | 生成物类型化收尾（随 #67 类清理批次） | 豁免台账 T1.6 |
+| 72 | **[MEDIUM]** mutated-unread 信号 setter 未发射（TS2304 → 2 实例/1 条豁免：AdvancedPseudoDemo setVariant——信号被 mutate 但未被 read 时 setter 随 DCE 消失） | 信号 setter 发射正确性任务（DCE 保留被调用 setter） | 豁免台账 T1.6 |
+| 73 | **[MEDIUM]** 事件数据与值类型化残留（TS2339 event-data 10 实例/3 条豁免：ElementRefDemo/SlotBox/EventsDemo EventTarget/MouseEvent props；TS2322 Option 值强转 2 实例/2 条豁免：DataSubmit/Modal string vs number；TS2322 事件处理器 nullability 2 实例/2 条豁免：EventsDemo onAnimation* / EmitEventDemo emit param） | 事件数据类型化任务（emit 数据 + 事件 prop 类型发射） | 豁免台账 T3.3/T1.6 非结构体残余 |
+
+---
+
 ## 跟踪约定
 
 - 每个推迟项在重新评估触发条件满足时重新打开

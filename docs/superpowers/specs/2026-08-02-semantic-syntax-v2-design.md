@@ -57,7 +57,7 @@
 
 评审发现的门禁盲区必须先闭合（否则后续修改无验证网）：
 
-1. ✅ react-test-app 真实化：React 19 + Zustand v5 + `strict: true` + `*.module.css` ambient + `tsc --noEmit` 脚本 + eslint-plugin-react-hooks（Task 0.4，commits dabdbf79..a53ccbce——284 tsc + 109 eslint 全匹配豁免清单 20 条各带修复任务引用，门禁诚实失败已验证）
+1. ✅ react-test-app 真实化：React 19 + Zustand v5 + `strict: true` + `*.module.css` ambient + `tsc --noEmit` 脚本 + eslint-plugin-react-hooks（Task 0.4，commits a53ccbce..381f9ad7——166 tsc + 121 eslint 全匹配豁免清单 18 条（路径级、含计数上限）各带修复任务引用，门禁诚实失败已验证；初始快照 284 tsc + 109 eslint / 20 条，随 T0.4 编译器修复收窄）
 2. ✅ 展示项目 Flutter 门禁：`generated_code_validation.rs` 增加 learn-omniview → Flutter → 全输出 dart analyze（Task 0.5 全量枚举模式 + 诚实 `#[ignore]`；T5.8a un-ignore 后全量 0 错误 0 警告 5/5 绿）
 3. ✅ `compile_never_panics` 加断言 + codegen 后端 fuzz 目标（Task 0.1——proptest 真断言 + codegen fuzz；flutter feature 运行验证 7/7）
 4. ✅ 增量缓存恢复未变更文件诊断（`analyse_multi_cached`，poiesis 主路径）+ 回归测试（Task 0.2——缓存命中诊断合并 + 回归测试；解析期错误在缓存命中时丢失为已记录 known-gap，缓存格式设计遗留）
