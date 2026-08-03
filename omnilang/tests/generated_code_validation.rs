@@ -11,12 +11,10 @@
 //!   of `MatchBreadthDemo.dart` asserting deferral #30's specific errors
 //!   (`Undefined class 'Rating'` / `Undefined name 'level'`) are gone.
 //! - `learn_omniview_flutter_output_passes_dart_analyze`: the showcase
-//!   project -> Flutter -> full-output `dart analyze` (still `#[ignore]`d —
-//!   deferral #30's match root cause is fixed by Task 1.4, but the gate
-//!   stays RED on other pre-existing gaps — Curves easing names, duplicated
-//!   motion controllers, stdlib method emission, String->Color props — until
-//!   the Phase 5 Flutter batch (Tasks 5.5/5.6/5.7) makes the full output
-//!   analyze clean; that is the un-ignore point)
+//!   project -> Flutter -> full-output `dart analyze` asserting 0 errors
+//!   0 warnings (UN-IGNORED by Task 5.8a — the residual 2 errors and ~115
+//!   warnings were eliminated; see the test's doc comment for the itemized
+//!   fixes)
 //!
 //! Toolchain requirements (none are hard requirements — each test SKIPs
 //! gracefully when its toolchain is missing, mirroring the pattern in
@@ -416,9 +414,15 @@ fn flutter_analyze_targets(out_dir: &Path) -> Vec<String> {
 }
 
 /// Analyze `path` (relative to `out_dir`) with `dart analyze`.
-/// Returns `Ok(())` when no analyzer errors are reported; warnings-only
-/// results (exit code 2) pass with a printed note, since unmapped semantic
-/// DSL features degrade to warnings by design (ADR-052/053).
+/// Returns `Ok(())` only when the file reports NO issues at all.
+///
+/// Task 5.8a: the showcase gate now targets 0 errors AND 0 warnings (the
+/// controller's adjudication — the residual 2 errors and ~115 warnings were
+/// both eliminated). Issue lines are matched on the TRIMMED line start —
+/// `dart analyze` prints errors indented (`  error - ...`) but warnings at
+/// column 0 (`warning - ...`), and the old `contains(" warning - ")`
+/// substring check silently missed the latter (every warnings-only file
+/// "failed unexpectedly").
 fn analyze_dart(out_dir: &Path, path: &str) -> Result<(), String> {
     let mut dart = dart_command().expect("dart still available");
     dart.args(["analyze"]).current_dir(out_dir).arg(path);
@@ -427,28 +431,22 @@ fn analyze_dart(out_dir: &Path, path: &str) -> Result<(), String> {
     let stderr = String::from_utf8_lossy(&analyze.stderr).into_owned();
     let combined = format!("{stdout}{stderr}");
 
-    let has_errors = combined
+    let issue_count = combined
         .lines()
-        .any(|l| l.contains(" error - ") || l.contains(" error • "));
-    let warning_count = combined
-        .lines()
-        .filter(|l| l.contains(" warning - ") || l.contains(" warning • "))
+        .filter(|l| {
+            let t = l.trim_start();
+            t.starts_with("error - ")
+                || t.starts_with("error • ")
+                || t.starts_with("warning - ")
+                || t.starts_with("warning • ")
+        })
         .count();
 
-    if has_errors {
-        return Err(format!("analyzer ERRORS in {path}:\n{combined}"));
-    }
-    if !analyze.status.success() {
-        if warning_count > 0 {
-            eprintln!(
-                "NOTE: dart analyze reported {warning_count} warning(s) only \
-                 (unmapped design features degrade to warnings per ADR-052/053):\n{combined}"
-            );
-        } else {
-            return Err(format!(
-                "dart analyze failed unexpectedly for {path}:\n{combined}"
-            ));
-        }
+    if issue_count > 0 {
+        return Err(format!(
+            "dart analyze reported {issue_count} issue(s) in {path} \
+             (showcase gate: 0 errors 0 warnings):\n{combined}"
+        ));
     }
     Ok(())
 }
@@ -490,8 +488,10 @@ fn flutter_output_compiles_with_dart_analyze() {
         return;
     }
 
-    // EVERY generated .dart file must analyze clean (warnings tolerated —
-    // unmapped semantic-DSL features degrade to warnings per ADR-052/053).
+    // EVERY generated .dart file must analyze clean — 0 errors AND
+    // 0 warnings (Task 5.8a tightened the gate; unmapped semantic-DSL
+    // features degrade to warnings per ADR-052/053, and the showcase now
+    // has none).
     let targets = flutter_analyze_targets(&out_dir);
     assert!(
         !targets.is_empty(),
@@ -723,14 +723,27 @@ fn match_variant_arms_flutter_compiles() {
 // inline stores, struct/union emission into types.dart, nullable types,
 // measure-position parity, stdlib-driven imports (dart:math/convert, http,
 // shared_preferences, intl), material-name hiding, string-concat coercion,
-// await hoisting, fn renames for Dart type shadowing. The gate stays RED on
-// TWO residual language-semantics gaps (adjudicated — defer-with-trigger):
-// (1) untyped closure params (DataTable's `|s| s + 5` — the IR carries no
-// closure param types, so Dart infers dynamic -> num vs int), and
-// (2) a u64-max literal (TypeSystemDemo's 18446744073709551615 — beyond
-// Dart's signed 64-bit int; BigInt would change the fn type).
+// await hoisting, fn renames for Dart type shadowing.
+//
+// Task 5.8a UN-IGNORES the gate: the 2 adjudicated residuals and the ~115
+// warnings were eliminated, so the gate now runs UN-IGNORED and asserts
+// 0 errors 0 warnings on the FULL showcase output:
+// (1) untyped closure params emit `(dynamic s) => ...` (the IR carries no
+//     param types; `dynamic` is Dart's own inference result — zero loss),
+// (2) integer literals > i64::MAX warn at compile time on the Flutter
+//     target (「字面量超出 Dart int 范围（64 位有符号）」) and the
+//     TypeSystemDemo literal was degraded to i64-max (honest degradation,
+//     ADR-054 — the type-system-breadth intent survives),
+// (3) the Dart stdlib method table was completed (.to_uppercase()/
+//     .to_lowercase()/.is_empty() — the doc's built-in table re-checked),
+// (4) concat(arrayVar) spreads typed array variables (`[...a, ...b]`),
+// (5) warnings eliminated: usage-gated types.dart/design.dart imports,
+//     `as int` → `.toInt()` coercions, match-arm unused bindings skipped,
+//     static-type-aware `get`/`contains` emissions, `true || ...` effect
+//     guard collapse, pointer-capture dead-code truncation, store import
+//     dedup, demo adjustments (u64 literal, measure height, nullable
+//     nullish demo).
 #[test]
-#[ignore = "learn-omniview Flutter output has 2 residual analyzer errors (untyped closure param -> num/int in DataTable; u64-max literal beyond Dart int in TypeSystemDemo) — adjudicated by the controller (see task-5.8 report)"]
 fn learn_omniview_flutter_output_passes_dart_analyze() {
     let Some(mut dart) = dart_command() else {
         eprintln!("SKIP: dart not found on PATH");
@@ -754,8 +767,7 @@ fn learn_omniview_flutter_output_passes_dart_analyze() {
     }
 
     // EVERY generated .dart file of the showcase project must analyze
-    // clean (warnings tolerated — unmapped semantic-DSL features degrade
-    // to warnings per ADR-052/053).
+    // clean — 0 errors 0 warnings (Task 5.8a gate).
     let targets = flutter_analyze_targets(&out_root);
     assert!(
         !targets.is_empty(),

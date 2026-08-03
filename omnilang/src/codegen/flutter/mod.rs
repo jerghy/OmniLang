@@ -11,6 +11,7 @@ mod motion;
 mod motion_widgets;
 mod r#ref;
 mod stmt;
+mod type_annotate;
 mod types;
 pub(super) mod utils;
 mod view;
@@ -199,6 +200,27 @@ impl FlutterCodegen {
             .iter()
             .filter(|f| used_fn_names.contains(&f.name))
             .collect();
+        let inlined_lib_fns: FxHashSet<String> = lib_fns.iter().map(|f| f.name.clone()).collect();
+
+        // Task 5.8a: out-of-range integer literals — Dart's int is a SIGNED
+        // 64-bit value; a u64-max literal (18446744073709551615) is
+        // unrepresentable (integer_literal_out_of_range in dart analyze).
+        // Honest degradation (ADR-054): compile-time WARNING naming the
+        // limitation; the literal still emits (the analyzer's error is the
+        // developer's to resolve — changing it to BigInt would alter the
+        // fn's Dart type). Checked in the same per-expression scans that
+        // drive the stdlib imports below.
+        let mut warn_out_of_range = |e: &ExprIR| {
+            if let ExprIR::LiteralExpr { value } = e {
+                if value.as_u64().is_some_and(|n| n > i64::MAX as u64) {
+                    warnings.push(
+                        "字面量超出 Dart int 范围（64 位有符号）——u64-max 等值在 \
+                         Flutter 目标上无法忠实表示，请改用可表示值或 BigInt"
+                            .to_string(),
+                    );
+                }
+            }
+        };
 
         // Stdlib-driven imports (Task 5.8): the stdlib registry emits
         // top-level Dart names (`sqrt`, `Random`, `json.decode`, `http.get`,
@@ -217,6 +239,9 @@ impl FlutterCodegen {
                 uses_http |= stmt_uses_stdlib_fns(stmt, DART_HTTP_STDLIB_FNS);
                 uses_prefs |= stmt_uses_stdlib_fns(stmt, DART_PREFS_STDLIB_FNS);
                 uses_intl |= stmt_uses_stdlib_fns(stmt, DART_INTL_STDLIB_FNS);
+                for e in statement_exprs(stmt) {
+                    warn_out_of_range(e);
+                }
             }
         }
         let mut scan_expr_for_imports = |e: &ExprIR| {
@@ -225,6 +250,7 @@ impl FlutterCodegen {
             uses_http |= expr_uses_stdlib_fns(e, DART_HTTP_STDLIB_FNS);
             uses_prefs |= expr_uses_stdlib_fns(e, DART_PREFS_STDLIB_FNS);
             uses_intl |= expr_uses_stdlib_fns(e, DART_INTL_STDLIB_FNS);
+            warn_out_of_range(e);
         };
         for computed in &comp.computeds {
             scan_expr_for_imports(&computed.body);
@@ -300,9 +326,49 @@ impl FlutterCodegen {
         }
         w.emit("");
 
-        // Store imports
+        // Store imports — Task 5.8a: gated on ACTUAL usage (a declared but
+        // unreferenced `@store` left the import unused — main.omni's App
+        // declares TodoStore/ThemeStore/NotificationStore for its children).
+        let mut used_stores: FxHashSet<String> = FxHashSet::default();
+        {
+            let scan_expr = collect_expr_store_aliases;
+            for fun in &lib_fns {
+                for stmt in &fun.body.statements {
+                    collect_stmt_store_aliases(stmt, &mut used_stores);
+                }
+            }
+            for computed in &comp.computeds {
+                scan_expr(&computed.body, &mut used_stores);
+            }
+            for effect in &comp.effects {
+                for stmt in &effect.body.statements {
+                    collect_stmt_store_aliases(stmt, &mut used_stores);
+                }
+            }
+            for lc in &comp.lifecycles {
+                for stmt in &lc.body.statements {
+                    collect_stmt_store_aliases(stmt, &mut used_stores);
+                }
+            }
+            for fun in &comp.fns {
+                for stmt in &fun.body.statements {
+                    collect_stmt_store_aliases(stmt, &mut used_stores);
+                }
+            }
+            if let Some(view) = view {
+                for e in view_exprs(view) {
+                    scan_expr(e, &mut used_stores);
+                }
+            }
+            for s in &comp.signals {
+                scan_expr(&s.initial_value, &mut used_stores);
+            }
+            for default in comp.prop_defaults.values() {
+                scan_expr(default, &mut used_stores);
+            }
+        }
         for store_ref in &comp.store_refs {
-            if ir.has_store(store_ref.as_str()) {
+            if ir.has_store(store_ref.as_str()) && used_stores.contains(store_ref.as_str()) {
                 w.emit_fmt(format_args!("import './{}_store.dart';", store_ref));
             }
         }
@@ -310,8 +376,11 @@ impl FlutterCodegen {
             w.emit_fmt(format_args!("import './{}.dart';", tag));
         }
         // Tagged unions referenced by this component's generated code live in
-        // the shared types.dart (deferral #30) — import it when used.
-        if types::component_uses_types(comp, ir) {
+        // the shared types.dart (deferral #30) — import it when used. The
+        // lib-fn scan is limited to the fns actually inlined here
+        // (Task 5.8a: the previous whole-program scan made ~50 components
+        // import types.dart without referencing it — unused_import).
+        if types::component_uses_types(comp, ir, &inlined_lib_fns) {
             w.emit("import './types.dart';");
         }
         // Stdlib-driven imports (Task 5.8): the stdlib registry emits
@@ -336,11 +405,39 @@ impl FlutterCodegen {
         // Design classes/variants resolve against design.dart (AppDesign
         // factories, AppTokens constants) — import it when the view
         // references them and the program declares at least one design.
+        // Task 5.8a: the check RESOLVES every reference against the design
+        // IR (mirroring the decoration wrapper) — bare local class names
+        // and unresolved classes no longer leave the import unused. Motion
+        // color stops with `var(--token)` values also emit
+        // `{Design}Tokens.<name>` refs into this component's initState
+        // (AnimPropertiesDemo's textColorDemo) — a referenced motion using
+        // tokens counts too.
+        let motion_usage: Vec<MotionElementUsage> = view
+            .map(|v| motion::collect_motion_element_usage(v, component_map))
+            .unwrap_or_default();
+        let used_motion_names: FxHashSet<String> = motion_usage
+            .iter()
+            .flat_map(|u| u.motions.iter().map(|(n, _)| n.clone()))
+            .collect();
+        let uses_motion_tokens = ir.modules.values().any(|m| {
+            m.motions.iter().any(|mo| {
+                used_motion_names.contains(&mo.name)
+                    && mo.body.stops.iter().any(|s| {
+                        s.properties.values().any(|v| {
+                            matches!(v, ExprIR::LiteralExpr { value } if value
+                                .as_str()
+                                .is_some_and(|s| s.trim().starts_with("var(--")))
+                        })
+                    })
+            })
+        });
+        let design_resolver = design::DesignResolver::new(ir);
         if ir.modules.values().any(|m| !m.designs.is_empty())
-            && comp
-                .view
-                .as_ref()
-                .is_some_and(view::view_uses_design_classes)
+            && (uses_motion_tokens
+                || comp
+                    .view
+                    .as_ref()
+                    .is_some_and(|v| view::view_uses_design_classes(v, &design_resolver)))
         {
             w.emit("import 'design.dart';");
         }
@@ -425,10 +522,9 @@ impl FlutterCodegen {
         // declarations/initState/dispose below AND prunes motions the
         // component never references (previously EVERY module motion got a
         // controller in EVERY component — 10k+ unused-field warnings and
-        // duplicate definitions in the showcase).
-        let motion_usage: Vec<MotionElementUsage> = view
-            .map(|v| motion::collect_motion_element_usage(v, component_map))
-            .unwrap_or_default();
+        // duplicate definitions in the showcase). Computed BEFORE the
+        // import emission so the design.dart gate can count motion token
+        // refs (Task 5.8a).
         let has_motions = !motion_usage.is_empty();
 
         let state_name = format!("_{}State", name);
@@ -718,6 +814,10 @@ impl FlutterCodegen {
             w.emit("");
         }
 
+        // Component-level type scope (signals + computeds) for effect and
+        // lifecycle bodies — Task 5.8a static-type re-annotation.
+        let comp_type_scope = type_annotate::build_comp_type_scope(comp);
+
         // initState (for mount lifecycle, effects, and motion animations)
         let has_mount = comp
             .lifecycles
@@ -806,15 +906,19 @@ impl FlutterCodegen {
             // Mount lifecycle
             for lc in &comp.lifecycles {
                 if lc.kind == LifecycleKind::Mount {
-                    let rewritten: Vec<StatementIR> = lc
+                    let mut rewritten: Vec<StatementIR> = lc
                         .body
                         .statements
                         .iter()
                         .map(|s| {
-                            let s1 = rewrite_stmt_store_accesses(s, &store_provider_map, ir);
+                            let s0 = type_annotate::annotate_stmt_types(s, &comp_type_scope);
+                            let s1 = rewrite_stmt_store_accesses(&s0, &store_provider_map, ir);
                             rewrite_stmt_widget_refs(&s1, &widget_names, &fn_renames)
                         })
                         .collect();
+                    // Pointer-capture ref ops hard-throw — later statements
+                    // are unreachable (dead_code in dart analyze, Task 5.8a).
+                    stmt::truncate_after_pointer_capture(&mut rewritten);
                     if stmt_block_emits_await(&rewritten) {
                         // `initState` cannot be async — storage/http calls
                         // whose Flutter emission embeds `await` run inside an
@@ -877,6 +981,13 @@ impl FlutterCodegen {
                 if conditions.is_empty() {
                     continue; // no deps — runs once in initState only
                 }
+                // Task 5.8a: a single unresolvable dep already makes the
+                // whole condition always-true — `if (true || ...)` flagged
+                // the right operand as dead_code in dart analyze
+                // (NotificationsPanel:43). Collapse to `if (true)`.
+                if conditions.iter().any(|c| c == "true") {
+                    conditions = vec!["true".to_string()];
+                }
                 w.emit_fmt(format_args!("if ({}) {{", conditions.join(" || ")));
                 w.indent();
                 w.emit_fmt(format_args!("_runEffect_{}();", i));
@@ -899,10 +1010,19 @@ impl FlutterCodegen {
             w.indent();
             for lc in &comp.lifecycles {
                 if lc.kind == LifecycleKind::Unmount {
-                    for stmt in &lc.body.statements {
-                        let s1 = rewrite_stmt_store_accesses(stmt, &store_provider_map, ir);
-                        let s2 = rewrite_stmt_widget_refs(&s1, &widget_names, &fn_renames);
-                        generate_statement_flutter(&mut w, &s2);
+                    let mut rewritten: Vec<StatementIR> = lc
+                        .body
+                        .statements
+                        .iter()
+                        .map(|s| {
+                            let s0 = type_annotate::annotate_stmt_types(s, &comp_type_scope);
+                            let s1 = rewrite_stmt_store_accesses(&s0, &store_provider_map, ir);
+                            rewrite_stmt_widget_refs(&s1, &widget_names, &fn_renames)
+                        })
+                        .collect();
+                    stmt::truncate_after_pointer_capture(&mut rewritten);
+                    for stmt in &rewritten {
+                        generate_statement_flutter(&mut w, stmt);
                     }
                 }
             }
@@ -937,15 +1057,25 @@ impl FlutterCodegen {
         // store accesses → ref.watch/ref.read, widget-scope props/events →
         // widget.<name>, and component-fn renames before emission).
         for func in &comp.fns {
-            let rewritten: Vec<StatementIR> = func
+            let type_scope = type_annotate::build_fn_type_scope(comp, func);
+            let mut rewritten: Vec<StatementIR> = func
                 .body
                 .statements
                 .iter()
                 .map(|s| {
-                    let s1 = rewrite_stmt_store_accesses(s, &store_provider_map, ir);
+                    // Task 5.8a: re-annotate IdentifierExpr type_ann (the
+                    // IR's annotation is never populated — lower resolves
+                    // against fresh scopes) so the shared Dart method table
+                    // can shape get/contains/concat from the static types.
+                    let s0 = type_annotate::annotate_stmt_types(s, &type_scope);
+                    let s1 = rewrite_stmt_store_accesses(&s0, &store_provider_map, ir);
                     rewrite_stmt_widget_refs(&s1, &widget_names, &fn_renames)
                 })
                 .collect();
+            // Pointer-capture ref ops hard-throw — later statements are
+            // unreachable (dead_code in dart analyze, Task 5.8a:
+            // ElementRefDemo's onPtrDown/onPtrUp).
+            stmt::truncate_after_pointer_capture(&mut rewritten);
             // Task 5.8: a fn renamed for Dart-type shadowing (`double` →
             // `double_`) must be DECLARED under the renamed name too — the
             // reference rewrite alone left the old declaration shadowing
@@ -961,15 +1091,17 @@ impl FlutterCodegen {
         // @effect method bodies (C2) — Task 5.8: rewritten for store/widget
         // refs, and emitted `async` when the body needs `await`.
         for (i, effect) in comp.effects.iter().enumerate() {
-            let rewritten: Vec<StatementIR> = effect
+            let mut rewritten: Vec<StatementIR> = effect
                 .body
                 .statements
                 .iter()
                 .map(|s| {
-                    let s1 = rewrite_stmt_store_accesses(s, &store_provider_map, ir);
+                    let s0 = type_annotate::annotate_stmt_types(s, &comp_type_scope);
+                    let s1 = rewrite_stmt_store_accesses(&s0, &store_provider_map, ir);
                     rewrite_stmt_widget_refs(&s1, &widget_names, &fn_renames)
                 })
                 .collect();
+            stmt::truncate_after_pointer_capture(&mut rewritten);
             let is_async = stmt_block_emits_await(&rewritten);
             if is_async {
                 w.emit_fmt(format_args!("Future<void> _runEffect_{}() async {{", i));
@@ -1016,7 +1148,6 @@ impl FlutterCodegen {
                 .flat_map(|m| &m.motions)
                 .cloned()
                 .collect::<Vec<_>>();
-            let design_resolver = design::DesignResolver::new(ir);
             let mut motion_counter = 0usize;
             let mut ctx = view::ViewContext {
                 component_map,
@@ -1088,17 +1219,17 @@ impl FlutterCodegen {
         }
         // Stdlib-driven imports (Task 5.8): store actions/getters call
         // storage_* (SharedPreferences), json_*, math_* — the registry emits
-        // top-level names that need imports.
+        // top-level names that need imports. Task 5.8a: imports are emitted
+        // ONCE per store from the scan flags — the previous inline emission
+        // inside the scan duplicated `shared_preferences` when several
+        // actions used storage_* (NotificationStore: duplicate_import).
+        let mut uses_prefs = false;
+        let mut uses_convert = false;
+        let mut uses_math = false;
         let mut scan_store_expr = |e: &ExprIR| {
-            if expr_uses_stdlib_fns(e, DART_PREFS_STDLIB_FNS) {
-                w.emit("import 'package:shared_preferences/shared_preferences.dart';");
-            }
-            if expr_uses_stdlib_fns(e, DART_CONVERT_STDLIB_FNS) {
-                w.emit("import 'dart:convert';");
-            }
-            if expr_uses_stdlib_fns(e, DART_MATH_STDLIB_FNS) {
-                w.emit("import 'dart:math';");
-            }
+            uses_prefs |= expr_uses_stdlib_fns(e, DART_PREFS_STDLIB_FNS);
+            uses_convert |= expr_uses_stdlib_fns(e, DART_CONVERT_STDLIB_FNS);
+            uses_math |= expr_uses_stdlib_fns(e, DART_MATH_STDLIB_FNS);
         };
         for expr in store.getters.values() {
             scan_store_expr(expr);
@@ -1109,6 +1240,15 @@ impl FlutterCodegen {
                     scan_store_expr(e);
                 }
             }
+        }
+        if uses_prefs {
+            w.emit("import 'package:shared_preferences/shared_preferences.dart';");
+        }
+        if uses_convert {
+            w.emit("import 'dart:convert';");
+        }
+        if uses_math {
+            w.emit("import 'dart:math';");
         }
         w.emit("");
 
@@ -2002,6 +2142,231 @@ fn view_exprs(node: &ViewTree) -> Vec<&ExprIR> {
 }
 
 /// Does the expression reference a stdlib fn from `names`?
+/// Collect every store alias referenced by an expression
+/// (`StoreFieldAccessExpr.store_alias` — the ONLY way generated code
+/// references a store provider; Task 5.8a gates the per-store imports on
+/// actual usage, so a declared-but-unreferenced `@store` (main.omni's App)
+/// no longer leaves the import unused).
+fn collect_expr_store_aliases(expr: &ExprIR, out: &mut FxHashSet<String>) {
+    match expr {
+        ExprIR::StoreFieldAccessExpr {
+            store_alias,
+            call_args,
+            ..
+        } => {
+            out.insert(store_alias.clone());
+            for a in call_args {
+                collect_expr_store_aliases(a, out);
+            }
+        }
+        ExprIR::FieldAccessExpr { object, .. } => {
+            // Store property reads lower to FieldAccessExpr on the store
+            // identifier (`DynamicTokenStore.liveColor` — only the CALL
+            // form becomes StoreFieldAccessExpr) — the object's name is a
+            // candidate alias.
+            if let ExprIR::IdentifierExpr { name, .. } = object.as_ref() {
+                out.insert(name.clone());
+            }
+            collect_expr_store_aliases(object, out);
+        }
+        ExprIR::OptionalChainExpr { object, .. } => collect_expr_store_aliases(object, out),
+        ExprIR::BinaryOpExpr { left, right, .. } => {
+            collect_expr_store_aliases(left, out);
+            collect_expr_store_aliases(right, out);
+        }
+        ExprIR::UnaryOpExpr { operand, .. } => collect_expr_store_aliases(operand, out),
+        ExprIR::TernaryIR {
+            cond,
+            then_expr,
+            else_expr,
+        } => {
+            collect_expr_store_aliases(cond, out);
+            collect_expr_store_aliases(then_expr, out);
+            collect_expr_store_aliases(else_expr, out);
+        }
+        ExprIR::CallExpr { args, .. } => {
+            for a in args {
+                collect_expr_store_aliases(a, out);
+            }
+        }
+        ExprIR::ArrayExpr { elements } => {
+            for e in elements {
+                collect_expr_store_aliases(e, out);
+            }
+        }
+        ExprIR::SpreadExpr { operand } => collect_expr_store_aliases(operand, out),
+        ExprIR::StructExpr { fields, .. } => {
+            for (_, v) in fields {
+                collect_expr_store_aliases(v, out);
+            }
+        }
+        ExprIR::MethodCallExpr { object, args, .. } => {
+            collect_expr_store_aliases(object, out);
+            for a in args {
+                collect_expr_store_aliases(a, out);
+            }
+        }
+        ExprIR::BlockExpr { statements, tail } => {
+            for s in statements {
+                collect_stmt_store_aliases(s, out);
+            }
+            collect_expr_store_aliases(tail, out);
+        }
+        ExprIR::IndexExpr { object, index } => {
+            collect_expr_store_aliases(object, out);
+            collect_expr_store_aliases(index, out);
+        }
+        ExprIR::AwaitExpr { operand } => collect_expr_store_aliases(operand, out),
+        ExprIR::ClosureExpr { body, .. } => collect_expr_store_aliases(body, out),
+        ExprIR::VariantLiteral { fields, .. } => {
+            for (_, v) in fields {
+                collect_expr_store_aliases(v, out);
+            }
+        }
+        ExprIR::MatchExpr { matched, arms } => {
+            collect_expr_store_aliases(matched, out);
+            for a in arms {
+                for s in &a.body.statements {
+                    collect_stmt_store_aliases(s, out);
+                }
+            }
+        }
+        ExprIR::MapExpr { entries } => {
+            for (k, v) in entries {
+                collect_expr_store_aliases(k, out);
+                collect_expr_store_aliases(v, out);
+            }
+        }
+        ExprIR::ArrayMethod {
+            subject, predicate, ..
+        } => {
+            collect_expr_store_aliases(subject, out);
+            collect_expr_store_aliases(predicate, out);
+        }
+        _ => {}
+    }
+}
+
+fn collect_stmt_store_aliases(stmt: &StatementIR, out: &mut FxHashSet<String>) {
+    match stmt {
+        StatementIR::LetStmtIR { value, .. } => {
+            if let Some(v) = value {
+                collect_expr_store_aliases(v, out);
+            }
+        }
+        StatementIR::ExprStmtIR { expr } => collect_expr_store_aliases(expr, out),
+        StatementIR::ReturnStmtIR { value } => {
+            if let Some(v) = value {
+                collect_expr_store_aliases(v, out);
+            }
+        }
+        StatementIR::IfStmtIR {
+            condition,
+            then_body,
+            else_ifs,
+            else_body,
+        } => {
+            collect_expr_store_aliases(condition, out);
+            for s in &then_body.statements {
+                collect_stmt_store_aliases(s, out);
+            }
+            for (c, b) in else_ifs {
+                collect_expr_store_aliases(c, out);
+                for s in &b.statements {
+                    collect_stmt_store_aliases(s, out);
+                }
+            }
+            if let Some(b) = else_body {
+                for s in &b.statements {
+                    collect_stmt_store_aliases(s, out);
+                }
+            }
+        }
+        StatementIR::MutationStmt { intent } => {
+            if let Some(i) = intent {
+                for e in mutation_intent_exprs(i) {
+                    collect_expr_store_aliases(e, out);
+                }
+            }
+        }
+        StatementIR::EventEmitStmtIR { args, .. } => {
+            for a in args {
+                collect_expr_store_aliases(a, out);
+            }
+        }
+        StatementIR::BlockStmtIR { body } => {
+            for s in &body.statements {
+                collect_stmt_store_aliases(s, out);
+            }
+        }
+        StatementIR::WhileStmtIR { condition, body } => {
+            collect_expr_store_aliases(condition, out);
+            for s in &body.statements {
+                collect_stmt_store_aliases(s, out);
+            }
+        }
+        StatementIR::ForInStmtIR { iterable, body, .. } => {
+            collect_expr_store_aliases(iterable, out);
+            for s in &body.statements {
+                collect_stmt_store_aliases(s, out);
+            }
+        }
+        StatementIR::ThrowStmtIR { expr } => collect_expr_store_aliases(expr, out),
+        StatementIR::TryCatchStmtIR {
+            try_body,
+            catch_body,
+            ..
+        } => {
+            for s in &try_body.statements {
+                collect_stmt_store_aliases(s, out);
+            }
+            if let Some(b) = catch_body {
+                for s in &b.statements {
+                    collect_stmt_store_aliases(s, out);
+                }
+            }
+        }
+        StatementIR::BreakStmtIR | StatementIR::ContinueStmtIR => {}
+        // StatementIR is #[non_exhaustive] — cross-crate matches need a
+        // wildcard.
+        #[allow(unreachable_patterns)]
+        _ => {}
+    }
+}
+
+/// The value expressions of a mutation intent (shared walk helper for the
+/// store-alias collection).
+fn mutation_intent_exprs(i: &MutationIntent) -> Vec<&ExprIR> {
+    let mut out = Vec::new();
+    match i {
+        MutationIntent::DirectAssign { value, .. } => {
+            if let Some(v) = value {
+                out.push(v.as_ref());
+            }
+        }
+        MutationIntent::Increment { amount, .. }
+        | MutationIntent::Decrement { amount, .. }
+        | MutationIntent::Multiply { amount, .. }
+        | MutationIntent::Divide { amount, .. }
+        | MutationIntent::Modulo { amount, .. } => {
+            if let Some(v) = amount {
+                out.push(v.as_ref());
+            }
+        }
+        MutationIntent::Push { item, .. } => {
+            if let Some(v) = item {
+                out.push(v.as_ref());
+            }
+        }
+        MutationIntent::Pop { .. } => {}
+        // MutationIntent is #[non_exhaustive] — cross-crate matches need a
+        // wildcard.
+        #[allow(unreachable_patterns)]
+        _ => {}
+    }
+    out
+}
+
 fn expr_uses_stdlib_fns(expr: &ExprIR, names: &[&str]) -> bool {
     match expr {
         ExprIR::CallExpr { name, args } => {

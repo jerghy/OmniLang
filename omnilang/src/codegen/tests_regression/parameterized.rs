@@ -606,21 +606,22 @@ fn assert_array_methods_flutter(files: &FxHashMap<String, String>) {
     // Dart-family mapping (the fix for the Flutter `.filter()` silent
     // failure): filter → where(...).toList(); map → map(...).toList();
     // count → where(...).length (no toList — length is on the lazy
-    // Iterable).
+    // Iterable). Closure params carry the `dynamic` annotation and the
+    // int-literal arithmetic map body narrows `as int` (Task 5.8a).
     assert_contains(
         files,
         "ArrayMethodsDemo.dart",
-        "items.where(((i) => i % 2 == 0)).toList()",
+        "items.where(((dynamic i) => i % 2 == 0)).toList()",
     );
     assert_contains(
         files,
         "ArrayMethodsDemo.dart",
-        "items.map(((i) => i * 2)).toList()",
+        "items.map(((dynamic i) => (i * 2) as int)).toList()",
     );
     assert_contains(
         files,
         "ArrayMethodsDemo.dart",
-        "items.where(((i) => i % 2 == 0)).length",
+        "items.where(((dynamic i) => i % 2 == 0)).length",
     );
 }
 

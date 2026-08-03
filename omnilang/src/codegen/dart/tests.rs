@@ -1132,14 +1132,15 @@ fn test_format_match_variant_arms_switch_on_variant() {
         out
     );
     assert!(
-        out.contains("case \"Star\": {"),
+        out.contains("case \"Star\":"),
         "variant arm should be a case on the variant name. Output: {}",
         out
     );
     assert!(
-        out.contains("final _level = _v.level;"),
-        "variant arm should bind its pattern fields from the subject \
-         (unused binding prefixed with _). Output: {}",
+        !out.contains("final _level = _v.level;") && !out.contains("final level = _v.level;"),
+        "Task 5.8a: an UNUSED pattern binding is skipped entirely — the \
+         `_` prefix did not silence Dart's unused_local_variable lint for \
+         `_level`. Output: {}",
         out
     );
 }

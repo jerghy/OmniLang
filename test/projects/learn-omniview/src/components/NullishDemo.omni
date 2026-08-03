@@ -1,7 +1,9 @@
 import omniview;
 
 component NullishDemo {
-    signal inputName: String = "test";
+    // 可空信号：`??` 空值合并才有意义——非空 String 上做 `??` 在 Dart
+    // 目标上会被分析器标记 dead_null_aware_expression（左操作数不可能为 null）
+    signal inputName: String? = null;
     computed displayName: String = inputName ?? "Anonymous";
     view { <div>{displayName}</div> }
     style { .d {} }

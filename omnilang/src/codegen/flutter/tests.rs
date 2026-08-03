@@ -5286,13 +5286,17 @@ fn test_view_store_field_read_uses_ref_watch() {
     let (dart, _warnings, _errors) =
         codegen.gen_component_dart("FilterBar", comp_ref, &ir, &component_map, &component_slots);
     assert!(
-        dart.contains("ref.watch(todoStoreProvider.select(((s) => s.totalCount)))"),
-        "getter read must become ref.watch select: {}",
+        dart.contains("ref.watch(todoStoreProvider.select(((TodoStoreState s) => s.totalCount)))"),
+        "getter read must become ref.watch select with the state-typed param \
+         (Task 5.8a: a `dynamic` select closure made a collection-for over it \
+         flag the next list element as dead_code): {}",
         dart
     );
     assert!(
-        dart.contains("ref.watch(todoStoreProvider.select(((s) => s.filterStatus)))"),
-        "signal read must become ref.watch select: {}",
+        dart.contains(
+            "ref.watch(todoStoreProvider.select(((TodoStoreState s) => s.filterStatus)))"
+        ),
+        "signal read must become ref.watch select with the state-typed param: {}",
         dart
     );
     assert!(
@@ -8137,5 +8141,298 @@ fn flutter_scroll_numeric_progress_changes_with_scroll_offset() {
         stdout.contains("p0=0.0") && stdout.contains("p500=0.5") && stdout.contains("p2000=1.0"),
         "progress must move with the scroll offset (0→0.0, 500→0.5, 2000→1.0), got:\n{}",
         stdout
+    );
+}
+
+// ═══════════════════════════════════════════════════════════
+// Task 5.8a: u64 range warning, effect-guard collapse, pointer-capture
+// truncation, store import dedupe, usage-gated design/types imports
+// ═══════════════════════════════════════════════════════════
+
+/// Task 5.8a (b): integer literals > i64::MAX warn on the Flutter target
+/// (Dart int is signed 64-bit — u64-max is unrepresentable). Honest
+/// degradation per ADR-054: compile-time warning, literal still emits.
+#[test]
+fn flutter_u64_max_literal_warns_chinese_range() {
+    let source = r#"
+component U64Demo {
+    fn maxU64() -> u64 {
+        return 18446744073709551615;
+    }
+}
+"#;
+    let output = compile_flutter(source).unwrap();
+    assert!(
+        output.warnings.iter().any(|w| w
+            .message
+            .contains("字面量超出 Dart int 范围（64 位有符号）")),
+        "u64-max literal must warn on Flutter, got warnings: {:?}",
+        output.warnings
+    );
+    // The literal still emits (the error is the developer's to resolve).
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        content.contains("return 18446744073709551615;"),
+        "the literal must still emit, got:\n{}",
+        content
+    );
+}
+
+/// Task 5.8a: an unresolvable effect dep makes the whole guard always-true —
+/// `if (true || ...)` flagged the right operand as dead_code in dart
+/// analyze (NotificationsPanel:43). Collapse to `if (true)`.
+#[test]
+fn flutter_effect_unresolvable_dep_collapses_guard() {
+    let source = r#"
+component EffectDemo {
+    signal count: i32 = 0;
+    @effect(unknownDep) {
+        count = count + 1;
+    }
+}
+"#;
+    let output = compile_flutter(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        !content.contains("true || true"),
+        "the always-true guard must collapse, got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("if (true) {") && content.contains("_runEffect_0();"),
+        "the collapsed guard must still re-run the effect, got:\n{}",
+        content
+    );
+}
+
+/// Task 5.8a: pointer-capture ref ops emit `throw UnsupportedError(...)`
+/// (design D3 / spec §10.3) — later statements in the same fn body are
+/// unreachable and flagged dead_code in dart analyze (ElementRefDemo's
+/// onPtrDown/onPtrUp). They are truncated after the throw.
+#[test]
+fn flutter_pointer_capture_truncates_dead_statements() {
+    let source = r#"
+import omniview;
+component PtrDemo {
+    ref box: HtmlElement;
+    signal active: bool = false;
+    signal status: String = "";
+    fn onPtrDown() {
+        box.capturePointer();
+        active = true;
+        status = "captured";
+    }
+    view {
+        <div @ref={box}>Target</div>
+    }
+}
+"#;
+    // Pointer capture is a DELIBERATE hard error on Flutter (design D3 /
+    // spec §10.3) — the compile result carries the diagnostic but still
+    // emits the file, so compile directly and filter the expected error.
+    let mut sources = FxHashMap::default();
+    sources.insert("input.omni".to_string(), source.to_string());
+    let pm = crate::path_mapping::derive_path_mapping(&sources);
+    let result = crate::compile_multi_internal(
+        sources,
+        crate::codegen::Target::Flutter,
+        pm,
+        false,
+        false,
+        None,
+    );
+    let unexpected: Vec<String> = result
+        .errors
+        .iter()
+        .filter(|d| !d.message.contains("Flutter 不支持指针捕获"))
+        .map(|d| d.message.clone())
+        .collect();
+    assert!(
+        unexpected.is_empty(),
+        "only the pointer-capture error is expected, got: {:?}",
+        unexpected
+    );
+    let content: String = result
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        content.contains("throw UnsupportedError('capturePointer not supported on Flutter')"),
+        "the throw must remain (honest degradation), got:\n{}",
+        content
+    );
+    assert!(
+        !content.contains("active = true"),
+        "statements after the pointer-capture throw are unreachable and \
+         must be truncated, got:\n{}",
+        content
+    );
+}
+
+/// Task 5.8a: store stdlib imports are emitted ONCE per store — the old
+/// inline emission inside the per-expression scan duplicated
+/// `shared_preferences` when several actions used storage_* (Notification
+/// Store: duplicate_import).
+#[test]
+fn flutter_store_stdlib_import_emitted_once() {
+    let source = r#"
+import omniview;
+import { storage_set } from "std/storage";
+
+store PrefsStore {
+    signal theme: String = "light";
+    action saveTheme(mode: String) {
+        storage_set("theme", mode);
+    }
+    action saveLang(lang: String) {
+        storage_set("lang", lang);
+    }
+}
+"#;
+    let output = compile_flutter(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    let count = content
+        .matches("import 'package:shared_preferences/shared_preferences.dart';")
+        .count();
+    assert_eq!(
+        count, 1,
+        "shared_preferences must be imported exactly once, got:\n{}",
+        content
+    );
+}
+
+/// Task 5.8a: bare local class names (`class: wrapper`) resolve to no
+/// design block — they must NOT trigger the design.dart import (the old
+/// conservative scan left it unused in ~30 showcase files).
+#[test]
+fn flutter_plain_class_names_do_not_import_design() {
+    let source = r##"
+import omniview;
+design LearnDesign {
+    token primary: color = "#6366f1";
+    class Card {
+        background: token(primary);
+        border-radius: "8px";
+    }
+}
+component PlainClasses {
+    view {
+        <div class: wrapper>
+            <h3 class: section-title>Plain</h3>
+        </div>
+    }
+}
+"##;
+    let output = compile_flutter(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        !content.contains("import 'design.dart';"),
+        "plain class names must not import design.dart, got:\n{}",
+        content
+    );
+}
+
+/// Task 5.8a: a resolved design class DOES keep the import.
+#[test]
+fn flutter_resolved_design_class_keeps_import() {
+    let source = r##"
+import omniview;
+design LearnDesign {
+    token primary: color = "#6366f1";
+    class Card {
+        background: token(primary);
+        border-radius: "8px";
+    }
+}
+component DesignUser {
+    view {
+        <div class: LearnDesign.Card>Styled</div>
+    }
+}
+"##;
+    let output = compile_flutter(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        content.contains("import 'design.dart';"),
+        "resolved design classes must import design.dart, got:\n{}",
+        content
+    );
+}
+
+/// Task 5.8a: the types.dart import is gated on the fns ACTUALLY inlined
+/// into each component — a component that references a struct-returning lib
+/// fn imports it; a sibling that does not, does not (the old whole-program
+/// scan imported types.dart into every component).
+#[test]
+fn flutter_types_import_gated_on_inlined_lib_fns() {
+    let source = r#"
+struct Point { x: i32, y: i32 }
+
+pub fn make_point() -> Point {
+    return Point { x: 1, y: 2 };
+}
+
+component UsesPoint {
+    fn load() {
+        let p = make_point();
+    }
+}
+
+component PlainComp {
+    signal n: i32 = 0;
+}
+"#;
+    let output = compile_flutter(source).unwrap();
+    let uses_point: String = output
+        .files
+        .iter()
+        .filter(|(path, _)| path.contains("UsesPoint.dart"))
+        .map(|(_, c)| c.clone())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        uses_point.contains("import './types.dart';"),
+        "a component inlining a struct-returning lib fn must import \
+         types.dart, got:\n{}",
+        uses_point
+    );
+    let plain: String = output
+        .files
+        .iter()
+        .filter(|(path, _)| path.contains("PlainComp.dart"))
+        .map(|(_, c)| c.clone())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        !plain.contains("import './types.dart';"),
+        "a component referencing no types must not import types.dart, got:\n{}",
+        plain
     );
 }

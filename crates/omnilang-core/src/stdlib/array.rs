@@ -140,8 +140,11 @@ pub(super) fn codegen_array_get(args: &[String], target: Target) -> String {
             // that broke arithmetic downstream (double? in
             // `totalPrice - lastPrice`). Dart's typed List index is
             // non-nullable; out-of-bounds throws at runtime like JS's
-            // undefined access.
-            format!("({arr})[{idx} as int]")
+            // undefined access. Task 5.8a: `idx as int` flagged
+            // unnecessary_cast when the index is already statically int
+            // (the language's i32 index contract) — `.toInt()` is
+            // warning-free on int AND double/dynamic indexes.
+            format!("({arr})[({idx}).toInt()]")
         }
     }
 }
@@ -195,7 +198,10 @@ pub(super) fn codegen_array_remove(args: &[String], target: Target) -> String {
         }
         Target::Python => format!("({arr}).pop({idx}) or {arr}"),
         Target::Rust | Target::Dioxus => format!("{{ ({arr}).remove({idx} as usize); {arr} }}"),
-        Target::Dart | Target::Flutter => format!("({arr})..removeAt({idx} as int)"),
+        // Task 5.8a: `idx as int` flagged unnecessary_cast for statically
+        // int indexes (array_remove's i32 contract) — `.toInt()` is
+        // warning-free on int AND double/dynamic indexes.
+        Target::Dart | Target::Flutter => format!("({arr})..removeAt(({idx}).toInt())"),
     }
 }
 
@@ -436,5 +442,36 @@ mod tests {
         let out = try_format_stdlib_call("array_sort", &["arr".into()], Target::JavaScript)
             .expect("array_sort should format");
         assert_eq!(out, "([...arr]).sort()");
+    }
+
+    /// Task 5.8a: the Dart indexer cast `idx as int` flagged
+    /// unnecessary_cast when the index is already statically int (the
+    /// language's array_get/array_remove contract is i32) — `.toInt()` is
+    /// warning-free for int AND double/dynamic indexes.
+    #[test]
+    fn array_get_dart_uses_to_int_coercion() {
+        let out = try_format_stdlib_call(
+            "array_get",
+            &["prices".into(), "items.length - 1".into()],
+            Target::Dart,
+        )
+        .expect("array_get should format");
+        assert_eq!(out, "(prices)[(items.length - 1).toInt()]");
+    }
+
+    #[test]
+    fn array_remove_dart_uses_to_int_coercion() {
+        let out =
+            try_format_stdlib_call("array_remove", &["arr".into(), "idx".into()], Target::Dart)
+                .expect("array_remove should format");
+        assert_eq!(out, "(arr)..removeAt((idx).toInt())");
+    }
+
+    #[test]
+    fn array_get_js_keeps_plain_index() {
+        let out =
+            try_format_stdlib_call("array_get", &["arr".into(), "i".into()], Target::JavaScript)
+                .expect("array_get should format");
+        assert_eq!(out, "(arr)[i]");
     }
 }

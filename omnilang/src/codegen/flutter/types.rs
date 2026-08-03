@@ -695,9 +695,18 @@ pub(crate) fn store_uses_unions(store: &StoreIR, ir: &IRProgram) -> bool {
 /// Whether a component's generated code references any declared union OR
 /// struct (Task 5.8: structs were never emitted — `List<Todo>` annotations
 /// and `StatisticsData { ... }` literals — so the types.dart import must
-/// cover both). ALSO scans the public library fns the component inlines
+/// cover both). ALSO scans the public library fns the component INLINES
 /// (their bodies may annotate struct types — `ApiResult` in lib/api.omni).
-pub(crate) fn component_uses_types(comp: &ComponentIR, ir: &IRProgram) -> bool {
+///
+/// Task 5.8a: `inlined_lib_fns` limits the lib-fn scan to the functions
+/// actually emitted into THIS component's file — scanning every program fn
+/// made every component import types.dart (~50 unused_import warnings in
+/// the showcase gate).
+pub(crate) fn component_uses_types(
+    comp: &ComponentIR,
+    ir: &IRProgram,
+    inlined_lib_fns: &FxHashSet<String>,
+) -> bool {
     let union_names = enum_names(ir);
     let struct_names = struct_names(ir);
     let mut out: FxHashSet<String> = FxHashSet::default();
@@ -707,6 +716,9 @@ pub(crate) fn component_uses_types(comp: &ComponentIR, ir: &IRProgram) -> bool {
     if !struct_names.is_empty() {
         collect_component_struct_names(comp, &struct_names, &mut out);
         for fun in ir.all_functions() {
+            if !inlined_lib_fns.contains(&fun.name) {
+                continue;
+            }
             for stmt in &fun.body.statements {
                 scan_stmt_structs(stmt, &struct_names, &mut out);
             }
@@ -725,6 +737,9 @@ pub(crate) fn component_uses_types(comp: &ComponentIR, ir: &IRProgram) -> bool {
         // error_message(result: ApiResult) — the union class must exist in
         // types.dart for the inlined match bodies).
         for fun in ir.all_functions() {
+            if !inlined_lib_fns.contains(&fun.name) {
+                continue;
+            }
             for stmt in &fun.body.statements {
                 scan_stmt_unions(stmt, &union_names, &mut out);
             }

@@ -354,50 +354,111 @@ pub(crate) fn collect_view_slots(
 /// Whether any element in the view references design classes or variants
 /// (`class:` prop, `_design_variant` prop, or `class_map_bindings`) —
 /// drives the `import 'design.dart';` decision in the component generator.
-/// The scan is conservative: any usage (resolved or not) counts, so an
-/// unresolved reference leaves the import unused rather than a resolved one
-/// missing it.
-pub(crate) fn view_uses_design_classes(node: &ViewTree) -> bool {
+///
+/// Task 5.8a: the scan now RESOLVES every reference against the design IR,
+/// mirroring `wrap_design_decorations` — only references whose emission
+/// actually references design.dart names count (a bare `class: wrapper`
+/// that resolves to no design block, or a resolved class with zero
+/// decoration-mappable properties, emits no design reference). The old
+/// "any usage counts" scan left the import unused in ~30 showcase files
+/// (unused_import warnings).
+pub(crate) fn view_uses_design_classes(node: &ViewTree, design: &DesignResolver) -> bool {
     match node {
         ViewTree::Element(el) => {
             let class_prop_used = match el.props.get("class") {
-                Some(ExprIR::LiteralExpr { value }) => {
-                    value.as_str().is_some_and(|s| !s.trim().is_empty())
-                }
-                Some(_) => true,
+                Some(ExprIR::LiteralExpr { value }) => value.as_str().is_some_and(|s| {
+                    s.split_whitespace()
+                        .any(|c| class_emits_design_ref(c, design))
+                }),
+                Some(_) => false,
                 None => false,
             };
-            if class_prop_used || el.props.contains_key("_design_variant") {
+            let variant_used = el
+                .props
+                .get("_design_variant")
+                .is_some_and(|e| variant_emits_design_ref(e, design));
+            let class_map_used = el
+                .class_map_bindings
+                .keys()
+                .any(|c| class_emits_design_ref(c, design));
+            if class_prop_used || variant_used || class_map_used {
                 return true;
             }
-            // Literal-false bindings emit nothing — they do not need design.dart.
-            if el.class_map_bindings.values().any(|e| match e {
-                ExprIR::LiteralExpr { value } => value.as_bool() != Some(false),
-                _ => true,
-            }) {
-                return true;
-            }
-            el.children.iter().any(view_uses_design_classes)
+            el.children
+                .iter()
+                .any(|c| view_uses_design_classes(c, design))
         }
         ViewTree::Conditional(cond) => {
-            cond.branches
-                .iter()
-                .any(|b| b.body.as_ref().is_some_and(view_uses_design_classes))
-                || cond.fallback.as_ref().is_some_and(view_uses_design_classes)
+            cond.branches.iter().any(|b| {
+                b.body
+                    .as_ref()
+                    .is_some_and(|b| view_uses_design_classes(b, design))
+            }) || cond
+                .fallback
+                .as_ref()
+                .is_some_and(|b| view_uses_design_classes(b, design))
         }
         ViewTree::ListRendering(list) => {
-            list.body.as_ref().is_some_and(view_uses_design_classes)
+            list.body
+                .as_ref()
+                .is_some_and(|b| view_uses_design_classes(b, design))
                 || list
                     .empty_body
                     .as_ref()
-                    .is_some_and(view_uses_design_classes)
+                    .is_some_and(|b| view_uses_design_classes(b, design))
         }
-        ViewTree::Fragment(children) => children.iter().any(view_uses_design_classes),
-        ViewTree::Slot { fallback, .. } => fallback.iter().any(view_uses_design_classes),
+        ViewTree::Fragment(children) => {
+            children.iter().any(|c| view_uses_design_classes(c, design))
+        }
+        ViewTree::Slot { fallback, .. } => {
+            fallback.iter().any(|c| view_uses_design_classes(c, design))
+        }
         ViewTree::Text(_) | ViewTree::Interpolation(_) => false,
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
     }
+}
+
+/// Whether a bare class name resolves to a design class whose decoration
+/// emission references design.dart (a factory or a merged BoxDecoration —
+/// exactly what `resolve_static_class`/`wrap_design_decorations` emit).
+fn class_emits_design_ref(name: &str, design: &DesignResolver) -> bool {
+    let Some((d, class)) = design.class_owner(name) else {
+        return false;
+    };
+    let (fields, _) = resolve_class_decoration(d, class);
+    !fields.is_empty()
+}
+
+/// Whether a `_design_variant` prop resolves to a variant whose decoration
+/// emission references design.dart (mirrors the wrapper's resolution).
+fn variant_emits_design_ref(e: &ExprIR, design: &DesignResolver) -> bool {
+    let ExprIR::LiteralExpr { value } = e else {
+        return false;
+    };
+    let (Some(design_name), Some(variant_name)) = (
+        value.get("design_name").and_then(|v| v.as_str()),
+        value.get("variant_name").and_then(|v| v.as_str()),
+    ) else {
+        return false;
+    };
+    let Some(d) = design.design(design_name) else {
+        return false;
+    };
+    let Some(variant) = design.variant(d, variant_name) else {
+        return false;
+    };
+    let dim_values: FxHashMap<String, String> = value
+        .get("dimension_values")
+        .and_then(|v| v.as_object())
+        .map(|o| {
+            o.iter()
+                .map(|(k, v)| (k.clone(), v.as_str().unwrap_or_default().to_string()))
+                .collect()
+        })
+        .unwrap_or_default();
+    let (fields, _) = resolve_variant_decoration(d, variant, &dim_values);
+    !fields.is_empty()
 }
 
 /// Collect the tags of all component instantiations in a view tree — the

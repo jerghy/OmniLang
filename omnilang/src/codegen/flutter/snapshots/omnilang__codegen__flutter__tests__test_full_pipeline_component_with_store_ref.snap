@@ -1,5 +1,6 @@
 ---
 source: omnilang/src/codegen/flutter/tests.rs
+assertion_line: 4143
 expression: "&snapshot_content"
 ---
 === App.dart ===
@@ -7,7 +8,6 @@ expression: "&snapshot_content"
 
 import 'package:flutter/material.dart';
 
-import './AppStore_store.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 

@@ -579,6 +579,18 @@ impl<F: FormatExpr> FormatStmt for PlainStmtFormatter<F> {
 /// Dart-typed params/returns, async when the body needs `await`, plain
 /// mutations (no setState at module scope).
 pub(crate) fn generate_lib_fn_flutter(w: &mut CodeWriter, func: &FunctionIR) {
+    // Task 5.8a: re-annotate IdentifierExpr type_ann from the fn's params
+    // (the IR's annotation is never populated) so the shared Dart method
+    // table shapes get/contains/concat from static types — e.g.
+    // error_handling.omni's `map.contains(key)` on a Map<String,String>
+    // param (unnecessary_type_check without the annotation).
+    let type_scope = super::type_annotate::build_lib_fn_type_scope(func);
+    let body_stmts: Vec<StatementIR> = func
+        .body
+        .statements
+        .iter()
+        .map(|s| super::type_annotate::annotate_stmt_types(s, &type_scope))
+        .collect();
     let mut param_strs = Vec::new();
     for p in &func.params {
         let mut s = String::new();
@@ -629,15 +641,15 @@ pub(crate) fn generate_lib_fn_flutter(w: &mut CodeWriter, func: &FunctionIR) {
             Some(StatementIR::ExprStmtIR { .. })
         );
     let tail_count = if is_tail_expr {
-        func.body.statements.len() - 1
+        body_stmts.len() - 1
     } else {
-        func.body.statements.len()
+        body_stmts.len()
     };
-    for stmt in &func.body.statements[..tail_count] {
+    for stmt in &body_stmts[..tail_count] {
         fmt.format_stmt(w, stmt);
     }
     if is_tail_expr {
-        if let Some(StatementIR::ExprStmtIR { expr }) = func.body.statements.last() {
+        if let Some(StatementIR::ExprStmtIR { expr }) = body_stmts.last() {
             w.emit_fmt(format_args!(
                 "return {};",
                 super::r#ref::FlutterFormatExpr::new(None).format_expr(expr)
@@ -760,4 +772,26 @@ pub(crate) fn generate_function_flutter_with(
 /// expression pipeline.
 fn generate_statement_flutter_expr(expr: &ExprIR) -> String {
     super::r#ref::FlutterFormatExpr::new(None).format_expr(expr)
+}
+
+/// Drop the statements that follow an unsupported pointer-capture ref-op:
+/// its Flutter emission is a `throw UnsupportedError(...)` (design D3 /
+/// spec §10.3 — capturePointer/releasePointer hard-error), so later
+/// statements in the same block are unreachable — keeping them flagged
+/// `dead_code` in dart analyze (Task 5.8a, ElementRefDemo's onPtrDown /
+/// onPtrUp). The throw statement itself is kept (the honest degradation).
+pub(crate) fn truncate_after_pointer_capture(stmts: &mut Vec<StatementIR>) {
+    let pos = stmts.iter().position(|s| match s {
+        StatementIR::ExprStmtIR { expr } => matches!(
+            expr,
+            ExprIR::RefOpExpr {
+                op: RefOpIR::CapturePointer | RefOpIR::ReleasePointer,
+                ..
+            }
+        ),
+        _ => false,
+    });
+    if let Some(p) = pos {
+        stmts.truncate(p + 1);
+    }
 }

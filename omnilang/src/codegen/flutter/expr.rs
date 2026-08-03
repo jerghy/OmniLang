@@ -72,7 +72,7 @@ pub(crate) fn rewrite_store_accesses(
                     args,
                 }
             } else {
-                store_read_expr(provider, field_name)
+                store_read_expr(store_alias, provider, field_name)
             }
         }
         ExprIR::FieldAccessExpr { object, field } => {
@@ -98,7 +98,7 @@ pub(crate) fn rewrite_store_accesses(
                             type_ann: None,
                         };
                     }
-                    return store_read_expr(provider, field);
+                    return store_read_expr(name, provider, field);
                 }
             }
             ExprIR::FieldAccessExpr {
@@ -668,7 +668,13 @@ fn store_action_call_expr(provider: &str, action: &str, args: Vec<ExprIR>) -> Ex
 
 /// Build the Riverpod 3.0 property read expression:
 /// `ref.watch(storeProvider.select((s) => s.field))`.
-fn store_read_expr(provider: &str, field: &str) -> ExprIR {
+///
+/// Task 5.8a: the select closure's param is TYPED with the store's state
+/// class (`(TodoStoreState s) => s.totalCount`) — the shared closure
+/// formatter otherwise annotates every untyped param with `dynamic`, and a
+/// `dynamic` select result made a collection-`for` over it flag the next
+/// list element as dead_code in dart analyze (NotificationsPanel).
+fn store_read_expr(store_name: &str, provider: &str, field: &str) -> ExprIR {
     ExprIR::MethodCallExpr {
         object: Box::new(ExprIR::ident("ref")),
         method: "watch".into(),
@@ -676,7 +682,7 @@ fn store_read_expr(provider: &str, field: &str) -> ExprIR {
             object: Box::new(ExprIR::ident(provider)),
             method: "select".into(),
             args: vec![ExprIR::ClosureExpr {
-                params: vec!["s".into()],
+                params: vec![format!("{}State s", store_name)],
                 body: Box::new(ExprIR::FieldAccessExpr {
                     object: Box::new(ExprIR::ident("s")),
                     field: field.to_string(),

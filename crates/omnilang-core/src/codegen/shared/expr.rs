@@ -93,6 +93,17 @@ pub trait FormatExpr {
         }
     }
 
+    /// Closure-body pre-processing hook — the body's IR is available so
+    /// backends can shape the body before `format_closure` renders it.
+    /// Default: pass through. Dart-family narrows int-literal arithmetic
+    /// closure bodies (`|s| s + 5` → `(s + 5) as int`) so the closure's
+    /// result is statically int — the language's closures are Any-typed,
+    /// and an un-narrowed `int + dynamic` result is `num` in Dart
+    /// (invalid_assignment at the call site, Task 5.8a DataTable).
+    fn format_closure_body(&self, _body: &ExprIR, body_str: &str) -> String {
+        body_str.to_string()
+    }
+
     /// Struct literal wrapper (braces + content).
     /// `type_name` is the struct type name (used by Python: `TypeName(fields)`).
     fn format_struct(&self, _type_name: &str, fields: &str) -> String {
@@ -130,6 +141,26 @@ pub trait FormatExpr {
     /// Method call expression.
     fn format_method_call(&self, obj: &str, method: &str, args: &[String]) -> String {
         format!("{obj}.{method}({})", args.join(", "))
+    }
+
+    /// Method call WITH IR context (object/args shapes and static type
+    /// annotations still available). The default delegates to the
+    /// string-level formatters; backends whose method tables need shape
+    /// info (Dart `get`/`contains`/`concat` — Task 5.8a) override this.
+    fn format_method_call_with_ir(
+        &self,
+        _object: &ExprIR,
+        method: &str,
+        _args: &[ExprIR],
+        is_optional: bool,
+        obj_str: &str,
+        arg_strs: &[String],
+    ) -> String {
+        if is_optional {
+            self.format_optional_method_call(obj_str, method, arg_strs)
+        } else {
+            self.format_method_call(obj_str, method, arg_strs)
+        }
     }
 
     /// Optional-chain method call (`obj?.method(args)`).
@@ -405,11 +436,7 @@ pub trait FormatExpr {
             } => {
                 let obj = self.format_expr(object);
                 let arg_strs: Vec<String> = args.iter().map(|a| self.format_expr(a)).collect();
-                if *is_optional {
-                    self.format_optional_method_call(&obj, method, &arg_strs)
-                } else {
-                    self.format_method_call(&obj, method, &arg_strs)
-                }
+                self.format_method_call_with_ir(object, method, args, *is_optional, &obj, &arg_strs)
             }
             ExprIR::BlockExpr { statements, tail } => self.format_block_expr(statements, tail),
             ExprIR::IndexExpr { object, index } => {
@@ -418,7 +445,7 @@ pub trait FormatExpr {
             ExprIR::AwaitExpr { operand } => self.format_await(&self.format_expr(operand)),
             ExprIR::ClosureExpr { params, body } => {
                 let p = params.join(", ");
-                let b = self.format_expr(body);
+                let b = self.format_closure_body(body, &self.format_expr(body));
                 self.format_closure(&p, &b)
             }
             ExprIR::MatchExpr { matched, arms } => {
@@ -508,6 +535,124 @@ impl FormatExpr for DartFormatExpr {
         self.event_param_name.as_deref()
     }
 
+    // Task 5.8a: closure params carry NO types in the IR — the adjudicated
+    // `dynamic` annotation makes the closure's result statically usable in
+    // arithmetic (`int + dynamic` is `num` in Dart; the body narrowing
+    // below makes int-literal arithmetic closures return int). Params that
+    // ALREADY carry a type (`"TodoStoreState s"` — the codegen's typed
+    // store-select closures) are left untouched, so context-typed closures
+    // keep their real inference (a `dynamic` select result made a
+    // collection-`for` over it flag the next list element as dead_code).
+    // Empty closures stay `() => body`.
+    fn format_closure(&self, params: &str, body: &str) -> String {
+        if params.is_empty() {
+            format!("(() => {body})")
+        } else {
+            let typed: Vec<String> = params
+                .split(", ")
+                .map(|p| {
+                    if p.contains(' ') {
+                        p.to_string()
+                    } else {
+                        format!("dynamic {p}")
+                    }
+                })
+                .collect();
+            format!("(({}) => {body})", typed.join(", "))
+        }
+    }
+
+    // Task 5.8a: the closure body's IR is available here. An arithmetic
+    // closure over an INT literal (`|s| s + 5`, `|x| x * 2`) is an
+    // int-computation in practice — narrow the result `(body) as int` so
+    // `int + closureCall(...)` stays `int` (Dart's `int + dynamic` is
+    // `num`). The narrowing is a LOUD runtime error (`as int` throws) when
+    // the arg is not int-coercible — the language's closures are Any-typed,
+    // so this is an honest degradation, and closures over floats/strings
+    // (no int literal in the arithmetic body) are left untouched.
+    fn format_closure_body(&self, body: &ExprIR, body_str: &str) -> String {
+        if is_int_arithmetic_closure_body(body) {
+            format!("({body_str}) as int")
+        } else {
+            body_str.to_string()
+        }
+    }
+
+    // Method calls WITH IR context — shape/static-type aware arms for
+    // `get`/`contains`/`concat` (Task 5.8a), delegating the rest to the
+    // string-level table below.
+    fn format_method_call_with_ir(
+        &self,
+        object: &ExprIR,
+        method: &str,
+        args: &[ExprIR],
+        is_optional: bool,
+        obj_str: &str,
+        arg_strs: &[String],
+    ) -> String {
+        match method {
+            // `arr.get(i)` — the `!` is needed only when the indexer is
+            // nullable (Map indexers); a typed NON-nullable Array receiver
+            // makes it unnecessary_non_null_assertion (DataTable:94).
+            "get" if !is_optional => {
+                let idx = arg_strs.first().map(|s| s.as_str()).unwrap_or("0");
+                if expr_is_typed_array(object) {
+                    format!("({obj_str})[{idx}]")
+                } else {
+                    format!("({obj_str})[{idx}]!")
+                }
+            }
+            // `x.contains(y)` — Dart's Map has no `contains` (String/List
+            // do). Statically-known receivers emit the right method
+            // directly — the runtime `is Map` dispatch on a typed Map
+            // param was unnecessary_type_check (always true,
+            // ErrorHandlingDemo's get_or_throw). Unknown receivers keep
+            // the runtime dispatch (Task 5.8).
+            "contains" if !is_optional => {
+                let arg = arg_strs.first().map(|s| s.as_str()).unwrap_or("null");
+                if expr_is_typed_map(object) {
+                    format!("({obj_str}).containsKey({arg})")
+                } else if expr_is_typed_string(object) || expr_is_typed_array(object) {
+                    format!("({obj_str}).contains({arg})")
+                } else {
+                    format!(
+                        "({obj_str} is Map ? ({obj_str}).containsKey({arg}) : ({obj_str} as dynamic).contains({arg}))"
+                    )
+                }
+            }
+            // `a.concat(b)` — array args SPREAD their elements (the
+            // language's JS semantics; Dart has no List.concat). The
+            // string-shape heuristic (literal `[..]` args) is extended to
+            // TYPED array variable references (Task 5.8a MEDIUM-2); scalar
+            // args append as items.
+            "concat" if !is_optional => {
+                if arg_strs.is_empty() {
+                    format!("[...{obj_str}]")
+                } else {
+                    let items: Vec<String> = args
+                        .iter()
+                        .zip(arg_strs.iter())
+                        .map(|(a, s)| {
+                            if expr_is_array_shape(a) || s.starts_with('[') {
+                                format!("...{s}")
+                            } else {
+                                s.clone()
+                            }
+                        })
+                        .collect();
+                    format!("[...{obj_str}, {}]", items.join(", "))
+                }
+            }
+            _ => {
+                if is_optional {
+                    self.format_optional_method_call(obj_str, method, arg_strs)
+                } else {
+                    self.format_method_call(obj_str, method, arg_strs)
+                }
+            }
+        }
+    }
+
     // Rust-style method names → Dart (mirrors the React backend's
     // translate_method_call, with Dart-native targets):
     //   `x.to_string()` → `x.toString()`, `list.len()` → `list.length`,
@@ -580,6 +725,13 @@ impl FormatExpr for DartFormatExpr {
             "join" => format!("{}.join({})", obj, args.join(", ")),
             "trim" => format!("{}.trim()", obj),
             "to_float" => format!("double.parse({})", obj),
+            // Task 5.8a (MEDIUM-1): the built-in method table (design doc
+            // 12-standard-library.md) — `.to_uppercase()`/`.to_lowercase()`
+            // (String) and `.is_empty()` (Array) fell through to the
+            // verbatim fallback → undefined methods on Flutter.
+            "to_uppercase" => format!("{}.toUpperCase()", obj),
+            "to_lowercase" => format!("{}.toLowerCase()", obj),
+            "is_empty" => format!("{}.isEmpty", obj),
             _ => format!("{obj}.{method}({})", args.join(", ")),
         }
     }
@@ -617,6 +769,9 @@ impl FormatExpr for DartFormatExpr {
             "join" => format!("{}?.join({})", obj, args.join(", ")),
             "trim" => format!("{}?.trim()", obj),
             "to_float" => format!("double.parse({}!)", obj),
+            "to_uppercase" => format!("{}?.toUpperCase()", obj),
+            "to_lowercase" => format!("{}?.toLowerCase()", obj),
+            "is_empty" => format!("{}?.isEmpty", obj),
             _ => format!("{obj}?.{method}({})", args.join(", ")),
         }
     }
@@ -713,22 +868,18 @@ impl FormatExpr for DartFormatExpr {
                 match &arm.pattern.kind {
                     MatchPatternKindIR::Variant { name, bindings } => {
                         // Bind pattern fields from the subject's union-class
-                        // members. Unused bindings get the `_` prefix so
-                        // Dart's unused_local_variable lint stays quiet. The
-                        // discriminator member is `variant` — public, so the
-                        // access crosses the types.dart library boundary
-                        // (a `_`-prefixed member would be library-private).
+                        // members. UNUSED bindings are skipped entirely —
+                        // the old `_`-prefix trick does NOT silence Dart's
+                        // unused_local_variable lint for `_data`
+                        // (DataFetching:14, Task 5.8a). The discriminator
+                        // member is `variant` — public, so the access
+                        // crosses the types.dart library boundary (a
+                        // `_`-prefixed member would be library-private).
                         let binds: Vec<String> = bindings
                             .iter()
                             .filter(|b| b.as_str() != "variant")
-                            .map(|b| {
-                                let local = if body.contains(b) {
-                                    b.clone()
-                                } else {
-                                    format!("_{b}")
-                                };
-                                format!("final {local} = _v.{b};")
-                            })
+                            .filter(|b| body.contains(b.as_str()))
+                            .map(|b| format!("final {b} = _v.{b};"))
                             .collect();
                         if binds.is_empty() {
                             format!("  case \"{name}\": return {body};")
@@ -912,6 +1063,85 @@ impl FormatExpr for RustFormatExpr {
     }
 }
 
+// ═══════════════════════════════════════════════════════════
+// Static-type shape helpers (Task 5.8a)
+// ═══════════════════════════════════════════════════════════
+//
+// IdentifierExpr.type_ann carries the semantic symbol table's annotation
+// (source-level type strings: "Array<RowItem>", "Map<String, String>",
+// "String", ...) — the Dart method table uses these to shape emissions
+// (`get` bang, `contains` dispatch, `concat` spread) without a runtime
+// dispatch or an analyzer warning.
+
+/// Whether the expression's static type is a NON-NULLABLE array.
+fn expr_is_typed_array(e: &ExprIR) -> bool {
+    match e {
+        ExprIR::IdentifierExpr {
+            type_ann: Some(t), ..
+        } => (t == "Array" || t.starts_with("Array<")) && !t.ends_with('?'),
+        _ => false,
+    }
+}
+
+/// Whether the expression's static type is a non-nullable Map.
+fn expr_is_typed_map(e: &ExprIR) -> bool {
+    match e {
+        ExprIR::IdentifierExpr {
+            type_ann: Some(t), ..
+        } => (t == "Map" || t.starts_with("Map<")) && !t.ends_with('?'),
+        _ => false,
+    }
+}
+
+/// Whether the expression's static type is the non-nullable String.
+fn expr_is_typed_string(e: &ExprIR) -> bool {
+    matches!(
+        e,
+        ExprIR::IdentifierExpr {
+            type_ann: Some(t),
+            ..
+        } if t == "String"
+    )
+}
+
+/// Array-SHAPE check for `concat` args: a typed array variable OR an array
+/// literal — the string-shape heuristic extended to typed variable
+/// references (Task 5.8a MEDIUM-2).
+fn expr_is_array_shape(e: &ExprIR) -> bool {
+    expr_is_typed_array(e) || matches!(e, ExprIR::ArrayExpr { .. })
+}
+
+/// Whether an integer literal appears in the expression.
+fn has_int_literal_operand(e: &ExprIR) -> bool {
+    match e {
+        ExprIR::LiteralExpr { value } => value.is_i64(),
+        _ => false,
+    }
+}
+
+/// Task 5.8a closure-body narrowing rule: the body is a binary ARITHMETIC
+/// expression (`+ - * / %`) with at least one INT literal operand — the
+/// `|s| s + 5` / `|x| x * 2` shapes. String concat closures (`|a, b| a + b`),
+/// float arithmetic (`|v| v * 1.5`), comparisons, ternaries, and member
+/// accesses are NOT narrowed (no int-literal operand / non-arithmetic op).
+fn is_int_arithmetic_closure_body(e: &ExprIR) -> bool {
+    match e {
+        ExprIR::BinaryOpExpr {
+            op, left, right, ..
+        } => {
+            matches!(
+                op,
+                BinaryOpIR::Add
+                    | BinaryOpIR::Sub
+                    | BinaryOpIR::Mul
+                    | BinaryOpIR::Div
+                    | BinaryOpIR::Mod
+            ) && (has_int_literal_operand(left) || has_int_literal_operand(right))
+        }
+        _ => false,
+    }
+}
+
 /// Format a single statement as a Dart string for use inside block-expression IIFEs.
 /// Mirrors `DartStmtFormatter` conventions (`var` bindings, `;` appended by caller).
 fn format_block_stmt_dart(stmt: &StatementIR, fmt: &impl FormatExpr) -> String {
@@ -1063,24 +1293,45 @@ mod tests {
     fn dart_family_filter_maps_to_where_tolist() {
         // items.filter(|i| i.done) → items.where(((i) => i.done)).toList()
         // (Dart List has no `filter` method — the cross-target mapping that
-        // makes `.filter()` compile on Flutter.)
+        // makes `.filter()` compile on Flutter.) The predicate body is a
+        // member access — no int-narrowing (Task 5.8a).
         let fmt = DartFormatExpr {
             event_param_name: None,
         };
         assert_eq!(
             fmt.format_expr(&filter_expr()),
-            "items.where(((i) => i.done)).toList()"
+            "items.where(((dynamic i) => i.done)).toList()"
         );
     }
 
     #[test]
     fn dart_family_map_maps_to_dart_map_tolist() {
+        // `|x| x * 2` (a REAL arithmetic closure body) narrows so the map
+        // result is List<int> — not List<dynamic> →
+        // return_of_invalid_type (Task 5.8a StdLibShowcase's demo_map).
         let fmt = DartFormatExpr {
             event_param_name: None,
         };
+        let arithmetic_map = ExprIR::ArrayMethod {
+            method: ArrayMethodIR::Map,
+            subject: Box::new(ExprIR::IdentifierExpr {
+                name: "items".into(),
+                type_ann: Some("Array<i32>".into()),
+            }),
+            predicate: Box::new(ExprIR::ClosureExpr {
+                params: vec!["x".into()],
+                body: Box::new(ExprIR::BinaryOpExpr {
+                    op: BinaryOpIR::Mul,
+                    left: Box::new(ident("x", None)),
+                    right: Box::new(ExprIR::LiteralExpr {
+                        value: serde_json::json!(2),
+                    }),
+                }),
+            }),
+        };
         assert_eq!(
-            fmt.format_expr(&map_expr()),
-            "items.map(((i) => i * 2)).toList()"
+            fmt.format_expr(&arithmetic_map),
+            "items.map(((dynamic x) => (x * 2) as int)).toList()"
         );
     }
 
@@ -1093,7 +1344,7 @@ mod tests {
         };
         assert_eq!(
             fmt.format_expr(&count_expr()),
-            "items.where(((i) => i.done)).length"
+            "items.where(((dynamic i) => i.done)).length"
         );
     }
 
@@ -1108,6 +1359,380 @@ mod tests {
         assert_eq!(
             fmt.format_expr(&filter_expr()),
             "items.filter((|i| i.done))"
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // Task 5.8a: closure param typing, stdlib method table completion,
+    // concat spread, match binding skip, get/contains static-type shaping
+    // ═══════════════════════════════════════════════════════════
+
+    fn dart_fmt() -> DartFormatExpr {
+        DartFormatExpr {
+            event_param_name: None,
+        }
+    }
+
+    fn ident(name: &str, type_ann: Option<&str>) -> ExprIR {
+        ExprIR::IdentifierExpr {
+            name: name.into(),
+            type_ann: type_ann.map(str::to_string),
+        }
+    }
+
+    fn method_call(object: ExprIR, method: &str, args: Vec<ExprIR>) -> ExprIR {
+        ExprIR::MethodCallExpr {
+            object: Box::new(object),
+            method: method.into(),
+            args,
+            is_optional: false,
+        }
+    }
+
+    /// `|s| s + 5` — the DataTable residual: untyped closure params made
+    /// Dart infer `num Function(...)` (invalid_assignment at the call site).
+    fn untyped_closure_expr() -> ExprIR {
+        ExprIR::ClosureExpr {
+            params: vec!["s".into()],
+            body: Box::new(ExprIR::BinaryOpExpr {
+                op: BinaryOpIR::Add,
+                left: Box::new(ident("s", None)),
+                right: Box::new(ExprIR::LiteralExpr {
+                    value: serde_json::json!(5),
+                }),
+            }),
+        }
+    }
+
+    #[test]
+    fn dart_closure_int_arithmetic_body_narrowed_as_int() {
+        // Controller adjudication (a): untyped closure params emit
+        // `(dynamic s) => ...`, and the int-literal arithmetic body narrows
+        // `(s + 5) as int` — `bonus` becomes `int Function(dynamic)`, so
+        // `total + bonus(...)` stays int (Dart's `int + dynamic` would be
+        // `num` — the DataTable invalid_assignment).
+        let out = dart_fmt().format_expr(&untyped_closure_expr());
+        assert_eq!(out, "((dynamic s) => (s + 5) as int)");
+    }
+
+    #[test]
+    fn dart_closure_multiple_params_annotated_dynamic() {
+        let expr = ExprIR::ClosureExpr {
+            params: vec!["a".into(), "b".into()],
+            body: Box::new(ident("a", None)),
+        };
+        assert_eq!(
+            dart_fmt().format_expr(&expr),
+            "((dynamic a, dynamic b) => a)"
+        );
+    }
+
+    #[test]
+    fn dart_closure_typed_param_passthrough() {
+        // The codegen's store-select closures carry a TYPED param
+        // ("TodoStoreState s") — the `dynamic` annotation must not double
+        // up: a `dynamic` select result made a collection-`for` over it
+        // flag the next list element as dead_code (NotificationsPanel).
+        let expr = ExprIR::ClosureExpr {
+            params: vec!["TodoStoreState s".into()],
+            body: Box::new(ExprIR::FieldAccessExpr {
+                object: Box::new(ident("s", None)),
+                field: "totalCount".into(),
+            }),
+        };
+        assert_eq!(
+            dart_fmt().format_expr(&expr),
+            "((TodoStoreState s) => s.totalCount)"
+        );
+    }
+
+    #[test]
+    fn dart_closure_non_arithmetic_body_keeps_plain_form() {
+        // Comparisons, member accesses, ternaries — no narrowing.
+        let expr = ExprIR::ClosureExpr {
+            params: vec!["r".into()],
+            body: Box::new(ExprIR::BinaryOpExpr {
+                op: BinaryOpIR::Eq,
+                left: Box::new(ExprIR::FieldAccessExpr {
+                    object: Box::new(ident("r", None)),
+                    field: "status".into(),
+                }),
+                right: Box::new(ExprIR::LiteralExpr {
+                    value: serde_json::json!("Active"),
+                }),
+            }),
+        };
+        assert_eq!(
+            dart_fmt().format_expr(&expr),
+            "((dynamic r) => r.status == 'Active')"
+        );
+    }
+
+    #[test]
+    fn dart_closure_float_arithmetic_body_not_narrowed() {
+        // Float-literal arithmetic (`|v| v * 1.5`) is NOT narrowed — the
+        // rule targets int-literal arithmetic closures only.
+        let expr = ExprIR::ClosureExpr {
+            params: vec!["v".into()],
+            body: Box::new(ExprIR::BinaryOpExpr {
+                op: BinaryOpIR::Mul,
+                left: Box::new(ident("v", None)),
+                right: Box::new(ExprIR::LiteralExpr {
+                    value: serde_json::json!(1.5),
+                }),
+            }),
+        };
+        assert_eq!(dart_fmt().format_expr(&expr), "((dynamic v) => v * 1.5)");
+    }
+
+    #[test]
+    fn dart_closure_string_concat_body_not_narrowed() {
+        // `|a, b| a + b` (string concat closure) is NOT narrowed — no int
+        // literal operand.
+        let expr = ExprIR::ClosureExpr {
+            params: vec!["a".into(), "b".into()],
+            body: Box::new(ExprIR::BinaryOpExpr {
+                op: BinaryOpIR::Add,
+                left: Box::new(ident("a", None)),
+                right: Box::new(ident("b", None)),
+            }),
+        };
+        assert_eq!(
+            dart_fmt().format_expr(&expr),
+            "((dynamic a, dynamic b) => a + b)"
+        );
+    }
+
+    #[test]
+    fn dart_closure_empty_params_unchanged() {
+        let expr = ExprIR::ClosureExpr {
+            params: vec![],
+            body: Box::new(ident("x", None)),
+        };
+        assert_eq!(dart_fmt().format_expr(&expr), "(() => x)");
+    }
+
+    #[test]
+    fn js_closure_params_stay_untyped() {
+        // JS-family closures keep the shared `(s) => ...` form — the
+        // `dynamic` annotation is Dart-only.
+        let expr = ExprIR::ClosureExpr {
+            params: vec!["s".into()],
+            body: Box::new(ident("s", None)),
+        };
+        assert_eq!(JsFormatExpr.format_expr(&expr), "((s) => s)");
+    }
+
+    #[test]
+    fn dart_method_table_covers_to_uppercase_lowercase_is_empty() {
+        // MEDIUM-1: `.to_uppercase()`/`.to_lowercase()`/`.is_empty()` were
+        // missing from the Dart method table — the verbatim fallback emitted
+        // undefined methods.
+        let upper = method_call(ident("s", Some("String")), "to_uppercase", vec![]);
+        assert_eq!(dart_fmt().format_expr(&upper), "s.toUpperCase()");
+        let lower = method_call(ident("s", Some("String")), "to_lowercase", vec![]);
+        assert_eq!(dart_fmt().format_expr(&lower), "s.toLowerCase()");
+        let empty = method_call(ident("arr", Some("Array<i32>")), "is_empty", vec![]);
+        assert_eq!(dart_fmt().format_expr(&empty), "arr.isEmpty");
+    }
+
+    #[test]
+    fn dart_optional_method_table_covers_to_uppercase_lowercase_is_empty() {
+        let fmt = dart_fmt();
+        let upper = ExprIR::MethodCallExpr {
+            object: Box::new(ident("s", None)),
+            method: "to_uppercase".into(),
+            args: vec![],
+            is_optional: true,
+        };
+        assert_eq!(fmt.format_expr(&upper), "s?.toUpperCase()");
+        let empty = ExprIR::MethodCallExpr {
+            object: Box::new(ident("arr", None)),
+            method: "is_empty".into(),
+            args: vec![],
+            is_optional: true,
+        };
+        assert_eq!(fmt.format_expr(&empty), "arr?.isEmpty");
+    }
+
+    #[test]
+    fn dart_concat_spreads_typed_array_variable() {
+        // MEDIUM-2: `a.concat(b)` where `b` is a TYPED array variable must
+        // spread the elements (`[...a, ...b]`) — element-append (`[...a, b]`)
+        // was a JS-semantics fork.
+        let expr = method_call(
+            ident("a", Some("Array<i32>")),
+            "concat",
+            vec![ident("b", Some("Array<i32>"))],
+        );
+        assert_eq!(dart_fmt().format_expr(&expr), "[...a, ...b]");
+    }
+
+    #[test]
+    fn dart_concat_spreads_literal_array_arg() {
+        let expr = method_call(
+            ident("a", Some("Array<i32>")),
+            "concat",
+            vec![ExprIR::ArrayExpr {
+                elements: vec![ident("v", None)],
+            }],
+        );
+        assert_eq!(dart_fmt().format_expr(&expr), "[...a, ...[v]]");
+    }
+
+    #[test]
+    fn dart_concat_keeps_element_append_for_untyped_variable() {
+        // Untyped variable args cannot be proven arrays — keep the current
+        // element-append (documented degradation, no false spread).
+        let expr = method_call(
+            ident("a", Some("Array<i32>")),
+            "concat",
+            vec![ident("b", None)],
+        );
+        assert_eq!(dart_fmt().format_expr(&expr), "[...a, b]");
+    }
+
+    #[test]
+    fn dart_concat_no_args_keeps_copy() {
+        let expr = method_call(ident("a", Some("Array<i32>")), "concat", vec![]);
+        assert_eq!(dart_fmt().format_expr(&expr), "[...a]");
+    }
+
+    #[test]
+    fn dart_get_on_typed_array_omits_bang() {
+        // `rows.get(i)` on a typed non-nullable Array: the indexer is
+        // non-nullable — the unconditional `!` was
+        // unnecessary_non_null_assertion in dart analyze.
+        let expr = method_call(
+            ident("rows", Some("Array<RowItem>")),
+            "get",
+            vec![ident("i", Some("i32"))],
+        );
+        assert_eq!(dart_fmt().format_expr(&expr), "(rows)[i]");
+    }
+
+    #[test]
+    fn dart_get_on_untyped_receiver_keeps_bang() {
+        // Untyped receivers (map literals etc.) keep the `!` — their
+        // indexers are nullable.
+        let expr = method_call(
+            ident("cfg", None),
+            "get",
+            vec![ExprIR::LiteralExpr {
+                value: serde_json::json!("90"),
+            }],
+        );
+        assert_eq!(dart_fmt().format_expr(&expr), "(cfg)['90']!");
+    }
+
+    #[test]
+    fn dart_get_on_nullable_array_keeps_bang() {
+        let expr = method_call(
+            ident("rows", Some("Array<RowItem>?")),
+            "get",
+            vec![ident("i", Some("i32"))],
+        );
+        assert_eq!(dart_fmt().format_expr(&expr), "(rows)[i]!");
+    }
+
+    #[test]
+    fn dart_contains_on_typed_map_uses_contains_key() {
+        // `map.contains(key)` on a typed Map receiver: emit containsKey
+        // directly — the runtime `is Map` dispatch was
+        // unnecessary_type_check (always true).
+        let expr = method_call(
+            ident("map", Some("Map<String, String>")),
+            "contains",
+            vec![ident("key", Some("String"))],
+        );
+        assert_eq!(dart_fmt().format_expr(&expr), "(map).containsKey(key)");
+    }
+
+    #[test]
+    fn dart_contains_on_typed_string_keeps_contains() {
+        let expr = method_call(
+            ident("s", Some("String")),
+            "contains",
+            vec![ident("sub", Some("String"))],
+        );
+        assert_eq!(dart_fmt().format_expr(&expr), "(s).contains(sub)");
+    }
+
+    #[test]
+    fn dart_contains_on_typed_array_keeps_contains() {
+        let expr = method_call(
+            ident("items", Some("Array<String>")),
+            "contains",
+            vec![ident("x", Some("String"))],
+        );
+        assert_eq!(dart_fmt().format_expr(&expr), "(items).contains(x)");
+    }
+
+    #[test]
+    fn dart_contains_on_unknown_receiver_keeps_runtime_dispatch() {
+        let expr = method_call(ident("x", None), "contains", vec![ident("y", None)]);
+        assert_eq!(
+            dart_fmt().format_expr(&expr),
+            "(x is Map ? (x).containsKey(y) : (x as dynamic).contains(y))"
+        );
+    }
+
+    #[test]
+    fn dart_match_skips_unused_bindings_entirely() {
+        // The `_`-prefixed unused binding trick does not silence Dart's
+        // unused_local_variable lint for `_data` — an unused pattern
+        // binding must not be emitted at all.
+        let expr = ExprIR::MatchExpr {
+            matched: Box::new(ident("v", Some("ApiResult"))),
+            arms: vec![MatchArmIR {
+                pattern: MatchPatternIR {
+                    kind: MatchPatternKindIR::Variant {
+                        name: "Ok".into(),
+                        bindings: vec!["data".into(), "extra".into()],
+                    },
+                },
+                body: BlockIR {
+                    statements: Vec::new(),
+                },
+                union_type: Some("ApiResult".into()),
+            }],
+        };
+        let out = dart_fmt().format_expr(&expr);
+        assert!(
+            !out.contains("final data =") && !out.contains("final _data ="),
+            "unused bindings must not be emitted: {out}"
+        );
+        assert!(
+            out.contains("case \"Ok\": return"),
+            "arm body must survive: {out}"
+        );
+    }
+
+    #[test]
+    fn dart_match_keeps_used_bindings() {
+        // The arm body references the binding (the shared formatter renders
+        // it inside the arm), so it must be emitted — not skipped.
+        let expr = ExprIR::MatchExpr {
+            matched: Box::new(ident("v", Some("ApiResult"))),
+            arms: vec![MatchArmIR {
+                pattern: MatchPatternIR {
+                    kind: MatchPatternKindIR::Variant {
+                        name: "Err".into(),
+                        bindings: vec!["error".into()],
+                    },
+                },
+                body: BlockIR {
+                    statements: vec![StatementIR::ExprStmtIR {
+                        expr: ident("error", None),
+                    }],
+                },
+                union_type: Some("ApiResult".into()),
+            }],
+        };
+        let out = dart_fmt().format_expr(&expr);
+        assert!(
+            out.contains("final error = _v.error;"),
+            "used bindings must still be emitted: {out}"
         );
     }
 

@@ -1212,6 +1212,30 @@ impl FormatExpr for FlutterFormatExpr {
         self.inner.format_optional_method_call(obj, method, args)
     }
 
+    // Task 5.8a: the IR-aware method-table arms (get/contains/concat shape
+    // decisions) and the `dynamic` closure-param annotation live on the
+    // inner DartFormatExpr — Flutter output must use them too.
+    fn format_method_call_with_ir(
+        &self,
+        object: &ExprIR,
+        method: &str,
+        args: &[ExprIR],
+        is_optional: bool,
+        obj_str: &str,
+        arg_strs: &[String],
+    ) -> String {
+        self.inner
+            .format_method_call_with_ir(object, method, args, is_optional, obj_str, arg_strs)
+    }
+
+    fn format_closure(&self, params: &str, body: &str) -> String {
+        self.inner.format_closure(params, body)
+    }
+
+    fn format_closure_body(&self, body: &ExprIR, body_str: &str) -> String {
+        self.inner.format_closure_body(body, body_str)
+    }
+
     // Dart `+` on Strings requires both operands to be Strings — delegate
     // the coercion rule to the Dart family.
     fn format_binary_op(
