@@ -6538,6 +6538,97 @@ fn test_a11y_unmappable_role_warns_and_comments() {
     );
 }
 
+/// a11y block (design doc 域 10) injection hardening — final T7.3 corpus
+/// findings, both RED-verified before the fixes:
+/// 1. the `label` path emitted raw Dart string interpolation (`${expr}` in
+///    a `'...'` literal executes); 2. an unmappable `role` was embedded
+///    verbatim in the degradation block comment, so a `*/` payload
+///    terminated the comment and left code behind.
+#[test]
+fn test_a11y_label_dollar_escaped_and_role_comment_sanitized() {
+    let codegen = FlutterCodegen;
+    let el = ElementIR {
+        tag: "input".to_string(),
+        a11y: Some(A11yIR {
+            label: Some("x${alert(1)}".into()),
+            role: Some("x*/ alert(1) //".into()), // NOT in the Flutter subset
+            hidden: None,
+            live: None,
+            alt: None,
+        }),
+        children: vec![],
+        props: FxHashMap::default(),
+        bindings: FxHashMap::default(),
+        events: FxHashMap::default(),
+        style_classes: None,
+        inline_style: None,
+        construction_kind: ConstructionKind::Normal,
+        class_map_bindings: FxHashMap::default(),
+        source_span: None,
+        motion: None,
+        ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
+    };
+    let view = ViewTree::Element(Box::new(el));
+    let comp = ref_component("A11yInjectionDemo", &[], vec![], vec![], Some(view));
+    let mut components = FxHashMap::default();
+    components.insert("A11yInjectionDemo".into(), comp);
+    let ir = make_ir(components);
+    let comp_ref = ir
+        .modules
+        .get("main")
+        .unwrap()
+        .components
+        .get("A11yInjectionDemo")
+        .unwrap();
+    let component_map = build_component_map(&ir);
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let (dart, warnings, errors) = codegen.gen_component_dart(
+        "A11yInjectionDemo",
+        comp_ref,
+        &ir,
+        &component_map,
+        &component_slots,
+    );
+    assert!(errors.is_empty(), "unexpected errors: {:?}", errors);
+    // 1. `$` must be escaped in the Dart label literal — a raw `${` would be
+    //    interpolation (executable code), not content.
+    assert!(
+        dart.contains("label: 'x\\${alert(1)}'"),
+        "label `$` must be escaped; got:
+{}",
+        dart
+    );
+    assert!(
+        !dart.contains("label: 'x${alert(1)}'"),
+        "label must not emit raw Dart interpolation; got:
+{}",
+        dart
+    );
+    // 2. The role must not terminate the degradation comment: `*/` is
+    //    sanitized to `* /` inside the comment text.
+    assert!(
+        dart.contains("role 'x* / alert(1) //'"),
+        "role `*/` must be sanitized inside the degradation comment; got:
+{}",
+        dart
+    );
+    assert!(
+        !dart.contains("role 'x*/"),
+        "raw role must not appear in the degradation comment; got:
+{}",
+        dart
+    );
+    // The unmappable role still warns on the T2.4 warnings channel.
+    assert!(
+        warnings
+            .iter()
+            .any(|w| w.contains("role") && w.contains("Semantics")),
+        "unmappable role must warn; got: {:?}",
+        warnings
+    );
+}
+
 /// a11y block (design doc 域 10): `label` + `alt` on a NON-image element
 /// used to emit TWO `label:` args into one `Semantics(...)` call —
 /// duplicate named argument, invalid Dart. `label` wins (it IS the

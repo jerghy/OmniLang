@@ -844,7 +844,12 @@ fn wrap_a11y(el: &ElementIR, inner: String, ctx: &mut ViewContext) -> String {
     };
     let mut semantics_args: Vec<String> = Vec::new();
     if let Some(ref label) = a11y.label {
-        semantics_args.push(format!("label: '{}'", escape_literal_str(label, '\'')));
+        // Dart string escaping — `$` must be escaped like the text path:
+        // `$var` / `${expr}` inside a Dart string is interpolation, so an
+        // unescaped `$` from a payload executes code (injection corpus
+        // finding, Task 3.1 — surfaced by the final T7.3 a11y corpus point).
+        let escaped = escape_literal_str(label, '\'');
+        semantics_args.push(format!("label: '{}'", escaped.replace('$', "\\$")));
     }
     if let Some(ref role) = a11y.role {
         match role_to_semantics_flag(role) {
@@ -892,8 +897,12 @@ fn wrap_a11y(el: &ElementIR, inner: String, ctx: &mut ViewContext) -> String {
     if let Some(ref role) = a11y.role {
         if role_to_semantics_flag(role).is_none() {
             // Honest degradation: the generated code says what happened.
+            // The role is embedded in a Dart block comment — sanitize `*/`
+            // so a payload cannot terminate the comment and leave code
+            // behind (injection corpus a11y point, final T7.3 regression).
+            let safe_role = role.replace("*/", "* /");
             degradation_comment = format!(
-                "/* a11y: role '{role}' has no Flutter Semantics flag \
+                "/* a11y: role '{safe_role}' has no Flutter Semantics flag \
                  (subset: button/textField/link/checkbox/radio/image); \
                  degraded — no Semantics flag emitted */ "
             );

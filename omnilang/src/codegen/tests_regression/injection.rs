@@ -1,4 +1,5 @@
-//! Cross-backend injection-payload corpus (Task 3.1 regression).
+//! Cross-backend injection-payload corpus (Task 3.1 regression, extended by
+//! the final T7.3 regression).
 //!
 //! For every UI backend × insertion point × payload, the compiler must
 //! either reject the source (compile error) or emit output that contains no
@@ -6,6 +7,13 @@
 //! CODE, not just compilability — a payload that compiles into executable
 //! `alert(...)` code fails the corpus even though tsc/esbuild would pass it
 //! (review requirement: "tsc 能过 ≠ 安全").
+//!
+//! T7.3 additions: the `a11y` insertion point (Task 4.5 surface — a11y
+//! block string values reach a distinct emission path from the `attr`
+//! point) and the `x*/ alert(1) //` comment-terminator payload. Both caught
+//! live Flutter gaps: the a11y `label` emitted raw Dart `${...}`
+//! interpolation, and the unmappable-`role` degradation comment embedded
+//! the role verbatim (`*/` terminated the block comment).
 
 use rustc_hash::FxHashMap;
 
@@ -40,6 +48,10 @@ const EXPLOIT_PAYLOADS: &[&str] = &[
     // interpolation-parse fallback (`{`-leading Text nodes), which
     // backends must escape as plain text (review CRITICAL round 2).
     "alert(1)",
+    // Comment-terminator breakout: terminates a Dart/JS block comment in
+    // which a string value is embedded verbatim (Flutter a11y role
+    // degradation comment), leaving `alert(1)` in code position.
+    "x*/ alert(1) //",
 ];
 
 /// Executable-code patterns that must never survive in generated output.
@@ -434,6 +446,21 @@ fn attr_src(payload: &str) -> String {
     format!("component App {{\n    view {{\n        <div title=\"x{payload}\"/>\n    }}\n}}\n")
 }
 
+/// a11y block string values (Task 4.5 surface — added to the corpus by the
+/// final T7.3 regression): `label`/`role` are string literals flowing into
+/// React JSX attributes, Flutter Dart strings and degradation comments, and
+/// OmniView HTML attributes — a distinct emission path from the `attr`
+/// point's static-props loop (`a11y_react_attrs` / `wrap_a11y` /
+/// `emit_a11y_attr`). The Flutter label path originally lacked the Dart
+/// `$`-interpolation escaping (the text path's `$` → `\$`), and the Flutter
+/// role-degradation comment embeds the role verbatim (a `*/` payload can
+/// terminate the block comment).
+fn a11y_src(payload: &str) -> String {
+    format!(
+        "component App {{\n    view {{\n        <div a11y: {{ label: \"x{payload}\", role: \"x{payload}\" }}/>\n    }}\n}}\n"
+    )
+}
+
 fn event_src(payload: &str) -> String {
     format!(
         "component App {{\n    fn show(t) {{ return t }}\n    view {{\n        <div @onClick={{show(\"x{payload}\")}}/>\n    }}\n}}\n"
@@ -456,6 +483,10 @@ const POINTS: &[Point] = &[
     Point {
         name: "attr",
         make_src: attr_src,
+    },
+    Point {
+        name: "a11y",
+        make_src: a11y_src,
     },
     Point {
         name: "event",
