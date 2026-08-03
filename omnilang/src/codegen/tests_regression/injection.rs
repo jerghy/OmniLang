@@ -24,6 +24,12 @@
 //! (bare `onmouseover=` forms in raw HTML), and the `.html` inline-`<script>`
 //! EXEC_PATTERNS scan. The corpus goes RED here (emission fixes land in
 //! tasks 1.2-1.4); the failure shapes below are their acceptance baseline.
+//! Task 1.3: the handler-attribute scan is tokenizer-state-aware
+//! ([`contains_live_handler_attr`]) — an `onXxx=` inside text content or
+//! inside a quoted attribute VALUE is inert per HTML parsing and skipped —
+//! and the static attribute-value shapes are REJECTED at compile time by
+//! the shared lowering gate (a compile error is the accepted safe outcome;
+//! see `omni_html_attribute_context_blocks_unquoted_handlers`).
 
 use rustc_hash::FxHashMap;
 
@@ -101,62 +107,221 @@ const EXEC_PATTERNS: &[&str] = &["alert(", "document.cookie", "javascript:"];
 /// corpus sources never produce).
 const JS_TEMPLATE_PATTERN: &str = "${";
 
-/// Raw HTML breakout forms — dangerous even inside an emitted HTML string
-/// (e.g. `class="x" onmouseover="alert(1)"` inside an innerHTML assignment).
-/// The quote is part of the pattern: an ESCAPED attribute (`onmouseover=&quot;`)
-/// is inert data, while `onmouseover="` means a real inline handler attribute
-/// was formed. No backend emits inline event-handler attributes legitimately
-/// (verified across the codegen). A lone `</script>` IS legitimate in the
-/// OmniView HTML wrapper, so the script check targets a re-opened tag.
+/// Tag-reopen breakout forms — dangerous wherever they appear (a re-opened
+/// `<script>`/`<style>` context is live even from text position: the parser
+/// switches to RAWTEXT and the injected element executes), so they are
+/// checked raw, any position. A lone `</script>` IS legitimate in the
+/// OmniView HTML wrapper, so the script check targets a re-opened tag; the
+/// `</style><script` form catches a CSS-escape payload re-opening a
+/// `<style>` context to inject `<script>` (design-token values emit into
+/// CSS).
 ///
-/// The trailing bare forms (`onmouseover=` etc., no quote) catch handler
-/// attributes formed WITHOUT quotes — also executable raw HTML. They are
-/// matched exemption-aware (see [`contains_unquoted_handler`]): a bare form
-/// immediately followed by an entity-escaped quote (`onmouseover=&quot;`)
-/// is escaped inert data, not an attribute boundary. The `</style><script`
-/// form catches a CSS-escape payload re-opening a `<style>` context to
-/// inject `<script>` (design-token values emit into CSS).
-const HTML_PATTERNS: &[&str] = &[
-    "onmouseover=\"",
-    "onerror=\"",
-    "onload=\"",
-    "onclick=\"",
-    "onmouseover='",
-    "onerror='",
-    "onload='",
-    "onclick='",
-    "</script><script",
-    "onmouseover=",
-    "onerror=",
-    "onload=",
-    "onclick=",
-    "</style><script",
-];
+/// Handler-attribute patterns are NOT in this list: they are checked
+/// tokenizer-state-aware by [`contains_live_handler_attr`] — an `onXxx=`
+/// inside TEXT content or inside a quoted attribute VALUE is inert per HTML
+/// parsing (the parser never turns it into an attribute boundary), while
+/// one in attribute-name position in a tag (or raw inside a `<script>`/
+/// `<style>` body, where an HTML string inside an innerHTML assignment
+/// stays visible) is a real live handler. The quote state matters: an
+/// ESCAPED attribute (`onmouseover=&quot;`) is inert data, while
+/// `onmouseover="` in attribute position means a real inline handler
+/// attribute was formed. No backend emits inline event-handler attributes
+/// legitimately (verified across the codegen).
+const HTML_REOPEN_PATTERNS: &[&str] = &["</script><script", "</style><script"];
 
-/// True if `pat` is a bare handler-attribute name (`onmouseover=`-style,
-/// ending in `=` with no quote) — matched with the entity-exemption rule.
-fn is_bare_handler_pattern(pat: &str) -> bool {
-    pat.ends_with('=') && !pat.contains('"') && !pat.contains('\'')
+/// HTML tokenizer state-awareness for the handler-attribute scan.
+#[derive(Clone, Copy, PartialEq)]
+enum HtmlScanState {
+    /// Element text content — handler-shaped text is inert (never parsed
+    /// as attributes).
+    Data,
+    /// After `<` — consuming the tag name.
+    TagOpen,
+    /// Inside a tag, between attributes.
+    Tag,
+    /// Inside a double-quoted attribute value.
+    QuotedD,
+    /// Inside a single-quoted attribute value.
+    QuotedS,
+    /// Inside an unquoted attribute value.
+    Unquoted,
+    /// Inside a `<script>`/`<style>` element body — raw-conservative scan.
+    RawElement,
 }
 
-/// Whether raw HTML contains `pat` forming a REAL handler attribute. The
-/// bare handler patterns must not flag `onmouseover=&quot;` (entity-escaped
-/// quote = inert data, per the [`HTML_PATTERNS`] contract): an occurrence
-/// immediately followed by an entity-escaped quote is skipped.
-fn contains_unquoted_handler(content: &str, pat: &str) -> bool {
-    let mut rest = content;
-    while let Some(idx) = rest.find(pat) {
-        let after = &rest[idx + pat.len()..];
-        let escaped_quote = after.starts_with("&quot;")
-            || after.starts_with("&#34;")
-            || after.starts_with("&#x22;")
-            || after.starts_with("&apos;")
-            || after.starts_with("&#39;")
-            || after.starts_with("&#x27;");
-        if !escaped_quote {
-            return true;
+/// Handler-attribute names the raw-HTML scan flags (subset of the compiler
+/// gate's full WHATWG whitelist — the corpus is the regression canary, the
+/// shared lowering gate is the boundary).
+const HANDLER_ATTRS: &[&[u8]] = &[b"onmouseover", b"onerror", b"onload", b"onclick"];
+
+/// Whether `bytes[i..]` starts with an identifier boundary followed by the
+/// handler name — i.e. the name is a standalone token, not part of a longer
+/// identifier (`nonmouseover=`, `onmouseoveralert=`).
+fn handler_boundary_ok(bytes: &[u8], i: usize) -> bool {
+    i == 0
+        || !(bytes[i - 1].is_ascii_alphanumeric() || bytes[i - 1] == b'_' || bytes[i - 1] == b'-')
+}
+
+/// Whether the handler name at `bytes[i..]` forms a REAL handler attribute:
+/// name (boundary-checked) followed by `=` — optional whitespace between,
+/// as HTML allows — whose value is NOT entity-escaped-quote-led (an
+/// `onmouseover=&quot;` is escaped inert data, not an attribute boundary).
+fn handler_breakout_at(bytes: &[u8], i: usize, name: &[u8]) -> bool {
+    if !handler_boundary_ok(bytes, i)
+        || i + name.len() > bytes.len()
+        || &bytes[i..i + name.len()] != name
+    {
+        return false;
+    }
+    let mut j = i + name.len();
+    while j < bytes.len() && bytes[j].is_ascii_whitespace() {
+        j += 1;
+    }
+    if j >= bytes.len() || bytes[j] != b'=' {
+        return false;
+    }
+    let after = &bytes[j + 1..];
+    !(after.starts_with(b"&quot;")
+        || after.starts_with(b"&#34;")
+        || after.starts_with(b"&#x22;")
+        || after.starts_with(b"&apos;")
+        || after.starts_with(b"&#39;")
+        || after.starts_with(b"&#x27;"))
+}
+
+/// Whether raw HTML contains a LIVE inline-handler attribute (`onXxx=` in
+/// attribute-name position inside a tag, or raw inside a `<script>`/
+/// `<style>` element body). Tokenizer-state aware: occurrences inside TEXT
+/// content or inside a quoted/unquoted attribute VALUE are inert — the HTML
+/// parser never turns them into attribute boundaries — so they are skipped
+/// (task 1.3 corpus relaxation: the compiler gate rejects the
+/// attribute-value shapes outright at compile time; text-position
+/// occurrence of the shape is inert by construction and must not trip the
+/// canary).
+fn contains_live_handler_attr(content: &str) -> bool {
+    let bytes = content.as_bytes();
+    let n = bytes.len();
+    let mut state = HtmlScanState::Data;
+    let mut raw_element = false;
+    let mut i = 0;
+    while i < n {
+        let c = bytes[i];
+        match state {
+            HtmlScanState::Data => {
+                if c == b'<'
+                    && i + 1 < n
+                    && (bytes[i + 1].is_ascii_alphabetic()
+                        || bytes[i + 1] == b'/'
+                        || bytes[i + 1] == b'!')
+                {
+                    state = HtmlScanState::TagOpen;
+                    i += 1;
+                } else {
+                    i += 1;
+                }
+            }
+            HtmlScanState::TagOpen => {
+                // Consume the tag name (until whitespace / '/' / '>').
+                let name_start = i;
+                while i < n
+                    && !bytes[i].is_ascii_whitespace()
+                    && bytes[i] != b'/'
+                    && bytes[i] != b'>'
+                {
+                    i += 1;
+                }
+                raw_element =
+                    &bytes[name_start..i] == b"script" || &bytes[name_start..i] == b"style";
+                state = HtmlScanState::Tag;
+            }
+            HtmlScanState::Tag => {
+                if c == b'>' {
+                    state = if raw_element {
+                        HtmlScanState::RawElement
+                    } else {
+                        HtmlScanState::Data
+                    };
+                    i += 1;
+                } else if c == b'"' {
+                    state = HtmlScanState::QuotedD;
+                    i += 1;
+                } else if c == b'\'' {
+                    state = HtmlScanState::QuotedS;
+                    i += 1;
+                } else if c.is_ascii_whitespace() || c == b'/' {
+                    i += 1;
+                } else {
+                    // Attribute-name position: a handler name followed by
+                    // `=` is a live inline handler.
+                    if HANDLER_ATTRS
+                        .iter()
+                        .any(|name| handler_breakout_at(bytes, i, name))
+                    {
+                        return true;
+                    }
+                    // Consume the attribute name (then `=` and its value).
+                    while i < n
+                        && !bytes[i].is_ascii_whitespace()
+                        && bytes[i] != b'='
+                        && bytes[i] != b'/'
+                        && bytes[i] != b'>'
+                    {
+                        i += 1;
+                    }
+                    while i < n && bytes[i].is_ascii_whitespace() {
+                        i += 1;
+                    }
+                    if i < n && bytes[i] == b'=' {
+                        i += 1;
+                        if i < n && bytes[i] == b'"' {
+                            state = HtmlScanState::QuotedD;
+                            i += 1;
+                        } else if i < n && bytes[i] == b'\'' {
+                            state = HtmlScanState::QuotedS;
+                            i += 1;
+                        } else {
+                            state = HtmlScanState::Unquoted;
+                        }
+                    }
+                }
+            }
+            HtmlScanState::QuotedD => {
+                if c == b'"' {
+                    state = HtmlScanState::Tag;
+                }
+                i += 1;
+            }
+            HtmlScanState::QuotedS => {
+                if c == b'\'' {
+                    state = HtmlScanState::Tag;
+                }
+                i += 1;
+            }
+            HtmlScanState::Unquoted => {
+                if c.is_ascii_whitespace() {
+                    state = HtmlScanState::Tag;
+                } else if c == b'>' {
+                    state = HtmlScanState::Data;
+                }
+                i += 1;
+            }
+            HtmlScanState::RawElement => {
+                // Raw-conservative scan of `<script>`/`<style>` bodies: an
+                // HTML string inside an innerHTML assignment stays visible.
+                if HANDLER_ATTRS
+                    .iter()
+                    .any(|name| handler_breakout_at(bytes, i, name))
+                {
+                    return true;
+                }
+                if c == b'<' && i + 1 < n && bytes[i + 1] == b'/' {
+                    state = HtmlScanState::TagOpen;
+                    i += 1;
+                } else {
+                    i += 1;
+                }
+            }
         }
-        rest = after;
     }
     false
 }
@@ -446,17 +611,16 @@ fn assert_no_executable_patterns(
             continue;
         }
         if path.ends_with(".html") {
-            for pat in HTML_PATTERNS {
-                let hit = if is_bare_handler_pattern(pat) {
-                    contains_unquoted_handler(content, pat)
-                } else {
-                    content.contains(pat)
-                };
+            for pat in HTML_REOPEN_PATTERNS {
                 assert!(
-                    !hit,
+                    !content.contains(pat),
                     "[{backend}/{point}] raw HTML breakout {pat:?} leaked into {path} for payload {payload:?}:\n{content}"
                 );
             }
+            assert!(
+                !contains_live_handler_attr(content),
+                "[{backend}/{point}] live inline-handler attribute leaked into {path} for payload {payload:?}:\n{content}"
+            );
             // Inline `<script>` regions are the only code positions in a
             // `.html` file: string/comment-strip each and run EXEC_PATTERNS,
             // so a payload breaking out of a string inside an inline script
@@ -872,4 +1036,163 @@ component App {
             result.errors
         );
     }
+}
+
+/// Handler-breakout rejection message (shared lowering gate, E0006).
+const HANDLER_MSG: &str = "静态属性值禁止包含 HTML 事件处理器形状";
+
+/// Task 1.3 dedicated regression — unquoted inline-handler attribute
+/// breakout (security HIGH-2): a STATIC attribute value carrying `onXxx=`
+/// (a WHATWG event-handler attribute name followed by `=`) would parse as a
+/// real inline handler if the emission were ever unquoted, and keeps the
+/// exploitable shape in the HTML artifact even quoted (`<div title="x
+/// onmouseover=alert(1)"/>` — exactly the corpus's RED shape). Escaping
+/// cannot eliminate it (the payload has no chars beyond the `&"'< >` escape
+/// set), so the fix is compile-time rejection by the shared lowering gate —
+/// a compile error is the corpus-accepted safe outcome.
+#[test]
+fn omni_html_attribute_context_blocks_unquoted_handlers() {
+    let src = r#"component App {
+    view {
+        <div title="x onmouseover=alert(1)"/>
+    }
+}
+"#;
+    let result = compile_target(src, Target::OmniView);
+    assert!(
+        !result.success,
+        "unquoted handler shape must fail compilation"
+    );
+    assert!(
+        result
+            .errors
+            .iter()
+            .any(|d| d.message.contains(HANDLER_MSG)),
+        "expected {HANDLER_MSG:?}, got: {:?}",
+        result.errors
+    );
+    // Even a failed compile's output must not carry the shape (the gate
+    // sanitizes the value like validate_class_names does).
+    let out: String = result
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        !out.contains("onmouseover="),
+        "unquoted handler leaked into failed-compile output: {}",
+        out
+    );
+}
+
+/// The rejection gate is a SHARED lowering layer — every backend rejects
+/// the same shapes (no platform asymmetry), whitelist matching only (the
+/// `one=` substring in `done=`/`gone=` must not false-positive), static
+/// values only (dynamic/interpolated values are runtime-escaped, different
+/// mechanism), and the same shapes on the style/a11y attribute surfaces.
+#[test]
+fn handler_gate_is_shared_and_whitelist_precise() {
+    let src = r#"component App {
+    view {
+        <div title="x onmouseover=alert(1)"/>
+    }
+}
+"#;
+    for (target, backend) in BACKENDS {
+        let result = compile_target(src, *target);
+        assert!(
+            !result.success,
+            "[{backend}] unquoted handler shape must fail compilation"
+        );
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|d| d.message.contains(HANDLER_MSG)),
+            "[{backend}] expected {HANDLER_MSG:?}, got: {:?}",
+            result.errors
+        );
+    }
+
+    // `done=` / `gone=` contain the `one=` substring — whitelist matching
+    // must not reject legitimate values.
+    let legit = r#"component App {
+    view {
+        <div title="x done=1 gone=2"/>
+    }
+}
+"#;
+    let result = compile_target(legit, Target::OmniView);
+    assert!(
+        result.success,
+        "legitimate `done=`/`gone=` values must compile: {:?}",
+        result.errors
+    );
+
+    // style and a11y literal values land in attributes too — same gate.
+    for gated in [
+        r#"component App {
+    view {
+        <div style: { color: "x onmouseover=alert(1)" }/>
+    }
+}
+"#,
+        r#"component App {
+    view {
+        <div a11y: { label: "x onmouseover=alert(1)" }/>
+    }
+}
+"#,
+    ] {
+        let result = compile_target(gated, Target::OmniView);
+        assert!(
+            !result.success,
+            "style/a11y literal with handler shape must fail compilation"
+        );
+    }
+
+    // Dynamic (bound) values are NOT gated — runtime escaping is the
+    // mechanism for them.
+    let dynamic = r#"component App {
+    signal t: String = "ok";
+    view {
+        <div title={t}/>
+    }
+}
+"#;
+    let result = compile_target(dynamic, Target::OmniView);
+    assert!(
+        result.success,
+        "dynamic bound values must not be gated: {:?}",
+        result.errors
+    );
+}
+
+/// Pins the tokenizer-state-aware handler scan's sensitivity: real
+/// handler attributes (quoted or bare, whitespace around `=`) are flagged,
+/// while inert occurrences (text content, inside quoted/unquoted VALUES,
+/// entity-escaped values, non-handler names) are skipped.
+#[test]
+fn live_handler_scan_is_tokenizer_state_aware() {
+    // Real unquoted leaks — MUST flag.
+    assert!(contains_live_handler_attr(r#"<div title=x onmouseover=alert(1)>"#), "unquoted leak");
+    assert!(contains_live_handler_attr(r#"<div onmouseover="alert(1)">"#), "quoted handler attr");
+    assert!(contains_live_handler_attr(r#"<div onmouseover = alert(1)>"#), "ws around =");
+    assert!(contains_live_handler_attr(r#"<div title=x onerror=alert(1)>"#), "other handler");
+    assert!(contains_live_handler_attr(r#"<script> x.innerHTML = '<div onmouseover=alert(1)>' </script>"#), "script body");
+    assert!(contains_live_handler_attr(r#"<div onmouseover='alert(1)'>"#), "single-quoted handler");
+    assert!(contains_live_handler_attr(r#"<div onmouseover=alert(1) title="y">"#), "bare handler value");
+    assert!(contains_live_handler_attr(r#"<div nonmouseover=1 onclick=2>"#), "onclick after non-handler");
+    // Inert shapes — must NOT flag.
+    assert!(!contains_live_handler_attr(r#"<div title="x onmouseover=alert(1)">"#), "quoted value inert");
+    assert!(!contains_live_handler_attr(r#"<div style="color:xx onmouseover=alert(1)">"#), "style value inert");
+    assert!(!contains_live_handler_attr("  xx onmouseover=alert(1)\n"), "text inert");
+    assert!(!contains_live_handler_attr(r#"<div title=onmouseover=alert(1)>"#), "unquoted value contains shape");
+    assert!(!contains_live_handler_attr(r#"<div onmouseover=&quot;alert(1)&quot;>"#), "entity-exempt");
+    assert!(!contains_live_handler_attr(r#"<div nonmouseover=1>"#), "nonmouseover not a handler");
+    assert!(!contains_live_handler_attr(r#"<div onclicker=1>"#), "onclicker not a handler");
+    assert!(!contains_live_handler_attr(r#"<onmouseover-el x=1>"#), "tag name not scanned");
+    assert!(!contains_live_handler_attr(r#"a < b onerror=c"#), "lt-in-text not tag");
+    assert!(!contains_live_handler_attr(r#"<div title='x onerror=alert(1)'>"#), "single-quoted value inert");
 }

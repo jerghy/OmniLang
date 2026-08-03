@@ -289,6 +289,178 @@ fn validate_class_names(class_str: &str, span: &Span, semantics: &mut SemanticRe
     valid.join(" ")
 }
 
+/// Full WHATWG HTML event-handler content attribute set (spec §8.1.6.1
+/// "Event handlers", incl. the window/body-only handlers). The rejection
+/// gate matches these names ONLY — a generic `on[a-z]+=` regex would
+/// false-positive on legitimate values like `done=` / `gone=` (which
+/// contain the `one=` substring).
+const HTML_HANDLER_ATTRS: &[&str] = &[
+    "onabort",
+    "onauxclick",
+    "onbeforeinput",
+    "onbeforematch",
+    "onbeforetoggle",
+    "onblur",
+    "oncancel",
+    "oncanplay",
+    "oncanplaythrough",
+    "onchange",
+    "onclick",
+    "onclose",
+    "oncontextlost",
+    "oncontextmenu",
+    "oncontextrestored",
+    "oncopy",
+    "oncuechange",
+    "oncut",
+    "ondblclick",
+    "ondrag",
+    "ondragend",
+    "ondragenter",
+    "ondragleave",
+    "ondragover",
+    "ondragstart",
+    "ondrop",
+    "ondurationchange",
+    "onemptied",
+    "onended",
+    "onerror",
+    "onfocus",
+    "onformdata",
+    "oninput",
+    "oninvalid",
+    "onkeydown",
+    "onkeypress",
+    "onkeyup",
+    "onload",
+    "onloadeddata",
+    "onloadedmetadata",
+    "onloadstart",
+    "onmousedown",
+    "onmouseenter",
+    "onmouseleave",
+    "onmousemove",
+    "onmouseout",
+    "onmouseover",
+    "onmouseup",
+    "onpaste",
+    "onpause",
+    "onplay",
+    "onplaying",
+    "onprogress",
+    "onratechange",
+    "onreset",
+    "onresize",
+    "onscroll",
+    "onscrollend",
+    "onsecuritypolicyviolation",
+    "onseeked",
+    "onseeking",
+    "onselect",
+    "onselectionchange",
+    "onselectstart",
+    "onslotchange",
+    "onstalled",
+    "onsubmit",
+    "onsuspend",
+    "ontimeupdate",
+    "ontoggle",
+    "onvolumechange",
+    "onwaiting",
+    "onwheel",
+    "onanimationcancel",
+    "onanimationend",
+    "onanimationiteration",
+    "onanimationstart",
+    "onpointercancel",
+    "onpointerdown",
+    "onpointerenter",
+    "onpointerleave",
+    "onpointermove",
+    "onpointerout",
+    "onpointerover",
+    "onpointerrawupdate",
+    "onpointerup",
+    "ontouchcancel",
+    "ontouchend",
+    "ontouchmove",
+    "ontouchstart",
+    "ontransitioncancel",
+    "ontransitionend",
+    "ontransitionrun",
+    "ontransitionstart",
+    "onafterprint",
+    "onbeforeprint",
+    "onbeforeunload",
+    "onhashchange",
+    "onlanguagechange",
+    "onmessage",
+    "onmessageerror",
+    "onoffline",
+    "ononline",
+    "onpagehide",
+    "onpageshow",
+    "onpopstate",
+    "onrejectionhandled",
+    "onstorage",
+    "onunhandledrejection",
+    "onunload",
+];
+
+/// Diagnostic message fragment for the unquoted-handler rejection gate.
+pub(crate) const HANDLER_BREAKOUT_MSG: &str = "静态属性值禁止包含 HTML 事件处理器形状";
+
+/// A STATIC attribute value carrying an `onXxx=` sequence (a WHATWG event
+/// handler attribute name followed by `=`, boundary-checked) would, if the
+/// emission were ever unquoted, parse as a REAL inline handler attribute —
+/// and even quoted it keeps the exploitable shape in the HTML artifact
+/// (security HIGH-2, `<div title="x onmouseover=alert(1)"/>`). Escaping
+/// cannot eliminate it (the payload has no chars beyond the `&"'< >` escape
+/// set), so the gate REJECTS such static values at compile time — a
+/// compile error is the accepted safe outcome. Runs in shared lowering, so
+/// every backend gets the same rejection (no platform asymmetry). Only
+/// static string literals are gated; dynamic values (expression
+/// interpolation) are escaped at runtime by a different mechanism. Mirrors
+/// `validate_class_names`: the offending value is sanitized to the empty
+/// string so even a failed compile's output never carries the shape.
+fn validate_attr_no_handler_breakout(
+    value: &str,
+    span: &Span,
+    semantics: &mut SemanticResult,
+) -> String {
+    let bytes = value.as_bytes();
+    for handler in HTML_HANDLER_ATTRS {
+        let name = handler.as_bytes();
+        let mut i = 0;
+        while i + name.len() <= bytes.len() {
+            if &bytes[i..i + name.len()] == name {
+                // Boundary: the name must not be part of a longer identifier
+                // (`nonmouseover=`, `onmouseoveralert=`) — only a
+                // whitespace-delimited attribute name followed by `=`
+                // (optional whitespace allowed, as in HTML) is a handler.
+                let before_ok = i == 0
+                    || !(bytes[i - 1].is_ascii_alphanumeric()
+                        || bytes[i - 1] == b'_'
+                        || bytes[i - 1] == b'-');
+                let mut j = i + name.len();
+                while j < bytes.len() && (bytes[j] == b' ' || bytes[j] == b'\t') {
+                    j += 1;
+                }
+                if before_ok && j < bytes.len() && bytes[j] == b'=' {
+                    semantics.diagnostics.push(Diagnostic::error(
+                        DiagnosticKind::E0006,
+                        &format!("{}：\"{}\"", HANDLER_BREAKOUT_MSG, handler),
+                        span,
+                    ));
+                    return String::new();
+                }
+            }
+            i += 1;
+        }
+    }
+    value.to_string()
+}
+
 fn lower_element(
     el: &Element,
     variant_map: &FxHashMap<String, String>,
@@ -326,10 +498,17 @@ fn lower_element(
     for prop in &el.props {
         match prop {
             ElementProp::Static { name, value } => {
-                props.get_or_insert_with(Default::default).insert(
-                    name.clone(),
-                    lower_expr(value, variant_map, None, semantics),
-                );
+                let lowered = match value {
+                    Expr::Literal(Literal::String(s), span) => ExprIR::LiteralExpr {
+                        value: serde_json::Value::String(validate_attr_no_handler_breakout(
+                            s, span, semantics,
+                        )),
+                    },
+                    _ => lower_expr(value, variant_map, None, semantics),
+                };
+                props
+                    .get_or_insert_with(Default::default)
+                    .insert(name.clone(), lowered);
             }
             ElementProp::Bind { name, signal_path } => {
                 bindings.get_or_insert_with(Default::default).insert(
@@ -498,11 +677,20 @@ fn lower_element(
             }
             ElementProp::Style { entries } => {
                 // style: { key: value, ... } — passed as inline_style
-                // Lower each entry to a JSON representation for codegen
+                // Lower each entry to a JSON representation for codegen.
+                // String-literal values land inside the emitted `style="…"`
+                // attribute — the handler-breakout gate applies.
                 let style_map: serde_json::Map<String, serde_json::Value> = entries
                     .iter()
                     .map(|(key, expr)| {
-                        let ir_expr = lower_expr(expr, variant_map, None, semantics);
+                        let ir_expr = match expr {
+                            Expr::Literal(Literal::String(s), span) => ExprIR::LiteralExpr {
+                                value: serde_json::Value::String(
+                                    validate_attr_no_handler_breakout(s, span, semantics),
+                                ),
+                            },
+                            _ => lower_expr(expr, variant_map, None, semantics),
+                        };
                         let json_val = super::expr::lower_expr_to_json_from_ir(
                             &ir_expr,
                             semantics,
@@ -517,15 +705,25 @@ fn lower_element(
                 // a11y: { label/role/hidden/live/alt } — semantic
                 // accessibility block (design doc 域 10). Lowered into
                 // ElementIR.a11y; validated by semantic/validate_a11y;
-                // consumed by all three P0 backends.
+                // consumed by all three P0 backends. The string fields emit
+                // into aria-* / role attributes — gate them too.
                 a11y = Some(A11yIR {
-                    label: spec.label.clone(),
-                    role: spec.role.clone(),
+                    label: spec
+                        .label
+                        .as_ref()
+                        .map(|s| validate_attr_no_handler_breakout(s, &el.span, semantics)),
+                    role: spec
+                        .role
+                        .as_ref()
+                        .map(|s| validate_attr_no_handler_breakout(s, &el.span, semantics)),
                     hidden: spec
                         .hidden
                         .as_ref()
                         .map(|e| lower_expr(e, variant_map, None, semantics)),
-                    live: spec.live.clone(),
+                    live: spec
+                        .live
+                        .as_ref()
+                        .map(|s| validate_attr_no_handler_breakout(s, &el.span, semantics)),
                     alt: spec
                         .alt
                         .as_ref()
@@ -551,11 +749,14 @@ fn lower_element(
                 );
             }
             ElementProp::TestId(id) => {
-                // test-id="..." attribute
+                // test-id="..." attribute — a static attribute value, so the
+                // handler-breakout gate applies.
                 props.get_or_insert_with(Default::default).insert(
                     "data-testid".into(),
                     ExprIR::LiteralExpr {
-                        value: serde_json::Value::String(id.clone()),
+                        value: serde_json::Value::String(validate_attr_no_handler_breakout(
+                            id, &el.span, semantics,
+                        )),
                     },
                 );
             }
