@@ -28,14 +28,25 @@
 编译器分析函数体中访问的字段，自动构建最小事件对象：
 
 ```omni
-fn handleKey(e) {
-    if e.key == "Escape" { close(); }
-    if e.ctrl { /* Ctrl 按下 */ }
-}
+component EventsDemo {
+    signal x: f64 = 0;
+    signal y: f64 = 0;
 
-fn handleMouse(e) {
-    x = e.x;             // e.clientX
-    y = e.y;             // e.clientY
+    fn close() { print("closed"); }
+
+    fn handleKey(e) {
+        if e.key == "Escape" { close(); }
+        if e.ctrl { /* Ctrl 按下 */ }
+    }
+
+    fn handleMouse(e) {
+        x = e.x;             // e.clientX
+        y = e.y;             // e.clientY
+    }
+
+    view {
+        <div @onKeyDown={handleKey} @onMouseMove={handleMouse}>Area</div>
+    }
 }
 ```
 

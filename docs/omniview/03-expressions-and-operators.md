@@ -92,18 +92,36 @@ let count = obj?.items?.len() ?? 0;    // 配合 ?? 提供默认值
 ### 展开运算符 `...`
 
 ```omni
+struct Item {
+    id: i32,
+    done: bool,
+}
+
 // 数组展开
-let extended = [...original, newItem];
+fn arrayDemo() {
+    let original = [1, 2, 3];
+    let newItem = 4;
+    let extended = [...original, newItem];
+    print(extended.len().to_string());
+}
 
 // 结构体展开（不可变更新）
-let updated = { ...user, name: "Bob" };
+fn objectDemo() {
+    let user = { name: "Alice" };
+    let updated = { ...user, name: "Bob" };
+    print(updated.len().to_string());
+}
 
 // 在 store action 中
-action toggle(id: i32) {
-    items = items.map(|item|
-        if item.id == id { { ...item, done: !item.done } }
-        else { item }
-    );
+store ItemStore {
+    signal items: Array<Item> = [];
+
+    action toggle(id: i32) {
+        items = items.map(|item|
+            if item.id == id { { ...item, done: !item.done } }
+            else { item }
+        );
+    }
 }
 ```
 

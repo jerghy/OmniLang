@@ -105,6 +105,7 @@ ref_op_release_pointer ::= 'releasePointer' '(' ')'
 ```omni
 component SearchPage {
   ref searchBox: Element
+  ref searchInput: Element
   ref scrollPane: Element
 
   signal isSearchActive: Bool = false
@@ -112,17 +113,20 @@ component SearchPage {
   signal searchText: String = ""
 
   // ── 高频：语义绑定（focus/scroll）+ bind:value 双向 ──
-  <div>
-    <input 
-      bind:value={searchText}    // 双向值绑定（唯一双向形式）
-      focus={isSearchActive}     // 聚焦控制
-      placeholder="搜索..."
-    />
-    
-    <ScrollView @ref={scrollPane} scroll-y={scrollPosition}>
-      <ResultList />
-    </ScrollView>
-  </div>
+  view {
+    <div>
+      <input
+        @ref={searchInput}
+        bind:value={searchText}    // 双向值绑定（唯一双向形式）
+        focus={isSearchActive}     // 聚焦控制（需 @ref）
+        placeholder="搜索..."
+      />
+
+      <div @ref={scrollPane} scroll-y={scrollPosition}>
+        <span>Results</span>
+      </div>
+    </div>
+  }
 
   // ── 低频：语义方法 ──
   fn handleScrollToTop() {
@@ -282,6 +286,7 @@ drag_params   ::= 'constraints:' '[' expr ',' expr ']' 'elastic:' expr
                   'threshold:' expr ('velocity_max:' expr)?
 
 motion_expr ::= <ident>                             // 命名 motion 引用
+              | map_literal                         // 内联 map 形式（§3.7）：@enter={{ opacity: 0, scale: 0.8 }}
 ```
 
 > **已实现范围**（2026-08-01，与 parser 对齐）：8 个触发器，kebab-case，
@@ -296,16 +301,14 @@ motion_expr ::= <ident>                             // 命名 motion 引用
 >   （validate_motion）：`start`/`end` 必须是数字且成对、`scrub` 必须是布尔、
 >   `constraints` 必须是 `[min, max]` 数字且 min < max、`elastic`/`threshold`/
 >   `velocity_max` 必须是非负数字（错误信息为中文硬诊断）。
-> - 内联动画体语法糖 `'{' motion_body '}'`（§3.3 / §3.7 示例中的
->   `@enter = { over: 200ms ... }` 形式当前不解析）
+> - 内联动画体 map 形式已实现（§3.7：`@enter={{ opacity: 0, scale: 0.8 }}`）；
+>   `@enter = { over: 200ms; from { ... } to { ... } }` 完整体语法**不解析**
+>   ——trigger 值必须是命名 motion 引用或 map 字面量
 
 ### 3.3 完整示例
 
 ```omni
 @motion fadeIn {
-  over: 300ms
-  easing: ease-out
-
   from {
     opacity: 0
     scale: 0.95
@@ -317,24 +320,37 @@ motion_expr ::= <ident>                             // 命名 motion 引用
     opacity: 1
     scale: 1
   }
+  over: 300ms
+  easing: ease-out
 }
 
 @motion parallaxScroll {
-  over: 1s
   from { translateY: -100 }
   to   { translateY: 0 }
+  over: 1s
+}
+
+@motion scaleUp {
+  from { scale: 1 }
+  to   { scale: 1.2 }
+  over: 200ms
+}
+
+@motion swipeCard {
+  from { translateX: 0 }
+  to   { translateX: 300 }
+  over: 300ms
 }
 
 component AnimatedCard {
-  <Card @enter={fadeIn} @hover={scaleUp} />
+  view {
+    <div @enter={fadeIn} @hover={scaleUp} />
 
-  <HeroImage @scroll start: 0 end: 1000 scrub: true ={parallaxScroll} />
+    <div @scroll start: 0 end: 1000 scrub: true ={parallaxScroll} />
 
-  <SwipeCard @drag-horizontal constraints: [-100, 100] elastic: 0.5
+    <div @drag-horizontal constraints: [-100, 100] elastic: 0.5
              threshold: 0.3 velocity_max: 500 ={swipeCard} />
-
-  // ⚠️ 内联动画体语法糖（@enter = { ... }）当前未实现（ADR-053，见 §3.2
-  //    说明）——请使用命名 motion + 单独定义：@motion parallaxScroll { ... }
+  }
 }
 ```
 
@@ -390,23 +406,25 @@ component AnimatedCard {
 | `steps()` easing | Flutter | error | Flutter 无原生 steps easing |
 | `rotateX/Y/Z`, `skewX/Y`, `translateZ` | Flutter | warning | 需 `Transform` widget 组合，3D 变换受限于 Flutter 渲染模型 |
 
-### 3.7 内联动画体 Lowering（设计记录 — 语法未实现）
+### 3.7 内联动画体（Inline Motion Body）
 
-> ⚠️ **2026-08-01 状态**：内联动画体语法（`@enter = { ... }`）当前
-> **不解析**（parser 的 trigger 值必须是命名 motion 引用）。以下 lowering
-> 设计保留为待实现方案（ADR-053）：
+内联动画体使用 **map 字面量**形式（双花括号），lowering 时提升为匿名命名 motion：
 
+```omni
+component InlineMotionDemo {
+    view {
+        <div @enter={{ opacity: 0, scale: 0.8 }}>Content</div>
+    }
+}
 ```
-源码:
-  <div @enter = { over: 200ms; from { opacity: 0 } to { opacity: 1 } } />
 
-IR lowering:
-  → MotionIntent { name: "__anon_m_N", body: KeyframeIR { over:200ms, stops:[...] } }
-  → TriggerIntent { kind: Enter, motion_ref: "__anon_m_N", inline_motion: None }
-  → 追加到 ModuleIR.motions
+IR lowering（编译期自动进行，源码无需感知）：
+- `@enter={{ ... }}` 的 map 字面量 → `KeyframeIR`（命名 `__anon_m_N`）→ 追加到 `ModuleIR.motions`
+- trigger 重写为 `motion_ref: "__anon_m_N"` —— 三个 codegen 只处理命名 motion，无重复逻辑
 
-好处: 所有三个 codegen 只处理命名 motion，无重复逻辑
-```
+> ⚠️ 非 map 形式（`@enter = { over: 200ms; from { opacity: 0 } to { opacity: 1 } }`）
+> **不解析**——trigger 值必须是命名 motion 引用（`@enter={fadeIn}`）或 map 字面量
+> （`@enter={{ ... }}`，键为动画属性、值为关键帧值，属性间用逗号分隔）。
 
 ---
 
@@ -493,52 +511,61 @@ variant_dim_value ::= <ident> '=' <ident>   // dimName=valueName
 ### 4.3 完整示例
 
 ```omni
+store ThemeStore {
+    signal accentColor: String = "#f97316";
+}
+
 design AppTheme {
   @themes { light, dark }
-  @default-theme light
+  @default-theme light;
 
-  // ── 静态 token ──
-  token primaryColor: Color = #6366f1
-    dark #818cf8
+  // ── 静态 token（类型为小写关键字；值为引号字符串）──
+  token primaryColor: color = "#6366f1" dark "#818cf8";
 
-  token spacingSm: Size = 8px
-  token spacingMd: Size = 16px
-  token radiusMd: Radius = 8px
-  token fontMain: FontFamily = 'Inter'
-  token fontSizeBase: FontSize = 14px
-  token shadowCard: Shadow = 0 2px 8px rgba(0,0,0,0.1)
-  token durationNormal: Duration = 300ms
-  token easeOut: Easing = "cubic-bezier(0.16, 1, 0.3, 1)"  // design token 值 = CSS easing 字符串（引号字面量）；motion easing 的 cubic() 命名参数形式见 §3.2
+  token spacingSm: size = "8px";
+  token spacingMd: size = "16px";
+  token radiusMd: radius = "8px";
+  token fontMain: fontFamily = "Inter";
+  token fontSizeBase: fontSize = "14px";
+  token shadowCard: shadow = "0 2px 8px rgba(0,0,0,0.1)";
+  token durationNormal: duration = "300ms";
+  token easeOut: easing = "cubic-bezier(0.16, 1, 0.3, 1)";  // design token 值 = CSS easing 字符串（引号字面量）；motion easing 的 cubic() 命名参数形式见 §3.2
 
-  // ── 动态 token（来自运行时 store）──
-  token accentColor: Color = ThemeStore.accentColor
+  // ── 动态 token（来自运行时 store 信号）──
+  token accentColorDynamic: color = ThemeStore.accentColor;
 
   // ── Class ──
   class Card {
-    background-color: token(primaryColor)
-    border-radius: token(radiusMd)
-    padding: token(spacingMd)
-    box-shadow: token(shadowCard)
-    &:hover { opacity: 0.9 }
+    background-color: token(primaryColor);
+    border-radius: token(radiusMd);
+    padding: token(spacingMd);
+    box-shadow: token(shadowCard);
+    &:hover { opacity: 0.9; }
   }
 
   class Button {
-    background-color: token(primaryColor)
-    padding: token(spacingSm) token(spacingMd)
-    border-radius: token(radiusMd)
-    transition: all token(durationNormal) token(easeOut)
-    &:hover { opacity: 0.85 }
-    &:active { scale: 0.97 }
-    &:disabled { opacity: 0.5 }
+    background-color: token(primaryColor);
+    padding: "8px 16px";
+    border-radius: token(radiusMd);
+    transition: "all " token(durationNormal) token(easeOut);
+    &:hover { opacity: 0.85; }
+    &:active { scale: 0.97; }
+    &:disabled { opacity: 0.5; }
   }
 
-  // ── Variant ──
-  variant Size {
-    @dim size: sm | md | lg
-    @default { padding: token(spacingMd); font-size: token(fontSizeBase) }
-    size.sm { padding: token(spacingSm); font-size: 12px }
-    size.md { padding: token(spacingMd); font-size: token(fontSizeBase) }
-    size.lg { padding: 24px; font-size: 18px }
+  // ── Variant（@default 只接受 dim=value 对；分支按 dim.value 覆盖）──
+  variant ButtonSize {
+    @dim color: primary | accent;
+    @dim size: sm | md | lg;
+    @default { color: primary; size: md; }
+    base {
+      border: none;
+      border-radius: token(radiusMd);
+    }
+    color.primary { background-color: token(primaryColor); }
+    size.sm { padding: token(spacingSm); }
+    size.md { padding: token(spacingMd); }
+    size.lg { padding: "24px"; }
   }
 }
 ```
@@ -547,28 +574,32 @@ design AppTheme {
 
 ```omni
 component MyPage {
-  // ── Class 引用 ──
-  <div class: AppTheme.Card>
-    <h2>标题</h2>
-  </div>
+  signal isOpen: bool = false;
 
-  // ── Class 条件 map ──
-  <div class: { overlay: true, visible: isOpen, hidden: !isOpen }>
-    弹窗内容
-  </div>
+  view {
+    // ── Class 引用 ──
+    <div class: AppTheme.Card>
+      <h2>标题</h2>
+    </div>
 
-  // ── Variant 单维度（dot-ident 形式）──
-  <button class: AppTheme.Button variant: AppTheme.Size.lg>
-    大按钮
-  </button>
+    // ── Class 条件 map ──
+    <div class: { overlay: true, visible: isOpen, hidden: !isOpen }>
+      弹窗内容
+    </div>
 
-  // ── Variant 多维度（调用形式）──
-  <button class: AppTheme.Button variant: AppTheme.Button(color=primary, size=sm)>
-    小主色按钮
-  </button>
+    // ── Variant 单维度（调用形式，可省略未指定维度）──
+    <button class: AppTheme.Button variant: AppTheme.ButtonSize(size=lg)>
+      大按钮
+    </button>
 
-  // ── 直接引用 token ──
-  <div style: { color: token(AppTheme.primaryColor) } />
+    // ── Variant 多维度（调用形式）──
+    <button class: AppTheme.Button variant: AppTheme.ButtonSize(color=primary, size=sm)>
+      小主色按钮
+    </button>
+
+    // ── 直接引用 token（组件内用 CSS 变量；token() 仅限 design 块内）──
+    <div style: { color: "var(--primaryColor)" } />
+  }
 }
 ```
 
@@ -671,31 +702,36 @@ slot_consume ::= ident '=' '{' view_tree '}'      // name={<.../>}
 
 ```omni
 component Modal {
-  @slot header { <DefaultHeader /> }
+  @slot header { <span>Default Header</span> }
   @slot default
-  @slot footer { <DefaultFooter /> }
+  @slot footer { <span>Default Footer</span> }
 
-  <div class="modal">
-    <div class="modal-header">{header}</div>
-    <div class="modal-body">{children}</div>
-    <div class="modal-footer">{footer}</div>
-  </div>
+  view {
+    <div class="modal">
+      <div class="modal-header">{header}</div>
+      <div class="modal-body">{children}</div>
+      <div class="modal-footer">{footer}</div>
+    </div>
+  }
 }
 
-// ── 消费侧 ──
+// ── 消费侧（匿名内容 = 默认 slot；命名 slot 用属性投影）──
+component Consumer {
+  view {
+    // 仅填默认 slot：
+    <Modal>
+      <p>这是内容</p>
+    </Modal>
 
-// 仅填默认 slot：
-<Modal>
-  <p>这是内容</p>
-</Modal>
-
-// 填所有 slot：
-<Modal 
-  header={<CustomHeader title="编辑" />}
-  footer={<Button>保存</Button>}
->
-  <Form />
-</Modal>
+    // 填所有 slot：
+    <Modal
+      header={<h3>编辑</h3>}
+      footer={<button>保存</button>}
+    >
+      <p>表单</p>
+    </Modal>
+  }
+}
 ```
 
 ### 5.4 平台映射
@@ -777,6 +813,16 @@ store_access ::= <store_name> '.' <signal_name>        // 读 signal
 ### 6.3 完整示例
 
 ```omni
+struct Todo {
+  id: i32,
+  text: String,
+  status: String,
+}
+
+fn nextId() -> i32 {
+  return 1;
+}
+
 store TodoStore {
   signal items: Todo[] = []
   signal filter: String = "all"
@@ -788,7 +834,7 @@ store TodoStore {
   getter activeCount: Int = items.count(|item| item.status == "active")
 
   action add(text: String) {
-    items = [...items, Todo { id: nextId(), text, status: "active" }]
+    items = [...items, Todo { id: nextId(), text: text, status: "active" }]
   }
 
   action toggle(id: Int) {
@@ -815,19 +861,20 @@ component TodoPage {
     localDraft = ""
   }
 
-  <div>
-    <input value={localDraft} placeholder="输入待办事项..." />
-    <button @onClick={handleAdd}>添加</button>
+  view {
+    <div>
+      <input bind:value={localDraft} placeholder="输入待办事项..." />
+      <button @onClick={handleAdd}>添加</button>
 
-    <p>剩余 {TodoStore.activeCount} 项</p>
+      <p>剩余 {TodoStore.activeCount} 项</p>
 
-    @for item in TodoStore.filteredItems key={item.id} {
-      <TodoItem 
-        data={item} 
-        @onToggle={() => { TodoStore.toggle(item.id) }} 
-      />
-    }
-  </div>
+      @for item in TodoStore.filteredItems key={item.id} {
+        <div @onClick={() => { TodoStore.toggle(item.id) }}>
+          <span>{item.text}</span>
+        </div>
+      }
+    </div>
+  }
 }
 ```
 
@@ -966,6 +1013,10 @@ component Timer {
   signal elapsed: Float = 0
   signal isRunning: Bool = false
 
+  fn saveToLocal(v: Float) {
+    print(v.to_string());
+  }
+
   @mount {
     isRunning = true
   }
@@ -978,9 +1029,11 @@ component Timer {
     saveToLocal(elapsed)
   }
 
-  <div>
-    <Text>已运行 {elapsed}s</Text>
-  </div>
+  view {
+    <div>
+      <span>已运行 {elapsed}s</span>
+    </div>
+  }
 }
 ```
 

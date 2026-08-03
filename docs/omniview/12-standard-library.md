@@ -22,9 +22,9 @@ OmniLang 通过 `import { ... } from "std/module"` 提供标准库。
 ```omni
 import { http_get } from "std/http";
 
-fn loadData() async {
+fn loadData() -> String async {
     let raw = await http_get("https://api.example.com/data");
-    data = raw;
+    return raw;
 }
 ```
 
@@ -53,8 +53,10 @@ fn loadData() async {
 ```omni
 import { array_filter, array_sort } from "std/array";
 
-let active = array_filter(users, |u| u.status == "active");
-let sorted = array_sort(items, |a, b| a.name);
+fn demo(users: Array<User>, items: Array<Item>) {
+    let active = array_filter(users, |u| u.status == "active");
+    let sorted = array_sort(items, |a, b| a.name);
+}
 ```
 
 > 闭包参数接受管道闭包 `|param| expr`，详见 [03-表达式与运算符](03-expressions-and-operators.md#闭包--lambda)。
@@ -127,8 +129,10 @@ fn saveTheme(mode: String) {
 import { async_sleep } from "std/async";
 
 // async fn 内 await 延时；完整演示见 StdLibShowcase（async_demo.omni）
-action tick() async {
-    await async_sleep(1000);
+store TimerStore {
+    action tick() async {
+        await async_sleep(1000);
+    }
 }
 ```
 

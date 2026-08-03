@@ -20,7 +20,7 @@ cargo build -p omnilang -p omnic
 
 ```bash
 omnic --version
-# 输出: omnic 0.1.0
+# 输出: omnic 0.2.0
 ```
 
 如果 `omnic` 命令找不到，请确认 Rust 构建产物在 `PATH` 中，或使用 `cargo run -p omnic --` 代替。
@@ -62,8 +62,11 @@ component Counter {
 # 进入项目目录
 cd my-project
 
-# 开发模式（自动编译 + 浏览器预览）
+# 编译并运行（默认 src/main.omni）
 omnic run
+
+# 监视变更并自动重建（开发模式）
+omnic watch
 
 # 构建到 OmniView 目标（自包含 HTML/CSS/JS）
 omnic build --target omniview

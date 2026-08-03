@@ -463,7 +463,10 @@ parse error):
 ### 3.2 @for
 
 ```
-for_directive ::= '@for' <ident> 'in' expr '{' (view_node)* '}'
+for_directive ::= '@for' <ident> 'in' expr (key_expr)? (scroll_hint)? '{' (view_node)* '}' ('@empty' '{' (view_node)* '}')?
+
+key_expr   ::= 'key=' '{' expr '}'
+scroll_hint ::= '[' 'scroll' ']'
 ```
 
 List rendering:
@@ -474,6 +477,12 @@ List rendering:
 
 @for card in cards {
     Card(title: card.title) { Text { card.body } }
+}
+
+@for item in items key={item.id} [scroll] {
+    <li>{item.name}</li>
+} @empty {
+    <li>No items</li>
 }
 ```
 
@@ -615,7 +624,7 @@ pseudo_selector  ::= '&' ':' <ident>           // &:hover
                    | '&' '::' <ident>          // &::before
 ```
 
-Each style rule body is a `{ }` block containing CSS property declarations:
+Each style rule body is a `{ }` block containing CSS property declarations (entries separated by `;`):
 ```
 component Button {
     prop label: String
@@ -623,19 +632,19 @@ component Button {
 
     style {
         .base {
-            background-color: blue
-            color: white
-            font-size: 16
-            padding: 8 16
+            background-color: blue;
+            color: white;
+            font-size: 16;
+            padding: 8 16;
         }
         .primary {
-            background-color: blue
+            background-color: blue;
         }
         .secondary {
-            background-color: gray
+            background-color: gray;
         }
         &:hover {
-            opacity: 0.8
+            opacity: 0.8;
         }
     }
 
@@ -760,7 +769,7 @@ Theme values may be literals or const references (not runtime expressions).
 
 ```
 design AppDesign {
-    @themes light, dark;
+    @themes { light, dark }
     @default-theme light;
 
     token primary: color = "#6366f1" dark "#a5b4fc";
@@ -832,6 +841,9 @@ or `&::` (pseudo-element, stored as `"::before"`):
 
 ```
 design AppDesign {
+    token surface: color = "#ffffff";
+    token border: color = "#d4d4d8";
+
     class Card {
         background: token(surface);
         border: "1px solid " token(border);
@@ -864,16 +876,23 @@ fallback value per dimension, `base` holds styles shared by all variants,
 and `dim.value` blocks override styles for a specific dimension value:
 
 ```
-variant Button {
-    @dim color: primary | danger | ghost;
-    @dim size: sm | md | lg;
-    @default { color: primary; size: md; }
-    base {
-        border: none;
-        border-radius: token(radiusMd);
+design AppDesign {
+    token radiusMd: radius = "8px";
+    token primary: color = "#6366f1";
+    token danger: color = "#ef4444";
+    token ghost: color = "#d4d4d8";
+
+    variant Button {
+        @dim color: primary | danger | ghost;
+        @dim size: sm | md | lg;
+        @default { color: primary; size: md; }
+        base {
+            border: none;
+            border-radius: token(radiusMd);
+        }
+        color.primary { background: token(primary); color: white; }
+        size.md { padding: "8px 16px"; font-size: "14px"; }
     }
-    color.primary { background: token(primary); color: white; }
-    size.md { padding: "8px 16px"; font-size: "14px"; }
 }
 ```
 
@@ -883,7 +902,7 @@ See `10-design-system.md` §3 for the full guide.
 ### 6.6 Theme Definition
 
 ```
-themes_directive        ::= '@themes' <ident> (',' <ident>)* ';'
+themes_directive        ::= '@themes' '{' <ident> (',' <ident>)* '}'
 default_theme_directive ::= '@default-theme' <ident> ';'
 
 theme_def ::= 'theme' <ident> '{' (style_property)* '}'    // reserved keyword, limited parsing
@@ -895,7 +914,7 @@ definitions provide per-theme value overrides keyed by theme name (§6.2):
 
 ```
 design AppDesign {
-    @themes light, dark;
+    @themes { light, dark }
     @default-theme light;
 
     token primary: color = "#6366f1" dark "#a5b4fc";
@@ -1164,34 +1183,43 @@ When `{expr}` parsing fails inside views, the parser collects all tokens up to t
 ## Appendix C: Full Component Example
 
 ```omni
-import "omniview";
+import omniview;
+
+struct Todo {
+    text: String,
+    done: bool,
+}
+
+store ThemeStore {
+    signal mode: String = "light";
+}
 
 component TodoApp {
-    signal todos: Array<Todo> = []
-    signal input: String = ""
+    signal todos: Array<Todo> = [];
+    signal input: String = "";
 
-    @store ThemeStore
+    @store ThemeStore;
 
     action addTodo() {
         if input != "" {
-            todos = [...todos, Todo { text: input, done: false }]
-            input = ""
+            todos = [...todos, Todo { text: input, done: false }];
+            input = "";
         }
     }
 
     style {
         .container {
-            padding: 16
-            max-width: 600
-            margin: 0 auto
+            padding: 16;
+            max-width: 600;
+            margin: 0 auto;
         }
         .input-row {
-            display: flex
-            gap: 8
+            display: flex;
+            gap: 8;
         }
     }
 
-    @mount { print "TodoApp mounted" }
+    @mount { print("TodoApp mounted"); }
 
     view {
         <div class="container">

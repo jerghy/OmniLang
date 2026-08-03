@@ -232,18 +232,20 @@ component ThemedPage {
 ```omni
 import { LearnDesign } from "../design";
 
-view {
-    <div class: LearnDesign.Card>
-        <h3 class: LearnDesign.CardTitle>Title</h3>
-        <p class: LearnDesign.Hint>Description</p>
-        <button variant: LearnDesign.Button(color=primary, size=md)>
-            Action
-        </button>
-    </div>
-}
+component DemoCard {
+    view {
+        <div class: LearnDesign.Card>
+            <h3 class: LearnDesign.CardTitle>Title</h3>
+            <p class: LearnDesign.Hint>Description</p>
+            <button variant: LearnDesign.Button(color=primary, size=md)>
+                Action
+            </button>
+        </div>
+    }
 
-style {
-    /* 只写此组件特有的样式 */
+    style {
+        /* 只写此组件特有的样式 */
+    }
 }
 ```
 

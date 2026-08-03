@@ -184,7 +184,7 @@ component Draggable {
 
 ## 架构要点
 
-- 动画运行时基于 GSAP 兼容层（通过 `@omni/animation` 内联，零外部依赖）
+- 动画运行时内联进编译产物（零外部依赖）
 - 所有动画使用 WAAPI（`el.animate()`），GPU 加速、独立于主线程
 - 编译时通过 `include_str!` 将运行时嵌入输出
 - `@enter` 在 signal 变化导致条件渲染切换时自动重播

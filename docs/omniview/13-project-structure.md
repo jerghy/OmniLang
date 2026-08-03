@@ -84,9 +84,9 @@ export { Percentage, Score } from "./lib/types";
 ```omni
 fn helper() -> i32 { return 42; }            // 私有
 
-pub fn calculate(x: i32) -> i32 { ... }      // 公共
-pub struct User { name: String, ... }         // 公共
-pub type Percentage = f64;                    // 公共
+pub fn calculate(x: i32) -> i32 { return x * 2; }  // 公共
+pub struct User { name: String, age: i32 }          // 公共
+pub type Percentage = f64;                          // 公共
 ```
 
 `pub` 适用于 `fn`、`struct`、`type`。`component`、`store`、`design`、`@motion` 默认即可被导入（不需要 `pub`）。
@@ -155,6 +155,7 @@ import { TodoStore } from "./stores/TodoStore";
 // 导入组件
 import { Header } from "./components/Header";
 import { Dashboard } from "./pages/Dashboard";
+import { LearnDesign } from "./design";
 
 // 导入纯逻辑
 import type { StatisticsData } from "./lib/types";

@@ -603,9 +603,9 @@ param ::= <ident> (':' type_annotation)?
 - Parameters may have optional type annotations
 
 ```
-fn greet() { print "Hello" }
-pub fn add(a: i32, b: i32) -> i32 { a + b }
-pub async fn fetch(url: String) -> Data { ... }
+fn greet() { print("Hello"); }
+pub fn add(a: i32, b: i32) -> i32 { return a + b; }
+pub async fn fetch(url: String) -> String { return url; }
 ```
 
 ### 5.3 Struct Definition
@@ -641,7 +641,7 @@ If it's `Ident {` or `Ident |`, parse as tagged union. Otherwise parse as type a
 ```
 type Color = Red | Green | Blue
 type Result = Ok { value: Data } | Err { message: String }
-type Option = Some { value } | None
+type Option = Some { value: i32 } | None
 ```
 
 ### 5.5 Type Alias
@@ -732,7 +732,7 @@ import_stmt ::= named_import | namespace_import | type_import | lib_import
 named_import     ::= 'import' '{' <ident> (',' <ident>)* ','? '}' 'from' <string_literal> ';'?
 namespace_import ::= 'import' <string_literal> 'as' <ident> ';'?
 type_import      ::= 'import' 'type' '{' <ident> (',' <ident>)* ','? '}' 'from' <string_literal> ';'?
-lib_import       ::= 'import' '"omniview"' ';'?
+lib_import       ::= 'import' 'omniview' ';'?
 ```
 
 Examples:
@@ -740,7 +740,7 @@ Examples:
 import { add, sub } from "./utils/math.omni";
 import "./config.omni" as config;
 import type { User, Post } from "./models.omni";
-import "omniview";
+import omniview;
 ```
 
 ### 6.2 Export Statements

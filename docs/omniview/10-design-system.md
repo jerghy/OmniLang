@@ -13,10 +13,19 @@ design LearnDesign {
     token primary: color = "#6366f1" dark "#a5b4fc";
 
     // 2. 类 — 可复用的 CSS 规则（引用令牌用 token(name)）
-    class Card { ... }
+    class Card {
+        background: token(primary);
+        border-radius: "8px";
+    }
 
     // 3. 变体 — 多维度参数化组件样式
-    variant Button { ... }
+    variant Button {
+        @dim color: primary | danger;
+        @default { color: primary; }
+        base { border: none; }
+        color.primary { background: token(primary); }
+        color.danger { background: "red"; }
+    }
 }
 ```
 
@@ -53,11 +62,13 @@ design LearnDesign {
 每个令牌可以为多个主题分别指定值：
 
 ```omni
-@themes light, dark, sepia, highContrast;
+design LearnDesign {
+    @themes { light, dark, sepia, highContrast }
 
-token primary: color = "#6366f1" dark "#a5b4fc" sepia "#8B4513" highContrast "#ffff00";
-token surface: color = "#ffffff" dark "#111827" sepia "#F5E6C8" highContrast "#000000";
-token textPrimary: color = "#111827" dark "#f9fafb" sepia "#3E2723" highContrast "#ffffff";
+    token primary: color = "#6366f1" dark "#a5b4fc" sepia "#8B4513" highContrast "#ffff00";
+    token surface: color = "#ffffff" dark "#111827" sepia "#F5E6C8" highContrast "#000000";
+    token textPrimary: color = "#111827" dark "#f9fafb" sepia "#3E2723" highContrast "#ffffff";
+}
 ```
 
 编译为：
@@ -77,8 +88,8 @@ token textPrimary: color = "#111827" dark "#f9fafb" sepia "#3E2723" highContrast
 
 ```omni
 design LearnDesign {
-    @themes light, dark, sepia, highContrast; // 声明 N 个主题
-    @default-theme light;                      // 默认主题
+    @themes { light, dark, sepia, highContrast } // 声明 N 个主题
+    @default-theme light;                        // 默认主题
     // ...
 }
 ```
@@ -108,7 +119,7 @@ __omni_theme.init();
 
 ```omni
 design LearnDesign {
-    @themes light, dark, sepia, highContrast;
+    @themes { light, dark, sepia, highContrast }
     @default-theme light;
 
     // 品牌色（4 主题值）
@@ -204,6 +215,19 @@ design App {
 
 ```omni
 design LearnDesign {
+    token surfaceMuted: color = "#f9fafb";
+    token surface: color = "#ffffff";
+    token border: color = "#d4d4d8";
+    token primary: color = "#6366f1";
+    token primaryLight: color = "#a5b4fc";
+    token radiusLg: radius = "16px";
+    token radiusMd: radius = "8px";
+    token spaceMd: size = "16px";
+    token fontSizeXl: fontSize = "20px";
+    token fontSizeLg: fontSize = "16px";
+    token fontWeightBold: fontWeight = "600";
+    token textPrimary: color = "#111827";
+
     class Page {
         max-width: "1200px";
         margin: "0 auto";
@@ -264,6 +288,18 @@ Variant 提供多维度的参数化组件样式：
 
 ```omni
 design LearnDesign {
+    token radiusMd: radius = "8px";
+    token fontWeightSemibold: fontWeight = "500";
+    token durationFast: duration = "150ms";
+    token primary: color = "#6366f1";
+    token danger: color = "#ef4444";
+    token accent: color = "#f97316";
+    token textPrimary: color = "#111827";
+    token border: color = "#d4d4d8";
+    token fontSizeSm: fontSize = "12px";
+    token fontSizeMd: fontSize = "14px";
+    token fontSizeLg: fontSize = "16px";
+
     variant Button {
         @dim color: primary | danger | ghost | accent;
         @dim size: sm | md | lg;
@@ -325,7 +361,7 @@ design LearnDesign {
 import omniview;
 
 design LearnDesign {
-    @themes light, dark, sepia, highContrast;
+    @themes { light, dark, sepia, highContrast }
     @default-theme light;
 
     token primary: color = "#6366f1" dark "#a5b4fc" sepia "#8B4513" highContrast "#ffff00";
@@ -378,7 +414,7 @@ learn-omniview 项目演示了完整的 4 主题系统。关键集成点：
 ### 设计块声明
 
 ```
-@themes light, dark, sepia, highContrast;
+@themes { light, dark, sepia, highContrast }
 @default-theme light;
 ```
 
@@ -387,6 +423,10 @@ learn-omniview 项目演示了完整的 4 主题系统。关键集成点：
 ### ThemeStore（信号层）
 
 ```omni
+design LearnDesign {
+    @themes { light, dark, sepia, highContrast }
+}
+
 store ThemeStore {
     signal mode: String @theme = "light";
     // @theme 标记：该信号是 design 块 @themes 声明的当前主题模式，

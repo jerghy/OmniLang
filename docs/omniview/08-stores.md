@@ -7,6 +7,12 @@ Store 是 OmniView 的共享状态容器。封装信号、派生值和修改逻�
 ```omni
 import omniview;
 
+struct Todo {
+    id: i32,
+    text: String,
+    done: bool,
+}
+
 store TodoStore {
     // 1. 响应式信号
     signal items: Todo[] = [];
@@ -18,7 +24,7 @@ store TodoStore {
 
     // 3. 修改方法（store 中用 action）
     action add(text: String) {
-        items = [...items, { id: items.len(), text, done: false }];
+        items = [...items, { id: items.len(), text: text, done: false }];
     }
 
     action remove(id: i32) {
@@ -54,6 +60,8 @@ Store 成员：
 ## Action 返回类型与异步
 
 ```omni
+import { http_get } from "std/http";
+
 store NotificationStore {
     signal messages: Array<String> = [];
 
@@ -98,6 +106,22 @@ store ThemeStore {
 `@store` 引用后即可访问：
 
 ```omni
+struct Todo {
+    id: i32,
+    text: String,
+    done: bool,
+}
+
+store TodoStore {
+    signal items: Todo[] = [];
+    signal filterStatus: String = "all";
+
+    getter totalCount: i32 = items.len();
+
+    action add(text: String) { items = [...items, { id: items.len(), text: text, done: false }]; }
+    action clear() { items = []; }
+}
+
 component TodoApp {
     @store TodoStore;
 

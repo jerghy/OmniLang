@@ -5,23 +5,31 @@
 ## 基本结构
 
 ```omni
+store TodoStore {
+    signal items: Array<String> = [];
+}
+
 component ComponentName {
     // 成员（顺序任意）
-    prop ...         // 外部属性
-    signal ...       // 响应式状态
-    computed ...     // 派生计算值
-    event ...        // 自定义事件
-    fn ...           // 组件函数
-    ref ...          // DOM 元素引用
-    const ...        // 编译时常量
+    prop title: String = "Default";          // 外部属性
+    signal count: i32 = 0;                   // 响应式状态
+    computed double: i32 = count * 2;        // 派生计算值
+    event saved: String;                     // 自定义事件
+    fn increment() { count = count + 1; }    // 组件函数
+    ref inputBox: Element;                   // DOM 元素引用
+    const MAX_ITEMS = 100;                   // 编译时常量
 
-    @store ...       // Store 引用
-    @mount { ... }   // 生命周期：挂载
-    @unmount { ... } // 生命周期：卸载
-    @effect(...) { ... } // 生命周期：响应式副作用
+    @store TodoStore;                        // Store 引用
+    @mount { print("mounted"); }             // 生命周期：挂载
+    @unmount { print("unmounted"); }         // 生命周期：卸载
+    @effect(count) { print(count.to_string()); } // 响应式副作用
 
-    view { ... }     // UI 模板
-    style { ... }    // 组件样式
+    view {
+        // UI 模板
+    }
+    style {
+        // 组件样式
+    }
 }
 ```
 
@@ -40,7 +48,11 @@ component Greeting {
 }
 
 // 父组件使用
-<Greeting name="Alice" count={5} />
+component App {
+    view {
+        <Greeting name="Alice" count={5} />
+    }
+}
 ```
 
 ## signal（响应式信号）
@@ -67,9 +79,19 @@ view {
 **更新**——使用赋值语法：
 
 ```omni
-fn increment() { count = count + 1; }
-fn reset() { count = 0; name = ""; }
-fn addItem(item: String) { items = [...items, item]; }
+component Counter {
+    signal count: i32 = 0;
+    signal name: String = "Alice";
+    signal items: Array<String> = [];
+
+    fn increment() { count = count + 1; }
+    fn reset() { count = 0; name = ""; }
+    fn addItem(item: String) { items = [...items, item]; }
+
+    view {
+        <p>Count: {count}</p>
+    }
+}
 ```
 
 Array 的 `.push()` 和 `.pop()` 自动触发响应式更新。推荐对完整替换使用不可变模式（`[...old, new]`）。
@@ -121,8 +143,16 @@ component Child {
 }
 
 // 父组件接收
-<Child @onSelect={handleSelect} />
-<Child @onClose={() => { closed = true; }} />
+component Parent {
+    signal closed: bool = false;
+
+    fn handleSelect(value: String) { print(value); }
+
+    view {
+        <Child @onSelect={handleSelect} />
+        <Child @onClose={() => { closed = true; }} />
+    }
+}
 ```
 
 父组件的 `handleSelect` 直接接收事件 payload 作为参数。
@@ -130,12 +160,22 @@ component Child {
 ## fn（组件函数）
 
 ```omni
-fn formatDate(ts: i32) -> String { return ts.to_string(); }
-fn toggle() { isOpen = !isOpen; }
-fn handleAdd() {
-    if input != "" {
-        items = [...items, input];
-        input = "";
+component TodoInput {
+    signal isOpen: bool = false;
+    signal input: String = "";
+    signal items: Array<String> = [];
+
+    fn formatDate(ts: i32) -> String { return ts.to_string(); }
+    fn toggle() { isOpen = !isOpen; }
+    fn handleAdd() {
+        if input != "" {
+            items = [...items, input];
+            input = "";
+        }
+    }
+
+    view {
+        <input bind:value={input} />
     }
 }
 ```
@@ -178,8 +218,8 @@ component MyComponent {
 | `.select()` | 全选文本 | `searchBox.select()` |
 | `.setSelection(start, end)` | 选区 | `searchBox.setSelection(0, 3)` |
 | `.measure()` | 位置/尺寸查询 | `let rect = searchBox.measure()` |
-| `.capturePointer(id)` | 指针捕获 | `el.capturePointer(1)` |
-| `.releasePointer(id)` | 释放指针 | `el.releasePointer(1)` |
+| `.capturePointer()` | 捕获全部指针 | `el.capturePointer()` |
+| `.releasePointer()` | 释放全部指针 | `el.releasePointer()` |
 
 **不暴露**：`innerHTML`、`addEventListener`、`querySelector`、`parentElement`——这些会破坏跨后端抽象。
 
@@ -192,7 +232,7 @@ component MyComponent {
 
 ### 高频场景：ref + @drag-* 触发器配合
 
-`ref.style.*` 已按 ADR-052 删除（DOM 专属 API，用信号 + style 绑定替代）。拖拽驱动的 60fps 位移由 `@drag-*` 触发器 + `@motion` 关键帧实现，最终值用 signal 保存（注意：当前无约束时拖拽进度为 0，范围约束待重新实现，见 `.architecture/deferrals.md` #19）：
+`ref.style.*` 已按 ADR-052 删除（DOM 专属 API，用信号 + style 绑定替代）。拖拽驱动的 60fps 位移由 `@drag-*` 触发器 + `@motion` 关键帧实现，最终值用 signal 保存。`@drag-*` 支持 `constraints:` / `elastic:` / `threshold:` / `velocity_max:` 控制维度（v2 BNF）：
 
 ```omni
 @motion dragSlideX {
@@ -229,7 +269,13 @@ component Draggable {
 const MAX_ITEMS = 100;
 const API_URL = "https://api.example.com";
 
-signal limit: i32 = MAX_ITEMS;
+component Limits {
+    signal limit: i32 = MAX_ITEMS;
+
+    view {
+        <p>Limit: {limit}</p>
+    }
+}
 ```
 
 常量值编译时确定，可用于 signal 初始值和列表渲染。
@@ -297,6 +343,13 @@ signal limit: i32 = MAX_ITEMS;
 在组件中引用全局 store：
 
 ```omni
+store TodoStore {
+    signal items: Array<String> = [];
+
+    getter totalCount: i32 = items.len();
+    action clear() { items = []; }
+}
+
 component TodoApp {
     @store TodoStore;
 

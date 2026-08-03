@@ -31,9 +31,9 @@ view {
 <p>Items: {items.len()} items</p>
 ```
 
-也支持模板字符串（反引号）：
+也支持模板字符串（反引号，插值符为 `${expr}`——与模板文本的 `{expr}` 不同）：
 ```omni
-<p>`Hello {name}, count is {count}`</p>
+<p>`Hello ${name}, count is ${count}`</p>
 ```
 
 ## 组件标签

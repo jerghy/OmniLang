@@ -10,11 +10,6 @@ fn greet(name: String) -> String {
     return "Hello, " + name + "!";
 }
 
-// 无返回值
-fn update(value: i32) {
-    count = value;
-}
-
 // 多参数
 fn add(a: i32, b: i32) -> i32 {
     return a + b;
@@ -23,6 +18,19 @@ fn add(a: i32, b: i32) -> i32 {
 // 公共函数（可跨文件导入）
 pub fn calculate(x: i32, y: i32) -> i32 {
     return x * y + x;
+}
+
+// 组件 fn 可以修改 signal 的值
+component Counter {
+    signal count: i32 = 0;
+
+    fn update(value: i32) {
+        count = value;
+    }
+
+    view {
+        <p>Count: {count}</p>
+    }
 }
 ```
 
@@ -42,6 +50,10 @@ fn validate(fields: Array<String>) -> String {
 ## async fn 异步函数
 
 ```omni
+import { http_get } from "std/http";
+
+type ApiResult = Ok { data: String } | Err { error: String } | Loading
+
 // 异步函数声明
 pub async fn fetchData(url: String) -> ApiResult {
     let raw = await http_get(url);
@@ -141,6 +153,8 @@ results.push("new item");
 ### try / catch / finally
 
 ```omni
+import { json_parse, json_stringify } from "std/json";
+
 fn safeParse(raw: String) -> String {
     try {
         let parsed = json_parse(raw);

@@ -151,16 +151,19 @@ let updated = { ...user, age: 31 };    // 展开 + 覆盖
 // 有负载和无负载变体混合
 type ApiResult = Ok { data: String }
                | Err { error: String }
-               | Loading;
+               | Loading
 
 type ValidationResult = Valid { message: String }
                       | Invalid { errors: Array<String> }
-                      | Pending;
+                      | Pending
 
 // 多字段变体
 type Shape = Circle { x: f64, y: f64, radius: f64 }
-           | Rectangle { x: f64, y: f64, width: f64, height: f64 };
+           | Rectangle { x: f64, y: f64, width: f64, height: f64 }
 ```
+
+> 注：联合体声明以最后一个变体结束，**不加分号**（单类型别名如
+> `type Score = i32;` 仍以 `;` 结尾）。
 
 ### 构造与模式匹配
 
@@ -173,9 +176,11 @@ fn handle(result: ApiResult) -> String {
     }
 }
 
-// 构造变体值
-let ok = Ok { data: "hello" };
-let loading = Loading;    // 无负载变体不需要 {}
+// 构造变体值（局部变量）
+fn construct() {
+    let ok = Ok { data: "hello" };
+    let loading = Loading;    // 无负载变体不需要 {}
+}
 ```
 
 `match` 必须穷尽所有变体，编译器会检查完整性。
@@ -216,22 +221,37 @@ let compare: fn(String, String) -> i32 = |a, b| a.len() - b.len();
 ## 类型注解位置
 
 ```omni
-// 变量声明
-let name: String = "hello";
+// 局部变量声明
+fn demo() {
+    let name: String = "hello";
+    let bonus: fn(i32) -> i32 = |s| s + 5;
+}
 
 // 函数参数与返回
-fn greet(name: String, age: i32) -> String { ... }
+fn greet(name: String, age: i32) -> String {
+    return name + " " + age.to_string();
+}
 
-// signal
-signal price: f64 = 0.0;
+component AnnotationDemo {
+    // signal
+    signal price: f64 = 0.0;
+    signal quantity: f64 = 1.0;
 
-// computed
-computed total: f64 = price * quantity;
+    // computed
+    computed total: f64 = price * quantity;
 
-// Array 泛型
-Array<String>
-Map<String, i32>
+    // Array / Map 泛型
+    signal names: Array<String> = [];
+    signal mapping: Map<String, i32> = {};
 
-// 函数类型
-fn(i32, i32) -> bool
+    // 函数类型：fn(Params) -> Return
+    fn combine(f: fn(i32, i32) -> bool) {
+        let r = f(1, 2);
+        if r { print("matched"); }
+    }
+
+    view {
+        <p>{total}</p>
+    }
+}
 ```

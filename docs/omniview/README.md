@@ -54,16 +54,17 @@ OmniView 将以下概念提升为**语言第一公民**（Language-First Citizen
 | 信号 | `signal` | 编译为 `__omni_signal()` getter/setter |
 | Store | `store` | 编译为全局 JS 变量（`{StoreName}_{field}` 命名） |
 | 设计系统 | `design` | 编译为 `:root { --token }` + scoped CSS + `[data-theme]` 主题切换 |
-| 动画 | `@motion` | 编译为 WAAPI `el.animate()` 调用，GSAP 兼容层 |
+| 动画 | `@motion` | 编译为 WAAPI `el.animate()` 调用（零外部依赖） |
 | 类型 | `struct` / `type` | 编译时擦除，仅用于类型检查 |
 
 ## 编译器命令
 
 ```bash
-omnic run                              # 开发服务器（自动编译 + 热更新）
+omnic run                              # 编译并运行（默认 src/main.omni，自动检测目标）
+omnic watch                            # 监视 .omni 文件变更并自动重建
 omnic build --target omniview          # 构建到 OmniView（HTML/CSS/JS）
 omnic build --target react             # 构建到 React（TSX + CSS Modules）
-omnic check <file>                     # 静态分析（类型 + lint）
+omnic analyse <file>                   # 静态分析（解析 + 类型 + lint）
 ```
 
 ## 文件类型
@@ -78,7 +79,7 @@ omnic check <file>                     # 静态分析（类型 + lint）
 src/
 ├── main.omni              # 入口 + App 根组件
 ├── design.omni            # 全局设计系统（LearnDesign）
-│                          #   @themes light, dark
+│                          #   @themes { light, dark }
 │                          #   token / class / variant
 ├── lib.omni               # 入口级工具函数
 ├── lib/                   # 纯逻辑库模块
