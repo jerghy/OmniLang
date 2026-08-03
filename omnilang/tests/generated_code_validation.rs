@@ -371,6 +371,11 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_riverpod: ^3.0.0
+  # Task 5.8: the stdlib registry emits `http.*` / `SharedPreferences`
+  # for the Flutter target — the generated files import these packages.
+  http: ^1.2.0
+  shared_preferences: ^2.2.0
+  intl: ^0.19.0
 "#;
 
 /// Collect every generated `.dart` file under `out_dir/<fixture>/` as
@@ -711,21 +716,21 @@ fn match_variant_arms_flutter_compiles() {
     );
 }
 
-// SKIPPED until the Phase 5 Flutter batch (Tasks 5.5/5.6/5.7): the showcase
-// project's Flutter output does NOT pass `dart analyze` today. Task 1.4
-// (this session) fixed the deferral #30 root cause — match variant arms /
-// local-type emission: the `Rating` class is now emitted into types.dart,
-// variant fields are bound (`final level = _v.level;`), and non-exhaustive
-// matches get a throwing default (verified by `match_variant_arms_flutter_compiles`,
-// MatchBreadthDemo.dart's `Undefined class 'Rating'` / `Undefined name
-// 'level'` / `return_of_invalid_type` errors are gone). The gate stays RED
-// on the remaining pre-existing gaps (Curves easing names, duplicated
-// motion controllers, stdlib method emission, String->Color props — 1125
-// errors / 21 classes in the 2026-08-02 run, recorded in
-// .architecture/reviews/feature-omniview-semantic-syntax-compilability.md).
-// Phase 5 fixes those and removes this attribute.
+// Task 5.8 cleared the showcase gate classes (333 -> 2 analyzer errors):
+// Dart-family method mapping (`.len()`/`.to_string()`/`.push()`/...),
+// cross-file lib-fn inlining, event wiring (constructor params, widget
+// callbacks, tear-off handlers), store rewrite in fn/computed/effect bodies,
+// inline stores, struct/union emission into types.dart, nullable types,
+// measure-position parity, stdlib-driven imports (dart:math/convert, http,
+// shared_preferences, intl), material-name hiding, string-concat coercion,
+// await hoisting, fn renames for Dart type shadowing. The gate stays RED on
+// TWO residual language-semantics gaps (adjudicated — defer-with-trigger):
+// (1) untyped closure params (DataTable's `|s| s + 5` — the IR carries no
+// closure param types, so Dart infers dynamic -> num vs int), and
+// (2) a u64-max literal (TypeSystemDemo's 18446744073709551615 — beyond
+// Dart's signed 64-bit int; BigInt would change the fn type).
 #[test]
-#[ignore = "learn-omniview Flutter output still RED on Phase 5 gaps (Curves easing names, duplicated motion controllers, stdlib emission, String->Color props) — un-ignore after Tasks 5.5/5.6/5.7 (see .architecture/deferrals.md #30)"]
+#[ignore = "learn-omniview Flutter output has 2 residual analyzer errors (untyped closure param -> num/int in DataTable; u64-max literal beyond Dart int in TypeSystemDemo) — adjudicated by the controller (see task-5.8 report)"]
 fn learn_omniview_flutter_output_passes_dart_analyze() {
     let Some(mut dart) = dart_command() else {
         eprintln!("SKIP: dart not found on PATH");

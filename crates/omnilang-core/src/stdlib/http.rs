@@ -60,8 +60,11 @@ pub(super) fn codegen_http_send(args: &[String], target: Target) -> String {
             )
         }
         Target::Dart | Target::Flutter => {
+            // The language's http_request returns the response TEXT (JS
+            // fetch .text()); Dart's StreamedResponse carries the body on
+            // its stream — await the send, then read the bytes (Task 5.8).
             format!(
-                "await http.Request({req}.method, Uri.parse({req}.url)).send()",
+                "(await (await http.Request({req}.method, Uri.parse({req}.url)).send()).stream.bytesToString())",
                 req = req
             )
         }
@@ -84,7 +87,11 @@ pub(super) fn codegen_http_get(args: &[String], target: Target) -> String {
             format!("reqwest::blocking::get({url})", url = url)
         }
         Target::Dart | Target::Flutter => {
-            format!("await http.get(Uri.parse({url}))", url = url)
+            // http.get returns a Response — the language's http_get returns
+            // the response TEXT (JS fetch .text()) — read the body
+            // (Task 5.8: raw = await http.get(...) assigned a Response to
+            // a String).
+            format!("(await http.get(Uri.parse({url}))).body", url = url)
         }
     }
 }
@@ -116,8 +123,11 @@ pub(super) fn codegen_http_post(args: &[String], target: Target) -> String {
             )
         }
         Target::Dart | Target::Flutter => {
+            // http.post returns a Future<Response> already — .send() was
+            // an invalid call on the Future; the language's http_post
+            // returns the response TEXT.
             format!(
-                "await http.post(Uri.parse({url}), body: {body}).send()",
+                "(await http.post(Uri.parse({url}), body: {body})).body",
                 url = url,
                 body = body
             )

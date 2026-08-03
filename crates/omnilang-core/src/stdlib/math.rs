@@ -317,7 +317,7 @@ pub(super) fn codegen_math_pow(args: &[String], target: Target) -> String {
         }
         Target::Python => format!("math.pow({base}, {exp})"),
         Target::Rust | Target::Dioxus => format!("({base}).powf({exp})"),
-        Target::Dart | Target::Flutter => format!("pow({base}, {exp})"),
+        Target::Dart | Target::Flutter => format!("pow({base}, {exp}).toDouble()"),
     }
 }
 

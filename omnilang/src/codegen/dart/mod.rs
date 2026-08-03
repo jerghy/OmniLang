@@ -22,6 +22,7 @@ use std::fmt::Write;
 
 // Bring expr helpers into scope for mod.rs internals and pub(crate) visibility for visitor/tests
 pub(crate) use expr::dart_type;
+pub(crate) use expr::dart_type_ir;
 pub(crate) use expr::format_expr_ir;
 
 pub struct DartCodegen;

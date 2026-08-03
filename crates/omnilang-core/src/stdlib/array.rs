@@ -135,7 +135,13 @@ pub(super) fn codegen_array_get(args: &[String], target: Target) -> String {
         Target::Python => format!("({arr})[{idx}] if 0 <= ({idx}) < len({arr}) else None"),
         Target::Rust | Target::Dioxus => format!("({arr}).get({idx} as usize).cloned()"),
         Target::Dart | Target::Flutter => {
-            format!("({idx}) >= 0 && ({idx}) < ({arr}).length ? ({arr})[{idx} as int] : null")
+            // Direct index (matches the JS family). The old bounds-guarded
+            // form returned null on out-of-bounds — a nullable element type
+            // that broke arithmetic downstream (double? in
+            // `totalPrice - lastPrice`). Dart's typed List index is
+            // non-nullable; out-of-bounds throws at runtime like JS's
+            // undefined access.
+            format!("({arr})[{idx} as int]")
         }
     }
 }
@@ -245,7 +251,11 @@ pub(super) fn codegen_array_find(args: &[String], target: Target) -> String {
         Target::Python => format!("next((x for x in {arr} if {fn_name}(x)), None)"),
         Target::Rust | Target::Dioxus => format!("({arr}).iter().find(|x| {fn_name}(x)).cloned()"),
         Target::Dart | Target::Flutter => {
-            format!("({arr}).firstWhere({fn_name}, orElse: () => null)")
+            // firstWhere's orElse must return the ELEMENT type (non-nullable
+            // lists reject a bare null — the analyzer reports Null not
+            // returnable from String) — the dynamic cast keeps the missing-
+            // element fallback compiling (Task 5.8).
+            format!("({arr}).firstWhere({fn_name}, orElse: () => null as dynamic)")
         }
     }
 }
@@ -309,7 +319,20 @@ pub(super) fn codegen_array_sort(args: &[String], target: Target) -> String {
         }
         Target::Dart | Target::Flutter => {
             if let Some(c) = closure {
-                format!("List.from({arr})..sort({c})")
+                if closure_param_count(c) == Some(2) {
+                    // Dart's `List.sort` requires an `int Function(T, T)`
+                    // comparator — the language's two-param closure may be a
+                    // REAL comparator (numeric) OR a key-style selector
+                    // (`|a, b| a.name` — sort by name). The JS family wraps
+                    // with a swapped-call comparison; Dart needs the same
+                    // (a bare `(a, b) => a.name` closure returns a String —
+                    // return_of_invalid_type_from_closure, Task 5.8).
+                    format!(
+                        "List.from({arr})..sort(($0, $1) {{ final $ra = {c}($0, $1); final $rb = {c}($1, $0); if ($ra is num) {{ return $ra.compareTo($rb); }} return $ra.toString().compareTo($rb.toString()); }})"
+                    )
+                } else {
+                    format!("List.from({arr})..sort({c})")
+                }
             } else {
                 format!("List.from({arr})..sort()")
             }

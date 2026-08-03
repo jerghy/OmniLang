@@ -1190,11 +1190,56 @@ impl FormatExpr for FlutterFormatExpr {
     }
 
     fn codegen_target(&self) -> Target {
-        self.inner.codegen_target()
+        // Flutter, not Dart: stdlib modules that are Flutter-only (storage —
+        // SharedPreferences) must translate here. The inner DartFormatExpr
+        // reports Dart, so delegating would silently fall back to the plain
+        // call form (`storage_get(...)` → undefined method).
+        Target::Flutter
     }
 
     fn event_param_name(&self) -> Option<&str> {
         self.inner.event_param_name()
+    }
+
+    // Delegate to the Dart-family method table (`.len()` → `.length`,
+    // `.to_string()` → `.toString()`, ...) instead of the JS-default
+    // verbatim form.
+    fn format_method_call(&self, obj: &str, method: &str, args: &[String]) -> String {
+        self.inner.format_method_call(obj, method, args)
+    }
+
+    fn format_optional_method_call(&self, obj: &str, method: &str, args: &[String]) -> String {
+        self.inner.format_optional_method_call(obj, method, args)
+    }
+
+    // Dart `+` on Strings requires both operands to be Strings — delegate
+    // the coercion rule to the Dart family.
+    fn format_binary_op(
+        &self,
+        op: &str,
+        left: &ExprIR,
+        right: &ExprIR,
+        left_str: &str,
+        right_str: &str,
+    ) -> String {
+        self.inner
+            .format_binary_op(op, left, right, left_str, right_str)
+    }
+
+    // The language's `println` / `print` statements map to Dart's `print`
+    // (the shared default would emit a bare call — undefined method).
+    fn format_call(&self, name: &str, args: &[String]) -> String {
+        match name {
+            "println" | "print" => format!("print({})", args.join(", ")),
+            _ => {
+                if let Some(native) =
+                    crate::codegen::try_format_stdlib_call(name, args, Target::Flutter)
+                {
+                    return native;
+                }
+                format!("{}({})", name, args.join(", "))
+            }
+        }
     }
 
     // Dart-family overrides delegate to the inner DartFormatExpr.
@@ -1216,6 +1261,10 @@ impl FormatExpr for FlutterFormatExpr {
         self.inner.format_struct(type_name, fields)
     }
 
+    fn format_struct_field_named(&self, key: &str, value: &str) -> String {
+        self.inner.format_struct_field_named(key, value)
+    }
+
     fn format_block_expr(&self, statements: &[StatementIR], tail: &ExprIR) -> String {
         self.inner.format_block_expr(statements, tail)
     }
@@ -1224,6 +1273,32 @@ impl FormatExpr for FlutterFormatExpr {
     /// on-demand controllers (Task 5.2).
     fn format_ref_op(&self, ref_name: &str, op: &RefOpIR) -> String {
         format_ref_op_flutter(ref_name, op, self)
+    }
+
+    /// Measure-position parity (Task 5.8): `ref.measure()` emits the
+    /// DOMRect-parity wrapper — the language surface is
+    /// `x`/`y`/`width`/`height` over the Offset/Size pair, so field
+    /// accesses read the wrapper's getters directly.
+    fn format_ref_op_field_access(&self, object: &ExprIR, field: &str) -> Option<String> {
+        let op = match object {
+            ExprIR::RefOpExpr { op, .. } => op,
+            _ => return None,
+        };
+        match op {
+            RefOpIR::Measure {
+                what: MeasureWhat::Position,
+            } => {
+                // The wrapper exposes x/y/width/height as nullable getters —
+                // field accesses read them directly.
+                let measure_expr = self.format_expr(object);
+                let mapped = match field {
+                    "x" | "y" | "width" | "height" => format!("{measure_expr}.{field}"),
+                    f => format!("{measure_expr}.{f}"),
+                };
+                Some(mapped)
+            }
+            _ => None,
+        }
     }
 }
 
@@ -1270,13 +1345,23 @@ fn format_ref_op_flutter(ref_name: &str, op: &RefOpIR, fmt: &impl FormatExpr) ->
             // T5.7: the old `as RenderBox?` cast THREW a TypeError when the
             // render object is not a RenderBox (RenderViewport, ...) — the
             // `is RenderBox ? box : null` pattern degrades to null instead.
+            // Task 5.8: the TRUE branch needs an explicit `as RenderBox`
+            // cast — the un-cast branch's static type was `RenderObject?`,
+            // so `localToGlobal` resolved on RenderObject (which has no such
+            // method).
             let render = format!("{}.currentContext?.findRenderObject()", key);
-            let box_expr = format!("({render} is RenderBox ? {render} : null)");
+            let box_expr = format!("({render} is RenderBox ? {render} as RenderBox : null)");
             match what {
                 MeasureWhat::Width => format!("{}?.size.width", box_expr),
                 MeasureWhat::Height => format!("{}?.size.height", box_expr),
                 MeasureWhat::Position => {
-                    format!("{}?.localToGlobal(Offset.zero)", box_expr)
+                    // DOMRect-parity wrapper (Task 5.8): the language's
+                    // measure() surface is x/y/width/height — a raw
+                    // Offset.localToGlobal has dx/dy and no size, and a
+                    // local variable holding the result (`var rect =
+                    // box.measure()`) made `rect.x` an undefined
+                    // getter.
+                    format!("_omni_measure({box_expr})")
                 }
             }
         }

@@ -1,5 +1,6 @@
 ---
 source: omnilang/src/codegen/tests_regression/parameterized.rs
+assertion_line: 119
 expression: "& super :: super :: format_output(& output)"
 ---
 === Counter.dart ===
@@ -11,9 +12,11 @@ class Counter extends StatefulWidget {
     const Counter({
         super.key,
         required this.name,
+        this.onUpdate,
     });
 
     final String name;
+    final void Function(dynamic)? onUpdate;
 
     @override
     State<Counter> createState() => _CounterState();

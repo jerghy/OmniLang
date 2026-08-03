@@ -28,6 +28,19 @@ pub(crate) fn format_type_ir_dart(ty: &TypeIR) -> String {
     DartTypeFormatter.format_type(ty.kind.as_str(), &ty.type_args)
 }
 
+/// Format a TypeIR as a Dart type, honoring the `is_nullable` flag
+/// (`String?` annotations previously lost their `?` — the signal became a
+/// non-nullable field and `user = null` failed to type-check).
+#[must_use]
+pub fn dart_type_ir(ty: &TypeIR) -> String {
+    let base = dart_type(ty.kind.as_str(), &ty.type_args);
+    if ty.is_nullable && !base.ends_with('?') {
+        format!("{base}?")
+    } else {
+        base
+    }
+}
+
 // ═══════════════════════════════════════════════════════════
 // Logic construct generation (moved to visitor.rs)
 // ═══════════════════════════════════════════════════════════

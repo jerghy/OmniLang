@@ -283,7 +283,21 @@ fn format_double_literal(f: f64) -> String {
 ///   `BorderRadiusTween` value shape); non-literal expressions are wrapped
 ///   in the circular constructor (a borderRadius stop value is a radius
 ///   length — mirroring how `rotate` wraps expressions).
+/// Test-only entry — production call sites use `format_stop_value_with`.
+#[cfg(test)]
 pub(crate) fn format_stop_value(prop: &str, value: &ExprIR) -> String {
+    format_stop_value_with(prop, value, None)
+}
+
+/// `format_stop_value` with design-token resolution: a `var(--token)` color
+/// stop resolves to the `{Design}Tokens.<name>` constant (Task 5.8 —
+/// previously the raw string `'var(--textPrimary)'` landed in
+/// `Tween<Color>(begin: ...)`, a String where Color was expected).
+pub(crate) fn format_stop_value_with(
+    prop: &str,
+    value: &ExprIR,
+    design: Option<&super::design::DesignResolver<'_>>,
+) -> String {
     match motion_prop_kind(prop) {
         MotionPropKind::BorderRadius => {
             let radius = match value {
@@ -311,7 +325,20 @@ pub(crate) fn format_stop_value(prop: &str, value: &ExprIR) -> String {
         MotionPropKind::Color => match value {
             ExprIR::LiteralExpr {
                 value: serde_json::Value::String(s),
-            } => css_color_to_dart(s).unwrap_or_else(|| format_expr_ir_flutter(value)),
+            } => {
+                if let Some(name) = s
+                    .trim()
+                    .strip_prefix("var(--")
+                    .and_then(|r| r.strip_suffix(')'))
+                {
+                    if let Some(design) = design {
+                        if let Some(const_ref) = design.token_constant_ref(name) {
+                            return const_ref;
+                        }
+                    }
+                }
+                css_color_to_dart(s).unwrap_or_else(|| format_expr_ir_flutter(value))
+            }
             _ => format_expr_ir_flutter(value),
         },
         MotionPropKind::Numeric => match value {
@@ -392,15 +419,34 @@ const DEG_TO_RAD: f64 = 0.017453292519943295;
 /// `reverse` swaps the interpolation direction (begin/end and segment order)
 /// — used for `direction: reverse` with a loop, since `AnimationController`
 /// can only repeat forward passes.
+/// Test-only entry — production call sites use `build_prop_tween_expr_with`.
+#[cfg(test)]
 pub(crate) fn build_prop_tween_expr(kf: &KeyframeIR, prop: &str, reverse: bool) -> String {
+    build_prop_tween_expr_with(kf, prop, reverse, None)
+}
+
+/// `build_prop_tween_expr` with design-token resolution for color stops
+/// (Task 5.8: `var(--textPrimary)` → `LearnDesignTokens.textPrimary`).
+pub(crate) fn build_prop_tween_expr_with(
+    kf: &KeyframeIR,
+    prop: &str,
+    reverse: bool,
+    ir: Option<&IRProgram>,
+) -> String {
     let type_ann = prop_anim_type(prop);
+    let design = ir.map(super::design::DesignResolver::new);
 
     // Stops defining this property, sorted by position.
     let mut points: Vec<(f64, String)> = kf
         .stops
         .iter()
         .filter(|s| s.properties.contains_key(prop))
-        .map(|s| (s.position, format_stop_value(prop, &s.properties[prop])))
+        .map(|s| {
+            (
+                s.position,
+                format_stop_value_with(prop, &s.properties[prop], design.as_ref()),
+            )
+        })
         .collect();
     points.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(Ordering::Equal));
 

@@ -844,6 +844,20 @@ impl<'a> DesignResolver<'a> {
     pub(crate) fn variant(&self, design: &'a DesignIR, name: &str) -> Option<&'a VariantIR> {
         design.variants.iter().find(|v| v.name == name)
     }
+
+    /// The `{Design}Tokens.<name>` constant reference for a design token,
+    /// across ALL designs (the first design declaring the token wins).
+    /// `None` when no design declares it or its constant was not emitted.
+    /// Task 5.8: motion keyframe color stops referencing `var(--textPrimary)`
+    /// previously emitted the raw string — String where Color was expected.
+    pub(crate) fn token_constant_ref(&self, token_name: &str) -> Option<String> {
+        for (_, design) in &self.design_by_name {
+            if let Some(r) = whole_var_token_ref(design, &format!("var(--{token_name})")) {
+                return Some(r);
+            }
+        }
+        None
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════

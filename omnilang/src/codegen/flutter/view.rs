@@ -12,7 +12,10 @@ use super::capitalize_first;
 use super::design::DesignResolver;
 use super::design::{class_factory_expr, decoration_fields_to_expr, merge_decoration_fields};
 use super::design::{resolve_class_decoration, resolve_variant_decoration, DecorationFields};
-use super::expr::{format_expr_ir_flutter, rewrite_stmt_store_accesses, rewrite_store_accesses};
+use super::expr::{
+    format_expr_ir_flutter, rewrite_stmt_store_accesses, rewrite_stmt_widget_refs,
+    rewrite_store_accesses, rewrite_widget_refs,
+};
 use super::motion::{
     is_flutter_motion_element, motion_active_name, motion_ctrl_name, wrap_with_motion_widgets,
 };
@@ -54,17 +57,75 @@ pub(crate) struct ViewContext<'a> {
     /// rule and order as `collect_motion_element_usage` (the contract
     /// mod.rs's declaration/initState/dispose emitters rely on).
     pub(crate) motion_counter: &'a mut usize,
+    /// Props/events/slots of the CURRENT component — bare identifier
+    /// references rewrite to `widget.<name>` (Task 5.8).
+    pub(crate) widget_names: &'a FxHashSet<String>,
+    /// Component-fn renames (`double` → `double_` for Dart type shadowing).
+    pub(crate) fn_renames: &'a FxHashMap<String, String>,
+    /// The component being generated — fn-arity lookups for handler wiring.
+    pub(crate) comp: &'a ComponentIR,
+}
+
+impl ViewContext<'_> {
+    /// Does the named handler reference a function with NO parameters?
+    /// (A 0-arg fn tear-off is not assignable to `ValueChanged<String>` —
+    /// the payload-bearing callback types — so those wire through a wrapper
+    /// closure instead.)
+    fn ref_is_zero_param_fn(&self, ref_name: &str) -> bool {
+        self.comp
+            .fns
+            .iter()
+            .any(|f| f.name == ref_name && f.params.is_empty())
+            || self
+                .ir
+                .all_functions()
+                .iter()
+                .any(|f| f.name == ref_name && f.params.is_empty())
+    }
+
+    /// The referenced fn's FIRST param type, when it has exactly one param
+    /// (for cast-coercion wrappers on nullable event payloads).
+    fn ref_single_param_type(&self, ref_name: &str) -> Option<String> {
+        let find = |f: &FunctionIR| -> Option<String> {
+            if f.name == ref_name && f.params.len() == 1 {
+                f.params[0]
+                    .r#type
+                    .as_ref()
+                    .map(|t| super::super::dart::dart_type_ir(t))
+            } else {
+                None
+            }
+        };
+        self.comp
+            .fns
+            .iter()
+            .find_map(find)
+            .or_else(|| self.ir.all_functions().iter().find_map(|f| find(f)))
+    }
+
+    /// Is the CHILD component's event payload nullable (or void)? Drives the
+    /// FnRef wrapper shape — a nullable payload cannot tear off onto a
+    /// non-nullable handler param (`dynamic Function(String)` is not
+    /// assignable to `void Function(String?)?`), and a void payload must not
+    /// receive a closure that takes the payload.
+    fn child_event_payload(&self, child_tag: &str, event_name: &str) -> Option<String> {
+        let child = self.component_map.get(child_tag)?;
+        child
+            .events
+            .iter()
+            .find(|e| e.name == event_name)
+            .map(|e| e.param_type.clone())
+    }
 }
 
 impl ViewContext<'_> {
     /// Format an expression in view context — `StoreFieldAccessExpr` is
-    /// rewritten to Riverpod 3.0 `ref.watch(...)` / `ref.read(...)` forms (C4).
+    /// rewritten to Riverpod 3.0 `ref.watch(...)` / `ref.read(...)` forms (C4)
+    /// and widget-scope identifiers to `widget.<name>` (Task 5.8).
     fn format_expr(&self, expr: &ExprIR) -> String {
-        format_expr_ir_flutter(&rewrite_store_accesses(
-            expr,
-            self.store_provider_map,
-            self.ir,
-        ))
+        let rewritten = rewrite_store_accesses(expr, self.store_provider_map, self.ir);
+        let rewritten = rewrite_widget_refs(&rewritten, self.widget_names, self.fn_renames);
+        format_expr_ir_flutter(&rewritten)
     }
 }
 
@@ -889,11 +950,54 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
             }
             child_args.push(format!("{}: {}", prop_name, ctx.format_expr(prop_value)));
         }
-        // Events become callback parameters
+        // Events become callback parameters. Task 5.8: a FnRef passes the
+        // handler by TEAR-OFF — `onSwitch: switchTab` — instead of a closure
+        // that dropped the event payload (`() { switchTab(); }` → the
+        // callback's parameter was never forwarded). Refs naming the current
+        // component's OWN event/prop (event forwarding `@onNavigate={onNavigate}`)
+        // tear off the widget field: `onNavigate: widget.onNavigate`.
         for (event_name, handler) in &el.events {
             let cb = match handler {
                 EventHandlerIR::FnRef { r#ref, .. } => {
-                    format!("() {{ {}(); }}", r#ref)
+                    if ctx.widget_names.contains(r#ref) {
+                        format!("widget.{}", r#ref)
+                    } else {
+                        let renamed = ctx
+                            .fn_renames
+                            .get(r#ref)
+                            .cloned()
+                            .unwrap_or_else(|| r#ref.clone());
+                        let payload = ctx.child_event_payload(el.tag.as_str(), event_name);
+                        let payload_nullable = payload
+                            .as_deref()
+                            .is_some_and(|p| p.ends_with('?') || p.ends_with(" | undefined"));
+                        let payload_void = payload
+                            .as_deref()
+                            .is_none_or(|p| p.is_empty() || p == "void");
+                        if ctx.ref_is_zero_param_fn(r#ref) {
+                            // 0-arg fn: the child's payload cannot flow — a
+                            // 0-arg tear-off is not assignable to the
+                            // payload-bearing callback type. The wrapper's
+                            // arity must MATCH the child's payload (a void
+                            // payload forbids a `(v)` closure).
+                            if payload_void {
+                                format!("() {{ {renamed}(); }}")
+                            } else {
+                                format!("(v) {{ {renamed}(); }}")
+                            }
+                        } else if payload_nullable {
+                            // Nullable payload vs a non-nullable handler
+                            // param: the tear-off type does not match
+                            // (`dynamic Function(String)` vs
+                            // `void Function(String?)?`) — cast the payload.
+                            let param = ctx
+                                .ref_single_param_type(r#ref)
+                                .unwrap_or_else(|| "dynamic".into());
+                            format!("(v) {{ {renamed}(v as {param}); }}")
+                        } else {
+                            format!("{renamed}")
+                        }
+                    }
                 }
                 EventHandlerIR::InlineFn { body, .. } => format_inline_handler_flutter(body, ctx),
                 EventHandlerIR::StoreAction { r#ref, .. } => format_store_action_handler(r#ref),
@@ -1158,35 +1262,43 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
         // the generated Dart fails to compile (argument_type_not_assignable).
         let is_void = callback_is_void(&callback_name);
         let body = match handler {
-            EventHandlerIR::FnRef {
-                r#ref, event_data, ..
-            } => {
-                if event_data.is_some() && !is_void {
-                    let event_obj = emit_event_object_flutter(
-                        handler.event_data(),
-                        handler.used_fields(),
-                        "event",
+            EventHandlerIR::FnRef { r#ref, .. } => {
+                // Task 5.8: pass the handler by TEAR-OFF — `onChanged:
+                // syncMirror` — instead of `(event) { syncMirror({}); }`
+                // (an empty event-object literal was passed to every fn ref,
+                // producing extra_positional_arguments / type errors). Dart's
+                // function subtyping accepts both arities; the payload flows
+                // through the callback's own parameters. Field accesses on
+                // the event are dropped — warn when the ref's target fn uses
+                // them (unrepresentable through a tear-off).
+                if handler
+                    .used_fields()
+                    .as_ref()
+                    .is_some_and(|f| !f.is_empty())
+                {
+                    warn_dropped_event_fields(
                         ctx.warnings,
+                        name,
+                        &callback_name,
+                        &format!("'{ref}'"),
                     );
-                    format!("(event) {{ {}({}); }}", r#ref, event_obj)
+                }
+                if ctx.widget_names.contains(r#ref) {
+                    format!("widget.{}", r#ref)
                 } else {
-                    // Symmetric with the InlineFn path: warn when event
-                    // field accesses were dropped (VoidCallback receives
-                    // no event argument in Flutter).
-                    if is_void
-                        && handler
-                            .used_fields()
-                            .as_ref()
-                            .is_some_and(|f| !f.is_empty())
-                    {
-                        warn_dropped_event_fields(
-                            ctx.warnings,
-                            name,
-                            &callback_name,
-                            &format!("'{ref}'"),
-                        );
+                    let renamed = ctx
+                        .fn_renames
+                        .get(r#ref)
+                        .cloned()
+                        .unwrap_or_else(|| r#ref.clone());
+                    if !is_void && ctx.ref_is_zero_param_fn(r#ref) {
+                        // A 0-arg fn tear-off is not assignable to the
+                        // payload-bearing callback types (`ValueChanged<String>`)
+                        // — accept the event param and ignore it.
+                        format!("(event) {{ {renamed}(); }}")
+                    } else {
+                        format!("{renamed}")
                     }
-                    format!("() {{ {}(); }}", r#ref)
                 }
             }
             EventHandlerIR::InlineFn {
@@ -1219,15 +1331,16 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                     }
                     for stmt in &body.statements {
                         // Store accesses inside handler bodies resolve to
-                        // ref.watch/ref.read on the Riverpod providers (C4).
-                        let stmt =
-                            rewrite_stmt_store_accesses(stmt, ctx.store_provider_map, ctx.ir);
+                        // ref.watch/ref.read on the Riverpod providers (C4);
+                        // widget-scope props/events rewrite to widget.<name>.
+                        let s1 = rewrite_stmt_store_accesses(stmt, ctx.store_provider_map, ctx.ir);
+                        let s2 = rewrite_stmt_widget_refs(&s1, ctx.widget_names, ctx.fn_renames);
                         // Use custom formatter with event_param_name set
                         // so FieldAccess on "e" emits bare field name (local final binding)
                         let fmt = FlutterStmtFormatter {
                             expr: super::r#ref::FlutterFormatExpr::new(Some("e".to_string())),
                         };
-                        fmt.format_stmt(&mut hw, &stmt);
+                        fmt.format_stmt(&mut hw, &s2);
                     }
                     hw.dedent();
                     hw.emit("}");
@@ -1389,7 +1502,14 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
     let inner = if let Some(children) = text_column_fallback {
         wrap_multi_widget(&children)
     } else if args.is_empty() {
-        format!("{}()", widget)
+        // Task 5.8: an empty element mapped to Text (`<span/>` with style
+        // only) emitted `Text()` — Text requires its positional `data`
+        // argument (1 positional expected, 0 found).
+        if widget == "Text" {
+            "Text('')".to_string()
+        } else {
+            format!("{}()", widget)
+        }
     } else {
         format!("{}({})", widget, args.join(", "))
     };
@@ -1872,7 +1992,10 @@ fn format_inline_handler_flutter(body: &BlockIR, ctx: &ViewContext) -> String {
         statements: body
             .statements
             .iter()
-            .map(|s| rewrite_stmt_store_accesses(s, ctx.store_provider_map, ctx.ir))
+            .map(|s| {
+                let s1 = rewrite_stmt_store_accesses(s, ctx.store_provider_map, ctx.ir);
+                rewrite_stmt_widget_refs(&s1, ctx.widget_names, ctx.fn_renames)
+            })
             .collect(),
     };
     build_inline_handler(&rewritten, &config, generate_statement_flutter)

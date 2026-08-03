@@ -110,6 +110,15 @@ pub trait FormatExpr {
         }
     }
 
+    /// Format a struct-literal field for a TYPED struct (a real `Name { ... }`
+    /// literal, not a map). Default: same as [`format_struct_field`] (JS
+    /// backends render structs as map literals). Dart-family backends
+    /// override to emit NAMED-CONSTRUCTOR args — `name: value` unquoted
+    /// (Task 5.8: `StatisticsData { name: "demo" }` → `StatisticsData(name: 'demo')`).
+    fn format_struct_field_named(&self, key: &str, value: &str) -> String {
+        self.format_struct_field(key, value)
+    }
+
     /// Function call expression.
     fn format_call(&self, name: &str, args: &[String]) -> String {
         if let Some(native) = try_format_stdlib_call(name, args, self.codegen_target()) {
@@ -123,11 +132,37 @@ pub trait FormatExpr {
         format!("{obj}.{method}({})", args.join(", "))
     }
 
+    /// Optional-chain method call (`obj?.method(args)`).
+    fn format_optional_method_call(&self, obj: &str, method: &str, args: &[String]) -> String {
+        format!("{obj}?.{method}({})", args.join(", "))
+    }
+
+    /// Binary operator expression — hook for backends that need operand-level
+    /// rewriting (e.g. Dart string `+` coercion of non-String operands).
+    fn format_binary_op(
+        &self,
+        op: &str,
+        _left: &ExprIR,
+        _right: &ExprIR,
+        left_str: &str,
+        right_str: &str,
+    ) -> String {
+        format!("{left_str} {op} {right_str}")
+    }
+
     /// Field access expression: `obj.field`.
     /// Separate hook so backends can redirect store field reads (`Store.x`)
     /// to slice-selector locals (React T3.3) without touching the dispatch.
     fn format_field_access(&self, obj: &str, field: &str) -> String {
         format!("{}.{}", obj, field)
+    }
+
+    /// Optional hook for FIELD ACCESS ON A REF-OP RESULT (`rect.x` where
+    /// `rect = refBox.measure()`). Default: no rewrite — backends that model
+    /// measure results with different property names (Flutter's Offset has
+    /// `dx`/`dy`, DOMRect parity wants `x`/`y`) override this.
+    fn format_ref_op_field_access(&self, _object: &ExprIR, field: &str) -> Option<String> {
+        None
     }
 
     /// Store field access: read (`Store.items`) or action call
@@ -300,6 +335,10 @@ pub trait FormatExpr {
                         }
                     }
                 }
+                // Ref-op result shape rewrite (measure-position parity).
+                if let Some(mapped) = self.format_ref_op_field_access(object, field) {
+                    return mapped;
+                }
                 self.format_field_access(&self.format_expr(object), field)
             }
             ExprIR::OptionalChainExpr { object, field, .. } => {
@@ -307,11 +346,9 @@ pub trait FormatExpr {
             }
             ExprIR::BinaryOpExpr { op, left, right } => {
                 let op_str = binary_op_to_str(op, self.strict_eq(), self.textual_bool_ops());
-                format!(
-                    "{} {op_str} {}",
-                    self.format_expr(left),
-                    self.format_expr(right)
-                )
+                let left_str = self.format_expr(left);
+                let right_str = self.format_expr(right);
+                self.format_binary_op(op_str, left, right, &left_str, &right_str)
             }
             ExprIR::UnaryOpExpr { op, operand } => {
                 self.format_unary_op(op.as_str(), &self.format_expr(operand))
@@ -345,7 +382,13 @@ pub trait FormatExpr {
             ExprIR::StructExpr { type_name, fields } => {
                 let f: Vec<String> = fields
                     .iter()
-                    .map(|(k, v)| self.format_struct_field(k, &self.format_expr(v)))
+                    .map(|(k, v)| {
+                        if type_name.is_empty() {
+                            self.format_struct_field(k, &self.format_expr(v))
+                        } else {
+                            self.format_struct_field_named(k, &self.format_expr(v))
+                        }
+                    })
                     .collect();
                 self.format_struct(type_name, &f.join(", "))
             }
@@ -358,11 +401,15 @@ pub trait FormatExpr {
                 object,
                 method,
                 args,
-                ..
+                is_optional,
             } => {
                 let obj = self.format_expr(object);
                 let arg_strs: Vec<String> = args.iter().map(|a| self.format_expr(a)).collect();
-                self.format_method_call(&obj, method, &arg_strs)
+                if *is_optional {
+                    self.format_optional_method_call(&obj, method, &arg_strs)
+                } else {
+                    self.format_method_call(&obj, method, &arg_strs)
+                }
             }
             ExprIR::BlockExpr { statements, tail } => self.format_block_expr(statements, tail),
             ExprIR::IndexExpr { object, index } => {
@@ -461,13 +508,157 @@ impl FormatExpr for DartFormatExpr {
         self.event_param_name.as_deref()
     }
 
-    // Rust-style conversions → Dart (mirrors the React backend's
-    // translate_method_call): `x.to_string()` → `x.toString()`.
+    // Rust-style method names → Dart (mirrors the React backend's
+    // translate_method_call, with Dart-native targets):
+    //   `x.to_string()` → `x.toString()`, `list.len()` → `list.length`,
+    //   `arr.get(i)` → `arr[i]`, `arr.push(x)` → `arr.add(x)`, etc.
+    // Task 5.8: the showcase gate — the Flutter backend previously emitted
+    // every method verbatim, so `.len()`/`.to_string()`/`.push()` produced
+    // undefined_method errors.
     fn format_method_call(&self, obj: &str, method: &str, args: &[String]) -> String {
         match method {
             "to_string" => format!("{obj}.toString({})", args.join(", ")),
+            "len" => format!("{}.length", obj),
+            // Array element access: `arr.get(i)` → `arr[i]` — the
+            // language guarantees the element exists (the JS family indexes
+            // directly), so the Dart indexer result is asserted non-null
+            // (Map indexers are nullable — get_or_throw returned String?
+            // from a String fn).
+            "get" => {
+                let idx = args.first().map(|s| s.as_str()).unwrap_or("0");
+                format!("({obj})[{idx}]!")
+            }
+            // Array mutation methods → Dart equivalents. `push`/`pop` are
+            // the language's mutation-returning forms; the emitted Dart
+            // matches the method-call shape.
+            "push" => format!("{obj}.add({})", args.join(", ")),
+            "pop" => format!("{obj}.removeLast()"),
+            "concat" => {
+                // `list.concat([val])` — array args spread their elements;
+                // scalar args are appended as items (Dart List has no
+                // `concat` — the language's form is spread + literal).
+                if args.is_empty() {
+                    format!("[...{obj}]")
+                } else if args[0].starts_with('[') && args[0].ends_with(']') {
+                    format!("[...{obj}, ...{}]", args[0])
+                } else {
+                    format!("[...{obj}, {}]", args.join(", "))
+                }
+            }
+            "slice" => {
+                let start = args.first().map(|s| s.as_str()).unwrap_or("0");
+                match args.get(1) {
+                    Some(end) => format!("{obj}.sublist({start}, {end})"),
+                    None => format!("{obj}.sublist({start})"),
+                }
+            }
+            "reverse" => format!("{obj}.reversed.toList()"),
+            "sort" => {
+                if args.is_empty() {
+                    format!("([...{obj}]..sort())")
+                } else {
+                    format!("([...{obj}]..sort({}))", args.join(", "))
+                }
+            }
+            // String methods
+            "starts_with" => format!("{}.startsWith({})", obj, args.join(", ")),
+            "ends_with" => format!("{}.endsWith({})", obj, args.join(", ")),
+            "contains" => {
+                // Dart's Map has no `contains` (String/List do) — dispatch on
+                // the receiver shape at runtime. The analyzer type-checks
+                // BOTH branches, so the non-Map branch casts to dynamic
+                // (Task 5.8: ErrorHandlingDemo's `map.contains(key)` was
+                // undefined_method on Map).
+                let arg = args.first().map(|s| s.as_str()).unwrap_or("null");
+                format!(
+                    "({obj} is Map ? ({obj}).containsKey({arg}) : ({obj} as dynamic).contains({arg}))"
+                )
+            }
+            "substring" => format!("{}.substring({})", obj, args.join(", ")),
+            "split" => format!("{}.split({})", obj, args.join(", ")),
+            "replace" => format!("{}.replaceAll({})", obj, args.join(", ")),
+            "join" => format!("{}.join({})", obj, args.join(", ")),
+            "trim" => format!("{}.trim()", obj),
+            "to_float" => format!("double.parse({})", obj),
             _ => format!("{obj}.{method}({})", args.join(", ")),
         }
+    }
+
+    /// Optional-chain method call — same table as [`format_method_call`],
+    /// with the null-aware receiver (`user?.len()` → `user?.length`).
+    fn format_optional_method_call(&self, obj: &str, method: &str, args: &[String]) -> String {
+        match method {
+            "to_string" => format!("{obj}?.toString({})", args.join(", ")),
+            "len" => format!("{}?.length", obj),
+            "get" => {
+                let idx = args.first().map(|s| s.as_str()).unwrap_or("0");
+                format!("({obj})?[{idx}]")
+            }
+            "push" => format!("{obj}?.add({})", args.join(", ")),
+            "pop" => format!("{obj}?.removeLast()"),
+            "slice" => {
+                let start = args.first().map(|s| s.as_str()).unwrap_or("0");
+                match args.get(1) {
+                    Some(end) => format!("{obj}?.sublist({start}, {end})"),
+                    None => format!("{obj}?.sublist({start})"),
+                }
+            }
+            "starts_with" => format!("{}?.startsWith({})", obj, args.join(", ")),
+            "ends_with" => format!("{}?.endsWith({})", obj, args.join(", ")),
+            "contains" => {
+                let arg = args.first().map(|s| s.as_str()).unwrap_or("null");
+                format!(
+                    "({obj} is Map ? ({obj})?.containsKey({arg}) : ({obj} as dynamic)?.contains({arg}))"
+                )
+            }
+            "substring" => format!("{}?.substring({})", obj, args.join(", ")),
+            "split" => format!("{}?.split({})", obj, args.join(", ")),
+            "replace" => format!("{}?.replaceAll({})", obj, args.join(", ")),
+            "join" => format!("{}?.join({})", obj, args.join(", ")),
+            "trim" => format!("{}?.trim()", obj),
+            "to_float" => format!("double.parse({}!)", obj),
+            _ => format!("{obj}?.{method}({})", args.join(", ")),
+        }
+    }
+
+    /// Dart string `+` requires both operands to be Strings. The language
+    /// (JS-semantics) allows `'x' + 5` / `'...' + err` — coerce the
+    /// non-literal side with `.toString()` so the emitted Dart type-checks
+    /// (Task 5.8: StringLiteralsDemo / StdLibShowcase concat errors).
+    /// An operand that is ALREADY a `.to_string()` call is left alone
+    /// (`'star Lv.' + level.toString()` must not become
+    /// `(level.toString()).toString()`).
+    fn format_binary_op(
+        &self,
+        op: &str,
+        left: &ExprIR,
+        right: &ExprIR,
+        left_str: &str,
+        right_str: &str,
+    ) -> String {
+        if op == "+" {
+            // "String-ish" = a string literal, an already-coerced toString()
+            // call, or a NESTED `+` chain (`'Hello ' + userName + ...` — the
+            // top-level op's left side is the whole chain, so the literal
+            // check alone missed `... + version` at the tail, Task 5.8).
+            let is_stringish = |e: &ExprIR| -> bool {
+                match e {
+                    ExprIR::LiteralExpr { value } => value.is_string(),
+                    ExprIR::MethodCallExpr { method, .. } => {
+                        method == "to_string" || method == "toString"
+                    }
+                    ExprIR::BinaryOpExpr { op, .. } => matches!(op, BinaryOpIR::Add),
+                    _ => false,
+                }
+            };
+            if is_stringish(left) && !is_stringish(right) {
+                return format!("{left_str} + ({right_str}).toString()");
+            }
+            if is_stringish(right) && !is_stringish(left) {
+                return format!("({left_str}).toString() + {right_str}");
+            }
+        }
+        format!("{left_str} {op} {right_str}")
     }
 
     // Dart uses `UnionType.variant(unquotedKey: value)` syntax.
@@ -567,9 +758,23 @@ impl FormatExpr for DartFormatExpr {
         )
     }
 
-    // Dart uses `{key: value}` without spaces inside braces.
-    fn format_struct(&self, _type_name: &str, fields: &str) -> String {
-        format!("{{{}}}", fields)
+    // Dart uses `{key: value}` without spaces inside braces for MAP
+    // literals; STRUCT literals (`StatisticsData { name: "demo" }`) become
+    // named-parameter constructor calls (`StatisticsData(name: 'demo')`) —
+    // the struct class is emitted into types.dart (Task 5.8). Keys arrive
+    // unquoted via `format_struct_field_named`.
+    fn format_struct(&self, type_name: &str, fields: &str) -> String {
+        if type_name.is_empty() {
+            return format!("{{{fields}}}");
+        }
+        format!("{type_name}({fields})")
+    }
+
+    /// Struct-literal keys become Dart named-constructor parameters —
+    /// unquoted `name: value` (map literals keep the JSON-quoted form).
+    fn format_struct_field_named(&self, key: &str, value: &str) -> String {
+        let key = key.trim_matches('"');
+        format!("{key}: {value}")
     }
 
     // Dart supports block-body closures — emit an immediately-invoked closure

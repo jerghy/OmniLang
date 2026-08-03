@@ -143,6 +143,161 @@ fn test_format_expr_binary() {
     assert_eq!(format_expr_ir_flutter(&expr), "a + b");
 }
 
+// ═══════════════════════════════════════════════════════════════
+// Task 5.8 regression tests — showcase gate classes
+// ═══════════════════════════════════════════════════════════════
+
+/// Method table: the Dart family must map the language's method names
+/// (.len()/.to_string()/.push()/.get()) to Dart natives.
+#[test]
+fn test_task58_method_name_mapping() {
+    let method = |obj: &str, m: &str, args: &[&str]| ExprIR::MethodCallExpr {
+        object: Box::new(ExprIR::IdentifierExpr {
+            name: obj.into(),
+            type_ann: None,
+        }),
+        method: m.into(),
+        args: args
+            .iter()
+            .map(|a| ExprIR::LiteralExpr {
+                value: serde_json::json!(a),
+            })
+            .collect(),
+        is_optional: false,
+    };
+    assert_eq!(
+        format_expr_ir_flutter(&method("input", "len", &[])),
+        "input.length"
+    );
+    assert_eq!(
+        format_expr_ir_flutter(&method("n", "to_string", &[])),
+        "n.toString()"
+    );
+    assert_eq!(
+        format_expr_ir_flutter(&method("items", "push", &["x"])),
+        "items.add('x')"
+    );
+    assert_eq!(
+        format_expr_ir_flutter(&method("items", "pop", &[])),
+        "items.removeLast()"
+    );
+    assert_eq!(
+        format_expr_ir_flutter(&method("rows", "get", &["0"])),
+        "(rows)['0']!"
+    );
+    // Optional receiver: user?.len() -> user?.length
+    let opt = ExprIR::MethodCallExpr {
+        object: Box::new(ExprIR::IdentifierExpr {
+            name: "user".into(),
+            type_ann: None,
+        }),
+        method: "len".into(),
+        args: vec![],
+        is_optional: true,
+    };
+    assert_eq!(format_expr_ir_flutter(&opt), "user?.length");
+}
+
+/// String  coercion: 'x' + 5 -> 'x' + (5).toString(); a nested chain
+/// keeps the tail operand coerced too.
+#[test]
+fn test_task58_string_concat_coercion() {
+    let id = |n: &str| ExprIR::IdentifierExpr {
+        name: n.into(),
+        type_ann: None,
+    };
+    let add = |l: ExprIR, r: ExprIR| ExprIR::BinaryOpExpr {
+        op: BinaryOpIR::Add,
+        left: Box::new(l),
+        right: Box::new(r),
+    };
+    let lit = |s: &str| ExprIR::LiteralExpr {
+        value: serde_json::json!(s),
+    };
+    assert_eq!(
+        format_expr_ir_flutter(&add(lit("x"), id("version"))),
+        "'x' + (version).toString()"
+    );
+    // 'Hello ' + userName + ', ...' + version — the tail operand coerces.
+    let chain = add(
+        add(add(lit("Hello "), id("userName")), lit(", v")),
+        id("version"),
+    );
+    assert!(format_expr_ir_flutter(&chain).ends_with("+ (version).toString()"));
+}
+
+/// Struct literals become named-parameter constructor calls.
+#[test]
+fn test_task58_struct_literal_constructor_form() {
+    let expr = ExprIR::StructExpr {
+        type_name: "StatisticsData".into(),
+        fields: vec![
+            (
+                "name".into(),
+                ExprIR::LiteralExpr {
+                    value: serde_json::json!("demo"),
+                },
+            ),
+            (
+                "count".into(),
+                ExprIR::LiteralExpr {
+                    value: serde_json::json!(5),
+                },
+            ),
+        ],
+    };
+    assert_eq!(
+        format_expr_ir_flutter(&expr),
+        "StatisticsData(name: 'demo', count: 5)"
+    );
+}
+
+/// Event emits forward to the widget callback with a null-aware call.
+#[test]
+fn test_task58_event_emit_uses_widget_callback() {
+    let mut w = CodeWriter::new();
+    let stmt = StatementIR::EventEmitStmtIR {
+        event_name: "onSwitch".into(),
+        args: vec![ExprIR::LiteralExpr {
+            value: serde_json::json!("overview"),
+        }],
+    };
+    generate_statement_flutter(&mut w, &stmt);
+    let out = w.into_string();
+    assert!(
+        out.contains("widget.onSwitch?.call('overview');"),
+        "event emit must forward through the widget callback: {out}"
+    );
+}
+
+/// println statements map to Dart's print.
+#[test]
+fn test_task58_println_maps_to_dart_print() {
+    let expr = ExprIR::CallExpr {
+        name: "println".into(),
+        args: vec![ExprIR::LiteralExpr {
+            value: serde_json::json!("hi"),
+        }],
+    };
+    assert_eq!(format_expr_ir_flutter(&expr), "print('hi')");
+}
+
+/// measure() emits the DOMRect-parity wrapper.
+#[test]
+fn test_task58_measure_emits_wrapper() {
+    let expr = ExprIR::RefOpExpr {
+        ref_name: "box".into(),
+        op: RefOpIR::Measure {
+            what: MeasureWhat::Position,
+        },
+    };
+    let out = format_expr_ir_flutter(&expr);
+    assert!(
+        out.starts_with("_omni_measure("),
+        "measure must use the wrapper: {out}"
+    );
+}
+
 #[test]
 fn test_format_expr_ternary() {
     let expr = ExprIR::TernaryIR {
@@ -328,6 +483,30 @@ fn test_stmt_if() {
 
 /// Format a view tree with an empty component/store context, returning
 /// (formatted_string, warnings).
+/// A component placeholder for ViewContext construction in tests (the
+/// context's fn-arity lookups only matter for handler-wiring tests).
+fn dummy_comp() -> ComponentIR {
+    ComponentIR {
+        name: "Dummy".into(),
+        props: FxHashMap::default(),
+        prop_defaults: FxHashMap::default(),
+        signals: vec![],
+        computeds: vec![],
+        effects: vec![],
+        lifecycles: vec![],
+        fns: vec![],
+        store_refs: vec![],
+        inline_stores: vec![],
+        refs: vec![],
+        events: vec![],
+        slots: vec![],
+        view: None,
+        styles: vec![],
+        source_file: None,
+        source_span: None,
+    }
+}
+
 fn fmt_view(node: &ViewTree) -> (String, Vec<String>) {
     fmt_view_with_motions(node, &[])
 }
@@ -368,6 +547,9 @@ fn fmt_view_with_program_and_map<'a>(
         design: &design_resolver,
         warnings: &mut warnings,
         motion_counter: &mut motion_counter,
+        widget_names: &FxHashSet::default(),
+        fn_renames: &FxHashMap::default(),
+        comp: &dummy_comp(),
     };
     let result = format_view_tree(node, &[], &mut ctx);
     (result, warnings)
@@ -390,6 +572,9 @@ fn fmt_view_in(node: &ViewTree, motions: &[MotionIntent], ir: &IRProgram) -> (St
         design: &design_resolver,
         warnings: &mut warnings,
         motion_counter: &mut motion_counter,
+        widget_names: &FxHashSet::default(),
+        fn_renames: &FxHashMap::default(),
+        comp: &dummy_comp(),
     };
     let result = format_view_tree(node, motions, &mut ctx);
     (result, warnings)
@@ -843,7 +1028,10 @@ fn test_format_element_with_event() {
     };
     let (expr, _) = fmt_view(&ViewTree::Element(Box::new(el)));
     assert!(expr.contains("ElevatedButton("));
-    assert!(expr.contains("onPressed: () { handleClick(); }"));
+    // Task 5.8: FnRef handlers pass by tear-off (the closure form dropped
+    // the event payload — `() { handleClick(); }` never forwarded
+    // the argument and produced extra_positional_arguments).
+    assert!(expr.contains("onPressed: handleClick"));
 }
 
 /// Handlers on VoidCallback params (onPressed/onLongPress/...) receive no
@@ -881,9 +1069,11 @@ fn test_format_element_void_callback_fn_ref_warns_on_dropped_event_fields() {
         a11y: None,
     };
     let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
+    // Task 5.8: FnRef handlers pass by tear-off — a 0-arg fn is assignable
+    // to VoidCallback (Dart function subtyping).
     assert!(
-        expr.contains("onPressed: () { handleClick(); }"),
-        "VoidCallback handler must be parameterless: {}",
+        expr.contains("onPressed: handleClick"),
+        "VoidCallback handler must be a tear-off: {}",
         expr
     );
     assert!(
@@ -5396,7 +5586,8 @@ fn test_event_on_button_is_allowed() {
     };
     let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
     assert!(
-        expr.contains("onPressed: () { handleClick(); }"),
+        // Task 5.8: FnRef handlers pass by tear-off.
+        expr.contains("onPressed: handleClick"),
         "click on ElevatedButton maps to onPressed: {}",
         expr
     );
@@ -5893,6 +6084,9 @@ fn test_store_action_in_inline_handler_body() {
         design: &design_resolver,
         warnings: &mut warnings,
         motion_counter: &mut motion_counter,
+        widget_names: &FxHashSet::default(),
+        fn_renames: &FxHashMap::default(),
+        comp: &dummy_comp(),
     };
     let expr = format_view_tree(&view, &[], &mut ctx);
     assert!(
@@ -5992,6 +6186,9 @@ fn test_store_action_method_call_form_in_handler() {
         design: &design_resolver,
         warnings: &mut warnings,
         motion_counter: &mut motion_counter,
+        widget_names: &FxHashSet::default(),
+        fn_renames: &FxHashMap::default(),
+        comp: &dummy_comp(),
     };
     let expr = format_view_tree(&view, &[], &mut ctx);
     assert!(
@@ -6176,6 +6373,9 @@ fn test_ref_key_on_widget_and_controller_attachment() {
         design: &design_resolver,
         warnings: &mut warnings,
         motion_counter: &mut motion_counter,
+        widget_names: &FxHashSet::default(),
+        fn_renames: &FxHashMap::default(),
+        comp: &dummy_comp(),
     };
     let view = ViewTree::Element(Box::new(el));
     let expr = format_view_tree(&view, &[], &mut ctx);
@@ -6213,6 +6413,9 @@ fn test_ref_key_on_widget_and_controller_attachment() {
         design: &design_resolver2,
         warnings: &mut warnings2,
         motion_counter: &mut motion_counter,
+        widget_names: &FxHashSet::default(),
+        fn_renames: &FxHashMap::default(),
+        comp: &dummy_comp(),
     };
     let view2 = ViewTree::Element(Box::new(el2));
     let expr2 = format_view_tree(&view2, &[], &mut ctx2);
@@ -6245,6 +6448,9 @@ fn test_ref_key_on_widget_and_controller_attachment() {
         design: &design_resolver3,
         warnings: &mut warnings3,
         motion_counter: &mut motion_counter,
+        widget_names: &FxHashSet::default(),
+        fn_renames: &FxHashMap::default(),
+        comp: &dummy_comp(),
     };
     let view3 = ViewTree::Element(Box::new(el3));
     let expr3 = format_view_tree(&view3, &[], &mut ctx3);
@@ -6756,7 +6962,7 @@ fn test_format_ref_op_flutter_variants() {
                 what: MeasureWhat::Width
             }
         )),
-        "(_boxKey.currentContext?.findRenderObject() is RenderBox ? _boxKey.currentContext?.findRenderObject() : null)?.size.width"
+        "(_boxKey.currentContext?.findRenderObject() is RenderBox ? _boxKey.currentContext?.findRenderObject() as RenderBox : null)?.size.width"
     );
     assert_eq!(
         format_expr_ir_flutter(&op(
@@ -6765,7 +6971,7 @@ fn test_format_ref_op_flutter_variants() {
                 what: MeasureWhat::Height
             }
         )),
-        "(_boxKey.currentContext?.findRenderObject() is RenderBox ? _boxKey.currentContext?.findRenderObject() : null)?.size.height"
+        "(_boxKey.currentContext?.findRenderObject() is RenderBox ? _boxKey.currentContext?.findRenderObject() as RenderBox : null)?.size.height"
     );
     assert_eq!(
         format_expr_ir_flutter(&op(
@@ -6774,7 +6980,9 @@ fn test_format_ref_op_flutter_variants() {
                 what: MeasureWhat::Position
             }
         )),
-        "(_boxKey.currentContext?.findRenderObject() is RenderBox ? _boxKey.currentContext?.findRenderObject() : null)?.localToGlobal(Offset.zero)"
+        // Task 5.8: measure() emits the DOMRect-parity wrapper (the
+        // language surface is x/y/width/height; a raw Offset has dx/dy).
+        "_omni_measure((_boxKey.currentContext?.findRenderObject() is RenderBox ? _boxKey.currentContext?.findRenderObject() as RenderBox : null))"
     );
 
     // Value read (the imperative write op was removed — bind:value covers it)
