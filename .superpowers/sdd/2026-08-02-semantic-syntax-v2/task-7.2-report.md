@@ -49,7 +49,7 @@
 
 - ✅ README/01 CLI 命令（`omnic check` → `analyse`）+ 版本 0.2.0 —— 已修
 - ✅ 06-templates 插值：view 文本 `{name}` 合法（parser 实证）；模板字符串 `${name}` 已修
-- ✅ 10-design-system "design 仅 OmniView" 陈旧句 —— 现文档无此句（未发现残留）
+- ✅ 10-design-system "design 仅 OmniView" 陈旧句 —— **修复轮 1/5 修正**：原句（英文 "Design blocks are currently only supported on the OmniView target... will produce a warning"）位于 `10-design-system.md:207`，首轮审计误判为已修复。本轮已改为当前事实（P0 三目标完整实现；非 P0 硬错误，spec §4.7），见 §8 修复轮
 - ✅ 08-stores `.filter` —— 语言方法教学正确（T1.2 落地后文档已对齐）；`.filter()` 表格行同步检查通过
 - ✅ 11-motion GSAP 句 —— 已删除
 - ✅ 15-grammar-view 内部矛盾 —— event_decl 类型 ✓ / @for BNF key_expr+scroll_hint+@empty 已补 / `import "omniview"` 引号已改 / `$counter` 已注记为 doc-fiction
@@ -77,3 +77,51 @@
 
 - `cargo build --release -p omnic` → `python3 scripts/verify-docs.py --omnic target/release/omnic --check` → `omnic build --target omniview`（learn-omniview，输出到 /tmp 不脏工作树）。
 - 豁免清单 `scripts/doc-gate-exemptions.txt`（1 条：错误恢复教学块，带理由）。
+
+---
+
+## 8. 修复轮 1/5（评审 MEDIUM + 3 LOW）
+
+**Commit**: `269f5c65` — `docs: fix 10-design stale gating sentence; gate hardening`
+
+### MEDIUM：10-design "design 仅 OmniView" 陈旧句
+
+- 原句位于 `docs/omniview/10-design-system.md:207-208`（英文："Design blocks are currently
+  only supported on the OmniView target. Compiling to React, Flutter, or other targets will
+  produce a warning."）——首轮审计用中文关键词检索漏掉了英文句，报告"无残留"判断错误。
+- 修复：改为当前事实——P0 目标（OmniView/React/Flutter）完整实现（token/class/variant/theme
+  全部 codegen 到原生原语）；非 P0 目标（Python/JS/Dart/Rust/Dioxus/Vue）**硬错误**，绝不静默
+  丢弃（spec §4.7）。
+- 实证：`omnic build -t react|flutter` 对含 design 的组件 exit 0；`-t dart` 输出硬错误
+  "Design blocks are only supported on the OmniView, React, and Flutter targets..."。
+- 全库复查：`grep "only supported on the OmniView\|will produce a warning" docs/omniview/`
+  零命中（另两处命中在历史设计文档 plans/ 中，非用户文档）。
+
+### LOW-1：08-stores `text,` → `text: text` 规范化还原
+
+- 评审正确：map 字面量**支持**简写字段（`{ id: items.len(), text, done: false }` 编译实证
+  exit 0）；仅 spec §6.3 的 **struct 字面量**简写（`Todo { id: nextId(), text, ... }`）是
+  真实解析错误（"expected ':' after field name"）。
+- 还原：08-stores 两处恢复 `text,` 简写形式（教学特性本身）。spec §6.3 的 `text: text`
+  保持（struct 字面量场景为真实分歧）。
+
+### LOW-2：PARSE_ERROR_PREFIXES 收紧
+
+- 语义消息 "expected X, got Y"（resolve.rs:556/584/731/813 族，如 "expected Bool, got
+  fn(i32,i32) -> bool"）此前会被 `"expected "` 前缀误判为解析错误（零实时影响）。
+- 收紧：`"expected "` 从前缀列表移除；新增 `is_parse_error()`——`expected X, got Y` 形状
+  判为语义，parser 形状（`expected '<tok>'`、`expected <词> — found <tok>`、裸
+  `expected identifier` 等）判为解析。单元断言 12 例全部通过。
+
+### LOW-3：--check 强制执行
+
+- 此前无 `--check`/`--inspect` 时即使有失败也 exit 0（CI 总是显式传 --check，零实时影响）。
+- 修复：门禁模式为默认——有失败即 exit 1；`--inspect` 显式退出审计模式。实证：破坏块 →
+  默认模式 exit 1 / --inspect exit 0；还原 → exit 0。
+
+### 验证
+
+- `python scripts/verify-docs.py --check --omnic target/debug/omnic.exe` →
+  `=== doc-compile gate: 232 omni blocks checked (0 failed, 147 semantic notes) ===`，exit 0
+- 反空洞测试（破坏 @mount 语法）：exit 1（默认模式）/ exit 0（--inspect）
+- `omnic build -t omniview`（learn-omniview）exit 0（未变，未重跑本轮——门禁覆盖）
