@@ -24,6 +24,23 @@ component Counter {
     expect(fns).toHaveLength(1);
     expect(fns?.[0]).toMatchObject({ name: "increment", params: [{ name: "step", type: "i32" }], returnType: "i32" });
   });
+  it("空参 fn（handleAdd()）→ params 为空数组（无幻影参数）", () => {
+    // E2E 缺陷 1 回归：tokenizer 把 () 拆为独立 token 后捕获组为空格串，
+    // 直接 split(",") 会产出幻影参数 [{name:"", type:"String"}] 污染保存签名
+    const src = `
+component Counter {
+    fn handleAdd() -> void {
+        // @pid:cb_b2
+        return;
+    }
+    view { div { } }
+}
+`;
+    const result = parseOmniSource(src);
+    expect(result.fnRegistry?.["Counter"]?.[0]).toMatchObject({ name: "handleAdd", params: [], returnType: "void" });
+    // fn 元素 props.params 应 trim 为空（不残留空格伪影）
+    expect(result.codeFlowGraphs?.handleAdd.elements.find((e) => e.tag === "fn")?.props?.params).toBe("");
+  });
   it("无 fn 的组件不出现在 fnRegistry", () => {
     const src = `
 component Empty {

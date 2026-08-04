@@ -320,7 +320,12 @@ export class SourceEmitter {
       }
       const chain = chains.get(fn.name);
       if (chain) w.emit(formatChainBlock(chain));
-      const params = fn.params.map(p => `${p.name}: ${p.type}`).join(", ");
+      // 防御：过滤空 name 参数（幻影参数兜底），避免 `fn name(: String)` 污染签名（E2E 缺陷 1）
+      const namedParams: string[] = [];
+      for (const p of fn.params) {
+        if (p.name.trim() !== "") namedParams.push(`${p.name}: ${p.type}`);
+      }
+      const params = namedParams.join(", ");
       w.emit(`fn ${fn.name}(${params}) -> ${fn.returnType} {`);
       w.indent();
       for (const line of fn.body.split("\n")) w.emit(line);

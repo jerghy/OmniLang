@@ -589,11 +589,16 @@ export class Parser {
     // 无 @pid 时退化为 fn_${name}_${uid()}（镜像 store action 的合成模式）。
     const fnPid = this.ctx.pendingPid || `fn_${fnName}_${uid()}`;
     this.ctx.pendingPid = null;
-    const rawParams = sigMatch?.[2] || "";
-    const params = rawParams.split(",").map((p) => {
-      const [pName, pType] = p.trim().split(":").map((s) => s.trim());
-      return { name: pName || "", type: pType || "String" };
-    });
+    // tokenizer 把 `()` 拆为独立 `(`、`)` token，签名捕获组可能是空格串（" "）——
+    // trim 后为空则零参数，直接 split(",") 会产出幻影参数 [{name:"", type:"String"}]
+    // （E2E 缺陷 1：被 source-emitter/pipeline 消费为 `fn name(: String)` 污染保存签名）。
+    const rawParams = (sigMatch?.[2] || "").trim();
+    const params = rawParams
+      ? rawParams.split(",").map((p) => {
+          const [pName, pType] = p.trim().split(":").map((s) => s.trim());
+          return { name: pName || "", type: pType || "String" };
+        })
+      : [];
     const returnType = fnSignature.match(/->\s*(\w+)/)?.[1] || "void";
     this.synthesizeFnEntry(fnName, rawParams, returnType, fnPid, elements, wires);
 

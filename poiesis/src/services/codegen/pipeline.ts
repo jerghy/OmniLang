@@ -303,9 +303,11 @@ export function generateOmniSource(options: GenerateOmniSourceOptions): StageRes
         // chain still reaches the generated source instead of being dropped.
         const paramsStr = (fnEl.props?.params as string) || "";
         const params = paramsStr
-          ? paramsStr.split(",").map((p) => {
+          ? paramsStr.split(",").flatMap((p) => {
+              // flatMap 单趟完成解析 + 空 name 过滤（防御：幻影参数不发射，E2E 缺陷 1，含已污染文件的自愈）
               const [pName, pType] = p.trim().split(":").map((s) => s.trim());
-              return { name: pName || "", type: pType || "String" };
+              const name = pName || "";
+              return name.trim() === "" ? [] : [{ name, type: pType || "String" }];
             })
           : [];
         lowered.functions.push({

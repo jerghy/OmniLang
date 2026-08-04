@@ -61,4 +61,34 @@ describe("fn node through generateOmniSource", () => {
     expect(result.value).toContain("TodoStore.add(text);");
     expect(result.value).toContain("emit onSelect();");
   });
+
+  it("空参 fn 签名不被幻影参数污染（E2E 缺陷 1 回归）", () => {
+    // 覆盖两种历史形状：修复前解析侧的空格伪影（" "）与已被污染的签名（": String"）。
+    // 防御性过滤应使两种输入都发射干净的 `fn handleAdd() -> void`。
+    for (const params of [" ", ": String"]) {
+      const elements: ElementData[] = [
+        {
+          id: "fn1", nodeType: "codeblock", tag: "fn",
+          props: { name: "handleAdd", params }, parentId: null, source: "",
+        },
+        {
+          id: "r1", nodeType: "codeblock", tag: "return",
+          props: {}, parentId: null, source: "",
+        },
+      ];
+      const wires = [
+        { id: "w1", fromId: "fn1", fromPort: "flow-out", toId: "r1", toPort: "flow-in" },
+      ];
+      const result = generateOmniSource({
+        designElements: elements,
+        designWires: wires,
+        codeTabs: basicCodeTabs,
+        componentName: "App",
+      });
+      expect(result.errors.filter((e) => e.severity === "fatal")).toHaveLength(0);
+      expect(result.value).toContain("fn handleAdd() -> void");
+      expect(result.value).not.toContain("handleAdd(: String");
+      expect(result.value).not.toContain("handleAdd( )");
+    }
+  });
 });
