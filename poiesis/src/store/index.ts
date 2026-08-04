@@ -50,6 +50,7 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
   panels: { leftWidth: 240, rightWidth: 300 },
   undoStacks: {},
   codeFlowGraphs: {},
+  persistedPositions: {},
 
   // ── Actions (composed from slice factories) ──
   ...createThemeSlice(set, get),

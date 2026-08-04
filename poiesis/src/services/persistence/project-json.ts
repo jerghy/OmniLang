@@ -81,5 +81,6 @@ export function createEmptyProjectJson(): ProjectJson {
     canvasStates: {},
     panels: { leftWidth: 240, rightWidth: 300 },
     codeFlowGraphs: {},
+    persistedPositions: {},
   };
 }

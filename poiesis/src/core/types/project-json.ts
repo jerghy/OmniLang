@@ -28,6 +28,10 @@ export interface ProjectJson {
 
   /** Code flow graphs keyed by fn/action PID. */
   codeFlowGraphs: Record<string, CodeFlowGraph>;
+
+  /** Codeflow 节点画布位置，按元素 id（即 PID）记录——解析侧不生成 position，
+   *  拖拽编辑的位置仅存于此独立字段（不动 codeFlowGraphs 的 v3 形状）。 */
+  persistedPositions: Record<string, { x: number; y: number }>;
 }
 
 export interface NodeMeta {

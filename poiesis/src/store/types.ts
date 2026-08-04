@@ -116,6 +116,10 @@ export interface PoiesisState {
   // buildCodeFlowGraphs 转换，保存格式不变。
   codeFlowGraphs: Record<string, { elements: import("../core/types/element").CodeblockElementData[]; wires: import("../core/types/wire").WireData[] }>;
 
+  /** Codeflow 节点位置持久化缓存：元素 id（PID）→ {x,y}，从 project.json 读回。
+   *  materializeFnGraphs 物化缺 position 的新元素时优先取此值，否则行布局兜底。 */
+  persistedPositions: Record<string, { x: number; y: number }>;
+
   // ── Actions ──
 
   // Architecture

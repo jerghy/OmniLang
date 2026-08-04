@@ -34,5 +34,6 @@ export function migrateV2ToV3(
     canvasStates: (v2.canvasStates as unknown as Record<string, CanvasViewport>) || {},
     panels: (v2.panels as ProjectJson["panels"]) || { leftWidth: 240, rightWidth: 300 },
     codeFlowGraphs: (v2.codeFlowGraphs as unknown as Record<string, CodeFlowGraph>) || {},
+    persistedPositions: (v2.persistedPositions as unknown as Record<string, { x: number; y: number }>) || {},
   };
 }

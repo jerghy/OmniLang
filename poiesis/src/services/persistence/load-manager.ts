@@ -14,7 +14,9 @@ export function loadProjectFromJson(raw: string): { success: boolean; error?: st
   try {
     const projectJson = deserializeProjectJson(raw);
     const store = usePoiesisStore.getState();
-    store.newProject();
+    // 仅重置编辑器元数据，保留 projectDir/projectName——newProject 会把 projectDir 置 null，
+    // 使 App.tsx 加载接线（loadOmniFiles 内调用）把应用打回 Welcome 页。
+    store.resetEditorState();
     store.loadFromProjectJson(projectJson);
     // v3 持久化形状（pid/nodes/wires）不恢复进 store.codeFlowGraphs——解析侧图
     // 由 App.tsx loadOmniFiles 物化重建（见 store/slices/serialization.ts）。

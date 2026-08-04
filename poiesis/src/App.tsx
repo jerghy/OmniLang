@@ -25,6 +25,13 @@ const log = createLogger("App");
 
 /** Load .omni files from disk: open tabs, populate canvas/main, store component defs. */
 async function loadOmniFiles(): Promise<void> {
+  // ── 0. 恢复 project.json 持久化元数据（nodeMeta/persistedPositions/canvasStates 等）──
+  // 必须在 .omni 解析之前：loadFromProjectJson 会置 codeFlowGraphs={}（v3 形状无法无损
+  // 重建解析侧图），后续解析合并图（F1 物化数据源）会覆盖该字段，顺序颠倒则物化失效。
+  // 保存侧同样经 api.annotation.saveProject（链：toProjectJson → project.json）。
+  // 文件不存在/损坏时内部容错返回 {ok:false}，不阻断 .omni 加载。
+  await api.annotation.loadProject();
+
   const scanDirs = [".", "src", "src/components", "src/stores", "src/lib"];
   const omniPaths: string[] = [];
 

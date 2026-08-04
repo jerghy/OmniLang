@@ -188,16 +188,19 @@ export function createElementCrudSlice(set: SetFn, get: GetFn) {
         .filter((g): g is { elements: CodeblockElementData[]; wires: WireData[] } => Boolean(g));
       if (graphs.length === 0) return;
       const existIds = new Set(s.elements.map((e) => e.id));
-      // 物化元素可能缺 position（解析侧不生成）：按合并顺序赋确定性行布局（y 递增 60），
-      // 避免全部堆叠 (0,0) 互相遮挡（E2E 缺陷 3）；已有 position 的保留原值。
-      // 判定用 e.position === undefined（显式 position: undefined 与缺键同等对待）。
+      // 物化元素可能缺 position（解析侧不生成）：先查持久化缓存（reload 布局保持），
+      // 未命中再赋确定性行布局（y 递增 60），避免全部堆叠 (0,0) 互相遮挡（E2E 缺陷 3）；
+      // 已有 position 的保留原值。判定用 e.position === undefined（显式 position: undefined
+      // 与缺键同等对待）。命中持久化位置不占用行布局序号。
+      const persisted = s.persistedPositions ?? {};
       let layoutIdx = 0;
       const newElements: CodeblockElementData[] = [];
       for (const g of graphs) {
         for (const e of g.elements) {
           if (existIds.has(e.id)) continue;
           if (e.position !== undefined) { newElements.push(e); continue; }
-          newElements.push({ ...e, position: { x: 0, y: layoutIdx++ * 60 } });
+          const persistedPos = persisted[e.id];
+          newElements.push({ ...e, position: persistedPos ?? { x: 0, y: layoutIdx++ * 60 } });
         }
       }
       const existWireIds = new Set(s.wires.map((w) => w.id));
