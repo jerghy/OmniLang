@@ -80,9 +80,10 @@ semantic_binding ::= 'focus' '=' <expr>
 // 这些属性出现在元素上时，编译器理解它们的语义（不只是普通 prop）
 // 元素必须已有对应的 @ref 绑定
 
-// ── 双向值绑定（唯一双向形式，无需 @ref）──
+// ── 双向绑定（无需 @ref）──
 
-value_binding ::= 'bind:value' '=' expr             (* 双向 *)
+value_binding ::= 'bind:value' '=' expr             (* 双向：输入/选择控件 *)
+                | 'bind:checked' '=' expr           (* 双向：checkbox 选中态 *)
 value_prop    ::= 'value' '=' <expr>               (* 普通单向 prop，无魔法 *)
 
 // ── 语义方法（在 action/expression 中对 ref 变量调用）──
@@ -1195,7 +1196,9 @@ a11y_entry    ::= 'label' ':' string               (* 至少一项；空块 = �
 - **`live` 值域**：`"polite"`/`"assertive"`（语义 pass 验证，其余值 →
   error「a11y live 仅支持 "polite"/"assertive"」）。
 - **`role` 子集**：Flutter 可映射角色
-  `button`/`textField`/`link`/`checkbox`/`radio`/`image` → Semantics flags；
+  `button`/`textbox`/`link`/`checkbox`/`radio`/`img` → Semantics flags
+  （`textbox`→`textField: true`、`img`→`image: true` 内部映射；遗留旗标名
+  `textField`/`image` → warning + 建议规范名 textbox/img）；
   其余角色 → **warning**（语义 pass）+ Flutter 生成代码注释（诚实降级）；
   非 Flutter 目标原样透传（诊断表记录子集）。
 - **`hidden`/`alt` 是任意表达式**（动态）：`hidden: !visible`、
@@ -1221,8 +1224,9 @@ a11y_entry    ::= 'label' ':' string               (* 至少一项；空块 = �
 | `live` | `aria-live="polite"` | `Semantics(liveRegion: true)` | `aria-live="polite"` 透传 |
 | `alt` | `alt="..."` / `alt={expr}` | img → `Image.network(semanticLabel:)`；其余 → `Semantics(label:)`（与 `label` 同时出现时 `label` 优先 + warning，见 §11.6） | `alt` 透传（动态同 hidden） |
 
-**Flutter role 子集**：`button`/`textField`/`link`/`checkbox`/`radio`/`image`
-→ 对应 `Semantics` flag；子集外角色 → warnings 通道
+**Flutter role 子集**：`button`/`textbox`/`link`/`checkbox`/`radio`/`img`
+→ 对应 `Semantics` flag（`textbox`/`img` 内部映射回 `textField: true`/`image: true`）；
+子集外角色 → warnings 通道
 （`[flutter] a11y role 'X' is not in the Flutter Semantics subset …`）+
 生成代码内 `/* a11y: role 'X' has no Flutter Semantics flag … */` 注释。
 

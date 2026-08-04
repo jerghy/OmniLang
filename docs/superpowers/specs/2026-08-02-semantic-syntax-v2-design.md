@@ -91,8 +91,8 @@
 ref_op            ::= 'ref' '.' ref_method '(' args? ')'
 ref_method        ::= 'focus' | 'blur'
                     | 'scrollTo' | 'scrollBy'
-                    | 'measure' 'width' | 'measure' 'height' | 'measure' 'position'
-                    | 'select' | 'setSelectionRange' '(' expr ',' expr ')'
+                    | 'measure' '(' ')'               (* 单形式；结果 { width, height, x, y }（DOMRect 对等）— 维度读用 ref.width / ref.height / ref.position *)
+                    | 'select' | 'setSelection' '(' expr ',' expr ')'
                     | 'value'                        (* 读 *)
                     | 'capturePointer' | 'releasePointer'    (* 无参数 *)
 ref_binding       ::= 'focus' '=' expr            (* 声明式焦点绑定，保留 *)
@@ -250,6 +250,7 @@ TweenAnimationBuilder<double>(
 
 ```
 themes_decl        ::= '@themes' '{' ident (',' ident)* '}'        (* 新增；位于 design 块内，与 token/class 同级 *)
+default_theme_decl ::= '@default-theme' ident ';'                (* 新增；默认主题名，须为 @themes 枚举之一（语义验证） *)
 theme_signal       ::= 'signal' ident ':' 'String' '@theme'       (* 新增标记；值必须是 @themes 枚举之一（语义验证） *)
 token_types        ::= Color | Dimension | Duration | Easing | FontFamily | FontSize
                      | FontWeight | LetterSpacing | LineHeight | Opacity | Radius | Shadow | ZIndex   (* 13 类型，保留 v1 *)
