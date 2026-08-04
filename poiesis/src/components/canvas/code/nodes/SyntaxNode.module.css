@@ -10,15 +10,15 @@
   word-break: break-all;
   line-height: var(--ol-line-height-normal);
 }
-/* tag 色系：let 蓝（primary）、assign 青（info）、store-call 橙（warning）、call 绿（success） */
+/* tag 色系：let 赭（primary）、assign 红（danger）、store-call 橙（warning）、call 绿（success） */
 .node[data-node-type="let"] {
   background: var(--ol-color-primary-subtle);
   border: 1.5px solid var(--ol-color-primary);
   color: var(--ol-color-primary-active);
 }
 .node[data-node-type="assign"] {
-  background: var(--ol-color-info-muted);
-  border: 1.5px solid var(--ol-color-info);
+  background: var(--ol-color-danger-subtle);
+  border: 1.5px solid var(--ol-color-danger);
   color: var(--ol-gray-700);
 }
 .node[data-node-type="store-call"] {

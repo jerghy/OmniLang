@@ -70,6 +70,62 @@ items.push(x);`;
     expect(result.elements[0].props).toEqual({ emit: false, fnName: "items.push", args: "x" });
   });
 
+  it("parses let without initial value (name survives round-trip)", () => {
+    // LetInspector clearing the initial value emits `let total;` (no `=`).
+    // The regex must not fall back to the placeholder name "x".
+    const fnBody = `// @pid:l1
+let total;`;
+    const result = parseCodeFlowGraph(fnBody);
+    expect(result.elements).toHaveLength(1);
+    const el = result.elements[0];
+    expect(el.tag).toBe("let");
+    expect(el.props).toEqual({ name: "total", mutable: false });
+    // formatSyntaxNode round-trip keeps the no-value form
+    expect(el.source).toBe("let total;");
+  });
+
+  it("parses let mut without initial value", () => {
+    const fnBody = `// @pid:l1
+let mut x;`;
+    const result = parseCodeFlowGraph(fnBody);
+    expect(result.elements).toHaveLength(1);
+    const el = result.elements[0];
+    expect(el.tag).toBe("let");
+    expect(el.props).toEqual({ name: "x", mutable: true });
+    expect(el.source).toBe("let mut x;");
+  });
+
+  it("joins multi-line statements instead of truncating to the first line", () => {
+    const fnBody = `// @pid:s1
+TodoStore.add(
+  text
+);`;
+    const result = parseCodeFlowGraph(fnBody);
+    expect(result.elements).toHaveLength(1);
+    const el = result.elements[0];
+    expect(el.tag).toBe("store-call");
+    expect(el.props).toEqual({ storeName: "TodoStore", action: "add", args: "text" });
+    // Content from the continuation lines survives the round-trip
+    expect(el.source).toBe("TodoStore.add(text);");
+  });
+
+  it("preserves original source when syntax props cannot be parsed", () => {
+    // Unmatched text must not be replaced with placeholder defaults —
+    // keep seg.code verbatim so nothing is silently rewritten.
+    const fnBody = `// @pid:s1
+TodoStore.add(
+  text
+;`;
+    const result = parseCodeFlowGraph(fnBody);
+    expect(result.elements).toHaveLength(1);
+    const el = result.elements[0];
+    expect(el.tag).toBe("store-call");
+    expect(el.props).toEqual({});
+    expect(el.source).toBe(`TodoStore.add(
+  text
+;`);
+  });
+
   it("keeps for-loop as code-block (starts with 'for', not 'let')", () => {
     const fnBody = `// @pid:cb1
 for (let i = 0; i < n; i++) {

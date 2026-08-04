@@ -1,5 +1,6 @@
 // FlowInspector.tsx
-// Right-side panel in CodeFlowCanvas that edits selected FN or Return node properties.
+// Right-side panel in CodeFlowCanvas that edits selected node properties:
+// fn / return / let / assign / store-call / call.
 // Reusable across store action editing and component fn editing.
 
 import { usePoiesisStore } from "../../../store";

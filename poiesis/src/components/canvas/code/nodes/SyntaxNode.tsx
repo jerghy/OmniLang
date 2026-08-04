@@ -1,6 +1,6 @@
 import { Handle, Position } from "@xyflow/react";
 import React from "react";
-import { formatSyntaxNode } from "../../../../services/codegen/syntax-nodes";
+import { formatSyntaxNode, type SyntaxNodeProps } from "../../../../services/codegen/syntax-nodes";
 import styles from "./SyntaxNode.module.css";
 
 interface Props {
@@ -13,7 +13,7 @@ interface Props {
 
 /** 语法节点（let/assign/store-call/call）：卡片显示 props 生成的代码预览。 */
 const SyntaxNode = React.memo(function SyntaxNode({ data }: Props) {
-  const code = formatSyntaxNode(data.tag, (data.props ?? {}) as never);
+  const code = formatSyntaxNode(data.tag, (data.props ?? {}) as SyntaxNodeProps);
   return (
     <div
       className={`flow-node ${styles.node}`}

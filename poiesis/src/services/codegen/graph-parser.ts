@@ -512,8 +512,12 @@ export function parseCodeFlowGraph(
       seg.type === "store-call" ||
       seg.type === "call"
     ) {
-      props = parseSyntaxProps(seg.type, seg.code);
-      source = formatSyntaxNode(seg.type, props as SyntaxNodeProps);
+      const parsed = parseSyntaxProps(seg.type, seg.code);
+      props = parsed;
+      // Only rewrite the source when props parsed successfully; on failure
+      // (empty props) keep the original text so nothing is lost or replaced
+      // with placeholder defaults. WASM validation reports the loud error.
+      source = Object.keys(parsed).length > 0 ? formatSyntaxNode(seg.type, parsed as SyntaxNodeProps) : seg.code;
     } else if (seg.type === "return") {
       // The return expression is always on the first line (trailing } may
       // follow on subsequent lines if this is the last segment in a block).
@@ -670,19 +674,23 @@ export function normalizeAnnotations(
  * Extract props for a syntax node from its code text.
  * Inverse of formatSyntaxNode (round-trip stable): every emitted line
  * parses back into the same props, modulo trailing semicolons.
+ * Multi-line statements are joined with spaces first (mirrors the omni
+ * tokenizer's whitespace normalization) so continuation lines are never
+ * truncated or silently dropped.
  */
 function parseSyntaxProps(
   type: "let" | "assign" | "store-call" | "call",
   code: string,
 ): Record<string, unknown> {
-  const line = code.split("\n").find((l) => l.trim()) || "";
-  const t = line.trim();
+  const t = code.split("\n").map((l) => l.trim()).filter(Boolean).join(" ").trim();
 
   switch (type) {
     case "let": {
-      const m = t.match(/^let\s+(mut\s+)?([a-zA-Z_]\w*)(?::\s*([\w<>, ]+?))?\s*=\s*(.*?);?\s*$/);
+      // The value group is optional: `let total;` (no initializer, emitted when
+      // the value is cleared) must still round-trip without losing the name.
+      const m = t.match(/^let\s+(mut\s+)?([a-zA-Z_]\w*)(?::\s*([\w<>, ]+?))?\s*(?:=\s*(.*?))?\s*;?\s*$/);
       if (!m) return { name: "x", mutable: false };
-      return { name: m[2], mutable: !!m[1], varType: m[3] || undefined, value: m[4].trim() };
+      return { name: m[2], mutable: !!m[1], varType: m[3] || undefined, value: m[4] ?? undefined };
     }
     case "assign": {
       // Allow optional whitespace around the "." — source from the omni
