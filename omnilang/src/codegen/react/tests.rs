@@ -349,6 +349,7 @@ fn test_tsx_stmt_let() {
         &FxHashSet::default(),
         &FxHashMap::default(),
         &FxHashSet::default(),
+        &FxHashSet::default(),
     );
     assert_eq!(w.into_string(), "const x = 42;\n");
 }
@@ -372,6 +373,7 @@ fn test_tsx_stmt_let_mut() {
         &FxHashSet::default(),
         &FxHashMap::default(),
         &FxHashSet::default(),
+        &FxHashSet::default(),
     );
     assert_eq!(w.into_string(), "let x = 42;\n");
 }
@@ -392,6 +394,7 @@ fn test_tsx_stmt_return() {
         &FxHashMap::default(),
         &FxHashSet::default(),
         &FxHashMap::default(),
+        &FxHashSet::default(),
         &FxHashSet::default(),
     );
     assert_eq!(w.into_string(), "return result;\n");
@@ -419,6 +422,7 @@ fn test_tsx_stmt_mutation_increment_local() {
         &FxHashMap::default(),
         &FxHashSet::default(),
         &FxHashMap::default(),
+        &FxHashSet::default(),
         &FxHashSet::default(),
     );
     assert_eq!(w.into_string(), "count = count + 1;\n");
@@ -449,6 +453,7 @@ fn test_tsx_stmt_mutation_increment_signal() {
         &FxHashSet::default(),
         &FxHashMap::default(),
         &FxHashSet::default(),
+        &FxHashSet::default(),
     );
     assert_eq!(w.into_string(), "setCount(prev => prev + 1);\n");
 }
@@ -476,6 +481,7 @@ fn test_tsx_stmt_mutation_assign_local() {
         &FxHashMap::default(),
         &FxHashSet::default(),
         &FxHashMap::default(),
+        &FxHashSet::default(),
         &FxHashSet::default(),
     );
     assert_eq!(w.into_string(), "name = \"alice\";\n");
@@ -506,6 +512,7 @@ fn test_tsx_stmt_mutation_assign_store() {
         &FxHashMap::default(),
         &FxHashSet::default(),
         &FxHashMap::default(),
+        &FxHashSet::default(),
         &FxHashSet::default(),
     );
     assert_eq!(w.into_string(), "name = \"alice\";\n");
@@ -544,6 +551,7 @@ fn test_tsx_stmt_mutation_assign_signal_self_read_functional_updater() {
         &FxHashSet::default(),
         &FxHashMap::default(),
         &FxHashSet::default(),
+        &FxHashSet::default(),
     );
     assert_eq!(w.into_string(), "setCount((c) => c + 1);\n");
 }
@@ -571,6 +579,7 @@ fn test_tsx_stmt_mutation_assign_signal_external_value_keeps_direct() {
         &FxHashMap::default(),
         &FxHashSet::default(),
         &FxHashMap::default(),
+        &FxHashSet::default(),
         &FxHashSet::default(),
     );
     assert_eq!(w.into_string(), "setCount(step);\n");
@@ -610,6 +619,7 @@ fn test_tsx_stmt_mutation_assign_store_signal_self_read_functional() {
         &owners,
         &FxHashSet::default(),
         &FxHashMap::default(),
+        &FxHashSet::default(),
         &FxHashSet::default(),
     );
     assert_eq!(
@@ -651,6 +661,7 @@ fn test_pruned_signal_dce_never_swallows_store_field_mutation() {
         &FxHashSet::default(),
         &FxHashMap::default(),
         &pruned,
+        &FxHashSet::default(),
     );
     assert_eq!(
         w.into_string(),
@@ -692,6 +703,7 @@ fn test_pruned_component_write_not_misrouted_to_store_by_collision() {
         &FxHashSet::default(),
         &FxHashMap::default(),
         &pruned,
+        &FxHashSet::default(),
     );
     assert_eq!(
         w.into_string(),
@@ -726,6 +738,7 @@ fn test_bare_store_field_array_push_emits_store_set_state() {
         &owners,
         &FxHashSet::default(),
         &FxHashMap::default(),
+        &FxHashSet::default(),
         &FxHashSet::default(),
     );
     assert_eq!(
@@ -764,6 +777,7 @@ fn test_pruned_component_array_push_not_misrouted_to_store_by_collision() {
         &FxHashSet::default(),
         &FxHashMap::default(),
         &pruned,
+        &FxHashSet::default(),
     );
     assert_eq!(
         w.into_string(),
@@ -872,6 +886,7 @@ fn test_tsx_stmt_mutation_assign_signal_updater_param_avoids_collision() {
         &FxHashSet::default(),
         &FxHashMap::default(),
         &FxHashSet::default(),
+        &FxHashSet::default(),
     );
     assert_eq!(w.into_string(), "setCount((c1) => c1 + c);\n");
 }
@@ -904,6 +919,7 @@ fn test_tsx_stmt_if() {
         &FxHashMap::default(),
         &FxHashSet::default(),
         &FxHashMap::default(),
+        &FxHashSet::default(),
         &FxHashSet::default(),
     );
     let out = w.into_string();
@@ -1425,7 +1441,7 @@ fn prop_fn_wrapped_in_use_callback() {
 /// is a `String` invisible to the `&ExprIR` walker callback. The old
 /// hand-rolled walker delegated BlockExpr/MatchExpr statements to
 /// `collect_stmt_identifiers`, which collects the event name; without it,
-/// the generated `onNotify("computed")` call inside the `useMemo` body
+/// the generated `onNotify?.("computed")` call inside the `useMemo` body
 /// referenced an event prop that was never destructured (TS2304 — event
 /// props are destructured only when `read_signals` contains the name).
 /// A targeted emit-name scanner (see `collect_expr_identifiers`) restores
@@ -1455,8 +1471,8 @@ fn emit_inside_computed_block_body_golden() {
         tsx
     );
     assert!(
-        tsx.contains("onNotify(\"computed\")"),
-        "emit call must be emitted verbatim in the computed body: {}",
+        tsx.contains("onNotify?.(\"computed\")"),
+        "emit call must use the optional-call form (event props are optional, TS2722): {}",
         tsx
     );
     // The event prop must be destructured: expression-level emit counts as
@@ -1502,6 +1518,79 @@ fn emit_inside_computed_block_body_nested_golden() {
     assert!(
         tsx.contains("export function App({ onNested, onMatched }"),
         "nested expression-level emits must destructure both event props (TS2304 guard): {}",
+        tsx
+    );
+}
+
+/// Task 5.6 (deferral #61): event-handler call sites must emit the
+/// optional-call form `f?.()` when the handler may be undefined — event
+/// props are optional (`onX?: (args) => void`), so a bare `f(...)` is a
+/// TS2722 possibly-undefined invocation (25 instances across the learn
+/// project at the 0.6 snapshot).
+#[test]
+fn event_handler_call_sites_use_optional_call() {
+    let out = compile_react(
+        r#"
+        component V {
+            signal f: fn(String) -> Void = null;
+            view { <button @onClick={f}/> }
+        }
+    "#,
+    )
+    .expect("compile must succeed");
+    let tsx = out.files.get("V.tsx").expect("V.tsx emitted");
+    assert!(
+        tsx.contains("f?.("),
+        "must guard possibly-undefined handler with optional call: {}",
+        tsx
+    );
+}
+
+/// Task 5.6 (deferral #61): a DIRECT call to an event prop — the corpus
+/// form (`onSwitch("overview")` as an expression statement, no `emit`
+/// keyword) — must emit the optional-call form too (TS2722).
+#[test]
+fn event_prop_direct_calls_use_optional_call() {
+    let out = compile_react(
+        r#"
+        component V {
+            event onGo: String;
+            fn send() {
+                onGo("x");
+            }
+            view { <button @onPress={send}/> }
+        }
+    "#,
+    )
+    .expect("compile must succeed");
+    let tsx = out.files.get("V.tsx").expect("V.tsx emitted");
+    assert!(
+        tsx.contains("onGo?.(\"x\")"),
+        "direct event-prop call must be optional-called: {}",
+        tsx
+    );
+}
+
+/// Task 5.6 (deferral #61): LOCAL fns are always defined — their call
+/// sites must stay bare `f(...)` (no `?.()` noise).
+#[test]
+fn local_fn_calls_stay_bare() {
+    let out = compile_react(
+        r#"
+        component V {
+            fn helper() {}
+            fn useIt() {
+                helper();
+            }
+            view { <button @onPress={useIt}/> }
+        }
+    "#,
+    )
+    .expect("compile must succeed");
+    let tsx = out.files.get("V.tsx").expect("V.tsx emitted");
+    assert!(
+        tsx.contains("helper();"),
+        "local fn call must stay bare: {}",
         tsx
     );
 }

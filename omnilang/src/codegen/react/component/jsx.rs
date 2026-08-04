@@ -31,6 +31,7 @@ impl ReactCodegen {
         ref_names: &FxHashSet<String>,
         store_field_renames: &FxHashMap<String, String>,
         pruned_signal_names: &FxHashSet<String>,
+        possibly_undefined: &FxHashSet<String>,
         motion_counter: &mut usize,
         prop_fn_ctx: &view::PropFnMemoCtx,
     ) {
@@ -56,6 +57,7 @@ impl ReactCodegen {
                 ref_names,
                 store_field_renames,
                 pruned_signal_names,
+                possibly_undefined,
                 motion_counter,
                 prop_fn_ctx,
                 // the view root sits directly inside `return ( ... )` — a

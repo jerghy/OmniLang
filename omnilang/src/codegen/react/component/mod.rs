@@ -161,6 +161,24 @@ impl ReactCodegen {
         // (fns passed by value to child components) and by the fn emission
         // and state hooks below.
         let fn_names: FxHashSet<String> = comp.fns.iter().map(|f| f.name.clone()).collect();
+        // Task 5.6 (deferral #61): names whose value may be undefined at an
+        // event-handler call site. Event props are emitted as OPTIONAL props
+        // (`onX?: (value: string) => void` — the parent may not wire the
+        // event), so every `onX(...)` call site is a TS2722
+        // possibly-undefined invocation (25 instances at the 0.6 snapshot:
+        // TabBar 9, EmitEventChild 3, SignalPatternsDemo 2, Timer 2,
+        // EmitChild 2, SlotBox/TodoItem/FnFormatter/CapabilityCard/AddTodo/
+        // AboutPage/HomePage 1 each). A signal initialized with the null
+        // literal is also possibly-null when invoked (the hoisted
+        // `const f = null` shape / fn-typed signal with null default).
+        // Local fns and lib fns are always defined — they stay bare `f(...)`.
+        let mut possibly_undefined_handlers: FxHashSet<String> =
+            comp.events.iter().map(|e| e.name.clone()).collect();
+        for sig in &comp.signals {
+            if matches!(&sig.initial_value, ExprIR::LiteralExpr { value } if value.is_null()) {
+                possibly_undefined_handlers.insert(sig.name.clone());
+            }
+        }
         // Task 2.8 (perf M4) pass 1: local fns passed BY VALUE to child
         // component instances (bare identifier props / bare FnRef events).
         // Each becomes `const __omni_cb_<fn> = useCallback(<fn>, [reads])` —
@@ -557,6 +575,7 @@ impl ReactCodegen {
                             &ref_names,
                             &FxHashMap::default(),
                             &FxHashSet::default(),
+                            &FxHashSet::default(),
                         );
                         continue;
                     }
@@ -571,6 +590,7 @@ impl ReactCodegen {
                     &store_signal_owners,
                     &ref_names,
                     &FxHashMap::default(),
+                    &FxHashSet::default(),
                     &FxHashSet::default(),
                 );
             }
@@ -825,6 +845,7 @@ impl ReactCodegen {
             &store_fields,
             &hoisted_signals,
             &pruned_signals,
+            &possibly_undefined_handlers,
         );
         state::gen_semantic_binding_effects(
             &mut w,
@@ -850,6 +871,7 @@ impl ReactCodegen {
             &store_field_renames,
             &hoisted_signals,
             &pruned_signals,
+            &possibly_undefined_handlers,
         );
 
         // Component-local function declarations
@@ -863,6 +885,7 @@ impl ReactCodegen {
             &ref_names,
             &store_field_renames,
             &pruned_signals,
+            &possibly_undefined_handlers,
         );
 
         // ── Task 2.8 (perf M4): useCallback wrappers for prop fns ──
@@ -932,6 +955,7 @@ impl ReactCodegen {
             &ref_names,
             &store_field_renames,
             &pruned_signals,
+            &possibly_undefined_handlers,
             &mut motion_counter,
             &prop_fn_ctx,
         );

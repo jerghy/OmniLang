@@ -10,11 +10,11 @@
 import omniview;
 
 component CodeFlowMidChain {
-    event onSelect;
+    event onSelect: Void;
 
     fn process() -> void {
         // @pid:cfmc-let-0
-          let total = 0;
+          let mut total = 0;
         // @pid:cfmc-assign-0
           total = total + 1;
         // @pid:cfmc-cond-0

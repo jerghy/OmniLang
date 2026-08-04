@@ -30,6 +30,14 @@ pub(crate) struct ReactFormatExpr {
     /// stay bare, never `state.<name>` (maintainability HIGH-1). Empty at
     /// component-codegen sites.
     pub param_names: FxHashSet<String>,
+    /// Task 5.6 (deferral #61): names whose value may be undefined at an
+    /// event-handler call site — event props are emitted as OPTIONAL props
+    /// (`onX?: (value: string) => void`, the parent may not wire the event)
+    /// and a signal initialized with the null literal may be null when
+    /// invoked (`const f = null` hoisted shape). `format_call` emits the
+    /// optional-call form `f?.(...)` for these; local fns/lib fns are
+    /// always defined and stay bare `f(...)` (no noise).
+    pub possibly_undefined: FxHashSet<String>,
 }
 
 impl FormatExpr for ReactFormatExpr {
@@ -50,9 +58,15 @@ impl FormatExpr for ReactFormatExpr {
                 ref_names: self.ref_names.clone(),
                 renames: self.renames.clone(),
                 param_names: self.param_names.clone(),
+                // Task 5.6: expression-position blocks have no component
+                // context here — event-prop emits inside them stay bare
+                // (no corpus instances; the computed-block body path uses
+                // generate_statement_tsx, which carries the set).
+                possibly_undefined: FxHashSet::default(),
             },
             signal_names: FxHashSet::default(),
             store_signal_owners: FxHashMap::default(),
+            possibly_undefined: FxHashSet::default(),
         };
         for stmt in statements {
             fmt.format_stmt(&mut w, stmt);
@@ -124,6 +138,16 @@ impl FormatExpr for ReactFormatExpr {
     }
 
     fn format_call(&self, name: &str, args: &[String]) -> String {
+        // Task 5.6 (deferral #61): a DIRECT call to a possibly-undefined
+        // event handler (`onX(...)` as an expression statement — the
+        // corpus form, vs. the `emit` keyword's EventEmitStmtIR handled in
+        // `format_event_emit_stmt`) is a TS2722 possibly-undefined
+        // invocation. Emit the optional-call form `onX?.(...)`; the name
+        // can never collide with a stdlib/builtin (event props are
+        // component-scoped identifiers), so the guard runs first.
+        if self.possibly_undefined.contains(name) {
+            return format!("{}?.({})", name, args.join(", "));
+        }
         if let Some(native) = try_format_stdlib_call(name, args, Target::React) {
             return native;
         }
@@ -378,6 +402,11 @@ pub(super) struct ReactStmtFormatter {
     pub signal_names: FxHashSet<String>,
     /// Maps store signal names to their owning store ref (e.g. `count` → `AppStore`).
     pub store_signal_owners: FxHashMap<String, String>,
+    /// Task 5.6 (deferral #61): names that may be undefined at an
+    /// event-handler call site (event props, null-initial signals) — the
+    /// `emit onX(...)` keyword form emits `onX?.(...)` for these. Mirrors
+    /// `ReactFormatExpr.possibly_undefined` for the direct-call form.
+    pub possibly_undefined: FxHashSet<String>,
 }
 
 impl FormatStmt for ReactStmtFormatter {
@@ -447,7 +476,15 @@ impl FormatStmt for ReactStmtFormatter {
             let formatted: Vec<String> = args.iter().map(|a| self.expr.format_expr(a)).collect();
             format!("({})", formatted.join(", "))
         };
-        w.emit_fmt(format_args!("{}{};", event_name, arg_str));
+        // Task 5.6 (deferral #61): the `emit onX(...)` KEYWORD form. Event
+        // props are optional props, so a bare `onX(...)` is a TS2722 —
+        // emit `onX?.(...)` when the name may be undefined (local fn
+        // targets stay bare `f(...)`).
+        if self.possibly_undefined.contains(event_name) {
+            w.emit_fmt(format_args!("{}?.{};", event_name, arg_str));
+        } else {
+            w.emit_fmt(format_args!("{}{};", event_name, arg_str));
+        }
     }
 
     fn format_mutation_stmt(&self, w: &mut CodeWriter, intent: &MutationIntent) {
@@ -1065,6 +1102,7 @@ pub(super) fn generate_statement_tsx(
     ref_names: &FxHashSet<String>,
     renames: &FxHashMap<String, String>,
     pruned_signal_names: &FxHashSet<String>,
+    possibly_undefined: &FxHashSet<String>,
 ) {
     // Task 2.11 — write-only signal mutation DCE: the signal's state hook
     // was skipped (its value is never consumed), so a setter call here
@@ -1176,9 +1214,11 @@ pub(super) fn generate_statement_tsx(
             ref_names: ref_names.clone(),
             renames: renames.clone(),
             param_names: FxHashSet::default(),
+            possibly_undefined: possibly_undefined.clone(),
         },
         signal_names: signal_names.clone(),
         store_signal_owners: store_signal_owners.clone(),
+        possibly_undefined: possibly_undefined.clone(),
     };
     fmt.format_stmt(w, stmt);
 }
@@ -1239,6 +1279,11 @@ pub(super) fn format_expr_ir_tsx_renamed_locals(
                     ref_names: ref_names.clone(),
                     renames: renames.clone(),
                     param_names: param_names.clone(),
+                    // Task 5.6: free-form expression formatting has no
+                    // component context — event-prop direct calls here stay
+                    // bare (no corpus instances; statement contexts carry
+                    // the set via generate_statement_tsx).
+                    possibly_undefined: FxHashSet::default(),
                 }
                 .format_identifier(name)
             }
@@ -1267,6 +1312,7 @@ pub(super) fn format_expr_ir_tsx_renamed_locals(
                 ref_names: ref_names.clone(),
                 renames: renames.clone(),
                 param_names: param_names.clone(),
+                possibly_undefined: FxHashSet::default(),
             }
             .format_expr(expr)
         }
@@ -1313,6 +1359,7 @@ pub(super) fn format_expr_ir_tsx_renamed_locals(
                 ref_names: ref_names.clone(),
                 renames: renames.clone(),
                 param_names: param_names.clone(),
+                possibly_undefined: FxHashSet::default(),
             }
             .format_array_method(method, &subj_str, &pred_str)
         }
@@ -1320,6 +1367,7 @@ pub(super) fn format_expr_ir_tsx_renamed_locals(
             ref_names: ref_names.clone(),
             renames: renames.clone(),
             param_names: param_names.clone(),
+            possibly_undefined: FxHashSet::default(),
         }
         .format_expr(expr),
     }

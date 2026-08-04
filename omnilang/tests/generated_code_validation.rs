@@ -1072,7 +1072,18 @@ design LearnDesign {
 /// import LearnDesign without ever referencing it; TypeSystemDemo's
 /// `import type { Point, Percentage }` and main.omni's Percentage are
 /// never referenced either).
-const FLUTTER_WARNINGS_BASELINE: usize = 878;
+///
+/// Task 5.6 raised it to 879 — the ONE sanctioned upward move since 4.12,
+/// and an artifact of un-breaking a previously-DEAD corpus file, not a
+/// codegen regression: `components/CodeFlowMidChain.omni` (canvas
+/// round-trip fixture, ff289059) used `event onSelect;` — a parse error
+/// since the 7-27 grammar (event types are required) — so it failed every
+/// target compile and contributed ZERO warnings. Task 5.6 repaired the
+/// declaration (`event onSelect: Void;` + `let mut` for the reassigned
+/// `total`) to unblock the react/ts/react gate; the fixture now compiles
+/// and contributes its single dead-code warning ("Function 'process' is
+/// never called") — the +1. Next task should lower the baseline back.
+const FLUTTER_WARNINGS_BASELINE: usize = 879;
 
 #[test]
 fn learn_omniview_flutter_warnings_are_tracked() {

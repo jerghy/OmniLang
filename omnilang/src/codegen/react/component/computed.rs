@@ -24,6 +24,7 @@ pub(super) fn gen_computed_values(
     store_field_renames: &FxHashMap<String, String>,
     hoisted_signals: &FxHashSet<String>,
     pruned_signal_names: &FxHashSet<String>,
+    possibly_undefined: &FxHashSet<String>,
 ) {
     for computed in &comp.computeds {
         let mut deps_list: Vec<String> = Vec::new();
@@ -99,6 +100,7 @@ pub(super) fn gen_computed_values(
                     ref_names,
                     store_field_renames,
                     pruned_signal_names,
+                    possibly_undefined,
                 );
             }
             // Render tail as return value if non-null
@@ -115,11 +117,7 @@ pub(super) fn gen_computed_values(
         } else {
             w.emit_fmt(format_args!(
                 "return {};",
-                expr::format_expr_ir_tsx_renamed(
-                    &computed.body,
-                    ref_names,
-                    store_field_renames
-                )
+                expr::format_expr_ir_tsx_renamed(&computed.body, ref_names, store_field_renames)
             ));
         }
         w.dedent();
@@ -248,9 +246,7 @@ fn collect_store_field_deps_inner(
             collect_store_field_deps_inner(subject, store_field_renames, acc, seen);
             collect_store_field_deps_inner(predicate, store_field_renames, acc, seen);
         }
-        ExprIR::RefOpExpr { .. }
-        | ExprIR::IdentifierExpr { .. }
-        | ExprIR::LiteralExpr { .. } => {}
+        ExprIR::RefOpExpr { .. } | ExprIR::IdentifierExpr { .. } | ExprIR::LiteralExpr { .. } => {}
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown ExprIR variant — update codegen for new variant"),
     }

@@ -28,6 +28,7 @@ impl ReactCodegen {
         ref_names: &FxHashSet<String>,
         store_field_renames: &FxHashMap<String, String>,
         pruned_signal_names: &FxHashSet<String>,
+        possibly_undefined: &FxHashSet<String>,
     ) {
         for fun in &comp.fns {
             if !called_fns.contains(&fun.name) {
@@ -72,6 +73,7 @@ impl ReactCodegen {
                             ref_names,
                             store_field_renames,
                             pruned_signal_names,
+                            possibly_undefined,
                         );
                         continue;
                     }
@@ -84,6 +86,7 @@ impl ReactCodegen {
                     ref_names,
                     store_field_renames,
                     pruned_signal_names,
+                    possibly_undefined,
                 );
             }
             // Build setter renames for states whose setters conflict with function names
@@ -146,6 +149,7 @@ pub(super) fn emit_fn_tail_return(
     ref_names: &FxHashSet<String>,
     renames: &FxHashMap<String, String>,
     pruned_signal_names: &FxHashSet<String>,
+    possibly_undefined: &FxHashSet<String>,
 ) {
     let mut tmp = crate::codegen::CodeWriter::new();
     expr::generate_statement_tsx(
@@ -156,6 +160,7 @@ pub(super) fn emit_fn_tail_return(
         ref_names,
         renames,
         pruned_signal_names,
+        possibly_undefined,
     );
     let line = tmp.into_string();
     let line = line.trim_end_matches(['\n', '\r']);

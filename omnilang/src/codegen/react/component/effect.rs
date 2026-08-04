@@ -26,6 +26,7 @@ impl ReactCodegen {
         store_fields: &FxHashMap<String, FxHashSet<String>>,
         hoisted_signals: &FxHashSet<String>,
         pruned_signal_names: &FxHashSet<String>,
+        possibly_undefined: &FxHashSet<String>,
     ) {
         // Effects (useEffect) — wrap in async IIFE if body contains await
         for effect in &comp.effects {
@@ -68,6 +69,7 @@ impl ReactCodegen {
                         ref_names,
                         store_field_renames,
                         pruned_signal_names,
+                        possibly_undefined,
                     );
                 }
                 w.dedent();
@@ -86,6 +88,7 @@ impl ReactCodegen {
                         ref_names,
                         store_field_renames,
                         pruned_signal_names,
+                        possibly_undefined,
                     );
                 }
                 w.dedent();
@@ -112,6 +115,7 @@ impl ReactCodegen {
                                 ref_names,
                                 store_field_renames,
                                 pruned_signal_names,
+                                possibly_undefined,
                             );
                         }
                         w.dedent();
@@ -130,6 +134,7 @@ impl ReactCodegen {
                                 ref_names,
                                 store_field_renames,
                                 pruned_signal_names,
+                                possibly_undefined,
                             );
                         }
                         w.dedent();
@@ -155,6 +160,7 @@ impl ReactCodegen {
                             ref_names,
                             store_field_renames,
                             pruned_signal_names,
+                            possibly_undefined,
                         );
                     }
                     if body_has_await {
@@ -208,6 +214,7 @@ impl ReactCodegen {
                                 ref_names,
                                 store_field_renames,
                                 pruned_signal_names,
+                                possibly_undefined,
                             );
                         }
                         w.dedent();
@@ -226,6 +233,7 @@ impl ReactCodegen {
                                 ref_names,
                                 store_field_renames,
                                 pruned_signal_names,
+                                possibly_undefined,
                             );
                         }
                         w.dedent();

@@ -47,6 +47,7 @@ pub(super) fn gen_view_node_tsx(
     ref_names: &FxHashSet<String>,
     store_field_renames: &FxHashMap<String, String>,
     pruned_signal_names: &FxHashSet<String>,
+    possibly_undefined: &FxHashSet<String>,
     motion_counter: &mut usize,
     prop_fn_ctx: &PropFnMemoCtx,
     // Whether this node sits directly in JSX-children position (between
@@ -79,6 +80,7 @@ pub(super) fn gen_view_node_tsx(
                         ref_names,
                         store_field_renames,
                         pruned_signal_names,
+                        possibly_undefined,
                         motion_counter,
                         prop_fn_ctx,
                         in_jsx_children,
@@ -160,6 +162,7 @@ pub(super) fn gen_view_node_tsx(
                                 ref_names,
                                 store_field_renames,
                                 pruned_signal_names,
+                                possibly_undefined,
                             );
                             comp_attrs.push(format!("{}={{{}}}", jsx_event, handler_str));
                         }
@@ -192,6 +195,7 @@ pub(super) fn gen_view_node_tsx(
                         ref_names,
                         store_field_renames,
                         pruned_signal_names,
+                        possibly_undefined,
                         motion_counter,
                         prop_fn_ctx,
                         // the content lands inside `slotName={...}` — an
@@ -222,6 +226,7 @@ pub(super) fn gen_view_node_tsx(
                             ref_names,
                             store_field_renames,
                             pruned_signal_names,
+                            possibly_undefined,
                             motion_counter,
                             prop_fn_ctx,
                             // default children render between the tags —
@@ -400,18 +405,29 @@ pub(super) fn gen_view_node_tsx(
                         if motion_names.contains(r#ref.as_str()) {
                             continue;
                         }
+                        // Task 5.6 (deferral #61): an event-data wrapper
+                        // INVOKES the handler — a possibly-undefined target
+                        // (signal initialized null, e.g. the `const f = null`
+                        // hoisted shape) must use the optional call form
+                        // `f?.(eventObj)` (TS2722). Local fns are always
+                        // defined and stay bare `f(...)`.
+                        let call = if possibly_undefined.contains(r#ref.as_str()) {
+                            format!("{}?.", r#ref)
+                        } else {
+                            r#ref.clone()
+                        };
                         if let Some(setter_call) = binding_events_map.remove(&react_event) {
                             if event_data.is_some() {
                                 let event_obj =
                                     emit_event_object_react(event_data, used_fields, "e");
                                 attrs.push(format!(
                                     "{}={{(e) => {{ {}; {}({}); }}}}",
-                                    react_event, setter_call, r#ref, event_obj
+                                    react_event, setter_call, call, event_obj
                                 ));
                             } else {
                                 attrs.push(format!(
                                     "{}={{(e) => {{ {}; {}(e); }}}}",
-                                    react_event, setter_call, r#ref
+                                    react_event, setter_call, call
                                 ));
                             }
                         } else if event_data.is_some() {
@@ -423,7 +439,7 @@ pub(super) fn gen_view_node_tsx(
                             } else {
                                 attrs.push(format!(
                                     "{}={{(e) => {{ {}({}) }}}}",
-                                    react_event, r#ref, event_obj
+                                    react_event, call, event_obj
                                 ));
                             }
                         } else {
@@ -462,6 +478,7 @@ pub(super) fn gen_view_node_tsx(
                                     ref_names,
                                     store_field_renames,
                                     pruned_signal_names,
+                                    possibly_undefined,
                                 );
                             }
                             let content = merged_hw.into_string();
@@ -503,6 +520,7 @@ pub(super) fn gen_view_node_tsx(
                                         ref_names,
                                         store_field_renames,
                                         pruned_signal_names,
+                                        possibly_undefined,
                                     );
                                 }
                                 let content = merged_hw.into_string();
@@ -541,6 +559,7 @@ pub(super) fn gen_view_node_tsx(
                                     ref_names,
                                     store_field_renames,
                                     pruned_signal_names,
+                                    possibly_undefined,
                                 );
                                 attrs.push(format!("{}={{{}}}", react_event, handler_str));
                             }
@@ -760,6 +779,7 @@ pub(super) fn gen_view_node_tsx(
                     ref_names,
                     store_field_renames,
                     pruned_signal_names,
+                    possibly_undefined,
                     motion_counter,
                     prop_fn_ctx,
                     // element children are JSX children — expression nodes
@@ -811,6 +831,7 @@ pub(super) fn gen_view_node_tsx(
                         ref_names,
                         store_field_renames,
                         pruned_signal_names,
+                        possibly_undefined,
                         motion_counter,
                         prop_fn_ctx,
                         // fallback sits directly in the conditional's own
@@ -849,6 +870,7 @@ pub(super) fn gen_view_node_tsx(
                         ref_names,
                         store_field_renames,
                         pruned_signal_names,
+                        possibly_undefined,
                         motion_counter,
                         prop_fn_ctx,
                         // the branch body sits inside `( ... )` — or inside
@@ -898,6 +920,7 @@ pub(super) fn gen_view_node_tsx(
                     ref_names,
                     store_field_renames,
                     pruned_signal_names,
+                    possibly_undefined,
                     motion_counter,
                     prop_fn_ctx,
                     is_fade,
@@ -927,6 +950,7 @@ pub(super) fn gen_view_node_tsx(
                         ref_names,
                         store_field_renames,
                         pruned_signal_names,
+                        possibly_undefined,
                         motion_counter,
                         prop_fn_ctx,
                         is_fade,
@@ -952,6 +976,7 @@ pub(super) fn gen_view_node_tsx(
                     ref_names,
                     store_field_renames,
                     pruned_signal_names,
+                    possibly_undefined,
                     motion_counter,
                     prop_fn_ctx,
                     is_fade,
@@ -1018,6 +1043,7 @@ pub(super) fn gen_view_node_tsx(
                         ref_names,
                         store_field_renames,
                         pruned_signal_names,
+                        possibly_undefined,
                         motion_counter,
                         prop_fn_ctx,
                         // the empty body sits inside the IIFE's return
@@ -1055,6 +1081,7 @@ pub(super) fn gen_view_node_tsx(
                     ref_names,
                     store_field_renames,
                     pruned_signal_names,
+                    possibly_undefined,
                     motion_counter,
                     prop_fn_ctx,
                     // the map callback parens wrap the whole
@@ -1141,6 +1168,7 @@ pub(super) fn gen_view_node_tsx(
                     ref_names,
                     store_field_renames,
                     pruned_signal_names,
+                    possibly_undefined,
                     motion_counter,
                     prop_fn_ctx,
                     in_jsx_children,
@@ -1171,6 +1199,7 @@ pub(super) fn gen_view_node_tsx(
                     ref_names,
                     store_field_renames,
                     pruned_signal_names,
+                    possibly_undefined,
                     motion_counter,
                     prop_fn_ctx,
                     // the fallback sits inside the `( ... )` of
@@ -1207,6 +1236,7 @@ pub(super) fn gen_branch_body_tsx(
     ref_names: &FxHashSet<String>,
     store_field_renames: &FxHashMap<String, String>,
     pruned_signal_names: &FxHashSet<String>,
+    possibly_undefined: &FxHashSet<String>,
     motion_counter: &mut usize,
     prop_fn_ctx: &PropFnMemoCtx,
     // Whether this body sits in JSX-children position (see
@@ -1237,6 +1267,7 @@ pub(super) fn gen_branch_body_tsx(
         ref_names,
         store_field_renames,
         pruned_signal_names,
+        possibly_undefined,
         motion_counter,
         prop_fn_ctx,
         is_multi || in_jsx_children,
@@ -1433,6 +1464,7 @@ fn gen_consumer_child_tsx(
     ref_names: &FxHashSet<String>,
     store_field_renames: &FxHashMap<String, String>,
     pruned_signal_names: &FxHashSet<String>,
+    possibly_undefined: &FxHashSet<String>,
     motion_counter: &mut usize,
     prop_fn_ctx: &PropFnMemoCtx,
     // Whether this projected content sits in JSX-children position:
@@ -1455,6 +1487,7 @@ fn gen_consumer_child_tsx(
                 ref_names,
                 store_field_renames,
                 pruned_signal_names,
+                possibly_undefined,
                 motion_counter,
                 prop_fn_ctx,
                 in_jsx_children,
@@ -1472,6 +1505,7 @@ fn gen_consumer_child_tsx(
                 ref_names,
                 store_field_renames,
                 pruned_signal_names,
+                possibly_undefined,
                 motion_counter,
                 prop_fn_ctx,
                 in_jsx_children,
@@ -1508,6 +1542,7 @@ fn format_inline_handler(
     ref_names: &FxHashSet<String>,
     store_field_renames: &FxHashMap<String, String>,
     pruned_signal_names: &FxHashSet<String>,
+    possibly_undefined: &FxHashSet<String>,
 ) -> String {
     // Generate the body content first to check which params are actually used
     let mut body_w = CodeWriter::new();
@@ -1520,6 +1555,7 @@ fn format_inline_handler(
             ref_names,
             store_field_renames,
             pruned_signal_names,
+            possibly_undefined,
         );
     }
     let body_content = body_w.into_string();
@@ -1561,6 +1597,7 @@ fn format_inline_handler(
             ref_names,
             store_field_renames,
             pruned_signal_names,
+            possibly_undefined,
         )
     })
 }
