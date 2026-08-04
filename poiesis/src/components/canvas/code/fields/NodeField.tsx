@@ -115,9 +115,11 @@ interface ArgsProps {
 }
 
 export function NodeArgsRows({ values, onChange, placeholder }: ArgsProps) {
-  const visible = [...values];
-  while (visible.length > 0 && visible[visible.length - 1] === "") visible.pop();
-  const hasTrailing = values.length > 0 && values[values.length - 1] === "";
+  // 尾随空行折叠为一个可编辑槽位（不堆叠）；中间空行原样保留
+  const trimmed = [...values];
+  while (trimmed.length > 0 && trimmed[trimmed.length - 1] === "") trimmed.pop();
+  const hasTrailing = trimmed.length !== values.length;
+  const visible = hasTrailing ? [...trimmed, ""] : trimmed;
 
   const update = (i: number, v: string) => {
     const next = [...values];
@@ -144,7 +146,9 @@ export function NodeArgsRows({ values, onChange, placeholder }: ArgsProps) {
           >×</button>
         </div>
       ))}
-      <button type="button" className={`nodrag ${styles.argsAdd}`} onClick={add}>+ 添加参数</button>
+      {!hasTrailing && (
+        <button type="button" className={`nodrag ${styles.argsAdd}`} onClick={add}>+ 添加参数</button>
+      )}
     </div>
   );
 }
