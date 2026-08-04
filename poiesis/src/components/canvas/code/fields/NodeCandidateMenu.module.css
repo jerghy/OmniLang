@@ -1,0 +1,35 @@
+/* NodeCandidateMenu.module.css */
+.menu {
+  position: fixed;
+  z-index: 10002;
+  min-width: 200px;
+  max-width: 320px;
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--ol-surface, #fff);
+  border: 1px solid var(--ol-border, #e2e8f0);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  padding: 4px 0;
+  font-size: 12px;
+}
+.sectionLabel {
+  padding: 4px 10px;
+  color: var(--ol-text-muted, #94a3b8);
+  font-size: 11px;
+}
+.item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 5px 10px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--ol-text, #1e293b);
+}
+.item:hover { background: var(--ol-gray-100, #f1f5f9); }
+.itemActive { background: var(--ol-accent-soft, #eef2ff); }
+.empty { padding: 8px 10px; color: var(--ol-text-muted, #94a3b8); }
