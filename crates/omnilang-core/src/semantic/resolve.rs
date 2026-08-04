@@ -998,7 +998,6 @@ impl SemanticAnalyzer {
                     }
                 }
                 ElementProp::Bind { .. }
-                | ElementProp::TestId(_)
                 | ElementProp::Ref(_)
                 | ElementProp::MotionTrigger(_)
                 | ElementProp::Variant { .. } => {}

@@ -282,7 +282,7 @@ pub(super) fn collect_used_names_in_view_node<'a>(
                     }
                     // Remaining variants carry no signal-referencing expressions:
                     // ClassValue::StyleRef/StringLiteral/DesignClass, Variant
-                    // (design names/dimensions), TestId, and Ref (element refs).
+                    // (design names/dimensions), and Ref (element refs).
                     _ => {}
                 }
             }

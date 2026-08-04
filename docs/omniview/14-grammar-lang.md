@@ -58,8 +58,8 @@ store  view  style  action  getter  theme  design  bind
 #### At-Directive Keywords (omni-view)
 
 ```
-@store  @if  @else  @for  @empty  @slot  @fallback
-@error  @mount  @unmount  @effect
+@store  @if  @else  @for  @empty  @slot
+@mount  @unmount  @effect
 @motion  @enter  @hover  @press  @focus
 @in-view  @scroll  @drag-horizontal  @drag-vertical
 ```
@@ -823,8 +823,8 @@ spelling) — `keyword_as_ident_name()` is the single mapping.
 These lexer tokens are directives or element attributes; unlike the reserved
 keywords above they are **not** mapped to identifiers:
 ```
-@store  @if  @else  @for  @empty  @slot  @fallback
-@error  @mount  @unmount  @effect
+@store  @if  @else  @for  @empty  @slot
+@mount  @unmount  @effect
 @motion  @enter  @hover  @press  @focus
 @in-view  @scroll  @drag-horizontal  @drag-vertical
 @hero

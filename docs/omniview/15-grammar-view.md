@@ -526,15 +526,16 @@ default slot):
 
 ```
 @empty   // fallback for empty lists — implemented (@for ... @empty { ... })
-@fallback
-@error   // error boundary fallback
 ```
 
 `@empty` is fully implemented as the `@for` empty-state suffix. `@fallback`
-and `@error` remain reserved directive tokens — parser infrastructure exists
-but implementation is deferred. `@native` was REMOVED as a dead lexer token
-(Task 4.4 — the spec §1.2 platform-layer escape hatch never had a compiler
-consumer); `@native(...)` now fails at parse time.
+and `@error` were REMOVED as dead lexer tokens (Task 4.5 — no parser
+production ever consumed them; the "reserved directive" status was a silent
+literal-text fiction). They now lex as plain `Ident("@fallback")` /
+`Ident("@error")` — same disposition as `@native` (Task 4.4 — the spec §1.2
+platform-layer escape hatch never had a compiler consumer) — so
+`@fallback(...)` / `@error(...)` fail at parse time instead of lexing as
+directives.
 
 ---
 
@@ -1151,8 +1152,6 @@ When `{expr}` parsing fails inside views, the parser collects all tokens up to t
 | `@for` | View | `@for item in expr key={expr} [scroll]? { ... }` |
 | `@empty` | View | `@empty { ... }` (suffix after `@for` block) |
 | `@slot` | Component body | `@slot name { fallback }?` (render: `{name}` / `{children}`; v2 D4 删除了类型约束) |
-| `@fallback` | View | `@fallback { ... }` (reserved — deferred) |
-| `@error` | View | `@error { ... }` (reserved — deferred) |
 | `@store` | Component | `@store Name;` |
 | `@mount` | Component | `@mount { ... }` |
 | `@unmount` | Component | `@unmount { ... }` |

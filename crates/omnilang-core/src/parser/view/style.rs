@@ -639,7 +639,7 @@ pub(super) fn is_text_token(kind: &TokenKind) -> bool {
             | TokenKind::AtScroll
             | TokenKind::AtDragHorizontal | TokenKind::AtDragVertical
             | TokenKind::AtStore | TokenKind::AtMotion
-            | TokenKind::AtFallback | TokenKind::AtError | TokenKind::AtMount
+            | TokenKind::AtMount
             | TokenKind::AtUnmount | TokenKind::AtEffect
             // Directive continuation keywords are safe as literal text too:
             // "@else"/"@empty" inside element content must not truncate children
@@ -733,8 +733,6 @@ pub(super) fn token_text(kind: &TokenKind) -> String {
         TokenKind::AtDragVertical => "@drag-vertical".into(),
         TokenKind::AtStore => "@store".into(),
         TokenKind::AtMotion => "@motion".into(),
-        TokenKind::AtFallback => "@fallback".into(),
-        TokenKind::AtError => "@error".into(),
         TokenKind::AtMount => "@mount".into(),
         TokenKind::AtUnmount => "@unmount".into(),
         TokenKind::AtEffect => "@effect".into(),

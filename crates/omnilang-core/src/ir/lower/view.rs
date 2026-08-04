@@ -749,18 +749,6 @@ fn lower_element(
                     ExprIR::LiteralExpr { value: json_val },
                 );
             }
-            ElementProp::TestId(id) => {
-                // test-id="..." attribute — a static attribute value, so the
-                // handler-breakout gate applies.
-                props.get_or_insert_with(Default::default).insert(
-                    "data-testid".into(),
-                    ExprIR::LiteralExpr {
-                        value: serde_json::Value::String(validate_attr_no_handler_breakout(
-                            id, &el.span, semantics,
-                        )),
-                    },
-                );
-            }
             ElementProp::Ref(r) => {
                 ref_binding = Some(r.clone());
             }

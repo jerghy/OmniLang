@@ -194,7 +194,6 @@ pub enum ElementProp {
     /// element attribute carrying the element's accessible name/role/
     /// visibility/live-region/image-alt intent for the three targets.
     A11y(A11ySpec),
-    TestId(String),
     Ref(String),
     MotionTrigger(MotionTrigger),
 }

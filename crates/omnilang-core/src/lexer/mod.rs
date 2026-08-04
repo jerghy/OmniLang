@@ -1201,13 +1201,19 @@ mod tests {
     fn test_at_native_removed() {
         assert_token("@native", TokenKind::Ident("@native".into()));
     }
+    /// Task 4.5: the `@fallback`/`@error` tokens are REMOVED (dead tokens —
+    /// no parser production ever consumed them; they were only listed as
+    /// keywords and allowed through as literal text — domain MEDIUM-3).
+    /// Unknown @-words fall back to the `Ident("@...")` shape (event-binding
+    /// style), same disposition as `@native` (Task 4.4), so directive-style
+    /// usage fails at parse time instead of lexing as a directive.
     #[test]
-    fn test_at_fallback() {
-        assert_token("@fallback", TokenKind::AtFallback);
+    fn test_at_fallback_removed() {
+        assert_token("@fallback", TokenKind::Ident("@fallback".into()));
     }
     #[test]
-    fn test_at_error() {
-        assert_token("@error", TokenKind::AtError);
+    fn test_at_error_removed() {
+        assert_token("@error", TokenKind::Ident("@error".into()));
     }
     #[test]
     fn test_at_mount() {
