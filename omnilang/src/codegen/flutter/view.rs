@@ -23,10 +23,10 @@ use super::motion_widgets::{emit_event_object_flutter, field_extract_flutter};
 use super::r#ref::{ref_focus_name, ref_key_name, ref_scroll_name, ref_text_name, RefUsage};
 use super::stmt::{generate_statement_flutter, FlutterStmtFormatter};
 use super::utils::{
-    binding_to_flutter_param, callback_is_void, convert_literal_prop_value, css_color_to_dart,
-    event_to_flutter_callback, icon_name_to_dart, lower_first, prop_to_flutter_param_name,
-    tag_to_flutter_widget, widget_allows_event, widget_allows_param, widget_has_const_constructor,
-    widget_param_rename, widget_param_wrapper,
+    bind_value_write_back, binding_to_flutter_param, callback_is_void, convert_literal_prop_value,
+    css_color_to_dart, event_to_flutter_callback, icon_name_to_dart, lower_first,
+    prop_to_flutter_param_name, tag_to_flutter_widget, widget_allows_event, widget_allows_param,
+    widget_has_const_constructor, widget_param_rename, widget_param_wrapper,
 };
 use std::fmt::Write;
 
@@ -254,6 +254,63 @@ pub(crate) fn format_single_view(
             wrap_multi_widget(&parts)
         }
         _ => format_view_tree(node, motions, ctx),
+    }
+}
+
+/// F1 (3.2 review finding): input widgets (TextField/Checkbox/Switch/Slider/
+/// DropdownButton) need a Material ancestor — a bare TextField explodes to
+/// ~100k px tall in the widget-test environment (a Material wrapper restores
+/// the 48 px input) and looks broken in real apps. Components whose view
+/// contains such a widget get the ROOT wrapped in `Material(child: ...)`.
+/// Roots that already provide a material surface themselves (Scaffold /
+/// Material / Card — explicit in the source) are left alone; page-level
+/// shells are the 3.9 Scaffold task's territory.
+pub(crate) fn wrap_root_material_if_inputs(node: &ViewTree, tree_expr: String) -> String {
+    let root_widget = match node {
+        ViewTree::Element(el) => Some(tag_to_flutter_widget(&el.tag)),
+        _ => None,
+    };
+    if matches!(
+        root_widget,
+        Some("Scaffold" | "Material" | "Card" | "ListTile")
+    ) {
+        return tree_expr;
+    }
+    if view_has_material_dependent_widget(node) {
+        return format!("Material(child: {tree_expr})");
+    }
+    tree_expr
+}
+
+/// Whether any element in the tree maps to a widget that renders incorrectly
+/// without a Material ancestor.
+fn view_has_material_dependent_widget(node: &ViewTree) -> bool {
+    match node {
+        ViewTree::Element(el) => {
+            if matches!(
+                tag_to_flutter_widget(&el.tag),
+                "TextField" | "Checkbox" | "Switch" | "Slider" | "DropdownButton"
+            ) {
+                return true;
+            }
+            el.children.iter().any(view_has_material_dependent_widget)
+        }
+        ViewTree::Conditional(cond) => cond
+            .branches
+            .iter()
+            .filter_map(|b| b.body.as_ref())
+            .chain(cond.fallback.iter())
+            .any(view_has_material_dependent_widget),
+        ViewTree::ListRendering(list) => list
+            .body
+            .iter()
+            .chain(list.empty_body.iter())
+            .any(view_has_material_dependent_widget),
+        ViewTree::Slot { fallback, .. } => fallback.iter().any(view_has_material_dependent_widget),
+        ViewTree::Fragment(children) => children.iter().any(view_has_material_dependent_widget),
+        ViewTree::Interpolation(_) | ViewTree::Text(_) => false,
+        // ViewTree is #[non_exhaustive] (core IR contract).
+        _ => false,
     }
 }
 
@@ -1451,11 +1508,35 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
         if controller_covers {
             continue;
         }
+        // Task 3.3: `bind:value` is a two-way binding — the write-back
+        // direction must survive even without a ref'd controller. Widgets
+        // with an `onChanged` callback get a setState signal assignment
+        // (a pre-existing onChanged — from an `@onChange` event — wins;
+        // never duplicate the callback). On widgets with NO `value:` param
+        // (TextField) this REPLACES the previously silently-dropped binding
+        // (the `onChanged: null` disabled-control form); on widgets that
+        // take both (Checkbox/Switch/Slider/DropdownButton) it is emitted
+        // alongside `value:` so the control is not stuck disabled. Scoped to
+        // `bind:value` only: `bind:checked` on an `<input type="checkbox">`
+        // maps to a TextField whose String callback cannot be assigned to a
+        // bool signal (invalid_assignment) — that pairing keeps its warning.
+        let already_has_on_changed = args.iter().any(|a| a.starts_with("onChanged:"));
+        let write_back = (bind_name == "value"
+            && !already_has_on_changed
+            && widget_allows_param(widget, "onChanged"))
+        .then(|| bind_value_write_back(widget, &signal_ref.name));
         if !widget_allows_param(widget, param) {
-            ctx.warnings.push(format!(
-                "[flutter] binding 'bind:{bind_name}' → param '{param}' is not supported on '{widget}'; skipped"
-            ));
+            if let Some(cb) = write_back {
+                args.push(format!("onChanged: {cb}"));
+            } else {
+                ctx.warnings.push(format!(
+                    "[flutter] binding 'bind:{bind_name}' → param '{param}' is not supported on '{widget}'; skipped"
+                ));
+            }
             continue;
+        }
+        if let Some(cb) = write_back {
+            args.push(format!("onChanged: {cb}"));
         }
         args.push(format!("{}: {}", param, signal_ref.name));
     }

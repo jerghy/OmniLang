@@ -1142,9 +1142,11 @@ component Consumer {
 /// `bind:value` must satisfy the required `value:` param instead of
 /// duplicating it — the required-parameter pass runs after bindings so a
 /// bound param wins (regression: `Checkbox(value: false, value: active)`
-/// was emitted — a duplicate named argument). The other required params
-/// (Checkbox/Switch/Slider `onChanged`, Slider `value`) still get their
-/// disabled defaults.
+/// was emitted — a duplicate named argument). Task 3.3: the `onChanged`
+/// required default must NOT render these bound controls disabled
+/// (`onChanged: null` is gone) — the write-back closure is emitted instead
+/// (`onChanged: (v) { setState(() { signal = v ?? signal; }); }`, the
+/// `?? signal` fallback absorbing the nullable bool? callback param).
 #[test]
 fn bind_value_satisfies_required_value_param() {
     let source = r#"
@@ -1166,24 +1168,67 @@ component ToggleDemo {
         .collect::<Vec<_>>()
         .join("\n");
     assert!(
-        content.contains("Checkbox(value: active, onChanged: null)"),
-        "bound value must satisfy the required value param (no duplicate), got:\n{}",
+        content.contains(
+            "Checkbox(onChanged: (v) { setState(() { active = v ?? active; }); }, value: active)"
+        ),
+        "bound value + write-back must both be present (no onChanged: null), got:\n{}",
         content
     );
     assert!(
-        content.contains("Switch(value: active, onChanged: null)"),
-        "bound value must satisfy the required value param (no duplicate), got:\n{}",
+        content.contains(
+            "Switch(onChanged: (v) { setState(() { active = v ?? active; }); }, value: active)"
+        ),
+        "bound value + write-back must both be present (no onChanged: null), got:\n{}",
         content
     );
     assert!(
-        content.contains("Slider(value: volume, onChanged: null)"),
-        "bound value must satisfy the required value param (no duplicate), got:\n{}",
+        content.contains("Slider(onChanged: (v) { setState(() { volume = v; }); }, value: volume)"),
+        "bound value + write-back must both be present (no onChanged: null), got:\n{}",
         content
     );
     assert!(
         !content.contains("value: false, value:") && !content.contains("value: 0.0, value:"),
         "must not emit a duplicate value argument, got:\n{}",
         content
+    );
+    assert!(
+        !content.contains("onChanged: null"),
+        "bound controls must not render disabled, got:\n{}",
+        content
+    );
+}
+
+/// Task 3.3 (flutter HIGH): `bind:value` on a NON-ref'd input must not be
+/// silently dropped — the write-back direction is wired through `onChanged`
+/// (a setState signal assignment) so typing reaches the signal instead of
+/// rendering a dead input (previously: binding warning + no callback at
+/// all, the `onChanged: null` disabled-control form).
+#[test]
+fn bind_value_without_ref_emits_on_changed() {
+    let source = r#"
+component TextInputDemo {
+    signal q: String = "";
+    view {
+        <input bind:value={q} />
+    }
+}
+"#;
+    let out = compile_flutter(source).unwrap();
+    let dart: String = out.files.values().cloned().collect::<Vec<_>>().join("\n");
+    assert!(
+        !dart.contains("onChanged: null"),
+        "disabled control: {}",
+        dart
+    );
+    assert!(
+        dart.contains("onChanged: (v)"),
+        "missing write-back: {}",
+        dart
+    );
+    assert!(
+        dart.contains("q = v"),
+        "signal write-back missing: {}",
+        dart
     );
 }
 

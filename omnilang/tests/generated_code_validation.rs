@@ -935,13 +935,25 @@ fn learn_omniview_flutter_output_passes_dart_analyze() {
 /// Baseline for the showcase project's Flutter compile warnings, measured
 /// 2026-08-03: 1,004 total = 881 codegen warnings
 /// (`DiagnosticKind::ECodegen` — unmapped semantic features degrading per
-/// ADR-052/053) + 123 `unused-import` lint warnings. The gate asserts
-/// MONOTONIC DECREASE: tasks 3.3/3.5/3.6/4.12 lower this number, and each
-/// lowering updates this cap — so a regression (or an un-documented new
-/// warning source) fails the gate here, even while `dart analyze` stays
-/// green. Warnings are not errors: they must be lowered deliberately,
-/// warning by warning, never re-baselined upward.
-const FLUTTER_WARNINGS_BASELINE: usize = 1004;
+/// ADR-052/053) + 123 `unused-import` lint warnings. Task 3.3 lowered it to
+/// 997 = 874 ECodegen + 123 unused-import: the non-ref `bind:value` write-back
+/// (onChanged → setState) eliminated 7 dead-binding warning slots — 10 simple
+/// sites fixed (AddTodo / FeatureCard / ValidationInput / DataFetching /
+/// DataSubmit title / SignalPatternsDemo ×2 / UserSettings), collapsing to 7
+/// slots because identical warnings dedupe within a component
+/// (SignalPatternsDemo ×2). The gate asserts MONOTONIC DECREASE: tasks
+/// 3.3/3.5/3.6/4.12 lower this number, and each lowering updates this cap —
+/// so a regression (or an un-documented new warning source) fails the gate
+/// here, even while `dart analyze` stays green. Warnings are not errors:
+/// they must be lowered deliberately, warning by warning, never re-baselined
+/// upward. Remaining binding warnings (8 slots) are genuine drops, tracked
+/// for the later warning-lowering tasks: 4× `bind:value` on textarea/select
+/// (→ Container mapping gap: FormControlsDemo select, FormPage / DataSubmit /
+/// ViewAttributesDemo textareas), 3× `bind:value` beside a user `@onChange`
+/// handler (the onChanged param is occupied — FilterBar / FormPage name+email
+/// / FormControlsDemo age+rangeVal; the handler must own the write-back),
+/// 1× `bind:checked` on `<input type="checkbox">` (TextField mapping gap).
+const FLUTTER_WARNINGS_BASELINE: usize = 997;
 
 #[test]
 fn learn_omniview_flutter_warnings_are_tracked() {

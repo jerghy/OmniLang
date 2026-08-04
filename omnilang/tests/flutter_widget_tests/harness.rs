@@ -193,13 +193,19 @@ fn flutter_widget_tests() {
         return;
     };
 
-    // 3a. pub get (idempotent; needed before analyze/test resolves).
+    // 3a. pub get (idempotent; needed before analyze/test resolves). A
+    // failure here is toolchain/network trouble (pub.dev must resolve
+    // flutter_riverpod), not a codegen regression — degrade to SKIP,
+    // mirroring the generated_code_validation sibling gate (I1).
     let pubget = flutter_run(&app_dir, &["pub", "get"]);
-    assert!(
-        pubget.status.success(),
-        "flutter pub get failed:\n{}",
-        output_text(&pubget)
-    );
+    if !pubget.status.success() {
+        eprintln!(
+            "[flutter-widget-tests] flutter pub get failed — is pub.dev \
+             reachable? (flutter_riverpod must resolve)\n{}",
+            output_text(&pubget)
+        );
+        return;
+    }
 
     // 3b. dart-analyze gate — `flutter analyze` must stay clean on the
     // full generated project plus the smoke tests.

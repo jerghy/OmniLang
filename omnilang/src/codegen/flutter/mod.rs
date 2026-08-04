@@ -1156,6 +1156,10 @@ impl FlutterCodegen {
             // (format_single_view is the Flutter analogue of React's
             // fragment wrapper).
             let tree_expr = format_single_view(view, &motions, &mut ctx);
+            // F1: input-bearing components get a Material shell at the root
+            // (bare TextField renders ~100k px tall without one — 3.2
+            // review finding; page shells are the 3.9 Scaffold task's).
+            let tree_expr = view::wrap_root_material_if_inputs(view, tree_expr);
             w.emit_fmt(format_args!("return {};", tree_expr));
         } else {
             // Default widget tree

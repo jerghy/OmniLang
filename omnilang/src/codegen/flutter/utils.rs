@@ -130,6 +130,25 @@ pub(crate) fn binding_to_flutter_param(bind_name: &str) -> &str {
     }
 }
 
+/// Task 3.3: the `onChanged` write-back closure for a non-ref `bind:value`.
+///
+/// `(v) { setState(() { signal = v; }); }` — user input flows back into the
+/// component signal (the two-way binding the reference form gets through its
+/// guarded controller listener). Checkbox/Switch callbacks are
+/// `ValueChanged<bool?>`: the nullable `v` cannot be assigned to the bool
+/// signal directly, so the unreachable null case falls back to the current
+/// value (`v ?? signal`).
+pub(crate) fn bind_value_write_back(widget: &str, signal: &str) -> String {
+    if matches!(widget, "Checkbox" | "Switch" | "DropdownButton") {
+        format!(
+            "(v) {{ setState(() {{ {} = v ?? {}; }}); }}",
+            signal, signal
+        )
+    } else {
+        format!("(v) {{ setState(() {{ {signal} = v; }}); }}")
+    }
+}
+
 // ═══════════════════════════════════════════════════════════════
 // CSS color conversion (C5)
 // ═══════════════════════════════════════════════════════════════
