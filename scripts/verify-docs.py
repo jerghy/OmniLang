@@ -10,9 +10,12 @@ DOC, never in the compiler (parser divergences are recorded as compiler bugs).
 Block inclusion:
   lang=omni  — always checked.
   lang=""    — checked only when the content looks like .omni code (BNF
-               productions `x ::= ...`, prose, and platform-mapping notes
-               like "React: ..." are skipped — they teach no compilable
-               syntax). Other langs (tsx/dart/rust/css/js/bash/toml) skipped.
+               productions `x ::= ...` and prose are skipped — they teach no
+               compilable syntax). Platform-mapping rows ("React: ..." /
+               "Flutter: ...") are stripped per-line: a block that is ALL
+               mapping rows is skipped; the remainder is evaluated for
+               code-ness. Other langs (tsx/dart/rust/css/js/bash/toml)
+               skipped.
   block classification:
     complete — the block is a full .omni file (starts with a top-level
                declaration). Checked as-is; ANY diagnostic error fails the
@@ -22,9 +25,12 @@ Block inclusion:
                SYNTAX is exercised in every plausible context:
                  1. component body  2. view body  3. fn statement body
                  4. top-level const expression
-               Only genuine PARSE errors fail the gate; semantic errors
-               (undeclared names etc.) are reported as notes — they follow
-               from the synthetic wrapper context, not from the doc.
+               Genuine PARSE errors and deleted-syntax family diagnostics
+               (removed syntax the doc must not teach — see
+               DELETED_SYNTAX_CODES / DELETED_SYNTAX_PREFIXES) fail the
+               gate; ordinary semantic errors (undeclared names etc.) are
+               reported as notes — they follow from the synthetic wrapper
+               context, not from the doc.
 
 Usage:
   python scripts/verify-docs.py [--omnic PATH] [--check|--inspect] [-v]
@@ -64,6 +70,10 @@ CODE_KEYWORD_RE = re.compile(
     r"|fn\s+[A-Za-z_]"
 )
 
+# Platform-mapping annotation rows in empty-lang blocks ("React: <out>",
+# "Flutter: <out>", ...) — the other targets' output shape, not .omni source.
+PLATFORM_ROW_RE = re.compile(r"^(React|Flutter|OmniView|Dart|Python|JS|TS|Vue|Dioxus):")
+
 # Parse-error message prefixes — semantic errors (undeclared names, type
 # mismatches, undefined stores) are context-dependent for wrapped fragments
 # and become notes instead of failing the gate.
@@ -83,6 +93,29 @@ SEMANTIC_EXPECTED_RE = re.compile(r"^expected [^,]+, got\b")
 # Diagnoses that never fail the gate (teaching context, not syntax).
 NON_FAILING_CODES = ("E_IMPORT",)
 
+# Deleted-syntax families — syntax the semantic DSL removed (ADR-053,
+# design D1-D4, v3 4.1/4.2/4.4). A fragment diagnostic hitting one of these
+# means the DOC teaches removed syntax, so it must FAIL the gate instead of
+# degrading to a note like ordinary context-dependent semantic errors. Two
+# shapes: typed diagnostic codes (the *_REMOVED family, E_CLOSURE_ARROW) and
+# message prefixes for deletions diagnosed under generic codes (E0006/E0001).
+DELETED_SYNTAX_CODES = (
+    "E_VALUE_BINDING_REMOVED",  # value={sig} (D2) — bind:value / plain value prop
+    "E_PAUSED_REMOVED",         # @paused (ADR-053) — @if conditional rendering
+    "E_SLOT_REMOVED",           # @slot name: Type constraint + data_param (D4)
+    "E_STATES_REMOVED",         # states: {...} block (ADR-053) — @motion triggers
+    "E_ON_REMOVED",             # on: {...} block (ADR-053) — @onXxx={...}
+    "E_CLOSURE_ARROW",          # '=>' in general expression position
+)
+DELETED_SYNTAX_PREFIXES = (
+    "命令式写已删除",                        # ref.setValue(x) / ref.value = x / ref = x
+    "capturePointer 无参数",                 # capturePointer(id) (D3)
+    "releasePointer 无参数",                 # releasePointer(id) (D3)
+    "store 内 fn 成员不允许",                 # fn member in store — getter/action only
+    "expected '{' after '@themes'",         # v1 '@themes light, dark;' (parse error already; listed for completeness)
+    "hero transitions are not supported",   # @hero removed (ADR-032/053)
+)
+
 
 def is_parse_error(message):
     """True when a diagnostic message is a genuine PARSE error (parser
@@ -92,6 +125,15 @@ def is_parse_error(message):
     if message.startswith("expected "):
         return not SEMANTIC_EXPECTED_RE.match(message)
     return message.startswith(PARSE_ERROR_PREFIXES)
+
+
+def is_deleted_syntax(diag):
+    """True when a diagnostic belongs to a deleted-syntax family — the doc
+    teaches syntax the compiler removed, which must fail the gate even when
+    the message shape is semantic rather than a PARSE_ERROR_PREFIXES hit."""
+    if diag.get("code") in DELETED_SYNTAX_CODES:
+        return True
+    return diag.get("message", "").startswith(DELETED_SYNTAX_PREFIXES)
 
 BNF_RE = re.compile(r"^\s*[\w:\-']+(\s+)?::=")
 
@@ -146,8 +188,18 @@ def is_code_block(lang, text):
     # Empty-lang: include only content that looks like .omni code.
     if BNF_RE.match(stripped):
         return False
-    if re.match(r"^(React|Flutter|OmniView|Dart|Python|JS|TS|Vue|Dioxus):", stripped):
+    # Platform-mapping rows ("React: <out>", "Flutter: <out>") teach the
+    # other targets' output shape, not compilable .omni syntax. Only a block
+    # whose EVERY non-blank line is such a row is skipped wholesale; a block
+    # mixing mapping rows with anything else is stripped of the rows and
+    # evaluated on the remainder — the old first-line check hid compilable
+    # blocks behind a "React:" opener.
+    mapping_rows = [l for l in stripped.splitlines() if l.strip()]
+    if mapping_rows and all(PLATFORM_ROW_RE.match(l) for l in mapping_rows):
         return False
+    stripped = "\n".join(
+        l for l in stripped.splitlines() if not PLATFORM_ROW_RE.match(l)
+    ).strip()
     # Pure-operator token tables (lexical reference) are not code.
     if all(
         not re.search(r"[A-Za-z0-9一-鿿]", line)
@@ -217,8 +269,9 @@ def run_omnic(omnic, tmpfile, tmpdir):
 def check_block(omnic, tmpdir, content, fragment=False):
     """Try one rendering of a block. Returns (ok, hard_errors, notes).
 
-    For fragments, only genuine PARSE errors fail (semantic errors follow
-    from the synthetic wrapper context); complete blocks fail on any error
+    For fragments, genuine PARSE errors and deleted-syntax family
+    diagnostics fail (ordinary semantic errors follow from the synthetic
+    wrapper context and become notes); complete blocks fail on any error
     except E_IMPORT (docs teach hypothetical project structure)."""
     hard = []
     notes = []
@@ -230,7 +283,7 @@ def check_block(omnic, tmpdir, content, fragment=False):
             continue
         if d.get("code") in NON_FAILING_CODES:
             notes.append(d)
-        elif fragment and not is_parse_error(d.get("message", "")):
+        elif fragment and not is_parse_error(d.get("message", "")) and not is_deleted_syntax(d):
             notes.append(d)
         else:
             hard.append(d)
@@ -251,6 +304,15 @@ def audit(omnic, paths, verbose):
                 text = text.strip()
                 if not text:
                     continue
+                # Platform-mapping rows ("React: <out>" / "Flutter: <out>")
+                # are the other targets' output shape, not .omni source —
+                # strip them the same way is_code_block classifies, so a
+                # mapping-table block is checked on its remainder.
+                text = "\n".join(
+                    l for l in text.splitlines() if not PLATFORM_ROW_RE.match(l)
+                ).strip()
+                if not text:
+                    continue
                 if f"{rel.replace(os.sep, '/')}:{lineno}" in exempted:
                     continue
                 checked += 1
@@ -266,7 +328,8 @@ def audit(omnic, paths, verbose):
                 ok, hard, soft = check_block(omnic, tmpdir, text)
                 used_kind = "complete" if complete else "fragment"
                 may_fallback = not complete or not any(
-                    is_parse_error(d.get("message", "")) for d in hard
+                    is_parse_error(d.get("message", "")) or is_deleted_syntax(d)
+                    for d in hard
                 )
                 if not ok and may_fallback:
                     for wrap in wrappers_for(text):
@@ -328,9 +391,11 @@ def main():
         print(f"FAIL [{rel}:{lineno} {kind}]")
         for e in errs:
             print(f"  -> {e.get('message')} ({e.get('code', '')})")
-    if args.verbose or args.inspect:
-        for rel, lineno, kind, d in notes:
-            print(f"NOTE [{rel}:{lineno} {kind}] {d.get('message')} ({d.get('code','')})")
+    # The notes audit trail prints unconditionally (gate mode included) so
+    # CI surfaces WHICH blocks carry waved-through semantic notes — the
+    # count line alone left them invisible to CI logs.
+    for rel, lineno, kind, d in notes:
+        print(f"NOTE [{rel}:{lineno} {kind}] {d.get('message')} ({d.get('code','')})")
     # Gate mode is the default: failures exit nonzero unless --inspect
     # (audit mode) explicitly opts out.
     if failures and not args.inspect:

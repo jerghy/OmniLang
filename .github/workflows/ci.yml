@@ -360,6 +360,12 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Build omnic (release)
         run: cargo build --release -p omnic
+      # Gate output (no -v needed) surfaces the full audit trail: the
+      # "N blocks checked (M failed, K semantic notes)" count line plus one
+      # NOTE line per waved-through semantic diagnostic — deleted-syntax
+      # families (value={sig}, @paused, setValue, capturePointer(id),
+      # @slot type constraints, fn-in-store, @themes ';' form, =>) FAIL the
+      # gate, so a doc teaching removed syntax is caught in CI.
       - name: Parse-check every compilable doc block
         run: python3 scripts/verify-docs.py --omnic target/release/omnic --check
       - name: Compile learn-omniview (omniview target)
