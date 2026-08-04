@@ -5,9 +5,9 @@ import { Handle, Position } from "@xyflow/react";
 import React, { useMemo } from "react";
 import { formatSyntaxNode, type SyntaxNodeProps, ASSIGN_OPERATORS } from "../../../../services/codegen/syntax-nodes";
 import { NodeTextField, NodeSelect, NodeChipToggle, NodeArgsRows } from "../fields/NodeField";
-import { NodeFormulaField, type FormulaCandidateSource } from "../fields/NodeFormulaField";
+import { NodeFormulaField } from "../fields/NodeFormulaField";
 import { countUnbalancedParens } from "../fields/expression-trigger";
-import { validateSyntaxProps, filterCandidates, buildExpressionCandidates, buildTargetOptions, STORE_SIGNALS_LABEL, type FlowScope } from "../../../../services/codegen/flow-scope";
+import { validateSyntaxProps, filterCandidates, buildTargetOptions, buildFormulaSource, type FlowScope } from "../../../../services/codegen/flow-scope";
 import styles from "./SyntaxNode.module.css";
 
 const OMNI_TYPES = ["String", "i32", "i64", "f64", "f32", "bool", "Array<String>", "Array<i32>", "Array<f64>", "Map<String, String>"];
@@ -64,22 +64,9 @@ const SyntaxNode = React.memo(function SyntaxNode({ data }: Props) {
     return filterCandidates("", base).map((c) => ({ value: c.name, label: c.name }));
   }, [scope]);
 
-  // 公式框候选源：scope 全量候选扁平化 + store 信号分组（member 上下文）。
+  // 公式框候选源：scope 全量候选扁平化 + store 信号分组（与 ConditionNode/ReturnNode 共用 buildFormulaSource）。
   // 候选插入是草稿的一部分（NodeFormulaField 内部处理），SyntaxNode 只管 onCommit → set("value", v)。
-  const formulaSource = useMemo<FormulaCandidateSource | undefined>(() => {
-    if (!scope) return undefined;
-    const all = buildExpressionCandidates(scope, letVars ?? []);
-    const flat = all.flatMap((g) => g.items);
-    const flatStore = all.find((g) => g.label === STORE_SIGNALS_LABEL)?.items ?? [];
-    return {
-      filter: (q) => {
-        const t = q.trim();
-        if (!t) return flat.slice(0, 8);
-        return flat.filter((c) => c.value.startsWith(t)).slice(0, 8);
-      },
-      storeSignals: (storeName) => flatStore.filter((c) => c.value.startsWith(`${storeName}.`)).slice(0, 8),
-    };
-  }, [scope, letVars]);
+  const formulaSource = useMemo(() => buildFormulaSource(scope, letVars ?? []), [scope, letVars]);
 
   // 括号配对轻校验（spec §4.5：只提示不阻塞；跳过字符串字面量内的括号）
   const parenIssue = useMemo(() => {

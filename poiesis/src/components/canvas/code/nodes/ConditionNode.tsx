@@ -1,6 +1,7 @@
 import { Handle, Position } from "@xyflow/react";
-import React, { useState } from "react";
-import { NodeTextField } from "../fields/NodeField";
+import React, { useMemo, useState } from "react";
+import { NodeFormulaField } from "../fields/NodeFormulaField";
+import { buildFormulaSource, type FlowScope } from "../../../../services/codegen/flow-scope";
 
 interface BranchData {
   id: string;
@@ -12,6 +13,9 @@ interface Props {
   data: {
     label: string;
     branches?: BranchData[];
+    // FlowCanvas 按 wire 拓扑注入所属 fn 的 scope/let 变量（公式框候选数据源）
+    scope?: FlowScope;
+    letVars?: Array<{ name: string }>;
     onDoubleClick?: () => void;
     onUpdateBranches?: (branches: BranchData[]) => void;
     onEditCondition?: (branchId: string, condition: string) => void;
@@ -32,9 +36,13 @@ class HandlesBoundary extends React.Component<{ children: React.ReactNode }, { f
 }
 
 export function ConditionNode({ data }: Props) {
+  const { scope, letVars } = data;
   const branches: BranchData[] = data.branches || [{ id: "br0", type: "if", condition: "" }];
   const [editingBranch, setEditingBranch] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
+  // 公式框候选源：scope 全量候选扁平化 + store 信号分组（与 SyntaxNode/ReturnNode 共用 buildFormulaSource；
+  // 无 scope 退化纯文本——else 分支行保持不可编辑，仍走既有 button 语义）
+  const formulaSource = useMemo(() => buildFormulaSource(scope, letVars ?? []), [scope, letVars]);
 
   const handleAddBranch = (type: "elif" | "else") => {
     // 新分支 id 取现有 id 的 max+1：追加序=数组长度会与既有 id 碰撞
@@ -106,8 +114,9 @@ export function ConditionNode({ data }: Props) {
               {TYPE_CN[br.type]}
             </span>
             {editingBranch === br.id ? (
-              <NodeTextField
+              <NodeFormulaField
                 value={editValue}
+                candidates={formulaSource}
                 onCommit={(v) => { data.onEditCondition?.(br.id, v); setEditingBranch(null); }}
                 onCancel={() => setEditingBranch(null)}
                 placeholder="条件表达式"

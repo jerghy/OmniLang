@@ -1,13 +1,17 @@
 // poiesis/src/components/canvas/code/nodes/ReturnNode.tsx
 import { Handle, Position } from "@xyflow/react";
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import styles from "./ReturnNode.module.css";
-import { NodeTextField } from "../fields/NodeField";
+import { NodeFormulaField } from "../fields/NodeFormulaField";
+import { buildFormulaSource, type FlowScope } from "../../../../services/codegen/flow-scope";
 
 interface Props {
   data: {
     label: string;
     returnExpr?: string;
+    // FlowCanvas 按 wire 拓扑注入所属 fn 的 scope/let 变量（公式框候选数据源）
+    scope?: FlowScope;
+    letVars?: Array<{ name: string }>;
     onDoubleClick?: () => void;
     onCommitReturn?: (expr: string) => void;
   };
@@ -27,6 +31,11 @@ class HandlesBoundary extends React.Component<{ children: React.ReactNode }, { f
 export function ReturnNode({ data }: Props) {
   const expr = data.returnExpr || "";
   const [editing, setEditing] = useState(false);
+  // 公式框候选源：与 SyntaxNode/ConditionNode 共用 buildFormulaSource（无 scope 退化纯文本）
+  const formulaSource = useMemo(
+    () => buildFormulaSource(data.scope, data.letVars ?? []),
+    [data.scope, data.letVars],
+  );
 
   return (
     <div
@@ -36,8 +45,9 @@ export function ReturnNode({ data }: Props) {
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
         {editing ? (
-          <NodeTextField
+          <NodeFormulaField
             value={expr}
+            candidates={formulaSource}
             onCommit={(v) => { data.onCommitReturn?.(v); setEditing(false); }}
             onCancel={() => setEditing(false)}
             placeholder="表达式"

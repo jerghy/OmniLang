@@ -2,6 +2,15 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { ConditionNode } from "../ConditionNode";
 import { ReturnNode } from "../ReturnNode";
+import type { FlowScope } from "../../../../../services/codegen/flow-scope";
+
+// 公式框测试共用 scope fixture（与 SyntaxNode.test.tsx 同形）
+const formulaScope: FlowScope = {
+  signals: [{ name: "count", type: "i32" }],
+  props: [], computeds: [], events: [],
+  fns: [], stores: [], fnParams: [{ name: "step", type: "i32" }],
+  letVars: [],
+};
 
 describe("ConditionNode 内联编辑", () => {
   it("点击 if 表达式进入编辑，blur 提交 onEditCondition", () => {
@@ -57,5 +66,63 @@ describe("ReturnNode 内联编辑", () => {
     fireEvent.keyDown(screen.getByLabelText("return 表达式"), { key: "Escape" });
     expect(screen.queryByLabelText("return 表达式")).toBeFalsy();
     expect(screen.getByText("return x")).toBeTruthy();
+  });
+});
+
+describe("ConditionNode 公式框", () => {
+  const data = {
+    label: "判断",
+    branches: [{ id: "br0", type: "if" as const, condition: "a > 1" }],
+    scope: formulaScope,
+    letVars: [{ name: "total" }],
+    onEditCondition: vi.fn(),
+  };
+
+  it("条件字段渲染公式框（data-field-kind=formula）", () => {
+    const { container } = render(<ConditionNode data={data} />);
+    fireEvent.click(screen.getByText("a > 1")); // 点击进入编辑态才挂载公式框
+    expect(container.querySelector('[data-field-kind="formula"]')).toBeTruthy();
+  });
+
+  it("条件输入字母弹候选（scope 信号）", () => {
+    const { container } = render(<ConditionNode data={data} />);
+    fireEvent.click(screen.getByText("a > 1"));
+    const input = container.querySelector('[data-field-kind="formula"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "cou", selectionStart: 3 } });
+    expect(screen.getByRole("listbox")).toBeTruthy();
+    // 信号候选 label 为 "count: i32"，限定菜单作用域断言包含 count
+    expect(container.querySelector('[role="listbox"]')?.textContent).toContain("count");
+  });
+
+  it("提交走 onEditCondition（条件文本更新到 branches）", () => {
+    const onEditCondition = vi.fn();
+    const { container } = render(<ConditionNode data={{ ...data, onEditCondition }} />);
+    fireEvent.click(screen.getByText("a > 1"));
+    const input = container.querySelector('[data-field-kind="formula"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "count > 0", selectionStart: 9 } });
+    fireEvent.blur(input);
+    expect(onEditCondition).toHaveBeenCalledWith("br0", "count > 0");
+  });
+
+  it("无 scope → 退化纯文本不弹层", () => {
+    const { container } = render(<ConditionNode data={{ ...data, scope: undefined }} />);
+    fireEvent.click(screen.getByText("a > 1"));
+    const input = container.querySelector('[data-field-kind="formula"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "cou", selectionStart: 3 } });
+    expect(screen.queryByRole("listbox")).toBeNull();
+  });
+});
+
+describe("ReturnNode 公式框", () => {
+  it("表达式字段渲染公式框且提交走 onCommitReturn", () => {
+    const onCommitReturn = vi.fn();
+    const { container } = render(
+      <ReturnNode data={{ label: "返回", returnExpr: "", scope: formulaScope, letVars: [], onCommitReturn }} />,
+    );
+    fireEvent.click(screen.getByText("return")); // 点击进入编辑态才挂载公式框
+    const input = container.querySelector('[data-field-kind="formula"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "count + 1", selectionStart: 9 } });
+    fireEvent.blur(input);
+    expect(onCommitReturn).toHaveBeenCalledWith("count + 1");
   });
 });

@@ -134,6 +134,32 @@ export function buildExpressionCandidates(scope: FlowScope, letVars: Array<{ nam
   return groups;
 }
 
+/** 公式框候选源（与 NodeFormulaField 的 FormulaCandidateSource 结构一致；服务层不依赖组件层类型）。 */
+export interface FormulaCandidateSource {
+  filter(query: string): FormulaCandidate[];
+  storeSignals(storeName: string): FormulaCandidate[];
+}
+
+/** 公式框候选源组装：SyntaxNode/ConditionNode/ReturnNode 三处共用的 buildExpressionCandidates 扁平化 + store 信号分组。 */
+/** 返回 undefined（无 scope）时 NodeFormulaField 退化纯文本输入（向后兼容）。 */
+export function buildFormulaSource(
+  scope: FlowScope | undefined,
+  letVars: Array<{ name: string }>,
+): FormulaCandidateSource | undefined {
+  if (!scope) return undefined;
+  const all = buildExpressionCandidates(scope, letVars);
+  const flat = all.flatMap((g) => g.items);
+  const flatStore = all.find((g) => g.label === STORE_SIGNALS_LABEL)?.items ?? [];
+  return {
+    filter: (q) => {
+      const t = q.trim();
+      if (!t) return flat.slice(0, 8);
+      return flat.filter((c) => c.value.startsWith(t)).slice(0, 8);
+    },
+    storeSignals: (storeName) => flatStore.filter((c) => c.value.startsWith(`${storeName}.`)).slice(0, 8),
+  };
+}
+
 /** assign target 下拉候选：变量类 + store 信号（Store.信号 格式）。 */
 export function buildTargetOptions(scope: FlowScope, letVars: Array<{ name: string }>): FormulaCandidate[] {
   const names = [
