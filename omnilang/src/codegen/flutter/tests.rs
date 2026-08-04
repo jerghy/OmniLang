@@ -1232,6 +1232,95 @@ component TextInputDemo {
     );
 }
 
+/// Review finding (task 3.3 follow-up): the write-back must target BARE
+/// component signals only. A store-qualified target
+/// (`bind:value={TodoStore.query}`) names a Notifier class / immutable
+/// store state with no writable member — emitting the write-back would
+/// produce uncompilable Dart (`setState(() { TodoStore.query = v; })`).
+/// The shape must keep the original warning fallback (honest degradation,
+/// ADR-054), never degrade a diagnosable warning into a raw analyzer error.
+#[test]
+fn bind_value_store_field_without_ref_warns_not_breaks() {
+    let source = r#"
+store TodoStore {
+    signal query: String = "";
+}
+component StoreBindDemo {
+    @store TodoStore;
+    view {
+        <input bind:value={TodoStore.query} />
+    }
+}
+"#;
+    let result = compile_flutter_full(source);
+    assert!(
+        result.success,
+        "store-qualified bind:value must stay compilable (warning, not error): {:?}",
+        result.errors
+    );
+    let content: String = result
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        !content.contains("TodoStore.query = v") && !content.contains("onChanged: (v)"),
+        "write-back must not target a store field: {}",
+        content
+    );
+    let warns: Vec<&str> = result.warnings.iter().map(|w| w.message.as_str()).collect();
+    assert!(
+        warns
+            .iter()
+            .any(|w| w.contains("bind:value") && w.contains("skipped")),
+        "store-qualified bind:value must warn (dropped), got: {:?}",
+        warns
+    );
+}
+
+/// Review finding (task 3.3 follow-up): the write-back must not fire for a
+/// signal whose type cannot be assigned from the widget's onChanged payload.
+/// A non-String signal on a TextField (`bind:value={count}` with an int
+/// signal) would emit `count = v` with v: String — invalid_assignment.
+/// Same fallback contract: warning, never uncompilable output.
+#[test]
+fn bind_value_type_mismatch_without_ref_warns_not_breaks() {
+    let source = r#"
+component IntBindDemo {
+    signal count: i32 = 0;
+    view {
+        <input bind:value={count} />
+    }
+}
+"#;
+    let result = compile_flutter_full(source);
+    assert!(
+        result.success,
+        "type-mismatched bind:value must stay compilable (warning, not error): {:?}",
+        result.errors
+    );
+    let content: String = result
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        !content.contains("count = v") && !content.contains("onChanged: (v)"),
+        "write-back must not fire for a String-callback / int-signal mismatch: {}",
+        content
+    );
+    let warns: Vec<&str> = result.warnings.iter().map(|w| w.message.as_str()).collect();
+    assert!(
+        warns
+            .iter()
+            .any(|w| w.contains("bind:value") && w.contains("skipped")),
+        "type-mismatched bind:value must warn (dropped), got: {:?}",
+        warns
+    );
+}
+
 #[test]
 fn test_format_element_with_class_map_bindings_warns_unknown_class() {
     // A dynamic class that no design declares cannot resolve to a decoration

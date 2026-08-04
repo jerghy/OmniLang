@@ -1520,8 +1520,27 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
         // `bind:value` only: `bind:checked` on an `<input type="checkbox">`
         // maps to a TextField whose String callback cannot be assigned to a
         // bool signal (invalid_assignment) — that pairing keeps its warning.
+        //
+        // The write-back targets BARE component signals only, and only with
+        // a type the widget's onChanged payload can assign (String on
+        // TextField, bool on Checkbox/Switch, double on Slider — mirroring
+        // ref.rs::has_text_listeners' "only bare component signals" rule).
+        // A store-qualified target (`bind:value={TodoStore.query}`) names a
+        // Notifier class / immutable store state with no writable member,
+        // and a mismatched signal type would emit an invalid_assignment —
+        // both would turn a diagnosable warning into a raw analyzer error.
+        // Such shapes keep the original warning fallback (honest
+        // degradation, ADR-054).
         let already_has_on_changed = args.iter().any(|a| a.starts_with("onChanged:"));
+        let signal = ctx.comp.signals.iter().find(|s| s.name == signal_ref.name);
+        let write_back_type_ok = signal.is_some_and(|s| match widget {
+            "TextField" => matches!(s.r#type.kind, TypeKind::String),
+            "Checkbox" | "Switch" => matches!(s.r#type.kind, TypeKind::Bool),
+            "Slider" => matches!(s.r#type.kind, TypeKind::Float),
+            _ => true, // DropdownButton's callback is T? — any bare signal type writes back
+        });
         let write_back = (bind_name == "value"
+            && write_back_type_ok
             && !already_has_on_changed
             && widget_allows_param(widget, "onChanged"))
         .then(|| bind_value_write_back(widget, &signal_ref.name));
