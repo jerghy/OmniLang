@@ -78,6 +78,20 @@ describe("NodeTextField", () => {
     expect(screen.getByLabelText("变量名").getAttribute("aria-invalid")).toBe("true");
   });
 
+  it("Enter 提交后继续输入不被外部同步清空", () => {
+    const onCommit = vi.fn();
+    const { rerender } = render(<NodeTextField value="x" onCommit={onCommit} ariaLabel="变量名" />);
+    const input = screen.getByLabelText("变量名");
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "ab" } });
+    fireEvent.keyDown(input, { key: "Enter" });        // 提交 ab
+    fireEvent.change(input, { target: { value: "abc" } }); // 提交后继续输入
+    rerender(<NodeTextField value="ab" onCommit={onCommit} ariaLabel="变量名" />); // 外部同步
+    expect((input as HTMLInputElement).value).toBe("abc"); // 草稿保留
+    fireEvent.blur(input);
+    expect(onCommit).toHaveBeenLastCalledWith("abc");
+  });
+
   it("NodeSelect allowCustom 展示当前自由文本值", () => {
     const options = [{ value: "=", label: "=" }];
     render(<NodeSelect value="自定义值" options={options} onCommit={vi.fn()} ariaLabel="运算符" allowCustom />);

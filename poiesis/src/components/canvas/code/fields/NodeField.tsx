@@ -27,7 +27,6 @@ export function NodeTextField({ value, onCommit, placeholder, ariaLabel, classNa
   }, [value]);
 
   const commit = () => {
-    focusedRef.current = false;
     if (dirtyRef.current && draft !== value) onCommit(draft);
     dirtyRef.current = false;
   };
