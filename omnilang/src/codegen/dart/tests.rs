@@ -6,7 +6,6 @@ use super::*;
 use crate::codegen::{format_json_value, CodeWriter, JSON_DART};
 use crate::ir::*;
 use rustc_hash::FxHashMap;
-use std::collections::HashMap;
 
 /// Helper: create a DartVisitor for test use.
 fn visitor() -> super::visitor::DartVisitor {

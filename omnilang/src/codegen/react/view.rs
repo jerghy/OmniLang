@@ -350,11 +350,7 @@ pub(super) fn gen_view_node_tsx(
                         {
                             format!("use{}.setState({{ {}: {} }})", owner, field, event_value)
                         } else {
-                            format!(
-                                "{}({})",
-                                format!("set{}", capitalize_first(&signal_ref.name)),
-                                event_value
-                            )
+                            format!("set{}({})", capitalize_first(&signal_ref.name), event_value)
                         };
                         binding_events_map.insert("onChange".to_string(), setter);
                     }
@@ -489,7 +485,7 @@ pub(super) fn gen_view_node_tsx(
                             };
                             let mut result = format!("({}) => {{\n", params_str);
                             for line in content.lines() {
-                                let _ = write!(result, "        {}\n", line);
+                                let _ = writeln!(result, "        {}", line);
                             }
                             result.push_str("      }");
                             attrs.push(format!("{}={{{}}}", react_event, result));
@@ -546,7 +542,7 @@ pub(super) fn gen_view_node_tsx(
                                 };
                                 let mut result = format!("({}) => {{\n", params_str);
                                 for line in content.lines() {
-                                    let _ = write!(result, "        {}\n", line);
+                                    let _ = writeln!(result, "        {}", line);
                                 }
                                 result.push_str("      }");
                                 attrs.push(format!("{}={{{}}}", react_event, result));
@@ -1430,10 +1426,11 @@ pub(super) fn partition_component_children<'a>(
     component_map: &FxHashMap<&str, &ComponentIR>,
 ) -> (Vec<&'a ViewTree>, Vec<(String, &'a ViewTree)>) {
     let mut declared_slot_names: FxHashSet<String> = FxHashSet::default();
-    for slot_name in component_declared_slots(child_comp, component_map) {
-        if let Some(n) = slot_name {
-            declared_slot_names.insert(n);
-        }
+    for n in component_declared_slots(child_comp, component_map)
+        .into_iter()
+        .flatten()
+    {
+        declared_slot_names.insert(n);
     }
     let mut default_children: Vec<&ViewTree> = Vec::new();
     let mut named_children: Vec<(String, &ViewTree)> = Vec::new();
@@ -1534,6 +1531,10 @@ fn strip_slot_prop(node: &ViewTree) -> ViewTree {
 /// Uses the declared params from the Omni source (e.g., `(text)` or `(e)`) instead of hardcoding `e`,
 /// so that the handler body which references the parameter by name works correctly.
 /// Unused params are prefixed with `_` to suppress ESLint no-unused-vars warnings.
+// 8 cohesive context params (all namespaces consulted while emitting a
+// handler); bundling them into a context struct is a larger refactor than
+// this lint warrants for an internal helper.
+#[allow(clippy::too_many_arguments)]
 fn format_inline_handler(
     body: &BlockIR,
     signal_names: &FxHashSet<String>,

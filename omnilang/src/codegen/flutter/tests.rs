@@ -6,7 +6,6 @@ use crate::codegen::shared::build_component_map;
 use crate::codegen::{format_json_value, JSON_FLUTTER};
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
-use std::collections::HashMap;
 use std::fmt::Write;
 use std::process::Command;
 
@@ -1786,8 +1785,7 @@ fn test_design_class_on_component_element_wraps_in_decoration() {
         view: None,
         ..Default::default()
     };
-    let component_map: FxHashMap<&str, &ComponentIR> =
-        FxHashMap::from_iter([("MyCard".into(), &my_card)]);
+    let component_map: FxHashMap<&str, &ComponentIR> = FxHashMap::from_iter([("MyCard", &my_card)]);
     let (expr, _) =
         fmt_view_with_program_and_map(&ViewTree::Element(Box::new(el)), &ir, &component_map);
     assert!(
@@ -4301,7 +4299,7 @@ fn test_full_pipeline_component_with_store_ref() {
     insta::with_settings!({snapshot_path => "snapshots"}, {
         let mut snapshot_content = String::new();
         for f in &output.files {
-            let _ = write!(snapshot_content, "=== {} ===\n", f.path);
+            let _ = writeln!(snapshot_content, "=== {} ===", f.path);
             snapshot_content.push_str(&f.content);
             snapshot_content.push('\n');
         }
@@ -6958,7 +6956,7 @@ fn test_store_action_in_inline_handler_body() {
 fn test_store_action_method_call_form_in_handler() {
     // `@onClick={TodoStore.clear()}` (with parens) lowers the handler body to
     // a MethodCallExpr on the store identifier — same Riverpod rewrite.
-    let codegen = FlutterCodegen;
+    let _codegen = FlutterCodegen;
     let store = StoreIR {
         name: "TodoStore".into(),
         signals: FxHashMap::from_iter([(
@@ -8270,7 +8268,7 @@ component App {
 }
 "#;
     let output = compile_flutter(source).unwrap();
-    let content: String = output
+    let _content: String = output
         .files
         .values()
         .cloned()

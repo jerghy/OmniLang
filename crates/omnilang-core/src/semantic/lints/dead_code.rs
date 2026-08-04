@@ -306,9 +306,9 @@ mod tests {
                         type_ann: TypeAnnotation::Named {
                             name: "i32".into(),
                             type_args: vec![],
-                            span: span.clone(),
+                            span,
                         },
-                        init: Expr::Literal(Literal::Int(0), span.clone()),
+                        init: Expr::Literal(Literal::Int(0), span),
                         is_theme: false,
                     }],
                     computeds: vec![],
@@ -327,7 +327,7 @@ mod tests {
                         children: vec![ViewNode::Text("hello".into())],
                     }),
                     styles: vec![],
-                    span: span.clone(),
+                    span,
                 }],
             },
         );
@@ -395,9 +395,9 @@ mod tests {
                         body: Block {
                             stmts: vec![],
                             trailing_expr: None,
-                            span: span.clone(),
+                            span,
                         },
-                        span: span.clone(),
+                        span,
                     }],
                     actions: vec![],
                     getters: vec![],
@@ -406,7 +406,7 @@ mod tests {
                         children: vec![ViewNode::Text("hello".into())],
                     }),
                     styles: vec![],
-                    span: span.clone(),
+                    span,
                 }],
             },
         );

@@ -193,7 +193,7 @@ pub trait FormatExpr {
     /// `rect = refBox.measure()`). Default: no rewrite — backends that model
     /// measure results with different property names (Flutter's Offset has
     /// `dx`/`dy`, DOMRect parity wants `x`/`y`) override this.
-    fn format_ref_op_field_access(&self, _object: &ExprIR, field: &str) -> Option<String> {
+    fn format_ref_op_field_access(&self, _object: &ExprIR, _field: &str) -> Option<String> {
         None
     }
 

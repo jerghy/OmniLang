@@ -358,7 +358,7 @@ impl<'a> DesignResolver<'a> {
     /// Task 5.8: motion keyframe color stops referencing `var(--textPrimary)`
     /// previously emitted the raw string — String where Color was expected.
     pub(crate) fn token_constant_ref(&self, token_name: &str) -> Option<String> {
-        for (_, design) in &self.design_by_name {
+        for design in self.design_by_name.values() {
             if let Some(r) = whole_var_token_ref(design, &format!("var(--{token_name})")) {
                 return Some(r);
             }

@@ -141,17 +141,9 @@ fn scan_expr_structs(expr: &ExprIR, names: &FxHashSet<&str>, out: &mut FxHashSet
 
 fn scan_stmt_structs(stmt: &StatementIR, names: &FxHashSet<&str>, out: &mut FxHashSet<String>) {
     match stmt {
-        StatementIR::LetStmtIR { value, .. } => {
-            if let Some(v) = value {
-                scan_expr_structs(v, names, out);
-            }
-        }
+        StatementIR::LetStmtIR { value: Some(v), .. } => scan_expr_structs(v, names, out),
         StatementIR::ExprStmtIR { expr } => scan_expr_structs(expr, names, out),
-        StatementIR::ReturnStmtIR { value } => {
-            if let Some(v) = value {
-                scan_expr_structs(v, names, out);
-            }
-        }
+        StatementIR::ReturnStmtIR { value: Some(v), .. } => scan_expr_structs(v, names, out),
         StatementIR::IfStmtIR {
             condition,
             then_body,
@@ -186,26 +178,22 @@ fn scan_stmt_structs(stmt: &StatementIR, names: &FxHashSet<&str>, out: &mut FxHa
                 scan_stmt_structs(s, names, out);
             }
         }
-        StatementIR::MutationStmt { intent } => {
-            if let Some(i) = intent {
-                match i {
-                    MutationIntent::DirectAssign { value, .. }
-                    | MutationIntent::Increment { amount: value, .. }
-                    | MutationIntent::Decrement { amount: value, .. }
-                    | MutationIntent::Multiply { amount: value, .. }
-                    | MutationIntent::Divide { amount: value, .. }
-                    | MutationIntent::Modulo { amount: value, .. }
-                    | MutationIntent::Push { item: value, .. } => {
-                        if let Some(v) = value {
-                            scan_expr_structs(v, names, out);
-                        }
-                    }
-                    MutationIntent::Pop { .. } => {}
-                    #[allow(unreachable_patterns)]
-                    _ => {}
+        StatementIR::MutationStmt { intent: Some(i) } => match i {
+            MutationIntent::DirectAssign { value, .. }
+            | MutationIntent::Increment { amount: value, .. }
+            | MutationIntent::Decrement { amount: value, .. }
+            | MutationIntent::Multiply { amount: value, .. }
+            | MutationIntent::Divide { amount: value, .. }
+            | MutationIntent::Modulo { amount: value, .. }
+            | MutationIntent::Push { item: value, .. } => {
+                if let Some(v) = value {
+                    scan_expr_structs(v, names, out);
                 }
             }
-        }
+            MutationIntent::Pop { .. } => {}
+            #[allow(unreachable_patterns)]
+            _ => {}
+        },
         StatementIR::EventEmitStmtIR { args, .. } => {
             for a in args {
                 scan_expr_structs(a, names, out);
@@ -334,7 +322,7 @@ fn scan_view_structs(node: &ViewTree, names: &FxHashSet<&str>, out: &mut FxHashS
                     }
                 }
             }
-            for (_, v) in &el.class_map_bindings {
+            for v in el.class_map_bindings.values() {
                 scan_expr_structs(v, names, out);
             }
             for c in &el.children {
@@ -612,7 +600,7 @@ fn scan_view_unions(node: &ViewTree, names: &FxHashSet<&str>, out: &mut FxHashSe
             for value in el.class_map_bindings.values() {
                 scan_expr_unions(value, names, out);
             }
-            for (_, expr) in &el.semantic_bindings {
+            for expr in el.semantic_bindings.values() {
                 scan_expr_unions(expr, names, out);
             }
             for child in &el.children {
@@ -657,34 +645,6 @@ fn scan_view_unions(node: &ViewTree, names: &FxHashSet<&str>, out: &mut FxHashSe
         #[allow(unreachable_patterns)]
         _ => {}
     }
-}
-
-/// Whether a component's generated code references any declared union OR
-/// struct (expressions in fn/computed/effect/lifecycle bodies, signal
-/// initializers, prop defaults, the view tree; type annotations on props,
-/// signals, computeds, fn params/returns, slots).
-#[cfg(test)]
-pub(crate) fn component_uses_unions(comp: &ComponentIR, ir: &IRProgram) -> bool {
-    let names = enum_names(ir);
-    if names.is_empty() {
-        return false;
-    }
-    let mut out: FxHashSet<String> = FxHashSet::default();
-    collect_component_union_names(comp, &names, &mut out);
-    !out.is_empty()
-}
-
-/// Whether a store's generated code references any declared union
-/// (signal/getter types, action bodies).
-#[cfg(test)]
-pub(crate) fn store_uses_unions(store: &StoreIR, ir: &IRProgram) -> bool {
-    let names = enum_names(ir);
-    if names.is_empty() {
-        return false;
-    }
-    let mut out: FxHashSet<String> = FxHashSet::default();
-    collect_store_union_names(store, &names, &mut out);
-    !out.is_empty()
 }
 
 /// Whether a component's generated code references any declared union OR

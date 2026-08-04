@@ -18,21 +18,11 @@
 //! minimal valid form with identical assertions (same adaptation as Task
 //! 4.2's event-name tests).
 
-use std::path::PathBuf;
-
 use rustc_hash::FxHashMap;
 
 use omnilang::codegen::Target;
 use omnilang::compile_multi_internal;
 use omnilang::error::{Diagnostic, Severity};
-
-/// Resolve the repo root (parent of the omnilang crate dir).
-fn repo_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .expect("should have parent directory")
-        .to_path_buf()
-}
 
 /// Compile one source through the full pipeline and return its diagnostics
 /// (errors + warnings — warning-severity diagnostics live in the `errors`

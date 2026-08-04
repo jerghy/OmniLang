@@ -1094,6 +1094,10 @@ fn stmt_contains_call(stmt: &StatementIR) -> bool {
 /// reference (TS2304). Such mutations are DCE'd; a mutation value carrying
 /// calls is kept as a bare expression statement so the calls' side effects
 /// survive.
+// 8 cohesive context params (name/rename namespaces needed for statement
+// emission); bundling into a context struct is a larger refactor than this
+// lint warrants for an internal helper.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn generate_statement_tsx(
     w: &mut CodeWriter,
     stmt: &StatementIR,

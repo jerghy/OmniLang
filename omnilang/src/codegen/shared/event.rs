@@ -13,8 +13,6 @@ pub(crate) use omnilang_core::codegen::shared::event_names::canonical_event_name
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[cfg(feature = "codegen-dioxus")]
     use crate::codegen::dioxus::expr::to_dioxus_event;
     #[cfg(feature = "codegen-flutter")]

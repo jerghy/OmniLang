@@ -225,10 +225,10 @@ impl<'a> DesignCtx<'a> {
 /// (deterministic across hash-map iteration).
 pub(super) fn is_root_component(name: &str, ir: &IRProgram) -> bool {
     let all_names: Vec<&str> = ir.all_components().keys().copied().collect();
-    if all_names.iter().any(|n| *n == "App") {
+    if all_names.contains(&"App") {
         return name == "App";
     }
-    if all_names.iter().any(|n| *n == "Main") {
+    if all_names.contains(&"Main") {
         return name == "Main";
     }
     let mut sorted = all_names;

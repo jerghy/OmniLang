@@ -585,20 +585,23 @@ pub(super) fn annotate_typed_struct_literals(
                 intent: Some(intent),
             } => {
                 match intent {
-                    MutationIntent::DirectAssign { target, value, .. } => {
-                        if let Some(value) = value {
-                            rewrite_expected_struct(value, expected_types.get(&target.name));
-                        }
+                    MutationIntent::DirectAssign {
+                        target,
+                        value: Some(value),
+                        ..
+                    } => {
+                        rewrite_expected_struct(value, expected_types.get(&target.name));
                     }
-                    MutationIntent::Push { target, item } => {
-                        if let Some(item) = item {
-                            // `items.push({...})` — the item is expected to be
-                            // the array's ELEMENT type.
-                            let element = expected_types
-                                .get(&target.name)
-                                .and_then(array_element_type_ir);
-                            rewrite_expected_struct(item, element);
-                        }
+                    MutationIntent::Push {
+                        target,
+                        item: Some(item),
+                    } => {
+                        // `items.push({...})` — the item is expected to be
+                        // the array's ELEMENT type.
+                        let element = expected_types
+                            .get(&target.name)
+                            .and_then(array_element_type_ir);
+                        rewrite_expected_struct(item, element);
                     }
                     _ => {}
                 }

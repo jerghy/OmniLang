@@ -396,13 +396,12 @@ fn collect_used_style_classes_inner(node: &ViewTree, acc: &mut FxHashSet<String>
             }
             // Collect from props["class"] (used by DesignClass references like
             // `class: LearnDesign.Page` which store the class name in props)
-            if let Some(class_expr) = el.props.get("class") {
-                if let ExprIR::LiteralExpr { value } = class_expr {
-                    if let Some(class_str) = value.as_str() {
-                        for class_name in class_str.split_whitespace() {
-                            acc.insert(class_name.to_string());
-                        }
-                    }
+            if let Some(class_str) = el.props.get("class").and_then(|e| match e {
+                ExprIR::LiteralExpr { value } => value.as_str(),
+                _ => None,
+            }) {
+                for class_name in class_str.split_whitespace() {
+                    acc.insert(class_name.to_string());
                 }
             }
             for child in &el.children {

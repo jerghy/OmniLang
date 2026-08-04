@@ -56,7 +56,7 @@ pub fn build_inline_handler(
         let content = hw.into_string();
         let mut result = config.opener.clone();
         for line in content.lines() {
-            let _ = write!(result, "{}{}\n", config.indent, line);
+            let _ = writeln!(result, "{}{}", config.indent, line);
         }
         result.push_str(&config.closer);
         result

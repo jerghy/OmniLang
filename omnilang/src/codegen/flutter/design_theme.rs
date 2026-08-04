@@ -337,9 +337,9 @@ pub fn gen_theme_app_shell(ir: &IRProgram) -> Option<CompiledFile> {
     // Root component: App → Main → last sorted (mirrors the React backend).
     let all_components = ir.all_components();
     let mut all_comp_names: Vec<&str> = all_components.keys().copied().collect();
-    let root_name = if all_comp_names.iter().any(|n| *n == "App") {
+    let root_name = if all_comp_names.contains(&"App") {
         "App".to_string()
-    } else if all_comp_names.iter().any(|n| *n == "Main") {
+    } else if all_comp_names.contains(&"Main") {
         "Main".to_string()
     } else {
         all_comp_names.sort_unstable();

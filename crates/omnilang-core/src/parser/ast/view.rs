@@ -150,6 +150,11 @@ pub struct Element {
     pub span: Span,
 }
 
+// `MotionTrigger` (536 B) dwarfs the other variants; the canonical fix is
+// `Box<MotionTrigger>`, but the 8 construction sites live in
+// `parser/view/mod.rs` which has uncommitted user changes — boxing is
+// deferred until those land (clippy `large_enum_variant`, task 5.8).
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Serialize)]
 pub enum ElementProp {
     Static {

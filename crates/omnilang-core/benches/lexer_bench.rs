@@ -21,8 +21,12 @@ component Counter {
 }
 
 fn bench_lexer_large(c: &mut Criterion) {
-    let source = include_str!("../../../test/projects/learn-omniview/src/pages/TodoPage.omni");
-    c.bench_function("lexer_todo_page", |b| {
+    // The largest showcase page — TodoPage.omni was removed in the 7-tab
+    // navigation refactor, so ElementRefDemo.omni is the replacement
+    // representative real-world source file.
+    let source =
+        include_str!("../../../test/projects/learn-omniview/src/pages/ElementRefDemo.omni");
+    c.bench_function("lexer_element_ref_demo", |b| {
         b.iter(|| tokenize(black_box(source)))
     });
 }

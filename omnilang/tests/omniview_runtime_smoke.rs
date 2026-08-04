@@ -61,7 +61,7 @@ fn omniview_runtime_smoke() {
     // ── Run smoke test via Node.js ──
     let script = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/smoke_test.js");
     let output = Command::new("node")
-        .arg(&script)
+        .arg(script)
         .arg(html_path.to_str().expect("valid temp path"))
         .output()
         .expect("failed to execute node");

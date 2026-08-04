@@ -5,14 +5,34 @@
 
 /// Escape a string value for use as a string literal in generated code.
 /// Handles backslash, the target quote character, and common whitespace escapes.
+///
+/// Single pass over the characters (one allocation instead of the previous
+/// six chained `str::replace` calls, each of which allocated). Each input
+/// char maps to at most two output bytes, so `s.len()` is a safe lower
+/// bound for the capacity — reallocation only happens on the rare path
+/// where escapes actually occur.
+///
+/// Byte-identical to the chained-replace version for every `quote` value
+/// used by callers (`'"'` and `'\''`): each char is escaped independently,
+/// and the escape arms are disjoint from the quote arm for those quotes.
 #[must_use]
 pub fn escape_literal_str(s: &str, quote: char) -> String {
-    s.replace('\\', "\\\\")
-        .replace(quote, &format!("\\{}", quote))
-        .replace('\n', "\\n")
-        .replace('\r', "\\r")
-        .replace('\t', "\\t")
-        .replace('\0', "\\0")
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            '\0' => out.push_str("\\0"),
+            c if c == quote => {
+                out.push('\\');
+                out.push(c);
+            }
+            c => out.push(c),
+        }
+    }
+    out
 }
 
 /// Configuration for target-language-specific JSON value formatting.
@@ -231,6 +251,53 @@ mod tests {
             "expected escaped quoted key: {}",
             s
         );
+    }
+
+    #[test]
+    fn escape_literal_str_matches_chained_replace_semantics() {
+        // Reference implementation: the original six-chained-`replace` form.
+        // The single-pass rewrite must be byte-identical for the quote
+        // characters used by all callers (`'"'` and `'\''`).
+        fn chained(s: &str, quote: char) -> String {
+            s.replace('\\', "\\\\")
+                .replace(quote, &format!("\\{}", quote))
+                .replace('\n', "\\n")
+                .replace('\r', "\\r")
+                .replace('\t', "\\t")
+                .replace('\0', "\\0")
+        }
+        let cases: [(&str, char); 12] = [
+            ("", '"'),
+            ("plain text", '"'),
+            ("back\\slash", '"'),
+            ("quote \" inside", '"'),
+            ("quote ' inside", '\''),
+            ("tab\there", '\''),
+            ("newline\nhere", '"'),
+            ("cr\rhere", '"'),
+            ("nul\0here", '"'),
+            ("\\\\mixed\\\"\n\t\r\0", '"'),
+            ("\\'both'\\\"quotes\"", '\''),
+            ("a\"b'c\\d\ne\tf\0", '"'),
+        ];
+        for (input, quote) in cases {
+            assert_eq!(
+                escape_literal_str(input, quote),
+                chained(input, quote),
+                "mismatch for input {input:?} with quote {quote:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn escape_literal_str_exact_outputs() {
+        assert_eq!(escape_literal_str("a\"b", '"'), "a\\\"b");
+        assert_eq!(escape_literal_str("a'b", '\''), "a\\'b");
+        assert_eq!(escape_literal_str("a\\b", '"'), "a\\\\b");
+        assert_eq!(escape_literal_str("x\ny", '"'), "x\\ny");
+        assert_eq!(escape_literal_str("x\0y", '"'), "x\\0y");
+        // A quote of the OTHER kind passes through untouched.
+        assert_eq!(escape_literal_str("it's", '"'), "it's");
     }
 
     #[test]

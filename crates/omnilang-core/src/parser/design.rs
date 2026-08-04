@@ -294,9 +294,9 @@ fn parse_token_value<'a>(
             TokenValue::Literal(input[1..end - 1].to_string()),
             &input[end..],
         ))
-    } else if input.starts_with('#') {
+    } else if let Some(rest) = input.strip_prefix('#') {
         // Hex color: `#6366f1` -- always literal
-        let end = input[1..]
+        let end = rest
             .find(|c: char| !c.is_ascii_hexdigit())
             .map(|i| i + 1)
             .unwrap_or(input.len());

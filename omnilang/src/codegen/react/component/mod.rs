@@ -1197,7 +1197,7 @@ fn stmt_has_pointer_ops(stmt: &StatementIR) -> bool {
         } => expr_has_pointer_ops(condition) || body.statements.iter().any(stmt_has_pointer_ops),
         StatementIR::BlockStmtIR { body } => body.statements.iter().any(stmt_has_pointer_ops),
         StatementIR::MutationStmt { intent } => {
-            intent.as_ref().is_some_and(|i| mutation_has_pointer_ops(i))
+            intent.as_ref().is_some_and(mutation_has_pointer_ops)
         }
         StatementIR::TryCatchStmtIR {
             try_body,
@@ -1323,19 +1323,13 @@ fn view_has_pointer_ops(node: &ViewTree) -> bool {
         ViewTree::Conditional(cond) => {
             cond.branches.iter().any(|b| {
                 expr_has_pointer_ops(&b.condition)
-                    || b.body.as_ref().is_some_and(|v| view_has_pointer_ops(v))
-            }) || cond
-                .fallback
-                .as_ref()
-                .is_some_and(|v| view_has_pointer_ops(v))
+                    || b.body.as_ref().is_some_and(view_has_pointer_ops)
+            }) || cond.fallback.as_ref().is_some_and(view_has_pointer_ops)
         }
         ViewTree::ListRendering(list) => {
             expr_has_pointer_ops(&list.iterable)
-                || list.body.as_ref().is_some_and(|v| view_has_pointer_ops(v))
-                || list
-                    .empty_body
-                    .as_ref()
-                    .is_some_and(|v| view_has_pointer_ops(v))
+                || list.body.as_ref().is_some_and(view_has_pointer_ops)
+                || list.empty_body.as_ref().is_some_and(view_has_pointer_ops)
         }
         ViewTree::Interpolation(expr) => expr_has_pointer_ops(expr),
         ViewTree::Slot { fallback, .. } => fallback.iter().any(view_has_pointer_ops),
@@ -1556,14 +1550,14 @@ fn collect_call_mutation_targets_view(node: &ViewTree, acc: &mut FxHashSet<Strin
 /// call (side effects) under its target signal name.
 fn collect_call_mutation_targets_stmt(stmt: &StatementIR, acc: &mut FxHashSet<String>) {
     match stmt {
-        StatementIR::MutationStmt { intent } => {
-            if let Some(intent) = intent {
-                if let Some(target) = mutation_target_name_opt(intent) {
-                    if super::expr::mutation_value_expr(intent)
-                        .is_some_and(super::expr::expr_contains_call)
-                    {
-                        acc.insert(target.to_string());
-                    }
+        StatementIR::MutationStmt {
+            intent: Some(intent),
+        } => {
+            if let Some(target) = mutation_target_name_opt(intent) {
+                if super::expr::mutation_value_expr(intent)
+                    .is_some_and(super::expr::expr_contains_call)
+                {
+                    acc.insert(target.to_string());
                 }
             }
         }

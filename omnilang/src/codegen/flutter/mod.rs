@@ -1323,7 +1323,7 @@ impl FlutterCodegen {
             let ret_type = store
                 .getter_types
                 .get(getter_name)
-                .map(|ty| super::dart::dart_type_ir(ty))
+                .map(super::dart::dart_type_ir)
                 .filter(|s| !s.is_empty())
                 .unwrap_or_else(|| "dynamic".into());
             w.emit_fmt(format_args!("/// Computed getter: {}.", getter_name));
@@ -1480,7 +1480,7 @@ impl FlutterCodegen {
                 .return_type
                 .as_ref()
                 .filter(|rt| !matches!(rt.kind, TypeKind::Void))
-                .map(|rt| super::dart::dart_type_ir(rt))
+                .map(super::dart::dart_type_ir)
                 .unwrap_or_else(|| "void".into());
             let prefix = if is_async {
                 format!("Future<{ret}>")
@@ -1736,17 +1736,9 @@ const DART_PREFS_STDLIB_FNS: &[&str] = &["storage_get", "storage_set"];
 /// Collect bare identifier references from a statement block.
 fn collect_stmt_identifiers(stmt: &StatementIR, acc: &mut FxHashSet<String>) {
     match stmt {
-        StatementIR::LetStmtIR { value, .. } => {
-            if let Some(v) = value {
-                collect_expr_identifiers(v, acc);
-            }
-        }
+        StatementIR::LetStmtIR { value: Some(v), .. } => collect_expr_identifiers(v, acc),
         StatementIR::ExprStmtIR { expr } => collect_expr_identifiers(expr, acc),
-        StatementIR::ReturnStmtIR { value } => {
-            if let Some(v) = value {
-                collect_expr_identifiers(v, acc);
-            }
-        }
+        StatementIR::ReturnStmtIR { value: Some(v), .. } => collect_expr_identifiers(v, acc),
         StatementIR::IfStmtIR {
             condition,
             then_body,
@@ -1781,11 +1773,7 @@ fn collect_stmt_identifiers(stmt: &StatementIR, acc: &mut FxHashSet<String>) {
                 collect_stmt_identifiers(s, acc);
             }
         }
-        StatementIR::MutationStmt { intent } => {
-            if let Some(i) = intent {
-                collect_mutation_identifiers(i, acc);
-            }
-        }
+        StatementIR::MutationStmt { intent: Some(i) } => collect_mutation_identifiers(i, acc),
         StatementIR::EventEmitStmtIR { args, .. } => {
             for a in args {
                 collect_expr_identifiers(a, acc);
@@ -1825,25 +1813,23 @@ fn collect_stmt_identifiers(stmt: &StatementIR, acc: &mut FxHashSet<String>) {
 
 fn collect_mutation_identifiers(intent: &MutationIntent, acc: &mut FxHashSet<String>) {
     match intent {
-        MutationIntent::DirectAssign { value, .. } => {
-            if let Some(v) = value {
-                collect_expr_identifiers(v, acc);
-            }
+        MutationIntent::DirectAssign { value: Some(v), .. } => collect_expr_identifiers(v, acc),
+        MutationIntent::Increment {
+            amount: Some(v), ..
         }
-        MutationIntent::Increment { amount, .. }
-        | MutationIntent::Decrement { amount, .. }
-        | MutationIntent::Multiply { amount, .. }
-        | MutationIntent::Divide { amount, .. }
-        | MutationIntent::Modulo { amount, .. } => {
-            if let Some(v) = amount {
-                collect_expr_identifiers(v, acc);
-            }
+        | MutationIntent::Decrement {
+            amount: Some(v), ..
         }
-        MutationIntent::Push { item, .. } => {
-            if let Some(v) = item {
-                collect_expr_identifiers(v, acc);
-            }
+        | MutationIntent::Multiply {
+            amount: Some(v), ..
         }
+        | MutationIntent::Divide {
+            amount: Some(v), ..
+        }
+        | MutationIntent::Modulo {
+            amount: Some(v), ..
+        } => collect_expr_identifiers(v, acc),
+        MutationIntent::Push { item: Some(v), .. } => collect_expr_identifiers(v, acc),
         MutationIntent::Pop { .. } => {}
         #[allow(unreachable_patterns)]
         _ => {}
@@ -1975,7 +1961,7 @@ fn collect_view_identifiers(node: &ViewTree, acc: &mut FxHashSet<String>) {
             if let Some(b) = &el.ref_binding {
                 acc.insert(b.clone());
             }
-            for (_, v) in &el.class_map_bindings {
+            for v in el.class_map_bindings.values() {
                 collect_expr_identifiers(v, acc);
             }
             for child in &el.children {
@@ -2026,17 +2012,9 @@ fn statement_exprs(stmt: &StatementIR) -> Vec<&ExprIR> {
     }
     fn walk_stmt<'a>(stmt: &'a StatementIR, out: &mut Vec<&'a ExprIR>) {
         match stmt {
-            StatementIR::LetStmtIR { value, .. } => {
-                if let Some(v) = value {
-                    push_expr(v, out);
-                }
-            }
+            StatementIR::LetStmtIR { value: Some(v), .. } => push_expr(v, out),
             StatementIR::ExprStmtIR { expr } => push_expr(expr, out),
-            StatementIR::ReturnStmtIR { value } => {
-                if let Some(v) = value {
-                    push_expr(v, out);
-                }
-            }
+            StatementIR::ReturnStmtIR { value: Some(v), .. } => push_expr(v, out),
             StatementIR::IfStmtIR {
                 condition,
                 then_body,
@@ -2071,26 +2049,28 @@ fn statement_exprs(stmt: &StatementIR) -> Vec<&ExprIR> {
                     walk_stmt(s, out);
                 }
             }
-            StatementIR::MutationStmt { intent } => {
-                if let Some(i) = intent {
-                    match i {
-                        MutationIntent::DirectAssign { value, .. }
-                        | MutationIntent::Increment { amount: value, .. }
-                        | MutationIntent::Decrement { amount: value, .. }
-                        | MutationIntent::Multiply { amount: value, .. }
-                        | MutationIntent::Divide { amount: value, .. }
-                        | MutationIntent::Modulo { amount: value, .. }
-                        | MutationIntent::Push { item: value, .. } => {
-                            if let Some(v) = value {
-                                push_expr(v, out);
-                            }
-                        }
-                        MutationIntent::Pop { .. } => {}
-                        #[allow(unreachable_patterns)]
-                        _ => {}
-                    }
+            StatementIR::MutationStmt { intent: Some(i) } => match i {
+                MutationIntent::DirectAssign { value: Some(v), .. }
+                | MutationIntent::Increment {
+                    amount: Some(v), ..
                 }
-            }
+                | MutationIntent::Decrement {
+                    amount: Some(v), ..
+                }
+                | MutationIntent::Multiply {
+                    amount: Some(v), ..
+                }
+                | MutationIntent::Divide {
+                    amount: Some(v), ..
+                }
+                | MutationIntent::Modulo {
+                    amount: Some(v), ..
+                }
+                | MutationIntent::Push { item: Some(v), .. } => push_expr(v, out),
+                MutationIntent::Pop { .. } => {}
+                #[allow(unreachable_patterns)]
+                _ => {}
+            },
             StatementIR::EventEmitStmtIR { args, .. } => {
                 for a in args {
                     push_expr(a, out);
@@ -2153,7 +2133,7 @@ fn view_exprs(node: &ViewTree) -> Vec<&ExprIR> {
                         EventHandlerIR::FnRef { .. } | EventHandlerIR::StoreAction { .. } => {}
                     }
                 }
-                for (_, v) in &el.class_map_bindings {
+                for v in el.class_map_bindings.values() {
                     out.push(v);
                 }
                 for c in &el.children {
@@ -2303,17 +2283,9 @@ fn collect_expr_store_aliases(expr: &ExprIR, out: &mut FxHashSet<String>) {
 
 fn collect_stmt_store_aliases(stmt: &StatementIR, out: &mut FxHashSet<String>) {
     match stmt {
-        StatementIR::LetStmtIR { value, .. } => {
-            if let Some(v) = value {
-                collect_expr_store_aliases(v, out);
-            }
-        }
+        StatementIR::LetStmtIR { value: Some(v), .. } => collect_expr_store_aliases(v, out),
         StatementIR::ExprStmtIR { expr } => collect_expr_store_aliases(expr, out),
-        StatementIR::ReturnStmtIR { value } => {
-            if let Some(v) = value {
-                collect_expr_store_aliases(v, out);
-            }
-        }
+        StatementIR::ReturnStmtIR { value: Some(v), .. } => collect_expr_store_aliases(v, out),
         StatementIR::IfStmtIR {
             condition,
             then_body,
@@ -2336,11 +2308,9 @@ fn collect_stmt_store_aliases(stmt: &StatementIR, out: &mut FxHashSet<String>) {
                 }
             }
         }
-        StatementIR::MutationStmt { intent } => {
-            if let Some(i) = intent {
-                for e in mutation_intent_exprs(i) {
-                    collect_expr_store_aliases(e, out);
-                }
+        StatementIR::MutationStmt { intent: Some(i) } => {
+            for e in mutation_intent_exprs(i) {
+                collect_expr_store_aliases(e, out);
             }
         }
         StatementIR::EventEmitStmtIR { args, .. } => {
@@ -2393,25 +2363,23 @@ fn collect_stmt_store_aliases(stmt: &StatementIR, out: &mut FxHashSet<String>) {
 fn mutation_intent_exprs(i: &MutationIntent) -> Vec<&ExprIR> {
     let mut out = Vec::new();
     match i {
-        MutationIntent::DirectAssign { value, .. } => {
-            if let Some(v) = value {
-                out.push(v.as_ref());
-            }
+        MutationIntent::DirectAssign { value: Some(v), .. } => out.push(v.as_ref()),
+        MutationIntent::Increment {
+            amount: Some(v), ..
         }
-        MutationIntent::Increment { amount, .. }
-        | MutationIntent::Decrement { amount, .. }
-        | MutationIntent::Multiply { amount, .. }
-        | MutationIntent::Divide { amount, .. }
-        | MutationIntent::Modulo { amount, .. } => {
-            if let Some(v) = amount {
-                out.push(v.as_ref());
-            }
+        | MutationIntent::Decrement {
+            amount: Some(v), ..
         }
-        MutationIntent::Push { item, .. } => {
-            if let Some(v) = item {
-                out.push(v.as_ref());
-            }
+        | MutationIntent::Multiply {
+            amount: Some(v), ..
         }
+        | MutationIntent::Divide {
+            amount: Some(v), ..
+        }
+        | MutationIntent::Modulo {
+            amount: Some(v), ..
+        } => out.push(v.as_ref()),
+        MutationIntent::Push { item: Some(v), .. } => out.push(v.as_ref()),
         MutationIntent::Pop { .. } => {}
         // MutationIntent is #[non_exhaustive] — cross-crate matches need a
         // wildcard.

@@ -212,7 +212,7 @@ impl SemanticAnalyzer {
                         self.diagnostics.push(Diagnostic::error(
                             DiagnosticKind::E0006,
                             &format!("Undefined motion '{}' referenced in element trigger", name),
-                            &span,
+                            span,
                         ));
                     }
                 }

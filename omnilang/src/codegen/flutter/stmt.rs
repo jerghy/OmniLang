@@ -126,17 +126,20 @@ impl<F: FormatExpr> FormatStmt for FlutterStmtFormatter<F> {
         };
         if value_has_await {
             // DirectAssign: hoist the await before the setState closure.
-            if let MutationIntent::DirectAssign { target, value, .. } = intent {
-                if let Some(v) = value {
-                    let formatted = self.expr_fmt().format_expr(v);
-                    // Unique temp per TARGET — two await-bearing mutations
-                    // in one body previously both emitted `var __v`
-                    // (duplicate_definition, Task 5.8).
-                    let tmp = format!("__{}", target.name);
-                    w.emit_fmt(format_args!("var {tmp} = {formatted};"));
-                    w.emit_fmt(format_args!("setState(() {{ {} = {tmp}; }});", target.name));
-                    return;
-                }
+            if let MutationIntent::DirectAssign {
+                target,
+                value: Some(v),
+                ..
+            } = intent
+            {
+                let formatted = self.expr_fmt().format_expr(v);
+                // Unique temp per TARGET — two await-bearing mutations
+                // in one body previously both emitted `var __v`
+                // (duplicate_definition, Task 5.8).
+                let tmp = format!("__{}", target.name);
+                w.emit_fmt(format_args!("var {tmp} = {formatted};"));
+                w.emit_fmt(format_args!("setState(() {{ {} = {tmp}; }});", target.name));
+                return;
             }
             // Unhoistable shape (compound ops with await in the amount) —
             // plain assignment outside setState (the enclosing method is
@@ -268,9 +271,9 @@ pub(crate) fn stmt_block_emits_await(statements: &[StatementIR]) -> bool {
 
 fn stmt_emits_await(stmt: &StatementIR) -> bool {
     match stmt {
-        StatementIR::LetStmtIR { value, .. } => value.as_ref().is_some_and(|v| expr_emits_await(v)),
+        StatementIR::LetStmtIR { value, .. } => value.as_ref().is_some_and(expr_emits_await),
         StatementIR::ExprStmtIR { expr } => expr_emits_await(expr),
-        StatementIR::ReturnStmtIR { value } => value.as_ref().is_some_and(|v| expr_emits_await(v)),
+        StatementIR::ReturnStmtIR { value } => value.as_ref().is_some_and(expr_emits_await),
         StatementIR::IfStmtIR {
             condition,
             then_body,

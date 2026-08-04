@@ -42,7 +42,7 @@ fn serde_roundtrip_event_handler_fn_ref() {
     };
     let json = serde_json::to_string(&v).unwrap();
     let back: EventHandlerIR = serde_json::from_str(&json).unwrap();
-    assert_eq!(json.contains("\"kind\":\"fn_ref\""), true);
+    assert!(json.contains("\"kind\":\"fn_ref\""));
     match back {
         EventHandlerIR::FnRef { r#ref, .. } => assert_eq!(r#ref, "myFn"),
         _ => panic!("Expected FnRef"),

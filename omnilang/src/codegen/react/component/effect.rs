@@ -258,6 +258,7 @@ impl ReactCodegen {
 ///   - component signals / computeds / props (bare names)
 ///   - store fields `Store.field` (resolved through the slice renames like
 ///     `@effect` deps — slice local, or the qualified whole-store read stays)
+///
 /// setState setters, store actions, function calls, and body locals never
 /// enter the deps (stable or non-reactive — including them would re-register
 /// the cleanup on every render and change the one-shot unmount semantics).

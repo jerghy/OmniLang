@@ -141,6 +141,10 @@ impl ReactCodegen {
 /// statement emission always produces exactly one line. The param/setter
 /// renames applied later in `gen_functions` are string replacements over
 /// the whole body, so they cover this line too.
+// 8 cohesive context params (mirrors generate_statement_tsx — same
+// namespaces); struct-bundling is a larger refactor than this lint warrants
+// for an internal helper.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn emit_fn_tail_return(
     w: &mut CodeWriter,
     stmt: &StatementIR,

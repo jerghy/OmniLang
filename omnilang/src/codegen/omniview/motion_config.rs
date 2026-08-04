@@ -9,9 +9,7 @@ impl OmniViewGenerator {
 
     /// Convert a MotionBodyIR to (keyframes_js, opts_js) for Omni.animate().
     pub(super) fn motion_body_to_config(&mut self, body: &MotionBodyIR) -> (String, String) {
-        match body {
-            kf => self.keyframe_to_animate_call(kf),
-        }
+        self.keyframe_to_animate_call(body)
     }
 
     /// Convert an EasingIR to a JS expression for Omni.resolveEasing().

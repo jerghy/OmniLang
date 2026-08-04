@@ -383,12 +383,29 @@ pub(crate) fn generic_tap_wrapper_callback(callback: &str) -> Option<&'static st
 /// `Container`, `AppBar`, `DropdownButton`, `ListView`,
 /// `SingleChildScrollView`, and `Image.network` constructors are NOT const.
 pub(crate) fn widget_has_const_constructor(widget: &str) -> bool {
-    match widget {
-        "Text" | "Row" | "Column" | "Stack" | "Center" | "Padding" | "SizedBox" | "Expanded"
-        | "Flexible" | "Icon" | "Card" | "Scaffold" | "ElevatedButton" | "TextButton"
-        | "IconButton" | "Checkbox" | "Switch" | "Slider" | "TextField" | "Form" => true,
-        _ => false,
-    }
+    matches!(
+        widget,
+        "Text"
+            | "Row"
+            | "Column"
+            | "Stack"
+            | "Center"
+            | "Padding"
+            | "SizedBox"
+            | "Expanded"
+            | "Flexible"
+            | "Icon"
+            | "Card"
+            | "Scaffold"
+            | "ElevatedButton"
+            | "TextButton"
+            | "IconButton"
+            | "Checkbox"
+            | "Switch"
+            | "Slider"
+            | "TextField"
+            | "Form"
+    )
 }
 
 /// Rename a mapped prop param for a specific widget.
@@ -554,7 +571,7 @@ fn font_weight_to_dart(s: &str) -> Option<String> {
         "bold" => Some("FontWeight.w700".into()),
         w if w.starts_with('w') && w.len() == 4 => {
             let n: u32 = w[1..].parse().ok()?;
-            if (100..=900).contains(&n) && n % 100 == 0 {
+            if (100..=900).contains(&n) && n.is_multiple_of(100) {
                 Some(format!("FontWeight.{}", w))
             } else {
                 None
@@ -562,7 +579,7 @@ fn font_weight_to_dart(s: &str) -> Option<String> {
         }
         w => {
             let n: u32 = w.parse().ok()?;
-            if (100..=900).contains(&n) && n % 100 == 0 {
+            if (100..=900).contains(&n) && n.is_multiple_of(100) {
                 Some(format!("FontWeight.w{}", n))
             } else {
                 None

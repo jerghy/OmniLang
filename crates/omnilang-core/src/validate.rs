@@ -343,6 +343,41 @@ fn validate_cross_file(
     }
 }
 
+fn validate_named_import(
+    importing_file: &str,
+    names: &[String],
+    target_path: &str,
+    pub_symbols: &FxHashMap<String, FxHashMap<String, CrossFileSymbolKind>>,
+) -> Vec<Diagnostic> {
+    let mut errors = Vec::new();
+
+    let target_symbols = match pub_symbols.get(target_path) {
+        Some(s) => s,
+        None => {
+            errors.push(make_diag(
+                Severity::Error,
+                DiagnosticKind::EImport,
+                importing_file,
+                format!("imported file '{}' not found in compilation", target_path),
+            ));
+            return errors;
+        }
+    };
+
+    for name in names {
+        if !target_symbols.contains_key(name) {
+            errors.push(make_diag(
+                Severity::Error,
+                DiagnosticKind::EVisibility,
+                importing_file,
+                format!("'{}' is not pub-visible in '{}'", name, target_path),
+            ));
+        }
+    }
+
+    errors
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -432,39 +467,4 @@ mod tests {
             result.errors.iter().map(|d| &d.kind).collect::<Vec<_>>()
         );
     }
-}
-
-fn validate_named_import(
-    importing_file: &str,
-    names: &[String],
-    target_path: &str,
-    pub_symbols: &FxHashMap<String, FxHashMap<String, CrossFileSymbolKind>>,
-) -> Vec<Diagnostic> {
-    let mut errors = Vec::new();
-
-    let target_symbols = match pub_symbols.get(target_path) {
-        Some(s) => s,
-        None => {
-            errors.push(make_diag(
-                Severity::Error,
-                DiagnosticKind::EImport,
-                importing_file,
-                format!("imported file '{}' not found in compilation", target_path),
-            ));
-            return errors;
-        }
-    };
-
-    for name in names {
-        if !target_symbols.contains_key(name) {
-            errors.push(make_diag(
-                Severity::Error,
-                DiagnosticKind::EVisibility,
-                importing_file,
-                format!("'{}' is not pub-visible in '{}'", name, target_path),
-            ));
-        }
-    }
-
-    errors
 }

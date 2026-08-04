@@ -2,8 +2,6 @@
 //!
 //! Produces a flat Vec<Token> from source text. No regex, no parser generators.
 
-use std::fmt::Write;
-
 mod keywords;
 mod token;
 pub use token::*;
@@ -755,6 +753,7 @@ impl<'a> Lexer<'a> {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -1401,6 +1400,8 @@ mod tests {
     }
     #[test]
     fn test_float_simple() {
+        // Deliberate value: the lexer must round-trip 3.14 exactly (not PI).
+        #[allow(clippy::approx_constant)]
         assert_token("3.14", TokenKind::FloatLiteral(3.14));
     }
     #[test]

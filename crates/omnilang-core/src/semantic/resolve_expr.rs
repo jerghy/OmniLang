@@ -13,7 +13,6 @@ use super::validate_types::{
 use super::SemanticAnalyzer;
 use crate::error::suggest_similar_name;
 use crate::error::{Diagnostic, DiagnosticKind};
-use crate::lexer::Span;
 use crate::parser::ast::*;
 
 impl SemanticAnalyzer {

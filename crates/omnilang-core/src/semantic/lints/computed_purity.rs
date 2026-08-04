@@ -122,9 +122,9 @@ mod tests {
                         type_ann: TypeAnnotation::Named {
                             name: "i32".into(),
                             type_args: vec![],
-                            span: span.clone(),
+                            span,
                         },
-                        init: Expr::Literal(Literal::Int(0), span.clone()),
+                        init: Expr::Literal(Literal::Int(0), span),
                         is_theme: false,
                     }],
                     computeds: vec![ComputedDecl {
@@ -132,23 +132,20 @@ mod tests {
                         type_ann: TypeAnnotation::Named {
                             name: "i32".into(),
                             type_args: vec![],
-                            span: span.clone(),
+                            span,
                         },
                         body: Expr::Block {
                             body: Block {
                                 stmts: vec![Stmt::Assign {
                                     target: AssignTarget::Name("count".into()),
                                     op: BinaryOpKind::Assign,
-                                    value: Expr::Literal(Literal::Int(5), span.clone()),
-                                    span: span.clone(),
+                                    value: Expr::Literal(Literal::Int(5), span),
+                                    span,
                                 }],
-                                trailing_expr: Some(Box::new(Expr::VarRef(
-                                    "count".into(),
-                                    span.clone(),
-                                ))),
-                                span: span.clone(),
+                                trailing_expr: Some(Box::new(Expr::VarRef("count".into(), span))),
+                                span,
                             },
-                            span: span.clone(),
+                            span,
                         },
                     }],
                     events: vec![],
@@ -164,7 +161,7 @@ mod tests {
                     slots: vec![],
                     view: None,
                     styles: vec![],
-                    span: span.clone(),
+                    span,
                 }],
             },
         );
@@ -214,9 +211,9 @@ mod tests {
                         type_ann: TypeAnnotation::Named {
                             name: "i32".into(),
                             type_args: vec![],
-                            span: span.clone(),
+                            span,
                         },
-                        init: Expr::Literal(Literal::Int(0), span.clone()),
+                        init: Expr::Literal(Literal::Int(0), span),
                         is_theme: false,
                     }],
                     computeds: vec![ComputedDecl {
@@ -224,13 +221,13 @@ mod tests {
                         type_ann: TypeAnnotation::Named {
                             name: "i32".into(),
                             type_args: vec![],
-                            span: span.clone(),
+                            span,
                         },
                         body: Expr::BinaryOp {
-                            left: Box::new(Expr::VarRef("count".into(), span.clone())),
+                            left: Box::new(Expr::VarRef("count".into(), span)),
                             op: BinaryOpKind::Mul,
-                            right: Box::new(Expr::Literal(Literal::Int(2), span.clone())),
-                            span: span.clone(),
+                            right: Box::new(Expr::Literal(Literal::Int(2), span)),
+                            span,
                         },
                     }],
                     events: vec![],
@@ -246,7 +243,7 @@ mod tests {
                     slots: vec![],
                     view: None,
                     styles: vec![],
-                    span: span.clone(),
+                    span,
                 }],
             },
         );

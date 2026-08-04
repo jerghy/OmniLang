@@ -401,7 +401,7 @@ mod tests {
             "should detect stdlib imports"
         );
         assert!(
-            ir.stdlib_imports.contains(&"math".to_string()),
+            ir.stdlib_imports.contains("math"),
             "should contain 'math' stdlib import"
         );
     }
@@ -961,16 +961,20 @@ component StoreActionDemo {
                     } => {
                         assert!(event_data.is_some(), "onPress should have event data");
                         let has_call = body.statements.iter().any(|s| {
-                            if let StatementIR::ExprStmtIR { expr } = s {
-                                if let ExprIR::MethodCallExpr { method, object, .. } = expr {
-                                    method == "remove"
-                                        && matches!(&**object, ExprIR::IdentifierExpr { name, .. } if name == "TodoStore")
-                                } else {
-                                    false
-                                }
-                            } else {
-                                false
-                            }
+                            matches!(
+                                s,
+                                StatementIR::ExprStmtIR { expr }
+                                    if matches!(
+                                        expr,
+                                        ExprIR::MethodCallExpr { method, object, .. }
+                                            if method == "remove"
+                                                && matches!(
+                                                    object.as_ref(),
+                                                    ExprIR::IdentifierExpr { name, .. }
+                                                        if name == "TodoStore"
+                                                )
+                                    )
+                            )
                         });
                         assert!(
                             has_call,
@@ -1755,6 +1759,9 @@ store TodoStore {
     }
 
     #[test]
+    // The `ratio: 3.14` below is a deliberate fixture value (not PI) — the
+    // test pins that the store lowering preserves the literal as written.
+    #[allow(clippy::approx_constant)]
     fn lower_store_initial_values() {
         let source = r#"
 import omniview;

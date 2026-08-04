@@ -3,6 +3,7 @@
 //! Tests the full pipeline: source text -> lexer -> parser -> semantic analysis
 //! -> IR lowering -> codegen, verifying output at each stage.
 
+#[cfg(feature = "codegen-python")]
 use rustc_hash::FxHashMap;
 
 /// Helper: compile single source and unwrap the IR.

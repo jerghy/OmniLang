@@ -1,3 +1,9 @@
+// Shared regression-test fixtures. This file is ALSO included verbatim into
+// the omnilang crate's tests (`include!` in omnilang/src/codegen/tests_regression/mod.rs),
+// where the fixture factories below are heavily used — so most of them look
+// dead when compiled inside omnilang-core's own test build (hence the per-fn
+// `#[allow(dead_code)]`s; a module-level inner attribute is impossible here
+// because `include!` rejects inner attributes).
 use rustc_hash::FxHashMap;
 
 use crate::codegen::CompileOutput;
@@ -9,6 +15,7 @@ use std::fmt::Write;
 // ═════════════════════════════════════════════════════════════════════════════
 
 /// Empty IRProgram — no components, no stores, no modules.
+#[allow(dead_code)] // used by the omnilang facade crate's test build via include!
 pub(crate) fn fixture_empty() -> IRProgram {
     IRProgram {
         version: "0.1".into(),
@@ -27,6 +34,7 @@ pub(crate) fn fixture_empty() -> IRProgram {
 }
 
 /// A simple component with a state, props, computed, effect, and a view tree.
+#[allow(dead_code)] // used by the omnilang facade crate's test build via include!
 pub(crate) fn fixture_component() -> IRProgram {
     let mut props = FxHashMap::default();
     props.insert(
@@ -138,6 +146,7 @@ pub(crate) fn fixture_component() -> IRProgram {
 }
 
 /// A store with signals, getters, and an action.
+#[allow(dead_code)] // used by the omnilang facade crate's test build via include!
 pub(crate) fn fixture_store() -> IRProgram {
     let store = StoreIR {
         name: "AppStore".into(),
@@ -205,6 +214,7 @@ pub(crate) fn fixture_store() -> IRProgram {
 }
 
 /// A component that references the AppStore.
+#[allow(dead_code)] // used by the omnilang facade crate's test build via include!
 pub(crate) fn fixture_component_with_store() -> IRProgram {
     let store = StoreIR {
         name: "AppStore".into(),
@@ -304,6 +314,7 @@ pub(crate) fn fixture_component_with_store() -> IRProgram {
 }
 
 /// A module with a public function that exercises all common ExprIR variants.
+#[allow(dead_code)] // used by the omnilang facade crate's test build via include!
 pub(crate) fn fixture_expressions() -> IRProgram {
     let func = FunctionIR {
         name: "testExpressions".into(),
@@ -672,10 +683,11 @@ pub(crate) fn fixture_expressions() -> IRProgram {
 // ═════════════════════════════════════════════════════════════════════════════
 
 /// Concatenate all output files into a single snapshot string.
+#[allow(dead_code)] // used by the omnilang facade crate's test build via include!
 pub(crate) fn format_output(output: &CompileOutput) -> String {
     let mut s = String::new();
     for f in &output.files {
-        let _ = write!(s, "=== {} ===\n", f.path);
+        let _ = writeln!(s, "=== {} ===", f.path);
         s.push_str(&f.content);
         if !f.content.ends_with('\n') {
             s.push('\n');

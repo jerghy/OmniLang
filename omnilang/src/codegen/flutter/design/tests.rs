@@ -1040,7 +1040,7 @@ fn variant_resolution_unknown_dimension_value_is_ignored() {
         .collect();
     let (fields, _) = resolve_variant_decoration(&design, variant, &dims);
     assert!(
-        fields.get("color").is_none(),
+        !fields.contains_key("color"),
         "undeclared branch must not apply"
     );
     assert!(fields.contains_key("borderRadius"));

@@ -27,7 +27,7 @@ pub(crate) mod view;
 pub struct ReactCodegen;
 
 impl Codegen for ReactCodegen {
-    fn generate(&self, ir: &IRProgram, source_files: &FxHashMap<String, String>) -> CompileOutput {
+    fn generate(&self, ir: &IRProgram, _source_files: &FxHashMap<String, String>) -> CompileOutput {
         // The component/store loop is hand-rolled (instead of the shared
         // generate_per_component) because store generation needs the whole
         // IRProgram: user struct/union types (deferral #49) are declared
@@ -210,6 +210,7 @@ impl ReactCodegen {
 
     /// Generate a Zustand v5 store (useStoreName.ts) — ir-less entry used
     /// by unit tests that hand-construct a StoreIR (no user-type emission).
+    #[cfg(test)]
     fn gen_zustand_store(&self, name: &str, store: &StoreIR) -> String {
         self.gen_zustand_store_inner(name, store, None)
     }

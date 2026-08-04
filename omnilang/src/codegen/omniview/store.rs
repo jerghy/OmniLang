@@ -631,7 +631,7 @@ impl OmniViewGenerator {
     /// Each wrapper uses lazy getters on __omni_el(nid) for O(1) cached access.
     /// Called during generate_component, after signal/computed/fn declarations,
     /// before the view emission.
-    pub(super) fn emit_ref_wrappers(&mut self, comp: &ComponentIR) {
+    pub(super) fn emit_ref_wrappers(&mut self, _comp: &ComponentIR) {
         // css_only mode: styles only, no JS emission
         if self.css_only {
             return;

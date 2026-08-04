@@ -120,7 +120,7 @@ impl ViewContext<'_> {
                 f.params[0]
                     .r#type
                     .as_ref()
-                    .map(|t| super::super::dart::dart_type_ir(t))
+                    .map(super::super::dart::dart_type_ir)
             } else {
                 None
             }
@@ -748,10 +748,11 @@ fn wrap_design_decorations(el: &ElementIR, inner: String, ctx: &mut ViewContext)
         if let Some(classes) = value.as_str() {
             class_names.extend(classes.split_whitespace().map(str::to_string));
         } else {
-            ctx.warnings.push(format!(
+            ctx.warnings.push(
                 "[flutter] non-literal `class` prop values are not supported; \
                  class styling skipped"
-            ));
+                    .to_string(),
+            );
         }
     }
     if let Some(ref classes) = el.style_classes {
@@ -1097,7 +1098,7 @@ fn element_is_const(el: &ElementIR, ctx: &ViewContext) -> bool {
     if el.props.contains_key("class") || el.props.contains_key("_design_variant") {
         return false;
     }
-    for (_, v) in &el.props {
+    for v in el.props.values() {
         if !matches!(
             v,
             ExprIR::LiteralExpr { value }
@@ -1177,7 +1178,7 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                                 .unwrap_or_else(|| "dynamic".into());
                             format!("(v) {{ {renamed}(v as {param}); }}")
                         } else {
-                            format!("{renamed}")
+                            renamed.to_string()
                         }
                     }
                 }
@@ -1401,7 +1402,7 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
     // when a literal `alt` prop already carries the semanticLabel, so the
     // generated Dart never duplicates the named argument.
     if widget == "Image.network" {
-        if let Some(ref alt) = el.a11y.as_ref().and_then(|a| a.alt.as_ref()) {
+        if let Some(alt) = el.a11y.as_ref().and_then(|a| a.alt.as_ref()) {
             if !el.props.contains_key("alt") {
                 args.push(format!("semanticLabel: {}", ctx.format_expr(alt)));
             }
@@ -1563,7 +1564,7 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                         // — accept the event param and ignore it.
                         Some(format!("(event) {{ {renamed}(); }}"))
                     } else {
-                        Some(format!("{renamed}"))
+                        Some(renamed.to_string())
                     }
                 }
             }

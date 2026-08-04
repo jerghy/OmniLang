@@ -775,7 +775,7 @@ mod roundtrip_tests {
     #[test]
     fn expr_map_literal_shorthand() {
         // Shorthand { x } should be accepted; keys are converted to string literals
-        let stmt = first_stmt("let _a = 1; let _m = {_a}");
+        let _stmt = first_stmt("let _a = 1; let _m = {_a}");
         let body = {
             // Parse directly to handle multi-stmt
             let wrapped = "pub fn test() { let _a = 1; let _m = {_a} }";

@@ -567,7 +567,7 @@ mod tests {
             },
         ));
         let full_json = serde_json::to_value(&full).unwrap();
-        let null_json = serde_json::to_value(&DiagnosticJson::from(&d)).unwrap();
+        let null_json = serde_json::to_value(DiagnosticJson::from(&d)).unwrap();
         let mut full_keys: Vec<&str> = full_json
             .as_object()
             .unwrap()

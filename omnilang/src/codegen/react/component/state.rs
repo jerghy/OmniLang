@@ -905,7 +905,7 @@ fn collect_view_store_refs_from_handlers(node: &ViewTree, acc: &mut FxHashSet<St
 /// wins (all bindings of one ref should share a tag anyway).
 pub(super) fn collect_ref_tags(view: Option<&ViewTree>) -> FxHashMap<String, String> {
     let mut acc = FxHashMap::default();
-    if let Some(ref view) = view {
+    if let Some(view) = view {
         collect_ref_tags_inner(view, &mut acc);
     }
     acc
@@ -1116,7 +1116,7 @@ pub(super) fn gen_semantic_binding_effects(
     store_field_renames: &FxHashMap<String, String>,
     hoisted_signals: &FxHashSet<String>,
 ) {
-    let Some(ref view) = view else {
+    let Some(view) = view else {
         return;
     };
     let mut emitted = false;

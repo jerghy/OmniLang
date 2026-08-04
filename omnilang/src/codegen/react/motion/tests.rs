@@ -36,7 +36,7 @@ fn compile_fixture_to_react(source: &str) -> String {
     keys.sort();
     for path in keys {
         let content = &result.files[path];
-        let _ = write!(output, "=== {} ===\n", path);
+        let _ = writeln!(output, "=== {} ===", path);
         output.push_str(content);
         output.push('\n');
     }

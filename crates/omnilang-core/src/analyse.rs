@@ -7,8 +7,8 @@
 
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
+use rustc_hash::FxHasher;
 use serde::{Deserialize, Serialize};
-use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
@@ -157,8 +157,17 @@ pub(crate) fn run_ir_passes(ir_program: &mut IRProgram, diagnostics: &mut Vec<Di
 }
 
 /// Fast non-cryptographic hash for content comparison.
+///
+/// `FxHasher` (rustc-hash) is roughly 2-3x faster than `DefaultHasher`
+/// (SipHash-1-3) for short source strings. This is a storage-type hash and
+/// is safe to switch: `content_hash` is never used as a persistent key, it
+/// is only compared against a freshly computed hash of the same source
+/// in-process (see `analyse_multi_cached`). A persisted cache state from an
+/// older hasher (e.g. WASM `seed_cache_from_state`) simply fails the
+/// comparison and triggers a benign one-time re-analysis of the affected
+/// files.
 fn fast_hash(content: &str) -> u64 {
-    let mut hasher = DefaultHasher::new();
+    let mut hasher = FxHasher::default();
     content.hash(&mut hasher);
     hasher.finish()
 }

@@ -20,7 +20,7 @@
 //! - `learn_omniview_flutter_warnings_are_tracked`: the showcase project ->
 //!   Flutter -> compile-warnings count asserted ≤ the documented baseline
 //!   (1,004 = 881 ECodegen + 123 unused-import; Task 0.5; 878 = 872 ECodegen
-//!   + 6 genuine unused-import after Task 4.12). Later tasks
+//!   and 6 genuine unused-import after Task 4.12). Later tasks
 //!   (3.3/3.5/3.6/4.12) must lower the number monotonically, updating the
 //!   `FLUTTER_WARNINGS_BASELINE` cap — a regression fails the gate even
 //!   while `dart analyze` stays green.

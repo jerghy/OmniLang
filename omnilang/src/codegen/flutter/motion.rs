@@ -283,12 +283,7 @@ fn format_double_literal(f: f64) -> String {
 ///   `BorderRadiusTween` value shape); non-literal expressions are wrapped
 ///   in the circular constructor (a borderRadius stop value is a radius
 ///   length — mirroring how `rotate` wraps expressions).
-/// Test-only entry — production call sites use `format_stop_value_with`.
-#[cfg(test)]
-pub(crate) fn format_stop_value(prop: &str, value: &ExprIR) -> String {
-    format_stop_value_with(prop, value, None)
-}
-
+///
 /// `format_stop_value` with design-token resolution: a `var(--token)` color
 /// stop resolves to the `{Design}Tokens.<name>` constant (Task 5.8 —
 /// previously the raw string `'var(--textPrimary)'` landed in

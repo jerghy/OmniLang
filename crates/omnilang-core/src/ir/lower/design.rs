@@ -489,7 +489,7 @@ mod tests {
             "expected dark theme override to be \"#a5b4fc\""
         );
         assert!(
-            primary.theme_values.get("light").is_none(),
+            !primary.theme_values.contains_key("light"),
             "no light override in theme_values"
         );
     }
