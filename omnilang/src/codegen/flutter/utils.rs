@@ -361,6 +361,22 @@ pub(crate) fn widget_allows_param(widget: &str, param: &str) -> bool {
     widget_param_whitelist(widget).contains(&param)
 }
 
+/// Task 3.6: tap-family callbacks that NO widget whitelist accepts — on
+/// generic elements (`div` → Container, `span` → Text, ...) these wrap the
+/// rendered element in a `GestureDetector` (whose param name this returns)
+/// instead of being dropped with a warning (flutter HIGH: ThemeSwitcher's
+/// theme cards emitted no tap target at all). The click family
+/// (press/click/tap all canonicalize to `onPressed`) maps to
+/// `GestureDetector.onTap`; long-press/double-tap keep their names.
+pub(crate) fn generic_tap_wrapper_callback(callback: &str) -> Option<&'static str> {
+    match callback {
+        "onPressed" | "onTap" => Some("onTap"),
+        "onLongPress" => Some("onLongPress"),
+        "onDoubleTap" => Some("onDoubleTap"),
+        _ => None,
+    }
+}
+
 /// Whether the Flutter SDK's constructor for `widget` is `const` —
 /// const injection (T5.7) must never prefix a non-const constructor
 /// (`const_with_non_const` analyzer error). Verified against the SDK:

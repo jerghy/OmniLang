@@ -1,6 +1,5 @@
 ---
 source: omnilang/src/codegen/tests_regression/parameterized.rs
-assertion_line: 129
 expression: "& super :: super :: format_output(& output)"
 ---
 === CounterWithStore.dart ===
@@ -22,7 +21,7 @@ class CounterWithStore extends ConsumerStatefulWidget {
 class _CounterWithStoreState extends ConsumerState<CounterWithStore> {
     @override
     Widget build(BuildContext context) {
-        return Container(child: Column(children: [const Text('Count: '), Text('${ref.watch(appStoreProvider.select(((AppStoreState s) => s.count)))}')]));
+        return GestureDetector(onTap: () { ref.read(appStoreProvider.notifier).increment(); }, child: Container(child: Column(children: [const Text('Count: '), Text('${ref.watch(appStoreProvider.select(((AppStoreState s) => s.count)))}')])));
     }
 }
 === AppStore_store.dart ===

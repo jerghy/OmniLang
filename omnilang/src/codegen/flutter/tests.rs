@@ -4318,6 +4318,70 @@ fn compile_flutter_full(source: &str) -> crate::InternalCompileResult {
     )
 }
 
+// ── Task 3.6: generic-element tap wrappers + multi-theme warning ──
+
+/// Task 3.6 (flutter HIGH): `@onPress` on a generic element (`div` →
+/// Container) has no whitelisted callback — instead of silently dropping
+/// the handler (ThemeSwitcher's theme cards emitted no tap target at all),
+/// the rendered element must wrap in an InkWell/GestureDetector.
+#[test]
+fn generic_element_on_press_gets_tappable_wrapper() {
+    let flutter = compile_flutter(
+        r#"
+component TapDemo {
+    fn onCardPress() { }
+    view {
+        <div @onPress={onCardPress}>x</div>
+    }
+}
+"#,
+    )
+    .expect("compile must succeed");
+    let out: String = flutter
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        out.contains("InkWell(") || out.contains("GestureDetector("),
+        "no tappable wrapper: {}",
+        out
+    );
+    assert!(
+        out.contains(
+            "GestureDetector(onTap: onCardPress, child: Container(child: const Text('x')))"
+        ),
+        "the wrapper must carry the tap handler around the rendered element, got: {}",
+        out
+    );
+    // The handler is wired — the old 'not supported' drop is gone.
+    assert!(
+        !flutter
+            .warnings
+            .iter()
+            .any(|w| w.message.contains("is not supported on 'Container'")),
+        "the tap event must no longer be dropped: {:?}",
+        flutter.warnings
+    );
+}
+
+/// Task 3.6 (compiler MEDIUM, D-G): Flutter's native `ThemeMode` is
+/// two-state — a design declaring more than light/dark must warn so extra
+/// themes are never silently unreachable.
+#[test]
+fn multi_theme_flutter_warns() {
+    let result = compile_flutter_full(r#"design AppDesign { @themes { light, dark, sepia } }"#);
+    assert!(
+        result
+            .warnings
+            .iter()
+            .any(|d| d.message.contains("不可达") || d.message.contains("light/dark")),
+        "missing multi-theme warning: {:?}",
+        result.warnings
+    );
+}
+
 // ── @for cross-target keyed contract (Task 5.5) ─────────────
 
 /// T5.5: a non-scroll @for emits a `Column` (document flow), NOT an
@@ -5646,6 +5710,10 @@ fn test_class_prop_unknown_class_warns_and_skips() {
     );
 }
 
+/// Task 3.6: the click family on a generic element (Container) is no longer
+/// dropped — the rendered element wraps in a `GestureDetector(onTap:)`
+/// (ThemeSwitcher's theme cards were dead before). Events OUTSIDE the tap
+/// family on whitelist-less widgets keep the warn-and-drop contract.
 #[test]
 fn test_event_not_supported_on_widget_warns() {
     let mut events = FxHashMap::default();
@@ -5653,6 +5721,18 @@ fn test_event_not_supported_on_widget_warns() {
         "click".into(),
         EventHandlerIR::FnRef {
             r#ref: "handleClick".into(),
+            params: vec![],
+            event_data: None,
+            used_fields: None,
+            needs_prevent_default: false,
+            needs_stop_propagation: false,
+        },
+    );
+    let mut events2 = FxHashMap::default();
+    events2.insert(
+        "scroll".into(),
+        EventHandlerIR::FnRef {
+            r#ref: "handleScroll".into(),
             params: vec![],
             event_data: None,
             used_fields: None,
@@ -5678,16 +5758,47 @@ fn test_event_not_supported_on_widget_warns() {
     };
     let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
     assert_eq!(
-        expr, "Container()",
-        "Container has no onPressed — event must not be emitted: {}",
+        expr, "GestureDetector(onTap: handleClick, child: Container())",
+        "click on Container must wrap in a GestureDetector (task 3.6): {}",
         expr
     );
     assert!(
-        warnings
+        !warnings
             .iter()
             .any(|w| w.contains("click") && w.contains("not supported on 'Container'")),
-        "event on unsupported widget should warn: {:?}",
+        "the tap-family wrap must not warn: {:?}",
         warnings
+    );
+
+    // Outside the tap family the old contract holds: warn and drop.
+    let el2 = ElementIR {
+        class_map_bindings: FxHashMap::default(),
+        tag: "div".into(),
+        props: FxHashMap::default(),
+        bindings: FxHashMap::default(),
+        events: events2,
+        style_classes: None,
+        inline_style: None,
+        children: vec![],
+        construction_kind: ConstructionKind::Component,
+        source_span: None,
+        motion: None,
+        ref_binding: None,
+        semantic_bindings: FxHashMap::default(),
+        a11y: None,
+    };
+    let (expr2, warnings2) = fmt_view(&ViewTree::Element(Box::new(el2)));
+    assert_eq!(
+        expr2, "Container()",
+        "non-tap event on Container must still be dropped: {}",
+        expr2
+    );
+    assert!(
+        warnings2
+            .iter()
+            .any(|w| w.contains("scroll") && w.contains("not supported on 'Container'")),
+        "non-tap event on unsupported widget should warn: {:?}",
+        warnings2
     );
 }
 
@@ -8798,5 +8909,9 @@ fn disabled_false_emits_enabled_true() {
         "disabled={{false}} must map to enabled: true: {}",
         out
     );
-    assert!(!out.contains("enabled: false"), "negation inverted: {}", out);
+    assert!(
+        !out.contains("enabled: false"),
+        "negation inverted: {}",
+        out
+    );
 }

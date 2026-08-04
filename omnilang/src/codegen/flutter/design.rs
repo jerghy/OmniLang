@@ -17,8 +17,11 @@
 //!   `ThemeData` builder per declared theme. When a store signal is marked
 //!   `@theme` (v2 D1) the notifier watches that store, and a generated
 //!   `main.dart` app shell wires `MaterialApp(themeMode:)` (see
-//!   `gen_theme_app_shell`). Color tokens map to `ColorScheme` slots by
-//!   exact token name.
+//!   `gen_theme_app_shell`). Task 3.6: designs declaring MORE than
+//!   light/dark switch to a `themeDataProvider` (`Provider<ThemeData>`
+//!   selecting the active builder across ALL declared themes — Flutter's
+//!   native `ThemeMode` is two-state) and warn about that platform floor.
+//!   Color tokens map to `ColorScheme` slots by exact token name.
 //! - Dynamic tokens — a `Provider<Map<String, Object>>`
 //!   (`dynamicTokensProvider`) mirroring the React `useDesignTokens()` hook:
 //!   store signal values keyed by token name, plus `applyDynamicTokens`,
@@ -143,7 +146,7 @@ fn emit_design_dart(
         emit_theme_variant_class(&mut w, design, warnings);
     }
     if has_themes {
-        emit_theme_switch(&mut w, designs, ir);
+        emit_theme_switch(&mut w, designs, ir, warnings);
     }
     if has_dynamic_tokens {
         emit_dynamic_token_provider(&mut w, designs, ir);
@@ -1273,6 +1276,30 @@ fn theme_builder_name(design: &DesignIR, theme: &str) -> String {
     format!("build{}{}Theme", design.name, capitalize_first(theme))
 }
 
+/// Task 3.6: the builder the multi-theme selector falls back to when the
+/// @theme signal holds an unknown mode — `light` when declared, else the
+/// first declared theme (mirrors `gen_theme_app_shell`'s light-theme pick).
+fn fallback_builder(design: &DesignIR) -> String {
+    let fallback = design
+        .themes
+        .iter()
+        .find(|t| *t == "light")
+        .or_else(|| design.themes.first())
+        .expect("caller guarantees a non-empty theme list");
+    theme_builder_name(design, fallback)
+}
+
+/// Task 3.6: the builder the multi-theme selector holds when NO @theme
+/// signal is wired — the `@default-theme` builder when it names a declared
+/// theme, else the light/first builder (mirrors the notifier's
+/// `ThemeMode.dark`/light mapping for the two-state path).
+fn default_builder(design: &DesignIR) -> String {
+    match design.default_theme.as_deref() {
+        Some(t) if design.themes.iter().any(|x| x == t) => theme_builder_name(design, t),
+        _ => fallback_builder(design),
+    }
+}
+
 /// Emit the theme switching runtime: a Riverpod 3.0 `ThemeModeNotifier` +
 /// `NotifierProvider<ThemeMode>` plus one `ThemeData` builder per declared
 /// theme. Emitted only when at least one design declares `@themes`.
@@ -1286,10 +1313,35 @@ fn theme_builder_name(design: &DesignIR, theme: &str) -> String {
 /// `ThemeMode.light` (honest platform floor). Without a `@theme` signal the
 /// notifier holds the `@default-theme` mode and the app-shell wiring stays
 /// manual (pre-v2 behavior).
-fn emit_theme_switch(w: &mut CodeWriter, designs: &[&DesignIR], ir: &IRProgram) {
+///
+/// Task 3.6 (>2 themes, D-G): Flutter's native `ThemeMode` is two-state, so
+/// a design declaring MORE than light/dark switches emission to a
+/// `themeDataProvider` — a `Provider<ThemeData>` selecting the active
+/// `ThemeData` builder for the @theme signal across ALL declared themes
+/// (every theme reachable; the app shell wires
+/// `MaterialApp(theme: ref.watch(themeDataProvider))`). The extra themes do
+/// not participate in `ThemeMode` semantics (no system-following) — that
+/// platform floor is documented by a compiler warning.
+fn emit_theme_switch(
+    w: &mut CodeWriter,
+    designs: &[&DesignIR],
+    ir: &IRProgram,
+    warnings: &mut Vec<String>,
+) {
     let Some(first) = designs.iter().find(|d| !d.themes.is_empty()) else {
         return;
     };
+    let multi_theme = first.themes.len() > 2;
+    if multi_theme {
+        warnings.push(format!(
+            "[flutter][design] design '{}' declares {} themes ({}): Flutter 原生 \
+             ThemeMode 仅支持 light/dark 两态——其余主题通过 themeDataProvider \
+             的 ThemeData 索引选择接线（不参与系统亮暗跟随）",
+            first.name,
+            first.themes.len(),
+            first.themes.join(", ")
+        ));
+    }
     let mut default_mode = match first.default_theme.as_deref() {
         Some("dark") => "ThemeMode.dark",
         _ => "ThemeMode.light",
@@ -1317,38 +1369,84 @@ fn emit_theme_switch(w: &mut CodeWriter, designs: &[&DesignIR], ir: &IRProgram) 
             }
         }
     }
-    w.emit("/// Theme switching (v2 D1): the @theme-marked store signal is THE");
-    w.emit("/// current theme mode. The generated app shell (main.dart) wires");
-    w.emit("/// `MaterialApp(themeMode: ref.watch(themeModeProvider))`.");
-    w.emit("final themeModeProvider = NotifierProvider<ThemeModeNotifier, ThemeMode>(ThemeModeNotifier.new);");
-    w.emit("");
-    w.emit("class ThemeModeNotifier extends Notifier<ThemeMode> {");
-    w.indent();
-    if let Some((store_name, provider_name, signal_name)) = &store_watch {
-        w.emit_fmt(format_args!(
-            "/// Watches `{provider_name}` (the `{store_name}` store) — an"
-        ));
-        w.emit("/// ordinary store action on the @theme signal switches the");
-        w.emit("/// theme.");
-        w.emit("@override");
-        w.emit("ThemeMode build() {");
+    if multi_theme {
+        // Task 3.6: >2 declared themes — the @theme signal selects the active
+        // ThemeData builder directly (Flutter's ThemeMode cannot express
+        // sepia/highContrast). `themeDataProvider` is what the app shell
+        // watches; `themeModeProvider` is not emitted (no ThemeMode at all).
+        w.emit("/// Theme switching (Task 3.6): >2 declared themes cannot be");
+        w.emit("/// expressed by Flutter's native two-state `ThemeMode` — the");
+        w.emit("/// @theme signal selects the active `ThemeData` builder");
+        w.emit("/// directly so EVERY declared theme is reachable. The");
+        w.emit("/// generated app shell (main.dart) wires");
+        w.emit("/// `MaterialApp(theme: ref.watch(themeDataProvider))`.");
+        w.emit("final themeDataProvider = Provider<ThemeData>((ref) {");
         w.indent();
-        w.emit_fmt(format_args!(
-            "final {} = ref.watch({}.select((s) => s.{}));",
-            signal_name, provider_name, signal_name
-        ));
-        w.emit("return mode == 'dark' ? ThemeMode.dark : ThemeMode.light;");
+        if let Some((store_name, provider_name, signal_name)) = &store_watch {
+            w.emit_fmt(format_args!(
+                "/// Watches `{provider_name}` (the `{store_name}` store) — an"
+            ));
+            w.emit("/// ordinary store action on the @theme signal switches the");
+            w.emit("/// theme.");
+            w.emit_fmt(format_args!(
+                "final {} = ref.watch({}.select((s) => s.{}));",
+                signal_name, provider_name, signal_name
+            ));
+            w.emit("return switch (mode) {");
+            w.indent();
+            for theme in &first.themes {
+                w.emit_fmt(format_args!(
+                    "'{}' => {}(),",
+                    theme,
+                    theme_builder_name(first, theme)
+                ));
+            }
+            w.emit_fmt(format_args!("_ => {}(),", fallback_builder(first)));
+            w.dedent();
+            w.emit("};");
+        } else {
+            w.emit("/// No @theme signal — the provider holds the default");
+            w.emit("/// theme's builder; wire `MaterialApp(theme:");
+            w.emit("/// ref.watch(themeDataProvider))` manually (pre-v2");
+            w.emit("/// behavior).");
+            w.emit_fmt(format_args!("return {}();", default_builder(first)));
+        }
+        w.dedent();
+        w.emit("});");
+    } else {
+        w.emit("/// Theme switching (v2 D1): the @theme-marked store signal is THE");
+        w.emit("/// current theme mode. The generated app shell (main.dart) wires");
+        w.emit("/// `MaterialApp(themeMode: ref.watch(themeModeProvider))`.");
+        w.emit("final themeModeProvider = NotifierProvider<ThemeModeNotifier, ThemeMode>(ThemeModeNotifier.new);");
+        w.emit("");
+        w.emit("class ThemeModeNotifier extends Notifier<ThemeMode> {");
+        w.indent();
+        if let Some((store_name, provider_name, signal_name)) = &store_watch {
+            w.emit_fmt(format_args!(
+                "/// Watches `{provider_name}` (the `{store_name}` store) — an"
+            ));
+            w.emit("/// ordinary store action on the @theme signal switches the");
+            w.emit("/// theme.");
+            w.emit("@override");
+            w.emit("ThemeMode build() {");
+            w.indent();
+            w.emit_fmt(format_args!(
+                "final {} = ref.watch({}.select((s) => s.{}));",
+                signal_name, provider_name, signal_name
+            ));
+            w.emit("return mode == 'dark' ? ThemeMode.dark : ThemeMode.light;");
+            w.dedent();
+            w.emit("}");
+        } else {
+            w.emit("/// No @theme signal — the notifier holds the default mode;");
+            w.emit("/// wire `MaterialApp(themeMode: ref.watch(themeModeProvider))`");
+            w.emit("/// manually (pre-v2 behavior).");
+            w.emit("@override");
+            w.emit_fmt(format_args!("ThemeMode build() => {};", default_mode));
+        }
         w.dedent();
         w.emit("}");
-    } else {
-        w.emit("/// No @theme signal — the notifier holds the default mode;");
-        w.emit("/// wire `MaterialApp(themeMode: ref.watch(themeModeProvider))`");
-        w.emit("/// manually (pre-v2 behavior).");
-        w.emit("@override");
-        w.emit_fmt(format_args!("ThemeMode build() => {};", default_mode));
     }
-    w.dedent();
-    w.emit("}");
     w.emit("");
     for design in designs {
         for theme in &design.themes {
@@ -1382,6 +1480,12 @@ fn emit_theme_switch(w: &mut CodeWriter, designs: &[&DesignIR], ir: &IRProgram) 
 ///   }
 /// }
 /// ```
+///
+/// Task 3.6: when the design declares MORE than light/dark (>2 themes) the
+/// shell watches `themeDataProvider` instead — `MaterialApp(theme:
+/// ref.watch(themeDataProvider))` — because Flutter's `ThemeMode` cannot
+/// express sepia/highContrast. The provider selects the active `ThemeData`
+/// builder across ALL declared themes.
 ///
 /// Projects without a `@theme` signal keep their own main.dart (pre-v2
 /// behavior — the notifier holds the default mode and the wiring stays
@@ -1432,6 +1536,10 @@ pub fn gen_theme_app_shell(ir: &IRProgram) -> Option<CompiledFile> {
         .iter()
         .find(|t| *t == "dark")
         .map(|t| theme_builder_name(first, t));
+    // Task 3.6: >2 declared themes wire through `themeDataProvider` (the
+    // theme selector) instead of `themeMode`/`darkTheme` — Flutter's
+    // ThemeMode cannot express sepia/highContrast, the provider can.
+    let multi_theme = first.themes.len() > 2;
 
     let mut w = CodeWriter::new();
     w.emit("// Generated by OmniLang \u{2014} app shell with @theme wiring");
@@ -1457,10 +1565,14 @@ pub fn gen_theme_app_shell(ir: &IRProgram) -> Option<CompiledFile> {
     w.indent();
     w.emit("return MaterialApp(");
     w.indent();
-    w.emit("themeMode: ref.watch(themeModeProvider),");
-    w.emit_fmt(format_args!("theme: {}(),", light_builder));
-    if let Some(dark_builder) = &dark_builder {
-        w.emit_fmt(format_args!("darkTheme: {}(),", dark_builder));
+    if multi_theme {
+        w.emit("theme: ref.watch(themeDataProvider),");
+    } else {
+        w.emit("themeMode: ref.watch(themeModeProvider),");
+        w.emit_fmt(format_args!("theme: {}(),", light_builder));
+        if let Some(dark_builder) = &dark_builder {
+            w.emit_fmt(format_args!("darkTheme: {}(),", dark_builder));
+        }
     }
     w.emit_fmt(format_args!("home: {},", home));
     w.dedent();
@@ -3078,6 +3190,70 @@ mod tests {
         assert!(content.contains("themeMode: ref.watch(themeModeProvider),"));
         assert!(content.contains("theme: buildAppLightTheme(),"));
         assert!(content.contains("darkTheme: buildAppDarkTheme(),"));
+        assert!(content.contains("home: const App(),"));
+    }
+
+    /// Task 3.6 (D-G): >2 declared themes switch the runtime from the
+    /// two-state ThemeModeNotifier to a `themeDataProvider` selecting the
+    /// active ThemeData builder across ALL declared themes — sepia /
+    /// highContrast builders are reachable (no dead code) and the platform
+    /// floor (Flutter ThemeMode is two-state) is documented by a warning.
+    #[test]
+    fn emits_theme_data_provider_for_multi_theme() {
+        let mut design = make_design();
+        design.themes = vec![
+            "light".to_string(),
+            "dark".to_string(),
+            "sepia".to_string(),
+            "highContrast".to_string(),
+        ];
+        design.theme_signal = Some("ThemeStore.mode".to_string());
+        let ir = make_theme_ir(design);
+        let (files, warnings, _errors) = gen_design_files(&ir);
+        let content = &files[0].content;
+        assert!(content.contains("final themeDataProvider = Provider<ThemeData>((ref) {"));
+        assert!(
+            !content.contains("themeModeProvider"),
+            "the multi-theme path must not emit the two-state ThemeMode runtime"
+        );
+        assert!(content.contains("'sepia' => buildAppSepiaTheme(),"));
+        assert!(content.contains("'highContrast' => buildAppHighContrastTheme(),"));
+        assert!(content.contains("ThemeData buildAppSepiaTheme() {"));
+        assert!(content.contains("ThemeData buildAppHighContrastTheme() {"));
+        assert!(
+            warnings.iter().any(|w| w.contains("light/dark")),
+            "the >2-theme platform floor must warn, got: {:?}",
+            warnings
+        );
+    }
+
+    /// Task 3.6: the multi-theme app shell watches `themeDataProvider` —
+    /// `MaterialApp(theme:)` — instead of themeMode/darkTheme (Flutter's
+    /// ThemeMode cannot express the extra themes).
+    #[test]
+    fn emits_multi_theme_app_shell() {
+        let mut design = make_design();
+        design.themes = vec![
+            "light".to_string(),
+            "dark".to_string(),
+            "sepia".to_string(),
+            "highContrast".to_string(),
+        ];
+        design.theme_signal = Some("ThemeStore.mode".to_string());
+        let ir = make_theme_ir(design);
+        let shell = gen_theme_app_shell(&ir).expect("main.dart should be emitted");
+        let content = &shell.content;
+        assert!(content.contains("theme: ref.watch(themeDataProvider),"));
+        assert!(
+            !content.contains("themeMode:"),
+            "multi-theme shell must not wire themeMode. Got:\n{}",
+            content
+        );
+        assert!(
+            !content.contains("darkTheme:"),
+            "multi-theme shell must not wire darkTheme. Got:\n{}",
+            content
+        );
         assert!(content.contains("home: const App(),"));
     }
 

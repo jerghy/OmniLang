@@ -24,9 +24,9 @@ use super::r#ref::{ref_focus_name, ref_key_name, ref_scroll_name, ref_text_name,
 use super::stmt::{generate_statement_flutter, FlutterStmtFormatter};
 use super::utils::{
     bind_value_write_back, binding_to_flutter_param, callback_is_void, convert_literal_prop_value,
-    css_color_to_dart, event_to_flutter_callback, icon_name_to_dart, lower_first,
-    prop_to_flutter_param_name, tag_to_flutter_widget, widget_allows_event, widget_allows_param,
-    widget_has_const_constructor, widget_param_rename, widget_param_wrapper,
+    css_color_to_dart, event_to_flutter_callback, generic_tap_wrapper_callback, icon_name_to_dart,
+    lower_first, prop_to_flutter_param_name, tag_to_flutter_widget, widget_allows_event,
+    widget_allows_param, widget_has_const_constructor, widget_param_rename, widget_param_wrapper,
 };
 use std::fmt::Write;
 
@@ -81,6 +81,21 @@ impl ViewContext<'_> {
                 .all_functions()
                 .iter()
                 .any(|f| f.name == ref_name && f.params.is_empty())
+    }
+
+    /// Does the named handler REQUIRE an event parameter? (A param-bearing
+    /// fn cannot tear off to a 0-arity VoidCallback-family callback —
+    /// `argument_type_not_assignable`.) Unlike `ref_is_zero_param_fn` this
+    /// is FALSE for unknown names — an undeclared fn has unknown arity and
+    /// keeps the legacy tear-off emission.
+    fn ref_takes_params(&self, ref_name: &str) -> bool {
+        let takes = |f: &FunctionIR| !f.params.is_empty();
+        self.comp.fns.iter().any(|f| f.name == ref_name && takes(f))
+            || self
+                .ir
+                .all_functions()
+                .iter()
+                .any(|f| f.name == ref_name && takes(f))
     }
 
     /// The referenced fn's FIRST param type, when it has exactly one param
@@ -1379,19 +1394,44 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
     }
 
     // Events -> callback parameters (C6: per-widget event whitelist)
+    //
+    // Task 3.6: tap-family events on generic elements (Container/Text/...)
+    // have NO whitelisted callback — instead of silently dropping the
+    // handler (flutter HIGH: ThemeSwitcher's theme cards emitted no tap
+    // target at all), the rendered element wraps in a GestureDetector
+    // carrying the tap callback. `tap_wrap_args` collects those handlers;
+    // the wrapper is applied around the fully-rendered element below.
+    let mut tap_wrap_args: Vec<(String, String)> = Vec::new();
     for (name, handler) in &el.events {
         let callback_name = event_to_flutter_callback(name);
-        if !widget_allows_event(widget, &callback_name) {
+        let direct_ok = widget_allows_event(widget, &callback_name);
+        let wrapper_cb = if direct_ok {
+            None
+        } else {
+            generic_tap_wrapper_callback(&callback_name)
+        };
+        if !direct_ok && wrapper_cb.is_none() {
             ctx.warnings.push(format!(
                 "[flutter] event '{name}' → callback '{callback_name}' is not supported on '{widget}'; skipped"
             ));
             continue;
         }
+        if let Some(cb) = wrapper_cb {
+            // A GestureDetector carries ONE callback per gesture — a second
+            // tap-family event on the same element would collide on the
+            // wrapper; warn and drop it (never emit duplicate onTap params).
+            if tap_wrap_args.iter().any(|(c, _)| c == cb) {
+                ctx.warnings.push(format!(
+                    "[flutter] event '{name}' → callback '{callback_name}' collides with the tap wrapper ('{cb}') on '{widget}'; skipped"
+                ));
+                continue;
+            }
+        }
         // VoidCallback-family params (onPressed/onLongPress/...) receive NO
         // event argument in Flutter — the closure must be parameterless or
         // the generated Dart fails to compile (argument_type_not_assignable).
         let is_void = callback_is_void(&callback_name);
-        let body = match handler {
+        let body: Option<String> = match handler {
             EventHandlerIR::FnRef { r#ref, .. } => {
                 // Task 5.8: pass the handler by TEAR-OFF — `onChanged:
                 // syncMirror` — instead of `(event) { syncMirror({}); }`
@@ -1414,20 +1454,36 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                     );
                 }
                 if ctx.widget_names.contains(r#ref) {
-                    format!("widget.{}", r#ref)
+                    Some(format!("widget.{}", r#ref))
                 } else {
                     let renamed = ctx
                         .fn_renames
                         .get(r#ref)
                         .cloned()
                         .unwrap_or_else(|| r#ref.clone());
-                    if !is_void && ctx.ref_is_zero_param_fn(r#ref) {
+                    let zero_param = ctx.ref_is_zero_param_fn(r#ref);
+                    if is_void && ctx.ref_takes_params(r#ref) {
+                        // Task 3.6: a param-bearing fn CANNOT wire to a
+                        // 0-arity VoidCallback-family param — its tear-off
+                        // (`dynamic Function(dynamic)`) is not assignable to
+                        // `GestureTapCallback?` (argument_type_not_assignable;
+                        // Modal's `handleContentClick(e)` surfaced this on the
+                        // new tap wrapper) and the payload cannot flow INTO a
+                        // void callback either — honest degradation: warn and
+                        // drop (mirrors the direct-param path).
+                        ctx.warnings.push(format!(
+                            "[flutter] event '{name}' → callback '{callback_name}' is a \
+                             VoidCallback in Flutter (no event argument); handler \
+                             '{ref}' takes an event parameter — dropped"
+                        ));
+                        None
+                    } else if !is_void && zero_param {
                         // A 0-arg fn tear-off is not assignable to the
                         // payload-bearing callback types (`ValueChanged<String>`)
                         // — accept the event param and ignore it.
-                        format!("(event) {{ {renamed}(); }}")
+                        Some(format!("(event) {{ {renamed}(); }}"))
                     } else {
-                        format!("{renamed}")
+                        Some(format!("{renamed}"))
                     }
                 }
             }
@@ -1475,7 +1531,7 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                     hw.dedent();
                     hw.emit("}");
                     let result = hw.into_string().trim().to_string();
-                    result
+                    Some(result)
                 } else {
                     if is_void
                         && handler
@@ -1490,12 +1546,16 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                             "the handler",
                         );
                     }
-                    format_inline_handler_flutter(body, ctx)
+                    Some(format_inline_handler_flutter(body, ctx))
                 }
             }
-            EventHandlerIR::StoreAction { r#ref, .. } => format_store_action_handler(r#ref),
+            EventHandlerIR::StoreAction { r#ref, .. } => Some(format_store_action_handler(r#ref)),
         };
-        args.push(format!("{}: {}", callback_name, body));
+        let Some(body) = body else { continue };
+        match wrapper_cb {
+            Some(cb) => tap_wrap_args.push((cb.to_string(), body)),
+            None => args.push(format!("{}: {}", callback_name, body)),
+        }
     }
 
     // Bindings (C6: per-widget whitelist)
@@ -1999,6 +2059,19 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
         result
     } else {
         inner
+    };
+
+    // Task 3.6: tap-family callbacks on generic elements wrap the FULLY
+    // rendered element (design decoration / a11y / motion wrappers
+    // included) so the tap target covers the whole visual element.
+    let result = if tap_wrap_args.is_empty() {
+        result
+    } else {
+        let mut wrapped = result;
+        for (cb, body) in tap_wrap_args {
+            wrapped = format!("GestureDetector({}: {}, child: {})", cb, body, wrapped);
+        }
+        wrapped
     };
 
     result
