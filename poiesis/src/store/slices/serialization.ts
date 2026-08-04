@@ -25,7 +25,7 @@ export function createSerializationSlice(set: SetFn, get: GetFn) {
         panels: s.panels,
         // 运行时 store.codeFlowGraphs 为解析侧形状（fn 名 → {elements, wires}），
         // 保存时经 buildCodeFlowGraphs 转换为 v3 持久化形状（{pid, nodes, wires}）。
-        codeFlowGraphs: buildCodeFlowGraphs(s.codeFlowGraphs),
+        codeFlowGraphs: buildCodeFlowGraphs(s.codeFlowGraphs ?? {}),
       };
     },
 

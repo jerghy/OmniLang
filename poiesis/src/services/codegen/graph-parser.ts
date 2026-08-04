@@ -713,7 +713,7 @@ function parseSyntaxProps(
 }
 
 // ---------------------------------------------------------------------------
-// mergeCodeFlowGraphs – merge per-file code flow graphs into one map
+// mergeCodeFlowGraphs – 合并多文件的 codeFlowGraphs（fn 名 → 图）
 // ---------------------------------------------------------------------------
 
 /** 合并多文件 codeFlowGraphs（fn 名 → 图），同名后者覆盖（跨文件同名 fn 为既有限制）。 */

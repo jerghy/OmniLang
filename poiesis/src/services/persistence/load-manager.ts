@@ -16,7 +16,8 @@ export function loadProjectFromJson(raw: string): { success: boolean; error?: st
     const store = usePoiesisStore.getState();
     store.newProject();
     store.loadFromProjectJson(projectJson);
-    // codeFlowGraphs restored via loadFromProjectJson which now handles v3
+    // v3 持久化形状（pid/nodes/wires）不恢复进 store.codeFlowGraphs——解析侧图
+    // 由 App.tsx loadOmniFiles 物化重建（见 store/slices/serialization.ts）。
     return { success: true };
   } catch (e) {
     return { success: false, error: String(e) };
