@@ -119,6 +119,7 @@ export function parseViewComment(internals: ParserInternals): void {
 function collectTextWithSpacing(internals: ParserInternals): string {
   let result = "";
   let lastEndCol = -1;
+  let braceDepth = 0;
 
   while (
     !internals.stream.isEof() &&
@@ -126,6 +127,13 @@ function collectTextWithSpacing(internals: ParserInternals): string {
     internals.stream.peek().kind !== "ANGLE_OPEN"
   ) {
     const tok = internals.stream.peek();
+
+    // 结构性 }（括号未配平，非 {expr} 插值的收尾）不属于文本内容——
+    // 停在原地交给上层（parseViewBody 视为 view 结束）处理。
+    if (tok.kind === "BRACE_CLOSE" && braceDepth === 0) break;
+
+    if (tok.kind === "BRACE_OPEN") braceDepth++;
+    else if (tok.kind === "BRACE_CLOSE") braceDepth--;
 
     // Insert spaces based on column gap between consecutive tokens
     if (lastEndCol >= 0 && tok.col > lastEndCol) {
