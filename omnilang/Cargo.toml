@@ -47,3 +47,12 @@ all-backends = [
     "codegen-javascript",
     "codegen-omniview",
 ]
+
+# Widget-test harness: regenerates the learn-omniview Flutter output
+# project from current codegen and runs the runtime gates (flutter
+# analyze; flutter test with OMNILANG_FLUTTER_TEST=1). See
+# tests/flutter_widget_tests/README.md.
+[[test]]
+name = "flutter_widget_tests"
+path = "tests/flutter_widget_tests/harness.rs"
+required-features = ["codegen-flutter"]
