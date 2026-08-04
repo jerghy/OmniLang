@@ -280,3 +280,15 @@
 
 > 来源：`.architecture/reviews/plan-review-2026-07-26.md`（实施策略专家 + 务实执行者 + 系统架构师的 3 专家评审）
 > 更新：ADR-006（2026-07-27）重新分类全部 4 项推迟项
+
+---
+
+## 2026-08-04 CodeFlowCanvas E2E 缺陷修复轮登记（ADR-061）
+
+**新增**：#77（ADR-061 修复轮终审 parked 观察项——均不阻塞，登记留档）。
+
+| # | 项目 | 触发条件 | 影响 |
+|---|------|---------|------|
+| 77 | **[LOW]** CodeFlowCanvas 修复轮 parked 项 4 条：(a) `removeElement`-undo 不恢复被删子树后代元素（恢复 wire 但元素缺失→xyflow 不可见边；codeflow 元素全扁平实际不可达，view 树 conditional 场景重载解析重建自愈，不落盘）；(b) 嵌套 condition 为外层分支末句且后接外层 elif 时续接循环可能产生双 wire（既有行为，同对去重已挡）；(c) validate-sources 测试用例 4 用 mockRejectedValue 而绑定同步（应 mockImplementation throw，测试空转未覆盖 catch 分支——一行级）；(d) materializeFnGraphs 的 persistedPos 直接引用共享（无原地修改路径，建议 spread 拷贝——一行级） | (a)(b) 触发即记录，无修复排期；(c)(d) 下次触碰相关文件时顺手修 | (a)(b) 视觉/连线完整性边界；(c) 测试诚信；(d) 不可变惯例一致性 |
+
+> 另注：`task-5-report.md` 误入 git 跟踪（`.superpowers/sdd/.gitignore` 为 `*` 全忽略，仅此一个报告被跟踪）——`git rm --cached` 即可清理，未登记编号。
