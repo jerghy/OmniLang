@@ -67,6 +67,55 @@ pub(super) fn has_enter_leave_animation(nodes: &[ViewNode]) -> bool {
     false
 }
 
+/// Check whether any element in an @for body carries a motion trigger (any
+/// `TriggerKind` — @enter/@hover/@press/@focus/@in-view/@scroll/@drag-*).
+///
+/// Recurses through elements and @if branches but stops at nested @for
+/// directives: each motion element is inside exactly one @for, and the walk
+/// in [`validate_view_motion_triggers`](super::validate_motion_triggers)
+/// visits nested @for directives themselves — recursing here would flag the
+/// same element twice (once for the outer @for, once for the inner).
+pub(super) fn body_has_motion_trigger(nodes: &[ViewNode]) -> bool {
+    for node in nodes {
+        match node {
+            ViewNode::Element(el) => {
+                if el
+                    .props
+                    .iter()
+                    .any(|p| matches!(p, ElementProp::MotionTrigger(_)))
+                {
+                    return true;
+                }
+                if body_has_motion_trigger(&el.children) {
+                    return true;
+                }
+            }
+            ViewNode::IfDirective(if_dir) => {
+                if body_has_motion_trigger(&if_dir.body) {
+                    return true;
+                }
+                for (_, body) in &if_dir.else_ifs {
+                    if body_has_motion_trigger(body) {
+                        return true;
+                    }
+                }
+                if let Some(ref else_body) = if_dir.else_body {
+                    if body_has_motion_trigger(else_body) {
+                        return true;
+                    }
+                }
+            }
+            // Nested @for bodies are diagnosed by their own ForDirective
+            // visit — do not recurse here.
+            ViewNode::ForDirective(_)
+            | ViewNode::Text(_)
+            | ViewNode::Interpolation(_)
+            | ViewNode::SlotDirective { .. } => {}
+        }
+    }
+    false
+}
+
 /// Parse a duration string (e.g. "300ms", "1.5s") to milliseconds.
 /// Returns `Err` with a description if the value cannot be parsed.
 pub fn parse_duration_ms(val: &str) -> Result<f64, String> {

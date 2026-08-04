@@ -2,7 +2,7 @@
 //!
 //! Validates view tree motion triggers and related rules.
 
-use super::motion::has_enter_leave_animation;
+use super::motion::{body_has_motion_trigger, has_enter_leave_animation};
 use super::SemanticAnalyzer;
 use crate::error::{Diagnostic, DiagnosticKind};
 use crate::parser::ast::*;
@@ -36,6 +36,20 @@ impl SemanticAnalyzer {
                     }
                 }
                 ViewNode::ForDirective(for_dir) => {
+                    // Task 4.9 (perf M2 + D-H): motion triggers on elements
+                    // inside the @for body silently diverge per backend —
+                    // React shares a single motion ref (only the last
+                    // mounted item animates), Flutter allocates one ordinal
+                    // per template element (all N items replay the same
+                    // controller). Per-item allocation is a long-term item;
+                    // warn once per @for (honest degradation, never silent).
+                    if body_has_motion_trigger(&for_dir.body) {
+                        self.diagnostics.push(Diagnostic::warning(
+                            DiagnosticKind::WMotion,
+                            "motion 在 @for 子元素尚未支持逐项实例化；当前退化为单一共享实例（React）或全部项同时播放（Flutter）；如需逐项动画，请将动画触发器移到 @for 外层的容器元素（逐项实例化列入长期计划）",
+                            &for_dir.span,
+                        ));
+                    }
                     // Check: @for with enter animation but no key={}
                     let has_anim = has_enter_leave_animation(&for_dir.body);
                     let has_key = for_dir.key_expr.is_some();
