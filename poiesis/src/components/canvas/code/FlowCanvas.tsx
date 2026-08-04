@@ -23,6 +23,7 @@ import { ReturnNode } from "./nodes/ReturnNode";
 import { DesignPreviewNode } from "./nodes/DesignPreviewNode";
 import { SyntaxNode } from "./nodes/SyntaxNode";
 import { defaultSyntaxProps } from "../../../services/codegen/syntax-nodes";
+import { useFlowScope } from "../../../services/codegen/flow-scope-hook";
 import { CODE_TAGS, TAG_CN, type ContextMenuState } from "./flowConstants";
 import { ContextMenu } from "./CanvasContextMenu";
 import { CodeBlockEditor } from "./CodeBlockEditor";
@@ -143,6 +144,8 @@ function FlowCanvasInner() {
   const openTabs = usePoiesisStore((s) => s.designPage.openTabs);
   const componentDefs = usePoiesisStore((s) => s.componentDefs);
   const storeReferences = usePoiesisStore((s) => s.storeReferences);
+  const activeTab = openTabs.find((t) => t.id === activeTabId);
+  const flowScope = useFlowScope(activeTab?.componentName);
 
   // ── Connect handler ──
   const onConnect = useCallback(
@@ -275,9 +278,14 @@ function FlowCanvasInner() {
               setProp(el.id, "branches", currentBranches);
             }
           },
+          ...(CODE_TAGS.has(el.tag) && el.tag !== "code-block" ? {
+            id: el.id,
+            scope: flowScope ?? undefined,
+            onEditProp: (id: string, prop: string, value: unknown) => setProp(id, prop, value),
+          } : {}),
         },
       })),
-    [codeElements, selectedNodeIds, setEditingNodeId, setProp],
+    [codeElements, selectedNodeIds, setEditingNodeId, setProp, flowScope],
   );
 
   const edges = useMemo(
