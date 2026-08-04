@@ -15,9 +15,10 @@ interface TextProps {
   ariaLabel?: string;
   className?: string;
   invalid?: boolean;
+  onCancel?: () => void;
 }
 
-export function NodeTextField({ value, onCommit, placeholder, ariaLabel, className, invalid }: TextProps) {
+export function NodeTextField({ value, onCommit, placeholder, ariaLabel, className, invalid, onCancel }: TextProps) {
   const [draft, setDraft] = useState(value);
   const focusedRef = useRef(false);
   const dirtyRef = useRef(false);
@@ -34,6 +35,7 @@ export function NodeTextField({ value, onCommit, placeholder, ariaLabel, classNa
     focusedRef.current = false;
     dirtyRef.current = false;
     setDraft(value);
+    onCancel?.();
   };
 
   return (

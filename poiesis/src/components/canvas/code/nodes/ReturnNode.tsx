@@ -39,6 +39,7 @@ export function ReturnNode({ data }: Props) {
           <NodeTextField
             value={expr}
             onCommit={(v) => { data.onCommitReturn?.(v); setEditing(false); }}
+            onCancel={() => setEditing(false)}
             placeholder="表达式"
             ariaLabel="return 表达式"
             className={styles.grow}

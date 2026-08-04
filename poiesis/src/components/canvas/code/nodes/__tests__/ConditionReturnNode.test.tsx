@@ -23,6 +23,15 @@ describe("ConditionNode 内联编辑", () => {
     render(<ConditionNode data={{ label: "判断", branches: [{ id: "br1", type: "else", condition: "" }], onEditCondition: vi.fn() }} />);
     expect(screen.queryByLabelText("编辑条件表达式")).toBeFalsy();
   });
+
+  it("Esc 取消退出编辑态恢复显示", () => {
+    render(<ConditionNode data={{ label: "判断", branches: [{ id: "br0", type: "if", condition: "x == 1" }], onEditCondition: vi.fn() }} />);
+    fireEvent.click(screen.getByText("x == 1"));
+    const input = screen.getByLabelText("编辑条件表达式");
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(screen.queryByLabelText("编辑条件表达式")).toBeFalsy();
+    expect(screen.getByText("x == 1")).toBeTruthy();
+  });
 });
 
 describe("ReturnNode 内联编辑", () => {
@@ -39,5 +48,14 @@ describe("ReturnNode 内联编辑", () => {
     fireEvent.change(input, { target: { value: "y" } });
     fireEvent.keyDown(input, { key: "Enter" });
     expect(onCommit).toHaveBeenCalledWith("y");
+  });
+
+  it("Esc 取消退出编辑态恢复显示", () => {
+    render(<ReturnNode data={{ label: "返回", returnExpr: "x", onCommitReturn: vi.fn() }} />);
+    fireEvent.click(screen.getByText("return x"));
+    expect(screen.getByLabelText("return 表达式")).toBeTruthy();
+    fireEvent.keyDown(screen.getByLabelText("return 表达式"), { key: "Escape" });
+    expect(screen.queryByLabelText("return 表达式")).toBeFalsy();
+    expect(screen.getByText("return x")).toBeTruthy();
   });
 });

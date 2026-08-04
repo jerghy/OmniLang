@@ -102,6 +102,7 @@ export function ConditionNode({ data }: Props) {
               <NodeTextField
                 value={editValue}
                 onCommit={(v) => { data.onEditCondition?.(br.id, v); setEditingBranch(null); }}
+                onCancel={() => setEditingBranch(null)}
                 placeholder="条件表达式"
                 ariaLabel="编辑条件表达式"
               />

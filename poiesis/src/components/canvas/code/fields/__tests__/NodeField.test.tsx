@@ -30,6 +30,16 @@ describe("NodeTextField", () => {
     expect((screen.getByLabelText("变量名") as HTMLInputElement).value).toBe("x");
   });
 
+  it("Esc 触发 onCancel 回调", () => {
+    const onCancel = vi.fn();
+    render(<NodeTextField value="x" onCommit={vi.fn()} onCancel={onCancel} ariaLabel="变量名" />);
+    const input = screen.getByLabelText("变量名");
+    fireEvent.change(input, { target: { value: "z" } });
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect((input as HTMLInputElement).value).toBe("x");
+  });
+
   it("外部 value 变化时同步草稿", () => {
     const { rerender } = render(<NodeTextField value="x" onCommit={vi.fn()} ariaLabel="变量名" />);
     rerender(<NodeTextField value="changed" onCommit={vi.fn()} ariaLabel="变量名" />);

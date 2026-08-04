@@ -12,3 +12,5 @@
   color: var(--ol-color-danger-active);
   cursor: pointer;
 }
+
+.grow { flex: 1; min-width: 0; }
