@@ -2255,6 +2255,59 @@ store S {
         "param must stay bare inside the call arg: {}",
         out
     );
+    // The only body reference is the shadowed param — no `const state =
+    // get();` may be emitted (an unused `state` trips the eslint
+    // no-unused-vars gate on generated stores).
+    assert!(
+        !out.contains("const state = get()"),
+        "shadowed body must not emit the unused prologue: {}",
+        out
+    );
+}
+
+/// Review follow-up (5.4 Important-1): the prologue pruning must also cover
+/// params colliding with GETTER names — the old code pruned the signal
+/// derived set and extended getters afterwards, re-adding the param
+/// (`action check(total)` with `getter total` emitted an unused
+/// `const state = get();` → eslint no-unused-vars gate failure).
+#[test]
+fn store_action_param_shadows_getter_react() {
+    let result = compile_react_full(
+        r#"import omniview;
+import { console_log } from "std/console";
+store S {
+    signal count: i32 = 1;
+    getter total: i32 = count * 2;
+    action check(total) { console_log(total) }
+}
+"#,
+    );
+    assert!(
+        result.success,
+        "getter-shadowing store action must compile: {:?}",
+        result.errors
+    );
+    let out: String = result
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        !out.contains("state.total"),
+        "getter-named param must not be rewritten to a store ref: {}",
+        out
+    );
+    assert!(
+        out.contains("console.log(total)"),
+        "getter-named param must stay bare inside the call arg: {}",
+        out
+    );
+    assert!(
+        !out.contains("const state = get()"),
+        "getter-shadowed body must not emit the unused prologue: {}",
+        out
+    );
 }
 
 // ── Full pipeline through Codegen trait ──────────────────

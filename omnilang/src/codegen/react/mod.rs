@@ -881,17 +881,18 @@ fn action_needs_zustand_state(
     signal_names: &FxHashSet<String>,
     getter_names: &FxHashSet<String>,
 ) -> bool {
-    // Action params shadow same-named store signals (fn_locals pattern):
-    // a bare `items` is the param — it must neither count as a store read
-    // nor as a store mutation, or a shadowed body would emit an unused
-    // `const state = get();` (eslint no-unused-vars gate).
+    // Action params shadow same-named store signals AND getters (fn_locals
+    // pattern): a bare `total` is the param — it must neither count as a
+    // store read nor as a store mutation, or a shadowed body would emit an
+    // unused `const state = get();` (eslint no-unused-vars gate). Prune
+    // AFTER extending getters so getter-named params are pruned too.
     let mut signal_names = signal_names.clone();
     let mut store_names: FxHashSet<String> = signal_names.clone();
+    store_names.extend(getter_names.iter().cloned());
     for p in &action.params {
         store_names.remove(&p.name);
         signal_names.remove(&p.name);
     }
-    store_names.extend(getter_names.iter().cloned());
     if store_names.is_empty() {
         return false;
     }
