@@ -72,4 +72,12 @@ describe("NodeSearchMenu", () => {
     expect(input.getAttribute("aria-controls")).toBe("node-search-results");
     expect(document.getElementById("node-search-results")).toBeTruthy();
   });
+
+  it("window 级 Escape 关闭（焦点离开输入框后）", () => {
+    const onClose = vi.fn();
+    render(<NodeSearchMenu x={0} y={0} onSelect={vi.fn()} onClose={onClose} />);
+    fireEvent.blur(screen.getByPlaceholderText("搜索节点…"));
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(onClose).toHaveBeenCalled();
+  });
 });

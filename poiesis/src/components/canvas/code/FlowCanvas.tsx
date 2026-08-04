@@ -62,7 +62,7 @@ function FlowCanvasInner() {
 
   // ── 搜索菜单（替换原 ContextMenu）：右键 / 空格 / 拖出端口创建唤出 ──
   const [menuState, setMenuState] = useState<{ x: number; y: number; flowX: number; flowY: number } | null>(null);
-  const pendingDragRef = useRef<{ nodeId: string } | null>(null);
+  const pendingDragRef = useRef<{ nodeId: string; handleId: string } | null>(null);
   const menuOpenAtRef = useRef(0); // 300ms 防误关
   // 与 menuState 同步——空格分支在绑定一次的键盘闭包中经 ref 读最新值（刻意模式，勿重构）
   const menuOpenRef = useRef(false);
@@ -92,7 +92,11 @@ function FlowCanvasInner() {
   const onConnectStart = useCallback(
     (_e: unknown, params: { nodeId: string | null; handleId: string | null; handleType: string | null }) => {
       if (params.handleId === "flow-out" || params.handleType === "source") {
-        if (params.nodeId) pendingDragRef.current = { nodeId: params.nodeId };
+        // 记录实际 handleId：condition 分支口（br0/br1 等）拖出时 fromPort 必须用分支 id，
+        // 否则连线 sourceHandle 不匹配（不可见边 + xyflow error008 + codegen 读错端口）
+        if (params.nodeId && params.handleId) {
+          pendingDragRef.current = { nodeId: params.nodeId, handleId: params.handleId };
+        }
       } else {
         pendingDragRef.current = null;
       }
@@ -127,7 +131,13 @@ function FlowCanvasInner() {
       if (["let", "assign", "store-call", "call"].includes(tag)) { props = { ...defaultSyntaxProps(tag) }; }
       addElement({ id, nodeType: "codeblock", tag, props, parentId: null, position: { x: menuState.flowX + jitter, y: menuState.flowY + jitter }, source: "" });
       if (pendingDragRef.current) {
-        addWire({ id: uid("wire"), fromId: pendingDragRef.current.nodeId, fromPort: "flow-out", toId: id, toPort: "flow-in" });
+        addWire({
+          id: uid("wire"),
+          fromId: pendingDragRef.current.nodeId,
+          fromPort: pendingDragRef.current.handleId ?? "flow-out", // source 拖出恒有 handleId，兜底保留
+          toId: id,
+          toPort: "flow-in",
+        });
         pendingDragRef.current = null;
       }
       menuOpenRef.current = false;

@@ -67,6 +67,15 @@ export function NodeSearchMenu({ x, y, onSelect, onClose }: Props) {
     return () => document.removeEventListener("mousedown", handler);
   }, [onClose]);
 
+  // window 级 Escape 关闭（焦点离开输入框后仍可关闭）
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose]);
+
   // 过滤变化时重置选中
   useEffect(() => { setActiveIdx(0); }, [query]);
 
