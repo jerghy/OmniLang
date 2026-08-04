@@ -302,6 +302,9 @@ export interface ParseResult {
   /** Code flow graphs parsed from fn bodies, keyed by fn name */
   codeFlowGraphs?: Record<string, { elements: CodeblockElementData[]; wires: WireData[] }>;
 
+  /** 组件 → fn 元数据（F2：componentDefs.fns 物化来源）。fn 名含组件上下文。 */
+  fnRegistry?: Record<string, Array<{ pid: string; name: string; params: Array<{ name: string; type: string }>; returnType: string }>>;
+
   /** Parsed store definition (when source is a store .omni file). */
   storeDef?: import("../../core/types/store").StoreDefinition;
 

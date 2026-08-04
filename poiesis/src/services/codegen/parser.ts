@@ -51,6 +51,7 @@ export class Parser {
   private ctx: ParseContext;
   private indentMap = new Map<string, number>();
   private parsedFnBodies = new Map<string, { elements: CodeblockElementData[]; wires: WireData[] }>();
+  private fnRegistry = new Map<string, Array<{ pid: string; name: string; params: Array<{ name: string; type: string }>; returnType: string }>>();
 
   constructor(stream: TokenStream) {
     this.stream = stream;
@@ -583,6 +584,23 @@ export class Parser {
     const { elements, wires } = parseCodeFlowGraph(fnBody);
 
     this.parsedFnBodies.set(fnName, { elements, wires });
+
+    // F2：登记 fn 元数据（组件维度）——componentDefs.fns 物化来源。
+    // @pid 注释在成员分发前已存入 ctx.pendingPid（parser.ts:236-239）。
+    const fnPid = this.ctx.pendingPid || "";
+    this.ctx.pendingPid = null;
+    const rawParams = sigMatch?.[2] || "";
+    const params = rawParams.split(",").map((p) => {
+      const [pName, pType] = p.trim().split(":").map((s) => s.trim());
+      return { name: pName || "", type: pType || "String" };
+    });
+    const returnType = fnSignature.match(/->\s*(\w+)/)?.[1] || "void";
+    const comp = this.ctx.currentComponent;
+    if (comp) {
+      const list = this.fnRegistry.get(comp) ?? [];
+      list.push({ pid: fnPid, name: fnName, params, returnType });
+      this.fnRegistry.set(comp, list);
+    }
   }
 
   // ── Store body (parse signal/getter/action members into StoreDefinition) ──
@@ -1482,6 +1500,9 @@ export class Parser {
         entries[key] = value;
       }
       result.codeFlowGraphs = entries;
+    }
+    if (this.fnRegistry.size > 0) {
+      result.fnRegistry = Object.fromEntries(this.fnRegistry);
     }
     return result;
   }
