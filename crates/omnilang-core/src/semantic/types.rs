@@ -69,9 +69,30 @@ impl SemanticType {
     }
 
     /// Parse a type from a string representation (for Symbol type_ann lookups).
-    /// Handles simple built-in names; complex types fall back to Any.
+    /// Handles simple built-in names plus the composite forms produced by
+    /// `type_to_string` (`Array<T>`, `Map<K, V>`, `T?`); anything else
+    /// falls back to Named.
     pub fn parse_type_string(s: &str) -> Self {
-        match s {
+        let t = s.trim();
+        // Optional: `T?` — unwrap before the composite forms (`Array<T>?`).
+        if let Some(base) = t.strip_suffix('?') {
+            return Self::Optional(Box::new(Self::parse_type_string(base.trim())));
+        }
+        // Array<T>
+        if let Some(inner) = t.strip_prefix("Array<").and_then(|r| r.strip_suffix('>')) {
+            return Self::Array(Box::new(Self::parse_type_string(inner.trim())));
+        }
+        // Map<K, V>
+        if let Some(inner) = t.strip_prefix("Map<").and_then(|r| r.strip_suffix('>')) {
+            let parts = split_top_level(inner, ',');
+            if parts.len() == 2 {
+                return Self::Map(
+                    Box::new(Self::parse_type_string(parts[0])),
+                    Box::new(Self::parse_type_string(parts[1])),
+                );
+            }
+        }
+        match t {
             "i8" | "i16" | "i32" | "i64" | "int" | "Int" | "integer" | "isize" | "usize" | "u8"
             | "u16" | "u32" | "u64" => SemanticType::Int,
             "f64" | "f32" | "float" | "Float" | "num" | "number" => SemanticType::Float,
@@ -79,9 +100,30 @@ impl SemanticType {
             "bool" | "Bool" | "boolean" => SemanticType::Bool,
             "void" | "Void" | "()" | "unit" => SemanticType::Void,
             "null" | "Null" | "nil" | "None" => SemanticType::Null,
-            _ => SemanticType::Named(s.to_string()),
+            _ => SemanticType::Named(t.to_string()),
         }
     }
+}
+
+/// Split a type-list string on `sep`, ignoring separators nested inside
+/// `<...>` / `(...)` / `[...]` (e.g. `Map<String, Array<i32>>`).
+fn split_top_level(s: &str, sep: char) -> Vec<&str> {
+    let mut parts = Vec::new();
+    let mut depth = 0usize;
+    let mut start = 0usize;
+    for (i, c) in s.char_indices() {
+        match c {
+            '<' | '(' | '[' => depth += 1,
+            '>' | ')' | ']' => depth = depth.saturating_sub(1),
+            c if c == sep && depth == 0 => {
+                parts.push(s[start..i].trim());
+                start = i + c.len_utf8();
+            }
+            _ => {}
+        }
+    }
+    parts.push(s[start..].trim());
+    parts
 }
 
 impl fmt::Display for SemanticType {

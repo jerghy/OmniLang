@@ -18,7 +18,7 @@ use super::symbols::{Symbol, SymbolKind, SymbolTable};
 use super::types::SemanticType;
 use super::validate_inline::{check_control_flow, check_expr_await, ValidationContext};
 use super::validate_types::{
-    check_assignment, check_binary_op, check_call, check_return, infer_expr_type,
+    check_assignment, check_binary_op, check_call, check_method_name, check_return, infer_expr_type,
 };
 use super::SemanticAnalyzer;
 use crate::error::suggest_similar_name;
@@ -159,11 +159,7 @@ impl SemanticAnalyzer {
         // Imported names are included so cross-file component references
         // (`import { Modal } from "./Modal.omni"` + `<Modal>{slot}</Modal>`)
         // don't escape the check (deferral #21).
-        self.module_component_names = module
-            .components
-            .iter()
-            .map(|c| c.name.clone())
-            .collect();
+        self.module_component_names = module.components.iter().map(|c| c.name.clone()).collect();
         for import in &module.imports {
             if let ImportStmt::Named(ni) = import {
                 self.module_component_names.extend(ni.names.iter().cloned());
@@ -820,10 +816,47 @@ impl SemanticAnalyzer {
                     }
                 }
             }
-            Expr::MethodCall { object, args, .. } => {
+            Expr::MethodCall {
+                object,
+                method,
+                args,
+                span,
+            } => {
                 self.resolve_expr_refs(object, vctx);
                 for a in args {
                     self.resolve_expr_refs(a, vctx);
+                }
+                // Stdlib method-name validation (Task 4.10, ai LOW): a
+                // method unknown on the receiver's concrete type
+                // (String/i32/... ) warns with the nearest stdlib suggestion
+                // — previously these compiled clean ("No issues found") and
+                // only failed at runtime (s.toUpper() → TypeError).
+                // Receivers with their own method surface (signals, refs,
+                // stores, event params) and Any-typed receivers are skipped
+                // — no cascade.
+                let receiver_has_own_surface = matches!(
+                    object.as_ref(),
+                    Expr::VarRef(name, _)
+                        if matches!(
+                            self.symbols.resolve(name).map(|s| s.kind.clone()),
+                            Some(
+                                SymbolKind::Signal
+                                    | SymbolKind::Ref
+                                    | SymbolKind::Store
+                                    | SymbolKind::Event
+                            )
+                        )
+                );
+                if !receiver_has_own_surface {
+                    let scope = self.symbols.current_scope_index();
+                    let receiver_type = infer_expr_type(object, &self.symbols, scope);
+                    if let Some(msg) = check_method_name(&receiver_type, method) {
+                        self.diagnostics.push(Diagnostic::warning(
+                            DiagnosticKind::E0006,
+                            &msg,
+                            span,
+                        ));
+                    }
                 }
             }
             Expr::FieldAccess { object, .. } => self.resolve_expr_refs(object, vctx),
@@ -1009,9 +1042,7 @@ impl SemanticAnalyzer {
         // codegen cannot do today (the materialized slot would be treated
         // as the child's own projection). Track the position so
         // resolve_expr_refs can warn.
-        let is_component = self
-            .module_component_names
-            .contains(element.tag.as_str());
+        let is_component = self.module_component_names.contains(element.tag.as_str());
         let saved = self.inside_component_children.take();
         if is_component {
             self.inside_component_children = Some(element.tag.clone());

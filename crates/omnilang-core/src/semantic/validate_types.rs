@@ -366,10 +366,122 @@ fn is_numeric(t: &SemanticType) -> bool {
     matches!(t, SemanticType::Int | SemanticType::Float)
 }
 
+// ═══════════════════════════════════════════════════════
+// Stdlib method-name validation (Task 4.10, ai LOW)
+// ═══════════════════════════════════════════════════════
+
+/// Known stdlib method surface for String receivers. Source of truth:
+/// `docs/omniview/12-standard-library.md` §内置方法 plus the codegen
+/// method tables (React `translate_method_call`, Dart
+/// `format_method_call`) — i.e. only names that translate to working code
+/// on the P0 backends or are part of the documented language floor.
+const STRING_METHODS: &[&str] = &[
+    "len",
+    "to_string",
+    "to_uppercase",
+    "to_lowercase",
+    "get",
+    "starts_with",
+    "ends_with",
+    "contains",
+    "substring",
+    "split",
+    "replace",
+    "trim",
+    "to_float",
+];
+
+/// Numeric (Int/Float) receiver surface.
+const NUMERIC_METHODS: &[&str] = &["to_string", "to_float", "abs"];
+
+/// Bool receiver surface.
+const BOOL_METHODS: &[&str] = &["to_string"];
+
+/// Array receiver surface — includes the language methods rewritten by
+/// `validate_array_methods` (filter/map/count), which are legal on arrays
+/// even though they never reach codegen as plain method calls.
+const ARRAY_METHODS: &[&str] = &[
+    "len",
+    "push",
+    "pop",
+    "get",
+    "is_empty",
+    "concat",
+    "filter",
+    "map",
+    "count",
+    "slice",
+    "splice",
+    "reverse",
+    "sort",
+    "contains",
+    "join",
+    "to_string",
+];
+
+/// Map receiver surface — maps compile to plain objects/Records, so only
+/// the indexer-backed `get` and the dispatched `contains` translate on
+/// every backend.
+const MAP_METHODS: &[&str] = &["get", "contains"];
+
+/// Lowercase and strip underscores/hyphens — `toUpperCase` and
+/// `to_uppercase` normalize to the same key.
+fn normalize_method(name: &str) -> String {
+    name.to_lowercase().replace(['_', '-'], "")
+}
+
+/// Suggest the closest known stdlib method, in priority order:
+/// 1. case/underscore-insensitive equality (`toUppercase` → `to_uppercase`)
+/// 2. normalized prefix, ≥3 chars (`toUpper` → `to_uppercase`,
+///    `length` → `len`)
+/// 3. edit distance ≤ 3 (`lenght` → `len`)
+fn suggest_method<'a>(attempt: &str, known: &'a [&'a str]) -> Option<&'a str> {
+    let norm = normalize_method(attempt);
+    if norm.len() < 2 {
+        return None;
+    }
+    if let Some(m) = known.iter().find(|k| normalize_method(k) == norm) {
+        return Some(m);
+    }
+    if norm.len() >= 3 {
+        if let Some(m) = known
+            .iter()
+            .find(|k| normalize_method(k).starts_with(&norm))
+        {
+            return Some(m);
+        }
+    }
+    crate::error::suggest_similar_name(attempt, known)
+}
+
+/// Validate a method call against the stdlib surface of its concrete
+/// receiver type. Returns the warning message when the method is unknown;
+/// `None` when it is known or the receiver type has no provable method
+/// surface (Any / Named / Optional / Union / Fn / Void / Null — skipped so
+/// an unknown receiver type never cascades into warnings).
+pub fn check_method_name(receiver: &SemanticType, method: &str) -> Option<String> {
+    let known: &[&str] = match receiver {
+        SemanticType::String => STRING_METHODS,
+        SemanticType::Int | SemanticType::Float => NUMERIC_METHODS,
+        SemanticType::Bool => BOOL_METHODS,
+        SemanticType::Array(_) => ARRAY_METHODS,
+        SemanticType::Map(_, _) => MAP_METHODS,
+        _ => return None,
+    };
+    if known.contains(&method) {
+        return None;
+    }
+    Some(match suggest_method(method, known) {
+        Some(s) => format!("未知方法 \"{method}\"（{receiver}）——最近合法建议 \"{s}\""),
+        None => format!("未知方法 \"{method}\"（{receiver}）"),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::error::DiagnosticKind;
+    use crate::error::Severity;
     use crate::lexer::tokenize;
     use crate::lexer::Span;
     use crate::parser::ast::{BinaryOpKind, Expr, Literal};
@@ -628,5 +740,205 @@ mod tests {
     #[test]
     fn comparison_returns_bool() {
         assert_no_type_error("fn main() { let x: i32 = 1; let y: i32 = 2; let b: bool = x < y; }");
+    }
+
+    // ── Stdlib method-name validation (Task 4.10, ai LOW) ──
+
+    /// Task 4.10 Step 1 — unknown method on a concrete receiver must warn
+    /// AND name the method AND suggest the stdlib spelling. Regression:
+    /// `s.toUpper()` (String receiver) used to compile clean ("No issues
+    /// found") and only fail at runtime with a TypeError.
+    ///
+    /// NOTE: the plan's literal source `view V { ... }` does not parse
+    /// (views only exist inside components) and `Target::All` does not
+    /// exist — the semantic pass is target-independent, so the in-crate
+    /// `check_source` path exercises the same warning through analyze().
+    #[test]
+    fn unknown_method_on_concrete_type_warns() {
+        let diags = check_source("component V { fn f(s: String) { s.toUpper() } view { <div/> } }");
+        let d = diags
+            .iter()
+            .find(|d| d.message.contains("toUpper"))
+            .expect("must warn");
+        assert_eq!(d.severity, Severity::Warning);
+        assert!(
+            d.message.contains("to_uppercase"),
+            "missing stdlib suggestion: {}",
+            d.message
+        );
+    }
+
+    /// Known stdlib methods on every concrete receiver must stay silent
+    /// (zero false positives).
+    #[test]
+    fn known_stdlib_methods_do_not_warn() {
+        let src = r#"component V {
+            fn f(s: String, n: i32, items: Array<i32>, cfg: Map<String, i32>) {
+                s.to_uppercase(); s.len(); s.get(0); s.starts_with("a");
+                n.to_string(); n.to_float();
+                items.push(1); items.len(); items.get(0); items.filter(|x| x > 0);
+                cfg.get("k"); cfg.contains("k");
+            }
+            view { <div/> }
+        }"#;
+        let diags = check_source(src);
+        let warnings: Vec<_> = diags
+            .iter()
+            .filter(|d| d.severity == Severity::Warning)
+            .collect();
+        assert!(
+            warnings.is_empty(),
+            "known methods must not warn, got: {:?}",
+            warnings.iter().map(|d| &d.message).collect::<Vec<_>>()
+        );
+    }
+
+    /// An Any-typed receiver (no annotation) must be skipped — warning on
+    /// it would cascade from a type the checker cannot see.
+    #[test]
+    fn unknown_method_on_any_receiver_is_skipped() {
+        let diags = check_source("component V { fn f(x) { x.toUpper() } view { <div/> } }");
+        assert!(
+            diags.iter().all(|d| d.severity != Severity::Warning),
+            "Any receiver must not warn, got: {:?}",
+            diags
+        );
+    }
+
+    /// Signals own a method surface of their own (set/inc/push/pop/...) —
+    /// checking them against the stdlib table would be a false positive.
+    #[test]
+    fn signal_receiver_methods_do_not_warn() {
+        let src = r#"component V {
+            signal s: i32 = 0;
+            signal list: Array<String> = [];
+            fn f() { s.set(1); s.inc(); list.push("x"); list.pop(); }
+            view { <div/> }
+        }"#;
+        let diags = check_source(src);
+        let warnings: Vec<_> = diags
+            .iter()
+            .filter(|d| d.severity == Severity::Warning)
+            .collect();
+        assert!(
+            warnings.is_empty(),
+            "signal methods must not warn, got: {:?}",
+            warnings.iter().map(|d| &d.message).collect::<Vec<_>>()
+        );
+    }
+
+    /// Element refs dispatch to the ref-op API (focus/measure/scrollTo/...)
+    /// — not the stdlib table.
+    #[test]
+    fn ref_receiver_methods_do_not_warn() {
+        let src = r#"component V {
+            ref box: Element;
+            fn f() { box.focus(); box.measure(); }
+            view { <div/> }
+        }"#;
+        let diags = check_source(src);
+        let warnings: Vec<_> = diags
+            .iter()
+            .filter(|d| d.severity == Severity::Warning)
+            .collect();
+        assert!(
+            warnings.is_empty(),
+            "ref methods must not warn, got: {:?}",
+            warnings.iter().map(|d| &d.message).collect::<Vec<_>>()
+        );
+    }
+
+    /// Wrong-case / near-miss spellings must all suggest the stdlib form.
+    #[test]
+    fn case_variants_get_stdlib_suggestion() {
+        for (attempt, expected) in [
+            ("toUpper", "to_uppercase"),
+            ("toUppercase", "to_uppercase"),
+            ("toLower", "to_lowercase"),
+            ("length", "len"),
+            ("tostring", "to_string"),
+        ] {
+            let src =
+                format!("component V {{ fn f(s: String) {{ s.{attempt}() }} view {{ <div/> }} }}");
+            let diags = check_source(&src);
+            let d = diags
+                .iter()
+                .find(|d| d.message.contains(attempt))
+                .unwrap_or_else(|| panic!("{attempt}: must warn"));
+            assert!(
+                d.message.contains(expected),
+                "{attempt}: missing suggestion '{expected}': {}",
+                d.message
+            );
+        }
+    }
+
+    /// Unknown method on a typed array / map / numeric receiver warns too.
+    #[test]
+    fn unknown_method_warns_on_array_numeric_and_map() {
+        let src = r#"component V {
+            fn f(items: Array<i32>, n: i32, cfg: Map<String, i32>) {
+                items.frobnicate(); n.frobnicate(); cfg.frobnicate();
+            }
+            view { <div/> }
+        }"#;
+        let diags = check_source(src);
+        let method_warnings: Vec<_> = diags
+            .iter()
+            .filter(|d| d.severity == Severity::Warning && d.message.contains("frobnicate"))
+            .collect();
+        assert_eq!(
+            method_warnings.len(),
+            3,
+            "each concrete receiver must warn once, got: {:?}",
+            diags
+        );
+    }
+
+    // ── check_method_name unit tests ─────────────────────
+
+    #[test]
+    fn check_method_name_string_unknown_with_suggestion() {
+        let msg = check_method_name(&SemanticType::String, "toUpper").expect("must warn");
+        assert!(msg.contains("toUpper"), "must name the method: {}", msg);
+        assert!(
+            msg.contains("to_uppercase"),
+            "missing stdlib suggestion: {}",
+            msg
+        );
+    }
+
+    #[test]
+    fn check_method_name_known_returns_none() {
+        assert!(check_method_name(&SemanticType::String, "len").is_none());
+        assert!(check_method_name(&SemanticType::String, "to_uppercase").is_none());
+        assert!(check_method_name(&SemanticType::Int, "to_string").is_none());
+        assert!(check_method_name(&SemanticType::Float, "abs").is_none());
+        assert!(check_method_name(&SemanticType::Bool, "to_string").is_none());
+        assert!(
+            check_method_name(&SemanticType::Array(Box::new(SemanticType::Int)), "filter")
+                .is_none()
+        );
+        assert!(
+            check_method_name(&SemanticType::Array(Box::new(SemanticType::Int)), "slice").is_none()
+        );
+        assert!(check_method_name(
+            &SemanticType::Map(Box::new(SemanticType::String), Box::new(SemanticType::Int)),
+            "get"
+        )
+        .is_none());
+    }
+
+    #[test]
+    fn check_method_name_unknown_receiver_types_are_skipped() {
+        // Any / Named (user structs) / Optional — no provable method
+        // surface; warning on them would cascade.
+        assert!(check_method_name(&SemanticType::Any, "toUpper").is_none());
+        assert!(check_method_name(&SemanticType::Named("User".into()), "anything").is_none());
+        assert!(check_method_name(
+            &SemanticType::Optional(Box::new(SemanticType::String)),
+            "toUpper"
+        )
+        .is_none());
     }
 }
