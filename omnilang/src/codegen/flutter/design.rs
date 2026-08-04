@@ -1276,28 +1276,57 @@ fn theme_builder_name(design: &DesignIR, theme: &str) -> String {
     format!("build{}{}Theme", design.name, capitalize_first(theme))
 }
 
-/// Task 3.6: the builder the multi-theme selector falls back to when the
-/// @theme signal holds an unknown mode — `light` when declared, else the
-/// first declared theme (mirrors `gen_theme_app_shell`'s light-theme pick).
-fn fallback_builder(design: &DesignIR) -> String {
-    let fallback = design
-        .themes
+/// Task 3.6 (I-1): the UNION of declared themes across ALL theme-declaring
+/// designs (dedup, declaration order). The multi-theme decision, the
+/// warning, and the selector's switch arms must cover EVERY design's
+/// themes — a program mixing `design A { light, dark }` + `design B
+/// { light, dark, sepia }` used to consult only A and silently collapse
+/// sepia (exactly the "unreachable theme" class this task eliminates).
+fn union_themes(designs: &[&DesignIR]) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for design in designs {
+        for theme in &design.themes {
+            if !out.contains(theme) {
+                out.push(theme.clone());
+            }
+        }
+    }
+    out
+}
+
+/// Task 3.6 (I-1): the builder the multi-theme selector falls back to when
+/// the @theme signal holds an unknown mode — `light` when declared by ANY
+/// design, else the first union-ordered theme, resolved against the design
+/// that declares it. Panic-free (unwrap-audit discipline): the placeholder
+/// arm is unreachable — the caller returns early when no design declares
+/// `@themes`, so the union is non-empty and the declaring design exists.
+fn fallback_builder(designs: &[&DesignIR], union: &[String]) -> String {
+    let Some(fallback) = union
         .iter()
         .find(|t| *t == "light")
-        .or_else(|| design.themes.first())
-        .expect("caller guarantees a non-empty theme list");
+        .or_else(|| union.first())
+    else {
+        return "buildAppLightTheme".to_string();
+    };
+    let Some(design) = designs.iter().find(|d| d.themes.contains(fallback)) else {
+        return "buildAppLightTheme".to_string();
+    };
     theme_builder_name(design, fallback)
 }
 
-/// Task 3.6: the builder the multi-theme selector holds when NO @theme
-/// signal is wired — the `@default-theme` builder when it names a declared
-/// theme, else the light/first builder (mirrors the notifier's
-/// `ThemeMode.dark`/light mapping for the two-state path).
-fn default_builder(design: &DesignIR) -> String {
-    match design.default_theme.as_deref() {
-        Some(t) if design.themes.iter().any(|x| x == t) => theme_builder_name(design, t),
-        _ => fallback_builder(design),
+/// Task 3.6 (I-1): the builder the multi-theme selector holds when NO
+/// @theme signal is wired — the FIRST theme-declaring design's
+/// `@default-theme` builder when it names one of that design's declared
+/// themes, else the union fallback (mirrors the notifier's
+/// `ThemeMode.dark`/light mapping for the two-state path). Panic-free like
+/// `fallback_builder`.
+fn default_builder(first: &DesignIR, designs: &[&DesignIR], union: &[String]) -> String {
+    if let Some(t) = first.default_theme.as_deref() {
+        if first.themes.iter().any(|x| x == t) {
+            return theme_builder_name(first, t);
+        }
     }
+    fallback_builder(designs, union)
 }
 
 /// Emit the theme switching runtime: a Riverpod 3.0 `ThemeModeNotifier` +
@@ -1315,13 +1344,15 @@ fn default_builder(design: &DesignIR) -> String {
 /// manual (pre-v2 behavior).
 ///
 /// Task 3.6 (>2 themes, D-G): Flutter's native `ThemeMode` is two-state, so
-/// a design declaring MORE than light/dark switches emission to a
-/// `themeDataProvider` — a `Provider<ThemeData>` selecting the active
-/// `ThemeData` builder for the @theme signal across ALL declared themes
-/// (every theme reachable; the app shell wires
-/// `MaterialApp(theme: ref.watch(themeDataProvider))`). The extra themes do
-/// not participate in `ThemeMode` semantics (no system-following) — that
-/// platform floor is documented by a compiler warning.
+/// when the UNION of themes across ALL theme-declaring designs (I-1) has
+/// more than light/dark, emission switches to a `themeDataProvider` — a
+/// `Provider<ThemeData>` selecting the active `ThemeData` builder for the
+/// @theme signal across the whole union, each arm resolved against the
+/// design that declares its theme (every theme reachable; the app shell
+/// wires `MaterialApp(theme: ref.watch(themeDataProvider))`). The extra
+/// themes do not participate in `ThemeMode` semantics (no
+/// system-following) — that platform floor is documented by a compiler
+/// warning covering all declaring designs.
 fn emit_theme_switch(
     w: &mut CodeWriter,
     designs: &[&DesignIR],
@@ -1331,15 +1362,25 @@ fn emit_theme_switch(
     let Some(first) = designs.iter().find(|d| !d.themes.is_empty()) else {
         return;
     };
-    let multi_theme = first.themes.len() > 2;
+    // Task 3.6 (I-1): the multi-theme decision covers the UNION of themes
+    // across ALL theme-declaring designs — a program mixing `design A
+    // { light, dark }` + `design B { light, dark, sepia }` must warn and
+    // reach sepia, not silently collapse to the two-state path on A.
+    let union = union_themes(designs);
+    let multi_theme = union.len() > 2;
     if multi_theme {
+        let declaring: Vec<String> = designs
+            .iter()
+            .filter(|d| !d.themes.is_empty())
+            .map(|d| format!("'{}'", d.name))
+            .collect();
         warnings.push(format!(
-            "[flutter][design] design '{}' declares {} themes ({}): Flutter 原生 \
+            "[flutter][design] design(s) {} declare {} themes ({}): Flutter 原生 \
              ThemeMode 仅支持 light/dark 两态——其余主题通过 themeDataProvider \
              的 ThemeData 索引选择接线（不参与系统亮暗跟随）",
-            first.name,
-            first.themes.len(),
-            first.themes.join(", ")
+            declaring.join(", "),
+            union.len(),
+            union.join(", ")
         ));
     }
     let mut default_mode = match first.default_theme.as_deref() {
@@ -1394,14 +1435,22 @@ fn emit_theme_switch(
             ));
             w.emit("return switch (mode) {");
             w.indent();
-            for theme in &first.themes {
-                w.emit_fmt(format_args!(
-                    "'{}' => {}(),",
-                    theme,
-                    theme_builder_name(first, theme)
-                ));
+            // I-1: one arm per union theme, resolved against the design
+            // that DECLARES it (`'sepia' => buildBSepiaTheme()` when only
+            // design B declares sepia).
+            for theme in &union {
+                if let Some(design) = designs.iter().find(|d| d.themes.contains(theme)) {
+                    w.emit_fmt(format_args!(
+                        "'{}' => {}(),",
+                        theme,
+                        theme_builder_name(design, theme)
+                    ));
+                }
             }
-            w.emit_fmt(format_args!("_ => {}(),", fallback_builder(first)));
+            w.emit_fmt(format_args!(
+                "_ => {}(),",
+                fallback_builder(designs, &union)
+            ));
             w.dedent();
             w.emit("};");
         } else {
@@ -1409,7 +1458,10 @@ fn emit_theme_switch(
             w.emit("/// theme's builder; wire `MaterialApp(theme:");
             w.emit("/// ref.watch(themeDataProvider))` manually (pre-v2");
             w.emit("/// behavior).");
-            w.emit_fmt(format_args!("return {}();", default_builder(first)));
+            w.emit_fmt(format_args!(
+                "return {}();",
+                default_builder(first, designs, &union)
+            ));
         }
         w.dedent();
         w.emit("});");
@@ -1481,11 +1533,13 @@ fn emit_theme_switch(
 /// }
 /// ```
 ///
-/// Task 3.6: when the design declares MORE than light/dark (>2 themes) the
-/// shell watches `themeDataProvider` instead — `MaterialApp(theme:
-/// ref.watch(themeDataProvider))` — because Flutter's `ThemeMode` cannot
-/// express sepia/highContrast. The provider selects the active `ThemeData`
-/// builder across ALL declared themes.
+/// Task 3.6 (I-1): when the UNION of declared themes across all designs
+/// exceeds light/dark (>2 themes) the shell watches `themeDataProvider`
+/// instead — `MaterialApp(theme: ref.watch(themeDataProvider))` — because
+/// Flutter's `ThemeMode` cannot express sepia/highContrast. The provider
+/// selects the active `ThemeData` builder across ALL declared themes. The
+/// gate mirrors `emit_theme_switch`'s union decision so the shell and the
+/// emitted runtime always agree.
 ///
 /// Projects without a `@theme` signal keep their own main.dart (pre-v2
 /// behavior — the notifier holds the default mode and the wiring stays
@@ -1524,22 +1578,33 @@ pub fn gen_theme_app_shell(ir: &IRProgram) -> Option<CompiledFile> {
         format!("{}()", root_name)
     };
 
-    let light_theme = first
-        .themes
+    // Task 3.6 (I-1): the multi-theme gate covers the UNION of themes
+    // across ALL designs — a second design can push the program past
+    // light/dark even when the @theme-signal design stays two-state. The
+    // shell MUST agree with the runtime emitted by `emit_theme_switch`
+    // (which also gates on the union) or main.dart would reference a
+    // provider that does not exist.
+    let all_designs: Vec<&DesignIR> = ir.modules.values().flat_map(|m| &m.designs).collect();
+    let union = union_themes(&all_designs);
+    let multi_theme = union.len() > 2;
+    // light/dark builders resolve against the design that DECLARES them
+    // (light may live in design A and dark in design B).
+    let light_theme = union
         .iter()
         .find(|t| *t == "light")
-        .or_else(|| first.themes.first())
+        .or_else(|| union.first())
         .cloned()?;
-    let light_builder = theme_builder_name(first, &light_theme);
-    let dark_builder = first
-        .themes
+    let light_builder = theme_builder_name(
+        all_designs
+            .iter()
+            .find(|d| d.themes.contains(&light_theme))?,
+        &light_theme,
+    );
+    let dark_builder = union
         .iter()
         .find(|t| *t == "dark")
-        .map(|t| theme_builder_name(first, t));
-    // Task 3.6: >2 declared themes wire through `themeDataProvider` (the
-    // theme selector) instead of `themeMode`/`darkTheme` — Flutter's
-    // ThemeMode cannot express sepia/highContrast, the provider can.
-    let multi_theme = first.themes.len() > 2;
+        .and_then(|t| all_designs.iter().find(|d| d.themes.contains(t)))
+        .map(|d| theme_builder_name(d, "dark"));
 
     let mut w = CodeWriter::new();
     w.emit("// Generated by OmniLang \u{2014} app shell with @theme wiring");
@@ -3054,6 +3119,12 @@ mod tests {
     /// `mode` signal is marked `@theme` and an `App` root component (the v2
     /// D1 wiring shape — Flutter app shell).
     fn make_theme_ir(design: DesignIR) -> IRProgram {
+        make_theme_ir_multi(vec![design])
+    }
+
+    /// Same as `make_theme_ir` but with MULTIPLE design blocks — the
+    /// Task 3.6 I-1 multi-design theme-program shape.
+    fn make_theme_ir_multi(designs: Vec<DesignIR>) -> IRProgram {
         let theme_store = StoreIR {
             name: "ThemeStore".to_string(),
             signals: vec![(
@@ -3079,7 +3150,7 @@ mod tests {
             stores: vec![("ThemeStore".into(), theme_store)]
                 .into_iter()
                 .collect(),
-            designs: vec![design],
+            designs,
             ..Default::default()
         };
         module.components.insert(
@@ -3255,6 +3326,54 @@ mod tests {
             content
         );
         assert!(content.contains("home: const App(),"));
+    }
+
+    /// Task 3.6 (I-1): the multi-theme decision covers the UNION of themes
+    /// across ALL theme-declaring designs — `design A { light, dark }` +
+    /// `design B { light, dark, sepia }` must warn and reach sepia (its
+    /// builder belongs to B), NOT silently collapse to the two-state path
+    /// on A. The shell must stay consistent with the emitted runtime
+    /// (themeDataProvider — never a missing themeModeProvider).
+    #[test]
+    fn multi_theme_union_across_designs() {
+        let mut design_a = make_design();
+        design_a.name = "A".to_string();
+        design_a.themes = vec!["light".to_string(), "dark".to_string()];
+        let mut design_b = make_design();
+        design_b.name = "B".to_string();
+        design_b.themes = vec!["light".to_string(), "dark".to_string(), "sepia".to_string()];
+        design_b.theme_signal = Some("ThemeStore.mode".to_string());
+        let ir = make_theme_ir_multi(vec![design_a, design_b]);
+        let (files, warnings, _errors) = gen_design_files(&ir);
+        let content = &files[0].content;
+        // Union = {light, dark, sepia} → the multi-theme runtime is
+        // emitted (A alone would have kept the two-state path).
+        assert!(content.contains("final themeDataProvider = Provider<ThemeData>((ref) {"));
+        assert!(
+            content.contains("'sepia' => buildBSepiaTheme(),"),
+            "sepia must resolve against its declaring design B, got:\n{}",
+            content
+        );
+        assert!(
+            content.contains("'light' => buildALightTheme(),"),
+            "light must resolve against its declaring design A, got:\n{}",
+            content
+        );
+        assert!(
+            warnings.iter().any(|w| w.contains("light/dark")),
+            "the union of themes must warn, got: {:?}",
+            warnings
+        );
+        // The shell gate mirrors the union: themeDataProvider wiring, never
+        // a reference to a non-emitted themeModeProvider.
+        let shell = gen_theme_app_shell(&ir).expect("main.dart should be emitted");
+        assert!(shell
+            .content
+            .contains("theme: ref.watch(themeDataProvider),"));
+        assert!(
+            !shell.content.contains("themeModeProvider"),
+            "shell must not reference a provider the runtime does not emit"
+        );
     }
 
     /// Task 4.2: no app shell without a @theme signal (existing projects
