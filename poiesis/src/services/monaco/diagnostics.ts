@@ -148,12 +148,24 @@ export async function validateSources(
     const wasmModule = await import("../../wasm/omnilang_wasm.js");
     // compile_multi_to_omniview: standalone multi-file with analyse_multi
     // editor_mode=false, debug_mode=false → bare compile, just for validation
-    const result = wasmModule.compile_multi_to_omniview(sources, false, false);
+    // 第 4 参 cache_state 必填（wasm 绑定签名）——本路径无增量缓存，传 undefined
+    const result = wasmModule.compile_multi_to_omniview(
+      sources,
+      false,
+      false,
+      undefined,
+    );
     if (result && Array.isArray(result)) {
       return result as WasmDiagnostic[];
     }
+    if (result && typeof result === "object" && "result" in result) {
+      // MultiCompileEnvelope：compile_multi_to_omniview 包了两层
+      // （omnilang-wasm/src/lib.rs:81-85），错误在 result.result.errors
+      const inner = (result as { result?: { errors?: WasmDiagnostic[] } }).result;
+      return inner?.errors ?? [];
+    }
     if (result && typeof result === "object" && "errors" in result) {
-      return (result as { errors: WasmDiagnostic[] }).errors ?? [];
+      return (result as { errors?: WasmDiagnostic[] }).errors ?? [];
     }
     return [];
   } catch (e) {
