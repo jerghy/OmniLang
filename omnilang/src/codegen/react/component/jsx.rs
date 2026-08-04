@@ -58,6 +58,11 @@ impl ReactCodegen {
                 pruned_signal_names,
                 motion_counter,
                 prop_fn_ctx,
+                // the view root sits directly inside `return ( ... )` — a
+                // parenthesized expression, NOT JSX children: expression
+                // nodes must not be wrapped in `{...}` containers (view-
+                // root block expressions, I2)
+                false,
             );
         } else {
             w.emit("<div className={styles.container}>");

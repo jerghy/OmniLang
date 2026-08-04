@@ -49,10 +49,20 @@ pub(super) fn gen_view_node_tsx(
     pruned_signal_names: &FxHashSet<String>,
     motion_counter: &mut usize,
     prop_fn_ctx: &PropFnMemoCtx,
+    // Whether this node sits directly in JSX-children position (between
+    // element/fragment tags). Expression nodes (conditional, list
+    // rendering) must then be wrapped in a JSX expression container
+    // `{...}`; in a parenthesized expression position (component view
+    // root, conditional branch bodies, slot fallbacks, map callbacks)
+    // the container braces are a syntax error — `return ( { x } )` is
+    // not valid TS (view-root block expressions, I2).
+    in_jsx_children: bool,
 ) {
     match node {
         ViewTree::Element(el) => {
-            // Fragment tag -> React fragment shorthand
+            // Fragment tag -> React fragment shorthand (transparent — the
+            // children take the fragment's own position, so the flag is
+            // inherited, not forced)
             if el.tag == "fragment" {
                 if el.children.is_empty() {
                     return;
@@ -71,6 +81,7 @@ pub(super) fn gen_view_node_tsx(
                         pruned_signal_names,
                         motion_counter,
                         prop_fn_ctx,
+                        in_jsx_children,
                     );
                 }
                 return;
@@ -183,6 +194,9 @@ pub(super) fn gen_view_node_tsx(
                         pruned_signal_names,
                         motion_counter,
                         prop_fn_ctx,
+                        // the content lands inside `slotName={...}` — an
+                        // attribute expression, not JSX children
+                        false,
                     );
                     let child_jsx = child_w.into_string();
                     let trimmed = child_jsx.trim();
@@ -210,6 +224,9 @@ pub(super) fn gen_view_node_tsx(
                             pruned_signal_names,
                             motion_counter,
                             prop_fn_ctx,
+                            // default children render between the tags —
+                            // JSX-children position
+                            true,
                         );
                     }
                     w.dedent();
@@ -745,6 +762,9 @@ pub(super) fn gen_view_node_tsx(
                     pruned_signal_names,
                     motion_counter,
                     prop_fn_ctx,
+                    // element children are JSX children — expression nodes
+                    // need `{...}` containers
+                    true,
                 );
             }
             w.dedent();
@@ -759,9 +779,17 @@ pub(super) fn gen_view_node_tsx(
             // mode: "wait" — OmniLang has no leave-animation mechanism to
             // wait for, so the transition degrades to an instant swap (same
             // timing as mode: "none"). The degradation is stated in the
-            // output so it is never a silent no-op.
+            // output so it is never a silent no-op. In JSX-children position
+            // the note is a `{/* */}` container comment; in a parenthesized
+            // expression position (view root / branch bodies) a container
+            // comment would be a syntax error, so it degrades to a `//` line
+            // comment.
             if cond.transition_mode.as_deref() == Some("wait") {
-                w.emit("{/* @if mode: \"wait\" — OmniLang has no leave animation; degrades to an instant swap (same as mode: \"none\"). */}");
+                if in_jsx_children {
+                    w.emit("{/* @if mode: \"wait\" — OmniLang has no leave animation; degrades to an instant swap (same as mode: \"none\"). */}");
+                } else {
+                    w.emit("// @if mode: \"wait\" — OmniLang has no leave animation; degrades to an instant swap (same as mode: \"none\").");
+                }
             }
 
             // mode: "fade" — each branch renders inside a wrapper div
@@ -785,6 +813,10 @@ pub(super) fn gen_view_node_tsx(
                         pruned_signal_names,
                         motion_counter,
                         prop_fn_ctx,
+                        // fallback sits directly in the conditional's own
+                        // position — a fade wrapper div puts it in JSX
+                        // children, otherwise the position is inherited
+                        is_fade || in_jsx_children,
                     );
                     emit_fade_branch_close(w, is_fade);
                 }
@@ -793,8 +825,10 @@ pub(super) fn gen_view_node_tsx(
 
             // Single branch without fallback → {condition && (...)}
             if branches.len() == 1 && fallback.is_none() {
-                w.emit("{");
-                w.indent();
+                if in_jsx_children {
+                    w.emit("{");
+                    w.indent();
+                }
                 let cond_str = format_expr_ir_tsx_renamed(
                     &branches[0].condition,
                     ref_names,
@@ -817,21 +851,28 @@ pub(super) fn gen_view_node_tsx(
                         pruned_signal_names,
                         motion_counter,
                         prop_fn_ctx,
+                        // the branch body sits inside `( ... )` — or inside
+                        // the fade wrapper div, which is JSX children
+                        is_fade,
                     );
                 }
                 emit_fade_branch_close(w, is_fade);
                 w.dedent();
                 w.emit(")");
-                w.dedent();
-                w.emit("}");
+                if in_jsx_children {
+                    w.dedent();
+                    w.emit("}");
+                }
                 return;
             }
 
             // Multiple branches or fallback → nested ternary
             // Clean structure: each branch closes `? (` before the next `: (`
             // Remaining `: (` from branches 1..N get closed after fallback/null.
-            w.emit("{");
-            w.indent();
+            if in_jsx_children {
+                w.emit("{");
+                w.indent();
+            }
 
             // branches.is_empty() returned above, so split_first() cannot
             // fail here — the nested-ternary path always has a first branch.
@@ -859,6 +900,7 @@ pub(super) fn gen_view_node_tsx(
                     pruned_signal_names,
                     motion_counter,
                     prop_fn_ctx,
+                    is_fade,
                 );
             }
             emit_fade_branch_close(w, is_fade);
@@ -887,6 +929,7 @@ pub(super) fn gen_view_node_tsx(
                         pruned_signal_names,
                         motion_counter,
                         prop_fn_ctx,
+                        is_fade,
                     );
                 }
                 emit_fade_branch_close(w, is_fade);
@@ -911,6 +954,7 @@ pub(super) fn gen_view_node_tsx(
                     pruned_signal_names,
                     motion_counter,
                     prop_fn_ctx,
+                    is_fade,
                 );
                 emit_fade_branch_close(w, is_fade);
                 w.dedent();
@@ -923,8 +967,10 @@ pub(super) fn gen_view_node_tsx(
                 w.emit(")");
             }
 
-            w.dedent();
-            w.emit("}");
+            if in_jsx_children {
+                w.dedent();
+                w.emit("}");
+            }
         }
         ViewTree::ListRendering(list) => {
             let iterable_str =
@@ -946,8 +992,10 @@ pub(super) fn gen_view_node_tsx(
                 " key={_i} /* omni: no key={expr} on @for — index-key fallback; reorder/filter loses item state — add key={...} for object items */".to_string()
             };
             if list.empty_body.is_some() {
-                w.emit("{");
-                w.indent();
+                if in_jsx_children {
+                    w.emit("{");
+                    w.indent();
+                }
                 // Single-eval the iterable (Task 5.5): the previous shape
                 // `({} && {}.length === 0) ? ... : ({}.map(...))` evaluated
                 // the iterable TWICE per render (side effects / allocations
@@ -972,6 +1020,9 @@ pub(super) fn gen_view_node_tsx(
                         pruned_signal_names,
                         motion_counter,
                         prop_fn_ctx,
+                        // the empty body sits inside the IIFE's return
+                        // parens — never a JSX-children position
+                        false,
                     );
                 }
                 w.dedent();
@@ -980,8 +1031,10 @@ pub(super) fn gen_view_node_tsx(
                     item_name
                 ));
             } else {
-                w.emit("{");
-                w.indent();
+                if in_jsx_children {
+                    w.emit("{");
+                    w.indent();
+                }
                 w.emit_fmt(format_args!(
                     "{}.map(({}, _i) => (",
                     iterable_str, item_name
@@ -1004,6 +1057,9 @@ pub(super) fn gen_view_node_tsx(
                     pruned_signal_names,
                     motion_counter,
                     prop_fn_ctx,
+                    // the item body sits inside the map callback's parens —
+                    // never a JSX-children position
+                    false,
                 );
             }
             w.dedent();
@@ -1015,11 +1071,17 @@ pub(super) fn gen_view_node_tsx(
                 // The preceding `))` closed the lambda-body and map-call
                 // parens; here the ternary's else paren closes (`)`), the
                 // return statement ends (`;`), the arrow body and the IIFE
-                // call paren close (`})`), the IIFE is invoked (`()`), and
-                // the JSX container closes (`}`). No stray `;` — JSX
-                // expression containers hold exactly one expression.
-                w.emit("); })()}");
-            } else {
+                // call paren close (`})`), and the IIFE is invoked (`()`).
+                // In JSX-children position a final `}` closes the container
+                // (no stray `;` — JSX expression containers hold exactly
+                // one expression); at the view root / in parens it is a
+                // syntax error and must not be emitted.
+                if in_jsx_children {
+                    w.emit("); })()}");
+                } else {
+                    w.emit("); })()");
+                }
+            } else if in_jsx_children {
                 w.emit("}");
             }
         }
@@ -1060,6 +1122,9 @@ pub(super) fn gen_view_node_tsx(
             w.emit_fmt(format_args!("{{{}}}", js_expr));
         }
         ViewTree::Fragment(children) => {
+            // Transparent node — the children take the fragment's own
+            // position (a `<>...</>` boundary is only added by
+            // gen_branch_body_tsx, which passes the flag itself).
             for child in children {
                 gen_view_node_tsx(
                     w,
@@ -1074,6 +1139,7 @@ pub(super) fn gen_view_node_tsx(
                     pruned_signal_names,
                     motion_counter,
                     prop_fn_ctx,
+                    in_jsx_children,
                 );
             }
         }
@@ -1103,6 +1169,9 @@ pub(super) fn gen_view_node_tsx(
                     pruned_signal_names,
                     motion_counter,
                     prop_fn_ctx,
+                    // the fallback sits inside the `( ... )` of
+                    // `{name ?? ( ... )}` — never a JSX-children position
+                    false,
                 );
                 w.dedent();
                 w.emit(")}");
@@ -1136,6 +1205,11 @@ pub(super) fn gen_branch_body_tsx(
     pruned_signal_names: &FxHashSet<String>,
     motion_counter: &mut usize,
     prop_fn_ctx: &PropFnMemoCtx,
+    // Whether this body sits in JSX-children position (see
+    // `gen_view_node_tsx`). A multi-node body is wrapped in a `<>...</>`
+    // fragment, which puts its children in JSX-children position
+    // regardless of the incoming flag.
+    in_jsx_children: bool,
 ) {
     let is_multi = match body {
         // Lowering wraps multi-node bodies in an element with tag "fragment";
@@ -1161,6 +1235,7 @@ pub(super) fn gen_branch_body_tsx(
         pruned_signal_names,
         motion_counter,
         prop_fn_ctx,
+        is_multi || in_jsx_children,
     );
     if is_multi {
         w.dedent();
@@ -1356,6 +1431,12 @@ fn gen_consumer_child_tsx(
     pruned_signal_names: &FxHashSet<String>,
     motion_counter: &mut usize,
     prop_fn_ctx: &PropFnMemoCtx,
+    // Whether this projected content sits in JSX-children position:
+    // default children render between `<Comp>`/`</Comp>` (true), named
+    // slot projections render inside an attribute expression
+    // `slotName={...}` (false — see the `gen_consumer_child_tsx` call
+    // sites in the component arm).
+    in_jsx_children: bool,
 ) {
     match child {
         ViewTree::Slot { fallback, .. } => {
@@ -1372,6 +1453,7 @@ fn gen_consumer_child_tsx(
                 pruned_signal_names,
                 motion_counter,
                 prop_fn_ctx,
+                in_jsx_children,
             );
         }
         _ => {
@@ -1388,6 +1470,7 @@ fn gen_consumer_child_tsx(
                 pruned_signal_names,
                 motion_counter,
                 prop_fn_ctx,
+                in_jsx_children,
             );
         }
     }

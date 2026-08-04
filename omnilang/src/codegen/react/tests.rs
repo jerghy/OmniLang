@@ -4648,6 +4648,242 @@ component PlainPanel {
     );
 }
 
+/// I2 (view-root block expressions): a component whose view ROOT is a
+/// conditional (`@if/@else` with no wrapper element — the PageSwitcherDemo
+/// shape) used to emit `return ( { ... } )` — JSX expression-container
+/// braces around the ternary — which is a TS syntax error (TS1005/TS1136/
+/// TS1128). Container braces are only valid in JSX-children position; at
+/// the root of `return ( ... )` the ternary must be emitted bare.
+#[test]
+fn react_root_conditional_emits_bare_ternary() {
+    let source = r#"
+component PageSwitcher {
+    signal page: String = "home";
+    view {
+        @if page == "home" {
+            <p>Home</p>
+        }
+        @else {
+            <p>About</p>
+        }
+    }
+}
+"#;
+    let result = compile_react_full(source);
+    assert!(result.success, "errors: {:?}", result.errors);
+    let content: String = result
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        content.contains("return (\n        page === \"home\" ? ("),
+        "the root ternary must sit directly in the return parens, got:\n{}",
+        content
+    );
+    assert!(
+        !content.contains("return (\n    {"),
+        "no JSX container braces may wrap the root ternary, got:\n{}",
+        content
+    );
+}
+
+/// I2: the same for a root-level `@for ... @empty` (the ScrollStoreDemo
+/// shape) — the IIFE must sit directly in the return parens, and the
+/// closing `); })()` must NOT carry the JSX-container `}`.
+#[test]
+fn react_root_for_empty_emits_bare_iife() {
+    let source = r#"
+component ListPage {
+    signal items: Array<String> = [];
+    view {
+        @for item in items {
+            <div>{item}</div>
+        } @empty {
+            <p>No items</p>
+        }
+    }
+}
+"#;
+    let result = compile_react_full(source);
+    assert!(result.success, "errors: {:?}", result.errors);
+    let content: String = result
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        content.contains("return (\n        (() => { const __omni_iterable = items;"),
+        "the single-eval IIFE must sit directly in the return parens, got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("); })()\n);"),
+        "the IIFE must close WITHOUT a trailing JSX-container brace, got:\n{}",
+        content
+    );
+    assert!(
+        !content.contains("); })()}"),
+        "the JSX-container `}}` must not be emitted at the view root, got:\n{}",
+        content
+    );
+    assert!(
+        !content.contains("return (\n    {"),
+        "no JSX container braces may wrap the root list, got:\n{}",
+        content
+    );
+}
+
+/// I2: a root-level `@for` without `@empty` also drops the container braces
+/// (`{items.map(...)}` → `items.map(...)`).
+#[test]
+fn react_root_for_without_empty_emits_bare_map() {
+    let source = r#"
+component ListPage {
+    signal items: Array<String> = [];
+    view {
+        @for item in items {
+            <div>{item}</div>
+        }
+    }
+}
+"#;
+    let result = compile_react_full(source);
+    assert!(result.success, "errors: {:?}", result.errors);
+    let content: String = result
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        content.contains("return (\n        items.map((item, _i) => ("),
+        "the bare .map must sit directly in the return parens, got:\n{}",
+        content
+    );
+    assert!(
+        !content.contains("return (\n    {"),
+        "no JSX container braces may wrap the root list, got:\n{}",
+        content
+    );
+}
+
+/// I2: the container braces stay for expression nodes in JSX-CHILDREN
+/// position — a conditional inside a wrapper element is unchanged.
+#[test]
+fn react_conditional_in_children_keeps_container_braces() {
+    let source = r#"
+component PlainPanel {
+    signal open: bool = false
+    view {
+        <div>
+            @if open {
+                <p>Panel</p>
+            }
+        </div>
+    }
+}
+"#;
+    let result = compile_react_full(source);
+    assert!(result.success, "errors: {:?}", result.errors);
+    let content: String = result
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        content.contains("{\n                open && ("),
+        "a conditional in children position still needs the container, got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("return (\n        <div>"),
+        "the element root is unchanged, got:\n{}",
+        content
+    );
+}
+
+/// I2: a root conditional with `mode: "fade"` emits the fade wrapper divs
+/// directly in the return parens — no container braces, but the branch
+/// bodies (now inside the wrapper divs) still get them.
+#[test]
+fn react_root_conditional_fade_mode_bare_ternary() {
+    let source = r#"
+component FadePanel {
+    signal open: bool = false
+    view {
+        @if open mode: "fade" {
+            <p>Panel</p>
+        }
+        @else {
+            <p>Other</p>
+        }
+    }
+}
+"#;
+    let result = compile_react_full(source);
+    assert!(result.success, "errors: {:?}", result.errors);
+    let content: String = result
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        content.contains("return (\n        open ? ("),
+        "the root ternary must sit directly in the return parens, got:\n{}",
+        content
+    );
+    assert!(
+        !content.contains("return (\n    {"),
+        "no JSX container braces may wrap the root ternary, got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("styles['omni-if-fade']"),
+        "the fade wrapper class must still be emitted, got:\n{}",
+        content
+    );
+}
+
+/// I2: a root conditional with `mode: "wait"` degrades its stated-comment to
+/// a `//` line comment — a `{/* */}` container comment at the root of
+/// `return ( ... )` would be a syntax error.
+#[test]
+fn react_root_conditional_wait_mode_uses_line_comment() {
+    let source = r#"
+component WaitPanel {
+    signal open: bool = false
+    view {
+        @if open mode: "wait" {
+            <p>Panel</p>
+        }
+    }
+}
+"#;
+    let result = compile_react_full(source);
+    assert!(result.success, "errors: {:?}", result.errors);
+    let content: String = result
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        content.contains("return (\n        // @if mode: \"wait\""),
+        "the degradation note must be a line comment at the root, got:\n{}",
+        content
+    );
+    assert!(
+        !content.contains("{/* @if mode: \"wait\""),
+        "no JSX container comment at the view root, got:\n{}",
+        content
+    );
+}
+
 /// Test: a multi-node slot fallback is wrapped in a React fragment inside
 /// `{prop ?? ( ... )}` so the emitted TSX stays valid.
 #[test]
