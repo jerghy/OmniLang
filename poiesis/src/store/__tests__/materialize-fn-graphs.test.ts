@@ -36,8 +36,8 @@ describe("materializeFnGraphs（F1 物化）", () => {
     });
     usePoiesisStore.getState().materializeFnGraphs("Counter");
     const el = usePoiesisStore.getState().elements.find((e) => e.id === "cb_b2");
-    // brief 逐字断言；ElementData 联合类型（GroupElementData 无 props）下用 as never 保证 tsc 零错误
-    expect(((el as never)?.props?.name as string)).toBe("EDITED");
+    // brief 逐字断言；元素实为 codeblock（测试构造），转型为已导入的 CodeblockElementData 访问 props（as never 会报 TS2339）
+    expect(((el as CodeblockElementData)?.props?.name as string)).toBe("EDITED");
   });
 
   it("无 fn 元数据的组件：no-op", () => {
