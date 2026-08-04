@@ -96,4 +96,37 @@ describe("store action syntax-node emission", () => {
     expect(reAction.wires.some((w) => w.fromId === reFn.id && w.toId === reAssign.id)).toBe(true);
     expect(reAction.wires.some((w) => w.fromId === reAssign.id && w.toId === reStoreCall.id)).toBe(true);
   });
+
+  it("fn-only action (no statements) round-trips: fn element survives emit → parse without illegal wires", () => {
+    // Fresh action created by StoreMembersPanel — fn element, zero statements,
+    // saved before any statements were added.
+    const fnOnlyElements = [el("s1_n3_c1", "fn", { name: "newAction", params: "" })];
+    const storeDef: StoreDefinition = {
+      pid: "s1",
+      name: "demostore",
+      filePath: "src/stores/demostore.omni",
+      imports: [],
+      signals: [],
+      getters: [],
+      actions: [
+        { pid: "s1_n3", name: "newAction", params: [], returnType: undefined, isAsync: false, elements: fnOnlyElements, wires: [] },
+      ],
+    };
+    const out = emitStoreDefinition(storeDef);
+    // Empty action body is legal OmniLang
+    expect(out).toContain("action newAction() {");
+    expect(out).not.toMatch(/fn\s+newAction\s*\(/);
+
+    const reparsed = parseOmniSource(out);
+    const reAction = reparsed.storeDef!.actions.find((a) => a.name === "newAction")!;
+    // The fn entry node must be preserved across reload (otherwise
+    // later-added statements would be silently dropped on save)
+    expect(reAction.elements).toHaveLength(1);
+    const reFn = reAction.elements[0];
+    expect(reFn.tag).toBe("fn");
+    expect(reFn.id).toBe("s1_n3_fn");
+    expect(reFn.props).toEqual({ name: "newAction", params: "", returnType: "" });
+    // No wires at all — never a self-loop or dangling reference
+    expect(reAction.wires).toHaveLength(0);
+  });
 });

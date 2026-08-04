@@ -703,7 +703,11 @@ export class Parser {
         // statements (nested fn declarations are invalid OmniLang), so the
         // fn element is synthesized here from the action signature. It is
         // wired to the first statement so the compiled body re-emits on save.
-        if (!elements.some((e) => e.tag === "fn") && elements.length > 0) {
+        // Synthesize even for EMPTY bodies — a fresh action (StoreMembersPanel
+        // creates its fn element) saved before any statements must keep its
+        // fn entry node across reloads, otherwise later-added statements
+        // would be silently dropped on save (no fn entry to compile from).
+        if (!elements.some((e) => e.tag === "fn")) {
           const fnPid = `${pid}_fn`;
           elements.unshift({
             id: fnPid,
@@ -717,13 +721,17 @@ export class Parser {
             },
             source: "",
           });
-          wires.push({
-            id: uid("wire"),
-            fromId: fnPid,
-            fromPort: "flow-out",
-            toId: elements[1].id,
-            toPort: "flow-in",
-          });
+          // Wire the fn to the first statement only when statements exist —
+          // never create a self-loop or point at a non-existent element.
+          if (elements.length > 1) {
+            wires.push({
+              id: uid("wire"),
+              fromId: fnPid,
+              fromPort: "flow-out",
+              toId: elements[1].id,
+              toPort: "flow-in",
+            });
+          }
         }
         storeDef.actions.push({ pid, name: nameTok.text, params, returnType, isAsync, elements, wires });
         continue;

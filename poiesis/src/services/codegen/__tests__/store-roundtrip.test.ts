@@ -207,7 +207,13 @@ describe("Store round-trip", () => {
     const result = parseOmniSource(source);
     expect(result.storeDef).toBeDefined();
     expect(result.storeDef!.actions).toHaveLength(1);
-    expect(result.storeDef!.actions[0].elements).toHaveLength(0);
+    // The fn entry element is synthesized from the action signature even for
+    // empty bodies — a fresh action saved before any statements must keep
+    // its fn node across reloads (round-trip carrier). No statements, no wires.
+    expect(result.storeDef!.actions[0].elements).toHaveLength(1);
+    const fnEl = result.storeDef!.actions[0].elements[0];
+    expect(fnEl.tag).toBe("fn");
+    expect(fnEl.props).toEqual({ name: "doNothing", params: "", returnType: "" });
     expect(result.storeDef!.actions[0].wires).toHaveLength(0);
   });
 
