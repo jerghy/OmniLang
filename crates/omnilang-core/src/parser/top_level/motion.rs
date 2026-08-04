@@ -69,6 +69,17 @@ impl<'a> Parser<'a> {
 
         match first.as_str() {
             "from" | "to" => Ok(MotionBody::Keyframe(self.parse_keyframe_body()?)),
+            // `paused` in block position (`@motion fadeIn { paused: true }`)
+            // must hard-error with the same migration hint as the
+            // keyframe-body map form (parse_playback_props) — not the generic
+            // expected-from/to error (LOW-4). `paused` was deleted in the
+            // semantic DSL (ADR-053); pause/resume via @if conditional
+            // rendering instead.
+            "paused" => Err(ParseError::with_kind(
+                DiagnosticKind::EPausedRemoved,
+                "paused 已删除，用 @if 条件渲染替代",
+                self.peek_span(),
+            )),
             _ => Err(self.error(format!(
                 "expected 'from' or 'to' to start keyframe body, got '{}'",
                 first
@@ -501,6 +512,25 @@ mod tests {
                     && e.message.contains("paused 已删除，用 @if 条件渲染替代")
             }),
             "expected E_PAUSED_REMOVED error with migration hint, got: {:?}",
+            errors.iter().map(|e| e.message.clone()).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn motion_paused_block_form_rejected() {
+        // LOW-4: the BLOCK form (`@motion fadeIn { paused: true }` — `paused`
+        // as the body's first token) used to fall through to the generic
+        // "expected 'from' or 'to'" error; it must hard-error with the same
+        // E_PAUSED_REMOVED migration hint as the keyframe-body map form.
+        let source = "@motion fadeIn { paused: true }";
+        let tokens = tokenize(source);
+        let (_program, errors) = parse(tokens, source);
+        assert!(
+            errors.iter().any(|e| {
+                e.kind == Some(DiagnosticKind::EPausedRemoved)
+                    && e.message.contains("paused 已删除，用 @if 条件渲染替代")
+            }),
+            "expected E_PAUSED_REMOVED block-form error with migration hint, got: {:?}",
             errors.iter().map(|e| e.message.clone()).collect::<Vec<_>>()
         );
     }

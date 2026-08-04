@@ -25,6 +25,12 @@
 //!   values (non-literal initializers) are NOT statically checkable and are
 //!   deliberately left unchecked — the boundary is documented here and in
 //!   the spec §4.5.
+//! - (D-F) `@default-theme X;` (design directive) and the `@theme` signal's
+//!   LITERAL initial are two declarations of the program's startup theme and
+//!   must agree — otherwise React starts from @default-theme while Flutter
+//!   only honors the signal initial for "dark" (silent cross-backend startup
+//!   divergence, domain MEDIUM-2). Mismatch → error naming both values and
+//!   both source positions.
 //!
 //! All diagnostics anchor at the source span of their store / design block
 //! (validate_effect_deps precedent, fix round 1/5 F4).
@@ -57,6 +63,16 @@ struct MarkedThemeSignal {
     /// non-literal (runtime) initializers — those cannot be checked.
     initial: Option<String>,
     span: Option<Span>,
+}
+
+/// Format `file:line:col` for embedding a source position in a diagnostic
+/// message (D-F: the @default-theme mismatch error carries BOTH sides'
+/// positions). Empty string when the source location is unknown.
+fn pos_text(file: &Option<String>, span: &Option<Span>) -> String {
+    match (file.as_deref(), span) {
+        (Some(f), Some(s)) => format!("{}:{}:{}", f, s.line, s.col),
+        _ => String::new(),
+    }
 }
 
 fn diag(message: String, file: Option<String>, span: Option<Span>) -> Diagnostic {
@@ -188,6 +204,42 @@ pub fn validate_theme(ir: &mut IRProgram, diagnostics: &mut Vec<Diagnostic>) {
                             ),
                             m.file.clone(),
                             m.span,
+                        ));
+                    }
+                }
+            }
+        }
+    }
+
+    // ── D-F (MEDIUM-2): @default-theme ↔ @theme literal initial must agree ──
+    // The design's `@default-theme X;` directive and the @theme signal's
+    // literal initial are TWO declarations of the program's startup theme.
+    // Without this check React starts from @default-theme while Flutter only
+    // honors the signal initial for "dark" — silent cross-backend startup
+    // divergence (domain MEDIUM-2). When both are statically known they must
+    // match; the error carries BOTH sides' values and source positions
+    // (D-F decision). Runtime-assigned initializers stay unchecked — same
+    // boundary as F1.
+    if marked.len() == 1 && has_themes_declaration {
+        if let Some(initial) = &marked[0].initial {
+            for design in ir.modules.values().flat_map(|m| m.designs.iter()) {
+                if let Some(dt) = &design.default_theme {
+                    if dt != initial {
+                        diagnostics.push(diag(
+                            format!(
+                                "@theme 信号 '{}.{}' 初始值 '{}'（{}）与 design '{}' \
+                                 的 @default-theme '{}'（{}）不一致——启动主题双声明必须一致 \
+                                 （React 从 @default-theme 起，Flutter 从信号 initial 起），请统一两处声明",
+                                marked[0].store,
+                                marked[0].signal,
+                                initial,
+                                pos_text(&marked[0].file, &marked[0].span),
+                                design.name,
+                                dt,
+                                pos_text(&design.source_file, &design.source_span),
+                            ),
+                            marked[0].file.clone(),
+                            marked[0].span,
                         ));
                     }
                 }
