@@ -110,6 +110,9 @@ export function validateSyntaxProps(
 export interface FormulaCandidate { value: string; label: string }
 export interface FormulaGroup { label: string; items: FormulaCandidate[] }
 
+/** 「store 信号」候选分组 label：flow-scope（组装）与 SyntaxNode（消费）共用，避免跨模块字符串耦合。 */
+export const STORE_SIGNALS_LABEL = "store 信号";
+
 /** 公式框候选分组：变量/参数/信号/属性/计算属性/store 信号/store action/component fn。 */
 export function buildExpressionCandidates(scope: FlowScope, letVars: Array<{ name: string }>): FormulaGroup[] {
   const groups: FormulaGroup[] = [];
@@ -122,7 +125,7 @@ export function buildExpressionCandidates(scope: FlowScope, letVars: Array<{ nam
   if (scope.props.length > 0) groups.push({ label: "属性", items: scope.props.map((p) => ({ value: p.name, label: `${p.name}: ${p.type}` })) });
   if (scope.computeds.length > 0) groups.push({ label: "计算属性", items: scope.computeds.map((c) => ({ value: c.name, label: `${c.name}: ${c.returnType}` })) });
   const storeSignals = scope.stores.flatMap((s) => s.signals.map((sig) => ({ value: `${s.name}.${sig.name}`, label: `${s.name}.${sig.name}: ${sig.type}` })));
-  if (storeSignals.length > 0) groups.push({ label: "store 信号", items: storeSignals });
+  if (storeSignals.length > 0) groups.push({ label: STORE_SIGNALS_LABEL, items: storeSignals });
   const calls = [
     ...scope.fns.map((f) => ({ value: f.name, label: `${f.name}(${f.params.map((p) => p.name).join(", ")})` })),
     ...scope.stores.flatMap((s) => s.actions.map((a) => ({ value: `${s.name}.${a.name}`, label: `${s.name}.${a.name}(${a.params.map((p) => `${p.name}: ${p.type}`).join(", ")})` }))),

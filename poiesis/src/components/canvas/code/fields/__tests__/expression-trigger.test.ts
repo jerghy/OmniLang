@@ -41,6 +41,9 @@ describe("operatorCandidates", () => {
   it("前缀过滤：< → [<, <=]", () => {
     expect(operatorCandidates("<").map((o) => o.value)).toEqual(["<", "<="]);
   });
+  it("> → [>, >=]（infix.rs 有 Gt/GtEq）", () => {
+    expect(operatorCandidates(">").map((o) => o.value)).toEqual([">", ">="]);
+  });
   it("= → 只提供 ==（不提供赋值 =）", () => {
     expect(operatorCandidates("=").map((o) => o.value)).toEqual(["=="]);
   });

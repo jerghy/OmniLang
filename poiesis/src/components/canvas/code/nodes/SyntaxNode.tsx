@@ -7,7 +7,7 @@ import { formatSyntaxNode, type SyntaxNodeProps, ASSIGN_OPERATORS } from "../../
 import { NodeTextField, NodeSelect, NodeChipToggle, NodeArgsRows } from "../fields/NodeField";
 import { NodeFormulaField, type FormulaCandidateSource } from "../fields/NodeFormulaField";
 import { countUnbalancedParens } from "../fields/expression-trigger";
-import { validateSyntaxProps, filterCandidates, buildExpressionCandidates, buildTargetOptions, type FlowScope } from "../../../../services/codegen/flow-scope";
+import { validateSyntaxProps, filterCandidates, buildExpressionCandidates, buildTargetOptions, STORE_SIGNALS_LABEL, type FlowScope } from "../../../../services/codegen/flow-scope";
 import styles from "./SyntaxNode.module.css";
 
 const OMNI_TYPES = ["String", "i32", "i64", "f64", "f32", "bool", "Array<String>", "Array<i32>", "Array<f64>", "Map<String, String>"];
@@ -70,7 +70,7 @@ const SyntaxNode = React.memo(function SyntaxNode({ data }: Props) {
     if (!scope) return undefined;
     const all = buildExpressionCandidates(scope, letVars ?? []);
     const flat = all.flatMap((g) => g.items);
-    const flatStore = all.find((g) => g.label === "store 信号")?.items ?? [];
+    const flatStore = all.find((g) => g.label === STORE_SIGNALS_LABEL)?.items ?? [];
     return {
       filter: (q) => {
         const t = q.trim();

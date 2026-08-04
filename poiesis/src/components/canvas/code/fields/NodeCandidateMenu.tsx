@@ -36,7 +36,7 @@ export function NodeCandidateMenu({ x, y, groups, activeIdx, onSelect, onMouseEn
   }, [activeIdx]);
 
   return (
-    <div ref={rootRef} className={styles.menu} style={{ left: x, top: y }} role="listbox" aria-label="表达式候选">
+    <div ref={rootRef} id="node-candidate-results" className={styles.menu} style={{ left: x, top: y }} role="listbox" aria-label="表达式候选">
       {flat.length === 0 ? (
         <div className={styles.empty}>无匹配项</div>
       ) : (

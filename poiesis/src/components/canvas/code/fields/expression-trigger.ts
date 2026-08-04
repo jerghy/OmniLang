@@ -5,6 +5,7 @@ export const SINGLE_CHAR_OPERATORS = ["+", "-", "*", "/", "%"];
 
 export const OPERATOR_PREFIX_CANDIDATES: Record<string, string[]> = {
   "<": ["<", "<="],
+  ">": [">", ">="],
   "=": ["=="],
   "!": ["!=", "!"],
   "&": ["&&"],

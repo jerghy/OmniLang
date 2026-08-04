@@ -63,6 +63,10 @@ async function loadOmniFiles(): Promise<void> {
     parseResult: ReturnType<typeof parseOmniSource>;
   }
 
+  // F2 物化辅助：fnRegistry → ComponentDef.fns 形状（main 与非 main 分支共用，消除逐字重复）
+  const materializeFns = (p: ParsedFile): import("./core/types/project-json").FnDef[] =>
+    (p.parseResult.fnRegistry?.[p.componentName] ?? []).map((f) => ({ pid: f.pid, name: f.name, params: f.params, returnType: f.returnType }));
+
   // ── Phase 1: Parse all files and load storeDefs BEFORE opening tabs ──
   // This prevents StorePage's useEffect from creating an empty default store
   // that overwrites the parsed store definition.
@@ -287,7 +291,7 @@ async function loadOmniFiles(): Promise<void> {
           computeds: existing?.computeds ?? (p.parseResult.computeds || []).map((c: { name: string; type: string; expression: string }) => ({ pid: uid("c"), name: c.name, returnType: c.type, expression: c.expression })),
           events: existing?.events ?? (p.parseResult.events || []).map((e: { name: string }) => ({ pid: uid("evt"), name: e.name, payloadType: "" })),
           // F2 物化：fnRegistry 为空时从解析结果物化 fns（保持 existing?.fns 短路语义，不覆盖既有编辑）。
-          fns: existing?.fns ?? (p.parseResult.fnRegistry?.[p.componentName] ?? []).map((f) => ({ pid: f.pid, name: f.name, params: f.params, returnType: f.returnType })),
+          fns: existing?.fns ?? materializeFns(p),
         };
       } else {
         const existing = newComponentDefs[p.componentName];
@@ -299,7 +303,7 @@ async function loadOmniFiles(): Promise<void> {
           computeds: existing?.computeds ?? (p.parseResult.computeds || []).map((c: { name: string; type: string; expression: string }) => ({ pid: uid("c"), name: c.name, returnType: c.type, expression: c.expression })),
           events: existing?.events ?? (p.parseResult.events || []).map((e: { name: string }) => ({ pid: uid("evt"), name: e.name, payloadType: "" })),
           // F2 物化：fnRegistry 为空时从解析结果物化 fns（保持 existing?.fns 短路语义，不覆盖既有编辑）。
-          fns: existing?.fns ?? (p.parseResult.fnRegistry?.[p.componentName] ?? []).map((f) => ({ pid: f.pid, name: f.name, params: f.params, returnType: f.returnType })),
+          fns: existing?.fns ?? materializeFns(p),
           elements: p.elements,
           wires: p.wires,
           rootOrder: p.rootOrder,

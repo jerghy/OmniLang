@@ -46,7 +46,11 @@ describe("materializeFnGraphs（F1 物化）", () => {
       elements: [],
       wires: [],
       codeFlowGraphs: {
-        increment: { elements: [codeEl("fn_a1", "fn", "increment"), codeEl("cb_b2", "let", "x"), codeEl("cb_b3", "return")], wires: [] },
+        increment: {
+          // 显式 position: undefined 与缺键同等对待（终审修复 6：undefined 判定走布局分配）
+          elements: [codeEl("fn_a1", "fn", "increment"), codeEl("cb_b2", "let", "x"), { ...codeEl("cb_b3", "return"), position: undefined }],
+          wires: [],
+        },
       },
       componentDefs: { Counter: { name: "Counter", fns: [{ pid: "fn_a1", name: "increment", params: [], returnType: "void" }] } as never },
     });
@@ -63,6 +67,22 @@ describe("materializeFnGraphs（F1 物化）", () => {
     expect(usePoiesisStore.getState().elements
       .filter((e): e is CodeblockElementData => e.nodeType === "codeblock")
       .map((e) => e.position)).toEqual(positions);
+  });
+
+  it("跨组件同名 fn 图：fn 元素 id 与 fnRegistry.pid 不匹配时跳过（防污染）", () => {
+    // codeFlowGraphs 全局按 fn 名取图，mergeCodeFlowGraphs 跨文件同名后者覆盖（B 的 increment 图）；
+    // 组件 A 的 increment pid（fn_a1）与图内 fn 元素 id（fn_b1）不匹配 → 物化 no-op，
+    // 避免 B 的 fn 体被静默物化进 A 的画布/保存
+    usePoiesisStore.setState({
+      elements: [],
+      wires: [],
+      codeFlowGraphs: {
+        increment: { elements: [codeEl("fn_b1", "fn", "increment"), codeEl("cb_b2", "let", "x")], wires: [] },
+      },
+      componentDefs: { A: { name: "A", fns: [{ pid: "fn_a1", name: "increment", params: [], returnType: "void" }] } as never },
+    });
+    usePoiesisStore.getState().materializeFnGraphs("A");
+    expect(usePoiesisStore.getState().elements).toEqual([]);
   });
 
   it("无 fn 元数据的组件：no-op", () => {

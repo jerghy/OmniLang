@@ -174,24 +174,39 @@ export function createElementCrudSlice(set: SetFn, get: GetFn) {
       const s = get();
       const fns = s.componentDefs[componentName]?.fns ?? [];
       if (fns.length === 0) return;
+      // 跨组件同名 fn 图污染防护：codeFlowGraphs 全局按 fn 名取图，mergeCodeFlowGraphs
+      // 跨文件同名后者覆盖——多组件同 fn 名时可能取到别的组件的图，保存时会把对方
+      // fn 体静默写进本组件文件。fnRegistry.pid 与合成 fn 元素 id 同源（同一次 parse
+      // 恒一致），据此校验归属，不匹配的图跳过。
       const graphs = fns
-        .map((f) => s.codeFlowGraphs[f.name])
+        .map((f) => {
+          const g = s.codeFlowGraphs[f.name];
+          if (!g) return null;
+          const fnEl = g.elements.find((e) => e.tag === "fn");
+          return fnEl && fnEl.id === f.pid ? g : null;
+        })
         .filter((g): g is { elements: CodeblockElementData[]; wires: WireData[] } => Boolean(g));
       if (graphs.length === 0) return;
       const existIds = new Set(s.elements.map((e) => e.id));
       // 物化元素可能缺 position（解析侧不生成）：按合并顺序赋确定性行布局（y 递增 60），
       // 避免全部堆叠 (0,0) 互相遮挡（E2E 缺陷 3）；已有 position 的保留原值。
+      // 判定用 e.position === undefined（显式 position: undefined 与缺键同等对待）。
       let layoutIdx = 0;
       const newElements: CodeblockElementData[] = [];
       for (const g of graphs) {
         for (const e of g.elements) {
           if (existIds.has(e.id)) continue;
-          if ("position" in e) { newElements.push(e); continue; }
+          if (e.position !== undefined) { newElements.push(e); continue; }
           newElements.push({ ...e, position: { x: 0, y: layoutIdx++ * 60 } });
         }
       }
       const existWireIds = new Set(s.wires.map((w) => w.id));
-      const newWires = graphs.flatMap((g) => g.wires).filter((w) => !existWireIds.has(w.id));
+      const newWires: WireData[] = [];
+      for (const g of graphs) {
+        for (const w of g.wires) {
+          if (!existWireIds.has(w.id)) newWires.push(w);
+        }
+      }
       // 加载时物化：直接 set（无 undo 条目，同 setElementPosition 哲学）
       set({ elements: [...s.elements, ...newElements], wires: [...s.wires, ...newWires] });
     },

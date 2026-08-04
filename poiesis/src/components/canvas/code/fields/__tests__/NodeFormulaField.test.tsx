@@ -120,6 +120,24 @@ describe("NodeFormulaField", () => {
     fireEvent.compositionEnd(input);
   });
 
+  it("blur 提交后兜底 change 不再重开弹层（事件序守卫）", () => {
+    // 终审修复 5：部分浏览器 blur 先于 change——commit 关闭弹层后，native change
+    // 兜底监听若再触发候选计算会重开悬空弹层。守卫（曾聚焦且已 blur）应阻止。
+    const onCommit = vi.fn();
+    render(<NodeFormulaField value="" onCommit={onCommit} candidates={cands} ariaLabel="初始值" />);
+    const input = screen.getByLabelText("初始值") as HTMLInputElement;
+    fireEvent.focus(input); // 真实浏览器必先聚焦（everFocusedRef 置位）
+    fireEvent.change(input, { target: { value: "cou", selectionStart: 3 } });
+    expect(screen.getByRole("listbox")).toBeTruthy();
+    fireEvent.blur(input); // commit + 关层
+    expect(onCommit).toHaveBeenCalledWith("cou");
+    // 模拟 blur 先于 change 的事件序：真实浏览器中迟发 change 的值与 React 值追踪器
+    // 相同（合成 onChange 不派发），只走 native change 兜底监听——守卫应拦截重开弹层。
+    // （若值不同，React onChange 会直接处理新值，属正常输入流，不在本守卫范围。）
+    fireEvent.change(input, { target: { value: "cou", selectionStart: 3 } });
+    expect(screen.queryByRole("listbox")).toBeNull();
+  });
+
   it("无 candidates → 退化纯文本（不弹层不报错）", () => {
     const onCommit = vi.fn();
     render(<NodeFormulaField value="0" onCommit={onCommit} ariaLabel="初始值" />);

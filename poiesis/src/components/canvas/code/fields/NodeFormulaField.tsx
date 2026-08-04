@@ -38,6 +38,10 @@ export function NodeFormulaField({ value, onCommit, candidates, placeholder, ari
   const [draft, setDraft] = useState(value);
   const [menu, setMenu] = useState<MenuState | null>(null);
   const focusedRef = useRef(false);
+  // 终审修复 5：区分「从未 focus」与「已 blur」两种 focusedRef=false 场景——
+  // jsdom/合成事件流从不 focus，React 合成 onChange 不派发时 fallback 是唯一输入路径，
+  // 必须放行；真实浏览器 blur 先于 change 的迟发事件才需要守卫（防重开悬空弹层）。
+  const everFocusedRef = useRef(false);
   const dirtyRef = useRef(false);
   const composingRef = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -56,6 +60,10 @@ export function NodeFormulaField({ value, onCommit, candidates, placeholder, ari
     const el = inputRef.current;
     if (!el) return;
     const fallback = () => {
+      // 终审修复 5：部分浏览器 blur 先于 change 派发——blur 已 commit 并关闭弹层后，
+      // 迟发的兜底 change 不应再触发候选计算重开悬空弹层。
+      // 守卫只拦「曾聚焦且已 blur」：从未 focus 的合成事件流必须放行（fallback 是唯一输入路径）。
+      if (everFocusedRef.current && !focusedRef.current) return;
       onInputChangeRef.current({ target: el, currentTarget: el } as unknown as React.ChangeEvent<HTMLInputElement>);
     };
     el.addEventListener("change", fallback);
@@ -164,7 +172,7 @@ export function NodeFormulaField({ value, onCommit, candidates, placeholder, ari
         aria-expanded={menu ? true : undefined}
         aria-controls={menu ? "node-candidate-results" : undefined}
         role="combobox"
-        onFocus={() => { focusedRef.current = true; }}
+        onFocus={() => { focusedRef.current = true; everFocusedRef.current = true; }}
         onCompositionStart={() => { composingRef.current = true; }}
         onCompositionEnd={(e: CompositionEvent<HTMLInputElement>) => {
           composingRef.current = false;
