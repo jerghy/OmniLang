@@ -114,6 +114,7 @@ DELETED_SYNTAX_PREFIXES = (
     "store 内 fn 成员不允许",                 # fn member in store — getter/action only
     "expected '{' after '@themes'",         # v1 '@themes light, dark;' (parse error already; listed for completeness)
     "hero transitions are not supported",   # @hero removed (ADR-032/053)
+    "aria-* 原生属性已删除",                  # raw aria-* attr (domain MEDIUM-1/D-D) — a11y: { ... } block only
 )
 
 
