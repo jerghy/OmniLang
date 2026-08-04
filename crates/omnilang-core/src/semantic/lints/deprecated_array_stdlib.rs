@@ -11,7 +11,6 @@
 use super::{LintDiagnostic, LintRule, LintSeverity};
 use crate::lexer::Span;
 use crate::parser::ast::*;
-use rustc_hash::FxHashMap;
 
 /// Deprecated stdlib array functions and their language-method form.
 /// `count` has no stdlib counterpart (the language method is the only name).
