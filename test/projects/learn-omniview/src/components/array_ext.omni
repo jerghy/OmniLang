@@ -1,17 +1,17 @@
 // ╔══════════════════════════════════════════════════════════════╗
 // ║  components/array_ext.omni —— std/array 扩展函数演示                 ║
-// ║  演示：array_remove, array_map, array_find, array_contains   ║
+// ║  演示：array_remove, map（语言方法）, array_find, array_contains   ║
 // ║  纯逻辑文件，不写 import omniview;                              ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-import { array_remove, array_map, array_find, array_contains } from "std/array";
+import { array_remove, array_find, array_contains } from "std/array";
 
 pub fn demo_remove(arr: Array<i32>, idx: i32) -> Array<i32> {
     return array_remove(arr, idx);
 }
 
 pub fn demo_map(arr: Array<i32>) -> Array<i32> {
-    return array_map(arr, |x| x * 2);
+    return arr.map(|x| x * 2);
 }
 
 pub fn demo_find(arr: Array<String>, target: String) -> String {

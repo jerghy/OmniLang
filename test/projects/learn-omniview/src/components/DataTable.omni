@@ -6,7 +6,7 @@
 
 import omniview;
 import { LearnDesign } from "../design";
-import { array_sort, array_filter, array_length } from "std/array";
+import { array_sort, array_length } from "std/array";
 
 struct RowItem {
     id: i32,
@@ -38,7 +38,7 @@ component DataTable {
     fn handleScroll() { scrollCount = scrollCount + 1; }
     fn toggleSort() { sortAsc = !sortAsc; rows = array_sort(rows, |a, b| if sortAsc { a.name } else { b.name }); }
     fn getSortIcon() -> String { if sortAsc { return "ASC"; } return "DESC"; }
-    fn getActiveRows() -> Array<RowItem> { return array_filter(rows, |r| r.status == "Active"); }
+    fn getActiveRows() -> Array<RowItem> { return rows.filter(|r| r.status == "Active"); }
 
     fn getScoreColor(score: i32) -> String {
         if score >= 90 { return "#16a34a"; }

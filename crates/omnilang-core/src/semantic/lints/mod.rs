@@ -10,6 +10,7 @@
 
 mod ast_collectors;
 mod computed_purity;
+mod deprecated_array_stdlib;
 mod dead_code;
 mod for_key;
 mod helpers;
@@ -105,6 +106,7 @@ fn all_rules() -> Vec<Box<dyn LintRule>> {
         Box::new(missing_return::MissingReturn),
         Box::new(dead_code::DeadCode),
         Box::new(unused_import::UnusedImport),
+        Box::new(deprecated_array_stdlib::DeprecatedArrayStdlib),
         Box::new(invalid_event_field::InvalidEventField),
         Box::new(store_action_event::StoreActionEventData),
         Box::new(for_key::ForKey),

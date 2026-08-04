@@ -48,6 +48,11 @@ pub(super) fn register() -> Vec<StdlibFn> {
             codegen: codegen_array_remove,
             is_async: false,
         },
+        // DEPRECATED (task 4.6 D-E prove verdict) — the language methods
+        // `subject.map(...)` / `subject.filter(...)` (design doc 域 8,
+        // ExprIR::ArrayMethod) are the one-name-per-intent forms; the
+        // corpus migrated in task 4.6. Kept as a compat back-door; the
+        // deprecated-array-stdlib lint warns on any new use.
         StdlibFn {
             module: "array",
             name: "array_map",

@@ -94,7 +94,7 @@ component StdLibShowcase {
             <div class: module-card>
                 <h4 class: module-title>① std/array 扩展 — array_ext.omni</h4>
                 <p class: module-desc>
-                    <code>array_remove</code> · <code>array_map</code> ·
+                    <code>array_remove</code> · <code>map</code>（语言方法） ·
                     <code>array_find</code> · <code>array_contains</code>
                 </p>
                 <ul class: output-list>

@@ -1,5 +1,4 @@
 import omniview;
-import { array_filter } from "std/array";
 
 // Todo 条目类型
 struct Todo {
@@ -18,7 +17,7 @@ store TodoStore {
   getter totalCount: i32 = items.len();
 
   action add(text: String) { items = [...items, { id: nextId, text, done: false }]; nextId = nextId + 1; lastAction = "added"; }
-  action remove(id: i32) { items = array_filter(items, |item| item.id != id); lastAction = "removed"; }
+  action remove(id: i32) { items = items.filter(|item| item.id != id); lastAction = "removed"; }
   action clear() { items = []; filterStatus = "all"; lastAction = "cleared"; }
   action setFilter(status: String) { filterStatus = status; lastAction = "filter: " + status; }
   action fetchReminders() { lastAction = "fetching..."; }
