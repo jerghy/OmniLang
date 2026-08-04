@@ -153,6 +153,8 @@ export interface PoiesisState {
   removeWire: (id: string) => void;
   setElementSource: (id: string, source: string) => void;
   setElementPosition: (id: string, pos: { x: number; y: number }) => void;
+  /** 进入组件 codeflow 时：把该组件的 fn 图合并进 elements/wires（pid 去重，已存在不覆盖，无 undo）。 */
+  materializeFnGraphs: (componentName: string) => void;
   setElementsAndWires: (elements: ElementData[], wires: WireData[]) => void;
   moveElement: (elementId: string, newParentId: string | null, targetSiblingId: string | null, position: "before" | "after") => void;
   setElementClassRefs: (elementId: string, classRefs: string[]) => void;

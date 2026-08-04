@@ -1,7 +1,7 @@
 // ── Element/Wire CRUD slice for Poiesis store ──
 
 import type { PoiesisState } from "../types";
-import type { ElementData, ConditionalBlockData } from "../../core/types/element";
+import type { ElementData, ConditionalBlockData, CodeblockElementData } from "../../core/types/element";
 import type { WireData } from "../../core/types/wire";
 import type { StyleProperty } from "../../core/types/style";
 import { buildUndoUpdate } from "../undo-slice";
@@ -168,6 +168,23 @@ export function createElementCrudSlice(set: SetFn, get: GetFn) {
       elements: s.elements.map(e => e.id === id ? { ...e, position: { ...pos } } as ElementData : e),
       isDirty: true,
     })),
+
+    /** 进入组件 codeflow 时：把该组件的 fn 图合并进 elements/wires（pid 去重，已存在不覆盖，无 undo）。 */
+    materializeFnGraphs: (componentName: string) => {
+      const s = get();
+      const fns = s.componentDefs[componentName]?.fns ?? [];
+      if (fns.length === 0) return;
+      const graphs = fns
+        .map((f) => s.codeFlowGraphs[f.name])
+        .filter((g): g is { elements: CodeblockElementData[]; wires: WireData[] } => Boolean(g));
+      if (graphs.length === 0) return;
+      const existIds = new Set(s.elements.map((e) => e.id));
+      const newElements = graphs.flatMap((g) => g.elements).filter((e) => !existIds.has(e.id));
+      const existWireIds = new Set(s.wires.map((w) => w.id));
+      const newWires = graphs.flatMap((g) => g.wires).filter((w) => !existWireIds.has(w.id));
+      // 加载时物化：直接 set（无 undo 条目，同 setElementPosition 哲学）
+      set({ elements: [...s.elements, ...newElements], wires: [...s.wires, ...newWires] });
+    },
 
     setElementsAndWires: (elements: ElementData[], wires: WireData[]) => set((s) => {
       const prevElements = [...s.elements];

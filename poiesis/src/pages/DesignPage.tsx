@@ -163,6 +163,17 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
   const showCodeFlowPanel = codeFlowVisible && activeTabType === "component";
   const showDesignPanels = activeTabType === "component" && !codeFlowVisible && !storePanelVisible;
 
+  // ── F1 物化：组件 tab 进入 codeflow 时合并当前组件的 fn 图 ──
+  // 物化是幂等的（pid 去重、已存在不覆盖），可安全地在每次 codeflow 可见时触发。
+  const materializeFnGraphs = usePoiesisStore((s) => s.materializeFnGraphs);
+  const activeTabComponentName = activeTab?.componentName;
+  useEffect(() => {
+    if (codeFlowVisible && activeTabType === "component" && activeTabComponentName) {
+      materializeFnGraphs(activeTabComponentName);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 物化幂等，依赖仅触发时机
+  }, [codeFlowVisible, activeTabType, activeTabComponentName]);
+
   // Ref for z-axis container to convert client coords to percentages
   const zAxisRef = useRef<HTMLDivElement>(null);
 
