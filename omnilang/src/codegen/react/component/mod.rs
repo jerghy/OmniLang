@@ -127,6 +127,18 @@ impl ReactCodegen {
         // ALL call-free: a mutation with a call-carrying value may have
         // observable effects (and the setter-emission contract — e.g. the
         // array_sort comparator path in tests_regression — stays intact).
+        //
+        // The pruned set is ALSO intersected with comp.signals (review N1):
+        // the bare-name candidate pool (`read ∩ mutated − consumed`) can
+        // contain STORE FIELD names and body locals (store fields are
+        // mutated by bare name like component signals, and their reads
+        // never enter read_signals via the qualified path). Pruning a name
+        // that is not a component signal would silently drop a store write
+        // (observable by OTHER components) or a local reassignment — only
+        // component signals may be pruned. The colliding store write (a
+        // store field sharing a pruned component signal's name) is
+        // protected at the EMISSION side by the field_object check
+        // (generate_statement_tsx, review I1).
         let value_consumed = collect_value_consumed_signals(comp);
         let mutation_call_targets = collect_call_mutation_targets(comp);
         let pruned_signals: FxHashSet<String> = read_signals
@@ -136,6 +148,7 @@ impl ReactCodegen {
                     && !value_consumed.contains(*s)
                     && !mutation_call_targets.contains(*s)
             })
+            .filter(|s| comp.signals.iter().any(|sig| &sig.name == *s))
             .cloned()
             .collect();
 

@@ -1030,7 +1030,11 @@ pub(super) fn generate_statement_tsx(
             // I1: the prune matches by BARE target name, and a store field
             // can share a pruned component signal's name — pruning would
             // silently drop the store write). The `field_object` check is
-            // the precise discriminator: the owners-map check alone would
+            // the emission-side half of the two-layer discrimination: the
+            // analysis half (pruned ∩ comp.signals, review N1) removes
+            // NON-colliding store field names from the pruned set; this
+            // check keeps the COLLIDING store write alive (its bare name IS
+            // a pruned component signal). An owners-map check alone would
             // ALSO un-prune the colliding component signal's OWN write
             // (`mode = !mode` with a wired store field `mode`), which then
             // misroutes through the owners map to the store setter.
@@ -1057,14 +1061,17 @@ pub(super) fn generate_statement_tsx(
                 name: target_name, ..
             }) = args.first()
             {
-                // A pruned (write-only) signal has no setter — skip the
-                // interception and emit nothing (task 2.11). Same
-                // store-field guard as the MutationStmt branch (review I1):
-                // an array_push on a STORE field goes through
-                // `useStore.setState`, which must never be pruned.
-                if pruned_signal_names.contains(target_name.as_str())
-                    && !store_signal_owners.contains_key(target_name.as_str())
-                {
+                // A pruned (write-only) component signal has no setter —
+                // skip the interception and emit nothing (task 2.11).
+                // Review N1: NO owners guard here. The pruned set is
+                // intersected with comp.signals at analysis time, so a bare
+                // STORE field name never enters it — and a store field
+                // sharing a pruned component signal's name must NOT un-prune
+                // the component's own array_push (an owners guard would
+                // misroute it to the store setState — a cross-write the
+                // user never wrote). Store-field pushes with a bare name
+                // are not in pruned and fall through to the owners branch.
+                if pruned_signal_names.contains(target_name.as_str()) {
                     return;
                 }
                 if signal_names.contains(target_name.as_str())

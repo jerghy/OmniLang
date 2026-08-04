@@ -515,8 +515,10 @@ fn walk_stmt_exprs_mut(stmt: &mut StatementIR, ctx: &mut RefOpCtx) {
             // removed (11 → 10 ops) — the two-way `bind:value` binding covers
             // the write intent, so each write form emits the migration hint.
             // Non-ref targets (signals, store fields, locals) are left
-            // untouched — `field_object` is ignored by codegen, so behavior
-            // is unchanged for them.
+            // untouched — the React codegen consults `field_object` only as
+            // a mutation discriminator (write-only DCE guard, review I1/N1:
+            // owner-field writes are never pruned), so semantic behavior is
+            // unchanged for them.
             if let Some(intent) = intent {
                 match intent {
                     MutationIntent::DirectAssign {

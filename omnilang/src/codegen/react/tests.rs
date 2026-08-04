@@ -649,11 +649,50 @@ fn test_pruned_component_write_not_misrouted_to_store_by_collision() {
     );
 }
 
-/// Review I1 — the same guard applies to the array_push interception: a
-/// store field sharing a pruned component signal's name must still emit its
-/// `useStore.setState` functional updater.
+/// Review N1 companion — the NON-colliding bare store-field push: with an
+/// empty pruned set (no write-only component signal sharing the name), the
+/// array_push interception falls through to the owners branch and emits
+/// the store's functional setState — the pre-existing bare store-field
+/// contract. The analysis-time intersection (pruned ∩ comp.signals) is
+/// what keeps a bare store field name OUT of the pruned set, so this shape
+/// is exactly the store field's protection.
 #[test]
-fn test_pruned_signal_dce_never_swallows_store_array_push() {
+fn test_bare_store_field_array_push_emits_store_set_state() {
+    let mut w = CodeWriter::new();
+    let stmt = StatementIR::ExprStmtIR {
+        expr: ExprIR::CallExpr {
+            name: "array_push".to_string(),
+            args: vec![ExprIR::ident("mode")],
+        },
+    };
+    let mut owners = FxHashMap::default();
+    owners.insert("mode".to_string(), "CollisionStore".to_string());
+    generate_statement_tsx(
+        &mut w,
+        &stmt,
+        &FxHashSet::default(),
+        &owners,
+        &FxHashSet::default(),
+        &FxHashMap::default(),
+        &FxHashSet::default(),
+    );
+    assert_eq!(
+        w.into_string(),
+        "useCollisionStore.setState((s) => ({ mode: [...s.mode, undefined] }));\n",
+        "a bare store-field array_push (not in pruned) must emit the store setState"
+    );
+}
+
+/// Review N1 (round 2) — the array_push interception mirror: a pruned
+/// COMPONENT signal's own `array_push(mode, x)` must be pruned EVEN WHEN a
+/// store field shares its bare name (owners map contains `mode`). An
+/// owners guard would fall through and emit the store's functional
+/// `useStore.setState` push — a cross-write the user never wrote (same
+/// defect class as I1's misroute). The pruned set is intersected with
+/// comp.signals at analysis time, so this emission-level shape (pruned
+/// name + owners entry) can only be a colliding component signal.
+#[test]
+fn test_pruned_component_array_push_not_misrouted_to_store_by_collision() {
     let mut w = CodeWriter::new();
     let stmt = StatementIR::ExprStmtIR {
         expr: ExprIR::CallExpr {
@@ -676,23 +715,25 @@ fn test_pruned_signal_dce_never_swallows_store_array_push() {
     );
     assert_eq!(
         w.into_string(),
-        "useCollisionStore.setState((s) => ({ mode: [...s.mode, undefined] }));\n",
-        "a store-field array_push must survive the DCE (review I1)"
+        "\n", // empty writer output — nothing emitted
+        "a pruned component signal's array_push must be pruned, never \\
+         misrouted to the store setState (review N1)"
     );
 }
 
-/// Review I1 — full-pipeline shape: a component with a write-only signal
-/// `mode` (pruned by the DCE) AND a mutation of a store field `mode`
-/// (`CollisionStore.mode = "dark"` — same bare target name, the store
-/// wired by a view read of the same field). The store write must survive;
-/// only the component signal's own state/mutation is pruned — and the
-/// component's own `mode = !mode` write must NOT be misrouted to the
-/// store setter (the field_object discriminator).
+/// Review I1 + N1 — full-pipeline collision shape: a component with a
+/// write-only signal `mode` (pruned by the DCE) AND a mutation of a store
+/// field `mode` (`CollisionStore.mode = "dark"` — same bare target name,
+/// the store wired by a view read of the same field). The store write must
+/// survive (field_object discriminator, I1); the component signal's own
+/// array_push must be pruned and never misrouted to the store's functional
+/// setState (comp.signals intersection, N1).
 #[test]
 fn test_pruned_component_signal_keeps_colliding_store_field_mutation() {
     let out = compile_react(
         r#"
         import omniview;
+        import { array_push } from "std/array";
 
         store CollisionStore {
             signal mode: string = "light";
@@ -700,12 +741,12 @@ fn test_pruned_component_signal_keeps_colliding_store_field_mutation() {
 
         component CollisionDemo {
             @store CollisionStore;
-            signal mode: bool = false;
-            fn toggleMode() { mode = !mode; }
+            signal mode: Array<String> = [];
             fn setDark() { CollisionStore.mode = "dark"; }
+            fn pushMode() { array_push(mode, "x"); }
             view {
-                <button @click={toggleMode}>toggle</button>
                 <button @click={setDark}>dark</button>
+                <button @click={pushMode}>push</button>
                 <span>{CollisionStore.mode}</span>
             }
         }
@@ -724,13 +765,23 @@ fn test_pruned_component_signal_keeps_colliding_store_field_mutation() {
     );
     assert!(
         !tsx.contains("setMode"),
-        "the write-only component signal must stay pruned — and its own write \
-         must not misroute to the store setter. Got:\n{}",
+        "the write-only component signal must stay pruned. Got:\n{}",
         tsx
     );
     assert!(
         !tsx.contains("const [mode, setMode] = useState"),
         "no state hook for the write-only component signal. Got:\n{}",
+        tsx
+    );
+    assert!(
+        !tsx.contains("useCollisionStore.setState((s) => ({ mode: [..."),
+        "the component signal's array_push must NOT misroute to the store's \
+         functional setState (review N1). Got:\n{}",
+        tsx
+    );
+    assert!(
+        !tsx.contains("setMode(prev =>"),
+        "the component signal's array_push must be pruned entirely. Got:\n{}",
         tsx
     );
     assert!(

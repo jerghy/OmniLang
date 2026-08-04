@@ -55,7 +55,12 @@ pub enum MutationIntent {
         /// The owner identifier for `owner.field = value` writes (e.g. the ref
         /// name in `myRef.value = x`). `None` for plain signal/name writes.
         /// Populated by lowering so the semantic ref pass can diagnose ref
-        /// field writes with the bind:value migration hint; ignored by codegen.
+        /// field writes with the bind:value migration hint. Codegen consults
+        /// it only as a discriminator: the React write-only DCE guard
+        /// (review I1/N1) treats a mutation with a `field_object` as an
+        /// owner-field write (store/ref), never a component-signal mutation
+        /// — such writes are never pruned even when their bare field name
+        /// collides with a pruned component signal.
         #[serde(default)]
         field_object: Option<String>,
     },
