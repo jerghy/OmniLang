@@ -115,13 +115,13 @@ pub struct Todo {
 
 ### 名义结构体
 
-`struct nominal` 创建类型不兼容的结构体——即使字段相同也不能互换：
+`struct nominal` 的语法已解析，但类型强制尚未实现——目前名义结构体不会与结构等价结构体隔离，编译器不会报错：
 
 ```omni
 struct nominal UserId { value: i32 }
 struct nominal OrderId { value: i32 }
 
-// UserId 和 OrderId 不能互相赋值，编译器会报错
+// nominal 关键字仅解析，类型强制功能保留给未来使用
 ```
 
 ### 构造

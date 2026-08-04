@@ -113,7 +113,7 @@ const __omni_theme = {
 __omni_theme.init();
 ```
 
-组件可以通过信号系统与 `__omni_theme` 集成。`mode` 信号自动同步到 `__omni_theme.set()`（详见 ADR-044）。
+组件通过信号系统与 `__omni_theme` 接线：在 store 中声明带 `@theme` 标记的信号（如 `signal mode: String @theme`），该信号即当前主题模式的唯一来源。编译器按 `@theme` 标记（而非信号名字）自动同步 `__omni_theme`——初始化时尊重已保存/系统偏好主题，信号变更时更新 `data-theme`（详见下文「ThemeStore（信号层）」）。
 
 ### 组织令牌
 

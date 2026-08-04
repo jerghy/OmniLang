@@ -107,26 +107,28 @@
 
 | 文档 | 状态 | 说明 |
 |------|------|------|
-| [OmniView README](../omniview/README.md) | ✅ 现行 | OmniView 文档索引 |
-| [01 项目结构](../omniview/01-project-structure.md) | ✅ 现行 | .omni 项目文件组织 |
-| [02 组件](../omniview/02-components.md) | ✅ 现行 | component/props/signals/computed/view/@mount/@effect 等 |
-| [03 模板](../omniview/03-templates.md) | ✅ 现行 | 元素、属性、@if/@for/@slot、bind:/variant: 等（`states:` 已删除，见 09-motion） |
-| [04 响应式](../omniview/04-reactivity.md) | ✅ 现行 | signal/computed 响应式系统、批量更新、@effect |
-| [05 Stores](../omniview/05-stores.md) | ✅ 现行 | 全局 store：signal/getter/action + 内联 store |
-| [06 事件](../omniview/06-events.md) | ✅ 现行 | 20 种事件类别、自定义事件、emit |
-| [07 样式](../omniview/07-styling.md) | ✅ 现行 | style 块、CSS 变量、作用域样式 |
-| [08 设计系统](../omniview/08-design-system.md) | ⚠️ 缺 `theme` 关键字（已废弃） | 仅记录 `design` 关键字（token/class/variant）。旧 `theme` 分组关键字（colors/spacing/typography/radii）已被 v2 的 `@themes`/`@theme` 信号语法取代（v2 设计文档 D1），不再存在于编译器 |
-| [09 运动](../omniview/09-motion.md) | ✅ 现行 | @motion、缓动、时间线、触发器、Hero 过渡 |
-| [10 类型系统](../omniview/10-type-system.md) | ✅ 现行 | 基础类型、struct、tagged union、可选类型 |
-| [11 表达式](../omniview/11-expressions.md) | ✅ 现行 | 运算符、块表达式、match、闭包、await |
-| [12 逻辑与异步](../omniview/12-logic-and-async.md) | ✅ 现行 | fn/async fn/await、控制流、try/catch |
-| [13 标准库](../omniview/13-standard-library.md) | ✅ 现行 | 7 个 std 模块 API 文档 |
+| [OmniView README](../omniview/README.md) | ✅ 现行 | OmniView 文档索引与编译器命令 |
+| [01 快速入门](../omniview/01-getting-started.md) | ✅ 现行 | 第一个组件、项目结构、编译运行 |
+| [02 类型与值](../omniview/02-types-and-values.md) | ✅ 现行 | 基础类型、struct、tagged union、可选类型、类型别名 |
+| [03 表达式与运算符](../omniview/03-expressions-and-operators.md) | ✅ 现行 | 运算符优先级、闭包/lambda、match、可选链、展开 |
+| [04 函数与控制流](../omniview/04-functions-and-control-flow.md) | ✅ 现行 | fn、async/await、循环、let/let mut、try/catch |
+| [05 组件](../omniview/05-components.md) | ✅ 现行 | component、prop、signal、computed、生命周期、ref |
+| [06 模板语法](../omniview/06-templates.md) | ✅ 现行 | view 块、HTML 元素、插值、属性绑定、@if/@for/@slot |
+| [07 事件与绑定](../omniview/07-events-and-bindings.md) | ✅ 现行 | 事件处理器、emit、bind:value/bind:checked、事件数据 |
+| [08 Store 状态管理](../omniview/08-stores.md) | ✅ 现行 | store 定义、全局/内联 store、@store 引用、持久化 |
+| [09 样式系统](../omniview/09-styling.md) | ✅ 现行 | style 块、CSS 属性、CSS 变量、内联样式、作用域 |
+| [10 设计系统](../omniview/10-design-system.md) | ✅ 现行 | design 块、设计令牌、CSS 类、variant 组件变体。旧 `theme` 分组关键字（colors/spacing/typography/radii）已废弃，主题切换由 v2 的 `@themes`/`@theme` 信号语法取代（v2 设计文档 D1），不再存在于编译器 |
+| [11 运动与动画](../omniview/11-motion-animation.md) | ✅ 现行 | @motion、8 触发器、缓动函数、播放控制 |
+| [12 标准库参考](../omniview/12-standard-library.md) | ✅ 现行 | std/* 全部 7 个模块 + 内置方法 |
+| [13 项目结构与模块](../omniview/13-project-structure.md) | ✅ 现行 | 文件组织、import/export、pub 可见性、模块系统 |
+| [14 语法规范-核心语言](../omniview/14-grammar-lang.md) | ✅ 现行 | BNF 产生式：词法、类型、表达式、语句、顶层声明、模块系统 |
+| [15 语法规范-UI框架](../omniview/15-grammar-view.md) | ✅ 现行 | BNF 产生式：组件、Store、视图模板、指令、样式、设计系统、动画 |
 
 ### 2.2 框架特性设计
 
 | 文档 | 日期 | 状态 | 说明 |
 |------|------|------|------|
-| [spec: omniview-motion-animation-design](../superpowers/specs/2026-06-20-omniview-motion-animation-design.md) | 2026-06-20 | ✅ 现行 | ~49KB 动画系统设计（关键帧、时间线、缓动、stagger、滚动驱动、Hero）。核心语法已在 09-motion.md 中实现 |
+| [spec: omniview-motion-animation-design](../superpowers/specs/2026-06-20-omniview-motion-animation-design.md) | 2026-06-20 | ✅ 现行 | ~49KB 动画系统设计（关键帧、时间线、缓动、stagger、滚动驱动、Hero）。核心语法已在 11-motion-animation.md 中实现 |
 | [plan: omniview-motion-implementation](../superpowers/plans/2026-06-21-omniview-motion-implementation.md) | 2026-06-21 | ✅ 现行 | 动画实现计划 |
 | [spec: omniview-event-data-transmission-design](../superpowers/specs/2026-06-29-omniview-event-data-transmission-design.md) | 2026-06-29 | ✅ 现行 | 事件数据传输 v2：20 类 EventDataKind、精确字段提取、@for 委托 |
 | [plan: omniview-event-data-transmission](../superpowers/plans/2026-06-29-omniview-event-data-transmission.md) | 2026-06-29 | ✅ 现行 | 事件传输实施计划 |
@@ -339,7 +341,7 @@
 | 你想了解... | 去看... |
 |-------------|--------|
 | 当前 Poiesis 架构 | [poiesis-dev: architecture](../../.claude/skills/poiesis-dev/references/architecture.md) |
-| OmniView 语言怎么写 | [docs/omniview/](../omniview/) 系列（13 章） |
+| OmniView 语言怎么写 | [docs/omniview/](../omniview/) 系列（15 章） |
 | Poiesis 当前能力缺口 | [poiesis-learn-omniview-gaps](../superpowers/reports/poiesis-learn-omniview-gaps.md) |
 | OmniLang 编译器架构 | [omni-rust-compiler-design](../superpowers/specs/2026-06-15-omni-rust-compiler-design.md) + [r4-file-splitting-design](../superpowers/specs/2026-06-29-r4-file-splitting-design.md) |
 | 正在开发的功能 | [codecard-editor-design](../superpowers/specs/2026-07-23-codecard-editor-design.md) + [omni-animation-library-design](../superpowers/specs/2026-07-23-omni-animation-library-design.md) |
