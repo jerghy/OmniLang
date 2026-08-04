@@ -175,5 +175,10 @@ mod tests {
             "Message should mention prop name: {}",
             diags[0].message
         );
+        assert_eq!(
+            diags[0].line, 1,
+            "must anchor at the assignment statement (Stmt::Assign span)"
+        );
+        assert_eq!(diags[0].col, 1);
     }
 }

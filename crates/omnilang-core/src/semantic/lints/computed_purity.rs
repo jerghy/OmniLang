@@ -7,6 +7,7 @@
 use super::helpers::expr_contains_side_effect;
 use super::{LintDiagnostic, LintRule, LintSeverity};
 use crate::parser::ast::Program;
+use crate::parser::expr::span_of;
 use rustc_hash::FxHashSet;
 
 pub struct ComputedPurity;
@@ -32,6 +33,8 @@ impl LintRule for ComputedPurity {
 
                 for computed in &comp.computeds {
                     if expr_contains_side_effect(&computed.body, &signal_names) {
+                        // Task 4.11: anchor at the computed body expression's span.
+                        let span = span_of(&computed.body);
                         diags.push(LintDiagnostic {
                             rule: "computed-purity".into(),
                             severity: LintSeverity::Error,
@@ -41,8 +44,8 @@ impl LintRule for ComputedPurity {
                                 computed.name, comp.name
                             ),
                             file: file_path.to_string(),
-                            line: 0,
-                            col: 0,
+                            line: span.line,
+                            col: span.col,
                         });
                     }
                 }
@@ -53,6 +56,8 @@ impl LintRule for ComputedPurity {
 
                     for getter in &store.getters {
                         if expr_contains_side_effect(&getter.body, &store_signal_names) {
+                            // Task 4.11: anchor at the getter body expression's span.
+                            let span = span_of(&getter.body);
                             diags.push(LintDiagnostic {
                                 rule: "computed-purity".into(),
                                 severity: LintSeverity::Error,
@@ -62,8 +67,8 @@ impl LintRule for ComputedPurity {
                                     getter.name, store.name
                                 ),
                                 file: file_path.to_string(),
-                                line: 0,
-                                col: 0,
+                                line: span.line,
+                                col: span.col,
                             });
                         }
                     }
@@ -170,6 +175,10 @@ mod tests {
             diags[0].message.contains("badComputed"),
             "Message should mention computed name: {}",
             diags[0].message
+        );
+        assert_eq!(
+            diags[0].line, 1,
+            "must anchor at the computed body expression span"
         );
     }
 

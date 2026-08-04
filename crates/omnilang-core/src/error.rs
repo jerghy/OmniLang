@@ -138,6 +138,8 @@ pub enum DiagnosticKind {
     EStatesRemoved,
     #[error("deleted on: block")]
     EOnRemoved,
+    #[error("value binding removed")]
+    EValueBindingRemoved,
     #[error("omniview warning")]
     WOmniviewMarker,
     #[error("motion warning")]
@@ -174,6 +176,7 @@ impl DiagnosticKind {
             Self::ESlotRemoved => "E_SLOT_REMOVED",
             Self::EStatesRemoved => "E_STATES_REMOVED",
             Self::EOnRemoved => "E_ON_REMOVED",
+            Self::EValueBindingRemoved => "E_VALUE_BINDING_REMOVED",
             Self::WOmniviewMarker => "W_OMNIVIEW_MARKER",
             Self::WMotion => "W0001",
             Self::ELint(_) => "E_LINT",
@@ -223,6 +226,7 @@ impl<'de> Deserialize<'de> for DiagnosticKind {
                     "E_SLOT_REMOVED" => Ok(DiagnosticKind::ESlotRemoved),
                     "E_STATES_REMOVED" => Ok(DiagnosticKind::EStatesRemoved),
                     "E_ON_REMOVED" => Ok(DiagnosticKind::EOnRemoved),
+                    "E_VALUE_BINDING_REMOVED" => Ok(DiagnosticKind::EValueBindingRemoved),
                     "W_OMNIVIEW_MARKER" => Ok(DiagnosticKind::WOmniviewMarker),
                     "W0001" => Ok(DiagnosticKind::WMotion),
                     "E_LINT" => Ok(DiagnosticKind::ELint("E_LINT".into())),
@@ -794,6 +798,47 @@ mod tests {
         assert_eq!(diag.kind, DiagnosticKind::EOnRemoved);
         assert_eq!(diag.severity, Severity::Error);
         assert!(diag.message.contains("@onXxx"));
+    }
+
+    #[test]
+    fn value_binding_removed_code_registered_and_carried() {
+        // E_VALUE_BINDING_REMOVED must be a registered diagnostic code:
+        // code_str, serde round-trip, and Diagnostic construction (Task 4.11
+        // threads the value={sig} removal hint into the structured
+        // suggestion field under this code).
+        assert_eq!(
+            DiagnosticKind::EValueBindingRemoved.code_str(),
+            "E_VALUE_BINDING_REMOVED"
+        );
+        let json = serde_json::to_value(DiagnosticKind::EValueBindingRemoved).unwrap();
+        assert_eq!(json, "E_VALUE_BINDING_REMOVED");
+        let back: DiagnosticKind = serde_json::from_value(json).unwrap();
+        assert_eq!(back, DiagnosticKind::EValueBindingRemoved);
+
+        let diag = Diagnostic::error(
+            DiagnosticKind::EValueBindingRemoved,
+            "'value={sig}' 语义绑定形式已删除，用 bind:value 双向绑定，或普通 value prop 单向",
+            &Span {
+                start: 0,
+                end: 2,
+                line: 1,
+                col: 1,
+            },
+        )
+        .with_suggestion("用 bind:value 双向绑定，或普通 value prop 单向");
+        assert_eq!(diag.kind, DiagnosticKind::EValueBindingRemoved);
+        assert_eq!(diag.severity, Severity::Error);
+        assert!(diag.message.contains("bind:value"));
+        assert_eq!(
+            diag.suggestion.as_deref(),
+            Some("用 bind:value 双向绑定，或普通 value prop 单向")
+        );
+        let json = serde_json::to_value(DiagnosticJson::from(&diag)).unwrap();
+        assert_eq!(json["code"], "E_VALUE_BINDING_REMOVED");
+        assert_eq!(
+            json["suggestion"],
+            "用 bind:value 双向绑定，或普通 value prop 单向"
+        );
     }
 
     #[test]

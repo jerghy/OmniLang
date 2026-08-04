@@ -10,6 +10,7 @@ use super::ast_collectors::{
 use super::{LintDiagnostic, LintRule, LintSeverity};
 use crate::ir::IRProgram;
 use crate::parser::ast::Program;
+use crate::parser::expr::span_of;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 
@@ -31,12 +32,6 @@ impl LintRule for DeadCode {
 
         for module in program.modules.values() {
             for comp in &module.components {
-                let signal_names: FxHashSet<&str> =
-                    comp.signals.iter().map(|s| s.name.as_str()).collect();
-                let computed_names: FxHashSet<&str> =
-                    comp.computeds.iter().map(|c| c.name.as_str()).collect();
-                let fn_names: FxHashSet<&str> = comp.fns.iter().map(|f| f.name.as_str()).collect();
-
                 let mut used: FxHashSet<&str> = FxHashSet::default();
 
                 for func in &comp.fns {
@@ -85,50 +80,55 @@ impl LintRule for DeadCode {
                     }
                 }
 
-                for name in &signal_names {
-                    if !used.contains(name) {
+                // Task 4.11: diagnostics anchor at the declaration's own AST
+                // span — SignalDecl.init / ComputedDecl.body expressions and
+                // the FunctionDef.span (no more hardcoded 0:0).
+                for sig in &comp.signals {
+                    if !used.contains(sig.name.as_str()) {
+                        let span = span_of(&sig.init);
                         diags.push(LintDiagnostic {
                             rule: "dead-code".into(),
                             severity: LintSeverity::Warning,
                             message: format!(
                                 "Signal '{}' in component '{}' is never used",
-                                name, comp.name
+                                sig.name, comp.name
                             ),
                             file: file_path.to_string(),
-                            line: 0,
-                            col: 0,
+                            line: span.line,
+                            col: span.col,
                         });
                     }
                 }
 
-                for name in &computed_names {
-                    if !used.contains(name) {
+                for computed in &comp.computeds {
+                    if !used.contains(computed.name.as_str()) {
+                        let span = span_of(&computed.body);
                         diags.push(LintDiagnostic {
                             rule: "dead-code".into(),
                             severity: LintSeverity::Warning,
                             message: format!(
                                 "Computed '{}' in component '{}' is never used",
-                                name, comp.name
+                                computed.name, comp.name
                             ),
                             file: file_path.to_string(),
-                            line: 0,
-                            col: 0,
+                            line: span.line,
+                            col: span.col,
                         });
                     }
                 }
 
-                for name in &fn_names {
-                    if !used.contains(name) {
+                for func in &comp.fns {
+                    if !used.contains(func.name.as_str()) {
                         diags.push(LintDiagnostic {
                             rule: "dead-code".into(),
                             severity: LintSeverity::Warning,
                             message: format!(
                                 "Function '{}' in component '{}' is never called",
-                                name, comp.name
+                                func.name, comp.name
                             ),
                             file: file_path.to_string(),
-                            line: 0,
-                            col: 0,
+                            line: func.span.line,
+                            col: func.span.col,
                         });
                     }
                 }
@@ -161,20 +161,23 @@ impl LintRule for DeadCode {
             .unwrap_or("")
             .to_string();
 
-        for store_name in ir.all_stores().keys() {
+        let all_stores = ir.all_stores();
+        for store_name in all_stores.keys() {
             if !used_stores.contains(store_name) {
-                let store_file = ir
-                    .all_stores()
-                    .get(store_name)
+                let store = all_stores.get(store_name);
+                let store_file = store
                     .and_then(|s| s.source_file.as_deref())
                     .unwrap_or(&default_file);
+                // Task 4.11: anchor at the store's own IR span (populated
+                // during lowering); 0:0 only when no span exists at all.
+                let span = store.and_then(|s| s.source_span);
                 diags.push(LintDiagnostic {
                     rule: self.name().into(),
                     severity: self.severity(),
                     message: format!("Store '{}' is never used by any component", store_name),
                     file: store_file.to_string(),
-                    line: 0,
-                    col: 0,
+                    line: span.map(|s| s.line).unwrap_or(0),
+                    col: span.map(|s| s.col).unwrap_or(0),
                 });
             }
         }
@@ -207,6 +210,12 @@ mod tests {
                 signal_defaults: FxHashMap::default(),
                 getters: FxHashMap::default(),
                 actions: vec![],
+                source_span: Some(Span {
+                    start: 0,
+                    end: 30,
+                    line: 4,
+                    col: 1,
+                }),
                 ..Default::default()
             },
         );
@@ -219,6 +228,11 @@ mod tests {
             "message should mention the unused store: {}",
             diags[0].message
         );
+        assert_eq!(
+            diags[0].line, 4,
+            "must anchor at the store declaration (StoreIR.source_span)"
+        );
+        assert_eq!(diags[0].col, 1);
     }
 
     #[test]
@@ -329,6 +343,11 @@ mod tests {
             "Message should mention unused signal: {}",
             signal_diags[0].message
         );
+        assert_eq!(
+            signal_diags[0].line, 1,
+            "must anchor at the signal declaration (init expr span)"
+        );
+        assert_eq!(signal_diags[0].col, 1);
     }
 
     #[test]
@@ -402,6 +421,11 @@ mod tests {
             "Message should mention unused function: {}",
             fn_diags[0].message
         );
+        assert_eq!(
+            fn_diags[0].line, 1,
+            "must anchor at the function declaration (FunctionDef.span)"
+        );
+        assert_eq!(fn_diags[0].col, 1);
     }
 
     // ── Slot content reference sites (ADR-053 D5) ──────────

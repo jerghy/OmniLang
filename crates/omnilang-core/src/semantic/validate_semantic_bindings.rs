@@ -19,6 +19,7 @@
 
 use crate::error::{Diagnostic, DiagnosticKind, Severity};
 use crate::ir::{ComponentIR, ViewTree};
+use crate::lexer::Span;
 
 /// Migration hint for the removed `value={sig}` semantic-binding form —
 /// verbatim from the v2 design doc 域 1 诊断表 (design D2). `bind:value` is
@@ -52,9 +53,17 @@ fn walk_view_tree(tree: &ViewTree, component: &ComponentIR, diagnostics: &mut Ve
                     // design D2: the value={sig} semantic-binding form is
                     // deleted — bind:value is the sole two-way binding.
                     // Applies regardless of @ref (the form itself is gone).
-                    diagnostics.push(error_diag(
+                    // Task 4.11: anchors at the element's span (not the
+                    // component start) and carries the verbatim migration
+                    // hint in the structured suggestion field — the message
+                    // stays byte-identical for docs-gate prefix matching.
+                    diagnostics.push(make_diag(
                         component,
+                        el.source_span,
+                        Severity::Error,
+                        DiagnosticKind::EValueBindingRemoved,
                         format!("'value={{sig}}' 语义绑定形式已删除，{VALUE_BINDING_REMOVED_HINT}"),
+                        Some(VALUE_BINDING_REMOVED_HINT.to_string()),
                     ));
                     continue;
                 }
@@ -63,6 +72,7 @@ fn walk_view_tree(tree: &ViewTree, component: &ComponentIR, diagnostics: &mut Ve
                         if !binding_applies_to_tag(binding, &el.tag) {
                             diagnostics.push(warning_diag(
                                 component,
+                                el.source_span,
                                 format!(
                                     "semantic binding '{binding}' is not applicable to element '<{}>'",
                                     el.tag
@@ -73,6 +83,7 @@ fn walk_view_tree(tree: &ViewTree, component: &ComponentIR, diagnostics: &mut Ve
                     None => {
                         diagnostics.push(error_diag(
                             component,
+                            el.source_span,
                             format!("semantic binding '{binding}' requires @ref on this element"),
                         ));
                     }
@@ -167,43 +178,70 @@ fn binding_applies_to_tag(binding: &str, tag: &str) -> bool {
     }
 }
 
-/// Build an error diagnostic at the component's source location, following
-/// the convention used by `validate_refs` / `validate_ref_ops`.
-fn error_diag(component: &ComponentIR, message: String) -> Diagnostic {
-    make_diag(component, Severity::Error, message)
+/// Build an error diagnostic at the element's source location (falling back
+/// to the component's location), following the convention used by
+/// `validate_refs` / `validate_ref_ops`.
+fn error_diag(component: &ComponentIR, span: Option<Span>, message: String) -> Diagnostic {
+    make_diag(
+        component,
+        span,
+        Severity::Error,
+        DiagnosticKind::E0006,
+        message,
+        None,
+    )
 }
 
-/// Build a warning diagnostic at the component's source location.
-fn warning_diag(component: &ComponentIR, message: String) -> Diagnostic {
-    make_diag(component, Severity::Warning, message)
+/// Build a warning diagnostic at the element's source location (falling back
+/// to the component's location).
+fn warning_diag(component: &ComponentIR, span: Option<Span>, message: String) -> Diagnostic {
+    make_diag(
+        component,
+        span,
+        Severity::Warning,
+        DiagnosticKind::E0006,
+        message,
+        None,
+    )
 }
 
-/// Shared diagnostic construction: E0006 (validation error), positioned at
+/// Shared diagnostic construction, positioned at the offending element's
+/// `source_span` when available (Task 4.11 — the pass anchors at the
+/// matched element instead of the component start line), falling back to
 /// the component's `source_span` / `source_file`.
-fn make_diag(component: &ComponentIR, severity: Severity, message: String) -> Diagnostic {
-    let (line, col) = component
-        .source_span
+fn make_diag(
+    component: &ComponentIR,
+    span: Option<Span>,
+    severity: Severity,
+    kind: DiagnosticKind,
+    message: String,
+    suggestion: Option<String>,
+) -> Diagnostic {
+    let (line, col) = span
+        .or(component.source_span)
         .map(|s| (s.line, s.col))
         .unwrap_or((0, 0));
     Diagnostic {
         severity,
-        kind: DiagnosticKind::E0006,
+        kind,
         message,
         file: component.source_file.clone(),
         line,
         col,
         end_line: None,
         end_col: None,
-        suggestion: None,
+        suggestion,
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::error::DiagnosticKind;
     use crate::ir::{
         BindingIR, ConstructionKind, ElementIR, ExprIR, ListRenderingIntent, RefDeclIR,
     };
+    use crate::lexer::Span;
     use rustc_hash::FxHashMap;
 
     /// Build a minimal ElementIR with a ref binding and semantic bindings.
@@ -362,6 +400,69 @@ mod tests {
             "unexpected message: {}",
             diagnostics[0].message
         );
+    }
+
+    #[test]
+    fn value_binding_diag_anchors_element_line_with_suggestion() {
+        // Task 4.11 (ai MEDIUM): the removed value={sig} form must point at
+        // the ELEMENT line (ElementIR.source_span), not the component start
+        // line, and carry the verbatim migration hint in suggestion.
+        let mut el = make_el("input", Some("field"), &[("value", "text")]);
+        el.source_span = Some(Span {
+            start: 20,
+            end: 40,
+            line: 7,
+            col: 5,
+        });
+        let comp = make_component("Test", &["field"], vec![ViewTree::Element(Box::new(el))]);
+        let mut diagnostics = Vec::new();
+        validate_semantic_bindings(&comp, &mut diagnostics);
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].severity, Severity::Error);
+        assert_eq!(
+            diagnostics[0].kind,
+            DiagnosticKind::EValueBindingRemoved,
+            "value binding must carry its own code, got {:?}",
+            diagnostics[0].kind
+        );
+        assert_eq!(
+            diagnostics[0].line, 7,
+            "must anchor at the element line, got: {:?}",
+            diagnostics[0]
+        );
+        assert_eq!(diagnostics[0].col, 5);
+        assert_eq!(
+            diagnostics[0].suggestion.as_deref(),
+            Some(VALUE_BINDING_REMOVED_HINT),
+            "migration hint must land in suggestion: {:?}",
+            diagnostics[0]
+        );
+        // The human-readable message keeps the hint (docs-gate matches by
+        // message prefix — the suggestion is an addition, not a move).
+        assert!(
+            diagnostics[0].message.contains("bind:value"),
+            "unexpected message: {}",
+            diagnostics[0].message
+        );
+    }
+
+    #[test]
+    fn requires_ref_diag_anchors_element_line() {
+        // focus={sig} without @ref on an element with a source span must
+        // point at that element, not the component start.
+        let mut el = make_el("input", None, &[("focus", "active")]);
+        el.source_span = Some(Span {
+            start: 50,
+            end: 70,
+            line: 9,
+            col: 3,
+        });
+        let comp = make_component("Test", &[], vec![ViewTree::Element(Box::new(el))]);
+        let mut diagnostics = Vec::new();
+        validate_semantic_bindings(&comp, &mut diagnostics);
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].line, 9);
+        assert_eq!(diagnostics[0].col, 3);
     }
 
     #[test]

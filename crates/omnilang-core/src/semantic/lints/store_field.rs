@@ -51,6 +51,10 @@ impl LintRule for StoreFieldDirectMutation {
                 .or_else(|| file_map.keys().next().map(|s| s.as_str()))
                 .unwrap_or("")
                 .to_string();
+            // Task 4.11: anchor each diagnostic at the best-known span —
+            // the owning function's span for fn bodies, the component span
+            // otherwise (FunctionIR.source_span is populated by lowering).
+            let comp_span = comp.source_span;
 
             for func in &comp.fns {
                 check_block_ir_for_store_mutations(
@@ -58,6 +62,7 @@ impl LintRule for StoreFieldDirectMutation {
                     &store_signals,
                     &func.name,
                     &comp_file,
+                    func.source_span.or(comp_span),
                     &mut diags,
                 );
             }
@@ -68,6 +73,7 @@ impl LintRule for StoreFieldDirectMutation {
                     &store_signals,
                     &format!("@{}", lc.kind),
                     &comp_file,
+                    comp_span,
                     &mut diags,
                 );
             }
@@ -78,6 +84,7 @@ impl LintRule for StoreFieldDirectMutation {
                     &store_signals,
                     "@effect",
                     &comp_file,
+                    comp_span,
                     &mut diags,
                 );
             }
@@ -87,12 +94,14 @@ impl LintRule for StoreFieldDirectMutation {
                     view,
                     &store_signals,
                     &comp_file,
+                    comp_span,
                     &mut diags,
                 );
             }
 
             for computed in &comp.computeds {
                 if expr_ir_contains_store_mutation(&computed.body, &store_signals) {
+                    let (line, col) = comp_span.map(|s| (s.line, s.col)).unwrap_or((0, 0));
                     diags.push(LintDiagnostic {
                         rule: "store-field-direct-mutation".into(),
                         severity: LintSeverity::Error,
@@ -101,8 +110,8 @@ impl LintRule for StoreFieldDirectMutation {
                             computed.name
                         ),
                         file: comp_file.clone(),
-                        line: 0,
-                        col: 0,
+                        line,
+                        col,
                     });
                 }
             }
@@ -337,5 +346,78 @@ mod tests {
             "store mutation inside an array-method predicate must be flagged, got: {:?}",
             diags
         );
+    }
+
+    #[test]
+    fn test_computed_mutation_diag_anchors_component_span() {
+        // ComputedIntent carries no span — the diagnostic falls back to the
+        // component source span (Task 4.11).
+        let mut stores = FxHashMap::default();
+        stores.insert(
+            "MyStore".into(),
+            StoreIR {
+                name: "MyStore".into(),
+                signals: [(
+                    "count".into(),
+                    TypeIR {
+                        kind: "i32".into(),
+                        type_args: vec![],
+                        is_nullable: false,
+                    },
+                )]
+                .into_iter()
+                .collect(),
+                signal_defaults: FxHashMap::default(),
+                getters: FxHashMap::default(),
+                actions: vec![],
+                ..Default::default()
+            },
+        );
+        let mut components = FxHashMap::default();
+        components.insert(
+            "App".into(),
+            ComponentIR {
+                name: "App".into(),
+                computeds: vec![crate::ir::ComputedIntent {
+                    name: "hacked".into(),
+                    r#type: TypeIR {
+                        kind: "i32".into(),
+                        type_args: vec![],
+                        is_nullable: false,
+                    },
+                    body: crate::ir::ExprIR::MethodCallExpr {
+                        object: Box::new(crate::ir::ExprIR::StoreFieldAccessExpr {
+                            store_alias: "MyStore".into(),
+                            field_name: "count".into(),
+                            call_args: vec![],
+                        }),
+                        method: "set".into(),
+                        args: vec![crate::ir::ExprIR::LiteralExpr {
+                            value: serde_json::Value::Number(1.into()),
+                        }],
+                        is_optional: false,
+                    },
+                    deps: vec![],
+                }],
+                store_refs: vec!["MyStore".into()],
+                source_span: Some(crate::lexer::Span {
+                    start: 0,
+                    end: 40,
+                    line: 8,
+                    col: 1,
+                }),
+                ..Default::default()
+            },
+        );
+        let ir = make_test_ir(components, stores);
+
+        let diags = StoreFieldDirectMutation.check_ir(&ir, &FxHashMap::default());
+        assert_eq!(diags.len(), 1);
+        assert_eq!(
+            diags[0].line, 8,
+            "must fall back to the component source span, got: {:?}",
+            diags[0]
+        );
+        assert_eq!(diags[0].col, 1);
     }
 }

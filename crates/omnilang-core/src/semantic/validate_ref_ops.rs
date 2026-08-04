@@ -28,6 +28,7 @@ use crate::ir::{
     BlockIR, ComponentIR, EventHandlerIR, ExprIR, MeasureWhat, MutationIntent, RefOpIR,
     StatementIR, ViewTree,
 };
+use crate::lexer::Span;
 use rustc_hash::FxHashSet;
 
 /// Migration hint for the removed imperative ref write (`ref.value = x` /
@@ -112,32 +113,41 @@ fn get_illegal_ref_fields() -> Vec<(&'static str, &'static str)> {
 }
 
 /// Per-component context threaded through the walkers: the declared ref names,
-/// the diagnostics sink, the component source location for error reporting,
-/// and a scope stack of identifiers bound in the current function/block
-/// (params, locals, closure params, loop vars, pattern bindings). An
-/// identifier bound in any enclosing scope shadows a same-named ref.
+/// the diagnostics sink, the current source location for error reporting, and
+/// a scope stack of identifiers bound in the current function/block (params,
+/// locals, closure params, loop vars, pattern bindings). An identifier bound
+/// in any enclosing scope shadows a same-named ref.
+///
+/// Position threading (Task 4.11): `span` is the most precise location known
+/// for the expression being walked — the enclosing view element's
+/// `source_span` inside a view, the function's `source_span` inside `fn`
+/// bodies, else the component's `source_span` (`base_span`). Diagnostics
+/// anchor there instead of the component start line.
 struct RefOpCtx<'a> {
     ref_names: &'a [String],
     diagnostics: &'a mut Vec<Diagnostic>,
     file: Option<String>,
-    line: u32,
-    col: u32,
+    span: Option<Span>,
+    base_span: Option<Span>,
     scopes: Vec<FxHashSet<String>>,
 }
 
 impl RefOpCtx<'_> {
-    /// Emit a compile error diagnostic at the component's source location.
-    fn error(&mut self, message: String) {
+    /// Emit a compile error diagnostic at the current source location.
+    /// `suggestion` carries the verbatim migration hint (if any) — the
+    /// message stays human-readable for docs-gate prefix matching.
+    fn error(&mut self, message: String, suggestion: Option<String>) {
+        let (line, col) = self.span.map(|s| (s.line, s.col)).unwrap_or((0, 0));
         self.diagnostics.push(Diagnostic {
             severity: Severity::Error,
             kind: DiagnosticKind::E0006,
             message,
             file: self.file.clone(),
-            line: self.line,
-            col: self.col,
+            line,
+            col,
             end_line: None,
             end_col: None,
-            suggestion: None,
+            suggestion,
         });
     }
 
@@ -173,41 +183,44 @@ pub fn validate_ref_ops(component: &mut ComponentIR, diagnostics: &mut Vec<Diagn
         return;
     }
 
-    let (line, col) = component
-        .source_span
-        .map(|s| (s.line, s.col))
-        .unwrap_or((0, 0));
     let mut ctx = RefOpCtx {
         ref_names: &ref_names,
         diagnostics,
         file: component.source_file.clone(),
-        line,
-        col,
+        span: component.source_span,
+        base_span: component.source_span,
         scopes: Vec::new(),
     };
 
-    // Walk view tree expressions
+    // Walk view tree expressions — view elements narrow the position to
+    // their own span (see walk_view_tree_exprs_mut).
     if let Some(ref mut view) = component.view {
         walk_view_tree_exprs_mut(view, &mut ctx);
     }
 
-    // Walk expressions in effects
+    // Walk expressions in effects. Effects carry no span — reset to the
+    // component span (the view walk may have left an element span behind).
     for effect in &mut component.effects {
+        ctx.span = ctx.base_span;
         walk_block_exprs_mut(&mut effect.body, &mut ctx);
     }
 
     // Walk expressions in lifecycle hooks (mount/unmount bodies)
     for lifecycle in &mut component.lifecycles {
+        ctx.span = ctx.base_span;
         walk_block_exprs_mut(&mut lifecycle.body, &mut ctx);
     }
 
     // Walk expressions in computed properties
     for computed in &mut component.computeds {
+        ctx.span = ctx.base_span;
         walk_expr_mut(&mut computed.body, &mut ctx);
     }
 
-    // Walk expressions in functions — params shadow same-named refs
+    // Walk expressions in functions — params shadow same-named refs; the
+    // function's own span anchors its diagnostics.
     for func in &mut component.fns {
+        ctx.span = func.source_span.or(ctx.base_span);
         ctx.push_scope();
         for param in &func.params {
             ctx.bind(&param.name);
@@ -236,7 +249,10 @@ fn check_expr(expr: &mut ExprIR, ctx: &mut RefOpCtx) {
                     // is unsupported. The zero-arg form is legal and rewritten.
                     if method == "capturePointer" || method == "releasePointer" {
                         if !args.is_empty() {
-                            ctx.error(format!("{} {}", method, POINTER_CAPTURE_NOARG_HINT));
+                            ctx.error(
+                                format!("{} {}", method, POINTER_CAPTURE_NOARG_HINT),
+                                Some(POINTER_CAPTURE_NOARG_HINT.to_string()),
+                            );
                         } else {
                             *expr = ExprIR::RefOpExpr {
                                 ref_name: ref_name.clone(),
@@ -262,10 +278,13 @@ fn check_expr(expr: &mut ExprIR, ctx: &mut RefOpCtx) {
                                 };
                             }
                             None => {
-                                ctx.error(format!(
-                                    "ref.{}() requires more arguments — expected: ref.{}",
-                                    method, signature
-                                ));
+                                ctx.error(
+                                    format!(
+                                        "ref.{}() requires more arguments — expected: ref.{}",
+                                        method, signature
+                                    ),
+                                    None,
+                                );
                             }
                         }
                         return;
@@ -274,9 +293,12 @@ fn check_expr(expr: &mut ExprIR, ctx: &mut RefOpCtx) {
                     let illegal_ops = get_illegal_ref_ops();
                     if let Some((_, hint)) = illegal_ops.iter().find(|(m, _)| *m == method.as_str())
                     {
-                        ctx.error(format!("ref.{}() is not allowed — {}", method, hint));
+                        ctx.error(
+                            format!("ref.{}() is not allowed — {}", method, hint),
+                            Some(hint.to_string()),
+                        );
                     } else {
-                        ctx.error(format!("unknown ref operation: ref.{}()", method));
+                        ctx.error(format!("unknown ref operation: ref.{}()", method), None);
                     }
                 }
             }
@@ -322,9 +344,12 @@ fn check_expr(expr: &mut ExprIR, ctx: &mut RefOpCtx) {
                             if let Some((_, hint)) =
                                 illegal_fields.iter().find(|(f, _)| *f == field.as_str())
                             {
-                                ctx.error(format!("ref.{} is not allowed — {}", field, hint));
+                                ctx.error(
+                                    format!("ref.{} is not allowed — {}", field, hint),
+                                    Some(hint.to_string()),
+                                );
                             } else {
-                                ctx.error(format!("unknown ref field: ref.{}", field));
+                                ctx.error(format!("unknown ref field: ref.{}", field), None);
                             }
                         }
                     }
@@ -538,7 +563,10 @@ fn walk_stmt_exprs_mut(stmt: &mut StatementIR, ctx: &mut RefOpCtx) {
                             if ctx.ref_names.contains(obj) && !ctx.is_shadowed(obj) {
                                 match target.name.as_str() {
                                     "value" => {
-                                        ctx.error(SETVALUE_REMOVED_HINT.to_string());
+                                        ctx.error(
+                                            SETVALUE_REMOVED_HINT.to_string(),
+                                            Some(SETVALUE_REMOVED_HINT.to_string()),
+                                        );
                                         diagnosed = true;
                                     }
                                     field_name => {
@@ -546,15 +574,18 @@ fn walk_stmt_exprs_mut(stmt: &mut StatementIR, ctx: &mut RefOpCtx) {
                                         if let Some((_, hint)) =
                                             illegal_fields.iter().find(|(f, _)| *f == field_name)
                                         {
-                                            ctx.error(format!(
-                                                "ref.{} is not allowed — {}",
-                                                field_name, hint
-                                            ));
+                                            ctx.error(
+                                                format!(
+                                                    "ref.{} is not allowed — {}",
+                                                    field_name, hint
+                                                ),
+                                                Some(hint.to_string()),
+                                            );
                                         } else {
-                                            ctx.error(format!(
-                                                "unknown ref field: ref.{}",
-                                                field_name
-                                            ));
+                                            ctx.error(
+                                                format!("unknown ref field: ref.{}", field_name),
+                                                None,
+                                            );
                                         }
                                         diagnosed = true;
                                     }
@@ -568,7 +599,10 @@ fn walk_stmt_exprs_mut(stmt: &mut StatementIR, ctx: &mut RefOpCtx) {
                             && ctx.ref_names.contains(&target.name)
                             && !ctx.is_shadowed(&target.name)
                         {
-                            ctx.error(SETVALUE_REMOVED_HINT.to_string());
+                            ctx.error(
+                                SETVALUE_REMOVED_HINT.to_string(),
+                                Some(SETVALUE_REMOVED_HINT.to_string()),
+                            );
                         }
                     }
                     MutationIntent::Increment { amount, .. }
@@ -660,6 +694,10 @@ fn walk_block_exprs_mut(block: &mut BlockIR, ctx: &mut RefOpCtx) {
 fn walk_view_tree_exprs_mut(tree: &mut ViewTree, ctx: &mut RefOpCtx) {
     match tree {
         ViewTree::Element(el) => {
+            // Task 4.11: diagnostics found inside this element's props /
+            // handlers / children anchor at the element's own span, not the
+            // component start line.
+            ctx.span = el.source_span.or(ctx.base_span);
             for expr in el.props.values_mut() {
                 walk_expr_mut(expr, ctx);
             }
@@ -728,6 +766,17 @@ fn walk_view_tree_exprs_mut(tree: &mut ViewTree, ctx: &mut RefOpCtx) {
 mod tests {
     use super::*;
     use crate::ir::{FunctionIR, RefDeclIR, Visibility};
+    use crate::lexer::Span;
+
+    /// Dummy span shared by the fn-level test helpers: every diagnostic
+    /// emitted from a helper-built function must anchor at this position
+    /// (Task 4.11 — fn context uses FunctionIR.source_span).
+    const FN_SPAN: Span = Span {
+        start: 0,
+        end: 4,
+        line: 7,
+        col: 3,
+    };
 
     /// Helper: component with a single declared ref named "box".
     fn make_component() -> ComponentIR {
@@ -752,7 +801,7 @@ mod tests {
                 statements: vec![StatementIR::ExprStmtIR { expr }],
             },
             is_async: false,
-            source_span: None,
+            source_span: Some(FN_SPAN),
         });
     }
 
@@ -862,6 +911,7 @@ mod tests {
         assert_eq!(diags.len(), 1);
         assert!(diags[0].message.contains("setSelection"));
         assert!(diags[0].message.contains("requires more arguments"));
+        assert_eq!(diags[0].line, FN_SPAN.line, "must anchor at the fn span");
     }
 
     #[test]
@@ -921,6 +971,13 @@ mod tests {
             "expected '多指针锁定不支持', got: {:?}",
             diags[0].message
         );
+        assert_eq!(diags[0].line, FN_SPAN.line, "must anchor at the fn span");
+        assert_eq!(
+            diags[0].suggestion.as_deref(),
+            Some(POINTER_CAPTURE_NOARG_HINT),
+            "verbatim hint must land in suggestion: {:?}",
+            diags[0]
+        );
         // The call is not rewritten — compile fails on the error.
         assert!(matches!(stmt_expr(&comp), ExprIR::MethodCallExpr { .. }));
     }
@@ -945,6 +1002,13 @@ mod tests {
                 && diags[0].message.contains("多指针锁定不支持"),
             "expected the parameterless hint, got: {:?}",
             diags[0].message
+        );
+        assert_eq!(diags[0].line, FN_SPAN.line, "must anchor at the fn span");
+        assert_eq!(
+            diags[0].suggestion.as_deref(),
+            Some(POINTER_CAPTURE_NOARG_HINT),
+            "verbatim hint must land in suggestion: {:?}",
+            diags[0]
         );
         assert!(matches!(stmt_expr(&comp), ExprIR::MethodCallExpr { .. }));
     }
@@ -1038,6 +1102,13 @@ mod tests {
         assert_eq!(diags.len(), 1);
         assert!(diags[0].message.contains("offsetWidth"));
         assert!(diags[0].message.contains("ref.measure().width"));
+        assert_eq!(diags[0].line, FN_SPAN.line, "must anchor at the fn span");
+        assert_eq!(
+            diags[0].suggestion.as_deref(),
+            Some("use ref.measure().width instead"),
+            "verbatim hint must land in suggestion: {:?}",
+            diags[0]
+        );
     }
 
     #[test]
@@ -1059,6 +1130,13 @@ mod tests {
         assert_eq!(diags.len(), 1);
         assert!(diags[0].message.contains("style"));
         assert!(diags[0].message.contains("style:{...}"));
+        assert_eq!(diags[0].line, FN_SPAN.line, "must anchor at the fn span");
+        assert_eq!(
+            diags[0].suggestion.as_deref(),
+            Some("use style:{...} binding with signals instead"),
+            "verbatim hint must land in suggestion: {:?}",
+            diags[0]
+        );
     }
 
     #[test]
@@ -1072,6 +1150,13 @@ mod tests {
         assert_eq!(diags.len(), 1);
         assert!(diags[0].message.contains("getBoundingClientRect"));
         assert!(diags[0].message.contains("ref.measure()"));
+        assert_eq!(diags[0].line, FN_SPAN.line, "must anchor at the fn span");
+        assert_eq!(
+            diags[0].suggestion.as_deref(),
+            Some("use ref.measure() instead"),
+            "verbatim hint must land in suggestion: {:?}",
+            diags[0]
+        );
     }
 
     #[test]
@@ -1081,6 +1166,12 @@ mod tests {
         let diags = run_pass(&mut comp);
         assert_eq!(diags.len(), 1);
         assert!(diags[0].message.contains("unknown ref operation"));
+        assert_eq!(diags[0].line, FN_SPAN.line, "must anchor at the fn span");
+        assert!(
+            diags[0].suggestion.is_none(),
+            "no migration hint for unknown ops: {:?}",
+            diags[0]
+        );
     }
 
     #[test]
@@ -1096,6 +1187,7 @@ mod tests {
         let diags = run_pass(&mut comp);
         assert_eq!(diags.len(), 1);
         assert!(diags[0].message.contains("unknown ref field"));
+        assert_eq!(diags[0].line, FN_SPAN.line, "must anchor at the fn span");
     }
 
     #[test]
@@ -1197,6 +1289,62 @@ mod tests {
     }
 
     #[test]
+    fn illegal_ref_op_in_view_element_anchors_element_line() {
+        // Task 4.11: a ref-op error found inside a view element's inline
+        // handler must point at the ELEMENT line (ElementIR.source_span),
+        // not the component start line.
+        let mut comp = make_component();
+        comp.view = Some(ViewTree::Element(Box::new(crate::ir::ElementIR {
+            tag: "button".into(),
+            events: {
+                let mut events = rustc_hash::FxHashMap::default();
+                events.insert(
+                    "onPress".into(),
+                    EventHandlerIR::InlineFn {
+                        body: BlockIR {
+                            statements: vec![StatementIR::ExprStmtIR {
+                                expr: method_call("box", "getBoundingClientRect", vec![]),
+                            }],
+                        },
+                        params: vec![],
+                        event_data: None,
+                        used_fields: None,
+                        needs_prevent_default: false,
+                        needs_stop_propagation: false,
+                    },
+                );
+                events
+            },
+            props: rustc_hash::FxHashMap::default(),
+            bindings: rustc_hash::FxHashMap::default(),
+            children: vec![],
+            style_classes: None,
+            inline_style: None,
+            construction_kind: crate::ir::ConstructionKind::Normal,
+            class_map_bindings: rustc_hash::FxHashMap::default(),
+            source_span: Some(Span {
+                start: 10,
+                end: 30,
+                line: 5,
+                col: 1,
+            }),
+            motion: None,
+            ref_binding: None,
+            semantic_bindings: rustc_hash::FxHashMap::default(),
+            a11y: None,
+        })));
+        let diags = run_pass(&mut comp);
+        assert_eq!(diags.len(), 1);
+        assert!(diags[0].message.contains("getBoundingClientRect"));
+        assert_eq!(
+            diags[0].line, 5,
+            "must anchor at the element line, got: {:?}",
+            diags[0]
+        );
+        assert_eq!(diags[0].col, 1);
+    }
+
+    #[test]
     fn walks_effect_bodies() {
         let mut comp = make_component();
         comp.effects.push(crate::ir::EffectIntent {
@@ -1263,7 +1411,7 @@ mod tests {
                 }],
             },
             is_async: false,
-            source_span: None,
+            source_span: Some(FN_SPAN),
         });
     }
 
@@ -1306,6 +1454,13 @@ mod tests {
             "expected bind:value hint, got: {:?}",
             diags[0].message
         );
+        assert_eq!(diags[0].line, FN_SPAN.line, "must anchor at the fn span");
+        assert_eq!(
+            diags[0].suggestion.as_deref(),
+            Some(SETVALUE_REMOVED_HINT),
+            "verbatim hint must land in suggestion: {:?}",
+            diags[0]
+        );
         // The mutation is not rewritten — it stays a mutation (the compile
         // fails on the error, so no codegen output is produced).
         assert!(matches!(
@@ -1340,6 +1495,13 @@ mod tests {
             diags[0].message.contains("bind:value"),
             "expected bind:value hint, got: {:?}",
             diags[0].message
+        );
+        assert_eq!(diags[0].line, FN_SPAN.line, "must anchor at the fn span");
+        assert_eq!(
+            diags[0].suggestion.as_deref(),
+            Some(SETVALUE_REMOVED_HINT),
+            "verbatim hint must land in suggestion: {:?}",
+            diags[0]
         );
         assert!(matches!(
             &comp.fns[0].body.statements[0],
@@ -1409,6 +1571,13 @@ mod tests {
         assert_eq!(diags.len(), 1);
         assert!(diags[0].message.contains("offsetWidth"));
         assert!(diags[0].message.contains("ref.measure().width"));
+        assert_eq!(diags[0].line, FN_SPAN.line, "must anchor at the fn span");
+        assert_eq!(
+            diags[0].suggestion.as_deref(),
+            Some("use ref.measure().width instead"),
+            "verbatim hint must land in suggestion: {:?}",
+            diags[0]
+        );
         // The mutation stays a mutation (nothing rewritten).
         assert!(matches!(
             &comp.fns[0].body.statements[0],

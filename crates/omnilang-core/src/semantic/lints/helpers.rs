@@ -4,10 +4,12 @@ use super::LintDiagnostic;
 use crate::ir::{
     BlockIR, EventHandlerIR, ExprIR, MutationIntent, SignalRefIR, StatementIR, ViewTree,
 };
+use crate::lexer::Span;
 use crate::parser::ast::{
     AssignTarget, BinaryOpKind, Block, ElementProp, EventHandler, Expr, ImportStmt, Stmt,
     TemplatePart, ViewNode,
 };
+use crate::parser::expr::span_of;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 
@@ -89,11 +91,16 @@ pub(super) fn import_span_line_col(import: &ImportStmt) -> (u32, u32) {
 // ── Store / Prop / Computed validation helpers ──────
 
 /// Recursively walk a BlockIR looking for store signal mutations.
+///
+/// `span` is the best-known source position of the enclosing context (the
+/// owning function's / element's span) — diagnostics anchor there instead of
+/// hardcoded 0:0 (Task 4.11).
 pub(super) fn check_block_ir_for_store_mutations(
     block: &BlockIR,
     store_signals: &FxHashMap<&str, FxHashSet<&str>>,
     context_name: &str,
     file_path: &str,
+    span: Option<Span>,
     diags: &mut Vec<LintDiagnostic>,
 ) {
     for stmt in &block.statements {
@@ -126,6 +133,7 @@ pub(super) fn check_block_ir_for_store_mutations(
                     store_signals,
                     context_name,
                     file_path,
+                    span,
                     diags,
                 );
                 for (_, body) in else_ifs {
@@ -134,6 +142,7 @@ pub(super) fn check_block_ir_for_store_mutations(
                         store_signals,
                         context_name,
                         file_path,
+                        span,
                         diags,
                     );
                 }
@@ -143,6 +152,7 @@ pub(super) fn check_block_ir_for_store_mutations(
                         store_signals,
                         context_name,
                         file_path,
+                        span,
                         diags,
                     );
                 }
@@ -153,6 +163,7 @@ pub(super) fn check_block_ir_for_store_mutations(
                     store_signals,
                     context_name,
                     file_path,
+                    span,
                     diags,
                 );
             }
@@ -162,6 +173,7 @@ pub(super) fn check_block_ir_for_store_mutations(
                     store_signals,
                     context_name,
                     file_path,
+                    span,
                     diags,
                 );
             }
@@ -176,6 +188,7 @@ pub(super) fn check_block_ir_for_store_mutations(
                     store_signals,
                     context_name,
                     file_path,
+                    span,
                     diags,
                 );
                 if let Some(ref body) = catch_body {
@@ -184,6 +197,7 @@ pub(super) fn check_block_ir_for_store_mutations(
                         store_signals,
                         context_name,
                         file_path,
+                        span,
                         diags,
                     );
                 }
@@ -193,6 +207,7 @@ pub(super) fn check_block_ir_for_store_mutations(
                         store_signals,
                         context_name,
                         file_path,
+                        span,
                         diags,
                     );
                 }
@@ -200,6 +215,7 @@ pub(super) fn check_block_ir_for_store_mutations(
             StatementIR::ExprStmtIR { expr }
                 if expr_ir_contains_store_mutation(expr, store_signals) =>
             {
+                let (line, col) = span.map(|s| (s.line, s.col)).unwrap_or((0, 0));
                 diags.push(LintDiagnostic {
                     rule: "store-field-direct-mutation".into(),
                     severity: super::LintSeverity::Error,
@@ -209,8 +225,8 @@ pub(super) fn check_block_ir_for_store_mutations(
                         context_name
                     ),
                     file: file_path.to_string(),
-                    line: 0,
-                    col: 0,
+                    line,
+                    col,
                 });
             }
             _ => {}
@@ -337,14 +353,19 @@ pub(super) fn expr_ir_contains_store_mutation(
 }
 
 /// Walk a ViewTree recursively and check event handler bodies for store mutations.
+///
+/// `span` is the enclosing context's position; elements narrow it to their
+/// own `source_span` (Task 4.11).
 pub(super) fn check_view_tree_events_for_store_mutations(
     tree: &ViewTree,
     store_signals: &FxHashMap<&str, FxHashSet<&str>>,
     file_path: &str,
+    span: Option<Span>,
     diags: &mut Vec<LintDiagnostic>,
 ) {
     match tree {
         ViewTree::Element(el) => {
+            let el_span = el.source_span.or(span);
             for handler in el.events.values() {
                 if let EventHandlerIR::InlineFn { body, .. } = handler {
                     check_block_ir_for_store_mutations(
@@ -352,12 +373,19 @@ pub(super) fn check_view_tree_events_for_store_mutations(
                         store_signals,
                         "inline event handler",
                         file_path,
+                        el_span,
                         diags,
                     );
                 }
             }
             for child in &el.children {
-                check_view_tree_events_for_store_mutations(child, store_signals, file_path, diags);
+                check_view_tree_events_for_store_mutations(
+                    child,
+                    store_signals,
+                    file_path,
+                    el_span,
+                    diags,
+                );
             }
         }
         ViewTree::Conditional(cond) => {
@@ -367,6 +395,7 @@ pub(super) fn check_view_tree_events_for_store_mutations(
                         body,
                         store_signals,
                         file_path,
+                        span,
                         diags,
                     );
                 }
@@ -376,16 +405,29 @@ pub(super) fn check_view_tree_events_for_store_mutations(
                     fallback,
                     store_signals,
                     file_path,
+                    span,
                     diags,
                 );
             }
         }
         ViewTree::ListRendering(list) => {
             if let Some(ref body) = list.body {
-                check_view_tree_events_for_store_mutations(body, store_signals, file_path, diags);
+                check_view_tree_events_for_store_mutations(
+                    body,
+                    store_signals,
+                    file_path,
+                    span,
+                    diags,
+                );
             }
             if let Some(ref empty) = list.empty_body {
-                check_view_tree_events_for_store_mutations(empty, store_signals, file_path, diags);
+                check_view_tree_events_for_store_mutations(
+                    empty,
+                    store_signals,
+                    file_path,
+                    span,
+                    diags,
+                );
             }
         }
         _ => {}
@@ -405,6 +447,7 @@ pub(super) fn check_block_for_prop_assign(
         match stmt {
             Stmt::Assign {
                 target: AssignTarget::Name(name),
+                span,
                 ..
             } => {
                 if prop_names.contains(name.as_str()) {
@@ -417,8 +460,8 @@ pub(super) fn check_block_for_prop_assign(
                             name, context_name, comp_name
                         ),
                         file: file_path.to_string(),
-                        line: 0,
-                        col: 0,
+                        line: span.line,
+                        col: span.col,
                     });
                 }
             }
@@ -507,6 +550,7 @@ pub(super) fn check_block_for_prop_assign(
     }
     if let Some(ref expr) = block.trailing_expr {
         if expr_contains_prop_assign(expr, prop_names) {
+            let span = span_of(expr);
             diags.push(LintDiagnostic {
                 rule: "prop-immutability".into(),
                 severity: super::LintSeverity::Error,
@@ -516,8 +560,8 @@ pub(super) fn check_block_for_prop_assign(
                     context_name, comp_name
                 ),
                 file: file_path.to_string(),
-                line: 0,
-                col: 0,
+                line: span.line,
+                col: span.col,
             });
         }
     }

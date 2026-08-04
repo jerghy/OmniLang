@@ -14,6 +14,7 @@
 
 use super::{LintDiagnostic, LintRule, LintSeverity};
 use crate::ir::{BlockIR, ExprIR, IRProgram, StatementIR};
+use crate::lexer::Span;
 use rustc_hash::FxHashMap;
 
 pub struct TypeMismatch;
@@ -43,11 +44,15 @@ impl LintRule for TypeMismatch {
                 .or_else(|| file_map.keys().next().map(|s| s.as_str()))
                 .unwrap_or(comp_name);
 
-            // Check signal initializer types
+            // Check signal initializer types. SignalIntent carries no span —
+            // anchor at the component span (Task 4.11; 0:0 only when no span
+            // exists at all, e.g. hand-built IR in unit tests).
+            let comp_span = comp.source_span;
             for state in &comp.signals {
                 let type_kind_str = state.r#type.kind.as_str();
                 let init = &state.initial_value;
                 if !Self::types_compatible(type_kind_str, init) {
+                    let (line, col) = comp_span.map(|s| (s.line, s.col)).unwrap_or((0, 0));
                     diags.push(LintDiagnostic {
                         rule: self.name().into(),
                         severity: self.severity(),
@@ -57,13 +62,14 @@ impl LintRule for TypeMismatch {
                             state.name, comp_name, type_kind_str
                         ),
                         file: comp_file.to_string(),
-                        line: 0,
-                        col: 0,
+                        line,
+                        col,
                     });
                 }
             }
 
-            // Check function return types against return statements
+            // Check function return types against return statements —
+            // anchored at the function's own span when available.
             for func in &comp.fns {
                 if let Some(ref ret_type) = func.return_type {
                     Self::check_function_returns(
@@ -72,6 +78,7 @@ impl LintRule for TypeMismatch {
                         comp_name,
                         &func.name,
                         comp_file,
+                        func.source_span.or(comp_span),
                         &mut diags,
                     );
                 }
@@ -116,11 +123,13 @@ impl TypeMismatch {
         comp_name: &str,
         func_name: &str,
         file_path: &str,
+        span: Option<Span>,
         diags: &mut Vec<LintDiagnostic>,
     ) {
         let ret_type_lower = ret_type.to_lowercase();
         let is_void =
             ret_type_lower == "void" || ret_type_lower == "()" || ret_type_lower == "unit";
+        let (line, col) = span.map(|s| (s.line, s.col)).unwrap_or((0, 0));
 
         for stmt in &body.statements {
             match stmt {
@@ -134,8 +143,8 @@ impl TypeMismatch {
                                 comp_name, func_name
                             ),
                             file: file_path.to_string(),
-                            line: 0,
-                            col: 0,
+                            line,
+                            col,
                         });
                     }
                 }
@@ -145,27 +154,27 @@ impl TypeMismatch {
                     ..
                 } => {
                     Self::check_function_returns(
-                        then_body, ret_type, comp_name, func_name, file_path, diags,
+                        then_body, ret_type, comp_name, func_name, file_path, span, diags,
                     );
                     if let Some(ref eb) = else_body {
                         Self::check_function_returns(
-                            eb, ret_type, comp_name, func_name, file_path, diags,
+                            eb, ret_type, comp_name, func_name, file_path, span, diags,
                         );
                     }
                 }
                 StatementIR::WhileStmtIR { body, .. } => {
                     Self::check_function_returns(
-                        body, ret_type, comp_name, func_name, file_path, diags,
+                        body, ret_type, comp_name, func_name, file_path, span, diags,
                     );
                 }
                 StatementIR::ForInStmtIR { body, .. } => {
                     Self::check_function_returns(
-                        body, ret_type, comp_name, func_name, file_path, diags,
+                        body, ret_type, comp_name, func_name, file_path, span, diags,
                     );
                 }
                 StatementIR::BlockStmtIR { body } => {
                     Self::check_function_returns(
-                        body, ret_type, comp_name, func_name, file_path, diags,
+                        body, ret_type, comp_name, func_name, file_path, span, diags,
                     );
                 }
                 _ => {}
@@ -177,6 +186,7 @@ impl TypeMismatch {
 #[cfg(test)]
 mod tests {
     use crate::ir::{BlockIR, ComponentIR, FunctionIR, StatementIR, TypeIR, Visibility};
+    use crate::lexer::Span;
     use rustc_hash::FxHashMap;
 
     use super::super::helpers::test_helpers::make_test_ir;
@@ -213,7 +223,12 @@ mod tests {
                     },
                     is_async: false,
 
-                    source_span: None,
+                    source_span: Some(Span {
+                        start: 0,
+                        end: 30,
+                        line: 6,
+                        col: 2,
+                    }),
                 }],
                 store_refs: vec![],
                 refs: vec![],
@@ -235,6 +250,54 @@ mod tests {
             diags[0].message.contains("void"),
             "Message should mention void: {}",
             diags[0].message
+        );
+        assert_eq!(
+            diags[0].line, 6,
+            "must anchor at the function declaration (FunctionIR.source_span)"
+        );
+        assert_eq!(diags[0].col, 2);
+    }
+
+    #[test]
+    fn test_type_mismatch_signal_init_anchors_component_span() {
+        // SignalIntent carries no span — the diagnostic falls back to the
+        // component's source span (Task 4.11: never 0:0 when a span exists).
+        let mut components = FxHashMap::default();
+        components.insert(
+            "Test".into(),
+            ComponentIR {
+                name: "Test".into(),
+                signals: vec![crate::ir::SignalIntent {
+                    name: "age".into(),
+                    r#type: TypeIR {
+                        kind: "i32".into(),
+                        type_args: vec![],
+                        is_nullable: false,
+                    },
+                    initial_value: ExprIR::LiteralExpr {
+                        value: serde_json::Value::String("adult".into()),
+                    },
+                }],
+                source_span: Some(Span {
+                    start: 0,
+                    end: 40,
+                    line: 3,
+                    col: 1,
+                }),
+                ..Default::default()
+            },
+        );
+        let ir = make_test_ir(components, FxHashMap::default());
+
+        let diags = TypeMismatch.check_ir(&ir, &FxHashMap::default());
+        assert!(
+            diags.iter().any(|d| d.message.contains("initializer type")),
+            "signal init type mismatch must be flagged, got: {:?}",
+            diags
+        );
+        assert_eq!(
+            diags[0].line, 3,
+            "must fall back to the component source span"
         );
     }
 }

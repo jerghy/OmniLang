@@ -35,11 +35,16 @@ impl LintRule for MissingReturn {
                 .as_deref()
                 .or_else(|| file_map.keys().next().map(|s| s.as_str()))
                 .unwrap_or(comp_name);
+            let comp_span = comp.source_span;
             for func in &comp.fns {
                 if let Some(ref ret_type) = func.return_type {
                     if !matches!(ret_type.kind, TypeKind::Void) {
                         let has_return = statements_contain_return(&func.body.statements, false);
                         if !has_return {
+                            // Task 4.11: anchor at the function's own span
+                            // (fall back to the component span).
+                            let span = func.source_span.or(comp_span);
+                            let (line, col) = span.map(|s| (s.line, s.col)).unwrap_or((0, 0));
                             diags.push(LintDiagnostic {
                                 rule: self.name().into(),
                                 severity: self.severity(),
@@ -51,8 +56,8 @@ impl LintRule for MissingReturn {
                                     ret_type.kind.as_str()
                                 ),
                                 file: comp_file.to_string(),
-                                line: 0,
-                                col: 0,
+                                line,
+                                col,
                             });
                         }
                     }
@@ -102,7 +107,12 @@ mod tests {
                     },
                     is_async: false,
 
-                    source_span: None,
+                    source_span: Some(crate::lexer::Span {
+                        start: 0,
+                        end: 30,
+                        line: 5,
+                        col: 1,
+                    }),
                 }],
                 store_refs: vec![],
                 refs: vec![],
@@ -120,6 +130,10 @@ mod tests {
             diags[0].message.contains("getCount"),
             "message should mention the function: {}",
             diags[0].message
+        );
+        assert_eq!(
+            diags[0].line, 5,
+            "must anchor at the function declaration span"
         );
     }
 

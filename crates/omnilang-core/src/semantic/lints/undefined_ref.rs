@@ -33,6 +33,8 @@ impl LintRule for UndefinedRef {
                 .as_deref()
                 .or_else(|| file_map.keys().next().map(|s| s.as_str()))
                 .unwrap_or(name);
+            // Task 4.11: anchor at the component's source span.
+            let (line, col) = comp.source_span.map(|s| (s.line, s.col)).unwrap_or((0, 0));
             for store_ref in &comp.store_refs {
                 // Inline stores (`store Name { ... }` in the component body)
                 // are flattened into the component and never registered in
@@ -47,8 +49,8 @@ impl LintRule for UndefinedRef {
                             name, store_ref
                         ),
                         file: comp_file.to_string(),
-                        line: 0,
-                        col: 0,
+                        line,
+                        col,
                     });
                 }
             }
@@ -84,6 +86,12 @@ mod tests {
                 events: vec![],
                 view: None,
                 styles: vec![],
+                source_span: Some(crate::lexer::Span {
+                    start: 0,
+                    end: 30,
+                    line: 3,
+                    col: 1,
+                }),
                 ..Default::default()
             },
         );
@@ -96,6 +104,7 @@ mod tests {
             "message should mention the missing store: {}",
             diags[0].message
         );
+        assert_eq!(diags[0].line, 3, "must anchor at the component source span");
     }
 
     #[test]
