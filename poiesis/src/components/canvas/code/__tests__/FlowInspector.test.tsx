@@ -1,8 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { FlowInspector } from "../FlowInspector";
 
-// vi.mock 会被提升到 import 之前执行，mock 中引用的变量必须用 vi.hoisted 创建。
 const { mockSetProp } = vi.hoisted(() => ({ mockSetProp: vi.fn() }));
 
 vi.mock("../../../../store", () => ({
@@ -11,44 +10,42 @@ vi.mock("../../../../store", () => ({
       elements: [
         {
           id: "l1", nodeType: "codeblock", tag: "let", parentId: null,
-          props: { name: "x", mutable: false, value: "0" },
-          source: "let x = 0;",
+          props: { name: "x", mutable: true, value: "0" },
+          source: "let mut x = 0;",
         },
         {
-          id: "s1", nodeType: "codeblock", tag: "store-call", parentId: null,
-          props: { storeName: "TodoStore", action: "add", args: "" },
-          source: "TodoStore.add();",
+          id: "f1", nodeType: "codeblock", tag: "fn", parentId: null,
+          props: { name: "add", params: "text: String" },
+          source: "",
         },
       ],
-      setProp: (id: string, prop: string, value: unknown) => {
-        mockSetProp(id, prop, value);
-      },
+      setProp: (id: string, prop: string, value: unknown) => { mockSetProp(id, prop, value); },
       setElementSource: () => {},
-      storeReferences: { TodoStore: ["App"], CartStore: ["App"] },
+      storeReferences: {},
+      componentDefs: {},
+      storeDefs: {},
+      inlineStoreDefs: {},
+      designPage: { activeTabId: "t1", openTabs: [] },
     }),
 }));
 
-beforeEach(() => {
-  mockSetProp.mockClear();
-});
+beforeEach(() => { mockSetProp.mockClear(); });
 
-describe("FlowInspector syntax node forms", () => {
-  it("renders LetInspector fields for a let node", () => {
+describe("FlowInspector 降级为预览", () => {
+  it("语法节点显示编辑提示与 formatSyntaxNode 实时预览", () => {
     render(<FlowInspector selectedNodeIds={["l1"]} />);
-    expect(screen.getByLabelText("变量名")).toBeTruthy();
-    expect(screen.getByLabelText("可变 (mut)")).toBeTruthy();
-    expect(screen.getByLabelText("初始值")).toBeTruthy();
+    expect(screen.getByText("⚡ 在节点上直接编辑")).toBeTruthy();
+    expect(screen.getByText("let mut x = 0;")).toBeTruthy();
   });
 
-  it("updates let props through setProp", () => {
-    render(<FlowInspector selectedNodeIds={["l1"]} />);
-    fireEvent.change(screen.getByLabelText("变量名"), { target: { value: "count" } });
-    expect(mockSetProp).toHaveBeenCalledWith("l1", "name", "count");
+  it("fn 节点仍渲染参数编辑表单", () => {
+    render(<FlowInspector selectedNodeIds={["f1"]} />);
+    expect(screen.getByLabelText("Function name")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "+ Add" })).toBeTruthy();
   });
 
-  it("renders store-call form with store name datalist from storeReferences", () => {
-    render(<FlowInspector selectedNodeIds={["s1"]} />);
-    expect(screen.getByLabelText("store 名")).toBeTruthy();
-    expect(screen.getByLabelText("action")).toBeTruthy();
+  it("未选择时显示占位提示", () => {
+    render(<FlowInspector selectedNodeIds={[]} />);
+    expect(screen.getByText("Select a node to edit")).toBeTruthy();
   });
 });

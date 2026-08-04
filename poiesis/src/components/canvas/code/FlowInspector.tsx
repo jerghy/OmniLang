@@ -1,11 +1,15 @@
 // FlowInspector.tsx
-// Right-side panel in CodeFlowCanvas that edits selected node properties:
-// fn / return / let / assign / store-call / call.
-// Reusable across store action editing and component fn editing.
+// Right-side panel in CodeFlowCanvas.
+// Inline-editing era: syntax nodes (let/assign/store-call/call) and return are edited
+// directly on the node in the canvas — this panel is degraded to a live preview
+// (single source: formatSyntaxNode) + validation hints. fn param editing is retained.
 
 import { usePoiesisStore } from "../../../store";
 import type { CodeblockElementData } from "../../../core/types/element";
-import { ASSIGN_OPERATORS } from "../../../services/codegen/syntax-nodes";
+import { formatSyntaxNode, type SyntaxNodeProps } from "../../../services/codegen/syntax-nodes";
+import { validateSyntaxProps, type FlowScope } from "../../../services/codegen/flow-scope";
+import { useFlowScope } from "../../../services/codegen/flow-scope-hook";
+import { TAG_CN } from "./flowConstants";
 
 const OMNI_TYPES = [
   "String", "i32", "i64", "f64", "f32",
@@ -92,6 +96,26 @@ const S = {
   } as React.CSSProperties,
 };
 
+// 预览面板共用样式
+const HINT_STYLE: React.CSSProperties = {
+  fontSize: "var(--ol-font-size-11)",
+  color: "var(--ol-text-muted)",
+  marginTop: 2,
+};
+
+const PRE_STYLE: React.CSSProperties = {
+  background: "var(--ol-gray-100)",
+  borderRadius: "var(--ol-radius-sm)",
+  padding: "6px 8px",
+  fontSize: "var(--ol-font-size-12)",
+  fontFamily: "var(--ol-font-family-mono)",
+  margin: 0,
+  overflowX: "auto",
+  color: "var(--ol-text)",
+};
+
+const SYNTAX_TAGS = ["let", "assign", "store-call", "call"];
+
 interface Props {
   selectedNodeIds: string[];
 }
@@ -99,8 +123,11 @@ interface Props {
 export function FlowInspector({ selectedNodeIds }: Props) {
   const elements = usePoiesisStore((s) => s.elements);
   const setProp = usePoiesisStore((s) => s.setProp);
-  const setElementSource = usePoiesisStore((s) => s.setElementSource);
-  const storeReferences = usePoiesisStore((s) => s.storeReferences);
+  const activeTabId = usePoiesisStore((s) => s.designPage.activeTabId);
+  const openTabs = usePoiesisStore((s) => s.designPage.openTabs);
+  const activeTab = openTabs.find((t) => t.id === activeTabId);
+  // Rules of Hooks: unconditional top-level call — must precede the early returns below.
+  const scope = useFlowScope(activeTab?.componentName);
 
   if (selectedNodeIds.length !== 1) {
     return (
@@ -130,23 +157,11 @@ export function FlowInspector({ selectedNodeIds }: Props) {
   }
 
   if (el.tag === "return") {
-    return <ReturnInspector el={el} setElementSource={setElementSource} />;
+    return <ReturnPreview el={el} />;
   }
 
-  if (el.tag === "let") {
-    return <LetInspector el={el} setProp={setProp} />;
-  }
-
-  if (el.tag === "assign") {
-    return <AssignInspector el={el} setProp={setProp} />;
-  }
-
-  if (el.tag === "store-call") {
-    return <StoreCallInspector el={el} setProp={setProp} storeReferences={storeReferences} />;
-  }
-
-  if (el.tag === "call") {
-    return <CallInspector el={el} setProp={setProp} />;
+  if (SYNTAX_TAGS.includes(el.tag)) {
+    return <SyntaxPreview tag={el.tag} props={el.props ?? {}} scope={scope ?? undefined} />;
   }
 
   return (
@@ -159,7 +174,7 @@ export function FlowInspector({ selectedNodeIds }: Props) {
 }
 
 // ────────────────────────────────────────────
-// FN Node Inspector
+// FN Node Inspector（参数编辑表单，原样保留）
 // ────────────────────────────────────────────
 
 interface FnInspectorProps {
@@ -250,174 +265,60 @@ function FnInspector({ el, setProp }: FnInspectorProps) {
 }
 
 // ────────────────────────────────────────────
-// Return Node Inspector
+// 语法节点预览（内联编辑时代：面板降级为单一来源预览）
 // ────────────────────────────────────────────
 
-interface ReturnInspectorProps {
-  el: CodeblockElementData;
-  setElementSource: (id: string, source: string) => void;
-}
-
-function ReturnInspector({ el, setElementSource }: ReturnInspectorProps) {
-  const source = el.source || "";
-
-  return (
-    <div style={S.panel}>
-      <div style={S.header}>← Return</div>
-      <div style={S.field}>
-        <div style={S.label}>Expression</div>
-        <input
-          style={S.input}
-          value={source}
-          placeholder="e.g. items.len()"
-          aria-label="Expression"
-          onChange={(e) => setElementSource(el.id, e.target.value)}
-        />
-      </div>
-    </div>
-  );
-}
-
-// ────────────────────────────────────────────
-// Syntax node inspectors (let / assign / store-call / call)
-// ────────────────────────────────────────────
-
-const SYNTAX_FIELD: React.CSSProperties = { ...S.field };
-const SYNTAX_LABEL: React.CSSProperties = { ...S.label };
-const SYNTAX_INPUT: React.CSSProperties = { ...S.input };
-const SYNTAX_SELECT: React.CSSProperties = { ...S.select };
-
-function LetInspector({ el, setProp }: { el: CodeblockElementData; setProp: FnInspectorProps["setProp"] }) {
-  const name = (el.props?.name as string) || "";
-  const mutable = !!el.props?.mutable;
-  const varType = (el.props?.varType as string) || "";
-  const value = (el.props?.value as string) || "";
-  return (
-    <div style={S.panel}>
-      <div style={S.header}>let 变量声明</div>
-      <div style={SYNTAX_FIELD}>
-        <div style={SYNTAX_LABEL}>变量名</div>
-        <input aria-label="变量名" style={SYNTAX_INPUT} value={name}
-          onChange={(e) => setProp(el.id, "name", e.target.value)} />
-      </div>
-      <div style={SYNTAX_FIELD}>
-        <div style={SYNTAX_LABEL}>类型（可选）</div>
-        <select aria-label="类型" style={SYNTAX_SELECT} value={varType}
-          onChange={(e) => setProp(el.id, "varType", e.target.value || undefined)}>
-          <option value="">（推断）</option>
-          {OMNI_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-          {varType && !OMNI_TYPES.includes(varType) && <option value={varType}>{varType}</option>}
-        </select>
-      </div>
-      <div style={SYNTAX_FIELD}>
-        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "var(--ol-font-size-12)" }}>
-          <input type="checkbox" aria-label="可变 (mut)" checked={mutable}
-            onChange={(e) => setProp(el.id, "mutable", e.target.checked)} />
-          可变 (mut)
-        </label>
-      </div>
-      <div style={SYNTAX_FIELD}>
-        <div style={SYNTAX_LABEL}>初始值</div>
-        <input aria-label="初始值" style={SYNTAX_INPUT} value={value}
-          placeholder="e.g. 0 / [] / items.filter(...)"
-          onChange={(e) => setProp(el.id, "value", e.target.value)} />
-      </div>
-    </div>
-  );
-}
-
-function AssignInspector({ el, setProp }: { el: CodeblockElementData; setProp: FnInspectorProps["setProp"] }) {
-  const target = (el.props?.target as string) || "";
-  const operator = (el.props?.operator as string) || "=";
-  const value = (el.props?.value as string) || "";
-  return (
-    <div style={S.panel}>
-      <div style={S.header}>assign 赋值</div>
-      <div style={SYNTAX_FIELD}>
-        <div style={SYNTAX_LABEL}>目标（signal/变量/store 信号）</div>
-        <input aria-label="目标" style={SYNTAX_INPUT} value={target}
-          placeholder="e.g. count / ThemeStore.mode"
-          onChange={(e) => setProp(el.id, "target", e.target.value)} />
-      </div>
-      <div style={SYNTAX_FIELD}>
-        <div style={SYNTAX_LABEL}>运算符</div>
-        <select aria-label="运算符" style={SYNTAX_SELECT} value={operator}
-          onChange={(e) => setProp(el.id, "operator", e.target.value)}>
-          {ASSIGN_OPERATORS.map((op) => <option key={op} value={op}>{op}</option>)}
-        </select>
-      </div>
-      <div style={SYNTAX_FIELD}>
-        <div style={SYNTAX_LABEL}>表达式</div>
-        <input aria-label="表达式" style={SYNTAX_INPUT} value={value}
-          placeholder="e.g. count + step"
-          onChange={(e) => setProp(el.id, "value", e.target.value)} />
-      </div>
-    </div>
-  );
-}
-
-function StoreCallInspector({ el, setProp, storeReferences }: {
-  el: CodeblockElementData;
-  setProp: FnInspectorProps["setProp"];
-  storeReferences: Record<string, string[]>;
+function SyntaxPreview({ tag, props, scope }: {
+  tag: string;
+  props: Record<string, unknown>;
+  scope?: FlowScope;
 }) {
-  const storeName = (el.props?.storeName as string) || "";
-  const action = (el.props?.action as string) || "";
-  const args = (el.props?.args as string) || "";
-  const storeNames = Object.keys(storeReferences);
+  const code = formatSyntaxNode(tag, props as SyntaxNodeProps);
+  const errors = scope ? validateSyntaxProps(tag, props, scope) : [];
   return (
     <div style={S.panel}>
-      <div style={S.header}>store 调用</div>
-      <div style={SYNTAX_FIELD}>
-        <div style={SYNTAX_LABEL}>store 名</div>
-        <input aria-label="store 名" list="syntax-store-names" style={SYNTAX_INPUT} value={storeName}
-          placeholder="e.g. TodoStore"
-          onChange={(e) => setProp(el.id, "storeName", e.target.value)} />
-        <datalist id="syntax-store-names">
-          {storeNames.map((n) => <option key={n} value={n} />)}
-        </datalist>
+      <div style={S.header}>{TAG_CN[tag] ?? tag}</div>
+      <div style={S.field}>
+        <div style={S.label}>⚡ 在节点上直接编辑</div>
+        <div style={HINT_STYLE}>
+          点击节点上的字段直接修改，Enter 或失焦提交
+        </div>
       </div>
-      <div style={SYNTAX_FIELD}>
-        <div style={SYNTAX_LABEL}>action</div>
-        <input aria-label="action" style={SYNTAX_INPUT} value={action}
-          placeholder="e.g. add"
-          onChange={(e) => setProp(el.id, "action", e.target.value)} />
+      <div style={S.field}>
+        <div style={S.label}>生成代码（实时预览）</div>
+        <pre style={PRE_STYLE}>{code}</pre>
       </div>
-      <div style={SYNTAX_FIELD}>
-        <div style={SYNTAX_LABEL}>参数（逗号分隔）</div>
-        <input aria-label="参数" style={SYNTAX_INPUT} value={args}
-          placeholder="e.g. text, 2"
-          onChange={(e) => setProp(el.id, "args", e.target.value)} />
-      </div>
+      {errors.length > 0 && (
+        <div style={S.field}>
+          <div style={{ ...S.label, color: "var(--ol-color-danger)" }}>⚠ 校验提示</div>
+          {errors.map((e) => (
+            <div key={e.field} style={{ fontSize: "var(--ol-font-size-11)", color: "var(--ol-color-danger)", marginTop: 2 }}>
+              {e.message}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-function CallInspector({ el, setProp }: { el: CodeblockElementData; setProp: FnInspectorProps["setProp"] }) {
-  const fnName = (el.props?.fnName as string) || "";
-  const args = (el.props?.args as string) || "";
-  const emit = !!el.props?.emit;
+// ────────────────────────────────────────────
+// Return 节点预览（表达式在节点上内联编辑，面板显示 source 预览）
+// ────────────────────────────────────────────
+
+function ReturnPreview({ el }: { el: CodeblockElementData }) {
   return (
     <div style={S.panel}>
-      <div style={S.header}>call 调用</div>
-      <div style={SYNTAX_FIELD}>
-        <div style={SYNTAX_LABEL}>函数名</div>
-        <input aria-label="函数名" style={SYNTAX_INPUT} value={fnName}
-          placeholder="e.g. close / onSelect / console_log"
-          onChange={(e) => setProp(el.id, "fnName", e.target.value)} />
+      <div style={S.header}>← 返回</div>
+      <div style={S.field}>
+        <div style={S.label}>⚡ 在节点上直接编辑</div>
+        <div style={HINT_STYLE}>
+          点击节点上的字段直接修改，Enter 或失焦提交
+        </div>
       </div>
-      <div style={SYNTAX_FIELD}>
-        <div style={SYNTAX_LABEL}>参数（逗号分隔）</div>
-        <input aria-label="参数" style={SYNTAX_INPUT} value={args}
-          placeholder="e.g. item"
-          onChange={(e) => setProp(el.id, "args", e.target.value)} />
-      </div>
-      <div style={SYNTAX_FIELD}>
-        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "var(--ol-font-size-12)" }}>
-          <input type="checkbox" aria-label="emit 事件" checked={emit}
-            onChange={(e) => setProp(el.id, "emit", e.target.checked)} />
-          emit 事件
-        </label>
+      <div style={S.field}>
+        <div style={S.label}>生成代码（实时预览）</div>
+        <pre style={PRE_STYLE}>{el.source}</pre>
       </div>
     </div>
   );
