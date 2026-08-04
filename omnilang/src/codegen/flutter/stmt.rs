@@ -670,8 +670,15 @@ pub(crate) fn generate_lib_fn_flutter(w: &mut CodeWriter, func: &FunctionIR) {
 
 /// Generate statements inside a store action body (Riverpod 3.0 Notifier
 /// method — `state = state.copyWith(...)` mutations with bare signal
-/// identifiers rewritten to `state.<name>`).
-pub(crate) fn generate_store_action_stmt(w: &mut CodeWriter, stmt: &StatementIR, store: &StoreIR) {
+/// identifiers rewritten to `state.<name>`). `param_names` are the action's
+/// params: they shadow same-named store signals (fn_locals pattern, OmniView
+/// store.rs), so identifiers matching them stay bare.
+pub(crate) fn generate_store_action_stmt(
+    w: &mut CodeWriter,
+    stmt: &StatementIR,
+    store: &StoreIR,
+    param_names: &FxHashSet<String>,
+) {
     let store_names: FxHashSet<String> = store
         .signals
         .keys()
@@ -684,6 +691,7 @@ pub(crate) fn generate_store_action_stmt(w: &mut CodeWriter, stmt: &StatementIR,
                 event_param_name: None,
             },
             store_names: &store_names,
+            param_names,
         },
     };
     fmt.format_stmt(w, stmt);

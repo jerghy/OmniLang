@@ -24,6 +24,12 @@ pub(crate) struct ReactFormatExpr {
     /// inside Zustand action bodies). Applied at identifier level only — string
     /// literals and object keys are never touched (C8 fix, HIGH #2).
     pub renames: FxHashMap<String, String>,
+    /// Identifiers that shadow `renames` in every position — the store
+    /// action's param names (fn_locals pattern, OmniView store.rs): an
+    /// IdentifierExpr naming an action param is the param itself and must
+    /// stay bare, never `state.<name>` (maintainability HIGH-1). Empty at
+    /// component-codegen sites.
+    pub param_names: FxHashSet<String>,
 }
 
 impl FormatExpr for ReactFormatExpr {
@@ -43,6 +49,7 @@ impl FormatExpr for ReactFormatExpr {
             expr: ReactFormatExpr {
                 ref_names: self.ref_names.clone(),
                 renames: self.renames.clone(),
+                param_names: self.param_names.clone(),
             },
             signal_names: FxHashSet::default(),
             store_signal_owners: FxHashMap::default(),
@@ -66,6 +73,9 @@ impl FormatExpr for ReactFormatExpr {
     /// `nameRef.current` for proper ref access in function bodies (ADR-036).
     fn format_identifier(&self, name: &str) -> String {
         let stripped = name.trim_start_matches('$');
+        if self.param_names.contains(stripped) {
+            return stripped.to_string();
+        }
         if let Some(renamed) = self.renames.get(stripped) {
             return renamed.clone();
         }
@@ -1165,6 +1175,7 @@ pub(super) fn generate_statement_tsx(
         expr: ReactFormatExpr {
             ref_names: ref_names.clone(),
             renames: renames.clone(),
+            param_names: FxHashSet::default(),
         },
         signal_names: signal_names.clone(),
         store_signal_owners: store_signal_owners.clone(),
@@ -1203,12 +1214,35 @@ pub(super) fn format_expr_ir_tsx_renamed(
     ref_names: &FxHashSet<String>,
     renames: &FxHashMap<String, String>,
 ) -> String {
+    format_expr_ir_tsx_renamed_locals(expr, ref_names, renames, &FxHashSet::default())
+}
+
+/// Same as [`format_expr_ir_tsx_renamed`], plus a set of identifiers that
+/// shadow the renames in every position — the store action's param names
+/// (fn_locals pattern, OmniView store.rs): an IdentifierExpr naming an
+/// action param is the param itself (the emitted function has that binding),
+/// so it must stay bare instead of being rewritten to `state.<name>`.
+/// `validate_all(items)` must iterate the ARGUMENT, never the store signal
+/// (maintainability HIGH-1 — silent wrong-code class).
+pub(super) fn format_expr_ir_tsx_renamed_locals(
+    expr: &ExprIR,
+    ref_names: &FxHashSet<String>,
+    renames: &FxHashMap<String, String>,
+    param_names: &FxHashSet<String>,
+) -> String {
     match expr {
-        ExprIR::IdentifierExpr { name, .. } => ReactFormatExpr {
-            ref_names: ref_names.clone(),
-            renames: renames.clone(),
+        ExprIR::IdentifierExpr { name, .. } => {
+            if param_names.contains(name.as_str()) {
+                name.clone()
+            } else {
+                ReactFormatExpr {
+                    ref_names: ref_names.clone(),
+                    renames: renames.clone(),
+                    param_names: param_names.clone(),
+                }
+                .format_identifier(name)
+            }
         }
-        .format_identifier(name),
         ExprIR::FieldAccessExpr { object, field } => {
             // Store field read on a bare store ref (`TodoStore.items`) →
             // slice local, when subscribed per field.
@@ -1217,7 +1251,8 @@ pub(super) fn format_expr_ir_tsx_renamed(
                     return local;
                 }
             }
-            let obj_str = format_expr_ir_tsx_renamed(object, ref_names, renames);
+            let obj_str =
+                format_expr_ir_tsx_renamed_locals(object, ref_names, renames, param_names);
             format!("{}.{}", obj_str, field)
         }
         ExprIR::OptionalChainExpr { object, field } => {
@@ -1231,6 +1266,7 @@ pub(super) fn format_expr_ir_tsx_renamed(
             ReactFormatExpr {
                 ref_names: ref_names.clone(),
                 renames: renames.clone(),
+                param_names: param_names.clone(),
             }
             .format_expr(expr)
         }
@@ -1246,15 +1282,18 @@ pub(super) fn format_expr_ir_tsx_renamed(
                 if let Some(local) = store_field_rename(renames, name, method) {
                     let args_str: Vec<String> = args
                         .iter()
-                        .map(|a| format_expr_ir_tsx_renamed(a, ref_names, renames))
+                        .map(|a| {
+                            format_expr_ir_tsx_renamed_locals(a, ref_names, renames, param_names)
+                        })
                         .collect();
                     return format!("{}({})", local, args_str.join(", "));
                 }
             }
-            let obj_str = format_expr_ir_tsx_renamed(object, ref_names, renames);
+            let obj_str =
+                format_expr_ir_tsx_renamed_locals(object, ref_names, renames, param_names);
             let args_str: Vec<String> = args
                 .iter()
-                .map(|a| format_expr_ir_tsx_renamed(a, ref_names, renames))
+                .map(|a| format_expr_ir_tsx_renamed_locals(a, ref_names, renames, param_names))
                 .collect();
             translate_method_call(&obj_str, method, &args_str)
         }
@@ -1266,17 +1305,21 @@ pub(super) fn format_expr_ir_tsx_renamed(
             // Array language methods must apply the same identifier renames
             // (Zustand action bodies: store signals → state.<name>) inside
             // both the subject and the predicate before formatting.
-            let subj_str = format_expr_ir_tsx_renamed(subject, ref_names, renames);
-            let pred_str = format_expr_ir_tsx_renamed(predicate, ref_names, renames);
+            let subj_str =
+                format_expr_ir_tsx_renamed_locals(subject, ref_names, renames, param_names);
+            let pred_str =
+                format_expr_ir_tsx_renamed_locals(predicate, ref_names, renames, param_names);
             ReactFormatExpr {
                 ref_names: ref_names.clone(),
                 renames: renames.clone(),
+                param_names: param_names.clone(),
             }
             .format_array_method(method, &subj_str, &pred_str)
         }
         _ => ReactFormatExpr {
             ref_names: ref_names.clone(),
             renames: renames.clone(),
+            param_names: param_names.clone(),
         }
         .format_expr(expr),
     }

@@ -1502,8 +1502,14 @@ impl FlutterCodegen {
                 async_kw
             ));
             w.indent();
+            // Action params shadow same-named store signals (fn_locals
+            // pattern, OmniView store.rs): a bare `items` in the body is the
+            // param, so it stays bare instead of `state.items`
+            // (maintainability HIGH-1).
+            let param_names: FxHashSet<String> =
+                action.params.iter().map(|p| p.name.clone()).collect();
             for stmt in &action.body.statements {
-                generate_store_action_stmt(&mut w, stmt, store);
+                generate_store_action_stmt(&mut w, stmt, store, &param_names);
             }
             w.dedent();
             w.emit("}");

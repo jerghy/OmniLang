@@ -611,6 +611,12 @@ fn emit_store_actions(
             .map(|p| escape_js_ident(&p.name))
             .collect();
         let params_str = params.join(", ");
+        // Action params shadow same-named store signal renames (fn_locals
+        // pattern, OmniView store.rs): a bare `items` in the body is the
+        // param — identifiers matching it stay bare, never `state.items`
+        // (maintainability HIGH-1: validate_all(items) iterates the
+        // ARGUMENT, silently the store signal before this fix).
+        let param_names: FxHashSet<String> = action.params.iter().map(|p| p.name.clone()).collect();
         w.emit_fmt(format_args!("{}: ({}) => {{", action.name, params_str));
         w.indent();
 
@@ -618,7 +624,13 @@ fn emit_store_actions(
         // signals or getters (C8)
         emit_zustand_action_prologue(w, action, store_signal_names, store_getter_names);
 
-        gen_zustand_action_stmts(w, &action.body.statements, action_renames, set_fn);
+        gen_zustand_action_stmts(
+            w,
+            &action.body.statements,
+            action_renames,
+            &param_names,
+            set_fn,
+        );
         w.dedent();
         w.emit("},");
     }
@@ -633,20 +645,26 @@ fn gen_zustand_action_stmt(
     w: &mut CodeWriter,
     stmt: &StatementIR,
     renames: &FxHashMap<String, String>,
+    param_names: &FxHashSet<String>,
     set_fn: &str,
 ) {
-    /// Format an expression with the store rename map applied.
-    fn fmt_expr(expr: &ExprIR, renames: &FxHashMap<String, String>) -> String {
-        expr::format_expr_ir_tsx_renamed(expr, &FxHashSet::default(), renames)
+    /// Format an expression with the store rename map applied — action
+    /// param names stay bare (fn_locals pattern, maintainability HIGH-1).
+    fn fmt_expr(
+        expr: &ExprIR,
+        renames: &FxHashMap<String, String>,
+        param_names: &FxHashSet<String>,
+    ) -> String {
+        expr::format_expr_ir_tsx_renamed_locals(expr, &FxHashSet::default(), renames, param_names)
     }
     match stmt {
         StatementIR::MutationStmt { intent } => {
             if let Some(intent) = intent {
-                format_zustand_mutation(w, intent, renames, set_fn);
+                format_zustand_mutation(w, intent, renames, param_names, set_fn);
             }
         }
         StatementIR::ExprStmtIR { expr } => {
-            let line = fmt_expr(expr, renames);
+            let line = fmt_expr(expr, renames, param_names);
             w.emit_fmt(format_args!("{};", line));
         }
         StatementIR::LetStmtIR {
@@ -657,7 +675,7 @@ fn gen_zustand_action_stmt(
         } => {
             let rhs = value
                 .as_ref()
-                .map(|v| fmt_expr(v, renames))
+                .map(|v| fmt_expr(v, renames, param_names))
                 .unwrap_or_else(|| "null".into());
             // Task 5.1 (deferral #36): `is_mut` decides the keyword — `let`
             // for reassigned bindings, `const` for immutable ones.
@@ -670,22 +688,43 @@ fn gen_zustand_action_stmt(
             else_ifs,
             else_body,
         } => {
-            let cond = fmt_expr(condition, renames);
+            let cond = fmt_expr(condition, renames, param_names);
             w.emit_fmt(format_args!("if ({}) {{", cond));
             w.indent();
-            gen_zustand_action_stmts_inner(w, &then_body.statements, renames, false, set_fn);
+            gen_zustand_action_stmts_inner(
+                w,
+                &then_body.statements,
+                renames,
+                param_names,
+                false,
+                set_fn,
+            );
             w.dedent();
             for (elif_cond, elif_body) in else_ifs {
-                let elif = fmt_expr(elif_cond, renames);
+                let elif = fmt_expr(elif_cond, renames, param_names);
                 w.emit_fmt(format_args!("}} else if ({}) {{", elif));
                 w.indent();
-                gen_zustand_action_stmts_inner(w, &elif_body.statements, renames, false, set_fn);
+                gen_zustand_action_stmts_inner(
+                    w,
+                    &elif_body.statements,
+                    renames,
+                    param_names,
+                    false,
+                    set_fn,
+                );
                 w.dedent();
             }
             if let Some(ref eb) = else_body {
                 w.emit("} else {");
                 w.indent();
-                gen_zustand_action_stmts_inner(w, &eb.statements, renames, false, set_fn);
+                gen_zustand_action_stmts_inner(
+                    w,
+                    &eb.statements,
+                    renames,
+                    param_names,
+                    false,
+                    set_fn,
+                );
                 w.dedent();
             }
             w.emit("}");
@@ -693,15 +732,22 @@ fn gen_zustand_action_stmt(
         StatementIR::ReturnStmtIR { value } => {
             let v = value
                 .as_ref()
-                .map(|v| fmt_expr(v, renames))
+                .map(|v| fmt_expr(v, renames, param_names))
                 .unwrap_or_else(|| "null".into());
             w.emit_fmt(format_args!("return {};", v));
         }
         StatementIR::WhileStmtIR { condition, body } => {
-            let cond = fmt_expr(condition, renames);
+            let cond = fmt_expr(condition, renames, param_names);
             w.emit_fmt(format_args!("while ({}) {{", cond));
             w.indent();
-            gen_zustand_action_stmts_inner(w, &body.statements, renames, false, set_fn);
+            gen_zustand_action_stmts_inner(
+                w,
+                &body.statements,
+                renames,
+                param_names,
+                false,
+                set_fn,
+            );
             w.dedent();
             w.emit("}");
         }
@@ -710,22 +756,36 @@ fn gen_zustand_action_stmt(
             iterable,
             body,
         } => {
-            let iter = fmt_expr(iterable, renames);
+            let iter = fmt_expr(iterable, renames, param_names);
             w.emit_fmt(format_args!("for (const {} of {}) {{", var_name, iter));
             w.indent();
-            gen_zustand_action_stmts_inner(w, &body.statements, renames, false, set_fn);
+            gen_zustand_action_stmts_inner(
+                w,
+                &body.statements,
+                renames,
+                param_names,
+                false,
+                set_fn,
+            );
             w.dedent();
             w.emit("}");
         }
         StatementIR::BlockStmtIR { body } => {
             w.emit("{");
             w.indent();
-            gen_zustand_action_stmts_inner(w, &body.statements, renames, false, set_fn);
+            gen_zustand_action_stmts_inner(
+                w,
+                &body.statements,
+                renames,
+                param_names,
+                false,
+                set_fn,
+            );
             w.dedent();
             w.emit("}");
         }
         StatementIR::ThrowStmtIR { expr } => {
-            let e = fmt_expr(expr, renames);
+            let e = fmt_expr(expr, renames, param_names);
             w.emit_fmt(format_args!("throw {};", e));
         }
         StatementIR::TryCatchStmtIR {
@@ -736,7 +796,14 @@ fn gen_zustand_action_stmt(
         } => {
             w.emit("try {");
             w.indent();
-            gen_zustand_action_stmts_inner(w, &try_body.statements, renames, false, set_fn);
+            gen_zustand_action_stmts_inner(
+                w,
+                &try_body.statements,
+                renames,
+                param_names,
+                false,
+                set_fn,
+            );
             w.dedent();
             if let Some(ref cv) = catch_var {
                 w.emit_fmt(format_args!("}} catch ({}) {{", cv));
@@ -745,13 +812,27 @@ fn gen_zustand_action_stmt(
             }
             if let Some(ref cb) = catch_body {
                 w.indent();
-                gen_zustand_action_stmts_inner(w, &cb.statements, renames, false, set_fn);
+                gen_zustand_action_stmts_inner(
+                    w,
+                    &cb.statements,
+                    renames,
+                    param_names,
+                    false,
+                    set_fn,
+                );
                 w.dedent();
             }
             if let Some(ref fb) = finally_body {
                 w.emit("} finally {");
                 w.indent();
-                gen_zustand_action_stmts_inner(w, &fb.statements, renames, false, set_fn);
+                gen_zustand_action_stmts_inner(
+                    w,
+                    &fb.statements,
+                    renames,
+                    param_names,
+                    false,
+                    set_fn,
+                );
                 w.dedent();
             }
             w.emit("}");
@@ -760,7 +841,10 @@ fn gen_zustand_action_stmt(
             let arg_str = if args.is_empty() {
                 "()".to_string()
             } else {
-                let formatted: Vec<String> = args.iter().map(|a| fmt_expr(a, renames)).collect();
+                let formatted: Vec<String> = args
+                    .iter()
+                    .map(|a| fmt_expr(a, renames, param_names))
+                    .collect();
                 format!("({})", formatted.join(", "))
             };
             w.emit_fmt(format_args!("{}{};", event_name, arg_str));
@@ -797,7 +881,16 @@ fn action_needs_zustand_state(
     signal_names: &FxHashSet<String>,
     getter_names: &FxHashSet<String>,
 ) -> bool {
+    // Action params shadow same-named store signals (fn_locals pattern):
+    // a bare `items` is the param — it must neither count as a store read
+    // nor as a store mutation, or a shadowed body would emit an unused
+    // `const state = get();` (eslint no-unused-vars gate).
+    let mut signal_names = signal_names.clone();
     let mut store_names: FxHashSet<String> = signal_names.clone();
+    for p in &action.params {
+        store_names.remove(&p.name);
+        signal_names.remove(&p.name);
+    }
     store_names.extend(getter_names.iter().cloned());
     if store_names.is_empty() {
         return false;
@@ -807,7 +900,7 @@ fn action_needs_zustand_state(
         .statements
         .iter()
         .any(|s| stmt_references_store_name(s, &store_names))
-        || block_needs_zustand_state(&action.body, signal_names)
+        || block_needs_zustand_state(&action.body, &signal_names)
 }
 
 /// Returns true if any statement in the block mutates a store signal through
@@ -1079,9 +1172,10 @@ fn gen_zustand_action_stmts(
     w: &mut CodeWriter,
     stmts: &[StatementIR],
     renames: &FxHashMap<String, String>,
+    param_names: &FxHashSet<String>,
     set_fn: &str,
 ) {
-    gen_zustand_action_stmts_inner(w, stmts, renames, true, set_fn);
+    gen_zustand_action_stmts_inner(w, stmts, renames, param_names, true, set_fn);
 }
 
 /// Inner statement loop. `tail_returns` is true ONLY for the top-level
@@ -1097,6 +1191,7 @@ fn gen_zustand_action_stmts_inner(
     w: &mut CodeWriter,
     stmts: &[StatementIR],
     renames: &FxHashMap<String, String>,
+    param_names: &FxHashSet<String>,
     tail_returns: bool,
     set_fn: &str,
 ) {
@@ -1106,7 +1201,7 @@ fn gen_zustand_action_stmts_inner(
             intent: Some(intent),
         } = &stmts[i]
         {
-            if let Some(first_part) = format_zustand_mutation_part(intent, renames) {
+            if let Some(first_part) = format_zustand_mutation_part(intent, renames, param_names) {
                 let mut parts: Vec<String> = vec![first_part];
                 let mut targets: FxHashSet<String> = FxHashSet::default();
                 targets.insert(mutation_target_name(intent));
@@ -1117,7 +1212,8 @@ fn gen_zustand_action_stmts_inner(
                         if targets.contains(&next_target) {
                             break;
                         }
-                        if let Some(part) = format_zustand_mutation_part(next, renames) {
+                        if let Some(part) = format_zustand_mutation_part(next, renames, param_names)
+                        {
                             targets.insert(next_target);
                             parts.push(part);
                             j += 1;
@@ -1133,15 +1229,35 @@ fn gen_zustand_action_stmts_inner(
         }
         if tail_returns && i + 1 == stmts.len() {
             if let StatementIR::ExprStmtIR { expr } = &stmts[i] {
-                let line = expr::format_expr_ir_tsx_renamed(expr, &FxHashSet::default(), renames);
+                let line = expr::format_expr_ir_tsx_renamed_locals(
+                    expr,
+                    &FxHashSet::default(),
+                    renames,
+                    param_names,
+                );
                 w.emit_fmt(format_args!("return {};", line));
                 i += 1;
                 continue;
             }
         }
-        gen_zustand_action_stmt(w, &stmts[i], renames, set_fn);
+        gen_zustand_action_stmt(w, &stmts[i], renames, param_names, set_fn);
         i += 1;
     }
+}
+
+/// Whether a bare identifier in an action body resolves to a store
+/// signal/getter — FALSE when the action declares a same-named param
+/// (params shadow store renames, fn_locals pattern — OmniView store.rs).
+/// A mutation of a param (`items.push(x)` with a param `items`) must stay a
+/// plain assignment — routing it into `set({ items: ... })` would silently
+/// mutate the STORE signal instead of the argument (maintainability
+/// HIGH-1, same wrong-code class as the identifier rewrite).
+fn is_action_store_target(
+    renames: &FxHashMap<String, String>,
+    param_names: &FxHashSet<String>,
+    name: &str,
+) -> bool {
+    !param_names.contains(name) && renames.contains_key(name)
 }
 
 /// The signal name a mutation writes — used to keep coalesced runs free of
@@ -1167,11 +1283,14 @@ fn mutation_target_name(intent: &MutationIntent) -> String {
 fn format_zustand_mutation_part(
     intent: &MutationIntent,
     renames: &FxHashMap<String, String>,
+    param_names: &FxHashSet<String>,
 ) -> Option<String> {
-    let fmt = |e: &ExprIR| expr::format_expr_ir_tsx_renamed(e, &FxHashSet::default(), renames);
+    let fmt = |e: &ExprIR| {
+        expr::format_expr_ir_tsx_renamed_locals(e, &FxHashSet::default(), renames, param_names)
+    };
     let (target, value_str) = match intent {
         MutationIntent::DirectAssign { target, value, .. } => {
-            if !renames.contains_key(target.name.as_str()) {
+            if !is_action_store_target(renames, param_names, &target.name) {
                 return None;
             }
             let val = value
@@ -1181,7 +1300,7 @@ fn format_zustand_mutation_part(
             (target, val)
         }
         MutationIntent::Increment { target, amount } => {
-            if !renames.contains_key(target.name.as_str()) {
+            if !is_action_store_target(renames, param_names, &target.name) {
                 return None;
             }
             let amt = amount
@@ -1191,7 +1310,7 @@ fn format_zustand_mutation_part(
             (target, format!("state.{} + {}", target.name, amt))
         }
         MutationIntent::Decrement { target, amount } => {
-            if !renames.contains_key(target.name.as_str()) {
+            if !is_action_store_target(renames, param_names, &target.name) {
                 return None;
             }
             let amt = amount
@@ -1201,7 +1320,7 @@ fn format_zustand_mutation_part(
             (target, format!("state.{} - {}", target.name, amt))
         }
         MutationIntent::Multiply { target, amount } => {
-            if !renames.contains_key(target.name.as_str()) {
+            if !is_action_store_target(renames, param_names, &target.name) {
                 return None;
             }
             let amt = amount
@@ -1211,7 +1330,7 @@ fn format_zustand_mutation_part(
             (target, format!("state.{} * {}", target.name, amt))
         }
         MutationIntent::Divide { target, amount } => {
-            if !renames.contains_key(target.name.as_str()) {
+            if !is_action_store_target(renames, param_names, &target.name) {
                 return None;
             }
             let amt = amount
@@ -1221,7 +1340,7 @@ fn format_zustand_mutation_part(
             (target, format!("state.{} / {}", target.name, amt))
         }
         MutationIntent::Modulo { target, amount } => {
-            if !renames.contains_key(target.name.as_str()) {
+            if !is_action_store_target(renames, param_names, &target.name) {
                 return None;
             }
             let amt = amount
@@ -1231,7 +1350,7 @@ fn format_zustand_mutation_part(
             (target, format!("state.{} % {}", target.name, amt))
         }
         MutationIntent::Push { target, item } => {
-            if !renames.contains_key(target.name.as_str()) {
+            if !is_action_store_target(renames, param_names, &target.name) {
                 return None;
             }
             let it = item
@@ -1241,7 +1360,7 @@ fn format_zustand_mutation_part(
             (target, format!("[...state.{}, {}]", target.name, it))
         }
         MutationIntent::Pop { target } => {
-            if !renames.contains_key(target.name.as_str()) {
+            if !is_action_store_target(renames, param_names, &target.name) {
                 return None;
             }
             (target, format!("state.{}.slice(0, -1)", target.name))
@@ -1254,23 +1373,32 @@ fn format_zustand_mutation_part(
 
 /// Format a single mutation into a Zustand `set()` call.
 /// `renames` maps store signals/getters to `state.X` — applied to all value
-/// expressions at the AST level (C8). `set_fn` is the setter to emit
-/// (`"set"`, or `"__set"` for stores with the getter-recompute wrapper,
+/// expressions at the AST level (C8). `param_names` shadows the renames
+/// (action params stay bare, fn_locals pattern). `set_fn` is the setter to
+/// emit (`"set"`, or `"__set"` for stores with the getter-recompute wrapper,
 /// Phase 5.2).
 fn format_zustand_mutation(
     w: &mut CodeWriter,
     intent: &MutationIntent,
     renames: &FxHashMap<String, String>,
+    param_names: &FxHashSet<String>,
     set_fn: &str,
 ) {
     match intent {
         MutationIntent::DirectAssign { target, value, .. } => {
             let val = value
                 .as_ref()
-                .map(|v| expr::format_expr_ir_tsx_renamed(v, &FxHashSet::default(), renames))
+                .map(|v| {
+                    expr::format_expr_ir_tsx_renamed_locals(
+                        v,
+                        &FxHashSet::default(),
+                        renames,
+                        param_names,
+                    )
+                })
                 .unwrap_or_else(|| "null".into());
             let target_str = &target.name;
-            if renames.contains_key(target_str.as_str()) {
+            if is_action_store_target(renames, param_names, target_str) {
                 w.emit_fmt(format_args!("{}({{ {}: {} }});", set_fn, target_str, val));
             } else {
                 w.emit_fmt(format_args!("{} = {};", target_str, val));
@@ -1279,10 +1407,17 @@ fn format_zustand_mutation(
         MutationIntent::Increment { target, amount } => {
             let amt = amount
                 .as_ref()
-                .map(|v| expr::format_expr_ir_tsx_renamed(v, &FxHashSet::default(), renames))
+                .map(|v| {
+                    expr::format_expr_ir_tsx_renamed_locals(
+                        v,
+                        &FxHashSet::default(),
+                        renames,
+                        param_names,
+                    )
+                })
                 .unwrap_or_else(|| "0".into());
             let target_str = &target.name;
-            if renames.contains_key(target_str.as_str()) {
+            if is_action_store_target(renames, param_names, target_str) {
                 w.emit_fmt(format_args!(
                     "{}({{ {}: state.{} + {} }});",
                     set_fn, target_str, target_str, amt
@@ -1294,10 +1429,17 @@ fn format_zustand_mutation(
         MutationIntent::Decrement { target, amount } => {
             let amt = amount
                 .as_ref()
-                .map(|v| expr::format_expr_ir_tsx_renamed(v, &FxHashSet::default(), renames))
+                .map(|v| {
+                    expr::format_expr_ir_tsx_renamed_locals(
+                        v,
+                        &FxHashSet::default(),
+                        renames,
+                        param_names,
+                    )
+                })
                 .unwrap_or_else(|| "0".into());
             let target_str = &target.name;
-            if renames.contains_key(target_str.as_str()) {
+            if is_action_store_target(renames, param_names, target_str) {
                 w.emit_fmt(format_args!(
                     "{}({{ {}: state.{} - {} }});",
                     set_fn, target_str, target_str, amt
@@ -1309,10 +1451,17 @@ fn format_zustand_mutation(
         MutationIntent::Push { target, item } => {
             let it = item
                 .as_ref()
-                .map(|v| expr::format_expr_ir_tsx_renamed(v, &FxHashSet::default(), renames))
+                .map(|v| {
+                    expr::format_expr_ir_tsx_renamed_locals(
+                        v,
+                        &FxHashSet::default(),
+                        renames,
+                        param_names,
+                    )
+                })
                 .unwrap_or_else(|| "undefined".into());
             let target_str = &target.name;
-            if renames.contains_key(target_str.as_str()) {
+            if is_action_store_target(renames, param_names, target_str) {
                 w.emit_fmt(format_args!(
                     "{}({{ {}: [...state.{}, {}] }});",
                     set_fn, target_str, target_str, it
@@ -1326,7 +1475,7 @@ fn format_zustand_mutation(
         }
         MutationIntent::Pop { target } => {
             let target_str = &target.name;
-            if renames.contains_key(target_str.as_str()) {
+            if is_action_store_target(renames, param_names, target_str) {
                 w.emit_fmt(format_args!(
                     "{}({{ {}: state.{}.slice(0, -1) }});",
                     set_fn, target_str, target_str
@@ -1341,10 +1490,17 @@ fn format_zustand_mutation(
         MutationIntent::Multiply { target, amount } => {
             let amt = amount
                 .as_ref()
-                .map(|v| expr::format_expr_ir_tsx_renamed(v, &FxHashSet::default(), renames))
+                .map(|v| {
+                    expr::format_expr_ir_tsx_renamed_locals(
+                        v,
+                        &FxHashSet::default(),
+                        renames,
+                        param_names,
+                    )
+                })
                 .unwrap_or_else(|| "1".into());
             let target_str = &target.name;
-            if renames.contains_key(target_str.as_str()) {
+            if is_action_store_target(renames, param_names, target_str) {
                 w.emit_fmt(format_args!(
                     "{}({{ {}: state.{} * {} }});",
                     set_fn, target_str, target_str, amt
@@ -1356,10 +1512,17 @@ fn format_zustand_mutation(
         MutationIntent::Divide { target, amount } => {
             let amt = amount
                 .as_ref()
-                .map(|v| expr::format_expr_ir_tsx_renamed(v, &FxHashSet::default(), renames))
+                .map(|v| {
+                    expr::format_expr_ir_tsx_renamed_locals(
+                        v,
+                        &FxHashSet::default(),
+                        renames,
+                        param_names,
+                    )
+                })
                 .unwrap_or_else(|| "1".into());
             let target_str = &target.name;
-            if renames.contains_key(target_str.as_str()) {
+            if is_action_store_target(renames, param_names, target_str) {
                 w.emit_fmt(format_args!(
                     "{}({{ {}: state.{} / {} }});",
                     set_fn, target_str, target_str, amt
@@ -1371,10 +1534,17 @@ fn format_zustand_mutation(
         MutationIntent::Modulo { target, amount } => {
             let amt = amount
                 .as_ref()
-                .map(|v| expr::format_expr_ir_tsx_renamed(v, &FxHashSet::default(), renames))
+                .map(|v| {
+                    expr::format_expr_ir_tsx_renamed_locals(
+                        v,
+                        &FxHashSet::default(),
+                        renames,
+                        param_names,
+                    )
+                })
                 .unwrap_or_else(|| "1".into());
             let target_str = &target.name;
-            if renames.contains_key(target_str.as_str()) {
+            if is_action_store_target(renames, param_names, target_str) {
                 w.emit_fmt(format_args!(
                     "{}({{ {}: state.{} % {} }});",
                     set_fn, target_str, target_str, amt

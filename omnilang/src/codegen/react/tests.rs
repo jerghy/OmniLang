@@ -2217,6 +2217,46 @@ fn test_zustand_store_string_literal_not_renamed() {
     );
 }
 
+/// maintainability HIGH-1 (Phase 5.4): an action param that collides with a
+/// store signal name must stay BARE — `validate_all(items)` iterates the
+/// ARGUMENT, never the store signal. Port of the OmniView fn_locals pattern
+/// (omniview/store.rs): the old emission rewrote the param to
+/// `validate_all(state.items)` — silently iterating the store (wrong-code
+/// class, verified in-browser on TodoStore's validate_all).
+#[test]
+fn store_action_param_shadows_signal_react() {
+    let result = compile_react_full(
+        r#"import omniview;
+import { console_log } from "std/console";
+store S {
+    signal items: Array<i32> = [1];
+    action validate_all(items) { console_log(items.length) }
+}
+"#,
+    );
+    assert!(
+        result.success,
+        "store action param shadowing must compile: {:?}",
+        result.errors
+    );
+    let out: String = result
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        !out.contains("state.items"),
+        "param must not be rewritten to a store ref: {}",
+        out
+    );
+    assert!(
+        out.contains("console.log(items.length)"),
+        "param must stay bare inside the call arg: {}",
+        out
+    );
+}
+
 // ── Full pipeline through Codegen trait ──────────────────
 
 #[test]

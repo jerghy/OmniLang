@@ -1214,9 +1214,14 @@ fn store_read_expr(store_name: &str, provider: &str, field: &str) -> ExprIR {
 /// Expression formatter used inside store action bodies (Riverpod 3.0
 /// Notifier methods). Rewrites bare identifiers that name a store signal or
 /// getter to `state.<name>` — e.g. `count + 1` → `state.count + 1`.
+///
+/// Scope-aware (fn_locals pattern, OmniView store.rs): identifiers naming
+/// an action PARAM stay bare — `validate_all(items)` iterates the argument,
+/// never `state.items` (maintainability HIGH-1, silent wrong-code class).
 pub(crate) struct StoreActionExprFormatter<'a> {
     pub(crate) inner: DartFormatExpr,
     pub(crate) store_names: &'a FxHashSet<String>,
+    pub(crate) param_names: &'a FxHashSet<String>,
 }
 
 impl FormatExpr for StoreActionExprFormatter<'_> {
@@ -1271,7 +1276,7 @@ impl FormatExpr for StoreActionExprFormatter<'_> {
     }
 
     fn format_identifier(&self, name: &str) -> String {
-        if self.store_names.contains(name) {
+        if !self.param_names.contains(name) && self.store_names.contains(name) {
             format!("state.{name}")
         } else {
             name.to_string()

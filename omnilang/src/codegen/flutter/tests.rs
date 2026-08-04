@@ -9364,6 +9364,40 @@ store PrefsStore {
     );
 }
 
+/// maintainability HIGH-1 (Phase 5.4): the store-action param shadowing on
+/// Flutter — a param colliding with a store signal name must stay BARE
+/// (`validate_all(items)` iterates the argument), never rewritten to
+/// `state.items`. Port of the OmniView fn_locals pattern
+/// (omniview/store.rs) to StoreActionExprFormatter's scope.
+#[test]
+fn store_action_param_shadows_signal_flutter() {
+    let source = r#"
+import omniview;
+import { console_log } from "std/console";
+store S {
+    signal items: Array<i32> = [1];
+    action validate_all(items) { console_log(items.length) }
+}
+"#;
+    let output = compile_flutter(source).expect("compile must succeed");
+    let out: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        !out.contains("state.items"),
+        "param must not be rewritten to a store ref: {}",
+        out
+    );
+    assert!(
+        out.contains("print(items.length)"),
+        "param must stay bare inside the call arg: {}",
+        out
+    );
+}
+
 /// Task 5.8a: bare local class names (`class: wrapper`) resolve to no
 /// design block — they must NOT trigger the design.dart import (the old
 /// conservative scan left it unused in ~30 showcase files).
