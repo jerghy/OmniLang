@@ -223,7 +223,7 @@
 
 | # | 项目 | 触发条件 | 影响 |
 |---|------|---------|------|
-| 61 | **[MEDIUM]** React 事件处理器 prop 可选调用未发射（TS2722 → 23 实例/10 条豁免：TabBar/EmitEventChild/SignalPatternsDemo 等） | Task 5.6（事件处理器 `?.()` 安全调用发射） | 豁免台账 T1.6 事件 prop 调用点；纯类型错误清除，零行为风险 |
+| 61 | **[MEDIUM]** React 事件处理器 prop 可选调用未发射（TS2722 → 25 实例/12 条豁免：TabBar/EmitEventChild/SignalPatternsDemo 等 + I2 新增 AboutPage/HomePage——PageSwitcherDemo fixture 的 `event onSwitch` 声明） | Task 5.6（事件处理器 `?.()` 安全调用发射） | 豁免台账 T1.6 事件 prop 调用点；纯类型错误清除，零行为风险 |
 | 62 | **[MEDIUM]** bind:value 回调 arity 不匹配（TS2554 → 6 实例/2 条豁免：FormPage/FormControlsDemo） | bind:value 回调签名发射任务（5.x 表单控件批次） | 豁免台账 T1.6 回调 arity |
 | 63 | **[MEDIUM]** React ref 访问未判空（TS18048 → 4 实例/1 条豁免：ElementRefDemo） | BindingRef 完整版（计划 P4 标注 5.5 后长期项——触发条件：下次 IR 变更时评估） | 豁免台账 T1.6 ref 访问 |
 | 64 | **[MEDIUM]** SetStateAction 类型转换不匹配（TS2345 → 14 实例/8 条豁免：Option/void/unknown/null 值、bind:value string→number 强转、Record 参数字面量） | 表达式类型化任务（值域转换发射） | 豁免台账 T1.6 |
@@ -246,6 +246,16 @@
 | # | 项目 | 触发条件 | 影响 |
 |---|------|---------|------|
 | 74 | **[LOW]** component `style {}` 块属性值无语料插入点（StyleRuleIR.properties——parser/top_level/component.rs:177-180 → lower/component.rs:184-246；发射路径 React/Vue `generate_css_style_block`（omnilang-core/codegen/helpers.rs:142-157）、OmniView `emit_style`（omniview/view/mod.rs:114-131），均经 `format_css_value`→`sanitize_css_value`） | 语料新增 style-block 插入点任务（injection.rs POINTS + emission_surface.rs 同步登记） | 防御已存在且有专属测试（css_value_rejects_structural_characters 等），缺口在端到端载荷 canary 层——语料 style 点只覆盖 inline style，不覆盖 component style 块；若未来 style 块发射路径被改写绕过 sanitize，语料不会变红（Task 1.5 覆盖地图唯一登记的注入面缺口） |
+
+---
+
+## 2026-08-04 I2 跟进登记（view-root 位置标志的未覆盖节点形态）
+
+**新增**：#75（I2 审查 Minor-2——`in_jsx_children` 标志只接入 Conditional/ListRendering 两臂，Text/Interpolation/Slot 三臂仍无条件发射 JSX-children 形态；只登记不修）。
+
+| # | 项目 | 触发条件 | 影响 |
+|---|------|---------|------|
+| 75 | **[LOW]** React 视图根/括号位置中的 Text/Interpolation/Slot 节点仍发射 JSX-children 形态（`{'...'}`、`{expr}`、`{name ?? (fallback)}`——view.rs 的 Text/Interpolation/Slot 三臂无条件容器花括号，I2 的 `in_jsx_children` 标志未接入）。**Minor-2 语义细节**：Interpolation 在 `return ( ... )` 根部的 `{title}` 恰好是合法 TS（对象字面量简写）——不会报语法错误，而是**静默语义错误**（渲染成 `{ title: undefined }` 之类对象），比语法错误更隐蔽；Text 的 `{'...'}` 与 Slot 的 `{name ?? ...}` 在括号位置则是 TS 语法错误（与 I2 修复前同类） | 新增视图根/分支体直接为裸文本、裸插值或裸 slot 的 fixture（现语料零触发）；或该三臂发射逻辑改写时 | 静默错误渲染或 TS 语法错误，均无 fixture 暴露；修复方向：三臂按 `in_jsx_children` 门控，非 children 位置发射 `'text'`/裸表达式/`name ?? (fallback)` 形态 |
 
 ---
 

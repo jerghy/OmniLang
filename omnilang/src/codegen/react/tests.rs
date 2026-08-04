@@ -4806,6 +4806,45 @@ component PlainPanel {
     );
 }
 
+/// I2 review fix (Important-1): a conditional INSIDE a `@for` body renders
+/// between the `<React.Fragment>` tags — JSX-children position — so its
+/// `{...}` container must stay even though the map callback wraps the
+/// fragment in parens. A bare `cond && (<div/>)` there renders as literal
+/// text (silent mis-render).
+#[test]
+fn react_list_body_conditional_keeps_container_braces() {
+    let source = r#"
+component ListPage {
+    signal items: Array<String> = [];
+    view {
+        @for item in items {
+            @if item == "x" {
+                <div>{item}</div>
+            }
+        }
+    }
+}
+"#;
+    let result = compile_react_full(source);
+    assert!(result.success, "errors: {:?}", result.errors);
+    let content: String = result
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        content.contains("{\n                    item === \"x\" && ("),
+        "the conditional inside the @for body must keep its container braces, got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("<React.Fragment") && content.contains("</React.Fragment>"),
+        "the fragment wrapper must be present, got:\n{}",
+        content
+    );
+}
+
 /// I2: a root conditional with `mode: "fade"` emits the fade wrapper divs
 /// directly in the return parens — no container braces, but the branch
 /// bodies (now inside the wrapper divs) still get them.

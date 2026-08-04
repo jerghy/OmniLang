@@ -1057,9 +1057,13 @@ pub(super) fn gen_view_node_tsx(
                     pruned_signal_names,
                     motion_counter,
                     prop_fn_ctx,
-                    // the item body sits inside the map callback's parens —
-                    // never a JSX-children position
-                    false,
+                    // the map callback parens wrap the whole
+                    // `<React.Fragment>...</React.Fragment>` element — the
+                    // body renders BETWEEN the fragment tags, which is
+                    // JSX-children position: a nested conditional must keep
+                    // its `{...}` container (a bare `cond && (<div/>)` there
+                    // renders as literal text)
+                    true,
                 );
             }
             w.dedent();
