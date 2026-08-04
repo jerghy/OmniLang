@@ -95,6 +95,86 @@ fn legacy_flag_role_warns() {
     );
 }
 
+/// Task 4.4 Step 1 (domain MEDIUM-1 + D-D) — raw `aria-*` attributes are a
+/// deleted form: they pass through on the web targets but Flutter silently
+/// drops them (accessible name lost) — one intent, not all surfaces. The
+/// semantic pass must hard-error with the migration hint to the `a11y: {}`
+/// block. (The plan's literal `Target::All` deviates per the file header
+/// note — the diagnostic pass is target-independent; React stands in.)
+#[test]
+fn raw_aria_attributes_hard_diagnosed() {
+    let (_, diags) = compile_with_diags(
+        r#"import omniview; component V { view { <div aria-label="x"/> } }"#,
+        Target::React,
+    );
+    let d = diags
+        .iter()
+        .find(|d| d.message.contains("aria"))
+        .expect("must diagnose aria-*");
+    assert!(
+        d.message.contains("a11y"),
+        "missing migration hint: {}",
+        d.message
+    );
+    assert_eq!(
+        d.severity,
+        omnilang::error::Severity::Error,
+        "aria-* must hard-error (Flutter drops the semantic), got: {:?}",
+        d.severity
+    );
+}
+
+/// Task 4.4 Step 1 (D-D boundary ruling) — `alt=` stays a plain DOM
+/// attribute, NOT an a11y surface: it passes through verbatim on the web
+/// targets (and maps to Flutter `semanticLabel` via the prop table). The
+/// a11y semantic surface for image alternative text is `a11y: { alt }`.
+#[test]
+fn alt_remains_plain_dom_prop() {
+    let (success, out_react) = compile_output(
+        r#"import omniview; component V { view { <img alt="logo"/> } }"#,
+        Target::React,
+    );
+    assert!(success, "alt must compile clean, got: {}", out_react);
+    assert!(
+        out_react.contains("alt=\"logo\""),
+        "alt must stay a DOM prop: {}",
+        out_react
+    );
+}
+
+/// Corpus gate (Task 4.4 acceptance): the whole learn-omniview showcase
+/// compiles through the REAL multi-file pipeline with ZERO raw `aria-*`
+/// deletion diagnostics — after EventsDemo migrated to the a11y block, any
+/// error here is a stale raw-aria usage that would silently lose its
+/// accessible name on Flutter.
+#[test]
+fn learn_omniview_corpus_has_no_raw_aria_attributes() {
+    let repo = repo_root();
+    let src_dir = repo.join("test/projects/learn-omniview/src");
+    let sources = omnilang::discovery::discover_omni_sources(
+        &src_dir,
+        omnilang::discovery::DiscoveryMode::Directory,
+    )
+    .expect("corpus discovery must succeed");
+    assert!(!sources.is_empty(), "corpus must exist at {src_dir:?}",);
+    let path_mapping = omnilang::path_mapping::derive_path_mapping(&sources);
+
+    let result = compile_multi_internal(sources, Target::React, path_mapping, false, false, None);
+    let aria_errors: Vec<&Diagnostic> = result
+        .errors
+        .iter()
+        .filter(|d| d.message.contains("aria-* 原生属性已删除"))
+        .collect();
+    assert!(
+        aria_errors.is_empty(),
+        "corpus must compile with zero raw aria-* diagnostics, got: {:?}",
+        aria_errors
+            .iter()
+            .map(|d| (&d.message, &d.file))
+            .collect::<Vec<_>>()
+    );
+}
+
 /// Corpus gate (Task 4.3 acceptance): the whole learn-omniview showcase
 /// compiles through the REAL multi-file pipeline with ZERO a11y role
 /// vocabulary warnings — after the demo migrated to canonical names

@@ -229,15 +229,15 @@ component SearchBox {
 |------|--------|
 | `data-testid="value"` | 原生 `data-testid` 属性（旧 `testId:` 简写已删除） |
 | `data-*` | 原生 data 属性 |
-| `a11y: { label/role/hidden/live/alt }` | 语义可访问性块（→ aria-* / Flutter Semantics） |
-| `aria-*` | 原生 aria 属性 |
+| `a11y: { label/role/hidden/live/alt }` | 语义可访问性块（**唯一的可访问性表面**：→ aria-* / Flutter Semantics；`alt` 仅对 `<img>` 有意义） |
+| `aria-*` | **已删除**——编译报错（硬诊断）。原生 `aria-*` 仅 web 透传、Flutter 丢失可访问名称，请迁移到 `a11y: { ... }` 块 |
 | `id="..."` | `id` 原生属性 |
 | `href="..."` | `href` 原生属性 |
 | `title="..."` | `title` 原生属性 |
 | `type="..."` | HTML `type` 属性（input/button） |
 | `placeholder="..."` | 占位文本 |
 | `src="..."` | `<img>` / `<video>` 等资源路径 |
-| `alt="..."` | 图片替代文本 |
+| `alt="..."` | 普通 DOM 属性（**非** a11y 表面：不进入 `a11y:` 语义层；web 透传，Flutter 经 prop 表映射为 `semanticLabel`）。图片替代文本的语义声明请用 `a11y: { alt }` |
 
 ## 模板指令
 

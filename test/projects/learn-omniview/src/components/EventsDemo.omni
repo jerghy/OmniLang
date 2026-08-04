@@ -34,7 +34,7 @@ component EventsDemo {
 
     view {
         <main class: LearnDesign.Card>
-            <nav aria-label="Event Demo">
+            <nav a11y: { label: "Event Demo" }>
                 <h2 class: title>事件处理器全覆盖</h2>
                 <p class: LearnDesign.Hint>双击 · 右键 · 拖拽 · 触摸 · 滚轮 · 媒体 · 动画 · 切换</p>
             </nav>
