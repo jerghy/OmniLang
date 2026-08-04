@@ -1,10 +1,10 @@
-# OmniLang 语义级 DSL 语法规范
+# OmniLang 语义级 DSL 语法规范（v1 —— 已 Superseded）
 
-**状态**: Approved — 与 parser 同步（2026-08-02）
-**日期**: 2026-07-31（v1 基线；2026-08-02 状态转 Approved）
+**状态**: Superseded（2026-08-03 起由 v2 设计文档接管）
+**日期**: 2026-07-31（v1 基线；2026-08-02 状态转 Approved；2026-08-03 状态转 Superseded）
 **依赖**: ADR-052 (Semantic-Level DSL Cross-Target Codegen)
 **关联设计文档**: `docs/superpowers/plans/2026-07-31-semantic-level-dsl-design.md`
-**当前生效设计**: `docs/superpowers/specs/2026-08-02-semantic-syntax-v2-design.md`（2026-08-02 起为活跃设计——v2 逐域重写实施中，本 v1 规范为已批准的历史基线，BNF 与 parser 的同步状态截至 2026-08-02）
+**当前生效设计**: `docs/superpowers/specs/2026-08-02-semantic-syntax-v2-design.md`（唯一权威——状态 Implemented；BNF 与行为事实均以 v2 设计文档 + parser 为准。本 v1 规范为 Superseded 历史基线，事实断言不再单独维护；2026-08-03 修正了本文件中已证伪的断言，见 §3.4/§3.6/§12/§13）
 
 ---
 
@@ -375,15 +375,16 @@ component AnimatedCard {
 | `@scroll scrub: true` | 平滑系数（布尔 true = 1s） | `scrub > 0` 指数平滑 | `_OmniScrollDrivenWidget(scrub:)` 指数平滑 |
 | `@drag-* constraints: [min, max]` | 拖拽范围限制 + 弹性回弹 | `const constraints = [min, max]`（运行时 clamp + `(1 - elastic)` 回弹） | `_OmniDragWidget(constraintsMin: min, constraintsMax: max)` |
 | `@drag-* elastic:`/`threshold:` | 弹性系数 / 吸附阈值 | 生成数值常量 | 类型化构造参数 |
-| `@drag-* velocity_max:` | 拖拽期间速度跟踪上限（px/s 截断） | `velocity = min(velocityMax, dp/dt*1000)`（pointermove） | `_OmniDragWidget(velocityMax:)` + `_onDragUpdate` 截断 |
+| `@drag-* velocity_max:` | 拖拽期间速度跟踪上限（px/s 截断） | 接受但忽略（速度跟踪器已剪除，输出仅诚实降级注释） | `_OmniDragWidget(velocityMax:)` + `clamp(0, velocityMax)` 截断 |
 
 > 缺省行为：`@scroll` 无 `start`/`end` 回落视口相对字符串配置（`"top 80%"` →
 > `"bottom 20%"`）；`@drag-*` 无 `constraints` 回落关键帧范围推导
 > （`maxExtent`），无可用范围时带编译器警告。
 >
 > ⚠️ 诚实降级（ADR-054）：释放后惯性 decay 在三个目标上均**未实现**——
-> `velocity_max` 仅作为拖拽期间速度跟踪器的上限被消费（三目标一致），
-> 释放行为统一为 threshold 吸附（play/reverse）。
+> `velocity_max` 由 Flutter/OmniView 消费（px/s 截断），React **接受但忽略**
+> （速度跟踪器已剪除，无消费方，仅诚实降级注释——2026-08-03 修正：v1 曾误述
+> 「三目标一致」）；释放行为统一为 threshold 吸附（play/reverse）。
 
 ### 3.5 Keyframe 属性 → 平台映射
 
@@ -404,8 +405,12 @@ component AnimatedCard {
 | 场景 | 目标 | 级别 | 说明 |
 |------|------|------|------|
 | keyframe 中 `width`/`height` | Flutter | warning | 动画布局属性触发重 layout |
-| `steps()` easing | Flutter | error | Flutter 无原生 steps easing |
+| `steps()` easing | Flutter | warning | Flutter 无原生 steps easing——回退 `Curves.linear` + 生成警告（2026-08-03 修正：v1 曾误记为 error） |
 | `rotateX/Y/Z`, `skewX/Y`, `translateZ` | Flutter | warning | 需 `Transform` widget 组合，3D 变换受限于 Flutter 渲染模型 |
+
+> 2026-08-03 修正：`steps()` 在 Flutter 为 **warning** + `Curves.linear` 回退
+> （实现：`omnilang/src/codegen/flutter/motion.rs` `easing_flutter_diagnostic`；
+> 与 v2 设计文档域 2 诊断表一致）。
 
 ### 3.7 内联动画体（Inline Motion Body）
 
@@ -1145,7 +1150,7 @@ Flutter: [...list], count += 1, await fn()
 | `ref.value = x` / `ref.setValue(x)` / `ref = x` | 全部 | error | 命令式写已删除，用 bind:value 双向绑定 |
 | `capturePointer(任何参数)` | 全部 | error | capturePointer 无参数；多指针锁定不支持 |
 | `capturePointer` / `releasePointer` | Flutter | error | Flutter 不支持指针捕获，用 GestureDetector |
-| `steps()` easing | Flutter | error | Flutter 无原生 steps easing |
+| `steps()` easing | Flutter | warning | Flutter 无原生 steps easing——回退 `Curves.linear` + 生成警告（2026-08-03 修正：v1 曾误记为 error） |
 | ZIndex token | Flutter | warning | z-index 在 Flutter 中用 widget 顺序/Stack 控制 |
 | CSS `display: grid` | Flutter | error | Flutter 不支持 CSS grid |
 | CSS `float` | Flutter | error | Flutter widget 布局无 float 概念 |
@@ -1275,14 +1280,14 @@ ExcludeSemantics(
 
 ---
 
-## 12. PRD 对比：本规范 vs 设计文档
+## 12. 权威关系（2026-08-03 更新）
 
-| 对比维度 | 设计文档 (`semantic-level-dsl-design.md`) | 本语法规范 |
-|---------|------------------------------------------|-----------|
-| **焦点** | 语义意图 → 平台代码的映射关系和实现策略 | .omni 源码的精确语法规则（BNF 产生式） |
-| **受众** | 编译器实现者（codegen 开发者） | Parser 实现者 + 语言使用者 |
-| **内容** | "ref.focus() 在 React 应该生成 ref.current.focus()" | "ref_semantic_call 的 BNF 是 `ref_name '.' select '(' ')'`" |
-| **互补关系** | 本规范引用设计文档的平台映射作为附录 | 设计文档引用本规范的 BNF 作为语法权威 |
+本 v1 规范已 **Superseded**——BNF 与行为事实的唯一权威是
+`docs/superpowers/specs/2026-08-02-semantic-syntax-v2-design.md`
+（v2 设计文档，状态 Implemented：逐域 BNF + 平台映射 + 诊断表 + 验证清单）。
+
+v1 初版本节曾以对比表声明「设计文档引用本规范的 BNF 作为语法权威」——该关系
+已不成立（v2 起设计文档自带逐域 BNF，不再引用本规范），本节改写为权威关系声明。
 
 ---
 
@@ -1296,7 +1301,7 @@ ExcludeSemantics(
 | `ir/types.rs` — `RefOpIR` 枚举 | 新增 | ✅ 已实现（10 ops）：Focus, Blur, ScrollTo, ScrollBy, Measure, Select, SetSelection, Value, CapturePointer, ReleasePointer |
 | `ir/types.rs` — `ViewTree::Slot` | 修改 | ✅ 已实现：`Slot { name, fallback }`（v2 D4 删除 type_constraint/data_param，见 §5.5） |
 | `ir/lower/view.rs` — slot lowering | 修复 | ✅ 已实现：`default_content` 保留并填入 `fallback`；消费者命名属性投影同样转 `ViewTree::Slot` |
-| `ir/lower/lower_inline_motions.rs` | 新增 | ⚠️ **未实现**：内联动画体语法不解析（见 §3.7），此模块待实现 |
+| `ir/lower/lower_inline_motions.rs` | 新增 | ✅ 已实现：map 形式内联动画体 lowering → 匿名命名 motion（§3.7；2026-08-03 修正：v1 曾误标未实现） |
 | `ir/types_motion.rs` | 修改 | 删除 `PlaybackIR.paused`、`MotionBehavior.paused_override`；新增 `TriggerKind::Focus` |
 | `codegen/mod.rs` | 修改 | P0 目标移除 design block gate；非 P0 目标 warning → error |
 | `codegen/react/` — 全部模块 | 重写 | Zustand v5、React 19 ref prop、slot children、design CSS、动画 → 平台原生 ref+WAAPI |

@@ -229,7 +229,7 @@ TweenAnimationBuilder<double>(
 
 - [x] borderRadius/fontSize 三目标动画运行（浏览器 + 快照）— Task 5.2：白名单 19 + BorderRadiusTween/TextStyle 映射 + React Npx 单位 + 快照/tsc/dart-analyze 验证
 - [x] @scroll start/end/scrub：滚动区间行为（浏览器实测进度 → 动画）— Task 5.1：@scroll/@drag 维度恢复 + node 实证（scrollY=500 → progress 0.5 + clamp；scrub 收敛实测）+ Flutter 数值分支执行级测试
-- [x] @drag constraints/elastic：拖拽范围限制 + 弹性回弹（浏览器手势）— Task 5.1：node 实证（过冲 -150 → -125 → 0.625 弹性回弹；velocity_max 三目标一致）+ 浏览器套件 @drag 300px 实证（T7.1）
+- [x] @drag constraints/elastic：拖拽范围限制 + 弹性回弹（浏览器手势）— Task 5.1：node 实证（过冲 -150 → -125 → 0.625 弹性回弹；velocity_max Flutter/OmniView 消费、React 接受但忽略）+ 浏览器套件 @drag 300px 实证（T7.1）
 - [x] @if mode:"fade" Flutter 视觉淡入（shape 断言 + 真实 dart analyze 替代——仓库无 widget-test 基建，T4.5 a11y 同先例）
 - [x] paused → error + 迁移提示 — Task 5.3：paused 双形式硬诊断（E_PAUSED_REMOVED verbatim）+ PlaybackProp::Paused 死变体删除 + 文档清剿
 - [x] Flutter 共享 runtime 文件生成（多组件不重复）— Task 5.6：`_omniview_runtime.dart` 共享（3/79 按需门控）+ 类型化配置（字符串解析清零）+ scrub Ticker 时间
