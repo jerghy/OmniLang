@@ -373,6 +373,10 @@ export class Parser {
     // @pid comment before a declaration — store in pendingPid for next keyword handler
     const pidResult = parsePidAnnotation(text);
     if (pidResult) {
+      // 约定（文档化限制，行为保持）：组件上下文中的 @pid 注释须紧邻 fn/store 声明——
+      // 二者是 pendingPid 仅有的消费方（parseFn / parseComponentKeyword store 分支）。
+      // signal/computed/prop/event 等成员不消费 pendingPid，夹在其间的 @pid 会跨成员
+      // 泄漏给下一个 fn/store 并错误附着（保存侧会把错误 pid 写回源文件）。
       this.ctx.pendingPid = pidResult.pid;
       return;
     }

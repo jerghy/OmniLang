@@ -91,6 +91,23 @@ describe("materializeFnGraphs（F1 物化）", () => {
     expect(usePoiesisStore.getState().elements).toEqual([]);
   });
 
+  it("全部已物化时空合并短路：不重建数组（elements/wires 引用保持）", () => {
+    usePoiesisStore.setState({
+      elements: [codeEl("fn_a1", "fn", "increment"), codeEl("cb_b2", "let", "x")],
+      wires: [{ id: "w1", fromId: "fn_a1", fromPort: "flow-out", toId: "cb_b2", toPort: "flow-in" }],
+      codeFlowGraphs: {
+        increment: { elements: [codeEl("fn_a1", "fn", "increment"), codeEl("cb_b2", "let", "x")], wires: [{ id: "w1", fromId: "fn_a1", fromPort: "flow-out", toId: "cb_b2", toPort: "flow-in" }] },
+      },
+      componentDefs: { Counter: { name: "Counter", fns: [{ pid: "fn_a1", name: "increment", params: [], returnType: "void" }] } as never },
+    });
+    const beforeEls = usePoiesisStore.getState().elements;
+    const beforeWires = usePoiesisStore.getState().wires;
+    usePoiesisStore.getState().materializeFnGraphs("Counter");
+    // newElements/newWires 均空 → 短路返回，不 set、不换引用（修复前每调用都新建数组）
+    expect(usePoiesisStore.getState().elements).toBe(beforeEls);
+    expect(usePoiesisStore.getState().wires).toBe(beforeWires);
+  });
+
   it("codeFlowGraphs 无对应 fn：no-op", () => {
     usePoiesisStore.setState({
       codeFlowGraphs: { other: { elements: [codeEl("z1", "let", "z")], wires: [] } },

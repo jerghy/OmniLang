@@ -210,7 +210,10 @@ export function createElementCrudSlice(set: SetFn, get: GetFn) {
           if (!existWireIds.has(w.id)) newWires.push(w);
         }
       }
-      // 加载时物化：直接 set（无 undo 条目，同 setElementPosition 哲学）
+      // 加载时物化：直接 set（无 undo 条目，同 setElementPosition 哲学）。
+      // 空合并短路：newElements/newWires 均空（全部已物化）时直接返回——
+      // 不重建 elements/wires 数组，保持原引用，避免重复物化触发无意义的下游重渲染。
+      if (newElements.length === 0 && newWires.length === 0) return;
       set({ elements: [...s.elements, ...newElements], wires: [...s.wires, ...newWires] });
     },
 

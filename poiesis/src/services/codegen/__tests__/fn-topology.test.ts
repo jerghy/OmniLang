@@ -22,6 +22,21 @@ describe("collectLetVarsPerFn", () => {
     expect(map.get("fn1")?.map((v) => v.name)).toEqual(["x"]);
     expect(map.get("fn2")?.map((v) => v.name)).toEqual(["z"]);
   });
+  it("BFS 命中另一 fn 节点截断：fn2 的子树归 fn2，不跨入收集", () => {
+    // 修复前 BFS 沿 wire 跨过 fn2 继续收集其 let（fn1 名下混入 fn2 的变量）
+    const elements = [el("fn1", "fn"), el("fn2", "fn"), el("let2", "let", "y"), el("let1", "let", "x")];
+    const wires = [wire("w1", "fn1", "fn2"), wire("w2", "fn2", "let2"), wire("w3", "fn1", "let1")];
+    const map = collectLetVarsPerFn(elements, wires);
+    expect(map.get("fn1")?.map((v) => v.name)).toEqual(["x"]);
+    expect(map.get("fn2")?.map((v) => v.name)).toEqual(["y"]);
+  });
+  it("间接跨 fn（经普通节点到达 fn2）同样截断", () => {
+    const elements = [el("fn1", "fn"), el("c1", "condition"), el("fn2", "fn"), el("let2", "let", "y"), el("let1", "let", "x")];
+    const wires = [wire("w1", "fn1", "c1"), wire("w2", "c1", "fn2"), wire("w3", "fn2", "let2"), wire("w4", "c1", "let1")];
+    const map = collectLetVarsPerFn(elements, wires);
+    expect(map.get("fn1")?.map((v) => v.name)).toEqual(["x"]);
+    expect(map.get("fn2")?.map((v) => v.name)).toEqual(["y"]);
+  });
   it("经过 condition 分支口（fromPort=br0）仍可达", () => {
     const elements = [el("fn1", "fn"), el("c1", "condition"), el("let1", "let", "x")];
     const wires = [wire("w1", "fn1", "c1"), { id: "w2", fromId: "c1", fromPort: "br0", toId: "let1", toPort: "flow-in" }];
