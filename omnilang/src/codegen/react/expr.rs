@@ -853,6 +853,19 @@ fn mutation_target_name(intent: &MutationIntent) -> Option<&str> {
     }
 }
 
+/// The owner identifier of an `owner.field = value` write (the store alias
+/// in `Store.field = v`, the ref name in `myRef.value = x`) — `None` for
+/// plain signal/local writes and for intents that cannot carry an owner.
+/// Discriminates component-signal mutations from store/ref field writes in
+/// the write-only DCE (review I1).
+fn mutation_field_object(intent: &MutationIntent) -> Option<&str> {
+    match intent {
+        MutationIntent::DirectAssign { field_object, .. } => field_object.as_deref(),
+        #[allow(unreachable_patterns)]
+        _ => None,
+    }
+}
+
 /// The value expression a mutation writes — `None` for value-less intents
 /// (`Pop`). `pub(super)`: also used by the component emitter's write-only
 /// DCE restriction (collect_call_mutation_targets, task 2.11).
@@ -878,9 +891,7 @@ pub(super) fn mutation_value_expr(intent: &MutationIntent) -> Option<&ExprIR> {
 /// write-only DCE restriction (collect_call_mutation_targets, task 2.11).
 pub(super) fn expr_contains_call(expr: &ExprIR) -> bool {
     match expr {
-        ExprIR::CallExpr { .. } | ExprIR::MethodCallExpr { .. } | ExprIR::AwaitExpr { .. } => {
-            true
-        }
+        ExprIR::CallExpr { .. } | ExprIR::MethodCallExpr { .. } | ExprIR::AwaitExpr { .. } => true,
         ExprIR::StoreFieldAccessExpr { call_args, .. } => !call_args.is_empty(),
         ExprIR::BinaryOpExpr { left, right, .. } => {
             expr_contains_call(left) || expr_contains_call(right)
@@ -902,9 +913,9 @@ pub(super) fn expr_contains_call(expr: &ExprIR) -> bool {
                 || expr_contains_call(else_expr)
         }
         ExprIR::ArrayExpr { elements } => elements.iter().any(expr_contains_call),
-        ExprIR::MapExpr { entries } => {
-            entries.iter().any(|(k, v)| expr_contains_call(k) || expr_contains_call(v))
-        }
+        ExprIR::MapExpr { entries } => entries
+            .iter()
+            .any(|(k, v)| expr_contains_call(k) || expr_contains_call(v)),
         ExprIR::ClosureExpr { body, .. } => expr_contains_call(body),
         ExprIR::BlockExpr { statements, tail } => {
             statements.iter().any(stmt_contains_call) || expr_contains_call(tail)
@@ -915,16 +926,16 @@ pub(super) fn expr_contains_call(expr: &ExprIR) -> bool {
                     .iter()
                     .any(|arm| arm.body.statements.iter().any(stmt_contains_call))
         }
-        ExprIR::VariantLiteral { fields, .. } | ExprIR::StructExpr { fields, .. } => fields
-            .iter()
-            .any(|(_, v)| expr_contains_call(v)),
+        ExprIR::VariantLiteral { fields, .. } | ExprIR::StructExpr { fields, .. } => {
+            fields.iter().any(|(_, v)| expr_contains_call(v))
+        }
         ExprIR::SpreadExpr { operand } => expr_contains_call(operand),
         ExprIR::ArrayMethod {
             subject, predicate, ..
         } => expr_contains_call(subject) || expr_contains_call(predicate),
-        ExprIR::RefOpExpr { .. }
-        | ExprIR::IdentifierExpr { .. }
-        | ExprIR::LiteralExpr { .. } => false,
+        ExprIR::RefOpExpr { .. } | ExprIR::IdentifierExpr { .. } | ExprIR::LiteralExpr { .. } => {
+            false
+        }
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown ExprIR variant — update codegen for new variant"),
     }
@@ -948,9 +959,9 @@ fn stmt_contains_call(stmt: &StatementIR) -> bool {
         } => {
             expr_contains_call(condition)
                 || then_body.statements.iter().any(stmt_contains_call)
-                || else_ifs
-                    .iter()
-                    .any(|(c, b)| expr_contains_call(c) || b.statements.iter().any(stmt_contains_call))
+                || else_ifs.iter().any(|(c, b)| {
+                    expr_contains_call(c) || b.statements.iter().any(stmt_contains_call)
+                })
                 || else_body
                     .as_ref()
                     .is_some_and(|b| b.statements.iter().any(stmt_contains_call))
@@ -1013,7 +1024,18 @@ pub(super) fn generate_statement_tsx(
     } = stmt
     {
         if let Some(target) = mutation_target_name(intent) {
-            if pruned_signal_names.contains(target) {
+            // Owner-field writes (`Store.field = v`, `myRef.field = v`)
+            // lower with the owner in `field_object` — they are NOT
+            // component-signal mutations and must never be pruned (review
+            // I1: the prune matches by BARE target name, and a store field
+            // can share a pruned component signal's name — pruning would
+            // silently drop the store write). The `field_object` check is
+            // the precise discriminator: the owners-map check alone would
+            // ALSO un-prune the colliding component signal's OWN write
+            // (`mode = !mode` with a wired store field `mode`), which then
+            // misroutes through the owners map to the store setter.
+            let is_owner_field_write = mutation_field_object(intent).is_some();
+            if pruned_signal_names.contains(target) && !is_owner_field_write {
                 if let Some(v) = mutation_value_expr(intent) {
                     if expr_contains_call(v) {
                         let line = format_expr_ir_tsx_renamed(v, ref_names, renames);
@@ -1036,8 +1058,13 @@ pub(super) fn generate_statement_tsx(
             }) = args.first()
             {
                 // A pruned (write-only) signal has no setter — skip the
-                // interception and emit nothing (task 2.11).
-                if pruned_signal_names.contains(target_name.as_str()) {
+                // interception and emit nothing (task 2.11). Same
+                // store-field guard as the MutationStmt branch (review I1):
+                // an array_push on a STORE field goes through
+                // `useStore.setState`, which must never be pruned.
+                if pruned_signal_names.contains(target_name.as_str())
+                    && !store_signal_owners.contains_key(target_name.as_str())
+                {
                     return;
                 }
                 if signal_names.contains(target_name.as_str())

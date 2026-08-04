@@ -566,6 +566,181 @@ fn test_tsx_stmt_mutation_assign_store_signal_self_read_functional() {
     );
 }
 
+/// Review I1 (task 2.11): the write-only signal DCE prunes by BARE target
+/// name — a component signal and a store field can share a name (`signal
+/// count` + `AppStore.count`). A pruned component signal's mutation must be
+/// skipped, but a STORE-FIELD mutation of the same bare name resolves
+/// through `store_signal_owners` to `useStore.setState(...)` — the store
+/// hook exists regardless of the DCE, so the store write must NEVER be
+/// pruned (silent data loss otherwise).
+#[test]
+fn test_pruned_signal_dce_never_swallows_store_field_mutation() {
+    let mut w = CodeWriter::new();
+    let stmt = StatementIR::MutationStmt {
+        intent: Some(MutationIntent::DirectAssign {
+            target: SignalRefIR {
+                name: "mode".into(),
+            },
+            value: Some(Box::new(ExprIR::LiteralExpr {
+                value: serde_json::json!("dark"),
+            })),
+            field_object: Some("CollisionStore".to_string()),
+        }),
+    };
+    let mut owners = FxHashMap::default();
+    owners.insert("mode".to_string(), "CollisionStore".to_string());
+    let mut pruned = FxHashSet::default();
+    pruned.insert("mode".to_string());
+    generate_statement_tsx(
+        &mut w,
+        &stmt,
+        &FxHashSet::default(),
+        &owners,
+        &FxHashSet::default(),
+        &FxHashMap::default(),
+        &pruned,
+    );
+    assert_eq!(
+        w.into_string(),
+        "useCollisionStore.setState({ mode: \"dark\" });\n",
+        "a store-field mutation must survive the DCE even when a pruned \
+         component signal shares its bare name (review I1)"
+    );
+}
+
+/// Review I1 — the mirror case: the colliding COMPONENT signal's own write
+/// (`mode = !mode`, NO field_object) must stay pruned even when the owners
+/// map holds the same bare name — an owners-map-only guard would un-prune
+/// it and misroute it through the owners map to the store setter. The
+/// field_object discriminator prevents that: output must be empty.
+#[test]
+fn test_pruned_component_write_not_misrouted_to_store_by_collision() {
+    let mut w = CodeWriter::new();
+    let stmt = StatementIR::MutationStmt {
+        intent: Some(MutationIntent::DirectAssign {
+            target: SignalRefIR {
+                name: "mode".into(),
+            },
+            value: Some(Box::new(ExprIR::UnaryOpExpr {
+                op: UnaryOpIR::Not,
+                operand: Box::new(ExprIR::ident("mode")),
+            })),
+            field_object: None,
+        }),
+    };
+    let mut owners = FxHashMap::default();
+    owners.insert("mode".to_string(), "CollisionStore".to_string());
+    let mut pruned = FxHashSet::default();
+    pruned.insert("mode".to_string());
+    generate_statement_tsx(
+        &mut w,
+        &stmt,
+        &FxHashSet::default(),
+        &owners,
+        &FxHashSet::default(),
+        &FxHashMap::default(),
+        &pruned,
+    );
+    assert_eq!(
+        w.into_string(),
+        "\n", // empty writer output — nothing emitted
+        "a plain component-signal write (no field_object) must stay pruned \
+         even when a store field shares its bare name (review I1)"
+    );
+}
+
+/// Review I1 — the same guard applies to the array_push interception: a
+/// store field sharing a pruned component signal's name must still emit its
+/// `useStore.setState` functional updater.
+#[test]
+fn test_pruned_signal_dce_never_swallows_store_array_push() {
+    let mut w = CodeWriter::new();
+    let stmt = StatementIR::ExprStmtIR {
+        expr: ExprIR::CallExpr {
+            name: "array_push".to_string(),
+            args: vec![ExprIR::ident("mode")],
+        },
+    };
+    let mut owners = FxHashMap::default();
+    owners.insert("mode".to_string(), "CollisionStore".to_string());
+    let mut pruned = FxHashSet::default();
+    pruned.insert("mode".to_string());
+    generate_statement_tsx(
+        &mut w,
+        &stmt,
+        &FxHashSet::default(),
+        &owners,
+        &FxHashSet::default(),
+        &FxHashMap::default(),
+        &pruned,
+    );
+    assert_eq!(
+        w.into_string(),
+        "useCollisionStore.setState((s) => ({ mode: [...s.mode, undefined] }));\n",
+        "a store-field array_push must survive the DCE (review I1)"
+    );
+}
+
+/// Review I1 — full-pipeline shape: a component with a write-only signal
+/// `mode` (pruned by the DCE) AND a mutation of a store field `mode`
+/// (`CollisionStore.mode = "dark"` — same bare target name, the store
+/// wired by a view read of the same field). The store write must survive;
+/// only the component signal's own state/mutation is pruned — and the
+/// component's own `mode = !mode` write must NOT be misrouted to the
+/// store setter (the field_object discriminator).
+#[test]
+fn test_pruned_component_signal_keeps_colliding_store_field_mutation() {
+    let out = compile_react(
+        r#"
+        import omniview;
+
+        store CollisionStore {
+            signal mode: string = "light";
+        }
+
+        component CollisionDemo {
+            @store CollisionStore;
+            signal mode: bool = false;
+            fn toggleMode() { mode = !mode; }
+            fn setDark() { CollisionStore.mode = "dark"; }
+            view {
+                <button @click={toggleMode}>toggle</button>
+                <button @click={setDark}>dark</button>
+                <span>{CollisionStore.mode}</span>
+            }
+        }
+    "#,
+    );
+    let out = out.expect("collision fixture must compile");
+    let tsx = out
+        .files
+        .get("CollisionDemo.tsx")
+        .expect("CollisionDemo.tsx emitted");
+    assert!(
+        tsx.contains("useCollisionStore.setState({ mode: \"dark\" });"),
+        "the STORE write must be preserved (review I1 — the pruned component \
+         signal shares its bare name). Got:\n{}",
+        tsx
+    );
+    assert!(
+        !tsx.contains("setMode"),
+        "the write-only component signal must stay pruned — and its own write \
+         must not misroute to the store setter. Got:\n{}",
+        tsx
+    );
+    assert!(
+        !tsx.contains("const [mode, setMode] = useState"),
+        "no state hook for the write-only component signal. Got:\n{}",
+        tsx
+    );
+    assert!(
+        tsx.contains("const mode = useCollisionStore((s) => s.mode);")
+            || tsx.contains("const CollisionStore = useCollisionStore();"),
+        "the store must be subscribed (view read wiring). Got:\n{}",
+        tsx
+    );
+}
+
 /// The functional-updater parameter must not collide with identifiers the
 /// value expression keeps (`count = count + c` → param `c` is taken → `c1`).
 #[test]
