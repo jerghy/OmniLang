@@ -172,6 +172,7 @@ const SyntaxNode = React.memo(function SyntaxNode({ data }: Props) {
               values={((props.args as string) ?? "").split(",").map((s) => s.trim()).filter((s) => s !== "")}
               onChange={(vals) => set("args", vals.filter((v) => v !== "").join(", "))}
               placeholder="参数"
+              candidates={formulaSource}
             />
           </>
         )}
@@ -200,6 +201,7 @@ const SyntaxNode = React.memo(function SyntaxNode({ data }: Props) {
               values={((props.args as string) ?? "").split(",").map((s) => s.trim()).filter((s) => s !== "")}
               onChange={(vals) => set("args", vals.filter((v) => v !== "").join(", "))}
               placeholder="参数"
+              candidates={formulaSource}
             />
           </>
         )}

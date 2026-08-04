@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import { NodeArgsRows } from "../NodeField";
+import type { FormulaCandidateSource } from "../NodeFormulaField";
 
 function inputs() {
   return screen.getAllByRole("textbox") as HTMLInputElement[];
@@ -104,5 +105,30 @@ describe("NodeArgsRows", () => {
   it("尾随多个空行折叠为一个输入行", () => {
     render(<NodeArgsRows values={["a", "", ""]} onChange={vi.fn()} />);
     expect(inputs()).toHaveLength(2);
+  });
+});
+
+describe("NodeArgsRows candidates", () => {
+  const cands: FormulaCandidateSource = {
+    filter: (q) => (q === "" ? [] : [{ value: "count", label: "count" }].filter((c) => c.value.startsWith(q))),
+    storeSignals: () => [],
+  };
+
+  it("传 candidates 时每行渲染公式框", () => {
+    const { container } = render(<NodeArgsRows values={["a"]} onChange={vi.fn()} candidates={cands} />);
+    expect(container.querySelectorAll('[data-field-kind="formula"]')).toHaveLength(1);
+  });
+
+  it("不传 candidates 时仍渲染普通文本字段（既有行为）", () => {
+    const { container } = render(<NodeArgsRows values={["a"]} onChange={vi.fn()} />);
+    expect(container.querySelector('[data-field-kind="text"]')).toBeTruthy();
+  });
+
+  it("行内输入弹候选", () => {
+    render(<NodeArgsRows values={[""]} onChange={vi.fn()} candidates={cands} />);
+    const input = screen.getByRole("combobox") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "cou", selectionStart: 3 } });
+    expect(screen.getByRole("listbox")).toBeTruthy();
+    expect(screen.getByText("count")).toBeTruthy();
   });
 });

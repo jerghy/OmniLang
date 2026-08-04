@@ -1,6 +1,9 @@
 // poiesis/src/components/canvas/code/fields/NodeField.tsx
 // 节点内联编辑共享控件族：统一"草稿 → Enter/blur 提交 → Esc 取消"语义。
 import { useEffect, useRef, useState } from "react";
+// NodeFormulaField 的运行时依赖（expression-trigger/NodeCandidateMenu/css）不 import NodeField.tsx，
+// 单向边 NodeField → NodeFormulaField，无循环
+import { NodeFormulaField, type FormulaCandidateSource } from "./NodeFormulaField";
 import styles from "./NodeField.module.css";
 
 export interface FieldOption {
@@ -121,9 +124,11 @@ interface ArgsProps {
   values: string[];
   onChange: (values: string[]) => void;
   placeholder?: string;
+  /** 公式候选源：传此值每行渲染 NodeFormulaField（触发式补全）；缺省退化 NodeTextField（既有行为） */
+  candidates?: FormulaCandidateSource;
 }
 
-export function NodeArgsRows({ values, onChange, placeholder }: ArgsProps) {
+export function NodeArgsRows({ values, onChange, placeholder, candidates }: ArgsProps) {
   // 尾随空行折叠为一个可编辑槽位（防御：父组件可能传入）；"+" 按钮走本地 adding 态
   const trimmed = [...values];
   while (trimmed.length > 0 && trimmed[trimmed.length - 1] === "") trimmed.pop();
@@ -147,11 +152,17 @@ export function NodeArgsRows({ values, onChange, placeholder }: ArgsProps) {
     if (v.trim() !== "") onChange([...values, v]);
   };
 
+  // 行字段：传 candidates 时用公式框（触发式补全，args 可为表达式），缺省退化普通文本（既有行为）
+  const rowField = (v: string, opts: { onCommit: (nv: string) => void; ariaLabel: string; onCancel?: () => void; onBlur?: () => void }) =>
+    candidates
+      ? <NodeFormulaField value={v} candidates={candidates} placeholder={placeholder} {...opts} />
+      : <NodeTextField value={v} placeholder={placeholder} {...opts} />;
+
   return (
     <div data-field-kind="args" className={styles.args}>
       {visible.map((v, i) => (
         <div key={i} className={styles.argsRow}>
-          <NodeTextField value={v} onCommit={(nv) => update(i, nv)} placeholder={placeholder} ariaLabel={`参数 ${i + 1}`} />
+          {rowField(v, { onCommit: (nv) => update(i, nv), ariaLabel: `参数 ${i + 1}` })}
           <button
             type="button"
             className={`nodrag ${styles.argsRemove}`}
@@ -162,14 +173,7 @@ export function NodeArgsRows({ values, onChange, placeholder }: ArgsProps) {
       ))}
       {adding && (
         <div className={styles.argsRow} data-field-kind="args-adding">
-          <NodeTextField
-            value=""
-            onCommit={commitAdding}
-            onCancel={() => setAdding(false)}
-            onBlur={() => setAdding(false)}
-            placeholder={placeholder}
-            ariaLabel="新参数"
-          />
+          {rowField("", { onCommit: commitAdding, onCancel: () => setAdding(false), onBlur: () => setAdding(false), ariaLabel: "新参数" })}
           <button
             type="button"
             className={`nodrag ${styles.argsRemove}`}
