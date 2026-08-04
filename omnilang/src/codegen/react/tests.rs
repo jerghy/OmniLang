@@ -1418,6 +1418,94 @@ fn prop_fn_wrapped_in_use_callback() {
     );
 }
 
+/// Task 5.5 regression pin: `emit onX(...)` inside an expression-level
+/// block body (computed with a block body) must still count `onX` as a
+/// read — the shared-walker migration of `collect_expr_identifiers`
+/// (d112b68d) surfaced only `ExprIR` nodes, and `EventEmitStmtIR.event_name`
+/// is a `String` invisible to the `&ExprIR` walker callback. The old
+/// hand-rolled walker delegated BlockExpr/MatchExpr statements to
+/// `collect_stmt_identifiers`, which collects the event name; without it,
+/// the generated `onNotify("computed")` call inside the `useMemo` body
+/// referenced an event prop that was never destructured (TS2304 — event
+/// props are destructured only when `read_signals` contains the name).
+/// A targeted emit-name scanner (see `collect_expr_identifiers`) restores
+/// the behavior; this test pins the generated code.
+#[test]
+fn emit_inside_computed_block_body_golden() {
+    let out = compile_react(
+        r#"
+        component App {
+            event onNotify: String;
+            signal base: i32 = 1;
+            computed doubled: i32 = {
+                emit onNotify("computed");
+                base * 2;
+            };
+            view {
+                <div>{doubled}</div>
+            }
+        }
+    "#,
+    )
+    .expect("compile must succeed");
+    let tsx = out.files.get("App.tsx").expect("App.tsx emitted");
+    assert!(
+        tsx.contains("useMemo"),
+        "block-form computed must be a useMemo: {}",
+        tsx
+    );
+    assert!(
+        tsx.contains("onNotify(\"computed\")"),
+        "emit call must be emitted verbatim in the computed body: {}",
+        tsx
+    );
+    // The event prop must be destructured: expression-level emit counts as
+    // a read of the event prop name (statement-level emit in fns/effects
+    // does the same via collect_stmt_identifiers).
+    assert!(
+        tsx.contains("export function App({ onNotify }"),
+        "expression-level emit must destructure the event prop (TS2304 guard): {}",
+        tsx
+    );
+}
+
+/// Task 5.5 pin, nested variants: emit names nested deeper inside
+/// expression-level blocks (inside an `if` statement in the block body, and
+/// inside a `match` arm) must also count as reads — the targeted scanner
+/// mirrors the old walker's full statement descent.
+#[test]
+fn emit_inside_computed_block_body_nested_golden() {
+    let out = compile_react(
+        r#"
+        component App {
+            event onNested: String;
+            event onMatched: String;
+            signal flag: Bool = false;
+            signal base: i32 = 1;
+            computed doubled: i32 = {
+                if flag {
+                    emit onNested("in-if");
+                }
+                match base {
+                    1 => { emit onMatched("in-arm"); 10 }
+                    _ => 20
+                }
+            };
+            view {
+                <div>{doubled}</div>
+            }
+        }
+    "#,
+    )
+    .expect("compile must succeed");
+    let tsx = out.files.get("App.tsx").expect("App.tsx emitted");
+    assert!(
+        tsx.contains("export function App({ onNested, onMatched }"),
+        "nested expression-level emits must destructure both event props (TS2304 guard): {}",
+        tsx
+    );
+}
+
 /// perf L1: the `_M` motion table is a compile-time constant (motion defs
 /// are literals) — it was re-allocated inside the component function on
 /// EVERY render, and each re-allocation made every `_M["x"]` use site a

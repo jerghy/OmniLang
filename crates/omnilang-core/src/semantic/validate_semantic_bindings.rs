@@ -105,7 +105,7 @@ fn check_element_bindings(
 /// tags produces a warning. Scroll bindings apply to any overflow-scrollable
 /// element, so they are always accepted. Unknown tags (custom components)
 /// are accepted. (`value` is not listed — the `value={sig}` form is removed
-/// and errors in `walk_view_tree` before this check runs.)
+/// and errors in `check_element_bindings` before this check runs.)
 fn binding_applies_to_tag(binding: &str, tag: &str) -> bool {
     match binding {
         "focus" => !matches!(

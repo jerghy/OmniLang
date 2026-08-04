@@ -11,6 +11,10 @@
 //!    ref-ops, array methods, semantic bindings, effect deps, a11y
 //!    (`validate_props.rs` … `validate_a11y.rs`). Two of these
 //!    (`validate_ref_ops`, `validate_array_methods`) rewrite the IR.
+//!    Program-level (merged-IR) passes run separately in `analyse_multi` /
+//!    `run_pipeline`: `validate_theme` (D1 `@themes` ↔ `@theme` pairing) and
+//!    `validate_event_names` (unknown event names warn with the nearest
+//!    legal suggestion — cross-file scope).
 //! 3. **Lints** (`lints/`) — style / anti-pattern rules over ASTs and the
 //!    merged IR, run last in `analyse_multi` / `run_pipeline`.
 

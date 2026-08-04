@@ -1015,6 +1015,16 @@ fn component_has_fade_conditional(comp: &ComponentIR) -> bool {
 /// callee names (the callee name is not an `ExprIR` child, so it is
 /// collected at the `CallExpr` node itself). `RefOpExpr` child arguments are
 /// covered by the walker's `RefOpIR` descent (Task 5.5 walker convergence).
+///
+/// One surface is NOT expressible through the walker's `&ExprIR` callback:
+/// `emit onX(...)` statements in expression-level blocks (`BlockExpr`
+/// statements, `MatchExpr` arm bodies) carry the event name on the
+/// STATEMENT (`EventEmitStmtIR.event_name`, a `String`), never on an
+/// `ExprIR` node. The generated `onX(...)` call references the event prop
+/// verbatim, so the name must still count as a read — otherwise the event
+/// prop is never destructured and the generated file fails with TS2304.
+/// `collect_expr_emit_names` covers exactly that surface (statement-level
+/// emit in fns/effects is already collected via `collect_stmt_identifiers`).
 pub(super) fn collect_expr_identifiers(expr: &ExprIR, acc: &mut FxHashSet<String>) {
     walk::walk_expr(expr, &mut |e| match e {
         ExprIR::IdentifierExpr { name, .. } => {
@@ -1025,6 +1035,81 @@ pub(super) fn collect_expr_identifiers(expr: &ExprIR, acc: &mut FxHashSet<String
         }
         _ => {}
     });
+    collect_expr_emit_names(expr, acc);
+}
+
+/// Collect `EventEmitStmtIR` event names from expression-level blocks.
+///
+/// The shared walker cannot surface statement-level data, so this targeted
+/// scanner (Task 5.5 review Important-1) walks every `BlockExpr` /
+/// `MatchExpr` arm body in the expression tree — the only places statements
+/// live inside expressions — and descends through nested statement bodies
+/// (`if`/`while`/`for`/`try`/block statements), mirroring the statement
+/// coverage `collect_stmt_identifiers` provides at statement level.
+fn collect_expr_emit_names(expr: &ExprIR, acc: &mut FxHashSet<String>) {
+    walk::walk_expr(expr, &mut |e| match e {
+        ExprIR::BlockExpr { statements, .. } => {
+            collect_block_emit_names(statements, acc);
+        }
+        ExprIR::MatchExpr { arms, .. } => {
+            for arm in arms {
+                collect_block_emit_names(&arm.body.statements, acc);
+            }
+        }
+        _ => {}
+    });
+}
+
+/// Collect emit event names from a statement list, descending through
+/// nested statement bodies (the statement-level mirror of
+/// `collect_stmt_identifiers`' traversal — only the emit surface).
+fn collect_block_emit_names(statements: &[StatementIR], acc: &mut FxHashSet<String>) {
+    for stmt in statements {
+        collect_stmt_emit_names(stmt, acc);
+    }
+}
+
+/// Collect the event name of an `emit` statement, recursing into nested
+/// statement bodies.
+fn collect_stmt_emit_names(stmt: &StatementIR, acc: &mut FxHashSet<String>) {
+    match stmt {
+        StatementIR::EventEmitStmtIR { event_name, .. } => {
+            acc.insert(event_name.clone());
+        }
+        StatementIR::IfStmtIR {
+            then_body,
+            else_ifs,
+            else_body,
+            ..
+        } => {
+            collect_block_emit_names(&then_body.statements, acc);
+            for (_, body) in else_ifs {
+                collect_block_emit_names(&body.statements, acc);
+            }
+            if let Some(body) = else_body {
+                collect_block_emit_names(&body.statements, acc);
+            }
+        }
+        StatementIR::WhileStmtIR { body, .. } | StatementIR::ForInStmtIR { body, .. } => {
+            collect_block_emit_names(&body.statements, acc)
+        }
+        StatementIR::BlockStmtIR { body } => collect_block_emit_names(&body.statements, acc),
+        StatementIR::TryCatchStmtIR {
+            try_body,
+            catch_body,
+            finally_body,
+            ..
+        } => {
+            collect_block_emit_names(&try_body.statements, acc);
+            if let Some(body) = catch_body {
+                collect_block_emit_names(&body.statements, acc);
+            }
+            if let Some(body) = finally_body {
+                collect_block_emit_names(&body.statements, acc);
+            }
+        }
+        _ => {}
+    }
 }
 
 /// True when the component calls the parameterless pointer-capture ref ops
