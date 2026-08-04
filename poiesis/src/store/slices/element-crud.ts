@@ -179,7 +179,17 @@ export function createElementCrudSlice(set: SetFn, get: GetFn) {
         .filter((g): g is { elements: CodeblockElementData[]; wires: WireData[] } => Boolean(g));
       if (graphs.length === 0) return;
       const existIds = new Set(s.elements.map((e) => e.id));
-      const newElements = graphs.flatMap((g) => g.elements).filter((e) => !existIds.has(e.id));
+      // 物化元素可能缺 position（解析侧不生成）：按合并顺序赋确定性行布局（y 递增 60），
+      // 避免全部堆叠 (0,0) 互相遮挡（E2E 缺陷 3）；已有 position 的保留原值。
+      let layoutIdx = 0;
+      const newElements: CodeblockElementData[] = [];
+      for (const g of graphs) {
+        for (const e of g.elements) {
+          if (existIds.has(e.id)) continue;
+          if ("position" in e) { newElements.push(e); continue; }
+          newElements.push({ ...e, position: { x: 0, y: layoutIdx++ * 60 } });
+        }
+      }
       const existWireIds = new Set(s.wires.map((w) => w.id));
       const newWires = graphs.flatMap((g) => g.wires).filter((w) => !existWireIds.has(w.id));
       // 加载时物化：直接 set（无 undo 条目，同 setElementPosition 哲学）

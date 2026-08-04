@@ -40,6 +40,31 @@ describe("materializeFnGraphs（F1 物化）", () => {
     expect(((el as CodeblockElementData)?.props?.name as string)).toBe("EDITED");
   });
 
+  it("物化元素无 position 时赋确定性行布局（互不重叠）", () => {
+    // E2E 缺陷 3 回归：解析侧不生成 position，物化后应赋 y 递增的行布局避免堆叠 (0,0)
+    usePoiesisStore.setState({
+      elements: [],
+      wires: [],
+      codeFlowGraphs: {
+        increment: { elements: [codeEl("fn_a1", "fn", "increment"), codeEl("cb_b2", "let", "x"), codeEl("cb_b3", "return")], wires: [] },
+      },
+      componentDefs: { Counter: { name: "Counter", fns: [{ pid: "fn_a1", name: "increment", params: [], returnType: "void" }] } as never },
+    });
+    usePoiesisStore.getState().materializeFnGraphs("Counter");
+    const positions = usePoiesisStore.getState().elements
+      .filter((e): e is CodeblockElementData => e.nodeType === "codeblock")
+      .map((e) => e.position)
+      .filter((p): p is { x: number; y: number } => Boolean(p));
+    // 全部物化元素带 position，且 y 互不相同（不重叠）
+    expect(positions).toHaveLength(3);
+    expect(new Set(positions.map((p) => p.y)).size).toBe(3);
+    // 确定性：重复触发不重新分配（幂等，已存在元素不被覆盖）
+    usePoiesisStore.getState().materializeFnGraphs("Counter");
+    expect(usePoiesisStore.getState().elements
+      .filter((e): e is CodeblockElementData => e.nodeType === "codeblock")
+      .map((e) => e.position)).toEqual(positions);
+  });
+
   it("无 fn 元数据的组件：no-op", () => {
     usePoiesisStore.setState({ componentDefs: { Empty: { name: "Empty", fns: [] } as never } });
     expect(() => usePoiesisStore.getState().materializeFnGraphs("Empty")).not.toThrow();
