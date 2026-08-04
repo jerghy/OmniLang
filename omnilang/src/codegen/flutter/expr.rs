@@ -245,10 +245,12 @@ pub(crate) fn rewrite_stmt_store_accesses(
             name,
             value,
             r#type,
+            is_mut,
         } => StatementIR::LetStmtIR {
             name: name.clone(),
             value: value.as_ref().map(rw_expr),
             r#type: r#type.clone(),
+            is_mut: *is_mut,
         },
         StatementIR::ExprStmtIR { expr } => StatementIR::ExprStmtIR {
             expr: rw_expr(expr),
@@ -752,10 +754,12 @@ pub(crate) fn watch_to_read_stmt(stmt: &StatementIR) -> StatementIR {
             name,
             value,
             r#type,
+            is_mut,
         } => StatementIR::LetStmtIR {
             name: name.clone(),
             value: value.as_ref().map(rw_expr),
             r#type: r#type.clone(),
+            is_mut: *is_mut,
         },
         StatementIR::ExprStmtIR { expr } => StatementIR::ExprStmtIR {
             expr: rw_expr(expr),
@@ -1016,10 +1020,12 @@ pub(crate) fn rewrite_stmt_widget_refs(
             name,
             value,
             r#type,
+            is_mut,
         } => StatementIR::LetStmtIR {
             name: name.clone(),
             value: value.as_ref().map(rw_expr),
             r#type: r#type.clone(),
+            is_mut: *is_mut,
         },
         StatementIR::ExprStmtIR { expr } => StatementIR::ExprStmtIR {
             expr: rw_expr(expr),

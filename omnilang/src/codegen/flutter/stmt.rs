@@ -12,12 +12,16 @@ use std::fmt::Write;
 // ═══════════════════════════════════════════════════════════════
 
 /// Shared Dart-family `let` statement formatting.
+///
+/// Task 5.1: `is_mut` selects the keyword — mutable → `var`, immutable →
+/// `final` (previously always `var`, losing `final` for immutable bindings).
 fn format_dart_let_stmt<F: FormatExpr>(
     expr: &F,
     w: &mut CodeWriter,
     name: &str,
     value: &Option<ExprIR>,
     type_ann: &Option<TypeIR>,
+    is_mut: bool,
 ) {
     let rhs = value
         .as_ref()
@@ -27,7 +31,8 @@ fn format_dart_let_stmt<F: FormatExpr>(
         let ann = super::super::dart::dart_type(ty.kind.as_str(), &ty.type_args);
         w.emit_fmt(format_args!("{ann} {name} = {rhs};"));
     } else {
-        w.emit_fmt(format_args!("var {name} = {rhs};"));
+        let kw = if is_mut { "var" } else { "final" };
+        w.emit_fmt(format_args!("{kw} {name} = {rhs};"));
     }
 }
 
@@ -61,8 +66,9 @@ impl<F: FormatExpr> FormatStmt for FlutterStmtFormatter<F> {
         name: &str,
         value: &Option<ExprIR>,
         type_ann: &Option<TypeIR>,
+        is_mut: bool,
     ) {
-        format_dart_let_stmt(&self.expr, w, name, value, type_ann);
+        format_dart_let_stmt(&self.expr, w, name, value, type_ann, is_mut);
     }
 
     /// Component-local mutations target the plain field name.
@@ -415,8 +421,9 @@ impl<'a> FormatStmt for StoreActionStmtFormatter<'a> {
         name: &str,
         value: &Option<ExprIR>,
         type_ann: &Option<TypeIR>,
+        is_mut: bool,
     ) {
-        format_dart_let_stmt(&self.expr, w, name, value, type_ann);
+        format_dart_let_stmt(&self.expr, w, name, value, type_ann, is_mut);
     }
 
     /// Riverpod 3.0 store mutations: `state = state.copyWith(field: value)`.
@@ -545,8 +552,9 @@ impl<F: FormatExpr> FormatStmt for PlainStmtFormatter<F> {
         name: &str,
         value: &Option<ExprIR>,
         type_ann: &Option<TypeIR>,
+        is_mut: bool,
     ) {
-        format_dart_let_stmt(&self.expr, w, name, value, type_ann);
+        format_dart_let_stmt(&self.expr, w, name, value, type_ann, is_mut);
     }
 
     fn mutation_target_expr(&self, target: &str) -> String {

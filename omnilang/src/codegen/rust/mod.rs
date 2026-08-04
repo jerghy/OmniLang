@@ -284,6 +284,12 @@ impl FormatStmt for RustStmtFormatter {
         false // Rust uses `in`
     }
 
+    /// Task 5.1: a `let mut` binding must emit `let mut` — plain `let`
+    /// would not compile once the body reassigns it.
+    fn mutable_let_keyword(&self) -> &str {
+        "let mut"
+    }
+
     fn format_let_type_ann(&self, ty: &Option<TypeIR>) -> String {
         ty.as_ref()
             .map(|t| format!(": {}", rs_type(t.kind.as_str(), &t.type_args)))

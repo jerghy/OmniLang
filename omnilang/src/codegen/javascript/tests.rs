@@ -610,6 +610,7 @@ fn test_js_generate_statement_let() {
             value: serde_json::json!(42),
         }),
         r#type: None,
+        is_mut: false,
     };
     generate_statement(&mut w, &stmt, false);
     assert_eq!(w.into_string(), "let x = 42;\n");
@@ -1327,6 +1328,7 @@ fn test_format_block_as_js_expr_with_return() {
                     value: serde_json::json!(1),
                 }),
                 r#type: None,
+                is_mut: false,
             },
             StatementIR::ReturnStmtIR {
                 value: Some(ExprIR::LiteralExpr {

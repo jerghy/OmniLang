@@ -573,3 +573,86 @@ fn deleted_slot_forms_hard_error_on_all_backends() {
         failures.join("\n"),
     );
 }
+
+/// Helper: join all emitted files of a compile output into one string.
+fn all_code(output: &omnilang::codegen::CompileOutput) -> String {
+    output
+        .files
+        .iter()
+        .map(|f| f.content.as_str())
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// Task 5.1 (deferral #36): the `mut` flag must thread through lowering to
+/// all P0 backends — `let mut` → React `let` / Flutter `var`; immutable →
+/// Flutter `final` / React `const`. Before this task: React emitted `let`
+/// unconditionally (BUG-A workaround) and Flutter emitted `var` always
+/// (losing `final` forever) — one IR gap producing wrong code in opposite
+/// directions per target.
+#[test]
+fn mut_flag_threads_through_all_targets() {
+    // ── mut → mutable keyword per target ──
+    let mut_src = r#"component V {
+        fn f() { let mut x = 0; x = x + 1; log(x) }
+        view { <button @click={f}>go</button> }
+    }"#;
+
+    let react_out = compile_source(mut_src, Target::React);
+    assert!(
+        react_out.errors.is_empty(),
+        "react must compile: {:?}",
+        react_out.errors
+    );
+    let react_code = all_code(&react_out);
+    assert!(
+        react_code.contains("let x"),
+        "react must emit let for mut: {}",
+        react_code
+    );
+
+    let flutter_out = compile_source(mut_src, Target::Flutter);
+    assert!(
+        flutter_out.errors.is_empty(),
+        "flutter must compile: {:?}",
+        flutter_out.errors
+    );
+    let flutter_code = all_code(&flutter_out);
+    assert!(
+        flutter_code.contains("var x"),
+        "flutter must emit var for mut: {}",
+        flutter_code
+    );
+
+    // ── immutable → per-target immutable keyword ──
+    let imm_src = r#"component V {
+        fn f() { let y = 1; log(y) }
+        view { <button @click={f}>go</button> }
+    }"#;
+
+    let imm_react = compile_source(imm_src, Target::React);
+    assert!(
+        imm_react.errors.is_empty(),
+        "react must compile: {:?}",
+        imm_react.errors
+    );
+    let imm_react_code = all_code(&imm_react);
+    assert!(
+        imm_react_code.contains("const y"),
+        "react must emit const for immutable: {}",
+        imm_react_code
+    );
+
+    let imm_flutter = compile_source(imm_src, Target::Flutter);
+    assert!(
+        imm_flutter.errors.is_empty(),
+        "flutter must compile: {:?}",
+        imm_flutter.errors
+    );
+    let imm_flutter_code = all_code(&imm_flutter);
+    assert!(
+        imm_flutter_code.contains("final y"),
+        "flutter must emit final for immutable: {}",
+        imm_flutter_code
+    );
+}

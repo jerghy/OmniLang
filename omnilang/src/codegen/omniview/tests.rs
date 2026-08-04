@@ -544,6 +544,7 @@ fn test_expr_block() {
                 value: serde_json::json!(42),
             }),
             r#type: None,
+            is_mut: false,
         }],
         tail: Box::new(ExprIR::IdentifierExpr {
             name: "x".into(),
@@ -551,7 +552,7 @@ fn test_expr_block() {
         }),
     });
     assert!(js.contains("function"));
-    assert!(js.contains("let x = 42"));
+    assert!(js.contains("const x = 42"));
     assert!(js.contains("return x"));
 }
 
@@ -583,6 +584,21 @@ fn test_stmt_let() {
             value: serde_json::json!(42),
         }),
         r#type: None,
+        is_mut: false,
+    });
+    assert!(gen.js.contains("const x = 42"));
+}
+
+#[test]
+fn test_stmt_let_mut() {
+    let mut gen = OmniViewGenerator::default();
+    gen.emit_statement(&StatementIR::LetStmtIR {
+        name: "x".into(),
+        value: Some(ExprIR::LiteralExpr {
+            value: serde_json::json!(42),
+        }),
+        r#type: None,
+        is_mut: true,
     });
     assert!(gen.js.contains("let x = 42"));
 }
@@ -614,6 +630,7 @@ fn test_stmt_if_else() {
                     value: serde_json::json!(1),
                 }),
                 r#type: None,
+                is_mut: false,
             }],
         },
         else_ifs: vec![],
@@ -624,13 +641,14 @@ fn test_stmt_if_else() {
                     value: serde_json::json!(2),
                 }),
                 r#type: None,
+                is_mut: false,
             }],
         }),
     });
     assert!(gen.js.contains("if (cond)"));
-    assert!(gen.js.contains("let x = 1"));
+    assert!(gen.js.contains("const x = 1"));
     assert!(gen.js.contains("} else {"));
-    assert!(gen.js.contains("let y = 2"));
+    assert!(gen.js.contains("const y = 2"));
 }
 
 #[test]

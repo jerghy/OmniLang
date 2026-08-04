@@ -489,14 +489,10 @@ fn emit_sanitize_css(w: &mut CodeWriter) {
         "normalizeCssEscapes",
         true,
     );
-    // The shared emitter produces one ES5 body (`var` declarations) serving
-    // BOTH runtimes — the OmniView runtime enforces ES5, the React .ts
-    // output must not (no-var, task 2.11). Emit a `let` copy here; the
-    // shared source stays ES5 (single-source-drift discipline, task 3.2).
-    // `var ` appears only as a declaration keyword in the emitted helpers
-    // (10 declarations — the exact no-var count), never inside a string
-    // literal, so the plain replacement is safe.
-    let helpers = helpers.replace("var ", "let ");
+    // The shared emitter serves BOTH runtimes from one body: the OmniView
+    // runtime enforces ES5 (`var`), while the React .ts output gets
+    // `let`/`const` from the same emitter (no-var, task 2.11 — `const` for
+    // bindings never reassigned, prefer-const clean, task 5.1).
     for line in helpers.lines() {
         w.emit(line);
     }

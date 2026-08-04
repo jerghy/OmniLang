@@ -249,6 +249,7 @@ impl FormatStmt for DartStmtFormatter {
         name: &str,
         value: &Option<ExprIR>,
         type_ann: &Option<TypeIR>,
+        is_mut: bool,
     ) {
         let rhs = value
             .as_ref()
@@ -258,7 +259,8 @@ impl FormatStmt for DartStmtFormatter {
             let ann = dart_type(ty.kind.as_str(), &ty.type_args);
             w.emit_fmt(format_args!("{ann} {name} = {rhs};"));
         } else {
-            w.emit_fmt(format_args!("var {name} = {rhs};"));
+            let kw = if is_mut { "var" } else { "final" };
+            w.emit_fmt(format_args!("{kw} {name} = {rhs};"));
         }
     }
 }

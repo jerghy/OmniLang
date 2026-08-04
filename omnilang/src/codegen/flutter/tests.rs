@@ -360,6 +360,22 @@ fn test_stmt_let() {
             value: serde_json::json!(42),
         }),
         r#type: None,
+        is_mut: false,
+    };
+    generate_statement_flutter(&mut w, &stmt);
+    assert_eq!(w.into_string(), "final x = 42;\n");
+}
+
+#[test]
+fn test_stmt_let_mut() {
+    let mut w = CodeWriter::new();
+    let stmt = StatementIR::LetStmtIR {
+        name: "x".into(),
+        value: Some(ExprIR::LiteralExpr {
+            value: serde_json::json!(42),
+        }),
+        r#type: None,
+        is_mut: true,
     };
     generate_statement_flutter(&mut w, &stmt);
     assert_eq!(w.into_string(), "var x = 42;\n");
@@ -457,6 +473,7 @@ fn test_stmt_if() {
                     value: serde_json::json!(1),
                 }),
                 r#type: None,
+                is_mut: false,
             }],
         },
         else_ifs: vec![],
@@ -467,15 +484,16 @@ fn test_stmt_if() {
                     value: serde_json::json!(2),
                 }),
                 r#type: None,
+                is_mut: false,
             }],
         }),
     };
     generate_statement_flutter(&mut w, &stmt);
     let out = w.into_string();
     assert!(out.contains("if (cond) {"));
-    assert!(out.contains("var x = 1;"));
+    assert!(out.contains("final x = 1;"));
     assert!(out.contains("} else {"));
-    assert!(out.contains("var x = 2;"));
+    assert!(out.contains("final x = 2;"));
     assert!(out.contains("}"));
 }
 

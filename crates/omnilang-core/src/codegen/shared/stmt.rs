@@ -41,6 +41,14 @@ pub trait FormatStmt {
         "let"
     }
 
+    /// Keyword for MUTABLE `let`-style declarations — defaults to
+    /// `let_keyword()`. Rust-family backends override with `"let mut"`
+    /// (Task 5.1 — a reassigned binding must be declared mutable in
+    /// Rust-compiled output, not just at the IR level).
+    fn mutable_let_keyword(&self) -> &str {
+        self.let_keyword()
+    }
+
     /// Fallback value when a statement position expression is None.
     fn null_value(&self) -> &str {
         "null"
@@ -56,7 +64,9 @@ pub trait FormatStmt {
         true
     }
 
-    /// Whether to use `const` instead of the `let_keyword()` for immutable bindings.
+    /// Whether to use `const` instead of the `let_keyword()` for immutable
+    /// bindings. `let mut` bindings ALWAYS use `let_keyword()` regardless of
+    /// this flag (Task 5.1 — the IR `is_mut` flag decides).
     fn use_const_for_immutable(&self) -> bool {
         false
     }
@@ -88,7 +98,8 @@ pub trait FormatStmt {
                 name,
                 value,
                 r#type,
-            } => self.format_let_stmt(w, name, value, r#type),
+                is_mut,
+            } => self.format_let_stmt(w, name, value, r#type, *is_mut),
             StatementIR::IfStmtIR {
                 condition,
                 then_body,
@@ -131,14 +142,21 @@ pub trait FormatStmt {
     // ═══ Per-variant overridable methods ═══
 
     /// Format a `let` statement.
+    ///
+    /// `is_mut` (the IR `LetStmtIR.is_mut` flag) selects the keyword:
+    /// mutable → `let_keyword()`; immutable → `const` when
+    /// `use_const_for_immutable()`, else `let_keyword()`.
     fn format_let_stmt(
         &self,
         w: &mut CodeWriter,
         name: &str,
         value: &Option<ExprIR>,
         type_ann: &Option<TypeIR>,
+        is_mut: bool,
     ) {
-        let kw = if self.use_const_for_immutable() {
+        let kw = if is_mut {
+            self.mutable_let_keyword()
+        } else if self.use_const_for_immutable() {
             "const"
         } else {
             self.let_keyword()

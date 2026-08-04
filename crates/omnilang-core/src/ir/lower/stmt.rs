@@ -35,12 +35,18 @@ pub(super) fn lower_stmt(
     semantics: &mut SemanticResult,
 ) -> StatementIR {
     match stmt {
-        Stmt::VarDecl { name, init, .. } => StatementIR::LetStmtIR {
+        Stmt::VarDecl {
+            name,
+            init,
+            mutable,
+            ..
+        } => StatementIR::LetStmtIR {
             name: name.clone(),
             value: init
                 .as_ref()
                 .map(|e| lower_expr(e, variant_map, event_fields.as_deref_mut(), semantics)),
             r#type: None,
+            is_mut: *mutable,
         },
         Stmt::Return { value, .. } => StatementIR::ReturnStmtIR {
             value: value

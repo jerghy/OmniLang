@@ -540,6 +540,10 @@ pub enum StatementIR {
         name: String,
         value: Option<ExprIR>,
         r#type: Option<TypeIR>,
+        /// Whether the binding is `let mut` (reassigned). Backends branch on
+        /// this flag: JS-family emits `const` for immutable / `let` for mut;
+        /// Dart-family emits `final` / `var` (Task 5.1, deferral #36).
+        is_mut: bool,
     },
     IfStmtIR {
         condition: ExprIR,

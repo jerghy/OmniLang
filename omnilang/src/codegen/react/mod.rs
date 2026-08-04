@@ -408,16 +408,16 @@ fn gen_zustand_action_stmt(
             name,
             value,
             r#type: _,
+            is_mut,
         } => {
             let rhs = value
                 .as_ref()
                 .map(|v| fmt_expr(v, renames))
                 .unwrap_or_else(|| "null".into());
-            // BUG-A (deferral #36): unconditional `let` — LetStmtIR carries
-            // no mut flag, so `const` emission breaks `let mut` reassignment
-            // at runtime ("Assignment to constant variable"). IR mut flag
-            // lands in Phase 5.1 (see react/expr.rs use_const_for_immutable).
-            w.emit_fmt(format_args!("let {} = {};", name, rhs));
+            // Task 5.1 (deferral #36): `is_mut` decides the keyword — `let`
+            // for reassigned bindings, `const` for immutable ones.
+            let kw = if *is_mut { "let" } else { "const" };
+            w.emit_fmt(format_args!("{kw} {} = {};", name, rhs));
         }
         StatementIR::IfStmtIR {
             condition,

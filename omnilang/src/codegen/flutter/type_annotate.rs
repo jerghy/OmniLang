@@ -222,10 +222,12 @@ pub(crate) fn annotate_stmt_types(
             name,
             value,
             r#type,
+            is_mut,
         } => StatementIR::LetStmtIR {
             name: name.clone(),
             value: value.as_ref().map(ann),
             r#type: r#type.clone(),
+            is_mut: *is_mut,
         },
         StatementIR::IfStmtIR {
             condition,

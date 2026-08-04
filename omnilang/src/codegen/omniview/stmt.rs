@@ -6,7 +6,12 @@ use std::fmt::Write;
 impl OmniViewGenerator {
     pub(super) fn emit_statement(&mut self, stmt: &StatementIR) {
         match stmt {
-            StatementIR::LetStmtIR { name, value, .. } => {
+            StatementIR::LetStmtIR {
+                name,
+                value,
+                is_mut,
+                ..
+            } => {
                 let safe_name = super::super::sanitize_js_ident(name);
                 // Register rename for body references
                 if safe_name != *name {
@@ -22,7 +27,9 @@ impl OmniViewGenerator {
                     .as_ref()
                     .map(|e| self.expr_to_js(e))
                     .unwrap_or_else(|| "undefined".into());
-                let _ = writeln!(self.js, "  let {} = {};", safe_name, val);
+                // Task 5.1: `let` for mut, `const` for immutable.
+                let kw = if *is_mut { "let" } else { "const" };
+                let _ = writeln!(self.js, "  {kw} {} = {};", safe_name, val);
             }
             StatementIR::ReturnStmtIR { value } => {
                 let val = value
@@ -152,13 +159,19 @@ impl OmniViewGenerator {
     /// Convert a single statement to an inline JS string (no buffer push).
     pub(super) fn stmt_to_js_inline(&mut self, stmt: &StatementIR) -> String {
         match stmt {
-            StatementIR::LetStmtIR { name, value, .. } => {
+            StatementIR::LetStmtIR {
+                name,
+                value,
+                is_mut,
+                ..
+            } => {
                 let safe_name = super::super::sanitize_js_ident(name);
                 let val = value
                     .as_ref()
                     .map(|e| self.expr_to_js(e))
                     .unwrap_or_else(|| "undefined".into());
-                format!("let {} = {}", safe_name, val)
+                let kw = if *is_mut { "let" } else { "const" };
+                format!("{kw} {} = {}", safe_name, val)
             }
             StatementIR::ExprStmtIR { expr } => self.expr_to_js(expr),
             StatementIR::ReturnStmtIR { value } => {

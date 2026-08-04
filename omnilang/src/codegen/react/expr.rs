@@ -340,14 +340,13 @@ impl FormatStmt for ReactStmtFormatter {
     }
 
     fn use_const_for_immutable(&self) -> bool {
-        // BUG-A (deferral #36): LetStmtIR carries no mut flag, so the React
-        // target cannot distinguish `let mut` (reassigned → `const` emission
-        // throws "Assignment to constant variable" at runtime and unmounts
-        // the whole app) from immutable bindings. Cheap fix: emit `let`
-        // unconditionally — the harness eslint config disables prefer-const
-        // for generated output, so the gate stays green. The IR mut flag
-        // that restores `const` for immutable bindings lands in Phase 5.1.
-        false
+        // Task 5.1 (deferral #36): LetStmtIR now carries `is_mut`, so
+        // immutable bindings emit `const` while `let mut` bindings emit
+        // `let` via the shared trait (`format_let_stmt` branches on the
+        // flag). The harness eslint config previously disabled prefer-const
+        // for generated output (BUG-A workaround, 2.1) — re-enabled with
+        // this task.
+        true
     }
 
     fn for_in_keyword(&self) -> &str {

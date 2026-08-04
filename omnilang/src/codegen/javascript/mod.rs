@@ -269,9 +269,12 @@ impl FormatStmt for JsStmtFormatter {
         name: &str,
         value: &Option<ExprIR>,
         type_ann: &Option<TypeIR>,
+        is_mut: bool,
     ) {
         let safe_name = self.expr.format_identifier(name);
-        let kw = if self.use_const_for_immutable() {
+        let kw = if is_mut {
+            self.let_keyword()
+        } else if self.use_const_for_immutable() {
             "const"
         } else {
             self.let_keyword()

@@ -976,6 +976,7 @@ mod tests {
                         name: "items".into(),
                         value: Some(method_call("items", "map", vec![closure(ident("item.id"))])),
                         r#type: None,
+                        is_mut: false,
                     }],
                 },
                 is_async: false,

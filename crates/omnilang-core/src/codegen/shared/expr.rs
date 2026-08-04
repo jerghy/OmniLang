@@ -1354,6 +1354,7 @@ mod tests {
                     value: serde_json::json!(5),
                 }),
                 r#type: None,
+                is_mut: false,
             }],
             tail: Box::new(ExprIR::IdentifierExpr {
                 name: "x".into(),

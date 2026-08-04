@@ -34,9 +34,11 @@ use std::fmt::Write as _;
 ///   OmniView runtime uses `__omni_sanitizeCss` / `__omni_normalizeCssEscapes`
 ///   in plain ES5 JS.
 /// - `ts_typed`: annotate parameter/return types (`value: unknown`,
-///   `: string`) for the React .ts output. The plain-JS runtime emits
-///   untyped ES5 (the regression suite asserts ES5 compatibility — no
-///   arrow functions, no const/let).
+///   `: string`) for the React .ts output and emit `let`/`const`
+///   declarations (`const` for bindings never reassigned — prefer-const
+///   clean, task 5.1). The plain-JS runtime emits untyped ES5 `var` (the
+///   regression suite asserts ES5 compatibility — no arrow functions, no
+///   const/let).
 #[must_use]
 pub fn sanitize_css_helpers_js(sanitize_fn: &str, normalize_fn: &str, ts_typed: bool) -> String {
     let normalize_sig = if ts_typed {
@@ -49,20 +51,24 @@ pub fn sanitize_css_helpers_js(sanitize_fn: &str, normalize_fn: &str, ts_typed: 
     } else {
         "(value)"
     };
+    // Declaration keywords per mode. Reassigned bindings (result/i/hex/str)
+    // always get the mutable keyword; never-reassigned ones (len/ch/code/
+    // lower/urlIdx/afterUrl) get `const` in modern TS output.
+    let (mutable_kw, immutable_kw) = if ts_typed { ("let", "const") } else { ("var", "var") };
     let mut out = String::with_capacity(4096);
     let _ = write!(
         out,
         r#"function {normalize_fn}{normalize_sig} {{
   // Normalize CSS hex escape sequences like \6a (→j) before pattern matching
   // to prevent attackers from bypassing keyword-based sanitizers.
-  var result = '';
-  var i = 0;
-  var len = value.length;
+  {mutable_kw} result = '';
+  {mutable_kw} i = 0;
+  {immutable_kw} len = value.length;
   while (i < len) {{
-    var ch = value.charAt(i);
+    {immutable_kw} ch = value.charAt(i);
     if (ch === '\\') {{
       i++;
-      var hex = '';
+      {mutable_kw} hex = '';
       while (i < len && hex.length < 6 && /^[0-9a-fA-F]$/.test(value.charAt(i))) {{
         hex += value.charAt(i);
         i++;
@@ -72,7 +78,7 @@ pub fn sanitize_css_helpers_js(sanitize_fn: &str, normalize_fn: &str, ts_typed: 
         if (i < len && value.charAt(i) === ' ') {{
           i++;
         }}
-        var code = parseInt(hex, 16);
+        {immutable_kw} code = parseInt(hex, 16);
         // String.fromCodePoint throws RangeError for code points > 0x10FFFF
         // and surrogates (0xD800-0xDFFF). Skip these — they cannot represent
         // valid characters and preserving the raw escape is safer than crashing.
@@ -97,7 +103,7 @@ pub fn sanitize_css_helpers_js(sanitize_fn: &str, normalize_fn: &str, ts_typed: 
 }}
 
 function {sanitize_fn}{sanitize_sig} {{
-  var str = String(value);
+  {mutable_kw} str = String(value);
   // Strip CR, LF, TAB before any pattern matching — browsers strip these
   // characters during CSS tokenization (CSS Syntax §4.3.7), so
   // "jav\r\nascript:" would be normalized by the browser to "javascript:".
@@ -110,7 +116,7 @@ function {sanitize_fn}{sanitize_sig} {{
   // "java\ascript:" — decoded to "java\nscript:" — would bypass the
   // keyword checks below. Mirrors sanitize_css_value in sanitize.rs.
   str = str.replace(/[\r\n\t]/g, '');
-  var lower = str.toLowerCase();
+  {immutable_kw} lower = str.toLowerCase();
   // Block protocol-level injection patterns
   if (lower.indexOf('javascript:') >= 0 || lower.indexOf('expression(') >= 0 ||
       lower.indexOf('-moz-binding') >= 0 ||
@@ -124,16 +130,22 @@ function {sanitize_fn}{sanitize_sig} {{
   // Block url() containing javascript: or vbscript: schemes.
   // The outer block already catches standalone javascript:/vbscript:,
   // but they could appear inside a url() value after stripping.
-  var urlIdx = lower.indexOf('url(');
+  {immutable_kw} urlIdx = lower.indexOf('url(');
   if (urlIdx >= 0) {{
-    var afterUrl = lower.substring(urlIdx);
+    {immutable_kw} afterUrl = lower.substring(urlIdx);
     if (afterUrl.indexOf('javascript:') >= 0 || afterUrl.indexOf('vbscript:') >= 0) {{
       return '';
     }}
   }}
   return str;
 }}
-"#
+"#,
+        mutable_kw = mutable_kw,
+        immutable_kw = immutable_kw,
+        normalize_fn = normalize_fn,
+        normalize_sig = normalize_sig,
+        sanitize_fn = sanitize_fn,
+        sanitize_sig = sanitize_sig,
     );
     out
 }
@@ -155,6 +167,26 @@ mod tests {
         let js = sanitize_css_helpers_js("sanitizeCss", "normalizeCssEscapes", true);
         assert!(js.contains("function sanitizeCss(value: unknown): string {"));
         assert!(js.contains("function normalizeCssEscapes(value: string): string {"));
+    }
+
+    #[test]
+    fn ts_typed_variant_emits_let_and_const_declarations() {
+        // Task 5.1: with prefer-const re-enabled in the harness eslint
+        // config, the React .ts copy must not emit non-reassigned `let`s —
+        // `const` for len/ch/code/lower/urlIdx/afterUrl, `let` only for the
+        // reassigned accumulators (result/i/hex/str).
+        let js = sanitize_css_helpers_js("sanitizeCss", "normalizeCssEscapes", true);
+        assert!(!js.contains("var "), "modern copy must not contain ES5 var");
+        assert!(js.contains("let result = '';"));
+        assert!(js.contains("let i = 0;"));
+        assert!(js.contains("const len = value.length;"));
+        assert!(js.contains("const ch = value.charAt(i);"));
+        assert!(js.contains("let hex = '';"));
+        assert!(js.contains("const code = parseInt(hex, 16);"));
+        assert!(js.contains("let str = String(value);"));
+        assert!(js.contains("const lower = str.toLowerCase();"));
+        assert!(js.contains("const urlIdx = lower.indexOf('url(');"));
+        assert!(js.contains("const afterUrl = lower.substring(urlIdx);"));
     }
 
     #[test]

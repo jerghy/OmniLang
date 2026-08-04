@@ -33,14 +33,6 @@ export default tseslint.config(
       // argsIgnorePattern honors it for function args so the gate no longer
       // flags them (task 2.11).
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
-      // Generated output emits `let` for EVERY LetStmtIR because the IR
-      // carries no mut flag (deferral #36, task 2.1): `const` emission
-      // breaks `let mut` reassignment at runtime ("Assignment to constant
-      // variable", BUG-A). typescript-eslint recommended enables
-      // prefer-const, which would flag every non-reassigned `let` — disable
-      // it for generated code until Phase 5.1 threads the mut flag and
-      // restores `const` for immutable bindings.
-      'prefer-const': 'off',
     },
   },
 );

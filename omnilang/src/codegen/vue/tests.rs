@@ -340,9 +340,29 @@ mod tests {
                 value: serde_json::json!(42),
             }),
             r#type: None,
+            is_mut: false,
         };
         generate_statement_vue(&mut w, &stmt, &Rc::new(RefCell::new(Vec::new())));
         assert_eq!(w.into_string(), "const x = 42;\n");
+    }
+
+    /// Task 5.1 coordination fix: Vue previously emitted `const` for EVERY
+    /// binding (`use_const_for_immutable` was unconditionally true), so a
+    /// `let mut` var became `const` — the same wrong-code bug as the React
+    /// BUG-A. The shared trait now branches on the IR `is_mut` flag.
+    #[test]
+    fn test_vue_stmt_let_mut() {
+        let mut w = CodeWriter::new();
+        let stmt = StatementIR::LetStmtIR {
+            name: "x".into(),
+            value: Some(ExprIR::LiteralExpr {
+                value: serde_json::json!(42),
+            }),
+            r#type: None,
+            is_mut: true,
+        };
+        generate_statement_vue(&mut w, &stmt, &Rc::new(RefCell::new(Vec::new())));
+        assert_eq!(w.into_string(), "let x = 42;\n");
     }
 
     #[test]
@@ -410,6 +430,7 @@ mod tests {
                         value: serde_json::json!(1),
                     }),
                     r#type: None,
+                    is_mut: false,
                 }],
             },
             else_ifs: vec![],

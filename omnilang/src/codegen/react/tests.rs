@@ -339,6 +339,30 @@ fn test_tsx_stmt_let() {
             value: serde_json::json!(42),
         }),
         r#type: None,
+        is_mut: false,
+    };
+    generate_statement_tsx(
+        &mut w,
+        &stmt,
+        &FxHashSet::default(),
+        &FxHashMap::default(),
+        &FxHashSet::default(),
+        &FxHashMap::default(),
+        &FxHashSet::default(),
+    );
+    assert_eq!(w.into_string(), "const x = 42;\n");
+}
+
+#[test]
+fn test_tsx_stmt_let_mut() {
+    let mut w = CodeWriter::new();
+    let stmt = StatementIR::LetStmtIR {
+        name: "x".into(),
+        value: Some(ExprIR::LiteralExpr {
+            value: serde_json::json!(42),
+        }),
+        r#type: None,
+        is_mut: true,
     };
     generate_statement_tsx(
         &mut w,
@@ -867,6 +891,7 @@ fn test_tsx_stmt_if() {
                     value: serde_json::json!(1),
                 }),
                 r#type: None,
+                is_mut: false,
             }],
         },
         else_ifs: vec![],
@@ -883,7 +908,7 @@ fn test_tsx_stmt_if() {
     );
     let out = w.into_string();
     assert!(out.contains("if (cond) {"));
-    assert!(out.contains("let x = 1;"));
+    assert!(out.contains("const x = 1;"));
     assert!(out.contains("}"));
 }
 
@@ -2074,6 +2099,7 @@ fn test_zustand_store_getter_ref_renamed_in_action() {
                         is_optional: false,
                     }),
                     r#type: None,
+                    is_mut: false,
                 }],
             },
             is_async: false,
@@ -5856,7 +5882,7 @@ component AliasView {
         content
     );
     assert!(
-        content.contains("let s = AliasStore;"),
+        content.contains("const s = AliasStore;"),
         "bare alias reference must stay qualified. Got:\n{}",
         content
     );
@@ -5950,7 +5976,7 @@ component OptView {
         content
     );
     assert!(
-        content.contains("let a = s?.items;"),
+        content.contains("const a = s?.items;"),
         "non-store optional chain must stay qualified. Got:\n{}",
         content
     );

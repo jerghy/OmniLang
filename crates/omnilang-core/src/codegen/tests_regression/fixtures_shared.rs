@@ -318,6 +318,7 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                         value: serde_json::json!(10),
                     }),
                     r#type: None,
+                    is_mut: false,
                 },
                 StatementIR::LetStmtIR {
                     name: "b".into(),
@@ -325,6 +326,7 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                         value: serde_json::json!(3),
                     }),
                     r#type: None,
+                    is_mut: false,
                 },
                 StatementIR::LetStmtIR {
                     name: "flag".into(),
@@ -332,6 +334,7 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                         value: serde_json::json!(true),
                     }),
                     r#type: None,
+                    is_mut: false,
                 },
                 StatementIR::LetStmtIR {
                     name: "name".into(),
@@ -339,6 +342,7 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                         value: serde_json::json!("hello"),
                     }),
                     r#type: None,
+                    is_mut: false,
                 },
                 StatementIR::LetStmtIR {
                     name: "nothing".into(),
@@ -346,6 +350,7 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                         value: serde_json::Value::Null,
                     }),
                     r#type: None,
+                    is_mut: false,
                 },
                 StatementIR::LetStmtIR {
                     name: "add".into(),
@@ -361,6 +366,7 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                         }),
                     }),
                     r#type: None,
+                    is_mut: false,
                 },
                 StatementIR::LetStmtIR {
                     name: "sub".into(),
@@ -376,6 +382,7 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                         }),
                     }),
                     r#type: None,
+                    is_mut: false,
                 },
                 StatementIR::LetStmtIR {
                     name: "mul".into(),
@@ -391,6 +398,7 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                         }),
                     }),
                     r#type: None,
+                    is_mut: false,
                 },
                 StatementIR::LetStmtIR {
                     name: "div".into(),
@@ -406,6 +414,7 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                         }),
                     }),
                     r#type: None,
+                    is_mut: false,
                 },
                 StatementIR::LetStmtIR {
                     name: "eq".into(),
@@ -421,6 +430,7 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                         }),
                     }),
                     r#type: None,
+                    is_mut: false,
                 },
                 StatementIR::LetStmtIR {
                     name: "neq".into(),
@@ -436,6 +446,7 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                         }),
                     }),
                     r#type: None,
+                    is_mut: false,
                 },
                 StatementIR::LetStmtIR {
                     name: "and".into(),
@@ -450,6 +461,7 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                         }),
                     }),
                     r#type: None,
+                    is_mut: false,
                 },
                 StatementIR::LetStmtIR {
                     name: "or".into(),
@@ -464,6 +476,7 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                         }),
                     }),
                     r#type: None,
+                    is_mut: false,
                 },
                 StatementIR::LetStmtIR {
                     name: "neg".into(),
@@ -475,6 +488,7 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                         }),
                     }),
                     r#type: None,
+                    is_mut: false,
                 },
                 StatementIR::LetStmtIR {
                     name: "not".into(),
@@ -486,6 +500,7 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                         }),
                     }),
                     r#type: None,
+                    is_mut: false,
                 },
                 StatementIR::LetStmtIR {
                     name: "ternary".into(),
@@ -502,6 +517,7 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                         }),
                     }),
                     r#type: None,
+                    is_mut: false,
                 },
                 StatementIR::LetStmtIR {
                     name: "arr".into(),
@@ -519,6 +535,7 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                         ],
                     }),
                     r#type: None,
+                    is_mut: false,
                 },
                 StatementIR::LetStmtIR {
                     name: "first".into(),
@@ -532,6 +549,7 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                         }),
                     }),
                     r#type: None,
+                    is_mut: false,
                 },
                 StatementIR::LetStmtIR {
                     name: "len".into(),
@@ -543,6 +561,7 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                         field: "length".into(),
                     }),
                     r#type: None,
+                    is_mut: false,
                 },
                 StatementIR::ExprStmtIR {
                     expr: ExprIR::MethodCallExpr {
@@ -572,6 +591,7 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                         }),
                     }),
                     r#type: None,
+                    is_mut: false,
                 },
                 StatementIR::ExprStmtIR {
                     expr: ExprIR::CallExpr {
@@ -623,6 +643,7 @@ pub(crate) fn fixture_expressions() -> IRProgram {
                         ],
                     }),
                     r#type: None,
+                    is_mut: false,
                 },
             ],
         },

@@ -43,6 +43,7 @@ impl FormatStmt for PythonStmtFormatter {
         name: &str,
         value: &Option<ExprIR>,
         type_ann: &Option<TypeIR>,
+        _is_mut: bool,
     ) {
         let rhs = value
             .as_ref()

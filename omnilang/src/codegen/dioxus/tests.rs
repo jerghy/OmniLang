@@ -193,6 +193,7 @@ mod tests {
                 value: serde_json::json!(42),
             }),
             r#type: None,
+            is_mut: false,
         };
         generate_statement_dioxus(&mut w, &stmt);
         assert_eq!(w.into_string(), "let x = 42;\n");
@@ -211,6 +212,7 @@ mod tests {
                 type_args: vec![],
                 is_nullable: false,
             }),
+            is_mut: false,
         };
         generate_statement_dioxus(&mut w, &stmt);
         assert_eq!(
@@ -302,6 +304,7 @@ mod tests {
                         value: serde_json::json!(1),
                     }),
                     r#type: None,
+                    is_mut: false,
                 }],
             },
             else_ifs: vec![],

@@ -232,7 +232,7 @@ fn react_block_expr_statements_compile_clean() {
         .collect::<Vec<_>>()
         .join("\n");
     assert!(
-        content.contains("(() => {") && content.contains("let x = 1"),
+        content.contains("(() => {") && content.contains("const x = 1"),
         "React must emit the block statements inside an IIFE. Got:\n{}",
         content
     );

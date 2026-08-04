@@ -1602,6 +1602,7 @@ mod tests {
                             value: serde_json::json!(5),
                         }),
                         r#type: None,
+                        is_mut: false,
                     },
                     StatementIR::ExprStmtIR {
                         expr: method_call("box", "focus", vec![]),
@@ -1667,6 +1668,7 @@ mod tests {
                             value: serde_json::json!(5),
                         }),
                         r#type: None,
+                        is_mut: false,
                     },
                 ],
             },

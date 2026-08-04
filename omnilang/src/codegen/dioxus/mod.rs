@@ -306,13 +306,15 @@ impl FormatStmt for DioxusStmtFormatter {
         name: &str,
         value: &Option<ExprIR>,
         type_ann: &Option<TypeIR>,
+        is_mut: bool,
     ) {
         let ty = self.format_let_type_ann(type_ann);
         let rhs = value
             .as_ref()
             .map(|v| self.expr.format_expr(v))
             .unwrap_or_else(|| "Default::default()".to_string());
-        w.emit_fmt(format_args!("let {name}{ty} = {rhs};"));
+        let kw = if is_mut { "let mut" } else { "let" };
+        w.emit_fmt(format_args!("{kw} {name}{ty} = {rhs};"));
     }
 
     // Dioxus uses `if cond {` without parentheses

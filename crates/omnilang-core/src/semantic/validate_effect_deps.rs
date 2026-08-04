@@ -537,6 +537,7 @@ mod tests {
             name: "x".into(),
             value: Some(read.clone()),
             r#type: None,
+            is_mut: false,
         };
         let comp = make_component(vec![effect(vec!["notifications"], vec![if_stmt, let_stmt])]);
         let diags = run(&comp, &store_program());
