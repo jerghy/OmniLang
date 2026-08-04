@@ -107,3 +107,44 @@ export function NodeChipToggle({ checked, onChange, label, ariaLabel }: ChipProp
     </button>
   );
 }
+
+interface ArgsProps {
+  values: string[];
+  onChange: (values: string[]) => void;
+  placeholder?: string;
+}
+
+export function NodeArgsRows({ values, onChange, placeholder }: ArgsProps) {
+  const visible = [...values];
+  while (visible.length > 0 && visible[visible.length - 1] === "") visible.pop();
+  const hasTrailing = values.length > 0 && values[values.length - 1] === "";
+
+  const update = (i: number, v: string) => {
+    const next = [...values];
+    next[i] = v;
+    onChange(next);
+  };
+  const remove = (i: number) => {
+    onChange(values.filter((_, idx) => idx !== i));
+  };
+  const add = () => {
+    if (!hasTrailing) onChange([...values, ""]);
+  };
+
+  return (
+    <div data-field-kind="args" className={styles.args}>
+      {visible.map((v, i) => (
+        <div key={i} className={styles.argsRow}>
+          <NodeTextField value={v} onCommit={(nv) => update(i, nv)} placeholder={placeholder} ariaLabel={`参数 ${i + 1}`} />
+          <button
+            type="button"
+            className={`nodrag ${styles.argsRemove}`}
+            aria-label="×"
+            onClick={() => remove(i)}
+          >×</button>
+        </div>
+      ))}
+      <button type="button" className={`nodrag ${styles.argsAdd}`} onClick={add}>+ 添加参数</button>
+    </div>
+  );
+}
