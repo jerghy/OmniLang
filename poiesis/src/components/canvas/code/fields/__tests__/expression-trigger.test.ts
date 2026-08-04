@@ -23,8 +23,8 @@ describe("getTriggerContext", () => {
   it("单个运算符字符（+）→ operator 且 token 为单字符", () => {
     expect(getTriggerContext("count +", 6)).toEqual({ kind: "operator", token: "+", tokenStart: 6 });
   });
-  it("成员点（Store.）→ member，带 storeName", () => {
-    expect(getTriggerContext("ThemeStore.", 11)).toEqual({ kind: "member", token: "", tokenStart: 11, storeName: "ThemeStore" });
+  it("成员点（Store.）→ member，tokenStart 为 store 名起点（替换整段 Store. 前缀）", () => {
+    expect(getTriggerContext("ThemeStore.", 11)).toEqual({ kind: "member", token: "", tokenStart: 0, storeName: "ThemeStore" });
   });
   it("数字字面量 → operand", () => {
     expect(getTriggerContext("count + 5", 9)).toEqual({ kind: "operand", token: "5", tokenStart: 8 });

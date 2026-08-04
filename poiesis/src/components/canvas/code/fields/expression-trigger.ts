@@ -27,7 +27,11 @@ export function getTriggerContext(value: string, cursor: number): TriggerContext
   // 成员访问：光标前一字符是 "."
   if (before.endsWith(".")) {
     const storeMatch = before.slice(0, -1).match(/[A-Za-z_]\w*$/);
-    return { kind: "member", token: "", tokenStart: cursor, storeName: storeMatch?.[0] };
+    // 替换区间须覆盖整个 `Store.` 前缀（tokenStart = store 名起点）：否则选中候选时
+    // replaceToken 的替换区间为空、退化为光标处插入，产生 `Store.Store.signal` 前缀重复
+    const storeName = storeMatch?.[0];
+    const tokenStart = storeName ? cursor - 1 - storeName.length : cursor;
+    return { kind: "member", token: "", tokenStart, storeName };
   }
   // 标识符 token：从光标向前收集字母数字下划线
   let i = cursor;

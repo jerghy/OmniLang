@@ -83,6 +83,21 @@ describe("NodeFormulaField", () => {
     expect(screen.getByText("ThemeStore.mode")).toBeTruthy();
   });
 
+  it("member 上下文选中候选：整段替换 Store. 前缀（不重复）", () => {
+    // E2E 缺陷 2 回归：修复前选中产生 `demostore.demostore.newSignal` 前缀重复
+    const candsStore: FormulaCandidateSource = {
+      filter: () => [],
+      storeSignals: (name) => (name === "demostore" ? [{ value: "demostore.newSignal", label: "demostore.newSignal" }] : []),
+    };
+    render(<NodeFormulaField value="" onCommit={vi.fn()} candidates={candsStore} ariaLabel="初始值" />);
+    const input = screen.getByLabelText("初始值") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "demostore.", selectionStart: 10 } });
+    expect(screen.getByRole("listbox")).toBeTruthy();
+    fireEvent.keyDown(input, { key: "Tab" });
+    expect(input.value).toBe("demostore.newSignal");
+    expect(screen.queryByRole("listbox")).toBeNull();
+  });
+
   it("↑↓ 导航候选，Enter 选中第二项", () => {
     const cands2: FormulaCandidateSource = {
       filter: () => [{ value: "a", label: "a" }, { value: "b", label: "b" }],
