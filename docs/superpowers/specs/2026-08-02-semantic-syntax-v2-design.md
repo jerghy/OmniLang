@@ -20,6 +20,7 @@
 3. **floor 外硬诊断，绝无 parse-and-ignore**：删除的语法全部产生「编译错误/警告 + 迁移提示」；「解析但惰性」路径清零
 4. **同一语义只有一个名字**：消除三表面（值绑定）、三名字（主题）、双机制（闭包）类破碎
 5. **文档虚构归零**：spec 只写已实现或将实现的语法；「已实现范围 vs 设计记录」显式区分；文档同步随实现同 commit
+6. **词汇语义域封闭（设计 P1 复发机制）**：每域设计时强制回答「词汇的语义域是什么」——新增语义词汇先查登记册（`docs/superpowers/specs/vocabulary-registry.md`，5 个封闭词汇域）；Flutter 旗标名（`textField`/`image`…）/ React 合成事件名（`onClick`…）**不得直接成为语义词汇**（借词 → 语义纯度违反，a11y 域教训见 域 10）；每域模板含「词汇来源」字段，登记册与编译器白名单交叉断言由 `scripts/verify-vocabulary.py` 强制（漂移即门禁失败）
 
 ## 3. 四项关键决策（用户已确认）
 
@@ -70,7 +71,7 @@
 
 ## 5. 逐域设计
 
-每个域按模板：语义定义 / BNF v2（完整定义变更与新增；未变部分标注「保留 v1」）/ 手写对照样例 / 映射表 / 诊断表 / 验证清单。
+每个域按模板：语义定义 / **词汇来源**（登记册条目——先查 `docs/superpowers/specs/vocabulary-registry.md`，写清语义词汇的来源域与排除词汇；Flutter 旗标/React 合成事件名借词即违规）/ BNF v2（完整定义变更与新增；未变部分标注「保留 v1」）/ 手写对照样例 / 映射表 / 诊断表 / 验证清单。
 
 > 注：本设计文档中的 BNF 为设计意图。每域 spike 第一步做「BNF ↔ parser 事实对照」，以 parser 事实为准同步 BNF spec 文件（`docs/superpowers/specs/2026-07-31-semantic-level-dsl-syntax-spec.md` 按域重写为 v2）。
 
@@ -625,6 +626,8 @@ style_inline   ::= 'style:' '{' (css_prop ':' expr)+ '}' (* 保留 v1；值通�
 #### 语义定义
 
 「可访问性」让编译器知道：**这个控件的可访问名称/角色/可见性/实时区域**——辅助技术如何理解这个界面。这是前端意图的核心组成部分（评审 MEDIUM-2：当前只能写 aria-*（DOM 词汇），Flutter 目标静默丢失）。
+
+**词汇来源（登记册 域 2——「词汇来源」字段示范）**：语义原语（label/role/hidden/live/alt）= WAI-ARIA 概念（可访问名称/角色/隐藏/实时区域/图像替代）；role 词汇 = WAI-ARIA 规范名子集（button/textbox/link/checkbox/radio/img）；**排除词汇 = Flutter Semantics 旗标名**（textField/image——借词黑名单，Task 4.3 已 ARIA 化；本登记册机制防复发）。
 
 #### BNF v2
 

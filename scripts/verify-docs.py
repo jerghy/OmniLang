@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Doc-compile gate: extract .omni code blocks from docs and parse-check them.
 
-Every fenced code block in docs/omniview/*.md (16 guides) plus the BNF spec
-and the v2 design doc that teaches compilable OmniLang syntax is verified
-against the current parser (`omnic analyse`). The compiler is the ground
-truth: parse/compile errors in a block fail the gate and must be fixed in the
-DOC, never in the compiler (parser divergences are recorded as compiler bugs).
+Every fenced code block in docs/omniview/*.md (16 guides) plus the BNF spec,
+the v2 design doc, and the vocabulary registry that teach compilable OmniLang
+syntax is verified against the current parser (`omnic analyse`). The compiler
+is the ground truth: parse/compile errors in a block fail the gate and must be
+fixed in the DOC, never in the compiler (parser divergences are recorded as
+compiler bugs).
 
 Block inclusion:
   lang=omni  — always checked.
@@ -56,6 +57,12 @@ SPEC_FILE = os.path.join(
 DESIGN_FILE = os.path.join(
     REPO_ROOT, "docs", "superpowers", "specs",
     "2026-08-02-semantic-syntax-v2-design.md",
+)
+# The vocabulary registry teaches compilable examples (Task 7.1, design P1) —
+# its blocks are gate-checked like the design doc's.
+VOCABULARY_FILE = os.path.join(
+    REPO_ROOT, "docs", "superpowers", "specs",
+    "vocabulary-registry.md",
 )
 EXEMPTIONS_FILE = os.path.join(REPO_ROOT, "scripts", "doc-gate-exemptions.txt")
 
@@ -380,7 +387,7 @@ def main():
     paths = sorted(
         os.path.join(args.docs, f) for f in os.listdir(args.docs) if f.endswith(".md")
     )
-    for extra in (SPEC_FILE, DESIGN_FILE):
+    for extra in (SPEC_FILE, DESIGN_FILE, VOCABULARY_FILE):
         if os.path.exists(extra):
             paths.append(extra)
 
