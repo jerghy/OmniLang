@@ -153,9 +153,10 @@ function emitNode(
       for (let i = 0; i < branches.length; i++) {
         const br = branches[i];
 
-        // Determine the branch port ID: "br0", "br1", "br2", …
-        // Use the branch's explicit id if available, otherwise compute from index.
-        const brPortId = `br${i}`;
+        // 分支端口 key 用分支真实 id：连线 handle 即用分支 id（ConditionNode 每分支一端口），
+        // 解析/UI 追加均产生唯一 id；用真实 id 消除 br${i} 索引失配
+        //（id≠索引时 branchSuccessors 查错端口 → 分支后继错位/静默丢失）。
+        const brPortId = br.id;
 
         const keyword =
           br.type === "if" ? "if"

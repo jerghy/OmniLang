@@ -37,8 +37,15 @@ export function ConditionNode({ data }: Props) {
   const [editValue, setEditValue] = useState("");
 
   const handleAddBranch = (type: "elif" | "else") => {
+    // 新分支 id 取现有 id 的 max+1：追加序=数组长度会与既有 id 碰撞
+    //（历史源/手写编辑使数组乱序时，length 序 id 可能重复 → 连线 handle 冲突）。
+    const nextId =
+      branches.reduce(
+        (max, b) => Math.max(max, parseInt((b.id ?? "br0").replace(/^br/, ""), 10) || 0),
+        0,
+      ) + 1;
     const newBranches = [...branches, {
-      id: `br${branches.length}`,
+      id: `br${nextId}`,
       type,
       condition: "",
     }];
