@@ -58,8 +58,9 @@ return x`;
     const [codeEl, retEl] = result.elements;
 
     expect(codeEl.id).toBe("code1");
-    expect(codeEl.tag).toBe("code-block");
-    expect(codeEl.source).toBe("let x = 1");
+    expect(codeEl.tag).toBe("let");
+    expect(codeEl.props).toEqual({ name: "x", mutable: false, value: "1" });
+    expect(codeEl.source).toBe("let x = 1;");
 
     expect(retEl.id).toBe("ret1");
     expect(retEl.tag).toBe("return");
@@ -80,7 +81,7 @@ return x`;
     const fnBody = `// @pid:fn1
 fn main() {
 // @pid:code1
-  step1()
+  // 步骤一
 // @pid:ret1
   return result
 }`;
@@ -97,7 +98,7 @@ fn main() {
 
     expect(codeEl.id).toBe("code1");
     expect(codeEl.tag).toBe("code-block");
-    expect(codeEl.source).toBe("  step1()");
+    expect(codeEl.source).toBe("  // 步骤一");
 
     expect(retEl.id).toBe("ret1");
     expect(retEl.tag).toBe("return");
@@ -244,7 +245,7 @@ continue()`;
         tag: "code-block",
         parentId: null,
         props: {},
-        source: "  let x = 1",
+        source: "  // 初始化变量", // code1（原 "  let x = 1"）
       },
       {
         id: "cond1",
@@ -265,7 +266,7 @@ continue()`;
         tag: "code-block",
         parentId: null,
         props: {},
-        source: "  process(x)",
+        source: "  // then 分支", // then1（原 "  process(x)"）
       },
       {
         id: "else1",
@@ -273,7 +274,7 @@ continue()`;
         tag: "code-block",
         parentId: null,
         props: {},
-        source: "  skip()",
+        source: "  // else 分支", // else1（原 "  skip()"）
       },
       {
         id: "post1",
@@ -281,7 +282,7 @@ continue()`;
         tag: "code-block",
         parentId: null,
         props: {},
-        source: "  done()",
+        source: "  // 收尾", // post1（原 "  done()"）
       },
       {
         id: "ret1",

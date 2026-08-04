@@ -131,12 +131,12 @@ describe("Store round-trip", () => {
     expect(addAction!.elements.length).toBeGreaterThan(0);
   });
 
-  it("parsed store actions have code-block elements", () => {
+  it("parsed store actions have syntax-node elements", () => {
     const result = parseOmniSource(sampleStoreSource);
     const store = result.storeDef!;
     const addAction = store.actions.find((a) => a.name === "add")!;
-    // The add action body contains a @pid segment → a code-block element
-    expect(addAction.elements.some((e) => e.tag === "code-block")).toBe(true);
+    // The add action body contains a @pid segment → an assign element
+    expect(addAction.elements.some((e) => e.tag === "assign")).toBe(true);
   });
 
   // ── Emit → reparsing identity ─────────────────────────────────────────

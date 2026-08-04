@@ -11,6 +11,7 @@ import type { CodeblockElementData } from "../../core/types/element";
 import type { WireData } from "../../core/types/wire";
 import { uid } from "../../core/utils/id";
 import { parseOps } from "./code-op-parser";
+import { formatSyntaxNode, type SyntaxNodeProps } from "./syntax-nodes";
 import {
   isAnyAnnotation,
   parsePidAnnotation,
@@ -27,7 +28,7 @@ interface ParsedSegment {
   startLine: number;
   endLine: number;
   code: string;
-  type: "fn" | "code-block" | "condition" | "return";
+  type: "fn" | "code-block" | "condition" | "return" | "let" | "assign" | "store-call" | "call";
   operations?: import("../../core/types/code-op").CodeOp[];
 }
 
@@ -155,10 +156,12 @@ function splitByPid(
 // detectSegmentType – classify a segment from its first non-empty line
 // ---------------------------------------------------------------------------
 
+type SegmentType = "fn" | "code-block" | "condition" | "return" | "let" | "assign" | "store-call" | "call";
+
 /** Determine segment type from first non-empty line of code. */
 function detectSegmentType(
   lines: string[],
-): "fn" | "code-block" | "condition" | "return" {
+): SegmentType {
   const firstLine = lines.find((l) => l.trim()) || "";
   const trimmed = firstLine.trim();
 
@@ -172,6 +175,14 @@ function detectSegmentType(
     return "condition";
   if (trimmed.startsWith("return ") || trimmed === "return;" || trimmed === "return")
     return "return";
+  // Loop headers stay code-blocks (they look like call prefixes: `for (`).
+  // Mirrors TYPE_TO_SEGMENT: for/while → code-block.
+  if (/^(for|while)\s*\(/.test(trimmed)) return "code-block";
+  if (/^let\s+(mut\s+)?[a-zA-Z_]\w*/.test(trimmed)) return "let";
+  if (trimmed.startsWith("emit ")) return "call";
+  if (/^[A-Z]\w*\.[a-zA-Z_]\w*\s*\(/.test(trimmed)) return "store-call";
+  if (/^[a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*)?\s*\(/.test(trimmed)) return "call";
+  if (/^[a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*)?\s*(?:=|\+=|-=|\*=|\/=|%=)\s*/.test(trimmed)) return "assign";
   return "code-block";
 }
 
@@ -491,6 +502,14 @@ export function parseCodeFlowGraph(
       }
       // Store operations for later use
       seg.operations = operations;
+    } else if (
+      seg.type === "let" ||
+      seg.type === "assign" ||
+      seg.type === "store-call" ||
+      seg.type === "call"
+    ) {
+      props = parseSyntaxProps(seg.type, seg.code);
+      source = formatSyntaxNode(seg.type, props as SyntaxNodeProps);
     } else if (seg.type === "return") {
       // The return expression is always on the first line (trailing } may
       // follow on subsequent lines if this is the last segment in a block).
@@ -637,4 +656,44 @@ export function normalizeAnnotations(
   }
 
   return result.join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// parseSyntaxProps – extract syntax node props from code text
+// ---------------------------------------------------------------------------
+
+/**
+ * Extract props for a syntax node from its code text.
+ * Inverse of formatSyntaxNode (round-trip stable): every emitted line
+ * parses back into the same props, modulo trailing semicolons.
+ */
+function parseSyntaxProps(
+  type: "let" | "assign" | "store-call" | "call",
+  code: string,
+): Record<string, unknown> {
+  const line = code.split("\n").find((l) => l.trim()) || "";
+  const t = line.trim();
+
+  switch (type) {
+    case "let": {
+      const m = t.match(/^let\s+(mut\s+)?([a-zA-Z_]\w*)(?::\s*([\w<>, ]+?))?\s*=\s*(.*?);?\s*$/);
+      if (!m) return { name: "x", mutable: false };
+      return { name: m[2], mutable: !!m[1], varType: m[3] || undefined, value: m[4] };
+    }
+    case "assign": {
+      const m = t.match(/^([a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*)?)\s*(=|\+=|-=|\*=|\/=|%=)\s*(.*?);?\s*$/);
+      if (!m) return {};
+      return { target: m[1], operator: m[2], value: m[3] };
+    }
+    case "store-call": {
+      const m = t.match(/^([A-Z]\w*)\.([a-zA-Z_]\w*)\s*\((.*?)\)\s*;?\s*$/);
+      if (!m) return {};
+      return { storeName: m[1], action: m[2], args: m[3] };
+    }
+    case "call": {
+      const m = t.match(/^(emit\s+)?([a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*)?)\s*\((.*?)\)\s*;?\s*$/);
+      if (!m) return { fnName: "fn", args: "" };
+      return { emit: !!m[1], fnName: m[2], args: m[3] };
+    }
+  }
 }
