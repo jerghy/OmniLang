@@ -34,7 +34,7 @@ borrow-word check (排除词汇 must be disjoint from 语义词汇 and, for a11y
 must equal the legacy-flag list exactly).
 
 Usage:
-  python scripts/verify-vocabulary.py [--check|--inspect] [-v]
+  python scripts/verify-vocabulary.py [--check|--inspect]
   (default)  gate mode — exit 1 on any mismatch
   --check    gate mode, explicit
   --inspect  audit mode — never exit nonzero
@@ -69,8 +69,12 @@ DOMAIN_TITLES = {
 }
 # Required sub-section headers per domain (the four entry fields).
 REQUIRED_SUBSECTIONS = ("来源域", "语义词汇", "目标映射", "排除词汇")
-# a11y-only: the Flutter-mappable role subset and the live value domain.
-A11Y_EXTRA_SUBSECTIONS = ("role 子集", "live 值域")
+# a11y-only: the Flutter-mappable role subset and the live value domain,
+# each cross-asserted against its validator constant.
+A11Y_EXTRA_SUBSECTIONS = {
+    "role 子集": "FLUTTER_ROLE_SUBSET",
+    "live 值域": "LIVE_VALUES",
+}
 
 # ── whitelist extraction (compiler ground truth) ─────────────────────────
 
@@ -158,12 +162,15 @@ def first_column_rows(text):
         rows.append(cells)
     if not seen_header or not seen_separator:
         return None
-    return [cells[0] for cells in rows if cells and cells[0]]
+    for cells in rows:
+        if not cells[0]:
+            return None
+    return [cells[0] for cells in rows]
 
 
 # ── audit ────────────────────────────────────────────────────────────────
 
-def audit(verbose):
+def audit():
     problems = []
 
     def fail(msg):
@@ -193,7 +200,7 @@ def audit(verbose):
                 continue
             words = first_column_rows(sub)
             if words is None or not words:
-                fail(f"domain {n} ({title}): '### {header}' must be a table with ≥1 row")
+                fail(f"domain {n} ({title}): '### {header}' must be a well-formed table (header + separator + ≥1 row, no empty first column)")
                 continue
             if header == "语义词汇" and len(words) != len(set(words)):
                 fail(f"domain {n} ({title}): duplicate 语义词汇 {sorted({w for w in words if words.count(w) > 1})}")
@@ -242,16 +249,12 @@ def audit(verbose):
         title, body = sections[2]
         a11y_src = read_file(A11Y_VALIDATE_FILE)
         assert_set("a11y", vocab(2), bnf_production_words(read_file(BNF_SPEC_FILE), "a11y_entry"), "语义词汇")
-        role_sub = first_column_rows(subsection(body, "role 子集"))
-        if role_sub is None:
-            fail(f"domain 2 ({title}): missing '### role 子集' table")
-        else:
-            assert_set("a11y", role_sub, rust_str_array(a11y_src, "FLUTTER_ROLE_SUBSET"), "role 子集")
-        live_sub = first_column_rows(subsection(body, "live 值域"))
-        if live_sub is None:
-            fail(f"domain 2 ({title}): missing '### live 值域' table")
-        else:
-            assert_set("a11y", live_sub, rust_str_array(a11y_src, "LIVE_VALUES"), "live 值域")
+        for header, const_name in A11Y_EXTRA_SUBSECTIONS.items():
+            sub = first_column_rows(subsection(body, header))
+            if sub is None:
+                fail(f"domain 2 ({title}): missing '### {header}' table")
+            else:
+                assert_set("a11y", sub, rust_str_array(a11y_src, const_name), header)
         legacy = legacy_flag_roles(a11y_src)
         ex_a11y = excluded(2)
         if ex_a11y is not None:
@@ -289,10 +292,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true", help="exit 1 on failure (gate mode)")
     ap.add_argument("--inspect", action="store_true", help="never exit nonzero (audit mode)")
-    ap.add_argument("--verbose", "-v", action="store_true")
     args = ap.parse_args()
 
-    problems = audit(args.verbose)
+    problems = audit()
     print(f"\n=== vocabulary-registry gate: {problems and len(problems) or 0} problem(s) ===")
     for p in problems:
         print(f"FAIL {p}")

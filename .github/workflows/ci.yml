@@ -368,6 +368,13 @@ jobs:
       # gate, so a doc teaching removed syntax is caught in CI.
       - name: Parse-check every compilable doc block
         run: python3 scripts/verify-docs.py --omnic target/release/omnic --check
+      # Vocabulary-registry gate (Task 7.1, design P1): cross-asserts the
+      # registry against the compiler whitelists (4.2 event table, 4.3 a11y
+      # roles, 19-property whitelist, RefOp 10 ops, 13 token types). A
+      # whitelist change without a registry sync — or a platform flag name
+      # borrowed as semantic vocabulary — fails CI.
+      - name: Vocabulary-registry audit
+        run: python3 scripts/verify-vocabulary.py --check
       - name: Compile learn-omniview (omniview target)
         working-directory: test/projects/learn-omniview
         run: ../../target/release/omnic build --target omniview -o /tmp/omniview-docs-gate-out
