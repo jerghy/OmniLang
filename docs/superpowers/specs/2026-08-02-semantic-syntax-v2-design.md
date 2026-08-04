@@ -1,7 +1,7 @@
 # OmniLang 语义级 DSL v2 设计文档（全量重设计）
 
 **日期**: 2026-08-02
-**状态**: Implemented（2026-08-03 终验完成——learn-omniview 三目标全量绿 + 9 标签页浏览器全测 0 runtime error + 16 篇文档与编译器事实一致 + 注入载荷语料回归闭环；验证协议逐项勾选见 §4，逐域验收对照见 §5 各域验证清单）
+**状态**: Implemented（2026-08-03 终验完成——learn-omniview 三目标全量绿 + 9 标签页浏览器全测 0 runtime error + 16 篇文档与编译器事实一致 + 注入载荷语料回归闭环；验证协议逐项勾选见 §4，逐域验收对照见 §5 各域验证清单）。**注记（2026-08-05，v3 修复时代）**：本计划 Phase 6 起进入 v3 修复时代——终验复核发现 §7 两项承诺（#28 Map.set、#33 嵌套 #root）未落地，已按 `.architecture/deferrals.md` 台账如实标注（见 §7 deferrals 行）；v3 行为修复的权威追踪为 deferrals 台账 + `docs/superpowers/plans/2026-08-03-semantic-syntax-v3-fixes.md`，本设计文档不再宣称未实现承诺
 **依据**: `.architecture/reviews/feature-omniview-semantic-syntax-compilability.md`（13 专家评审）+ ADR-052/053/054/055
 **设计方法论**: 语义驱动分层（方案 A，用户确认）——每域：语义意图 → BNF v2 → 三目标手写对照样例 → 映射表 → 诊断表 → 验证清单；设计-验证循环（用户确认）
 
@@ -700,7 +700,7 @@ Semantics(liveRegion: true, child: Text(status))
 | codegen | 三后端 × 各域（最大：Flutter @for/classes/主题接线；React 函数发射/切片订阅/注入转义） |
 | 文档 | 语法规范 v2（逐域重写）、16 篇用户文档、设计文档 |
 | demo | 92 文件迁移（bind 遗留/a11y 属性/主题 demo 接线/AdvancedTypesDemo 去类型） |
-| deferrals | #17/#22 关闭；#28（Map.set）随域 8 处理；#30（match Flutter）随域 8 修复；#33（嵌套 #root）随域 6/终验处理 |
+| deferrals | #17/#22 关闭；#30（match Flutter）随域 8 修复并关闭；#28（Map.set）与 #33（嵌套 #root）**未落地**——2026-08-03 终验复核（T7.3）确认「随域 8 处理」「随域 6/终验处理」承诺未兑现（`Map.set` 三后端仍 verbatim 发射 → 运行期 TypeError；OmniView innerHTML 仍重包 `#root`，`[data-component]` 2 命中）。**2026-08-05（v3 Task 6.7）处置**：移出本设计实现范围，保持 defer-with-trigger——状态与触发条件以 `.architecture/deferrals.md` #28/#33 行为准 |
 | CI | 门禁扩展（§4.4）+ @if/@for fixture + 注入载荷回归 |
 
 ## 8. 伴随性修复清单（非语法，但随实现落地）
