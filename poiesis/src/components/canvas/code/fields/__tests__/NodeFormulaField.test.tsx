@@ -54,6 +54,16 @@ describe("NodeFormulaField", () => {
     expect(screen.getByText("<=")).toBeTruthy();
   });
 
+  it("光标在运算符串中间（<= 之间）→ 完整串无候选不弹层（不产生截断替换）", () => {
+    // token 覆盖完整 "<=" 而非截断的 "<"：候选表无 "<=" 前缀 → 弹层关闭，
+    // 避免选中候选只替换前半段、残留 "="（"count <==" 污染）
+    render(<NodeFormulaField value="" onCommit={vi.fn()} candidates={cands} ariaLabel="初始值" />);
+    const input = screen.getByLabelText("初始值") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "count <=", selectionStart: 6 } });
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(input.value).toBe("count <=");
+  });
+
   it("Enter 在弹层打开时选中候选（提交语义由后续 blur 完成）", () => {
     const onCommit = vi.fn();
     render(<NodeFormulaField value="" onCommit={onCommit} candidates={cands} ariaLabel="初始值" />);

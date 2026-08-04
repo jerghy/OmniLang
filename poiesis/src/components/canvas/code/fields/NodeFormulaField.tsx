@@ -110,22 +110,23 @@ export function NodeFormulaField({ value, onCommit, candidates, placeholder, ari
       const items = operatorCandidates(ctx.token);
       if (items.length === 0) { setMenu(null); return; }
       // 走 replaceToken 替换运算符前缀：insertAt 会把已键入的前缀字符（如 "<"）重复插入（"count <<="）
-      openMenu(ctx.tokenStart, cursor, [{ label: "运算符", items }], { tokenStart: ctx.tokenStart, cursor });
+      openMenu([{ label: "运算符", items }], { tokenStart: ctx.tokenStart, cursor });
       return;
     }
     if (ctx.kind === "member") {
       const items = candidates.storeSignals(ctx.storeName ?? "");
       if (items.length === 0) { setMenu(null); return; }
-      openMenu(ctx.tokenStart, cursor, [{ label: ctx.storeName ? `${ctx.storeName} 信号` : "成员", items }], { tokenStart: ctx.tokenStart, cursor });
+      openMenu([{ label: ctx.storeName ? `${ctx.storeName} 信号` : "成员", items }], { tokenStart: ctx.tokenStart, cursor });
       return;
     }
     // operand：变量/函数候选（前缀过滤）
     const items = candidates.filter(ctx.token);
     if (items.length === 0) { setMenu(null); return; }
-    openMenu(ctx.tokenStart, cursor, [{ label: "候选", items }], { tokenStart: ctx.tokenStart, cursor });
+    openMenu([{ label: "候选", items }], { tokenStart: ctx.tokenStart, cursor });
   };
 
-  const openMenu = (tokenStart: number, cursor: number, groups: MenuState["groups"], replace: MenuState["replace"]) => {
+  /** 打开候选弹层：replace 为选中候选的替换区间（tokenStart..cursor，null = 光标处插入兜底）。 */
+  const openMenu = (groups: MenuState["groups"], replace: MenuState["replace"]) => {
     const rect = inputRef.current?.getBoundingClientRect();
     if (!rect) { setMenu(null); return; }
     setMenu({ x: rect.left, y: rect.bottom + 4, groups, activeIdx: 0, replace });
