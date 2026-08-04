@@ -106,3 +106,40 @@ export function validateSyntaxProps(
   }
   return errors;
 }
+
+export interface FormulaCandidate { value: string; label: string }
+export interface FormulaGroup { label: string; items: FormulaCandidate[] }
+
+/** 公式框候选分组：变量/参数/信号/属性/计算属性/store 信号/store action/component fn。 */
+export function buildExpressionCandidates(scope: FlowScope, letVars: Array<{ name: string }>): FormulaGroup[] {
+  const groups: FormulaGroup[] = [];
+  const vars = [
+    ...letVars.map((v) => v.name),
+    ...scope.fnParams.map((p) => p.name),
+  ].filter(Boolean);
+  if (vars.length > 0) groups.push({ label: "变量", items: vars.map((n) => ({ value: n, label: n })) });
+  if (scope.signals.length > 0) groups.push({ label: "信号", items: scope.signals.map((s) => ({ value: s.name, label: `${s.name}: ${s.type}` })) });
+  if (scope.props.length > 0) groups.push({ label: "属性", items: scope.props.map((p) => ({ value: p.name, label: `${p.name}: ${p.type}` })) });
+  if (scope.computeds.length > 0) groups.push({ label: "计算属性", items: scope.computeds.map((c) => ({ value: c.name, label: `${c.name}: ${c.returnType}` })) });
+  const storeSignals = scope.stores.flatMap((s) => s.signals.map((sig) => ({ value: `${s.name}.${sig.name}`, label: `${s.name}.${sig.name}: ${sig.type}` })));
+  if (storeSignals.length > 0) groups.push({ label: "store 信号", items: storeSignals });
+  const calls = [
+    ...scope.fns.map((f) => ({ value: f.name, label: `${f.name}(${f.params.map((p) => p.name).join(", ")})` })),
+    ...scope.stores.flatMap((s) => s.actions.map((a) => ({ value: `${s.name}.${a.name}`, label: `${s.name}.${a.name}(${a.params.map((p) => `${p.name}: ${p.type}`).join(", ")})` }))),
+  ];
+  if (calls.length > 0) groups.push({ label: "函数", items: calls });
+  return groups;
+}
+
+/** assign target 下拉候选：变量类 + store 信号（Store.信号 格式）。 */
+export function buildTargetOptions(scope: FlowScope, letVars: Array<{ name: string }>): FormulaCandidate[] {
+  const names = [
+    ...letVars.map((v) => v.name),
+    ...scope.fnParams.map((p) => p.name),
+    ...scope.signals.map((s) => s.name),
+    ...scope.props.map((p) => p.name),
+    ...scope.computeds.map((c) => c.name),
+  ].filter(Boolean);
+  const storeSignals = scope.stores.flatMap((s) => s.signals.map((sig) => `${s.name}.${sig.name}`));
+  return [...new Set([...names, ...storeSignals])].map((n) => ({ value: n, label: n }));
+}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildFlowScope, parseFnParamsStr, filterCandidates, validateSyntaxProps, type FlowScope } from "../flow-scope";
+import { buildFlowScope, parseFnParamsStr, filterCandidates, validateSyntaxProps, buildExpressionCandidates, buildTargetOptions, type FlowScope } from "../flow-scope";
 
 const compDef = {
   name: "App", filePath: "App.omni",
@@ -126,4 +126,45 @@ it("call 空函数名报错，非空通过", () => {
 it("assign target 支持 Store.信号，拒绝多段路径", () => {
   expect(validateSyntaxProps("assign", { target: "ThemeStore.mode" }, {} as FlowScope)).toEqual([]);
   expect(validateSyntaxProps("assign", { target: "a.b.c" }, {} as FlowScope).some((x) => x.field === "target")).toBe(true);
+});
+
+const scope: FlowScope = {
+  signals: [{ name: "count", type: "i32" }],
+  props: [{ name: "title", type: "String" }],
+  computeds: [{ name: "double", returnType: "i32" }],
+  events: [],
+  fns: [{ name: "close", params: [] }],
+  stores: [{ name: "ThemeStore", actions: [{ name: "toggle", params: [] }], signals: [{ name: "mode", type: "String" }] }],
+  fnParams: [{ name: "step", type: "i32" }],
+  letVars: [{ name: "total" }],
+};
+
+describe("buildExpressionCandidates", () => {
+  it("分组完整：变量/参数/信号/属性/计算属性/store/函数", () => {
+    const groups = buildExpressionCandidates(scope, [{ name: "total" }]);
+    const all = groups.flatMap((g) => g.items).map((i) => i.value);
+    expect(all).toContain("total");          // let 变量
+    expect(all).toContain("step");           // fn 参数
+    expect(all).toContain("count");          // 信号
+    expect(all).toContain("title");          // 属性
+    expect(all).toContain("double");         // 计算属性
+    expect(all).toContain("ThemeStore.mode"); // store 信号
+    expect(all).toContain("close");          // component fn（F2 修复后非空）
+    expect(all).toContain("ThemeStore.toggle"); // store action
+  });
+  it("候选带类型/签名 label", () => {
+    const groups = buildExpressionCandidates(scope, [{ name: "total" }]);
+    const fnItem = groups.flatMap((g) => g.items).find((i) => i.value === "ThemeStore.toggle");
+    expect(fnItem?.label).toContain("toggle()");
+  });
+});
+
+describe("buildTargetOptions", () => {
+  it("变量类 + store 信号", () => {
+    const opts = buildTargetOptions(scope, [{ name: "total" }]);
+    const values = opts.map((o) => o.value);
+    expect(values).toContain("total");
+    expect(values).toContain("count");
+    expect(values).toContain("ThemeStore.mode");
+  });
 });
