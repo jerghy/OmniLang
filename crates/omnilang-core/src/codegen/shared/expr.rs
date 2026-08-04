@@ -13,6 +13,7 @@ use crate::codegen::{
     binary_op_to_str, format_block_as_expr, format_json_value, try_format_stdlib_call,
     JsonFormatConfig, Target,
 };
+use crate::error::{Diagnostic, DiagnosticKind, Severity};
 use crate::ir::*;
 
 // ═══════════════════════════════════════════════════════════
@@ -318,9 +319,12 @@ pub trait FormatExpr {
     /// methods are `Iterable`-returning — `filter` → `where(...).toList()`,
     /// `map` → `map(...).toList()`, `count` → `where(...).length` (no
     /// `toList` needed — length is available on the lazy Iterable).
-    /// Unmapped targets keep the verbatim method-call form (today's
-    /// behavior) — no new behavior for targets the design doc does not
-    /// promise.
+    /// Unmapped targets (Python/Rust/Dioxus) are floor-gated: the compile
+    /// pipeline hard-diagnoses them with E_CODEGEN
+    /// (`validate_array_method_floor`) BEFORE formatting; the sentinel
+    /// below keeps DIRECT formatter use loud too — a verbatim
+    /// `items.filter(..)` would be a nonexistent stdlib call (compiler
+    /// MEDIUM: runtime failure with zero diagnostics).
     fn format_array_method(
         &self,
         method: &ArrayMethodIR,
@@ -344,7 +348,27 @@ pub trait FormatExpr {
                     ArrayMethodIR::Map => "map",
                     ArrayMethodIR::Count => "count",
                 };
-                self.format_method_call(subject, name, &[predicate.to_string()])
+                if self.codegen_target() == Target::OmniView {
+                    // Defensive fallback: the OmniView generator routes
+                    // ArrayMethod through its own machinery (omniview/expr.rs)
+                    // and never reaches this trait default — keep the
+                    // historical verbatim form for the JS runtime.
+                    return self.format_method_call(subject, name, &[predicate.to_string()]);
+                }
+                let hint = match method {
+                    ArrayMethodIR::Filter => {
+                        "rewrite with an explicit loop (stdlib 'array_filter' is deprecated)"
+                    }
+                    ArrayMethodIR::Map => {
+                        "rewrite with an explicit loop (stdlib 'array_map' is deprecated)"
+                    }
+                    ArrayMethodIR::Count => {
+                        "rewrite with an explicit loop (there is no stdlib counterpart)"
+                    }
+                };
+                format!(
+                    "compile_error!(\"language array method '{name}' is not supported on this target — {hint}\")"
+                )
             }
         }
     }
@@ -475,6 +499,63 @@ pub trait FormatExpr {
             ExprIR::RefOpExpr { ref_name, op } => self.format_ref_op(ref_name, op),
         }
     }
+}
+
+// ═══════════════════════════════════════════════════════════
+// ArrayMethod floor gate (compiler MEDIUM, task 4.8)
+// ═══════════════════════════════════════════════════════════
+
+/// Whether the IR contains any `ExprIR::ArrayMethod` node.
+///
+/// Scans the FFI serialization shape (`#[serde(tag = "_kind")]` on `ExprIR`
+/// and `StatementIR` — the only two tagged enums; no statement variant
+/// collides): the exact tag+value pair `"_kind":"ArrayMethod"` is
+/// unambiguous — a user identifier named `ArrayMethod` serializes under
+/// `"_kind":"IdentifierExpr"` with the name in a different key. This
+/// mirrors the DCE pass's JSON-walk precedent (`ir/optimize.rs`:
+/// `walk_json_for_signal_refs`) and is complete by construction — every IR
+/// node is scanned, so no per-surface walker can drift and silently miss a
+/// position (the exact class of hole this floor exists to close).
+fn program_has_array_methods(ir: &IRProgram) -> bool {
+    serde_json::to_value(ir).is_ok_and(|v| v.to_string().contains("\"_kind\":\"ArrayMethod\""))
+}
+
+/// Codegen floor gate: language array methods (`items.filter(..)` etc.) on
+/// targets with no cross-target mapping.
+///
+/// The mapping table ([`FormatExpr::format_array_method`]) covers the JS
+/// family (React/Vue/JavaScript/TypeScript) and the Dart family
+/// (Dart/Flutter); OmniView has its own generator (omniview/expr.rs).
+/// Python/Rust/Dioxus have NO mapping — a verbatim emission would be a
+/// nonexistent stdlib call (compiler MEDIUM: wrong program, runtime
+/// failure, zero diagnostics). This gate hard-diagnoses E_CODEGEN for
+/// those targets, mirroring the design-block gate in the facade
+/// (`omnilang/src/codegen/mod.rs`), which calls this before dispatching to
+/// the backend.
+pub fn validate_array_method_floor(ir: &IRProgram, target: Target) -> Result<(), Vec<Diagnostic>> {
+    if !matches!(target, Target::Python | Target::Rust | Target::Dioxus) {
+        return Ok(());
+    }
+    if !program_has_array_methods(ir) {
+        return Ok(());
+    }
+    Err(vec![Diagnostic {
+        severity: Severity::Error,
+        kind: DiagnosticKind::ECodegen,
+        message: format!(
+            "language array methods (filter/map/count) are not supported on the {:?} target — \
+             they are mapped only on the JS family (filter/map/filter().length) and Dart family \
+             (where(...).toList()/where(...).length); rewrite with an explicit loop \
+             (stdlib 'array_filter'/'array_map' are deprecated)",
+            target
+        ),
+        file: None,
+        line: 0,
+        col: 0,
+        end_line: None,
+        end_col: None,
+        suggestion: None,
+    }])
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1060,9 +1141,18 @@ impl FormatExpr for RustFormatExpr {
         format!("match &{matched} {{\n{}\n}}", cases.join("\n"))
     }
 
-    fn format_block_expr(&self, _statements: &[StatementIR], tail: &ExprIR) -> String {
-        // Block statements not supported in expression context — drop them.
-        self.format_expr(tail)
+    // Rust natively supports block expressions — statements in expression
+    // position emit as a real `{ stmts; tail }` block (was: silent drop of
+    // the statements — rust MEDIUM, wrong programs with zero diagnostics).
+    fn format_block_expr(&self, statements: &[StatementIR], tail: &ExprIR) -> String {
+        if statements.is_empty() {
+            return self.format_expr(tail);
+        }
+        let stmts: Vec<String> = statements
+            .iter()
+            .map(|s| format!("  {};", format_block_stmt_rust(s, self)))
+            .collect();
+        format!("{{\n{}\n  {}\n}}", stmts.join("\n"), self.format_expr(tail))
     }
 }
 
@@ -1177,6 +1267,31 @@ fn format_block_stmt_dart(stmt: &StatementIR, fmt: &impl FormatExpr) -> String {
     }
 }
 
+/// Format a single statement as a Rust string for use inside block
+/// expressions (`RustFormatExpr::format_block_expr`). Mirrors the Dart
+/// helper's conventions (`let` bindings; `;` appended by the caller; the
+/// final statement of the block is the tail expression without `;`).
+fn format_block_stmt_rust(stmt: &StatementIR, fmt: &impl FormatExpr) -> String {
+    match stmt {
+        StatementIR::LetStmtIR { name, value, .. } => {
+            let val = value
+                .as_ref()
+                .map(|e| fmt.format_expr(e))
+                .unwrap_or_else(|| fmt.null_fallback().into());
+            format!("let {} = {}", fmt.format_identifier(name), val)
+        }
+        StatementIR::ExprStmtIR { expr } => fmt.format_expr(expr),
+        StatementIR::ReturnStmtIR { value } => {
+            let val = value
+                .as_ref()
+                .map(|e| fmt.format_expr(e))
+                .unwrap_or_else(|| fmt.null_fallback().into());
+            format!("return {}", val)
+        }
+        _ => "/* stmt */".into(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1242,6 +1357,21 @@ mod tests {
             out.contains("(() {") && out.contains("var x = 5;") && out.contains("return x;"),
             "dart block expr: {out}"
         );
+    }
+
+    #[test]
+    fn rust_block_expr_emits_block_expression() {
+        // rust MEDIUM: `RustFormatExpr::format_block_expr` used to drop the
+        // statements and emit only the tail — a silent wrong program (the
+        // trait default's debug_assert guard was overridden away). Rust
+        // natively supports block expressions, so the statements must be
+        // emitted as `{ stmts; tail }`.
+        let fmt = RustFormatExpr {
+            move_closures: false,
+            event_param_name: None,
+        };
+        let out = fmt.format_expr(&block_expr_with_stmt());
+        assert!(out.contains("let x = 5;"), "silent drop: {out}");
     }
 
     /// Helper: an `items.filter(|i| i.done)`-shaped ArrayMethod IR node.
@@ -1361,16 +1491,55 @@ mod tests {
     }
 
     #[test]
-    fn rust_family_keeps_verbatim_method_call() {
-        // Unmapped targets keep today's verbatim emission (design doc maps
-        // only JS-family + Dart-family; Rust/Python are out of scope).
+    fn rust_family_floors_unmapped_array_methods() {
+        // compiler MEDIUM: unmapped targets (Python/Rust/Dioxus) used to
+        // emit the verbatim `items.filter(..)` — a nonexistent stdlib call
+        // (runtime failure, zero diagnostics). The floor emits a hard
+        // `compile_error!` sentinel so even direct formatter use stays
+        // loud; the compile pipeline additionally gates these targets with
+        // E_CODEGEN before formatting (validate_array_method_floor).
         let fmt = RustFormatExpr {
             move_closures: false,
             event_param_name: None,
         };
-        assert_eq!(
-            fmt.format_expr(&filter_expr()),
-            "items.filter((|i| i.done))"
+        let out = fmt.format_expr(&filter_expr());
+        assert!(
+            out.contains("compile_error!") && out.contains("not supported"),
+            "unmapped targets must floor-gate array methods, got: {out}"
+        );
+    }
+
+    /// Compile .omni source through the real pipeline, then run the
+    /// production Python-target floor gate — the same function the compile
+    /// pipeline calls for unmapped targets. Returns (output, diagnostics)
+    /// with diagnostics in the FFI envelope shape (`DiagnosticJson`, whose
+    /// `.code` field carries the kind string like "E_CODEGEN").
+    fn compile_python_with_diags(source: &str) -> (String, Vec<crate::error::DiagnosticJson>) {
+        let out = crate::run_pipeline(source);
+        let mut diags: Vec<crate::error::Diagnostic> = out.diagnostics;
+        if let Err(errors) = validate_array_method_floor(&out.ir, Target::Python) {
+            diags.extend(errors);
+        }
+        let json: Vec<crate::error::DiagnosticJson> = diags
+            .iter()
+            .map(crate::error::DiagnosticJson::from)
+            .collect();
+        (String::new(), json)
+    }
+
+    #[test]
+    fn array_method_python_hard_diagnosed() {
+        // compiler MEDIUM: `items.filter(..)` used to emit verbatim on the
+        // Python target — the generated `items.filter(...)` is a nonexistent
+        // stdlib call (runtime failure, zero compiler diagnostics). The
+        // floor gate must hard-diagnose E_CODEGEN.
+        let (_, diags) = compile_python_with_diags(
+            r#"component V { view { @for item in items.filter(|x| x > 0) { <p>{item}</p> } } }"#,
+        );
+        assert!(
+            diags.iter().any(|d| d.code == "E_CODEGEN"),
+            "verbatim emission must be gated, got: {:?}",
+            diags
         );
     }
 

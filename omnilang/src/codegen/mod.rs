@@ -104,6 +104,19 @@ pub fn compile(
             warnings: vec![],
         };
     }
+    // Language array methods (filter/map/count) have cross-target mappings
+    // only on the JS and Dart families (OmniView has its own generator).
+    // On unmapped targets (Python, Rust, Dioxus) a verbatim `items.filter(..)`
+    // would emit a nonexistent stdlib call — hard-gate with E_CODEGEN
+    // (compiler MEDIUM, mirroring the design-block gate above).
+    if let Err(errors) = crate::codegen::shared::expr::validate_array_method_floor(ir, target) {
+        return CompileOutput {
+            files: vec![],
+            errors,
+            source_map: vec![],
+            warnings: vec![],
+        };
+    }
     #[allow(unreachable_patterns)]
     let mut output = match target {
         #[cfg(feature = "codegen-omniview")]
