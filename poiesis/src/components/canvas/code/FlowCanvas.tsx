@@ -21,6 +21,8 @@ import { ConditionNode } from "./nodes/ConditionNode";
 import { CodeBlockNode } from "./nodes/CodeBlockNode";
 import { ReturnNode } from "./nodes/ReturnNode";
 import { DesignPreviewNode } from "./nodes/DesignPreviewNode";
+import { SyntaxNode } from "./nodes/SyntaxNode";
+import { defaultSyntaxProps } from "../../../services/codegen/syntax-nodes";
 import { CODE_TAGS, TAG_CN, type ContextMenuState } from "./flowConstants";
 import { ContextMenu } from "./CanvasContextMenu";
 import { CodeBlockEditor } from "./CodeBlockEditor";
@@ -35,6 +37,10 @@ const nodeTypes = {
   "condition": ConditionNode,
   "return": ReturnNode,
   "design-preview": DesignPreviewNode,
+  "let": SyntaxNode,
+  "assign": SyntaxNode,
+  "store-call": SyntaxNode,
+  "call": SyntaxNode,
 };
 
 function FlowCanvasInner() {
@@ -97,7 +103,7 @@ function FlowCanvasInner() {
       if (!contextMenu) return;
       const id = uid(tag);
       const jitter = Math.random() * 40 - 20;
-      const props: Record<string, unknown> = {};
+      let props: Record<string, unknown> = {};
 
       if (tag === "fn") {
         props.name = "newFn";
@@ -105,6 +111,9 @@ function FlowCanvasInner() {
       }
       if (tag === "condition") {
         props.branches = [{ id: "br0", type: "if", condition: "" }];
+      }
+      if (["let", "assign", "store-call", "call"].includes(tag)) {
+        props = { ...defaultSyntaxProps(tag) };
       }
 
       const newEl: CodeblockElementData = {
@@ -246,6 +255,8 @@ function FlowCanvasInner() {
         className: selectedNodeIds.includes(el.id) ? "flow-node-selected" : "",
         data: {
           label: TAG_CN[el.tag] || el.tag,
+          tag: el.tag,
+          props: el.props,
           source: el.source,
           fnName: el.props?.name as string,
           params: el.props?.params as string,

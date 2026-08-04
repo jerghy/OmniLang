@@ -1,0 +1,33 @@
+.node {
+  border-radius: var(--ol-radius-md);
+  padding: var(--ol-space-2p5) 14px;
+  min-width: 180px;
+  max-width: 280px;
+  font-size: var(--ol-font-size-12);
+  font-family: var(--ol-font-family-mono);
+  cursor: pointer;
+  white-space: pre-wrap;
+  word-break: break-all;
+  line-height: var(--ol-line-height-normal);
+}
+/* tag 色系：let 蓝（primary）、assign 青（info）、store-call 橙（warning）、call 绿（success） */
+.node[data-node-type="let"] {
+  background: var(--ol-color-primary-subtle);
+  border: 1.5px solid var(--ol-color-primary);
+  color: var(--ol-color-primary-active);
+}
+.node[data-node-type="assign"] {
+  background: var(--ol-color-info-muted);
+  border: 1.5px solid var(--ol-color-info);
+  color: var(--ol-gray-700);
+}
+.node[data-node-type="store-call"] {
+  background: var(--ol-color-warning-muted);
+  border: 1.5px solid var(--ol-color-warning);
+  color: var(--ol-gray-700);
+}
+.node[data-node-type="call"] {
+  background: var(--ol-color-success-muted);
+  border: 1.5px solid var(--ol-color-success);
+  color: var(--ol-gray-700);
+}
