@@ -552,7 +552,7 @@ ListView.builder(itemCount: items.length, itemBuilder: (c, i) => ListTile(key: V
 
 #### 语义定义
 
-「事件」让编译器知道：**用户与元素交互时触发处理器，并携带该事件的类型化数据**（20 种类型化事件 schema，保留 v1）。
+「事件」让编译器知道：**用户与元素交互时触发处理器，并携带该事件的类型化数据**（54 canonical 事件 schema，保留 v1）。
 
 #### BNF v2
 

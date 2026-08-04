@@ -375,6 +375,15 @@ jobs:
       # borrowed as semantic vocabulary — fails CI.
       - name: Vocabulary-registry audit
         run: python3 scripts/verify-vocabulary.py --check
+      # Semantic-universe gate (Task 7.2, design P3): cross-asserts the
+      # semantic full set against its implementation-status matrix — every
+      # entry must carry a status (支持/部分/未支持 + diagnostic behavior),
+      # the whitelists must be a subset of the semantic set, and 支持/部分
+      # entries must be in the whitelist while 未支持 entries must not. A
+      # whitelist change without a universe registration — or a claimed
+      # implementation absent from the whitelist — fails CI.
+      - name: Semantic-universe audit
+        run: python3 scripts/verify-semantic-universe.py --check
       - name: Compile learn-omniview (omniview target)
         working-directory: test/projects/learn-omniview
         run: ../../target/release/omnic build --target omniview -o /tmp/omniview-docs-gate-out
