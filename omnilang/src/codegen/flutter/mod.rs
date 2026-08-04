@@ -6,6 +6,9 @@
 //! Uses `super::dart::dart_type()` for Dart type annotations.
 
 mod design;
+mod design_classes;
+mod design_theme;
+mod design_tokens;
 mod expr;
 mod motion;
 mod motion_widgets;
