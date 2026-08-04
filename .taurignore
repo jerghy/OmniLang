@@ -1,0 +1,6 @@
+# Tauri dev watcher ignores — Poiesis 前端只通过 WASM 使用编译器，
+# 这些 workspace 成员的源码变化不应触发 Tauri 应用重建/重启。
+# 见 tauri-apps/tauri issue #4617（默认 watch 所有 workspace members）。
+crates/
+omnilang/
+omnilang-wasm/
