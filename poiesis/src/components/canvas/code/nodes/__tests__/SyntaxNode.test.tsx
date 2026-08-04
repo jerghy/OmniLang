@@ -108,3 +108,61 @@ describe("SyntaxNode 内联编辑", () => {
     expect(select.className).toContain("invalid");
   });
 });
+
+describe("SyntaxNode 公式框集成", () => {
+  const scope = {
+    signals: [{ name: "count", type: "i32" }],
+    props: [], computeds: [], events: [],
+    fns: [{ name: "close", params: [] }],
+    stores: [{ name: "ThemeStore", actions: [], signals: [{ name: "mode", type: "String" }] }],
+    fnParams: [{ name: "step", type: "i32" }],
+    letVars: [],
+  };
+
+  it("assign value 渲染公式框（data-field-kind=formula）", () => {
+    const onEditProp = vi.fn();
+    const { container } = render(
+      <SyntaxNode data={{ id: "n1", label: "赋值", tag: "assign", props: { target: "count", operator: "=", value: "0" }, scope, onEditProp }} />,
+    );
+    expect(container.querySelector('[data-field-kind="formula"]')).toBeTruthy();
+  });
+
+  it("assign value 输入字母弹候选（scope 信号/变量）", () => {
+    const { container } = render(
+      <SyntaxNode data={{ id: "n1", label: "赋值", tag: "assign", props: { target: "count", operator: "=", value: "" }, scope, letVars: [{ name: "total" }], onEditProp: vi.fn() }} />,
+    );
+    const input = container.querySelector('[data-field-kind="formula"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "tot", selectionStart: 3 } });
+    // 候选菜单（role=listbox）内应出现 total；target 下拉也有同名 option（letVars 目标），故限定菜单作用域
+    expect(container.querySelector('[role="listbox"]')?.textContent).toContain("total");
+  });
+
+  it("assign target 渲染下拉（NodeSelect + store 信号候选）", () => {
+    const { container } = render(
+      <SyntaxNode data={{ id: "n1", label: "赋值", tag: "assign", props: { target: "", operator: "=", value: "0" }, scope, onEditProp: vi.fn() }} />,
+    );
+    const select = container.querySelector('select[data-field-kind="select"]') as HTMLSelectElement;
+    expect(select).toBeTruthy();
+    expect(Array.from(select.options).map((o) => o.value)).toContain("ThemeStore.mode");
+  });
+
+  it("let value 渲染公式框且提交走 onEditProp", () => {
+    const onEditProp = vi.fn();
+    const { container } = render(
+      <SyntaxNode data={{ id: "n1", label: "变量声明", tag: "let", props: { name: "x", mutable: false, value: "0" }, scope, onEditProp }} />,
+    );
+    const input = container.querySelector('[data-field-kind="formula"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "count + 1" } });
+    fireEvent.blur(input);
+    expect(onEditProp).toHaveBeenCalledWith("n1", "value", "count + 1");
+  });
+
+  it("value 括号不配对 → 警告条（只提示不阻塞）", () => {
+    const { container } = render(
+      <SyntaxNode data={{ id: "n1", label: "赋值", tag: "assign", props: { target: "count", operator: "=", value: "(count + 1" }, scope, onEditProp: vi.fn() }} />,
+    );
+    expect(screen.getByText(/未闭合的括号/)).toBeTruthy();
+    // 不阻塞：公式框仍可输入
+    expect(container.querySelector('[data-field-kind="formula"]')).toBeTruthy();
+  });
+});

@@ -25,6 +25,7 @@ import { DesignPreviewNode } from "./nodes/DesignPreviewNode";
 import { SyntaxNode } from "./nodes/SyntaxNode";
 import { defaultSyntaxProps } from "../../../services/codegen/syntax-nodes";
 import { useFlowScope } from "../../../services/codegen/flow-scope-hook";
+import { collectLetVarsPerFn, findOwnerFnId } from "../../../services/codegen/fn-topology";
 import { CODE_TAGS, TAG_CN } from "./flowConstants";
 import { NodeSearchMenu } from "./NodeSearchMenu";
 import { CodeBlockEditor } from "./CodeBlockEditor";
@@ -281,6 +282,9 @@ function FlowCanvasInner() {
     [elements],
   );
 
+  // 按 wire 拓扑推断每个 fn 的 let 变量（多 fn 隔离）：语法节点公式框候选数据源
+  const letVarsByFn = useMemo(() => collectLetVarsPerFn(codeElements, wires), [codeElements, wires]);
+
   const nodes: RFNode[] = useMemo(
     () =>
       codeElements.map((el) => ({
@@ -315,11 +319,13 @@ function FlowCanvasInner() {
           ...(CODE_TAGS.has(el.tag) && el.tag !== "code-block" ? {
             id: el.id,
             scope: flowScope ?? undefined,
+            // 所属 fn 的 let 变量（wire 拓扑反推）：fn 节点自身也携带（不渲染公式框，无害）
+            letVars: letVarsByFn.get(findOwnerFnId(el.id, codeElements, wires) ?? "") ?? [],
             onEditProp: (id: string, prop: string, value: unknown) => setProp(id, prop, value),
           } : {}),
         },
       })),
-    [codeElements, selectedNodeIds, setEditingNodeId, setProp, flowScope],
+    [codeElements, selectedNodeIds, setEditingNodeId, setProp, flowScope, letVarsByFn],
   );
 
   const edges = useMemo(

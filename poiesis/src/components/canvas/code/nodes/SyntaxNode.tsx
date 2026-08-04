@@ -5,7 +5,9 @@ import { Handle, Position } from "@xyflow/react";
 import React, { useMemo } from "react";
 import { formatSyntaxNode, type SyntaxNodeProps, ASSIGN_OPERATORS } from "../../../../services/codegen/syntax-nodes";
 import { NodeTextField, NodeSelect, NodeChipToggle, NodeArgsRows } from "../fields/NodeField";
-import { validateSyntaxProps, filterCandidates, type FlowScope } from "../../../../services/codegen/flow-scope";
+import { NodeFormulaField, type FormulaCandidateSource } from "../fields/NodeFormulaField";
+import { countUnbalancedParens } from "../fields/expression-trigger";
+import { validateSyntaxProps, filterCandidates, buildExpressionCandidates, buildTargetOptions, type FlowScope } from "../../../../services/codegen/flow-scope";
 import styles from "./SyntaxNode.module.css";
 
 const OMNI_TYPES = ["String", "i32", "i64", "f64", "f32", "bool", "Array<String>", "Array<i32>", "Array<f64>", "Map<String, String>"];
@@ -19,6 +21,8 @@ interface Props {
     tag: string;
     props?: Record<string, unknown>;
     scope?: FlowScope;
+    // FlowCanvas 按 wire 拓扑注入所属 fn 的 let 变量（公式框候选数据源）
+    letVars?: Array<{ name: string }>;
     onEditProp?: (id: string, prop: string, value: unknown) => void;
   };
 }
@@ -35,7 +39,7 @@ class HandlesBoundary extends React.Component<{ children: React.ReactNode }, { f
 }
 
 const SyntaxNode = React.memo(function SyntaxNode({ data }: Props) {
-  const { tag, props = {}, scope, onEditProp } = data;
+  const { tag, props = {}, scope, letVars, onEditProp } = data;
   const id = data.id ?? "el";
   const set = (prop: string, value: unknown) => onEditProp?.(id, prop, value);
 
@@ -60,9 +64,34 @@ const SyntaxNode = React.memo(function SyntaxNode({ data }: Props) {
     return filterCandidates("", base).map((c) => ({ value: c.name, label: c.name }));
   }, [scope]);
 
-  const targetPlaceholder = tag === "assign"
-    ? scope?.signals[0] ? `e.g. ${scope.signals[0].name} / ThemeStore.mode` : "e.g. count / ThemeStore.mode"
-    : undefined;
+  // 公式框候选源：scope 全量候选扁平化 + store 信号分组（member 上下文）。
+  // 候选插入是草稿的一部分（NodeFormulaField 内部处理），SyntaxNode 只管 onCommit → set("value", v)。
+  const formulaSource = useMemo<FormulaCandidateSource | undefined>(() => {
+    if (!scope) return undefined;
+    const all = buildExpressionCandidates(scope, letVars ?? []);
+    const flat = all.flatMap((g) => g.items);
+    const flatStore = all.find((g) => g.label === "store 信号")?.items ?? [];
+    return {
+      filter: (q) => {
+        const t = q.trim();
+        if (!t) return flat.slice(0, 8);
+        return flat.filter((c) => c.value.startsWith(t)).slice(0, 8);
+      },
+      storeSignals: (storeName) => flatStore.filter((c) => c.value.startsWith(`${storeName}.`)).slice(0, 8),
+    };
+  }, [scope, letVars]);
+
+  // 括号配对轻校验（spec §4.5：只提示不阻塞；跳过字符串字面量内的括号）
+  const parenIssue = useMemo(() => {
+    if (tag !== "assign" && tag !== "let") return null;
+    const v = (props.value as string) ?? "";
+    if (!v) return null;
+    const n = countUnbalancedParens(v);
+    if (n > 0) return { field: "value", message: `表达式有 ${n} 个未闭合的括号` };
+    if (n < 0) return { field: "value", message: `表达式有 ${-n} 个多余的右括号` };
+    return null;
+  }, [tag, props.value]);
+  const allErrors = parenIssue ? [...errors, parenIssue] : errors;
 
   const code = useMemo(() => formatSyntaxNode(tag, props as SyntaxNodeProps), [tag, props]);
 
@@ -91,10 +120,11 @@ const SyntaxNode = React.memo(function SyntaxNode({ data }: Props) {
               <NodeSelect value={(props.varType as string) ?? ""} options={TYPE_OPTS} onCommit={(v) => set("varType", v || undefined)} ariaLabel="类型" allowCustom />
             </div>
             <div className={styles.row}>
-              <NodeTextField
+              <NodeFormulaField
                 value={(props.value as string) ?? ""}
+                candidates={formulaSource}
                 onCommit={(v) => set("value", v)}
-                placeholder="初始值（可放表达式）"
+                placeholder="初始值（变量/值/运算）"
                 ariaLabel="初始值"
                 className={styles.grow}
               />
@@ -104,19 +134,21 @@ const SyntaxNode = React.memo(function SyntaxNode({ data }: Props) {
 
         {tag === "assign" && (
           <div className={styles.row}>
-            <NodeTextField
+            <NodeSelect
               value={(props.target as string) ?? ""}
+              options={scope ? buildTargetOptions(scope, letVars ?? []) : []}
               onCommit={(v) => set("target", v)}
-              placeholder={targetPlaceholder}
               ariaLabel="目标"
               invalid={errorFields.has("target")}
+              allowCustom
               className={styles.grow}
             />
             <NodeSelect value={(props.operator as string) ?? "="} options={ASSIGN_OPERATORS.map((op) => ({ value: op, label: op }))} onCommit={(v) => set("operator", v)} ariaLabel="运算符" />
-            <NodeTextField
+            <NodeFormulaField
               value={(props.value as string) ?? ""}
+              candidates={formulaSource}
               onCommit={(v) => set("value", v)}
-              placeholder="表达式"
+              placeholder="表达式（变量/值/运算）"
               ariaLabel="表达式"
               className={styles.grow}
             />
@@ -189,9 +221,9 @@ const SyntaxNode = React.memo(function SyntaxNode({ data }: Props) {
       {/* 预览：formatSyntaxNode 单一来源（data-syntax-code 属性 + 节点底部文本） */}
       <div className={styles.codePreview}>{code}</div>
 
-      {errors.length > 0 && (
+      {allErrors.length > 0 && (
         <div className={styles.warnBar}>
-          {errors.map((e) => <div key={e.field}>{e.message}</div>)}
+          {allErrors.map((e) => <div key={e.field}>{e.message}</div>)}
         </div>
       )}
 
