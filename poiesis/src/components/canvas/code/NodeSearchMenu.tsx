@@ -94,7 +94,7 @@ export function NodeSearchMenu({ x, y, onSelect, onClose }: Props) {
   const top = Math.min(y, vwH - 320);
 
   return (
-    <div ref={rootRef} className={styles.menu} style={{ left, top }} role="menu" onContextMenu={(e) => e.preventDefault()}>
+    <div ref={rootRef} className={styles.menu} style={{ left, top }} role="listbox" id="node-search-results" onContextMenu={(e) => e.preventDefault()}>
       <input
         ref={inputRef}
         className={styles.search}
@@ -105,6 +105,7 @@ export function NodeSearchMenu({ x, y, onSelect, onClose }: Props) {
         aria-label="搜索节点"
         role="combobox"
         aria-expanded="true"
+        aria-controls="node-search-results"
       />
       <div ref={listRef} className={styles.list}>
         {flat.length === 0 ? (
@@ -120,6 +121,8 @@ export function NodeSearchMenu({ x, y, onSelect, onClose }: Props) {
                     type="button"
                     key={item.tag}
                     data-menu-index={idx}
+                    role="option"
+                    aria-selected={idx === activeIdx}
                     className={`${styles.item} ${idx === activeIdx ? styles.itemActive : ""}`}
                     onClick={() => select(item.tag)}
                     onMouseEnter={() => setActiveIdx(idx)}

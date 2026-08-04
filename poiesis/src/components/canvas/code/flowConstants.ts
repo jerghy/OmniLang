@@ -1,12 +1,5 @@
 // components/canvas/code/flowConstants.ts
-// Constants and types shared between FlowCanvas and CanvasContextMenu.
-
-export interface ContextMenuState {
-  x: number;
-  y: number;
-  flowX: number;
-  flowY: number;
-}
+// Constants shared between FlowCanvas and NodeSearchMenu.
 
 /** Chinese labels for code-element tags shown in nodes */
 export const TAG_CN: Record<string, string> = {
@@ -67,6 +60,3 @@ export const MENU_SECTIONS: MenuSection[] = [
     ],
   },
 ];
-
-export const MENU_WIDTH = 210;
-export const ITEM_HEIGHT = 30;

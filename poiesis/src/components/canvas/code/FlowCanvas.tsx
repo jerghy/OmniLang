@@ -24,8 +24,8 @@ import { DesignPreviewNode } from "./nodes/DesignPreviewNode";
 import { SyntaxNode } from "./nodes/SyntaxNode";
 import { defaultSyntaxProps } from "../../../services/codegen/syntax-nodes";
 import { useFlowScope } from "../../../services/codegen/flow-scope-hook";
-import { CODE_TAGS, TAG_CN, type ContextMenuState } from "./flowConstants";
-import { ContextMenu } from "./CanvasContextMenu";
+import { CODE_TAGS, TAG_CN } from "./flowConstants";
+import { NodeSearchMenu } from "./NodeSearchMenu";
 import { CodeBlockEditor } from "./CodeBlockEditor";
 import type { CodeBlockEditorContext } from "./CodeBlockEditor";
 import type { DependencyInfo } from "../../../core/types/dependency-info";
@@ -48,6 +48,7 @@ function FlowCanvasInner() {
   const elements = useCodeElements();
   const wires = useWires();
   const addElement = usePoiesisStore((s) => s.addElement);
+  const addWire = usePoiesisStore((s) => s.addWire);
   const codeFlowElementId = usePoiesisStore(
     (s) => s.designPage.codeFlowElementId,
   );
@@ -59,77 +60,80 @@ function FlowCanvasInner() {
   const { screenToFlowPosition } = useReactFlow();
   const flowWrapperRef = useRef<HTMLDivElement>(null);
 
-  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
-  const [collapsedSections, setCollapsedSections] = useState<Set<number>>(new Set());
-  const menuRef = useRef<HTMLDivElement>(null);
+  // ── 搜索菜单（替换原 ContextMenu）：右键 / 空格 / 拖出端口创建唤出 ──
+  const [menuState, setMenuState] = useState<{ x: number; y: number; flowX: number; flowY: number } | null>(null);
+  const pendingDragRef = useRef<{ nodeId: string } | null>(null);
+  const menuOpenAtRef = useRef(0); // 300ms 防误关
+  // 与 menuState 同步——空格分支在绑定一次的键盘闭包中经 ref 读最新值（刻意模式，勿重构）
+  const menuOpenRef = useRef(false);
 
-  // Reset collapsed sections when menu opens
-  useEffect(() => {
-    if (contextMenu) setCollapsedSections(new Set());
-  }, [contextMenu]);
-
-  // Close menu on click outside
-  useEffect(() => {
-    if (!contextMenu) return;
-    const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setContextMenu(null);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [contextMenu]);
-
-  // Close menu on Escape
-  useEffect(() => {
-    if (!contextMenu) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setContextMenu(null);
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [contextMenu]);
-
-  const handlePaneContextMenu = useCallback(
-    (event: React.MouseEvent | MouseEvent) => {
-      event.preventDefault();
-      const pos = screenToFlowPosition({ x: event.clientX, y: event.clientY });
-      setContextMenu({ x: event.clientX, y: event.clientY, flowX: pos.x, flowY: pos.y });
+  const openMenuAt = useCallback(
+    (x: number, y: number) => {
+      const pos = screenToFlowPosition({ x, y });
+      menuOpenAtRef.current = Date.now();
+      menuOpenRef.current = true;
+      setMenuState({ x, y, flowX: pos.x, flowY: pos.y });
     },
     [screenToFlowPosition],
   );
 
-  const handleAddNode = useCallback(
+  // 右键画布
+  const handlePaneContextMenu = useCallback(
+    (event: React.MouseEvent | MouseEvent) => {
+      event.preventDefault();
+      if (Date.now() - menuOpenAtRef.current < 300) return; // 防误关（刚打开时忽略）
+      pendingDragRef.current = null;
+      openMenuAt(event.clientX, event.clientY);
+    },
+    [openMenuAt],
+  );
+
+  // ── 拖出创建状态机：仅 source/flow-out 端口拖出记录，空白释放→菜单→选中自动连线 ──
+  const onConnectStart = useCallback(
+    (_e: unknown, params: { nodeId: string | null; handleId: string | null; handleType: string | null }) => {
+      if (params.handleId === "flow-out" || params.handleType === "source") {
+        if (params.nodeId) pendingDragRef.current = { nodeId: params.nodeId };
+      } else {
+        pendingDragRef.current = null;
+      }
+    },
+    [],
+  );
+
+  const onConnectEnd = useCallback(
+    (event: MouseEvent | TouchEvent) => {
+      if (pendingDragRef.current && isPaneRelease(event)) {
+        openMenuAt(
+          event instanceof MouseEvent ? event.clientX : window.innerWidth / 2,
+          event instanceof MouseEvent ? event.clientY : window.innerHeight / 2,
+        );
+        // pendingDragRef 保留：菜单选中时取用
+      } else {
+        pendingDragRef.current = null;
+      }
+    },
+    [openMenuAt],
+  );
+
+  // 菜单选中：若 pendingDrag 存在则自动连线
+  const handleMenuSelect = useCallback(
     (tag: string) => {
-      if (!contextMenu) return;
+      if (!menuState) return;
       const id = uid(tag);
       const jitter = Math.random() * 40 - 20;
       let props: Record<string, unknown> = {};
-
-      if (tag === "fn") {
-        props.name = "newFn";
-        props.params = "";
+      if (tag === "fn") { props = { name: "newFn", params: "" }; }
+      if (tag === "condition") { props = { branches: [{ id: "br0", type: "if", condition: "" }] }; }
+      if (["let", "assign", "store-call", "call"].includes(tag)) { props = { ...defaultSyntaxProps(tag) }; }
+      addElement({ id, nodeType: "codeblock", tag, props, parentId: null, position: { x: menuState.flowX + jitter, y: menuState.flowY + jitter }, source: "" });
+      if (pendingDragRef.current) {
+        addWire({ id: uid("wire"), fromId: pendingDragRef.current.nodeId, fromPort: "flow-out", toId: id, toPort: "flow-in" });
+        pendingDragRef.current = null;
       }
-      if (tag === "condition") {
-        props.branches = [{ id: "br0", type: "if", condition: "" }];
-      }
-      if (["let", "assign", "store-call", "call"].includes(tag)) {
-        props = { ...defaultSyntaxProps(tag) };
-      }
-
-      const newEl: CodeblockElementData = {
-        id,
-        nodeType: "codeblock",
-        tag,
-        props,
-        parentId: null,
-        position: { x: contextMenu.flowX + jitter, y: contextMenu.flowY + jitter },
-        source: "",
-      };
-      addElement(newEl);
-      setContextMenu(null);
+      menuOpenRef.current = false;
+      setMenuState(null);
     },
-    [contextMenu, addElement],
+    [menuState, addElement, addWire],
   );
 
   // ── Store actions ──
@@ -138,7 +142,6 @@ function FlowCanvasInner() {
   const setProp = usePoiesisStore((s) => s.setProp);
   const setElementSource = usePoiesisStore((s) => s.setElementSource);
   const setNodeMeta = usePoiesisStore((s) => s.setNodeMeta);
-  const addWire = usePoiesisStore((s) => s.addWire);
   // ── Context for CodeBlockEditor WASM analysis ──
   const activeTabId = usePoiesisStore((s) => s.designPage.activeTabId);
   const openTabs = usePoiesisStore((s) => s.designPage.openTabs);
@@ -189,6 +192,19 @@ function FlowCanvasInner() {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      // 空格：画布内唤出搜索菜单（非输入焦点）。菜单开关经 menuOpenRef 读最新值，
+      // 因为本闭包只绑定一次（刻意模式，勿改依赖）——直接读 menuState 会拿到旧值。
+      if (
+        e.key === " " &&
+        !menuOpenRef.current &&
+        !(e.target instanceof HTMLInputElement) &&
+        !(e.target instanceof HTMLTextAreaElement) &&
+        !(e.target instanceof HTMLSelectElement)
+      ) {
+        e.preventDefault();
+        openMenuAt(window.innerWidth / 2, window.innerHeight / 2);
+        return;
+      }
       const ids = selectedNodeIdsRef.current;
       if (ids.length === 0) return;
       // Skip if user is typing in an input
@@ -393,7 +409,7 @@ function FlowCanvasInner() {
               ? "双击组件元素进入代码节点流编辑"
               : "右键画布添加节点，或从组件标签页双击进入"}
           </div>
-          <div style={{ fontSize: 11, opacity: 0.7 }}>右键 → 添加节点</div>
+          <div style={{ fontSize: 11, opacity: 0.7 }}>右键 / 空格 / 拖出端口 → 添加节点</div>
         </div>
       ) : (
         <ReactFlow
@@ -411,6 +427,8 @@ function FlowCanvasInner() {
           onPaneClick={() => setSelectedNodeIds([])}
           onNodeDragStop={onNodeDragStop}
           onConnect={onConnect}
+          onConnectStart={onConnectStart}
+          onConnectEnd={onConnectEnd}
           onPaneContextMenu={handlePaneContextMenu}
           onNodeContextMenu={handleNodeContextMenu}
         >
@@ -424,22 +442,17 @@ function FlowCanvasInner() {
         </ReactFlow>
       )}
 
-      {/* Right-click context menu with collapsible sections and overflow handling */}
-      {contextMenu && (
-        <ContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
-          menuRef={menuRef}
-          collapsedSections={collapsedSections}
-          onToggleSection={(i) => setCollapsedSections((prev) => {
-            const next = new Set(prev);
-            if (next.has(i)) next.delete(i); else next.add(i);
-            return next;
-          })}
-          onSelectNode={(tag) => {
-            handleAddNode(tag);
+      {/* 搜索菜单：右键 / 空格 / 拖出创建唤出 */}
+      {menuState && (
+        <NodeSearchMenu
+          x={menuState.x}
+          y={menuState.y}
+          onSelect={handleMenuSelect}
+          onClose={() => {
+            pendingDragRef.current = null;
+            menuOpenRef.current = false;
+            setMenuState(null);
           }}
-          onClose={() => setContextMenu(null)}
         />
       )}
 
@@ -557,4 +570,11 @@ export function FlowCanvas() {
       <FlowCanvasInner />
     </ReactFlowProvider>
   );
+}
+
+/** 释放目标判定：空白 pane 释放（非 handle/非节点）→ 触发拖出创建。 */
+export function isPaneRelease(event: { target: EventTarget | null }): boolean {
+  const t = event.target;
+  if (!(t instanceof HTMLElement)) return false;
+  return !t.closest(".react-flow__handle") && !t.closest(".react-flow__node");
 }

@@ -65,4 +65,11 @@ describe("NodeSearchMenu", () => {
     fireEvent.change(screen.getByPlaceholderText("搜索节点…"), { target: { value: "zzz" } });
     expect(screen.getByText("无匹配节点")).toBeTruthy();
   });
+
+  it("combobox aria-controls 指向结果列表 id", () => {
+    render(<NodeSearchMenu x={0} y={0} onSelect={vi.fn()} onClose={vi.fn()} />);
+    const input = screen.getByLabelText("搜索节点");
+    expect(input.getAttribute("aria-controls")).toBe("node-search-results");
+    expect(document.getElementById("node-search-results")).toBeTruthy();
+  });
 });
