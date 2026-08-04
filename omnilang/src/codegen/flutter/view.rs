@@ -916,14 +916,23 @@ fn wrap_design_decorations(el: &ElementIR, inner: String, ctx: &mut ViewContext)
 /// `Semantics` flag argument. Returns `None` for unmappable roles — the
 /// caller warns and degrades (honest degradation: the role still passes
 /// through as an attribute on the web targets).
+///
+/// The vocabulary is WAI-ARIA canonical (Task 4.3, domain HIGH-2): `textbox`
+/// and `img` map internally to the Flutter flags `textField: true` /
+/// `image: true`. The legacy flag names still map too — `semantic/
+/// validate_a11y` warns users toward the canonical names, so pre-v3 sources
+/// keep working while migrating and web output never carries
+/// `role="textField"`.
 fn role_to_semantics_flag(role: &str) -> Option<&'static str> {
     match role {
         "button" => Some("button: true"),
-        "textField" => Some("textField: true"),
+        // textbox (ARIA canonical) | textField (legacy flag name)
+        "textbox" | "textField" => Some("textField: true"),
         "link" => Some("link: true"),
         "checkbox" => Some("checkbox: true"),
         "radio" => Some("radio: true"),
-        "image" => Some("image: true"),
+        // img (ARIA canonical) | image (legacy flag name)
+        "img" | "image" => Some("image: true"),
         _ => None,
     }
 }
@@ -965,8 +974,8 @@ fn wrap_a11y(el: &ElementIR, inner: String, ctx: &mut ViewContext) -> String {
             None => {
                 ctx.warnings.push(format!(
                     "[flutter] a11y role '{role}' is not in the Flutter \
-                     Semantics subset (button/textField/link/checkbox/radio/\
-                     image); degraded — no Semantics flag (the role still \
+                     Semantics subset (button/textbox/link/checkbox/radio/\
+                     img); degraded — no Semantics flag (the role still \
                      passes through on the web targets)"
                 ));
             }
@@ -1011,7 +1020,7 @@ fn wrap_a11y(el: &ElementIR, inner: String, ctx: &mut ViewContext) -> String {
             let safe_role = role.replace("*/", "* /");
             degradation_comment = format!(
                 "/* a11y: role '{safe_role}' has no Flutter Semantics flag \
-                 (subset: button/textField/link/checkbox/radio/image); \
+                 (subset: button/textbox/link/checkbox/radio/img); \
                  degraded — no Semantics flag emitted */ "
             );
         }

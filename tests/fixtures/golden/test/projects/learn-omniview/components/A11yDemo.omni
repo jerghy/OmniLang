@@ -3,7 +3,7 @@
 // ║                                                              ║
 // ║  演示 a11y: { ... } 元素属性块的五种语义原语：                 ║
 // ║    · label   —— 可访问名称（→ aria-label / Semantics label）  ║
-// ║    · role    —— 语义角色（button/textField/link 等子集）      ║
+// ║    · role    —— 语义角色（button/textbox/link 等 ARIA 规范名）║
 // ║    · hidden  —— 对辅助技术隐藏（→ aria-hidden / Exclude）     ║
 // ║    · live    —— 实时区域（polite/assertive → aria-live）      ║
 // ║    · alt     —— 图像替代文本（→ alt / semanticLabel）         ║
@@ -38,7 +38,7 @@ component A11yDemo {
                 <input
                     class: search-input
                     placeholder="Search..."
-                    a11y: { label: "Search", role: "textField" }
+                    a11y: { label: "Search", role: "textbox" }
                 />
                 <p class: LearnDesign.Hint>
                     纯图标按钮借助 label 获得可访问名称；输入框通过 role 声明搜索框角色

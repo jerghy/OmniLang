@@ -658,12 +658,12 @@ Semantics(liveRegion: true, child: Text(status))
 | 语义 | React | Flutter | OmniView |
 |------|-------|---------|----------|
 | label | `aria-label` | `Semantics(label:)`/`semanticLabel` | aria-label 透传 |
-| role | `role` | 语义角色子集（button/textField/link/checkbox → 对应 flags；其余 → warning） | role 透传 |
+| role | `role` | ARIA 规范角色子集（button/textbox/link/checkbox/radio/img → 对应 flags；其余 → warning） | role 透传 |
 | hidden | `aria-hidden` | `ExcludeSemantics`（动态：条件包裹） | aria-hidden 透传 |
 | live | `aria-live` | `Semantics(liveRegion:)` | aria-live 透传 |
 | alt | `alt`（img） | `Image.alt`/`semanticLabel` | alt 透传 |
 
-**Flutter role 子集**：可映射角色（button/textField/link/checkbox/radio/image）→ Semantics flags；不可映射 → warning + 生成代码注释（诚实降级）。诊断表记录子集。
+**Flutter role 子集**（Task 4.3 词汇 ARIA 化）：可映射角色为 WAI-ARIA 规范名（button/textbox/link/checkbox/radio/img）→ Semantics flags（内部映射：`textbox` → `textField: true`、`img` → `image: true`）；不可映射 → warning + 生成代码注释（诚实降级）。遗留 Flutter 旗标名（textField/image）→ warning + 建议规范名（textbox/img），codegen 仍内部映射保证既有源码不破（web 输出不再出现非法 `role="textField"`）。诊断表记录子集。
 
 #### 验证清单
 

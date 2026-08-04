@@ -8,8 +8,9 @@
 //! that Flutter silently dropped).
 //!
 //! This pass enforces the two value contracts after lowering:
-//! - `role` must be in the Flutter-mappable subset
-//!   (button/textField/link/checkbox/radio/image). Roles outside the subset
+//! - `role` must be in the WAI-ARIA-canonical, Flutter-mappable subset
+//!   (button/textbox/link/checkbox/radio/img). Legacy Flutter Semantics flag
+//!   names (textField/image) warn with the canonical suggestion; other roles
 //!   warn — they degrade on Flutter (no Semantics flag) but pass through on
 //!   the web targets (design doc: 不可映射 role → warning + 生成代码注释).
 //! - `live` accepts only `"polite"` / `"assertive"` (the BNF restricts the
@@ -22,12 +23,21 @@
 use crate::error::{Diagnostic, DiagnosticKind, Severity};
 use crate::ir::{ComponentIR, ViewTree};
 
-/// Flutter-mappable semantic roles (design doc 域 10 映射表): each maps to
-/// a `Semantics` flag (`button: true` etc.). Roles outside this subset warn
-/// — Flutter degrades (no flag) with a generated-code comment, the web
-/// targets pass the role through as an attribute.
-pub const FLUTTER_ROLE_SUBSET: &[&str] =
-    &["button", "textField", "link", "checkbox", "radio", "image"];
+/// Flutter-mappable semantic roles (design doc 域 10 映射表), expressed in
+/// WAI-ARIA canonical names (domain HIGH-2: the vocabulary used to be Flutter
+/// Semantics flag shapes — `textField`/`image` — so the web targets emitted
+/// illegal `role="textField"`). Each name maps to a `Semantics` flag
+/// (`button: true` etc.); `textbox`/`img` map internally to
+/// `textField: true`/`image: true`. Roles outside this subset warn — Flutter
+/// degrades (no flag) with a generated-code comment, the web targets pass
+/// the role through as an attribute.
+pub const FLUTTER_ROLE_SUBSET: &[&str] = &["button", "textbox", "link", "checkbox", "radio", "img"];
+
+/// Legacy Flutter Semantics flag names accepted before the vocabulary became
+/// WAI-ARIA-canonical — each maps to its canonical ARIA role. Using them
+/// warns with the canonical replacement (migration hint); the Flutter
+/// codegen still maps them internally so existing sources keep working.
+pub const LEGACY_FLAG_ROLES: &[(&str, &str)] = &[("textField", "textbox"), ("image", "img")];
 
 /// Valid `live` values — aria-live polite/assertive (design doc BNF).
 pub const LIVE_VALUES: &[&str] = &["polite", "assertive"];
@@ -46,12 +56,29 @@ fn walk_view_tree(tree: &ViewTree, component: &ComponentIR, diagnostics: &mut Ve
         ViewTree::Element(el) => {
             if let Some(ref a11y) = el.a11y {
                 if let Some(ref role) = a11y.role {
-                    if !FLUTTER_ROLE_SUBSET.contains(&role.as_str()) {
+                    if let Some(canonical) = LEGACY_FLAG_ROLES
+                        .iter()
+                        .find(|(flag, _)| *flag == role.as_str())
+                        .map(|(_, canonical)| *canonical)
+                    {
+                        // Legacy Flutter Semantics flag name — not a
+                        // WAI-ARIA role. Warn with the canonical replacement
+                        // (migration hint); codegen still maps it so the
+                        // source keeps working while migrating.
                         diagnostics.push(warning_diag(
                             component,
                             format!(
-                                "a11y role '{role}' 不在 Flutter 语义角色子集 \
-                                 (button/textField/link/checkbox/radio/image)；\
+                                "a11y role '{role}' 是 Flutter Semantics 旗标名，\
+                                 非 WAI-ARIA 角色；请改用规范名 '{canonical}' \
+                                 （Flutter 内部映射回原旗标）"
+                            ),
+                        ));
+                    } else if !FLUTTER_ROLE_SUBSET.contains(&role.as_str()) {
+                        diagnostics.push(warning_diag(
+                            component,
+                            format!(
+                                "a11y role '{role}' 不在 Flutter 可映射角色子集 \
+                                 (button/textbox/link/checkbox/radio/img)；\
                                  Flutter 目标降级（无 Semantics flag），其余目标透传"
                             ),
                         ));
@@ -187,7 +214,7 @@ mod tests {
 
     #[test]
     fn mappable_role_no_diagnostic() {
-        // button/textField/link/checkbox/radio/image — no warnings at all.
+        // button/textbox/link/checkbox/radio/img — no warnings at all.
         for role in FLUTTER_ROLE_SUBSET {
             let comp = make_component(
                 "Test",
@@ -202,6 +229,36 @@ mod tests {
                 diagnostics.is_empty(),
                 "role '{role}' must not diagnose, got: {:?}",
                 diagnostics
+            );
+        }
+    }
+
+    #[test]
+    fn legacy_flag_role_suggests_canonical_name() {
+        // textField/image are Flutter Semantics flag names, not WAI-ARIA
+        // roles — warn once with the canonical replacement (Task 4.3,
+        // domain HIGH-2: web output must never carry role="textField").
+        for (legacy, canonical) in LEGACY_FLAG_ROLES {
+            let comp = make_component(
+                "Test",
+                vec![ViewTree::Element(Box::new(make_el(
+                    "input",
+                    a11y_with(Some(legacy), None),
+                )))],
+            );
+            let mut diagnostics = Vec::new();
+            validate_a11y(&comp, &mut diagnostics);
+            assert_eq!(
+                diagnostics.len(),
+                1,
+                "legacy role '{legacy}' must warn exactly once, got: {:?}",
+                diagnostics
+            );
+            assert_eq!(diagnostics[0].severity, Severity::Warning);
+            assert!(
+                diagnostics[0].message.contains(canonical),
+                "legacy role '{legacy}' must suggest canonical '{canonical}', got: {}",
+                diagnostics[0].message
             );
         }
     }

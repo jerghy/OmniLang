@@ -646,9 +646,11 @@ pub struct A11yIR {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
     /// Semantic role (→ role / Semantics flags subset / role). The
-    /// Flutter-mappable subset (button/textField/link/checkbox/radio/image)
-    /// is enforced with a warning by `semantic/validate_a11y`; other roles
-    /// degrade on Flutter with a generated-code comment.
+    /// WAI-ARIA-canonical, Flutter-mappable subset
+    /// (button/textbox/link/checkbox/radio/img) is enforced with a warning
+    /// by `semantic/validate_a11y`; legacy Flutter flag names warn with the
+    /// canonical suggestion, other roles degrade on Flutter with a
+    /// generated-code comment.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub role: Option<String>,
     /// Hidden from assistive technology (→ aria-hidden / ExcludeSemantics).
