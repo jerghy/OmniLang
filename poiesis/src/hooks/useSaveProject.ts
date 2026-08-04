@@ -9,6 +9,7 @@ import { emitStoreDefinition } from "../services/codegen/source-emitter";
 import { validateSources } from "../services/monaco/diagnostics";
 import type { CodeTab } from "../core/types/codegraph";
 import type { StoreDefinition } from "../core/types/store";
+import type { CodeblockElementData } from "../core/types/element";
 import { createLogger } from "../lib/utils/logger";
 
 const log = createLogger("save");
@@ -139,6 +140,26 @@ export function useSaveProject() {
         const storeDef = store.storeDefs[activeTab.componentName];
         let source: string;
         if (storeDef) {
+          // Sync the working code flow (the selected action's canvas) into the
+          // action def. StorePage only writes elements/wires back on action
+          // switch, so edits made without switching would otherwise be lost.
+          const tabData = store.tabData[activeTab.id];
+          const selectedActionPid = tabData?.selectedActionPid;
+          if (selectedActionPid) {
+            const codeblockElements = store.elements.filter(
+              (e): e is CodeblockElementData => e.nodeType === "codeblock",
+            );
+            const action = storeDef.actions.find((a) => a.pid === selectedActionPid);
+            if (action && (codeblockElements.length > 0 || store.wires.length > 0)) {
+              store.updateStoreAction(activeTab.componentName, selectedActionPid, {
+                elements: codeblockElements,
+                wires: store.wires,
+              });
+              storeDef.actions = storeDef.actions.map((a) =>
+                a.pid === selectedActionPid ? { ...a, elements: codeblockElements, wires: store.wires } : a,
+              );
+            }
+          }
           source = emitStoreDefinition(storeDef);
         } else {
           // New store with no members yet — write minimal stub

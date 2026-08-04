@@ -180,9 +180,11 @@ function detectSegmentType(
   if (/^(for|while)\s*\(/.test(trimmed)) return "code-block";
   if (/^let\s+(mut\s+)?[a-zA-Z_]\w*/.test(trimmed)) return "let";
   if (trimmed.startsWith("emit ")) return "call";
-  if (/^[A-Z]\w*\.[a-zA-Z_]\w*\s*\(/.test(trimmed)) return "store-call";
-  if (/^[a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*)?\s*\(/.test(trimmed)) return "call";
-  if (/^[a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*)?\s*(?:=|\+=|-=|\*=|\/=|%=)\s*/.test(trimmed)) return "assign";
+  // Tokenizer-spaced text ("TodoStore . add ( ) ;") must still match —
+  // allow optional whitespace around the ".".
+  if (/^[A-Z]\w*\s*\.\s*[a-zA-Z_]\w*\s*\(/.test(trimmed)) return "store-call";
+  if (/^[a-zA-Z_]\w*(?:\s*\.\s*[a-zA-Z_]\w*)?\s*\(/.test(trimmed)) return "call";
+  if (/^[a-zA-Z_]\w*(?:\s*\.\s*[a-zA-Z_]\w*)?\s*(?:=|\+=|-=|\*=|\/=|%=)\s*/.test(trimmed)) return "assign";
   return "code-block";
 }
 
@@ -480,11 +482,13 @@ export function parseCodeFlowGraph(
     if (seg.type === "fn") {
       // Capture fn name, params, and optional return type (-> Type).
       // The fn body may contain the opening brace after the signature.
+      // Note: source text from the omni tokenizer may carry spaces between
+      // tokens (e.g. "fn newAction ( )") — params are trimmed.
       const sigMatch = seg.code.match(/fn\s+(\w+)\s*\(([^)]*)\)\s*(?:->\s*(\w+))?/);
       props = {
         name: sigMatch?.[1] || "unnamed",
-        params: sigMatch?.[2] || "",
-        returnType: sigMatch?.[3] || "",
+        params: (sigMatch?.[2] || "").trim(),
+        returnType: (sigMatch?.[3] || "").trim(),
       };
     } else if (seg.type === "condition") {
       // Use combined code from all segments inside the condition so that
@@ -678,22 +682,24 @@ function parseSyntaxProps(
     case "let": {
       const m = t.match(/^let\s+(mut\s+)?([a-zA-Z_]\w*)(?::\s*([\w<>, ]+?))?\s*=\s*(.*?);?\s*$/);
       if (!m) return { name: "x", mutable: false };
-      return { name: m[2], mutable: !!m[1], varType: m[3] || undefined, value: m[4] };
+      return { name: m[2], mutable: !!m[1], varType: m[3] || undefined, value: m[4].trim() };
     }
     case "assign": {
-      const m = t.match(/^([a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*)?)\s*(=|\+=|-=|\*=|\/=|%=)\s*(.*?);?\s*$/);
+      // Allow optional whitespace around the "." — source from the omni
+      // tokenizer may be spaced ("newSignal2 = newSignal2 + 1 ;").
+      const m = t.match(/^([a-zA-Z_]\w*(?:\s*\.\s*[a-zA-Z_]\w*)?)\s*(=|\+=|-=|\*=|\/=|%=)\s*(.*?);?\s*$/);
       if (!m) return {};
-      return { target: m[1], operator: m[2], value: m[3] };
+      return { target: m[1].trim(), operator: m[2], value: m[3].trim() };
     }
     case "store-call": {
-      const m = t.match(/^([A-Z]\w*)\.([a-zA-Z_]\w*)\s*\((.*?)\)\s*;?\s*$/);
+      const m = t.match(/^([A-Z]\w*)\s*\.\s*([a-zA-Z_]\w*)\s*\((.*?)\)\s*;?\s*$/);
       if (!m) return {};
-      return { storeName: m[1], action: m[2], args: m[3] };
+      return { storeName: m[1], action: m[2], args: m[3].trim() };
     }
     case "call": {
-      const m = t.match(/^(emit\s+)?([a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*)?)\s*\((.*?)\)\s*;?\s*$/);
+      const m = t.match(/^(emit\s+)?([a-zA-Z_]\w*(?:\s*\.\s*[a-zA-Z_]\w*)?)\s*\((.*?)\)\s*;?\s*$/);
       if (!m) return { fnName: "fn", args: "" };
-      return { emit: !!m[1], fnName: m[2], args: m[3] };
+      return { emit: !!m[1], fnName: m[2], args: m[3].trim() };
     }
   }
 }

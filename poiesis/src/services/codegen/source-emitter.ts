@@ -111,26 +111,27 @@ export function emitStoreDefinition(store: StoreDefinition): string {
       const actionFnPid = a.elements.find((e) => e.tag === "fn")?.id;
       if (actionFnPid) {
         const body = compileCodeFlowGraph(a.elements, a.wires, actionFnPid);
-        const lines = body.split("\n");
-        // Skip first line (fn signature + @pid) and last line (closing })
-        const innerLines = lines.slice(1, -1);
-        let hasContent = false;
-        for (const line of innerLines) {
-          const trimmed = line.trim();
-          if (trimmed.length > 0) {
-            w.emit(trimmed);
-            hasContent = true;
+        if (body.trim().length > 0) {
+          // The compiled body is a full fn definition:
+          //   // @pid:<fnId>\nfn <name>(<params>) {\n  <body>\n}
+          // Emit it verbatim — the fn statement is the editor's round-trip
+          // carrier for the action's fn element (parseCodeFlowGraph
+          // reconstructs it on load), and its closing "}" keeps the action
+          // block balanced.
+          const lines = body.split("\n");
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (trimmed.length > 0) w.emit(trimmed);
           }
-        }
-        // Ensure the fn block is properly closed even if compileCodeFlowGraph
-        // produced incomplete output (e.g. fn element with no children).
-        if (!hasContent) {
-          // Emit an empty fn block to keep the syntax valid
+        } else {
+          // fn element present but no reachable statements — emit an empty
+          // fn block so the fn element is still reconstructed on reload.
           w.emit(`fn ${a.name}() {`);
           w.emit(`}`);
         }
       } else {
-        // No fn element found — emit a minimal valid fn block
+        // No fn element found — emit a minimal valid fn block so the action's
+        // fn element is bootstrapped on the next load.
         w.emit(`fn ${a.name}() {`);
         w.emit(`}`);
       }
