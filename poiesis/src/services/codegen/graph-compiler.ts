@@ -5,6 +5,7 @@
 import type { CodeblockElementData } from "../../core/types/element";
 import type { WireData } from "../../core/types/wire";
 import { emitOps } from "./code-op-emitter";
+import { formatSyntaxNode, type SyntaxNodeProps } from "./syntax-nodes";
 
 interface GraphNode {
   element: CodeblockElementData;
@@ -188,6 +189,20 @@ function emitNode(
         }
       }
 
+      return out;
+    }
+
+    case "let":
+    case "assign":
+    case "store-call":
+    case "call": {
+      let out = emitPidComment(pid);
+      out += `${pad}${formatSyntaxNode(tag, (node.element.props ?? {}) as SyntaxNodeProps)}\n`;
+      // Emit successor (control flow continues)
+      for (const succId of node.successors) {
+        const succ = adj.get(succId);
+        if (succ) out += emitNode(succ, adj, indent, visited);
+      }
       return out;
     }
 
