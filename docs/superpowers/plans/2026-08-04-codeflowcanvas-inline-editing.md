@@ -723,7 +723,7 @@ git commit -m "feat(canvas): flow-scope 补全候选数据层 + 轻量即时校�
 
 **Interfaces:**
 - Consumes: `NodeTextField/NodeSelect/NodeChipToggle/NodeArgsRows`（Task 1/2）、`FlowScope/validateSyntaxProps/filterCandidates`（Task 3）、`formatSyntaxNode`（既有）、`useFlowScope`（Task 3）
-- Produces: SyntaxNode data 契约扩展——`data: { label: string; tag: string; props?: Record<string, unknown>; scope?: FlowScope; onEditProp?: (id: string, prop: string, value: unknown) => void }`；FlowCanvas 传入 `scope`（useFlowScope）与 `onEditProp`（setProp 包装，内含"scope 不存在时跳过"守卫）
+- Produces: SyntaxNode data 契约扩展——`data: { id: string; label: string; tag: string; props?: Record<string, unknown>; scope?: FlowScope; onEditProp?: (id: string, prop: string, value: unknown) => void }`；FlowCanvas 传入 `id: el.id`、`scope`（useFlowScope）与 `onEditProp`（setProp 包装）
 
 - [ ] **Step 1: 写失败测试**
 
@@ -744,7 +744,7 @@ const scope: FlowScope = {
 
 function renderNode(tag: string, props: Record<string, unknown>, onEditProp = vi.fn()) {
   return render(
-    <SyntaxNode data={{ label: tag, tag, props, scope, onEditProp }} />
+    <SyntaxNode data={{ id: "l1", label: tag, tag, props, scope, onEditProp }} />
   );
 }
 
@@ -791,7 +791,7 @@ describe("SyntaxNode 内联编辑", () => {
 
   it("call 的 emit 徽章显示 emit 前缀", () => {
     renderNode("call", { fnName: "onSelect", args: "x", emit: true });
-    expect(screen.getByText(/emit/)).toBeTruthy();
+    expect(screen.getAllByText("emit").length).toBeGreaterThan(0);
   });
 
   it("assign 运算符下拉变更提交", () => {
@@ -847,7 +847,7 @@ interface Props {
 
 const SyntaxNode = React.memo(function SyntaxNode({ data }: Props) {
   const { tag, props = {}, scope, onEditProp } = data;
-  const id = useMemo(() => (props as { __id?: string }).__id ?? "el", [props]);
+  const id = data.id ?? "el";
   const set = (prop: string, value: unknown) => onEditProp?.(id, prop, value);
 
   const errors = useMemo(
@@ -1041,6 +1041,7 @@ export { SyntaxNode };
 3. `nodes` useMemo 的 data 中为 4 个语法 tag 追加：
 ```tsx
 ...(CODE_TAGS.has(el.tag) && el.tag !== "code-block" ? {
+  id: el.id,
   scope: flowScope ?? undefined,
   onEditProp: (id: string, prop: string, value: unknown) => setProp(id, prop, value),
 } : {}),
@@ -1114,11 +1115,9 @@ describe("ReturnNode 内联编辑", () => {
     expect(screen.getByText(/items\.len\(\)/)).toBeTruthy();
   });
 
-  it("双击进入编辑，Enter 提交", () => {
+  it("点击表达式区进入编辑，Enter 提交", () => {
     const onCommit = vi.fn();
-    render(<ReturnNode data={{ label: "返回", returnExpr: "x", onDoubleClick: undefined }} />);
-    // ReturnNode 使用内部编辑态 + setElementSource 回调（经 FlowCanvas data.onDoubleClick 同源）
-    // 本用例验证点击编辑入口：见实现——return 表达式区点击即编辑
+    render(<ReturnNode data={{ label: "返回", returnExpr: "x", onCommitReturn: onCommit }} />);
     fireEvent.click(screen.getByText("return x"));
     const input = screen.getByLabelText("return 表达式");
     fireEvent.change(input, { target: { value: "y" } });
@@ -1273,7 +1272,7 @@ describe("filterMenuItems", () => {
 describe("NodeSearchMenu", () => {
   it("挂载后自动聚焦搜索框", () => {
     render(<NodeSearchMenu x={0} y={0} onSelect={vi.fn()} onClose={vi.fn()} />);
-    expect(screen.getByPlaceholderText("搜索节点…")).toHaveFocus();
+    expect(document.activeElement).toBe(screen.getByPlaceholderText("搜索节点…"));
   });
 
   it("输入过滤并高亮命中", () => {
@@ -1729,6 +1728,7 @@ vi.mock("../../../../store", () => ({
       componentDefs: {},
       storeDefs: {},
       inlineStoreDefs: {},
+      designPage: { activeTabId: "t1", openTabs: [] },
     }),
 }));
 
@@ -1892,4 +1892,4 @@ git commit -m "docs: CodeFlowCanvas 内联编辑升级实现计划（9 任务，
 
 - **Spec 覆盖**：节点内联编辑（Task 1/2/4/5）、搜索菜单（Task 6）、拖出创建+空格+右键（Task 7）、面板降级（Task 8）、补全数据层+校验（Task 3）、E2E（Task 9）。Spec 中"弹层纪律/防误关/useDismissOnCanvasGesture 等价实现"落在 Task 7（onMoveStart 关闭未单独列出——已在 Task 7 实现说明中覆盖为"菜单外点击关闭"，画布平移时菜单不锚定节点、随 viewport 移动，无残留风险，故不引入额外关闭逻辑——偏差已说明）。
 - **占位符扫描**：无 TBD/TODO；每个代码步骤含完整实现。
-- **类型一致性**：`FlowScope` 结构 Task 3 定义、Task 4/8 消费一致；`NodeTextField` 的 `onCommit` 签名在 Task 1/4/5 一致；`isPaneRelease` Task 7 定义与测试一致；`filterMenuItems`/`NodeSearchMenu` props 在 Task 6 定义、Task 7 消费一致。`onEditProp(id, prop, value)` 契约 Task 4 定义（id 取自 props.__id——实现内以占位 `"el"` 兜底，FlowCanvas 注入时若需真实 id 可在 data 中传 `id` 字段——**偏差说明**：测试断言用 `"l1"`，实现需在 FlowCanvas 注入 `__id: el.id`；SyntaxNode 测试中 renderNode 直接传 props 而不带 __id，断言 onEditProp 参数为 "l1" 会失败——修正：测试 renderNode 的 props 传入 `{ __id: "l1", name: "x", ... }`）。
+- **类型一致性**：`FlowScope` 结构 Task 3 定义、Task 4/8 消费一致；`NodeTextField` 的 `onCommit` 签名在 Task 1/4/5 一致；`isPaneRelease` Task 7 定义与测试一致；`filterMenuItems`/`NodeSearchMenu` props 在 Task 6 定义、Task 7 消费一致。`onEditProp(id, prop, value)` 契约 Task 4 定义——节点元素 id 经 `data.id` 传入（FlowCanvas 注入 `id: el.id`），测试经 renderNode 传 `id: "l1"`；实现无兜底占位（`data.id ?? "el"` 仅在直接渲染节点组件时兜底）。
