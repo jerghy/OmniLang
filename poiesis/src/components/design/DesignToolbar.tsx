@@ -1,5 +1,5 @@
 // components/design/DesignToolbar.tsx
-// Toolbar row with undo, save, open project, and code view buttons.
+// Toolbar row with undo/redo, save, open project, and code view buttons.
 
 import type { ReactNode } from "react";
 import styles from "./DesignToolbar.module.css";
@@ -8,6 +8,7 @@ interface DesignToolbarProps {
   isDirty: boolean;
   saving: boolean;
   onUndo: () => void;
+  onRedo?: () => void;
   onSave: () => void;
   onOpenProject: () => void;
   showCode: boolean;
@@ -20,6 +21,7 @@ export function DesignToolbar({
   isDirty,
   saving,
   onUndo,
+  onRedo,
   onSave,
   onOpenProject,
   showCode,
@@ -32,6 +34,7 @@ export function DesignToolbar({
       <button type="button"
         onClick={onUndo}
         title="撤销 (Ctrl+Z)"
+        aria-label="撤销"
         style={{
           padding: "2px 8px",
           fontSize: 13,
@@ -43,6 +46,22 @@ export function DesignToolbar({
         }}
       >
         ↩
+      </button>
+      <button type="button"
+        onClick={onRedo}
+        title="重做 (Ctrl+Shift+Z)"
+        aria-label="重做"
+        style={{
+          padding: "2px 8px",
+          fontSize: 13,
+          border: "1px solid transparent",
+          borderRadius: 4,
+          background: "transparent",
+          cursor: "pointer",
+          lineHeight: 1,
+        }}
+      >
+        ↪
       </button>
       <button type="button"
         onClick={onSave}

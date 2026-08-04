@@ -144,6 +144,7 @@ function useProjectPanel(onProjectOpened?: (path: string, name: string) => void)
 
 export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: string, name: string) => void }) {
   const undo = usePoiesisStore((s) => s.undo);
+  const redo = usePoiesisStore((s) => s.redo);
   const isDirty = usePoiesisStore((s) => s.isDirty);
   const activeTabType = usePoiesisStore((s) => {
     const activeId = s.designPage.activeTabId;
@@ -238,11 +239,12 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
           <DesignTabBar />
         </div>
 
-        {/* Toolbar row — undo / save / CSS styles */}
+        {/* Toolbar row — undo / redo / save / CSS styles */}
         <DesignToolbar
           isDirty={isDirty}
           saving={saving}
           onUndo={undo}
+          onRedo={redo}
           onSave={handleSave}
           onOpenProject={() => setShowProjectPanel(true)}
           showCode={showCode}

@@ -304,7 +304,8 @@ function FlowCanvasInner() {
           returnExpr: el.source,
           onCommitReturn: (expr: string) => setElementSource(el.id, expr),
           description: el.props?.description as string | undefined,
-          onDoubleClick: () => setEditingNodeId(el.id),
+          // fn 无 source（CodeBlockEditor 打开即空白）：双击仅聚焦选中（FlowInspector 表单编辑参数）
+          onDoubleClick: el.tag === "fn" ? undefined : () => setEditingNodeId(el.id),
           onUpdateBranches: (branches: unknown) => {
             setProp(el.id, "branches", branches);
           },
