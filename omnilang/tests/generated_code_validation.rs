@@ -946,14 +946,27 @@ fn learn_omniview_flutter_output_passes_dart_analyze() {
 /// so a regression (or an un-documented new warning source) fails the gate
 /// here, even while `dart analyze` stays green. Warnings are not errors:
 /// they must be lowered deliberately, warning by warning, never re-baselined
-/// upward. Remaining binding warnings (8 slots) are genuine drops, tracked
-/// for the later warning-lowering tasks: 4× `bind:value` on textarea/select
-/// (→ Container mapping gap: FormControlsDemo select, FormPage / DataSubmit /
-/// ViewAttributesDemo textareas), 3× `bind:value` beside a user `@onChange`
-/// handler (the onChanged param is occupied — FilterBar / FormPage name+email
-/// / FormControlsDemo age+rangeVal; the handler must own the write-back),
-/// 1× `bind:checked` on `<input type="checkbox">` (TextField mapping gap).
-const FLUTTER_WARNINGS_BASELINE: usize = 997;
+/// upward. Task 3.5 lowered it to 991 = 868 ECodegen + 123 unused-import:
+/// `<textarea>` now maps to `TextField(maxLines: 4)` and the boolean
+/// `disabled` maps to `enabled: false` (widgets whose SDK constructor has an
+/// `enabled` param — TextField/DropdownButton; verified Flutter 3.44.1).
+/// Eliminated 3× `bind:value`→'Container' mapping-gap slots (FormPage's
+/// textarea now merges into its existing bind:value+@onChange 'TextField'
+/// bucket; DataSubmit + ViewAttributesDemo get the 3.3 write-back) and 3×
+/// placeholder-on-Container slots (textarea hintText now wraps in
+/// InputDecoration). Added honest-degradation slots: 1× `disabled` →
+/// 'enabled' on ElevatedButton (FormPage's `disabled={false}` buttons — no
+/// `enabled` param in the SDK there) and 1× `@onScroll` on TextField
+/// (FormPage's textarea — TextField exposes no onScroll callback). Remaining
+/// binding warnings (5 slots) are genuine drops, tracked for the later
+/// warning-lowering tasks: 1× `bind:value` on select (→ Container mapping
+/// gap: FormControlsDemo — `select` has no Flutter tag mapping; a
+/// DropdownButton needs items/value derived from <option> children, out of
+/// 3.5 scope), 3× `bind:value` beside a user `@onChange` handler (the
+/// onChanged param is occupied — FilterBar / FormPage name+email+msg /
+/// FormControlsDemo age+rangeVal; the handler must own the write-back), 1×
+/// `bind:checked` on `<input type="checkbox">` (TextField mapping gap).
+const FLUTTER_WARNINGS_BASELINE: usize = 991;
 
 #[test]
 fn learn_omniview_flutter_warnings_are_tracked() {

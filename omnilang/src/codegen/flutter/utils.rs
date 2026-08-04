@@ -42,7 +42,11 @@ pub(crate) fn tag_to_flutter_widget(tag: &str) -> &str {
         "switch" => "Switch",
         "slider" => "Slider",
         "dropdown" | "dropdownbutton" | "dropdown_button" => "DropdownButton",
-        "textfield" => "TextField",
+        // Task 3.5: `<textarea>` is a first-class multiline intent — the
+        // Flutter mapping is `TextField(maxLines: 4)` (the maxLines default
+        // is applied in view.rs format_element, where per-element defaults
+        // live; plain `<input>` stays single-line).
+        "textarea" | "textfield" => "TextField",
         "form" => "Form",
         "scrollview" | "singlechildscrollview" => "SingleChildScrollView",
         _ => "Container",
@@ -93,7 +97,12 @@ pub(crate) fn prop_to_flutter_param_name(prop: &str) -> &str {
         "alt" => "semanticLabel",
         "href" => "url",
         "placeholder" => "hintText",
-        "disabled" => "",
+        // Task 3.5: the DOM boolean `disabled` maps to Flutter's `enabled`
+        // param — the value is NEGATED in convert_literal_prop_value
+        // (`disabled` → `enabled: false`). Widgets whose SDK constructor has
+        // no `enabled` param (Checkbox/Switch/Slider/ElevatedButton/...) fall
+        // out of the whitelist and warn — honest degradation, no silent drop.
+        "disabled" => "enabled",
         "readonly" | "readOnly" => "",
         "value" => "",
         "checked" => "value",
@@ -326,7 +335,9 @@ fn widget_param_whitelist(widget: &str) -> &'static [&'static str] {
         "Checkbox" => &["key", "value", "onChanged", "activeColor"],
         "Switch" => &["key", "value", "onChanged", "activeColor"],
         "Slider" => &["key", "value", "onChanged", "min", "max", "divisions"],
-        "DropdownButton" => &["key", "value", "onChanged", "items", "hint"],
+        // Task 3.5: the SDK declares `enabled` on DropdownButton (unlike
+        // Checkbox/Switch/Slider — verified Flutter 3.44.1).
+        "DropdownButton" => &["key", "value", "onChanged", "items", "hint", "enabled"],
         "Form" => &["key", "child", "onWillPop"],
         "SingleChildScrollView" => &["key", "child", "scrollDirection", "padding", "controller"],
         _ => &["key"],
@@ -455,6 +466,10 @@ pub(crate) fn convert_literal_prop_value(
     match value {
         serde_json::Value::String(s) => convert_string_prop_value(widget, param, s),
         serde_json::Value::Number(n) => convert_number_prop_value(param, n),
+        // Task 3.5: the DOM boolean `disabled` (bare attr lowers to
+        // `Bool(true)`, `disabled={false}` to `Bool(false)`) must map to the
+        // NEGATED `enabled` value — `disabled` → `enabled: false`.
+        serde_json::Value::Bool(b) if param == "enabled" => Some((!b).to_string()),
         _ => None,
     }
 }

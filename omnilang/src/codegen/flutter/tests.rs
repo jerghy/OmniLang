@@ -8745,3 +8745,58 @@ component PlainComp {
         plain
     );
 }
+
+// ═══════════════════════════════════════════════════════════════
+// Task 3.5 (flutter HIGH): textarea/disabled mapping
+// ═══════════════════════════════════════════════════════════════
+//
+// `<textarea>` rendered as an empty `Container()` (invisible — FormPage's
+// message field) and `disabled` was silently dropped (the FormPage "Disabled
+// field" input rendered ENABLED with zero warnings). Brief fixtures adapted
+// per the 2.9/2.10 precedent: the bare `view V {...}` shorthand does not
+// parse (component wrapper required); assertion names and failure messages
+// are kept verbatim from the brief.
+
+/// Task 3.5: `<textarea/>` must map to a multiline `TextField` — the
+/// multiline intent is first-class (not a bare `Container()` shell).
+#[test]
+fn textarea_maps_to_multiline_text_field() {
+    let out = compile_flutter(r#"component V { view { <textarea/> } }"#).unwrap();
+    let out: String = out.files.values().cloned().collect::<Vec<_>>().join("\n");
+    assert!(
+        !out.contains("child: Container()"),
+        "textarea rendered as empty container: {}",
+        out
+    );
+    assert!(out.contains("maxLines:"), "multiline intent lost: {}", out);
+}
+
+/// Task 3.5: the boolean `disabled` attribute must emit `enabled: false` —
+/// a disabled field must not render as an enabled TextField (previously the
+/// prop mapped to "" and was dropped with zero warnings).
+#[test]
+fn disabled_emits_enabled_false() {
+    let out = compile_flutter(r#"component V { view { <input disabled/> } }"#).unwrap();
+    let out: String = out.files.values().cloned().collect::<Vec<_>>().join("\n");
+    assert!(
+        out.contains("enabled: false"),
+        "disabled silently dropped: {}",
+        out
+    );
+}
+
+/// Task 3.5: `disabled={false}` must map to the NEGATED `enabled` value —
+/// `enabled: true` (the DOM boolean is inverted on the way to Flutter's
+/// param; forwarding it verbatim would disable the field on an explicit
+/// "not disabled").
+#[test]
+fn disabled_false_emits_enabled_true() {
+    let out = compile_flutter(r#"component V { view { <input disabled={false}/> } }"#).unwrap();
+    let out: String = out.files.values().cloned().collect::<Vec<_>>().join("\n");
+    assert!(
+        out.contains("enabled: true"),
+        "disabled={{false}} must map to enabled: true: {}",
+        out
+    );
+    assert!(!out.contains("enabled: false"), "negation inverted: {}", out);
+}

@@ -1292,6 +1292,14 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
         args.push(format!("{}: {}({})", arg_name, wrapper, members.join(", ")));
     }
 
+    // Task 3.5: `<textarea>` is a multiline intent — `TextField(maxLines: 4)`
+    // (a bare `<textarea/>` rendered `Container()` before: invisible). An
+    // explicit `maxLines` prop wins; the default applies only to the
+    // textarea tag, not to single-line `<input>`s.
+    if el.tag == "textarea" && !args.iter().any(|a| a.starts_with("maxLines:")) {
+        args.push("maxLines: 4".into());
+    }
+
     // a11y block (design doc 域 10): `alt` on image widgets maps to the
     // Image.network `semanticLabel` constructor param — the same mapping as
     // the plain `alt` prop (utils.rs prop_to_flutter_param_name). Skipped
