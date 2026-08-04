@@ -7,6 +7,7 @@ import { rustCompiler } from "./commands/rustCompiler";
 import { DEFAULT_PROJECT_NAME } from "./constants";
 import { parseOmniSource } from "./services/codegen/omni-parser";
 import { parseStyleValue } from "./services/codegen/design-value-parser";
+import { mergeCodeFlowGraphs } from "./services/codegen/graph-parser";
 import type { ElementData, WireData } from "./core/types";
 import { detectTabType } from "./core/types/design-page";
 import type { DesignDefinition, TokenType } from "./core/types/design";
@@ -247,6 +248,7 @@ async function loadOmniFiles(): Promise<void> {
       elements: import("./core/types/element").ElementData[];
       wires: import("./core/types/wire").WireData[];
       rootOrder: string[];
+      codeFlowGraphs: Record<string, { elements: import("./core/types/element").CodeblockElementData[]; wires: import("./core/types/wire").WireData[] }>;
     }> = {};
     const newTabData = { ...store.tabData };
     const newComponentDefs: Record<string, import("./core/types/project-json").ComponentDef> = { ...store.componentDefs };
@@ -254,6 +256,9 @@ async function loadOmniFiles(): Promise<void> {
     // Find the main file's parsed data — canvas elements should come from main.omni,
     // NOT the last file in scan order (which could be a component definition).
     const mainParsed = parsed.find((p) => p.filePath === mainPath) || parsed[parsed.length - 1];
+
+    // F1 物化：合并全部文件的 codeFlowGraphs（fn 名 → 图），写入 store 供 codeflow 画布消费。
+    const mergedGraphs = mergeCodeFlowGraphs(parsed.map((p) => p.parseResult.codeFlowGraphs));
 
     const tabByFilePath = new Map(store.designPage.openTabs.map(t => [t.filePath, t]));
     for (const p of parsed) {
@@ -281,7 +286,8 @@ async function loadOmniFiles(): Promise<void> {
           props: existing?.props ?? (p.parseResult.props || []).map((pr: { name: string; type: string; defaultValue?: unknown }) => ({ pid: uid("p"), name: pr.name, type: pr.type, defaultValue: pr.defaultValue })),
           computeds: existing?.computeds ?? (p.parseResult.computeds || []).map((c: { name: string; type: string; expression: string }) => ({ pid: uid("c"), name: c.name, returnType: c.type, expression: c.expression })),
           events: existing?.events ?? (p.parseResult.events || []).map((e: { name: string }) => ({ pid: uid("evt"), name: e.name, payloadType: "" })),
-          fns: existing?.fns ?? [],
+          // F2 物化：fnRegistry 为空时从解析结果物化 fns（保持 existing?.fns 短路语义，不覆盖既有编辑）。
+          fns: existing?.fns ?? (p.parseResult.fnRegistry?.[p.componentName] ?? []).map((f) => ({ pid: f.pid, name: f.name, params: f.params, returnType: f.returnType })),
         };
       } else {
         const existing = newComponentDefs[p.componentName];
@@ -292,7 +298,8 @@ async function loadOmniFiles(): Promise<void> {
           props: existing?.props ?? (p.parseResult.props || []).map((pr: { name: string; type: string; defaultValue?: unknown }) => ({ pid: uid("p"), name: pr.name, type: pr.type, defaultValue: pr.defaultValue })),
           computeds: existing?.computeds ?? (p.parseResult.computeds || []).map((c: { name: string; type: string; expression: string }) => ({ pid: uid("c"), name: c.name, returnType: c.type, expression: c.expression })),
           events: existing?.events ?? (p.parseResult.events || []).map((e: { name: string }) => ({ pid: uid("evt"), name: e.name, payloadType: "" })),
-          fns: existing?.fns ?? [],
+          // F2 物化：fnRegistry 为空时从解析结果物化 fns（保持 existing?.fns 短路语义，不覆盖既有编辑）。
+          fns: existing?.fns ?? (p.parseResult.fnRegistry?.[p.componentName] ?? []).map((f) => ({ pid: f.pid, name: f.name, params: f.params, returnType: f.returnType })),
           elements: p.elements,
           wires: p.wires,
           rootOrder: p.rootOrder,
@@ -303,6 +310,9 @@ async function loadOmniFiles(): Promise<void> {
     stateUpdate.elements = mainParsed.elements;
     stateUpdate.wires = mainParsed.wires;
     stateUpdate.rootOrder = mainParsed.rootOrder;
+
+    // F1 物化：fn 图合并结果写入 store.codeFlowGraphs（后续 materializeFnGraphs 消费）。
+    stateUpdate.codeFlowGraphs = mergedGraphs;
 
     // Find the main.omni tab ID — the active tab must match the main canvas
     // to avoid tabData corruption when switching tabs later.

@@ -711,3 +711,19 @@ function parseSyntaxProps(
     }
   }
 }
+
+// ---------------------------------------------------------------------------
+// mergeCodeFlowGraphs – merge per-file code flow graphs into one map
+// ---------------------------------------------------------------------------
+
+/** 合并多文件 codeFlowGraphs（fn 名 → 图），同名后者覆盖（跨文件同名 fn 为既有限制）。 */
+export function mergeCodeFlowGraphs(
+  graphs: Array<Record<string, { elements: CodeblockElementData[]; wires: WireData[] }> | undefined>,
+): Record<string, { elements: CodeblockElementData[]; wires: WireData[] }> {
+  const out: Record<string, { elements: CodeblockElementData[]; wires: WireData[] }> = {};
+  for (const g of graphs) {
+    if (!g) continue;
+    for (const [key, value] of Object.entries(g)) out[key] = value;
+  }
+  return out;
+}

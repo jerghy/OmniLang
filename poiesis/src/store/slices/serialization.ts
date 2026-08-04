@@ -2,6 +2,7 @@
 
 import type { PoiesisState } from "../types";
 import type { ProjectJson } from "../../core/types/project-json";
+import { buildCodeFlowGraphs } from "../../services/codegen/chain-emitter";
 
 type SetFn = (partial: Partial<PoiesisState> | ((state: PoiesisState) => Partial<PoiesisState>)) => void;
 type GetFn = () => PoiesisState;
@@ -22,7 +23,9 @@ export function createSerializationSlice(set: SetFn, get: GetFn) {
         },
         canvasStates: s.canvasStates,
         panels: s.panels,
-        codeFlowGraphs: s.codeFlowGraphs ?? {},
+        // 运行时 store.codeFlowGraphs 为解析侧形状（fn 名 → {elements, wires}），
+        // 保存时经 buildCodeFlowGraphs 转换为 v3 持久化形状（{pid, nodes, wires}）。
+        codeFlowGraphs: buildCodeFlowGraphs(s.codeFlowGraphs),
       };
     },
 
@@ -40,7 +43,9 @@ export function createSerializationSlice(set: SetFn, get: GetFn) {
       },
       canvasStates: json.canvasStates || {},
       panels: json.panels || s.panels,
-      codeFlowGraphs: json.codeFlowGraphs || {},
+      // v3 持久化形状（pid/nodes/wires）不含 CodeblockElementData 的 props/source，
+      // 无法无损重建解析侧图——运行时图由 App.tsx loadOmniFiles 物化重建。
+      codeFlowGraphs: {},
       // componentDefs kept in runtime state, not persisted — loaded from .omni parsing
     })),
   };

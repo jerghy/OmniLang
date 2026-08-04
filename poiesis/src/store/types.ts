@@ -111,8 +111,10 @@ export interface PoiesisState {
   loadInlineStoreDef: (def: StoreDefinition) => void;
   removeInlineStoreDef: (key: string) => void;
 
-  // ── Code flow graph persistence ──
-  codeFlowGraphs: Record<string, import("../core/types/project-json").CodeFlowGraph>;
+  // ── Code flow graphs（F1 物化：fn 名 → 解析侧图 {elements, wires}）──
+  // 运行时形状为解析侧产物；持久化形状（CodeFlowGraph）在 toProjectJson 时经
+  // buildCodeFlowGraphs 转换，保存格式不变。
+  codeFlowGraphs: Record<string, { elements: import("../core/types/element").CodeblockElementData[]; wires: import("../core/types/wire").WireData[] }>;
 
   // ── Actions ──
 
