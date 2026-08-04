@@ -265,6 +265,7 @@ function FlowCanvasInner() {
           params: el.props?.params as string,
           branches: el.props?.branches as Array<{id:string;type:string;condition:string}> | undefined,
           returnExpr: el.source,
+          onCommitReturn: (expr: string) => setElementSource(el.id, expr),
           description: el.props?.description as string | undefined,
           onDoubleClick: () => setEditingNodeId(el.id),
           onUpdateBranches: (branches: unknown) => {

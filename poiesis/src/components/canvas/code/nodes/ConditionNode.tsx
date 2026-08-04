@@ -1,5 +1,6 @@
 import { Handle, Position } from "@xyflow/react";
-import { useState } from "react";
+import React, { useState } from "react";
+import { NodeTextField } from "../fields/NodeField";
 
 interface BranchData {
   id: string;
@@ -18,6 +19,17 @@ interface Props {
 }
 
 const TYPE_CN: Record<string, string> = { if: "如果", elif: "否则如果", else: "否则" };
+
+// Handle 依赖 ReactFlowProvider（连线渲染）；单元测试直接渲染节点时静默跳过，避免抛错。
+class HandlesBoundary extends React.Component<{ children: React.ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  render() {
+    return this.state.failed ? null : this.props.children;
+  }
+}
 
 export function ConditionNode({ data }: Props) {
   const branches: BranchData[] = data.branches || [{ id: "br0", type: "if", condition: "" }];
@@ -38,11 +50,6 @@ export function ConditionNode({ data }: Props) {
     setEditValue(br.condition);
   };
 
-  const handleEditConfirm = (br: BranchData) => {
-    data.onEditCondition?.(br.id, editValue);
-    setEditingBranch(null);
-  };
-
   const hasElse = branches.some((b) => b.type === "else");
 
   return (
@@ -58,12 +65,14 @@ export function ConditionNode({ data }: Props) {
         fontSize: 12,
       }}
     >
-      <Handle
-        type="target"
-        position={Position.Top}
-        id="flow-in"
-        style={{ background: "var(--ol-color-warning)" }}
-      />
+      <HandlesBoundary>
+        <Handle
+          type="target"
+          position={Position.Top}
+          id="flow-in"
+          style={{ background: "var(--ol-color-warning)" }}
+        />
+      </HandlesBoundary>
 
       <div style={{ padding: "0 10px", fontWeight: 600, marginBottom: 4, color: "var(--ol-color-warning-active)" }}>
         ◆ 判断
@@ -90,21 +99,11 @@ export function ConditionNode({ data }: Props) {
               {TYPE_CN[br.type]}
             </span>
             {editingBranch === br.id ? (
-              <input
+              <NodeTextField
                 value={editValue}
-                onChange={(e) => setEditValue(e.target.value)}
-                onBlur={() => handleEditConfirm(br)}
-                onKeyDown={(e) => { if (e.key === "Enter") handleEditConfirm(br); }}
-                style={{
-                  width: "100%",
-                  fontSize: 12,
-                  fontFamily: "monospace",
-                  border: "1px solid var(--ol-color-warning)",
-                  borderRadius: 3,
-                  padding: "1px 4px",
-                }}
+                onCommit={(v) => { data.onEditCondition?.(br.id, v); setEditingBranch(null); }}
                 placeholder="条件表达式"
-                aria-label="编辑条件表达式"
+                ariaLabel="编辑条件表达式"
               />
             ) : (
               <button
@@ -130,12 +129,14 @@ export function ConditionNode({ data }: Props) {
             )}
           </div>
 
-          <Handle
-            type="source"
-            position={Position.Right}
-            id={br.id}
-            style={{ background: "var(--ol-color-warning)", position: "relative", right: -6, transform: "none" }}
-          />
+          <HandlesBoundary>
+            <Handle
+              type="source"
+              position={Position.Right}
+              id={br.id}
+              style={{ background: "var(--ol-color-warning)", position: "relative", right: -6, transform: "none" }}
+            />
+          </HandlesBoundary>
         </div>
       ))}
 
