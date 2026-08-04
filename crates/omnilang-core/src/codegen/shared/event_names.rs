@@ -168,10 +168,12 @@ pub const EVENT_NAME_SUGGESTIONS: &[&str] = &[
 ///
 /// The metric rewards BOTH a shared prefix and a small length gap:
 /// `score = len(u) + len(k) − 2·lcp(u, k)` over the lowercase `on`-stripped
-/// stems. Ties keep the first (earliest) suggestion. Purely Levenshtein
-/// distances would rank short-but-unrelated names first for wildly wrong
-/// inputs (e.g. `onTotallyBogus` → `onToggle`); the prefix-weighted metric
-/// surfaces the readable click-family names instead (`onTap`).
+/// stems. TIES keep the FIRST (earliest) suggestion in `EVENT_NAME_SUGGESTIONS`
+/// order — e.g. `onFcous` ties `onCut`/`onFocus`/`onTap` at score 8 and
+/// resolves to `onTap` (listed first). Purely Levenshtein distances would
+/// rank short-but-unrelated names first for wildly wrong inputs (e.g.
+/// `onTotallyBogus` → `onToggle`); the prefix-weighted metric surfaces the
+/// readable click-family names instead (`onTap`).
 #[must_use]
 pub fn nearest_event_suggestion(unknown: &str) -> Option<&'static str> {
     let u = event_stem(unknown);
@@ -210,6 +212,61 @@ fn common_prefix_len(a: &str, b: &str) -> usize {
 mod tests {
     use super::*;
     use std::collections::BTreeSet;
+
+    /// Every event name the IR knows (mirrors `map_event_data_kind`,
+    /// events.rs) — shared by the table-coverage and suggestion-coverage
+    /// tests below. If the IR grows a new event name, both tests force the
+    /// shared table AND the suggestion list to learn it.
+    const IR_EVENT_NAMES: &[&str] = &[
+        "onClick",
+        "onPress",
+        "onTap",
+        "onDoubleClick",
+        "onLongPress",
+        "onMouseMove",
+        "onHover",
+        "onMouseEnter",
+        "onMouseLeave",
+        "onPointerDown",
+        "onPointerUp",
+        "onPointerMove",
+        "onPointerCancel",
+        "onTouchStart",
+        "onTouchMove",
+        "onTouchEnd",
+        "onTouchCancel",
+        "onWheel",
+        "onKeyDown",
+        "onKeyUp",
+        "onChange",
+        "onInput",
+        "onToggle",
+        "onSubmit",
+        "onFocus",
+        "onBlur",
+        "onCopy",
+        "onCut",
+        "onPaste",
+        "onDragStart",
+        "onDrag",
+        "onDragEnd",
+        "onDrop",
+        "onContextMenu",
+        "onSelect",
+        "onResize",
+        "onPlay",
+        "onPause",
+        "onEnded",
+        "onLoad",
+        "onError",
+        "onAnimationStart",
+        "onAnimationEnd",
+        "onAnimationIteration",
+        "onTransitionEnd",
+        "onTransitionRun",
+        "onTransitionStart",
+        "onTransitionCancel",
+    ];
 
     /// Alias groups: every spelling must resolve to ONE canonical name.
     const ALIAS_GROUPS: &[&[&str]] = &[
@@ -260,67 +317,34 @@ mod tests {
         }
     }
 
-    /// Completeness: every event name the IR knows (the names listed in
-    /// `map_event_data_kind`, events.rs) must resolve through the shared
-    /// table — never fall through to a per-backend fallback (that is where
-    /// alias drift was born). The list mirrors events.rs; if the IR grows a
-    /// new event name, this test forces the shared table to learn it.
+    /// Completeness: every event name the IR knows must resolve through the
+    /// shared table — never fall through to a per-backend fallback (that is
+    /// where alias drift was born). If the IR grows a new event name, this
+    /// test forces the shared table to learn it.
     #[test]
     fn every_ir_event_name_resolves_through_shared_table() {
-        let ir_events = [
-            "onClick",
-            "onPress",
-            "onTap",
-            "onDoubleClick",
-            "onLongPress",
-            "onMouseMove",
-            "onHover",
-            "onMouseEnter",
-            "onMouseLeave",
-            "onPointerDown",
-            "onPointerUp",
-            "onPointerMove",
-            "onPointerCancel",
-            "onTouchStart",
-            "onTouchMove",
-            "onTouchEnd",
-            "onTouchCancel",
-            "onWheel",
-            "onKeyDown",
-            "onKeyUp",
-            "onChange",
-            "onInput",
-            "onToggle",
-            "onSubmit",
-            "onFocus",
-            "onBlur",
-            "onCopy",
-            "onCut",
-            "onPaste",
-            "onDragStart",
-            "onDrag",
-            "onDragEnd",
-            "onDrop",
-            "onContextMenu",
-            "onSelect",
-            "onResize",
-            "onPlay",
-            "onPause",
-            "onEnded",
-            "onLoad",
-            "onError",
-            "onAnimationStart",
-            "onAnimationEnd",
-            "onAnimationIteration",
-            "onTransitionEnd",
-            "onTransitionRun",
-            "onTransitionStart",
-            "onTransitionCancel",
-        ];
-        for name in ir_events {
+        for name in IR_EVENT_NAMES {
             assert!(
                 canonical_event_name(name).is_some(),
                 "IR event '{name}' must resolve through the shared table (no backend fallback)"
+            );
+        }
+    }
+
+    /// Every IR event name must ALSO have a suggestion representative
+    /// (Task 4.2 review M-2) — a typo'd spelling of ANY legal event must be
+    /// able to land on a suggestion for it (canonical-resolving, so the
+    /// suggestion is itself legal). `suggestions_resolve_through_shared_table`
+    /// above pins the list to the table; this pins the list to the IR.
+    #[test]
+    fn every_ir_event_has_suggestion_representative() {
+        for name in IR_EVENT_NAMES {
+            let canonical = canonical_event_name(name).expect("IR event is legal");
+            assert!(
+                EVENT_NAME_SUGGESTIONS
+                    .iter()
+                    .any(|s| { canonical_event_name(s) == Some(canonical) }),
+                "IR event '{name}' (canonical '{canonical}') has no suggestion representative"
             );
         }
     }

@@ -15,10 +15,21 @@
 //! instances by the corpus). Events on component-instance elements are
 //! custom-event bindings and are not validated against the DOM table.
 //!
-//! Runs post-IR-merge (see `analyse.rs` Phase 3d) so cross-file custom event
+//! Runs post-IR-merge (see `analyse.rs` Phase 3e) so cross-file custom event
 //! declarations and component names are visible — the per-file `lower()`
 //! stage cannot distinguish an imported component's custom-event binding
-//! from a typo'd DOM event.
+//! from a typo'd DOM event. The single-file `run_pipeline` path (lib.rs)
+//! registers the same pass with its own file-scope program (review I-1).
+//!
+//! KNOWN BLIND SPOT (explicit decision, review M-1): events on
+//! component-instance elements are skipped wholesale — a custom event name
+//! typed on the WRONG component (or on a DOM element, when any component
+//! declares that name) is not caught, because the whitelist includes every
+//! program-wide `event` declaration rather than resolving each element's
+//! tag to ITS component's declared set. Per-element tag→component
+//! resolution is future work; the whitelist contract here is "name is a
+//! legal event somewhere in the program", which eliminates the ai HIGH
+//! silent no-op without cross-referencing imports.
 
 use crate::codegen::shared::event_names::{canonical_event_name, nearest_event_suggestion};
 use crate::error::{Diagnostic, DiagnosticKind, Severity};

@@ -117,6 +117,15 @@ pub fn run_pipeline(source: &str) -> PipelineOutput {
     // ThemeStore.omni) is visible; also populates DesignIR.theme_signal.
     crate::semantic::validate_theme::validate_theme(&mut ir, &mut diagnostics);
 
+    // Event-name validation (Task 4.2, D-B) — unknown event names warn with
+    // the nearest legal suggestion. Registered here too (single-file scope:
+    // custom `event` declarations and component tags visible in this
+    // program), so compile(), compile_omniview(), compile_omniview_full()
+    // and resolve_styles() — the WASM-exported paths — see the same
+    // diagnostics as multi-file analysis. Without this, a single-file
+    // `@onTotallyBogus={f}` still compiled "No issues found" (ai HIGH).
+    crate::semantic::validate_event_names::validate_event_names(&ir, &mut diagnostics);
+
     // Phase: lint rules (same 10 rules as `analyse_multi`, so single-file
     // paths — compile(), compile_omniview(), resolve_styles() — see the
     // same diagnostics as multi-file analysis). Lint warnings fold into
@@ -285,6 +294,41 @@ mod pipeline_tests {
                 .any(|e| e.message.contains("getBoundingClientRect")),
             "expected getBoundingClientRect diagnostic, got: {:?}",
             result.errors
+        );
+    }
+
+    /// Task 4.2 single-file path (review I-1): run_pipeline (and therefore
+    /// compile(), compile_omniview(), compile_omniview_full(), resolve_styles
+    /// — the WASM-exported entry points) must surface unknown-event warnings
+    /// just like multi-file analysis. Regression: single-file
+    /// `@onTotallyBogus={f}` used to compile clean ("No issues found"),
+    /// keeping the ai HIGH silent no-op alive on the WASM export path.
+    #[test]
+    fn compile_surfaces_unknown_event_warning() {
+        let result = compile(
+            "component App {\n    fn f(e) {}\n    view {\n        <div @onTotallyBogus={f} />\n    }\n}",
+        );
+        let warn = result
+            .errors
+            .iter()
+            .find(|d| {
+                d.severity == crate::error::Severity::Warning
+                    && d.message.contains("onTotallyBogus")
+            });
+        assert!(
+            warn.is_some(),
+            "single-file compile must warn on unknown event names, got: {:?}",
+            result
+                .errors
+                .iter()
+                .map(|d| (&d.message, &d.severity))
+                .collect::<Vec<_>>()
+        );
+        let w = warn.expect("checked above");
+        assert!(
+            w.message.contains("@onTap") || w.message.contains("@onClick") || w.message.contains("@onPress"),
+            "missing nearest suggestion: {}",
+            w.message
         );
     }
 
