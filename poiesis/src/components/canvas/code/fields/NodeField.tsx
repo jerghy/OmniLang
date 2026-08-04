@@ -66,9 +66,11 @@ interface SelectProps {
   onCommit: (v: string) => void;
   ariaLabel?: string;
   allowCustom?: boolean;
+  className?: string;
+  invalid?: boolean;
 }
 
-export function NodeSelect({ value, options, onCommit, ariaLabel, allowCustom }: SelectProps) {
+export function NodeSelect({ value, options, onCommit, ariaLabel, allowCustom, className, invalid }: SelectProps) {
   const opts = [...options];
   if (allowCustom && value && !options.some((o) => o.value === value)) {
     opts.push({ value, label: value });
@@ -76,9 +78,10 @@ export function NodeSelect({ value, options, onCommit, ariaLabel, allowCustom }:
   return (
     <select
       data-field-kind="select"
-      className={`nodrag ${styles.field}`}
+      className={`nodrag ${styles.field} ${invalid ? styles.invalid : ""} ${className ?? ""}`}
       value={value}
       aria-label={ariaLabel}
+      aria-invalid={invalid || undefined}
       onChange={(e) => onCommit(e.target.value)}
     >
       {opts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}

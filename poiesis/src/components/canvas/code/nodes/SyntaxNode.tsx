@@ -35,15 +35,22 @@ class HandlesBoundary extends React.Component<{ children: React.ReactNode }, { f
 }
 
 // store 名：即时提交文本框（原生 select 无法承载任意 store 名；选中即联动重置 action）。
-const StoreNameField = ({ value, onCommit }: { value: string; onCommit: (v: string) => void }) => (
-  <input
-    data-field-kind="store-name"
-    className={`nodrag ${styles.storeName}`}
-    value={value}
-    aria-label="store 名"
-    placeholder="store 名"
-    onChange={(e) => onCommit(e.target.value)}
-  />
+// datalist 提供 store 候选补全（spec 5.1 [Store▼] affordance）。
+const StoreNameField = ({ value, onCommit, candidates }: { value: string; onCommit: (v: string) => void; candidates: string[] }) => (
+  <>
+    <input
+      data-field-kind="store-name"
+      className={`nodrag ${styles.storeName}`}
+      value={value}
+      aria-label="store 名"
+      placeholder="store 名"
+      list="syntax-store-candidates"
+      onChange={(e) => onCommit(e.target.value)}
+    />
+    <datalist id="syntax-store-candidates">
+      {candidates.map((n) => <option key={n} value={n} />)}
+    </datalist>
+  </>
 );
 
 const SyntaxNode = React.memo(function SyntaxNode({ data }: Props) {
@@ -57,6 +64,7 @@ const SyntaxNode = React.memo(function SyntaxNode({ data }: Props) {
   );
   const errorFields = useMemo(() => new Set(errors.map((e) => e.field)), [errors]);
 
+  const storeCandidates = (scope?.stores ?? []).map((s) => s.name);
   const actionCandidates = useMemo(() => {
     const storeName = (props.storeName as string) ?? "";
     const store = scope?.stores.find((s) => s.name === storeName);
@@ -140,6 +148,7 @@ const SyntaxNode = React.memo(function SyntaxNode({ data }: Props) {
               <StoreNameField
                 value={(props.storeName as string) ?? ""}
                 onCommit={(v) => { set("storeName", v); set("action", ""); }}
+                candidates={storeCandidates}
               />
               <span className={styles.op}>.</span>
               <NodeSelect
@@ -147,7 +156,9 @@ const SyntaxNode = React.memo(function SyntaxNode({ data }: Props) {
                 options={actionCandidates}
                 onCommit={(v) => set("action", v)}
                 ariaLabel="action"
+                invalid={errorFields.has("action")}
                 allowCustom
+                className={styles.grow}
               />
             </div>
             <NodeArgsRows
@@ -167,7 +178,9 @@ const SyntaxNode = React.memo(function SyntaxNode({ data }: Props) {
                 options={fnCandidates}
                 onCommit={(v) => set("fnName", v)}
                 ariaLabel="函数名"
+                invalid={errorFields.has("fnName")}
                 allowCustom
+                className={styles.grow}
               />
               <NodeChipToggle
                 checked={!!props.emit}

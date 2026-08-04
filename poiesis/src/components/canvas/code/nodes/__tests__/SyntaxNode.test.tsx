@@ -79,4 +79,17 @@ describe("SyntaxNode 内联编辑", () => {
     renderNode("let", { name: "x", mutable: true, value: "0" });
     expect(screen.getByText("let mut x = 0;")).toBeTruthy();
   });
+
+  it("store 名 datalist 提供候选", () => {
+    renderNode("store-call", { storeName: "TodoStore", action: "add", args: "" });
+    const list = document.querySelector("#syntax-store-candidates");
+    expect(list).toBeTruthy();
+    expect([...list!.querySelectorAll("option")].map((o) => o.value)).toContain("TodoStore");
+  });
+
+  it("action 校验失败时 select 带 invalid 样式", () => {
+    renderNode("store-call", { storeName: "TodoStore", action: "nope", args: "" });
+    const select = screen.getByLabelText("action");
+    expect(select.className).toContain("invalid");
+  });
 });

@@ -133,6 +133,13 @@ describe("NodeSelect", () => {
     fireEvent.change(screen.getByLabelText("运算符"), { target: { value: "+=" } });
     expect(onCommit).toHaveBeenCalledWith("+=");
   });
+
+  it("invalid 时设置 aria-invalid 与样式类", () => {
+    render(<NodeSelect value="=" options={options} onCommit={vi.fn()} ariaLabel="运算符" invalid />);
+    const select = screen.getByLabelText("运算符");
+    expect(select.className).toContain("invalid");
+    expect(select.getAttribute("aria-invalid")).toBe("true");
+  });
 });
 
 describe("NodeChipToggle", () => {

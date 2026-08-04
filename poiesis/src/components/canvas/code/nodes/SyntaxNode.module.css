@@ -63,7 +63,6 @@
   white-space: pre-wrap;
   word-break: break-all;
 }
-.row select { flex: 1; min-width: 40px; }
 .storeName {
   flex: 1;
   min-width: 0;
