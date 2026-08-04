@@ -172,6 +172,34 @@ fn test_format_expr_field_access() {
 }
 
 #[test]
+fn test_format_method_call_splice() {
+    // Task 4.10 review I-1 — `.splice(start, deleteCount, ...items)` is a
+    // cross-backend language method: React slice-combination (pinned here),
+    // Dart sublist-combination (shared table), OmniView native
+    // Array.prototype.splice.
+    let expr = ExprIR::MethodCallExpr {
+        object: Box::new(ExprIR::IdentifierExpr {
+            name: "items".into(),
+            type_ann: Some("Array<i32>".into()),
+        }),
+        method: "splice".into(),
+        args: vec![
+            ExprIR::LiteralExpr {
+                value: serde_json::json!(1),
+            },
+            ExprIR::LiteralExpr {
+                value: serde_json::json!(2),
+            },
+        ],
+        is_optional: false,
+    };
+    assert_eq!(
+        format_expr_ir_tsx(&expr, &FxHashSet::default()),
+        "[...items.slice(0, 1), ...items.slice(1 + 2)]"
+    );
+}
+
+#[test]
 fn test_format_expr_unary_not() {
     let expr = ExprIR::UnaryOpExpr {
         op: UnaryOpIR::Not,

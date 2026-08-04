@@ -259,6 +259,16 @@
 
 ---
 
+## 2026-08-04 Task 4.10 审查登记（React 侧 stdlib 方法翻译缺口）
+
+**新增**：#76（Task 4.10 审查 Important-2——React `translate_method_call` 未翻译文档 floor 方法；Task 4.10 方法表按语言 floor 收录后这些名字零诊断 + React 运行时 TypeError。只登记不修，排期由编排层裁决。splice 同族缺口已随 I-1 修复——共享表补 `sublist` 组合臂，不再登记）。
+
+| # | 项目 | 触发条件 | 影响 |
+|---|------|---------|------|
+| 76 | **[MEDIUM]** React 后端未翻译文档 floor 方法 `to_uppercase`/`to_lowercase`/`is_empty`/`abs`（`omnilang/src/codegen/react/expr.rs` `translate_method_call` 落默认 `_` 臂 verbatim 发射；OmniView 经共享 stdlib 表、Dart 经 `format_method_call`（crates/omnilang-core/src/codegen/shared/expr.rs:816-818）均已翻译） | 用户按 docs/omniview/12-standard-library.md §内置方法 写 `s.to_uppercase()`/`n.abs()`——Task 4.10 方法表已背书这些名字 → 编译零诊断 | React 运行时 TypeError（`s.to_uppercase is not a function`；`abs` 需 `Math.abs` 语义）；修复方向：`translate_method_call` 补 `to_uppercase`→`toUpperCase`、`to_lowercase`→`toLowerCase`、`is_empty`→`length === 0`、`abs`→`Math.abs(...)` 四臂（镜像 Dart 表） |
+
+---
+
 ## 跟踪约定
 
 - 每个推迟项在重新评估触发条件满足时重新打开

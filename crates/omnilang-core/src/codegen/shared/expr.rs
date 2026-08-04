@@ -781,6 +781,28 @@ impl FormatExpr for DartFormatExpr {
                     None => format!("{obj}.sublist({start})"),
                 }
             }
+            "splice" => {
+                // Task 4.10 review I-1: `.splice(start, deleteCount, ...items)`
+                // was React-only — the Dart table fell through to the verbatim
+                // fallback (Dart List has no splice → compile error). Mirror
+                // the React backend's slice-combination with sublist so
+                // `splice` is a real cross-backend language method (React:
+                // slice-combination; OmniView: native Array.prototype.splice;
+                // Dart: sublist-combination).
+                let start = args.first().map(|s| s.as_str()).unwrap_or("0");
+                let delete_count = args.get(1).map(|s| s.as_str()).unwrap_or("0");
+                let items: Vec<&str> = args.iter().skip(2).map(String::as_str).collect();
+                if items.is_empty() {
+                    format!(
+                        "[...{obj}.sublist(0, {start}), ...{obj}.sublist({start} + {delete_count})]"
+                    )
+                } else {
+                    format!(
+                        "[...{obj}.sublist(0, {start}), {}, ...{obj}.sublist({start} + {delete_count})]",
+                        items.join(", ")
+                    )
+                }
+            }
             "reverse" => format!("{obj}.reversed.toList()"),
             "sort" => {
                 if args.is_empty() {
@@ -1799,6 +1821,48 @@ mod tests {
         assert_eq!(dart_fmt().format_expr(&lower), "s.toLowerCase()");
         let empty = method_call(ident("arr", Some("Array<i32>")), "is_empty", vec![]);
         assert_eq!(dart_fmt().format_expr(&empty), "arr.isEmpty");
+    }
+
+    #[test]
+    fn dart_method_table_covers_splice() {
+        // Task 4.10 review I-1: `.splice(start, deleteCount, ...items)` was
+        // React-only — the Dart table fell through to the verbatim fallback
+        // (Dart List has no splice → compile error). Mirrors the React
+        // backend's slice-combination with sublist so `splice` is a real
+        // cross-backend language method.
+        let splice = method_call(
+            ident("items", Some("Array<i32>")),
+            "splice",
+            vec![
+                ExprIR::LiteralExpr {
+                    value: serde_json::json!(1),
+                },
+                ExprIR::LiteralExpr {
+                    value: serde_json::json!(2),
+                },
+            ],
+        );
+        assert_eq!(
+            dart_fmt().format_expr(&splice),
+            "[...items.sublist(0, 1), ...items.sublist(1 + 2)]"
+        );
+        let splice_with_items = method_call(
+            ident("items", Some("Array<i32>")),
+            "splice",
+            vec![
+                ExprIR::LiteralExpr {
+                    value: serde_json::json!(0),
+                },
+                ExprIR::LiteralExpr {
+                    value: serde_json::json!(1),
+                },
+                ident("x", None),
+            ],
+        );
+        assert_eq!(
+            dart_fmt().format_expr(&splice_with_items),
+            "[...items.sublist(0, 0), x, ...items.sublist(0 + 1)]"
+        );
     }
 
     #[test]

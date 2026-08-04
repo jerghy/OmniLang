@@ -191,4 +191,31 @@ mod tests {
             SemanticType::Named("User".to_string())
         );
     }
+
+    #[test]
+    fn parse_type_string_composite_forms() {
+        // Task 4.10 review Minor-1: nested composite forms produced by
+        // type_to_string must parse into real composite types.
+        assert_eq!(
+            SemanticType::parse_type_string("Array<Map<String, i32>>"),
+            SemanticType::Array(Box::new(SemanticType::Map(
+                Box::new(SemanticType::String),
+                Box::new(SemanticType::Int)
+            )))
+        );
+        assert_eq!(
+            SemanticType::parse_type_string("Array<Array<i32>>"),
+            SemanticType::Array(Box::new(SemanticType::Array(Box::new(SemanticType::Int))))
+        );
+        assert_eq!(
+            SemanticType::parse_type_string("Array<i32>?"),
+            SemanticType::Optional(Box::new(SemanticType::Array(Box::new(SemanticType::Int))))
+        );
+        // A Map with a 3-part type list is not a 2-arg Map — falls back to
+        // Named (no partial parse).
+        assert_eq!(
+            SemanticType::parse_type_string("Map<String, i32, bool>"),
+            SemanticType::Named("Map<String, i32, bool>".to_string())
+        );
+    }
 }
