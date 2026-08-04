@@ -1,0 +1,348 @@
+#!/usr/bin/env python3
+"""Semantic-universe gate — design P3 mechanism (v3 plan Task 7.2).
+
+docs/superpowers/specs/semantic-universe.md is the semantic full set: the
+FRONTEND FEATURE UNIVERSE (independent of implementation progress), split
+from the implemented set. Five semantic domains (animatable properties /
+array operations / events / RefOps / design-token types). Every entry must
+map to an implementation status — the brief's 语义集条目 → 实现状态矩阵:
+
+  语义域定义  (paragraph — the semantic domain; why these entries are one
+               feature universe, independent of implementation)
+  语义集条目  (table — first column = semantic-set member; columns 实现状态
+               and 诊断行为 are REQUIRED; 状态 ∈ {支持, 部分, 未支持};
+               every entry must have a status and a diagnostic behavior)
+  已实现白名单(table — first column = the compiler's implemented whitelist;
+               must equal the compiler ground truth AND be a subset of the
+               semantic set, with 支持/部分 entries in the whitelist and
+               未支持 entries outside it — the semantic surface never
+               drifts with implementation progress)
+
+Cross-assertions pin the universe to the compiler's actual whitelists — the
+same ground truth verify-vocabulary.py (Task 7.1) consumes:
+
+  motion  ↔ semantic_anim_prop production in the BNF spec
+            (19 属性白名单 — the implemented subset of the animatable set)
+  array   ↔ ARRAY_METHODS in crates/omnilang-core/src/semantic/validate_array_methods.rs
+            (filter/map/count — the implemented language methods)
+  events  ↔ canonical names in crates/omnilang-core/src/codegen/shared/event_names.rs
+            (54 canonical event names)
+  RefOp   ↔ RefOpIR variants in crates/omnilang-core/src/ir/types.rs
+            (RefOp 10 ops)
+  token   ↔ token_type production in the BNF spec
+            (13 types)
+
+A whitelist word missing from the universe — or a universe entry without a
+status, or an entry claiming 支持/部分 while outside the whitelist — fails
+the gate. A semantic-set entry may legitimately be 未支持 (the universe
+documents the full feature space, e.g. CSS-animatable properties beyond the
+19); the diagnostic-behavior column records the current surface.
+
+Usage:
+  python scripts/verify-semantic-universe.py [--check|--inspect]
+  (default)  gate mode — exit 1 on any mismatch
+  --check    gate mode, explicit
+  --inspect  audit mode — never exit nonzero
+"""
+import argparse
+import os
+import re
+import sys
+
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+UNIVERSE_FILE = os.path.join(REPO_ROOT, "docs", "superpowers", "specs", "semantic-universe.md")
+EVENT_TABLE_FILE = os.path.join(
+    REPO_ROOT, "crates", "omnilang-core", "src", "codegen", "shared", "event_names.rs"
+)
+ARRAY_VALIDATE_FILE = os.path.join(
+    REPO_ROOT, "crates", "omnilang-core", "src", "semantic", "validate_array_methods.rs"
+)
+REFOP_IR_FILE = os.path.join(REPO_ROOT, "crates", "omnilang-core", "src", "ir", "types.rs")
+BNF_SPEC_FILE = os.path.join(
+    REPO_ROOT, "docs", "superpowers", "specs",
+    "2026-07-31-semantic-level-dsl-syntax-spec.md",
+)
+
+# ── universe section contract ─────────────────────────────────────────────
+# Domain titles must contain the expected keyword (in order 1..5).
+DOMAIN_TITLES = {
+    1: "可动画",
+    2: "数组",
+    3: "事件",
+    4: "RefOp",
+    5: "design token",
+}
+# Required sub-section headers per domain.
+REQUIRED_SUBSECTIONS = ("语义域定义", "语义集条目", "已实现白名单")
+# The semantic-set entry table must have columns with these names.
+STATUS_COLUMN = "实现状态"
+DIAG_COLUMN = "诊断行为"
+STATUSES = {"支持", "部分", "未支持"}
+
+# ── whitelist extraction (compiler ground truth) ─────────────────────────
+
+def read_file(path):
+    with open(path, encoding="utf-8") as fh:
+        return fh.read()
+
+
+def event_canonical_names(text):
+    """Canonical event names from the shared event table — every
+    `... => Some("name")` match arm."""
+    return sorted(set(re.findall(r'=>\s*Some\("([^"]+)"\)', text)))
+
+
+def array_method_words(text):
+    """Words of the `const ARRAY_METHODS: [&str; N] = ["a", "b", ...];`."""
+    m = re.search(r'ARRAY_METHODS[^=]*=\s*\[(.*?)\]', text, re.S)
+    return sorted(set(re.findall(r'"([^"]+)"', m.group(1)))) if m else None
+
+
+def refop_variants(text):
+    """RefOpIR enum variant names (RefOp 10 ops)."""
+    m = re.search(r'pub enum RefOpIR \{(.*?)\n\}', text, re.S)
+    if not m:
+        return None
+    return sorted({v for v in re.findall(r'^    ([A-Z][A-Za-z]+)\b', m.group(1), re.M)})
+
+
+def bnf_production_words(text, lhs):
+    """Quoted single words of a BNF production and its `|` continuation
+    lines — `lhs ::= 'a' | 'b' ...` with following lines starting with `|`."""
+    lines = text.splitlines()
+    for i, line in enumerate(lines):
+        if re.match(rf'^{re.escape(lhs)}\s*::=', line.strip()):
+            words = []
+            j = i
+            while j < len(lines) and (j == i or lines[j].lstrip().startswith("|")):
+                words += re.findall(r"'([A-Za-z]+)'", lines[j])
+                j += 1
+            return sorted(set(words))
+    return None
+
+
+# ── universe parsing ─────────────────────────────────────────────────────
+
+def split_domains(text):
+    """`## 域 N: <title>` sections → {N: (title, body)}."""
+    parts = re.split(r'^## 域 (\d): ([^\n]+)', text, flags=re.M)
+    sections = {}
+    for i in range(1, len(parts), 3):
+        sections[int(parts[i])] = (parts[i + 1], parts[i + 2])
+    return sections
+
+
+def subsection(body, header):
+    m = re.search(rf'^### {re.escape(header)}\s*\n(.*?)(?=^### |\Z)', body, re.M | re.S)
+    return m.group(1) if m else None
+
+
+def table_rows(text):
+    """Markdown table → (headers, rows). Malformed tables return (None, None)."""
+    headers = None
+    rows = []
+    seen_separator = False
+    for line in text.splitlines():
+        line = line.strip()
+        if not line.startswith("|"):
+            if headers is not None:
+                break
+            continue
+        cells = [c.strip() for c in line.strip("|").split("|")]
+        if headers is None:
+            headers = [c for c in cells]
+            continue
+        if all(re.fullmatch(r":?-{2,}:?", c or "-") for c in cells):
+            seen_separator = True
+            continue
+        rows.append(cells)
+    if not headers or not seen_separator:
+        return None, None
+    for cells in rows:
+        if not cells or not cells[0]:
+            return None, None
+    return headers, rows
+
+
+def column_index(headers, name):
+    for i, h in enumerate(headers):
+        if h == name:
+            return i
+    return None
+
+
+def first_column_rows(text):
+    headers, rows = table_rows(text)
+    if headers is None or rows is None:
+        return None
+    return [r[0] for r in rows]
+
+
+# ── audit ────────────────────────────────────────────────────────────────
+
+def audit():
+    problems = []
+
+    def fail(msg):
+        problems.append(msg)
+
+    if not os.path.exists(UNIVERSE_FILE):
+        fail(f"semantic universe missing: {os.path.relpath(UNIVERSE_FILE, REPO_ROOT)}")
+        return problems
+
+    universe = read_file(UNIVERSE_FILE)
+    sections = split_domains(universe)
+    for n in range(1, 6):
+        if n not in sections:
+            fail(f"domain {n} missing (expected '## 域 {n}: …{DOMAIN_TITLES[n]}…')")
+            continue
+        title, body = sections[n]
+        if DOMAIN_TITLES[n] not in title:
+            fail(f"domain {n} title '{title}' missing expected keyword '{DOMAIN_TITLES[n]}'")
+        for header in REQUIRED_SUBSECTIONS:
+            sub = subsection(body, header)
+            if sub is None:
+                fail(f"domain {n} ({title}): missing '### {header}'")
+                continue
+            if header == "语义域定义":
+                if not sub.strip():
+                    fail(f"domain {n} ({title}): '### {header}' is empty")
+                continue
+            if header == "语义集条目":
+                headers, rows = table_rows(sub)
+                if headers is None or rows is None or not rows:
+                    fail(f"domain {n} ({title}): '### {header}' must be a well-formed table (header + separator + ≥1 row, no empty first column)")
+                    continue
+                si = column_index(headers, STATUS_COLUMN)
+                di = column_index(headers, DIAG_COLUMN)
+                if si is None or di is None:
+                    fail(f"domain {n} ({title}): '### {header}' must have '{STATUS_COLUMN}' and '{DIAG_COLUMN}' columns (got {headers})")
+                    continue
+                entries = [r[0] for r in rows]
+                if len(entries) != len(set(entries)):
+                    fail(f"domain {n} ({title}): duplicate 语义集条目 {sorted({w for w in entries if entries.count(w) > 1})}")
+                for row in rows:
+                    if row[si] not in STATUSES:
+                        fail(f"domain {n} ({title}): entry '{row[0]}' status '{row[si]}' not in {sorted(STATUSES)}")
+                    if not row[di].strip():
+                        fail(f"domain {n} ({title}): entry '{row[0]}' missing 诊断行为")
+            elif header == "已实现白名单":
+                words = first_column_rows(sub)
+                if words is None or not words:
+                    fail(f"domain {n} ({title}): '### {header}' must be a well-formed table (header + separator + ≥1 row, no empty first column)")
+                    continue
+                if len(words) != len(set(words)):
+                    fail(f"domain {n} ({title}): duplicate whitelist entries {sorted({w for w in words if words.count(w) > 1})}")
+
+    # ── per-domain compiler ground truth ────────────────────────────────
+    def whitelist(n):
+        """First-column words of the 已实现白名单 table of domain n (or None)."""
+        if n not in sections:
+            return None
+        return first_column_rows(subsection(sections[n][1], "已实现白名单"))
+
+    def entries(n):
+        """(entry, status) pairs of the 语义集条目 table of domain n (or None)."""
+        if n not in sections:
+            return None
+        sub = subsection(sections[n][1], "语义集条目")
+        if sub is None:
+            return None
+        headers, rows = table_rows(sub)
+        if headers is None or rows is None:
+            return None
+        si = column_index(headers, STATUS_COLUMN)
+        if si is None:
+            return None
+        return [(r[0], r[si]) for r in rows]
+
+    def assert_set(domain_label, got, expected, what, casefold=False):
+        if got is None or expected is None:
+            fail(f"domain {domain_label}: cannot cross-assert {what} (source extraction failed)")
+            return
+        norm = (lambda w: w.casefold()) if casefold else (lambda w: w)
+        got_s, exp_s = sorted({norm(w) for w in got}), sorted({norm(w) for w in expected})
+        if got_s != exp_s:
+            fail(
+                f"domain {domain_label}: {what} ≠ compiler whitelist\n"
+                f"    doc-only:      {sorted(set(got_s) - set(exp_s))}\n"
+                f"    compiler-only: {sorted(set(exp_s) - set(got_s))}"
+            )
+
+    def assert_matrix(domain_label, entries_list, whitelist_words, casefold=False):
+        """Every universe entry has a status (checked above); the status
+        matrix must be consistent with the whitelist:
+          - whitelist ⊆ 语义集条目 (no implemented member missing from the universe)
+          - {支持, 部分} ⊆ whitelist (a supported entry must be implemented)
+          - 未支持 ∩ whitelist = ∅ (an implemented entry cannot be 未支持)
+        """
+        if entries_list is None or whitelist_words is None:
+            fail(f"domain {domain_label}: cannot cross-assert status matrix (extraction failed)")
+            return
+        norm = (lambda w: w.casefold()) if casefold else (lambda w: w)
+        entry_set = {norm(e) for e, _ in entries_list}
+        wl_set = {norm(w) for w in whitelist_words}
+        if not wl_set <= entry_set:
+            fail(f"domain {domain_label}: whitelist not a subset of 语义集条目 (orphan whitelist members — every implemented entry must be a universe entry): {sorted(wl_set - entry_set)}")
+        supported = {norm(e) for e, s in entries_list if s in ("支持", "部分")}
+        if not supported <= wl_set:
+            fail(f"domain {domain_label}: entries marked {STATUS_COLUMN} 支持/部分 but absent from 已实现白名单: {sorted(supported - wl_set)}")
+        unsupported = {norm(e) for e, s in entries_list if s == "未支持"}
+        overlap = unsupported & wl_set
+        if overlap:
+            fail(f"domain {domain_label}: entries marked 未支持 but present in 已实现白名单 (contradiction): {sorted(overlap)}")
+
+    bnf = read_file(BNF_SPEC_FILE)
+
+    # motion (域 1): whitelist == BNF semantic_anim_prop (19)
+    wl1, en1 = whitelist(1), entries(1)
+    assert_set("motion", wl1, bnf_production_words(bnf, "semantic_anim_prop"), "已实现白名单")
+    assert_matrix("motion", en1, wl1)
+
+    # array (域 2): whitelist == ARRAY_METHODS (filter/map/count)
+    wl2, en2 = whitelist(2), entries(2)
+    assert_set("array", wl2, array_method_words(read_file(ARRAY_VALIDATE_FILE)), "已实现白名单")
+    assert_matrix("array", en2, wl2)
+
+    # events (域 3): whitelist == canonical event names (54)
+    wl3, en3 = whitelist(3), entries(3)
+    assert_set("事件", wl3, event_canonical_names(read_file(EVENT_TABLE_FILE)), "已实现白名单")
+    assert_matrix("事件", en3, wl3)
+
+    # RefOp (域 4): whitelist == RefOpIR variants (10, casefolded)
+    wl4, en4 = whitelist(4), entries(4)
+    assert_set("RefOp", wl4, refop_variants(read_file(REFOP_IR_FILE)), "已实现白名单", casefold=True)
+    assert_matrix("RefOp", en4, wl4, casefold=True)
+
+    # design token (域 5): whitelist == BNF token_type (13)
+    wl5, en5 = whitelist(5), entries(5)
+    assert_set("design token", wl5, bnf_production_words(bnf, "token_type"), "已实现白名单")
+    assert_matrix("design token", en5, wl5)
+
+    return problems
+
+
+def main():
+    # UTF-8 output on Windows (GBK) consoles so CJK diagnostics print cleanly.
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError):
+            pass
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--check", action="store_true", help="exit 1 on failure (gate mode)")
+    ap.add_argument("--inspect", action="store_true", help="never exit nonzero (audit mode)")
+    args = ap.parse_args()
+
+    problems = audit()
+    print(f"\n=== semantic-universe gate: {problems and len(problems) or 0} problem(s) ===")
+    for p in problems:
+        print(f"FAIL {p}")
+    if problems and not args.inspect:
+        print("\nGATE FAILED: semantic set drifted from the implementation status / whitelists.")
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

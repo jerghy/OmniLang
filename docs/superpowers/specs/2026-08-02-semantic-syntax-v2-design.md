@@ -19,8 +19,9 @@
 2. **地道映射有证据**：每域设计附三目标「手写对照样例」（React/Flutter 工程师会手写的代码）；语法映射目标 = 生成语义等价的地道形式；对照样例入 spec 作为验收基线
 3. **floor 外硬诊断，绝无 parse-and-ignore**：删除的语法全部产生「编译错误/警告 + 迁移提示」；「解析但惰性」路径清零
 4. **同一语义只有一个名字**：消除三表面（值绑定）、三名字（主题）、双机制（闭包）类破碎
-5. **文档虚构归零**：spec 只写已实现或将实现的语法；「已实现范围 vs 设计记录」显式区分；文档同步随实现同 commit
+5. **文档虚构归零**：spec 只写已实现或将实现的语法；「已实现范围 vs 设计记录」显式区分（实现状态逐项跟踪见 `docs/superpowers/specs/semantic-universe.md`——语义集 vs 已实现集分离，设计 P3，Task 7.2）；文档同步随实现同 commit
 6. **词汇语义域封闭（设计 P1 复发机制）**：每域设计时强制回答「词汇的语义域是什么」——新增语义词汇先查登记册（`docs/superpowers/specs/vocabulary-registry.md`，5 个封闭词汇域）；Flutter 旗标名（`textField`/`image`…）/ React 合成事件名（`onClick`…）**不得直接成为语义词汇**（借词 → 语义纯度违反，a11y 域教训见 域 10）；每域模板含「词汇来源」字段，登记册与编译器白名单交叉断言由 `scripts/verify-vocabulary.py` 强制（漂移即门禁失败）
+7. **语义集与已实现集分离（设计 P3 复发机制）**：白名单（BNF）定义「前端功能全集」——只随语义域变化（「这是不是前端功能」），**不随实现进度漂移**；每项实现状态（支持/部分/未支持 + 诊断行为）单独跟踪于 `docs/superpowers/specs/semantic-universe.md`（5 语义域：可动画属性/数组操作/事件/RefOp/design token 类型），`scripts/verify-semantic-universe.py` 强制（条目必有状态、白名单 ⊆ 语义集、支持/部分 ∈ 白名单、未支持 ∉ 白名单——漂移即门禁失败）。教训：19 属性白名单曾是「已实现集」——borderRadius/fontSize 上轮排除理由事实错误、v2 才补回；ArrayMethod 语义 pass 提升到所有后端但 floor 门缺失（v3 Task 4.8 补 E_CODEGEN）
 
 ## 3. 四项关键决策（用户已确认）
 
@@ -71,7 +72,7 @@
 
 ## 5. 逐域设计
 
-每个域按模板：语义定义 / **词汇来源**（登记册条目——先查 `docs/superpowers/specs/vocabulary-registry.md`，写清语义词汇的来源域与排除词汇；Flutter 旗标/React 合成事件名借词即违规）/ BNF v2（完整定义变更与新增；未变部分标注「保留 v1」）/ 手写对照样例 / 映射表 / 诊断表 / 验证清单。
+每个域按模板：语义定义 / **词汇来源**（登记册条目——先查 `docs/superpowers/specs/vocabulary-registry.md`，写清语义词汇的来源域与排除词汇；Flutter 旗标/React 合成事件名借词即违规）/ BNF v2（完整定义变更与新增；未变部分标注「保留 v1」）/ 手写对照样例 / 映射表 / 诊断表 / 验证清单。白名单节另含「语义集 vs 实现状态」双列表（权威全集：`docs/superpowers/specs/semantic-universe.md`——域 1/2/3/7/8：语义集成员 → 实现状态（支持/部分/未支持 + 诊断行为））。
 
 > 注：本设计文档中的 BNF 为设计意图。每域 spike 第一步做「BNF ↔ parser 事实对照」，以 parser 事实为准同步 BNF spec 文件（`docs/superpowers/specs/2026-07-31-semantic-level-dsl-syntax-spec.md` 按域重写为 v2）。
 
@@ -103,6 +104,23 @@ value_prop        ::= 'value' '=' expr            (* 普通单向 prop，无魔�
 ```
 
 **删除**：`RefOpIR::SetValue`（`ref.value = x` / `ref.setValue(x)` 命令式写）、`value={sig}` 语义绑定形式、隐式 auto-bind、`capturePointer(id)` 参数
+
+#### 语义集 vs 实现状态（Task 7.2，设计 P3）
+
+> 语义集 = 前端功能全集（与实现无关，权威全集：`semantic-universe.md` 域 4）；**语法表面（BNF 白名单）只随语义集变化，不随实现进度漂移**。下表：语义集成员 → 实现状态（支持/部分/未支持 + 诊断行为）。
+
+| 语义集成员 | 实现状态 | 诊断行为 |
+|-----------|---------|---------|
+| focus | 支持 | 无（三目标；Flutter FocusNode） |
+| blur | 支持 | 无（三目标） |
+| scrollTo | 支持 | 无（三目标；平滑度由目标默认决定——React 瞬时/Flutter 300ms easeInOut，滚动契约） |
+| scrollBy | 支持 | 无（三目标） |
+| measure | 支持 | 无（三目标；{ width, height, x, y }，Flutter 安全 cast） |
+| select | 支持 | 无（三目标） |
+| setSelection | 支持 | 无（三目标；(start, end)） |
+| value | 支持 | 无（三目标；命令式写已删除——`ref.value = x` → error「用 bind:value 双向绑定」） |
+| capturePointer | 部分 | React/OmniView 活动指针捕获；**Flutter → error「Flutter 不支持指针捕获，用 GestureDetector」**（floor 外） |
+| releasePointer | 部分 | 同上 |
 
 #### 手写对照样例
 
@@ -174,12 +192,39 @@ drag_params       ::= 'constraints:' '[' expr ',' expr ']'
 keyframe_body     ::= '{' prop ':' expr (';' prop ':' expr)* '}'   (* map 形式，保留 v1 *)
                     | '{' 'over:' duration 'from' '{...}' 'to' '{...}' '}'  (* 完整体 = 设计记录，未实现 *)
 playback          ::= 'loop:' | 'count:' | 'direction:' | 'delay:' | 'fill:' | 'duration:' | 'easing:' | 'steps:'   (* 保留 v1 *)
-whitelist         ::= 19 项（17 保留 + borderRadius + fontSize）   (* 语义集 *)
+whitelist         ::= 19 项（17 保留 + borderRadius + fontSize）   (* 语义集定义——全集与实现状态见 semantic-universe.md 域 1；语法表面不随实现进度漂移 *)
 ```
 
 **删除**：`paused`（属性与播放参数）→ 硬诊断「用条件渲染（@if 信号）替代」
 
 **新增**：`borderRadius`/`fontSize` 入白名单；`@scroll`/`@drag-*` 控制维度恢复（start/end/scrub、constraints/elastic/threshold，velocity_max 可选）
+
+#### 语义集 vs 实现状态（Task 7.2，设计 P3）
+
+> 语义集 = CSS 可动画属性全集（与实现无关，权威全集：`semantic-universe.md` 域 1）；白名单 19 项 = 已实现子集。**语法表面（白名单）只随语义集变化**——实现状态单独列跟踪；borderRadius/fontSize 教训（上轮以「实现未验证」为由排除，理由事实错误）：语义集判断只看语义域，不看实现进度。
+
+| 语义集成员 | 实现状态 | 诊断行为 |
+|-----------|---------|---------|
+| opacity | 支持 | 无（三目标） |
+| scale | 支持 | 无（三目标；Flutter Transform.scale） |
+| translateX | 支持 | 无（三目标） |
+| translateY | 支持 | 无（三目标） |
+| rotate | 支持 | 无（三目标；Flutter Transform.rotate） |
+| backgroundColor | 支持 | 无（三目标；Flutter Tween\<Color\>） |
+| color | 支持 | 无（三目标；Flutter Tween\<Color\>） |
+| width | 支持 | Flutter 经 SizedBox 动画 + 性能提示（[flutter] prefer scale/transform）；关键字值（auto 等）→ error「keyword value cannot be animated」 |
+| height | 支持 | 同上 |
+| borderRadius | 支持 | 无（三目标；Flutter BorderRadiusTween，Task 5.2） |
+| fontSize | 支持 | 无（三目标；Flutter TextStyle，Task 5.2） |
+| translateZ | 部分 | React/OmniView 动画；**Flutter 跳过 + [flutter] warning**（无对应 widget 构造） |
+| scaleX | 部分 | 同上 |
+| scaleY | 部分 | 同上 |
+| rotateX | 部分 | 同上 |
+| rotateY | 部分 | 同上 |
+| rotateZ | 部分 | 同上 |
+| skewX | 部分 | React/OmniView 动画；**Flutter 跳过 + [flutter] warning**（SDK 无 Transform.skew） |
+| skewY | 部分 | 同上 |
+| 白名单外可动画属性（borderColor/boxShadow/fontWeight/filter/top/…） | 未支持 | 解析期 error「白名单外属性」——19 项封闭；语义集成员但未实现（全集见 semantic-universe.md 域 1） |
 
 #### 手写对照样例
 
@@ -254,7 +299,7 @@ themes_decl        ::= '@themes' '{' ident (',' ident)* '}'        (* 新增；�
 default_theme_decl ::= '@default-theme' ident ';'                (* 新增；默认主题名，须为 @themes 枚举之一（语义验证） *)
 theme_signal       ::= 'signal' ident ':' 'String' '@theme'       (* 新增标记；值必须是 @themes 枚举之一（语义验证） *)
 token_types        ::= Color | Dimension | Duration | Easing | FontFamily | FontSize
-                     | FontWeight | LetterSpacing | LineHeight | Opacity | Radius | Shadow | ZIndex   (* 13 类型，保留 v1 *)
+                     | FontWeight | LetterSpacing | LineHeight | Opacity | Radius | Shadow | ZIndex   (* 13 类型，保留 v1——语义集定义，实现状态见下表 *)
 class_decl         ::= 'class' ident '{' style_entries '}'        (* 保留 v1 + base 块 + &:: 伪元素补 BNF *)
 variant_decl       ::= 'variant' ident '{' ... '}'                (* 保留 v1 *)
 ```
@@ -262,6 +307,26 @@ variant_decl       ::= 'variant' ident '{' ... '}'                (* 保留 v1 *
 **删除**：`theme = "dark"` 语句（spec 虚构，编译器无此语法）；`@native` 平台层 token（死 token）
 
 **修改**：classes/variants 三目标**真正实现**（Flutter 当前静默 no-op）；不可映射 design 值 → warnings 通道；React 生成 runtime 命名冲突解决
+
+#### 语义集 vs 实现状态（Task 7.2，设计 P3）
+
+> 语义集 = 设计值类型全集（与实现无关，权威全集：`semantic-universe.md` 域 5）；语法表面（13 类型）只随语义集变化，实现状态单独列跟踪。
+
+| 语义集成员 | 实现状态 | 诊断行为 |
+|-----------|---------|---------|
+| Color | 支持 | 无（三目标） |
+| Dimension | 支持 | 无（三目标） |
+| Radius | 支持 | 无（三目标） |
+| FontFamily | 支持 | 无（三目标） |
+| FontSize | 支持 | 无（三目标） |
+| FontWeight | 支持 | 无（三目标） |
+| LineHeight | 支持 | 无（三目标） |
+| LetterSpacing | 支持 | 无（三目标） |
+| Shadow | 支持 | 无（三目标） |
+| Duration | 支持 | 无（三目标） |
+| Easing | 支持 | 无（三目标；Flutter 不可映射 easing → warning + 降级） |
+| Opacity | 支持 | 无（三目标） |
+| ZIndex | 部分 | React/OmniView CSS z-index；**Flutter → warning「Flutter z 序由 widget 顺序决定」**（降级） |
 
 #### 手写对照样例
 
@@ -492,12 +557,73 @@ ListView.builder(itemCount: items.length, itemBuilder: (c, i) => ListTile(key: V
 #### BNF v2
 
 ```
-event_attr    ::= '@click' | '@input' | '@change' | ...   (* 20 类型，保留 v1 *)
+event_attr    ::= '@click' | '@input' | '@change' | ...   (* 54 canonical，保留 v1——语义集定义，全集与实现状态见 semantic-universe.md 域 3（登记册 域 1 同载） *)
 event_handler ::= '@on' ident '=' '{' (params)? '=>' block '}'   (* 事件内联 fn：唯一允许箭头处 *)
                   | ident '=' '{' expr '}'                (* 裸 onPress/onClick 形式（无 @ 前缀）亦接受 *)
 ```
 
 **修改**：`on:` 块形式（旧 `event_handler ::= 'on' ':' '{' params '=>' block '}'`）**已删除**——parser 对 `on: { ... }` 发射硬错误「on: 已删除，用 @onXxx={...}」（遗留分支曾静默吞 body + `__states_removed` 哨兵零诊断，v3 修复任务 4.1 恢复「绝无 parse-and-ignore」）。事件内联 fn 唯一表面为 `@onXxx={...}`（或裸 `onXxx={...}`）。event 字段提取**桩全部诊断化**——每个被提取的字段必须有真实映射（删除 `debugName` 当数据的做法，key 事件用稳定 `keyCode`/`keyLabel` 映射）；`map_event` 表单表复用（删除 react/utils.rs 与 omniview/utils.rs 双写，dblclick 类 bug 源头）
+
+#### 语义集 vs 实现状态（Task 7.2，设计 P3）
+
+> 语义集 = 54 canonical 事件全集（封闭域，与实现无关，权威全集：`semantic-universe.md` 域 3）；语法表面只随语义集变化，实现状态单独列跟踪。54 为 `event_names.rs` 共享表实计数（旧「20 类型」为文档漂移，Task 7.2 修正）。
+
+| 语义集成员 | 实现状态 | 诊断行为 |
+|-----------|---------|---------|
+| click | 支持 | 无（全目标） |
+| dblclick | 支持 | 无（全目标；`map_event` 单表复用） |
+| longpress | 部分 | **Flutter 便捷事件（onLongPress）；React/OmniView 无 DOM 对应——处理器名透传不触发** |
+| hover | 支持 | 无（全目标） |
+| change | 支持 | 无（全目标） |
+| input | 支持 | 无（全目标；Flutter onChanged） |
+| toggle | 支持 | 无（全目标） |
+| submit | 支持 | 无（全目标） |
+| focus | 支持 | 无（全目标） |
+| blur | 支持 | 无（全目标） |
+| select | 支持 | 无（全目标） |
+| resize | 支持 | 无（全目标） |
+| keydown | 支持 | 无（全目标；KeyEvent 稳定映射 keyCode/keyLabel） |
+| keyup | 支持 | 无（全目标） |
+| keypress | 支持 | 无（全目标） |
+| mouseenter | 支持 | 无（全目标） |
+| mouseleave | 支持 | 无（全目标） |
+| mousedown | 支持 | 无（全目标） |
+| mouseup | 支持 | 无（全目标） |
+| mousemove | 支持 | 无（全目标） |
+| mouseover | 支持 | 无（全目标） |
+| mouseout | 支持 | 无（全目标） |
+| pointerdown | 支持 | 无（全目标） |
+| pointerup | 支持 | 无（全目标） |
+| pointermove | 支持 | 无（全目标） |
+| pointercancel | 支持 | 无（全目标） |
+| scroll | 支持 | 无（全目标） |
+| wheel | 支持 | 无（全目标；mousewheel 非标准拼写 → wheel） |
+| touchstart | 支持 | 无（全目标） |
+| touchend | 支持 | 无（全目标） |
+| touchmove | 支持 | 无（全目标） |
+| touchcancel | 支持 | 无（全目标） |
+| contextmenu | 支持 | 无（全目标） |
+| drag | 支持 | 无（全目标） |
+| dragstart | 支持 | 无（全目标） |
+| dragend | 支持 | 无（全目标） |
+| dragover | 支持 | 无（全目标） |
+| dragleave | 支持 | 无（全目标） |
+| drop | 支持 | 无（全目标） |
+| copy | 支持 | 无（全目标；未映射字段 → warning + 降级注释） |
+| cut | 支持 | 同上 |
+| paste | 支持 | 同上 |
+| play | 支持 | 无（全目标） |
+| pause | 支持 | 无（全目标） |
+| ended | 支持 | 无（全目标） |
+| load | 支持 | 无（全目标） |
+| error | 支持 | 无（全目标） |
+| animationstart | 支持 | 无（全目标；React 合成 onAnimationStart 等） |
+| animationend | 支持 | 无（全目标） |
+| animationiteration | 支持 | 无（全目标） |
+| transitionend | 支持 | 无（全目标；React 合成 onTransitionEnd 等） |
+| transitionrun | 支持 | 无（全目标） |
+| transitionstart | 支持 | 无（全目标） |
+| transitioncancel | 支持 | 无（全目标） |
 
 #### 手写对照样例
 
@@ -535,7 +661,7 @@ TextField(onKeyDown: (e) => { if (e.logicalKey == LogicalKeyboardKey.enter) ... 
 
 ```
 closure_expr   ::= '|' params '|' expr        (* 唯一通用闭包形式；箭头仅事件内联 fn *)
-array_method   ::= expr '.' 'filter' '(' closure ')'      (* 新增语言方法 *)
+array_method   ::= expr '.' 'filter' '(' closure ')'      (* 新增语言方法——语义集定义，实现状态见下表（全集：semantic-universe.md 域 2） *)
                  | expr '.' 'map' '(' closure ')'
                  | expr '.' 'count' '(' closure ')'
 match_expr     ::= 'match' expr '{' arm+ '}'  (* 保留 v1；Flutter 变体臂 + 本地类型修复 *)
@@ -546,6 +672,19 @@ style_expr     ::= '$signal' | '$field'       (* 通道修复：$signal 仅真�
 **修改**：
 - 闭包：管道 `|x|` 唯一通用闭包（文档同步——spec 教学箭头闭包是评审 HIGH）；箭头 `=>` 仅事件内联 fn
 - 数组方法语言化：`items.filter(|x| ...)`/`items.map(...)`/`items.count(...)` 成为语言方法（语义：过滤/映射/计数）→ 映射 JS `filter/map/filter.length`、Dart `where/map/where.length`、OmniView 同 JS；`array_filter` 等函数保留为底层 stdlib（不删除）
+
+#### 语义集 vs 实现状态（Task 7.2，设计 P3）
+
+> 语义集 = 数组操作语言方法全集（与实现无关，权威全集：`semantic-universe.md` 域 2）；语法表面只随语义集变化，实现状态单独列跟踪。教训：语义 pass 曾提升到所有后端但 3 后端 verbatim 零诊断——floor 门（E_CODEGEN）v3 Task 4.8 补齐。
+
+| 语义集成员 | 实现状态 | 诊断行为 |
+|-----------|---------|---------|
+| filter | 支持 | JS 族 `filter` / Dart 族 `where(...).toList()`；Python/Rust/Dioxus → **E_CODEGEN**（floor 门，v3 Task 4.8） |
+| map | 支持 | JS 族 `map` / Dart 族 `map(...).toList()`；同上 |
+| count | 支持 | JS 族 `filter(...).length` / Dart 族 `where(...).length`；同上；`count()` 无谓词 → error「count 需要一个谓词闭包」 |
+| sort / find / reduce / some / every / unique / reverse / flat | 未支持 | 当前经普通方法调用/stdlib 表面（`array_sort`/`array_find` 等）；语言化需先登记语义全集（状态 未支持 → 支持）+ 三目标验证 |
+
+#### 手写对照样例
 - match：Flutter 变体臂 + 本地类型发射修复（deferral #30，当前生成不可编译 Dart）
 - 样式表达式通道（与域 9 联动）：`lower_expr_to_json_from_ir` 仅对真实信号/store 引用用 `$signal` 下划线形式；`obj.field` 用 `$field: ["obj","field"]` 新形式——消灭 `row_score` 类未定义标识符
 
