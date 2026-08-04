@@ -1639,7 +1639,20 @@ pub fn gen_theme_app_shell(ir: &IRProgram) -> Option<CompiledFile> {
             w.emit_fmt(format_args!("darkTheme: {}(),", dark_builder));
         }
     }
-    w.emit_fmt(format_args!("home: {},", home));
+    // Task 3.9: the root gets a Scaffold + SafeArea shell — status-bar /
+    // display-notch insets are honored (SafeArea) and the root component
+    // renders on a Material background (ink effects, Material text style).
+    // The F1 component-root Material (input-bearing components) nests
+    // inside without conflict — Flutter allows arbitrary Material nesting.
+    w.emit("home: Scaffold(");
+    w.indent();
+    w.emit("body: SafeArea(");
+    w.indent();
+    w.emit_fmt(format_args!("child: {},", home));
+    w.dedent();
+    w.emit("),");
+    w.dedent();
+    w.emit("),");
     w.dedent();
     w.emit(");");
     w.dedent();
@@ -3261,7 +3274,11 @@ mod tests {
         assert!(content.contains("themeMode: ref.watch(themeModeProvider),"));
         assert!(content.contains("theme: buildAppLightTheme(),"));
         assert!(content.contains("darkTheme: buildAppDarkTheme(),"));
-        assert!(content.contains("home: const App(),"));
+        // Task 3.9: the root sits in a Scaffold + SafeArea shell (status-bar
+        // insets + Material background) instead of a bare `home:`.
+        assert!(content.contains("home: Scaffold("));
+        assert!(content.contains("body: SafeArea("));
+        assert!(content.contains("child: const App(),"));
     }
 
     /// Task 3.6 (D-G): >2 declared themes switch the runtime from the
@@ -3325,7 +3342,9 @@ mod tests {
             "multi-theme shell must not wire darkTheme. Got:\n{}",
             content
         );
-        assert!(content.contains("home: const App(),"));
+        assert!(content.contains("home: Scaffold("));
+        assert!(content.contains("body: SafeArea("));
+        assert!(content.contains("child: const App(),"));
     }
 
     /// Task 3.6 (I-1): the multi-theme decision covers the UNION of themes

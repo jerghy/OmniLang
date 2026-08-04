@@ -737,27 +737,38 @@ pub(crate) fn build_animated_builder_body(
         );
     }
 
-    // color → DefaultTextStyle (text color; rebuilt every frame by the
-    // AnimatedBuilder, so no AnimatedDefaultTextStyle controller needed).
+    // color/fontSize → ONE DefaultTextStyle.merge wrapper (text color/size;
+    // rebuilt every frame by the AnimatedBuilder, so no
+    // AnimatedDefaultTextStyle controller needed). Task 3.9: `.merge()`
+    // overlays ONLY the animated axes onto the inherited style — the old
+    // bare `DefaultTextStyle(style: TextStyle(...))` REPLACED the whole
+    // style, dropping the inherited size/weight/family while animating. The
+    // two text axes share the wrapper so a color+fontSize motion animates
+    // BOTH: two nested wrappers let the inner one win the shared style slot
+    // and silently lose the other axis.
     // DefaultTextStyle.child is a required non-nullable Widget, unlike the
     // builder closure's nullable `child` param — coalesce when the text-style
     // wrapper sits at the innermost nesting level.
-    if has("color") {
-        let child_arg = text_style_child_arg(&body);
-        body = format!(
-            "DefaultTextStyle(style: TextStyle(color: {}.value), child: {child_arg})",
+    let text_style_fields = match (has("color"), has("fontSize")) {
+        (true, true) => format!(
+            "color: {}.value, fontSize: {}.value",
             prop_anim_field_for(motion_name, "color", element_idx),
-        );
-    }
-
-    // fontSize → DefaultTextStyle (text size; the per-property Tween<double>
-    // is the TextStyle.lerp equivalent for the size axis — same wrapper as
-    // the color property)
-    if has("fontSize") {
+            prop_anim_field_for(motion_name, "fontSize", element_idx),
+        ),
+        (true, false) => format!(
+            "color: {}.value",
+            prop_anim_field_for(motion_name, "color", element_idx),
+        ),
+        (false, true) => format!(
+            "fontSize: {}.value",
+            prop_anim_field_for(motion_name, "fontSize", element_idx),
+        ),
+        (false, false) => String::new(),
+    };
+    if !text_style_fields.is_empty() {
         let child_arg = text_style_child_arg(&body);
         body = format!(
-            "DefaultTextStyle(style: TextStyle(fontSize: {}.value), child: {child_arg})",
-            prop_anim_field_for(motion_name, "fontSize", element_idx),
+            "DefaultTextStyle.merge(style: TextStyle({text_style_fields}), child: {child_arg})",
         );
     }
 

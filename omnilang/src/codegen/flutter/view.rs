@@ -2207,6 +2207,95 @@ fn format_conditional(
     format!("Builder(\n  builder: (context) => {},\n)", result)
 }
 
+/// Is `node` a single page — a component instance, possibly inside the
+/// synthetic "fragment" element that directive lowering wraps every
+/// conditional branch body in (ConstructionKind::Conditional)? A
+/// single-child fragment unwraps; multi-node branches (Column-wrapped) or
+/// plain-subtree branches are not pages.
+fn is_component_instance(node: &ViewTree, ctx: &ViewContext) -> bool {
+    let el = match node {
+        ViewTree::Element(el) => el,
+        _ => return false,
+    };
+    if ctx.component_map.contains_key(el.tag.as_str()) {
+        return true;
+    }
+    if el.tag == "fragment" && el.children.len() == 1 {
+        return is_component_instance(&el.children[0], ctx);
+    }
+    false
+}
+
+/// Task 3.9 (flutter MEDIUM): a component-ROOT conditional in the
+/// PAGE-SWITCH shape — every branch (and the fallback, when present) is a
+/// single component instance (`<PageA/>`), no fade/wait transition — emits
+/// an `IndexedStack` instead of the `cond ? child : SizedBox()` ternary.
+/// IndexedStack keeps EVERY branch mounted, so switching tabs preserves the
+/// outgoing page's state (scroll position, form input); the ternary
+/// unmounted it on every switch (the OmniView runtime toggles visibility
+/// instead — the Flutter backend diverged).
+///
+/// `index:` evaluates the SAME condition chain the ternary used
+/// (`c0 ? 0 : c1 ? 1 : n`), so exactly one branch is shown — the conversion
+/// is selection-semantics preserving; only the mounting behavior changes. A
+/// missing fallback keeps the ternary's `: SizedBox()` tail as a shrink slot
+/// at the last index (no branch matched → nothing shown).
+///
+/// Returns `None` when the conditional is NOT the page-switch shape — the
+/// caller falls back to the ternary (non-top-level and element-branch
+/// conditionals are not page switches; mounting every branch offstage would
+/// run hidden initState/side effects for non-page toggles).
+pub(crate) fn format_page_switcher(
+    cond: &ConditionalIntent,
+    motions: &[MotionIntent],
+    ctx: &mut ViewContext,
+) -> Option<String> {
+    if cond.transition_mode.is_some() || cond.branches.is_empty() {
+        return None;
+    }
+    let mut children: Vec<String> = Vec::with_capacity(cond.branches.len() + 1);
+    for branch in &cond.branches {
+        let body = branch.body.as_ref()?;
+        if !is_component_instance(body, ctx) {
+            return None;
+        }
+        children.push(format_single_view(body, motions, ctx));
+    }
+    let mut index_expr = String::new();
+    for (i, branch) in cond.branches.iter().enumerate() {
+        let cond_str = ctx.format_expr(&branch.condition);
+        if i == 0 {
+            index_expr = format!("{cond_str} ? {i}");
+        } else {
+            index_expr = format!("{index_expr} : {cond_str} ? {i}");
+        }
+    }
+    let fallback_idx = cond.branches.len();
+    match &cond.fallback {
+        None => {
+            // No fallback: an unmatched condition must render nothing — the
+            // ternary's `: SizedBox()` tail becomes a shrink slot at the
+            // last index.
+            children.push("SizedBox.shrink()".to_string());
+            index_expr = format!("{index_expr} : {fallback_idx}");
+        }
+        Some(fb) => {
+            // A present-but-not-a-page fallback is NOT the page-switch shape
+            // — dropping it would lose real content; the ternary keeps it.
+            if !is_component_instance(fb, ctx) {
+                return None;
+            }
+            children.push(format_single_view(fb, motions, ctx));
+            index_expr = format!("{index_expr} : {fallback_idx}");
+        }
+    }
+    Some(format!(
+        "IndexedStack(\n  index: {},\n  children: [\n    {},\n  ],\n)",
+        index_expr,
+        children.join(",\n    ")
+    ))
+}
+
 /// Format a ListRenderingIntent for reactive re-rendering.
 ///
 /// Task 5.5 dispatch (design doc 域 6 mapping / spec §7.4):

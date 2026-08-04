@@ -16,7 +16,8 @@ omnilang/tests/flutter_widget_tests/
     ├── if_toggle_test.dart     # @if 条件渲染切换（Modal）
     ├── for_render_test.dart    # @for 列表渲染 + add 重渲染（ForDirectiveKeyDemo）
     ├── store_add_test.dart     # TodoStore.add() → @for 重渲染（容器直驱；bind:value 路径延迟至 3.3）
-    └── form_inputs_test.dart   # FormPage textarea→TextField(maxLines:4) 可见可输入 + disabled→enabled:false 不可编辑（3.5）
+    ├── form_inputs_test.dart   # FormPage textarea→TextField(maxLines:4) 可见可输入 + disabled→enabled:false 不可编辑（3.5）
+    └── page_switch_test.dart   # 标签页切换保留表单输入（3.9：PageSwitcherDemo 顶层互斥 @if → IndexedStack）
 ```
 
 物化的 Flutter 输出项目（gitignored 构建产物）：
@@ -54,6 +55,7 @@ harness 断言链：① learn-omniview → Flutter codegen 零错误（硬门禁
 | TodoStore.add() → @for 重渲染 | smoke/store_add_test.dart | ✅ 本任务（容器直驱） |
 | textarea/disabled 映射（FormPage message 可见可输入；disabled 不可编辑） | smoke/form_inputs_test.dart | ✅ 3.5 |
 | bind:value 输入回写 | —（store_add_test.dart 内 DEFERRED 注释） | ⏳ 延迟至 3.3：生成 AddTodo 的 TextField 无 controller/onChanged 接线，enterText 路径当前会坏；3.3 修复后补 enterText 断言 |
+| 标签页切换保留表单输入（PageSwitcherDemo 顶层互斥 @if → IndexedStack） | smoke/page_switch_test.dart | ✅ 3.9 |
 | motion / ref / [scroll] | — | 后续扩展位（框架就绪，测试随功能任务补） |
 
 ## CI 接线候选（`flutter-widget-tests` job）

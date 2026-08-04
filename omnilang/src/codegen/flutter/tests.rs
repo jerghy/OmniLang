@@ -3761,8 +3761,8 @@ fn test_build_animated_builder_body_color_and_size() {
         body
     );
     assert!(
-        body.contains("DefaultTextStyle(style: TextStyle(color: _tintColor_0.value)"),
-        "color wrapper: {}",
+        body.contains("DefaultTextStyle.merge(style: TextStyle(color: _tintColor_0.value)"),
+        "color wrapper (Task 3.9: must merge, not replace): {}",
         body
     );
     assert!(
@@ -3812,8 +3812,8 @@ fn test_build_animated_builder_body_border_radius_and_font_size() {
         body
     );
     assert!(
-        body.contains("DefaultTextStyle(style: TextStyle(fontSize: _softenFontSize_0.value"),
-        "fontSize wrapper: {}",
+        body.contains("DefaultTextStyle.merge(style: TextStyle(fontSize: _softenFontSize_0.value"),
+        "fontSize wrapper (Task 3.9: must merge, not replace): {}",
         body
     );
     assert!(
@@ -3843,7 +3843,7 @@ fn test_build_animated_builder_body_border_radius_and_font_size() {
     let body = build_animated_builder_body(&motion, "growText", 0);
     assert_eq!(
         body,
-        "_growTextActive_0 ? DefaultTextStyle(style: TextStyle(fontSize: _growTextFontSize_0.value), \
+        "_growTextActive_0 ? DefaultTextStyle.merge(style: TextStyle(fontSize: _growTextFontSize_0.value), \
          child: child ?? const SizedBox.shrink()) : child ?? const SizedBox.shrink()"
     );
 }
@@ -5733,6 +5733,91 @@ component V {
     assert!(
         out.contains("__omniIter.isEmpty"),
         "@empty wrapper must reference the hoisted iterable: {}",
+        out
+    );
+}
+
+// ── Task 3.9: DefaultTextStyle.merge + IndexedStack page switcher ──────
+
+/// Task 3.9 (flutter MEDIUM): a motion animating `color`/`fontSize` must
+/// MERGE onto the inherited text style — the old
+/// `DefaultTextStyle(style: TextStyle(color: ...))` REPLACED the whole
+/// style, dropping the inherited size/weight/family while animating.
+///
+/// Brief fixture adapted per the 3.4 precedent: the bare `view V {...}`
+/// shorthand and the element-level `@motion="m"` attribute have no parse
+/// branch, and `from` must be paired with `to` — the @enter trigger shape
+/// that exercises the wrapper is kept.
+#[test]
+fn motion_text_style_merges_inherited() {
+    let out = compile_flutter(
+        r#"import omniview;
+component V { view { <div @enter={m}/> } } @motion m { from { color: red } to { color: blue } }"#,
+    )
+    .expect("motion fixture must compile");
+    let out: String = out.files.values().cloned().collect::<Vec<_>>().join("\n");
+    assert!(
+        out.contains("DefaultTextStyle.merge"),
+        "must merge, not replace: {}",
+        out
+    );
+}
+
+/// Task 3.9 (flutter MEDIUM): a component-root @if group whose branches are
+/// all component instances (the page-switch shape) emits an IndexedStack —
+/// the old `cond ? child : SizedBox()` ternary unmounted the outgoing page
+/// on every switch, dropping its scroll position/form input (the OmniView
+/// runtime toggles visibility instead).
+///
+/// Brief fixture adapted per the 3.4 precedent: the bare `view App {...}`
+/// shorthand does not parse — the branch components and the `page` signal
+/// are declared explicitly.
+#[test]
+fn page_switcher_uses_indexed_stack() {
+    let out = compile_flutter(
+        r#"
+component PageA { view { <div>Page A</div> } }
+component PageB { view { <div>Page B</div> } }
+component App {
+    signal page: String = "a";
+    view { @if page == "a" { <PageA/> } @else { <PageB/> } }
+}
+"#,
+    )
+    .expect("page-switcher fixture must compile");
+    let out: String = out.files.values().cloned().collect::<Vec<_>>().join("\n");
+    assert!(
+        out.contains("IndexedStack("),
+        "tab switch unmounts state: {}",
+        out
+    );
+}
+
+/// Task 3.9: the page-switch shape requires EVERY branch AND the fallback
+/// to be a component instance — a plain-content fallback (`@else { <div>...
+/// }`) is not a page switch; converting would DROP the fallback content.
+/// It must stay on the ternary path.
+#[test]
+fn page_switcher_keeps_non_component_fallback() {
+    let out = compile_flutter(
+        r#"
+component PageA { view { <div>Page A</div> } }
+component App {
+    signal page: String = "a";
+    view { @if page == "a" { <PageA/> } @else { <div>Fallback content</div> } }
+}
+"#,
+    )
+    .expect("conditional fixture must compile");
+    let out: String = out.files.values().cloned().collect::<Vec<_>>().join("\n");
+    assert!(
+        !out.contains("IndexedStack("),
+        "plain-content fallback is not the page-switch shape: {}",
+        out
+    );
+    assert!(
+        out.contains("Fallback content"),
+        "the non-component fallback must be kept on the ternary path: {}",
         out
     );
 }

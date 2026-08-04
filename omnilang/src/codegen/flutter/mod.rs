@@ -1196,7 +1196,15 @@ impl FlutterCodegen {
             // `return Text('a'), Text('b');` would be invalid Dart
             // (format_single_view is the Flutter analogue of React's
             // fragment wrapper).
-            let tree_expr = format_single_view(view, &motions, &mut ctx);
+            // Task 3.9: a component-root conditional in the PAGE-SWITCH
+            // shape (every branch a component instance) becomes an
+            // IndexedStack so tab switches keep the outgoing page mounted
+            // (state preserved) — non-page shapes fall back to the ternary.
+            let tree_expr = match view {
+                ViewTree::Conditional(cond) => view::format_page_switcher(cond, &motions, &mut ctx)
+                    .unwrap_or_else(|| format_single_view(view, &motions, &mut ctx)),
+                _ => format_single_view(view, &motions, &mut ctx),
+            };
             // F1: input-bearing components get a Material shell at the root
             // (bare TextField renders ~100k px tall without one — 3.2
             // review finding; page shells are the 3.9 Scaffold task's).
