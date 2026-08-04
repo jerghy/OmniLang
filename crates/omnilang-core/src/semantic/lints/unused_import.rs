@@ -4,7 +4,8 @@
 //! Severity: warning
 
 use super::ast_collectors::{
-    collect_used_names_in_block, collect_used_names_in_expr, collect_used_names_in_view,
+    collect_used_names_in_block, collect_used_names_in_expr, collect_used_names_in_motion_def,
+    collect_used_names_in_view, collect_used_names_in_view_node,
 };
 use super::helpers::import_span_line_col;
 use super::{LintDiagnostic, LintRule, LintSeverity};
@@ -73,6 +74,25 @@ impl LintRule for UnusedImport {
                 for action in &comp.actions {
                     collect_used_names_in_block(&action.body, &mut used);
                 }
+                // `@store X` directives reference module-level stores by name —
+                // a real use of the imported store.
+                for store_ref in &comp.store_refs {
+                    used.insert(store_ref.as_str());
+                }
+                // Component-level @motion keyframe bodies hold real reference
+                // sites (mirrors the dead-code lint's collection).
+                for motion in &comp.motions {
+                    collect_used_names_in_motion_def(motion, &mut used);
+                }
+                // Body-level slot fallbacks (ADR-053 D5) may reference
+                // signals/imports — collect their names too.
+                for slot in &comp.slots {
+                    if let Some(ref content) = slot.default_content {
+                        for node in content {
+                            collect_used_names_in_view_node(node, &mut used);
+                        }
+                    }
+                }
                 if let Some(ref view) = comp.view {
                     collect_used_names_in_view(view, &mut used);
                 }
@@ -87,6 +107,21 @@ impl LintRule for UnusedImport {
                 }
                 for action in &store.actions {
                     collect_used_names_in_block(&action.body, &mut used);
+                }
+            }
+            // Design token values may hold Phase 2 runtime expressions
+            // (`token dynColor: color = DynamicTokenStore.liveColor;`) —
+            // real reference sites for store/const imports.
+            for design in &module.designs {
+                for token in &design.tokens {
+                    if let crate::parser::ast::TokenValue::Expression(e) = &token.value {
+                        collect_used_names_in_expr(e, &mut used);
+                    }
+                    for (_, tv) in &token.theme_values {
+                        if let crate::parser::ast::TokenValue::Expression(e) = tv {
+                            collect_used_names_in_expr(e, &mut used);
+                        }
+                    }
                 }
             }
             for s in &module.structs {

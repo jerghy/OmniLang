@@ -19,7 +19,8 @@
 //!   fixes)
 //! - `learn_omniview_flutter_warnings_are_tracked`: the showcase project ->
 //!   Flutter -> compile-warnings count asserted ≤ the documented baseline
-//!   (1,004 = 881 ECodegen + 123 unused-import; Task 0.5). Later tasks
+//!   (1,004 = 881 ECodegen + 123 unused-import; Task 0.5; 878 = 872 ECodegen
+//!   + 6 genuine unused-import after Task 4.12). Later tasks
 //!   (3.3/3.5/3.6/4.12) must lower the number monotonically, updating the
 //!   `FLUTTER_WARNINGS_BASELINE` cap — a regression fails the gate even
 //!   while `dart analyze` stays green.
@@ -924,6 +925,84 @@ fn learn_omniview_flutter_output_passes_dart_analyze() {
 }
 
 // ════════════════════════════════════════════════════════════════
+// unused-import false positives: DesignClass/Variant refs count as
+// uses (Task 4.12) — `class: LearnDesign.X` and
+// `variant: LearnDesign.Button(...)` are real references to the
+// imported design module and must suppress the "never used" warning.
+// ════════════════════════════════════════════════════════════════
+
+/// Compile a set of sources through the full pipeline and return their
+/// diagnostics (errors + warnings — warning-severity diagnostics live in
+/// the `errors` channel; see `compile_multi_internal_post`).
+fn compile_with_diags_multi(
+    sources: FxHashMap<String, String>,
+    target: Target,
+) -> Vec<omnilang::error::Diagnostic> {
+    let path_mapping = omnilang::path_mapping::derive_path_mapping(&sources);
+    let result =
+        omnilang::compile_multi_internal(sources, target, path_mapping, false, false, None);
+    let mut all = result.errors;
+    all.extend(result.warnings);
+    all
+}
+
+/// Task 4.12 Step 1 — `class: LearnDesign.card` (ClassValue::DesignClass)
+/// and `variant: LearnDesign.Button(...)` (ElementProp::Variant) must count
+/// as uses of the imported design module: no "never used" warning may fire.
+///
+/// NOTE: the plan's literal source `view V { ... }` does not parse (views
+/// only exist inside components — "Unexpected token at top level: View");
+/// the component wrapper below is the minimal valid form with identical
+/// assertions (same documented deviation as event_name_validation.rs).
+#[test]
+fn design_class_ref_counts_as_use() {
+    let sources = FxHashMap::from_iter([
+        (
+            "src/input.omni".to_string(),
+            r#"import omniview;
+import { LearnDesign } from "./design";
+
+component V {
+    view {
+        <div class: LearnDesign.card/>
+        <button variant: LearnDesign.Button(color=ghost)/>
+    }
+}"#
+            .to_string(),
+        ),
+        (
+            "src/design.omni".to_string(),
+            r##"import omniview;
+
+design LearnDesign {
+    @themes { light }
+    @default-theme light;
+
+    token primary: color = "#6366f1";
+
+    class Card {
+        background: token(primary);
+    }
+
+    variant Button {
+        @dim color: primary | ghost;
+        @default { color: primary; }
+        base { background: token(primary); }
+    }
+}"##
+            .to_string(),
+        ),
+    ]);
+
+    let diags = compile_with_diags_multi(sources, Target::React);
+    assert!(
+        !diags.iter().any(|d| d.message.contains("never used")),
+        "false positive: {:?}",
+        diags
+    );
+}
+
+// ════════════════════════════════════════════════════════════════
 // Showcase project: Flutter compile-warnings baseline (Task 0.5)
 // ════════════════════════════════════════════════════════════════
 //
@@ -981,7 +1060,19 @@ fn learn_omniview_flutter_output_passes_dart_analyze() {
 ///   single-font equivalent in Flutter's fontFamily string (silently fell
 ///   back to the default font); the constant now carries `'system-ui'` and
 ///   the design channel warns.
-const FLUTTER_WARNINGS_BASELINE: usize = 996;
+///
+/// Task 4.12 lowered it to 878 = 872 ECodegen + 6 unused-import: the
+/// unused-import lint now counts real reference sites as uses —
+/// `class: LearnDesign.X` / `variant: LearnDesign.X` (DesignClass/Variant
+/// design names), imported component tags (`<Overview />`), `@store`
+/// directives, design-token runtime expressions
+/// (`DynamicTokenStore.liveColor`), motion keyframe bodies and body-level
+/// slot fallbacks. 123 false positives cleared; the 6 remaining
+/// unused-import warnings are GENUINE (CapabilityCard/TodoItem/MotionDemo
+/// import LearnDesign without ever referencing it; TypeSystemDemo's
+/// `import type { Point, Percentage }` and main.omni's Percentage are
+/// never referenced either).
+const FLUTTER_WARNINGS_BASELINE: usize = 878;
 
 #[test]
 fn learn_omniview_flutter_warnings_are_tracked() {
@@ -991,9 +1082,10 @@ fn learn_omniview_flutter_warnings_are_tracked() {
     };
     let warnings = out.warnings;
 
-    // Baseline assertion: total must stay ≤ the documented cap. The plan's
-    // measured distribution (881 ECodegen + 123 unused-import) is recorded
-    // in the eprintln below for the per-category trackers.
+    // Baseline assertion: total must stay ≤ the documented cap. The
+    // measured distribution (872 ECodegen + 6 unused-import after
+    // Task 4.12) is recorded in the eprintln below for the per-category
+    // trackers.
     assert!(
         warnings.len() <= FLUTTER_WARNINGS_BASELINE,
         "warnings regressed: {} > {} — see the FLUTTER_WARNINGS_BASELINE \

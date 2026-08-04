@@ -216,6 +216,11 @@ pub(super) fn collect_used_names_in_view_node<'a>(
 ) {
     match node {
         ViewNode::Element(el) => {
+            // Element tags are real name references: HTML tags (`div`) and
+            // imported component tags (`<Overview />`) alike. Inserting HTML
+            // tags is harmless (no import can be named "div"); component tags
+            // are exactly how imported components get used.
+            used.insert(el.tag.as_str());
             for prop in &el.props {
                 match prop {
                     ElementProp::Static { value, .. } => {
@@ -235,6 +240,28 @@ pub(super) fn collect_used_names_in_view_node<'a>(
                     } => {
                         for (_, value) in entries {
                             collect_used_names_in_expr(value, used);
+                        }
+                    }
+                    // Design class references (`class: LearnDesign.card`) are
+                    // real uses of the imported design module.
+                    ElementProp::Class {
+                        value: ClassValue::DesignClass { design_name, .. },
+                    } => {
+                        used.insert(design_name.as_str());
+                    }
+                    // Variant references (`variant: LearnDesign.Button(...)`)
+                    // likewise name the imported design module.
+                    ElementProp::Variant { design_name, .. } => {
+                        used.insert(design_name.as_str());
+                    }
+                    // a11y blocks hold expression-valued entries
+                    // (`hidden`/`alt`) that may reference signals.
+                    ElementProp::A11y(spec) => {
+                        if let Some(ref e) = spec.hidden {
+                            collect_used_names_in_expr(e, used);
+                        }
+                        if let Some(ref e) = spec.alt {
+                            collect_used_names_in_expr(e, used);
                         }
                     }
                     ElementProp::Bind { signal_path, .. } => {
@@ -280,9 +307,9 @@ pub(super) fn collect_used_names_in_view_node<'a>(
                             }
                         }
                     }
-                    // Remaining variants carry no signal-referencing expressions:
-                    // ClassValue::StyleRef/StringLiteral/DesignClass, Variant
-                    // (design names/dimensions), and Ref (element refs).
+                    // Remaining variants carry no signal-referencing
+                    // expressions: ClassValue::StyleRef/StringLiteral (local
+                    // style names) and Ref (element refs).
                     _ => {}
                 }
             }
