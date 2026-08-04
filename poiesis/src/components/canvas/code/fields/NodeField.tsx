@@ -46,7 +46,12 @@ export function NodeTextField({ value, onCommit, placeholder, ariaLabel, classNa
       aria-invalid={invalid || undefined}
       onFocus={() => { focusedRef.current = true; }}
       onChange={(e) => { setDraft(e.target.value); dirtyRef.current = true; }}
-      onBlur={commit}
+      onBlur={() => {
+        const wasDirty = dirtyRef.current;
+        commit();
+        focusedRef.current = false;
+        if (!wasDirty) setDraft(value);
+      }}
       onKeyDown={(e) => {
         if (e.key === "Enter") { e.preventDefault(); commit(); }
         if (e.key === "Escape") { e.preventDefault(); cancel(); }

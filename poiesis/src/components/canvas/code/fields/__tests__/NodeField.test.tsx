@@ -92,6 +92,27 @@ describe("NodeTextField", () => {
     expect(onCommit).toHaveBeenLastCalledWith("abc");
   });
 
+  it("blur 后聚焦守卫复位，后续外部变化正常同步", () => {
+    const onCommit = vi.fn();
+    const { rerender } = render(<NodeTextField value="x" onCommit={onCommit} ariaLabel="变量名" />);
+    const input = screen.getByLabelText("变量名");
+    fireEvent.focus(input);
+    fireEvent.blur(input);
+    rerender(<NodeTextField value="new" onCommit={onCommit} ariaLabel="变量名" />);
+    expect((input as HTMLInputElement).value).toBe("new");
+  });
+
+  it("聚焦未编辑时外部变化，blur 后显示同步为最新外部值", () => {
+    const onCommit = vi.fn();
+    const { rerender } = render(<NodeTextField value="x" onCommit={onCommit} ariaLabel="变量名" />);
+    const input = screen.getByLabelText("变量名");
+    fireEvent.focus(input);
+    rerender(<NodeTextField value="external" onCommit={onCommit} ariaLabel="变量名" />);
+    fireEvent.blur(input);
+    expect(onCommit).not.toHaveBeenCalled();
+    expect((input as HTMLInputElement).value).toBe("external");
+  });
+
   it("NodeSelect allowCustom 展示当前自由文本值", () => {
     const options = [{ value: "=", label: "=" }];
     render(<NodeSelect value="自定义值" options={options} onCommit={vi.fn()} ariaLabel="运算符" allowCustom />);
