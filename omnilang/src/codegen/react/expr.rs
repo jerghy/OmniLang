@@ -229,6 +229,29 @@ impl FormatExpr for ReactFormatExpr {
         }
     }
 
+    /// Variant literals (tagged-union constructors) emit
+    /// `{ "_variant": "Star" as const, "level": 5 }` — the `as const` keeps
+    /// the DISCRIMINANT a string-LITERAL type. The declared union type
+    /// (types.rs) discriminates on `_variant: "Star"` and the match emitter
+    /// narrows with `_v._variant === "Star"`, so a constructor that widens
+    /// the discriminant to plain `string` is not assignable to the union
+    /// (TS2345 — DataFetching's `fetch_demo` return into `error_message`).
+    /// React-only override: the shared default stays for the JS-family
+    /// targets whose output is not type-checked (`as const` is TS syntax).
+    fn format_variant_literal(
+        &self,
+        _union_type: &str,
+        variant: &str,
+        fields: &[(String, ExprIR)],
+    ) -> String {
+        let mut entries: Vec<String> = fields
+            .iter()
+            .map(|(k, v)| format!("\"{k}\": {}", self.format_expr(v)))
+            .collect();
+        entries.insert(0, format!("\"_variant\": \"{variant}\" as const"));
+        format!("{{{}}}", entries.join(", "))
+    }
+
     fn format_match(&self, matched: &str, arms: &[MatchArmIR]) -> String {
         let cases: Vec<String> = arms
             .iter()
@@ -277,7 +300,26 @@ impl FormatExpr for ReactFormatExpr {
                 }
             })
             .collect();
-        format!("(() => {{ const _v = {matched}; {} }})()", cases.join(" "))
+        // A match WITHOUT a wildcard arm must not fall off the IIFE: tsc
+        // treats an if-chain's implicit fall-through as reachable even when
+        // every union member is consumed, so the IIFE's inferred return type
+        // would include `undefined` (TS2345 on every consumer — the
+        // DataFetching/MatchBreadthDemo cascade of deferral #49). The
+        // throwing tail mirrors the Flutter target's `default:
+        // throw StateError(...)` contract — unreachable at runtime for
+        // exhaustive matches, and a loud failure instead of silent undefined
+        // for genuinely non-exhaustive ones.
+        let has_wildcard = arms
+            .iter()
+            .any(|arm| matches!(arm.pattern.kind, MatchPatternKindIR::Wildcard));
+        if has_wildcard {
+            format!("(() => {{ const _v = {matched}; {} }})()", cases.join(" "))
+        } else {
+            format!(
+                "(() => {{ const _v = {matched}; {} throw new Error(\"match: no arm matched\"); }})()",
+                cases.join(" ")
+            )
+        }
     }
 }
 

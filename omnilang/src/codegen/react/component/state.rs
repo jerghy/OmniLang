@@ -35,6 +35,7 @@ impl ReactCodegen {
         hoisted_signals: &FxHashSet<String>,
         fn_names: &FxHashSet<String>,
         store_field_renames: &FxHashMap<String, String>,
+        user_types: &FxHashSet<String>,
     ) {
         for state in &comp.signals {
             if !consumed_signals.contains(&state.name) {
@@ -64,10 +65,11 @@ impl ReactCodegen {
                 // (`useState<string[]>([])` instead of `useState([])` which
                 // infers `never[]` and cascades into TS2322/TS2345 on every
                 // setter call). Only when every name in the type resolves in
-                // the generated file — user structs are never emitted by the
-                // React target, and `any` would defeat a literal initializer's
+                // the generated file — user structs are now declared inline
+                // by types.rs (deferral #49), so `useState<RowItem[]>([])`
+                // resolves; `any` would defeat a literal initializer's
                 // better inference.
-                let type_ann = typed_state_annotation(&state.r#type);
+                let type_ann = typed_state_annotation(&state.r#type, user_types);
                 if type_ann.is_empty() {
                     w.emit_fmt(format_args!(
                         "const [{}, {}] = useState({});",
@@ -174,21 +176,22 @@ pub(super) fn gen_hoisted_signal_consts(
 // ═══════════════════════════════════════════════════════════
 
 /// The TS type argument for `useState<T>`, or empty when the type must not
-/// be emitted. The React target never emits user structs (no `RowItem`
-/// declaration exists in generated output), so `useState<RowItem[]>` would
-/// be TS2304 — such states stay untyped and let their initializer infer.
-/// `any` is also left untyped: a literal initializer (`[]`, `""`, `0`)
-/// infers a strictly better type than `any`.
-fn typed_state_annotation(ty: &TypeIR) -> String {
-    if !js_type_resolves(ty) {
+/// be emitted. A name resolves only when it exists in the generated file:
+/// builtins always, user-declared types (structs/unions/aliases — `user_types`,
+/// deferral #49) since types.rs declares them inline into every file that
+/// references them. `any` is left untyped: a literal initializer (`[]`, `""`,
+/// `0`) infers a strictly better type than `any`.
+fn typed_state_annotation(ty: &TypeIR, user_types: &FxHashSet<String>) -> String {
+    if !js_type_resolves(ty, user_types) {
         return String::new();
     }
     JsTypeFormatter.format_type(ty.kind.as_str(), &ty.type_args)
 }
 
 /// Whether a TypeIR only references names that exist in the generated file:
-/// builtin kinds plus container wrappers whose element types also resolve.
-fn js_type_resolves(ty: &TypeIR) -> bool {
+/// builtin kinds plus container wrappers whose element types also resolve,
+/// plus user-declared types (declared inline by types.rs).
+fn js_type_resolves(ty: &TypeIR, user_types: &FxHashSet<String>) -> bool {
     match &ty.kind {
         TypeKind::String | TypeKind::Int | TypeKind::Float | TypeKind::Bool | TypeKind::Void => {
             true
@@ -196,8 +199,8 @@ fn js_type_resolves(ty: &TypeIR) -> bool {
         TypeKind::Any => false,
         TypeKind::Named { name } => match name.as_str() {
             "Array" | "Vec" | "List" | "Map" | "HashMap" | "FxHashMap" | "Dict" | "Option"
-            | "Record" => ty.type_args.iter().all(js_type_resolves),
-            _ => false,
+            | "Record" => ty.type_args.iter().all(|t| js_type_resolves(t, user_types)),
+            _ => user_types.contains(name),
         },
     }
 }

@@ -18,6 +18,7 @@ pub(super) mod expr;
 pub(super) mod motion;
 #[cfg(test)]
 pub(super) mod tests;
+pub(super) mod types;
 pub(super) mod utils;
 pub(crate) mod view;
 
@@ -27,13 +28,23 @@ pub struct ReactCodegen;
 
 impl Codegen for ReactCodegen {
     fn generate(&self, ir: &IRProgram, source_files: &FxHashMap<String, String>) -> CompileOutput {
-        // Inline stores (`store Name { ... }` in a component body) lower to
-        // module-level StoreIRs (Phase 5.2, deferral #37) — the shared
-        // generate_per_component path emits their useXxx.ts Zustand store
-        // files like any module-level store, and the component's store_refs
-        // resolve through the slice-subscription machinery. The task-2.2
-        // E_CODEGEN gate for inline stores was removed with it.
-        let mut output = self.generate_per_component(ir, source_files);
+        // The component/store loop is hand-rolled (instead of the shared
+        // generate_per_component) because store generation needs the whole
+        // IRProgram: user struct/union types (deferral #49) are declared
+        // INLINE in each generated file that references them, and the
+        // referenced-type scan must know every user-declared name. Inline
+        // stores (`store Name { ... }` in a component body) lower to
+        // module-level StoreIRs (Phase 5.2, deferral #37) and emit their
+        // useXxx.ts Zustand store files exactly like module-level stores.
+        let mut output = CompileOutput::success(Vec::new());
+        for (name, comp) in ir.all_components() {
+            output.files.extend(self.gen_component_file(name, comp, ir));
+        }
+        for (name, store) in ir.all_stores() {
+            output
+                .files
+                .extend(self.gen_store_file_typed(name, store, ir));
+        }
         // Module-level design blocks → design.css + design runtime files
         // (useDesignTokens.ts / useThemeStore.ts) in a dedicated `__design/`
         // subdirectory of the source file's output directory (Task 4.4
@@ -63,14 +74,6 @@ impl Codegen for ReactCodegen {
                 content: self.gen_component_css(name, comp),
             },
         ]
-    }
-    fn gen_store_file(&self, name: &str, store: &StoreIR) -> Vec<CompiledFile> {
-        let dir_prefix = source_dir_prefix(store.source_file.as_deref());
-        let content = self.gen_zustand_store(name, store);
-        vec![CompiledFile {
-            path: format!("{}use{}.ts", dir_prefix, name),
-            content,
-        }]
     }
 }
 
@@ -186,7 +189,32 @@ pub(super) fn relative_import_path(
 }
 
 impl ReactCodegen {
-    /// Generate a Zustand v5 store (useStoreName.ts).
+    /// Store generation with program access (deferral #49): user type
+    /// declarations are emitted inline into the store file. The trait's
+    /// `gen_store_file` override is intentionally absent — `generate` calls
+    /// this method directly with the IR (the trait default would return no
+    /// files, but it is never invoked for React).
+    fn gen_store_file_typed(
+        &self,
+        name: &str,
+        store: &StoreIR,
+        ir: &IRProgram,
+    ) -> Vec<CompiledFile> {
+        let dir_prefix = source_dir_prefix(store.source_file.as_deref());
+        let content = self.gen_zustand_store_typed(name, store, ir);
+        vec![CompiledFile {
+            path: format!("{}use{}.ts", dir_prefix, name),
+            content,
+        }]
+    }
+
+    /// Generate a Zustand v5 store (useStoreName.ts) — ir-less entry used
+    /// by unit tests that hand-construct a StoreIR (no user-type emission).
+    fn gen_zustand_store(&self, name: &str, store: &StoreIR) -> String {
+        self.gen_zustand_store_inner(name, store, None)
+    }
+
+    /// Generate a Zustand v5 store (useStoreName.ts) with program access.
     ///
     /// Emits `create<T>()(...)` with signals, getter accessors and actions.
     /// Subscription happens at the consumer: components and the
@@ -194,14 +222,51 @@ impl ReactCodegen {
     /// (store_slices.rs / design.rs, Task 2.7) — the standalone per-field
     /// selector hooks were dead code (nothing imported them) and are no
     /// longer emitted (perf M2).
-    fn gen_zustand_store(&self, name: &str, store: &StoreIR) -> String {
+    ///
+    /// User struct/union/alias types referenced by the store's annotations
+    /// (signals, getter types, action params/returns) are declared inline
+    /// after the import line (deferral #49) — the state interface references
+    /// them (`items: Todo[]`) and tsc must find a declaration.
+    fn gen_zustand_store_typed(&self, name: &str, store: &StoreIR, ir: &IRProgram) -> String {
+        self.gen_zustand_store_inner(name, store, Some(ir))
+    }
+
+    fn gen_zustand_store_inner(
+        &self,
+        name: &str,
+        store: &StoreIR,
+        ir: Option<&IRProgram>,
+    ) -> String {
         let mut w = CodeWriter::new();
         w.emit_fmt(format_args!(
             "// Generated by OmniLang — Zustand store: use{}",
             name
         ));
         w.emit("import { create } from 'zustand';");
-        w.emit("");
+        // ── User type declarations (deferral #49) ──
+        if let Some(ir) = ir {
+            let user_types = types::user_type_names(ir);
+            let mut type_refs: FxHashSet<String> = FxHashSet::default();
+            for ty in store.signals.values() {
+                types::collect_annotation_refs(ty, &user_types, &mut type_refs);
+            }
+            for ty in store.getter_types.values() {
+                types::collect_annotation_refs(ty, &user_types, &mut type_refs);
+            }
+            // Action RETURN types are not scanned: the emitted interface
+            // types every action `=> void` — a collected return type would
+            // be an unused declaration (eslint no-unused-vars).
+            for action in &store.actions {
+                for p in &action.params {
+                    if let Some(t) = &p.r#type {
+                        types::collect_annotation_refs(t, &user_types, &mut type_refs);
+                    }
+                }
+            }
+            types::close_type_refs(ir, &user_types, &mut type_refs);
+            types::emit_type_declarations(&mut w, ir, &type_refs);
+            w.emit("");
+        }
 
         // State interface
         let state_interface = format!("{}State", name);

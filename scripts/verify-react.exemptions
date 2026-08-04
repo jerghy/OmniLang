@@ -27,8 +27,10 @@
 # TS2322 14, TS2353 14, TS2345 14, TS2304 10, TS2722 23, TS2588 7, TS2554 6,
 # TS18048 4, TS7005 2, TS7034 1, TS2367 2; exhaustive-deps 91,
 # unused-identifiers 17, ES5-var 10, no-control-regex 2, no-explicit-any 1.
-# Current snapshot (task 2.11, 2026-08-04; I2 re-sync 2026-08-04): tsc 141
-# errors + 4 eslint problems (all exempted — I2 added the two
+# Current snapshot (task 5.3, 2026-08-04): tsc 112 errors + 4 eslint
+# problems (all exempted). Burn-down: user struct/union types now emit
+# TS declarations inline (deferral #49) — Todo/ApiResult/Rating TS2304,
+# DataTable never[] TS2322/TS2339, MatchBreadthDemo TS2345 deleted below. — I2 added the two
 # PageSwitcherDemo fixture entries for AboutPage/HomePage TS2722). The
 # exhaustive-deps 91 → 1 (task 2.6 _M hoist +
 # task 2.9 FilterBar hoist — see below); the 17 unused-identifier entries
@@ -50,15 +52,13 @@ components/DataTable.tsx	TS7006	[T1.6] implicit-any fn/closure params	1	#67
 #           references the top-level CartStore (slice selectors) and the
 #           implicit any[] vars are gone.
 # TS2304 — undefined names: inline store ACTIONS have no emission path (T3.3
-#           slice selectors need a module store), union/struct type names never
-#           emitted by React target, mutated-unread signal setter
+#           slice selectors need a module store) and the mutated-unread signal
+#           setter. The struct/union type-name class is GONE (task 5.3, #49):
+#           Todo/ApiResult/Rating now emit TS declarations inline.
 #           REMOVED (task 2.2): the CartStore entry (deferral #37) is gone —
 #           inline stores now hard-diagnose E_CODEGEN on React (BUG-C interim)
 #           and InlineStoreDemo was migrated to a top-level store.
 components/AdvancedPseudoDemo.tsx	TS2304	[T1.6] mutated-unread signal setter (setVariant)	2	#72
-stores/useTodoStore.ts	TS2304	[T1.6] struct type name never emitted by React target (Todo in TodoStoreState)	1	#49
-pages/DataFetching.tsx	TS2304	[T1.6] struct type name never emitted by React target (ApiResult)	1	#49
-components/MatchBreadthDemo.tsx	TS2304	[T1.6] union type name never emitted by React target (Rating)	1	#49
 # TS2722 — invoke of possibly-undefined event-handler props → needs `?.()`
 #           emission (event-prop call sites)
 components/TabBar.tsx	TS2722	[T1.6] possibly-undefined event-handler prop invocation	9	#61
@@ -87,9 +87,9 @@ pages/ElementRefDemo.tsx	TS18048	[T1.6] possibly-undefined ref access	4	#63
 # TS2554 — wrong callback arity (bind:value callbacks)
 components/FormPage.tsx	TS2554	[T1.6] wrong callback arity (bind:value)	3	#62
 components/FormControlsDemo.tsx	TS2554	[T1.6] wrong callback arity (bind:value)	3	#62
-# TS2322 — state-value mismatches: never[] (user structs not emitted → useState
-#           stays untyped), event-handler nullability, Option-value mismatches
-components/DataTable.tsx	TS2322	[T1.6] never[] row state (RowItem struct not emitted → useState([]) infers never[])	10	#49
+# TS2322 — state-value mismatches: event-handler nullability and Option-value
+#           mismatches. The DataTable never[] class is GONE (task 5.3, #49):
+#           struct-typed signals emit typed useState generics.
 pages/DataSubmit.tsx	TS2322	[T1.6] Option-value mismatch (string vs number)	1	#73
 components/Modal.tsx	TS2322	[T1.6] Option-value mismatch (string vs number)	1	#73
 # REMOVED (task 2.5): the EventsDemo TS2322 was the non-synthetic
@@ -100,7 +100,6 @@ components/EmitEventDemo.tsx	TS2322	[T1.6] event-handler nullability (emit param
 #           string→number coercion + Record param literals
 pages/ElementRefDemo.tsx	TS2345	[T1.6] SetStateAction mismatch (Option value)	3	#64
 components/ErrorHandlingDemo.tsx	TS2345	[T1.6] Record param literal mismatch	3	#64
-components/MatchBreadthDemo.tsx	TS2345	[T1.6] SetStateAction mismatch (string|undefined)	2	#64
 components/FormControlsDemo.tsx	TS2345	[T1.6] bind:value string→number coercion	2	#64
 pages/SlotBox.tsx	TS2345	[T1.6] SetStateAction mismatch (Option value)	1	#64
 components/StdLibShowcase.tsx	TS2345	[T1.6] SetStateAction mismatch (unknown value)	1	#64
@@ -122,9 +121,9 @@ components/ThemeCssVarsDemo.tsx	TS2353	[T1.3] CSS custom property rejected by Re
 # tsc — store-adjacent residue → NOT fixed by T3.3 (T3.3 is the per-field
 #       subscription perf fix; these need React user-type emission /
 #       inline-store action emission / event-data typing)
-# TS2339 — property access on 'never'/'EventTarget': DataTable never[] (RowItem
-#           user struct not emitted) + event-data typing (EventTarget/MouseEvent)
-components/DataTable.tsx	TS2339	[T3.3] never[] row state (RowItem struct not emitted)	14	#49
+# TS2339 — property access on 'EventTarget'/'MouseEvent': event-data typing.
+#           The DataTable never[] class is GONE (task 5.3, #49 — RowItem rows
+#           are now typed RowItem[]).
 pages/ElementRefDemo.tsx	TS2339	[T3.3] event-data typing (EventTarget selection props)	5	#73
 pages/SlotBox.tsx	TS2339	[T3.3] event-data typing (EventTarget/MouseEvent)	4	#73
 components/EventsDemo.tsx	TS2339	[T3.3] event-data typing (EventTarget scrollTop)	1	#73

@@ -468,6 +468,57 @@ impl ReactCodegen {
         );
         comp_imports.emit(&mut w, name, comp, has_props);
 
+        // ── User type declarations (deferral #49) ──
+        // Structs/unions/aliases referenced by THIS file's annotations are
+        // declared inline at module scope: props interface, event param
+        // types, signal types (the useState generic below), local fn params
+        // and inlined lib fn params (`error_message(result: ApiResult)`).
+        // The referenced set is closed transitively (a struct field may
+        // reference another user type). TS type aliases are hoisted, so the
+        // declarations may precede or follow their first use — emitted here,
+        // before the inlined lib fns, for readability.
+        let user_types = super::types::user_type_names(ir);
+        let mut type_refs: FxHashSet<String> = FxHashSet::default();
+        for ty in comp.props.values() {
+            super::types::collect_annotation_refs(ty, &user_types, &mut type_refs);
+        }
+        // Signal types count ONLY when the useState emission actually
+        // annotates them (mutated + value-consumed — gen_state_hooks' exact
+        // gate): a non-mutated struct-typed signal emits a bare `const`
+        // with no annotation, and declaring its type would be an unused
+        // declaration (eslint no-unused-vars — FeatureCard's StatisticsData).
+        for signal in &comp.signals {
+            if mutated_signals.contains(&signal.name) && value_consumed.contains(&signal.name) {
+                super::types::collect_annotation_refs(&signal.r#type, &user_types, &mut type_refs);
+            }
+        }
+        // fn/lib-fn RETURN types are NOT scanned: the React target emits no
+        // return annotations (`const getStats = () => {...}`) — collecting
+        // them would declare unused types (eslint no-unused-vars;
+        // FeatureCard's StatisticsData return annotation).
+        for fun in &comp.fns {
+            for p in &fun.params {
+                if let Some(t) = &p.r#type {
+                    super::types::collect_annotation_refs(t, &user_types, &mut type_refs);
+                }
+            }
+        }
+        for fun in &lib_fns {
+            for p in &fun.params {
+                if let Some(t) = &p.r#type {
+                    super::types::collect_annotation_refs(t, &user_types, &mut type_refs);
+                }
+            }
+        }
+        for event in &comp.events {
+            super::types::collect_ts_string_refs(&event.param_type, &user_types, &mut type_refs);
+        }
+        super::types::close_type_refs(ir, &user_types, &mut type_refs);
+        super::types::emit_type_declarations(&mut w, ir, &type_refs);
+        if !type_refs.is_empty() {
+            w.emit("");
+        }
+
         for fun in &lib_fns {
             let param_names: Vec<(String, bool)> = fun
                 .params
@@ -709,6 +760,7 @@ impl ReactCodegen {
             &hoisted_signals,
             &fn_names,
             &store_field_renames,
+            &user_types,
         );
         state::gen_ref_hooks(&mut w, comp, &ref_tags, &motion_internal_refs);
         // ── Active-pointer tracker listener (task 2.11, L1) ──

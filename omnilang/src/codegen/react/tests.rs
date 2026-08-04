@@ -6253,3 +6253,135 @@ component V {
         out
     );
 }
+
+// ── Task 5.3 (deferral #49): user struct/union type emission ──────────
+
+/// User structs (`struct Todo { ... }`) must emit TypeScript type
+/// declarations into the generated files that reference them — the React
+/// target previously declared nothing, so every annotation (`items: Todo[]`)
+/// failed tsc with TS2304 (Cannot find name 'Todo') and the useState-generic
+/// guard suppressed typed state for struct-typed signals (never[] cascade).
+///
+/// NOTE: the brief's literal source `struct Todo { ... } view V { }` does
+/// not parse — `view` is not a top-level declaration (views exist only
+/// inside components; same documented deviation as task 5.2 and
+/// design_class_ref_counts_as_use). A store whose state interface
+/// references the struct keeps the assertion identical.
+#[test]
+fn user_struct_emits_ts_type() {
+    let out = compile_react(
+        r#"
+        struct Todo { id: int, text: String, done: bool }
+        store TodoStore {
+            signal items: Todo[] = [];
+        }
+        component V {
+            view { <div/> }
+        }
+    "#,
+    );
+    let out = out.expect("compile must succeed");
+    let all: String = out.files.values().cloned().collect::<Vec<_>>().join("\n");
+    assert!(
+        all.contains("type Todo ="),
+        "missing TS type declaration for the struct (note: the store's own \
+         'interface TodoStoreState' is not a struct type — the assertion \
+         requires the emitted struct declaration): {}",
+        all
+    );
+}
+
+/// Tagged unions (`type Rating = Star { level: int } | Blank`) must emit a
+/// discriminated-union TS type — variant values emit
+/// `{ "_variant": "Star", "level": 5 }` and match arms dispatch on
+/// `_v._variant === "Star"`, so the literal discriminant is the union
+/// discriminator (burn-down: MatchBreadthDemo TS2304).
+#[test]
+fn union_type_emits_discriminated_union_ts() {
+    let out = compile_react(
+        r#"
+        type Rating = Star { level: int } | Blank
+        store RatingStore {
+            signal rating: Rating = Blank;
+        }
+        component V {
+            view { <div/> }
+        }
+    "#,
+    );
+    let out = out.expect("compile must succeed");
+    let all: String = out.files.values().cloned().collect::<Vec<_>>().join("\n");
+    assert!(all.contains("type Rating ="), "missing union type: {}", all);
+    assert!(
+        all.contains("_variant: \"Star\"") && all.contains("_variant: \"Blank\""),
+        "union variants must carry the literal _variant discriminator: {}",
+        all
+    );
+}
+
+/// Variant literals must keep the `_variant` DISCRIMINANT literal-typed
+/// (`"_variant": "Err" as const`) — the declared union type discriminates
+/// on `_variant: "Err"`, so a constructor that widens the discriminant to
+/// plain `string` is not assignable to the union (TS2345 — DataFetching's
+/// `fetch_demo` return passed into `error_message(result: ApiResult)`).
+#[test]
+fn variant_literal_keeps_literal_discriminant() {
+    let out = compile_react(
+        r#"
+        type ApiResult = Ok { data: String } | Err { error: String } | Loading
+        component V {
+            signal result: ApiResult = Loading;
+            fn load() {
+                let e = Err { error: "url is empty" };
+                let n = result;
+                result = e;
+            }
+            view {
+                <div @onClick={load}/>
+            }
+        }
+    "#,
+    );
+    let out = out.expect("compile must succeed");
+    let all: String = out.files.values().cloned().collect::<Vec<_>>().join("\n");
+    assert!(
+        all.contains("\"_variant\": \"Err\" as const"),
+        "variant literal must keep the discriminant literal-typed: {}",
+        all
+    );
+}
+
+/// DataTable never[] regression (ts/react M8 + review LOW-1): a mutated
+/// struct-typed signal (`signal rows: RowItem[] = []`) must emit
+/// `useState<RowItem[]>([])` — the bare `useState([])` inferred `never[]`,
+/// and every setter call / field read failed TS2322/TS2339 (deferral #49).
+#[test]
+fn struct_typed_state_emits_typed_use_state() {
+    let out = compile_react(
+        r#"
+        struct RowItem { id: int, name: String }
+        component V {
+            signal rows: RowItem[] = [];
+            fn load() {
+                let n = rows.len();
+                rows = [RowItem { id: 1, name: "a" }];
+            }
+            view {
+                <div @onClick={load}/>
+            }
+        }
+    "#,
+    );
+    let out = out.expect("compile must succeed");
+    let tsx = out.files.get("V.tsx").expect("V.tsx emitted");
+    assert!(
+        tsx.contains("useState<RowItem[]>([])"),
+        "struct-typed signal must emit a typed useState generic (never[] fix): {}",
+        tsx
+    );
+    assert!(
+        tsx.contains("type RowItem ="),
+        "the struct type must be declared in the component file: {}",
+        tsx
+    );
+}
