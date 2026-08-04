@@ -354,13 +354,16 @@
 
       var doc = '<!DOCTYPE html>\n<html>\n<head>\n';
       if (payload.css) {
-        doc += '<style>' + payload.css + '</style>\n';
+        doc += '<style>' + payload.css + '<\/style>\n';
       }
       doc += '</head>\n<body>\n';
       doc += (payload.html || '') + '\n';
       doc += bridgeScript + '\n';
       if (payload.js) {
-        doc += '<script>' + payload.js + '</script>\n';
+        // NOTE: escaped closing-script marker below — a literal closing
+        // script tag inside a JS string ends the inline <script> element
+        // during HTML parsing, leaking the rest of the file as text.
+        doc += '<script>' + payload.js + '<\/script>\n';
       }
       doc += '</body>\n</html>';
 

@@ -350,6 +350,16 @@ class RustCompiler {
     const indexHtml = getFile('index.html');
     const htmlMatch = indexHtml.match(/<body[^>]*>([\s\S]*)<\/body>/i);
     const bodyHtml = htmlMatch ? htmlMatch[1] : '';
+    // Inline <script src="..."> references — the sandboxed debug iframe
+    // (srcdoc, opaque origin) cannot resolve relative script URLs: they fall
+    // through to the dev server's SPA fallback which returns HTML instead of
+    // JS. Compiled assets (omni-animation.js, index.js) are already in
+    // `files`, so inline them directly.
+    const inlineScriptSrcs = (html: string): string =>
+      html.replace(/<script src="([^"]+)"><\/script>/gi, (match, src: string) => {
+        const content = getFile(src);
+        return content ? `<script>${content}</script>` : match;
+      });
     // Extract per-component output for hot-replace (may be JS Map from serde_wasm_bindgen)
     let components: Record<string, { js: string }> = {};
     try {
@@ -369,7 +379,7 @@ class RustCompiler {
 
     return {
       js: getFile('index.js'),
-      html: bodyHtml || htmlContent,
+      html: inlineScriptSrcs(bodyHtml || htmlContent),
       css: getFile('index.css'),
       nidMap,
       components,
