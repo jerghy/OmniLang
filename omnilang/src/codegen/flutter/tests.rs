@@ -3118,7 +3118,10 @@ fn test_no_const_on_dynamic_subtrees() {
     );
 
     // Image.network has no const constructor → never const
-    let el = props_el("img", vec![("src", lit(serde_json::json!("x.png")))]);
+    let el = props_el(
+        "img",
+        vec![("src", lit(serde_json::json!("https://example.com/x.png")))],
+    );
     let (expr, _) = fmt_view(&ViewTree::Element(Box::new(el)));
     assert!(
         !expr.starts_with("const "),
@@ -5822,6 +5825,182 @@ component App {
     );
 }
 
+// ── Task 3.10: relative image paths + fontFamily stacks ──────
+
+/// Task 3.10 (flutter LOW): a web-relative img `src` (`/dot.png`) thrown at
+/// `Image.network` throws NetworkImageLoadException at runtime in a NATIVE
+/// app (relative paths only resolve in the web harness). It must degrade to
+/// `Image.asset` with an honest warning — never a silent network load that
+/// fails at runtime.
+#[test]
+fn relative_image_path_warns_and_uses_asset_image() {
+    let result = compile_flutter_full(
+        r#"
+component V {
+    view { <img src="/dot.png"/> }
+}
+"#,
+    );
+    assert!(
+        result
+            .warnings
+            .iter()
+            .any(|d| d.message.contains("Image.asset")),
+        "relative path must warn honestly: {:?}",
+        result.warnings
+    );
+    let out: String = result
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        out.contains("Image.asset('/dot.png'"),
+        "relative path must emit Image.asset, not Image.network: {}",
+        out
+    );
+}
+
+/// Task 3.10: absolute http(s) URLs keep Image.network and stay silent —
+/// the network-load path is the correct one for them.
+#[test]
+fn absolute_image_url_keeps_image_network_without_warning() {
+    let result = compile_flutter_full(
+        r#"
+component V {
+    view { <img src="https://example.com/dot.png"/> }
+}
+"#,
+    );
+    assert!(
+        result
+            .warnings
+            .iter()
+            .all(|d| !d.message.contains("Image.asset")),
+        "absolute URL must not warn: {:?}",
+        result.warnings
+    );
+    let out: String = result
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        out.contains("Image.network('https://example.com/dot.png'"),
+        "absolute URL must keep Image.network: {}",
+        out
+    );
+}
+
+/// Task 3.10 (flutter LOW): a CSS font stack (`"system-ui, sans-serif"`) has
+/// no single-font equivalent in Flutter's `fontFamily` string — the raw
+/// stack silently falls back to the default font. The emitted constant must
+/// carry the FIRST font and warn honestly.
+#[test]
+fn font_family_stack_uses_first_font_with_warning() {
+    let result = compile_flutter_full(
+        r#"
+design App {
+    token fontFamily: fontFamily = "system-ui, sans-serif";
+}
+"#,
+    );
+    assert!(
+        result.warnings.iter().any(|d| d.message.contains("font")),
+        "font stack must warn: {:?}",
+        result.warnings
+    );
+    let out: String = result
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        out.contains("static const String fontFamily = 'system-ui';"),
+        "the constant must carry only the first font: {}",
+        out
+    );
+    assert!(
+        !out.contains("'system-ui, sans-serif'"),
+        "the raw stack must not reach the emitted constant: {}",
+        out
+    );
+}
+
+// ── Task 3.9 I-1: single-branch guard + index-chain fold ─────
+
+/// Task 3.9 I-1 (3.10 顺手): a SINGLE-branch root-level @if with no @else is
+/// NOT the page-switch shape — converting it to an IndexedStack would mount
+/// the branch unconditionally (hidden when the condition is false), running
+/// its initState/timers behind an offstage slot (the criterion-2
+/// contradiction). It must stay on the ternary path.
+#[test]
+fn single_branch_conditional_stays_ternary_not_indexed_stack() {
+    let out = compile_flutter(
+        r#"
+component PageA { view { <div>Page A</div> } }
+component App {
+    signal page: String = "a";
+    view { @if page == "a" { <PageA/> } }
+}
+"#,
+    )
+    .expect("conditional fixture must compile");
+    let out: String = out.files.values().cloned().collect::<Vec<_>>().join("\n");
+    assert!(
+        !out.contains("IndexedStack("),
+        "single-branch @if must NOT become an IndexedStack (the branch would be \
+         mounted unconditionally): {}",
+        out
+    );
+    assert!(
+        out.contains("PageA("),
+        "the conditional page must still render: {}",
+        out
+    );
+}
+
+/// Task 3.9 minor: 3+ branch @else-if chains fold into ONE index chain
+/// (`a ? 0 : b ? 1 : c ? 2`) — every page gets its own mount slot.
+#[test]
+fn three_branch_page_switcher_folds_index_chain() {
+    let out = compile_flutter(
+        r#"
+component PageA { view { <div>Page A</div> } }
+component PageB { view { <div>Page B</div> } }
+component PageC { view { <div>Page C</div> } }
+component App {
+    signal page: String = "a";
+    view {
+        @if page == "a" { <PageA/> }
+        @else if page == "b" { <PageB/> }
+        @else { <PageC/> }
+    }
+}
+"#,
+    )
+    .expect("3-branch fixture must compile");
+    let out: String = out.files.values().cloned().collect::<Vec<_>>().join("\n");
+    assert!(
+        out.contains("IndexedStack("),
+        "3-branch all-component @if must be a page switcher: {}",
+        out
+    );
+    assert!(
+        out.contains("? 0 :") && out.contains("? 1 :"),
+        "the index chain must fold all branches: {}",
+        out
+    );
+    assert!(
+        out.contains("PageC("),
+        "the @else fallback must stay mounted as the last slot: {}",
+        out
+    );
+}
+
 /// Task 3.7 (effect form): `@effect` bodies run from initState /
 /// didUpdateWidget — OUTSIDE the build phase. Riverpod 3.0 forbids
 /// `ref.watch` there; reads must be `ref.read` (event-time read). The
@@ -6434,16 +6613,22 @@ fn test_literal_prop_conversion_table() {
 
 #[test]
 fn test_img_network_emits_positional_src_not_named_image() {
+    // Task 3.10: an ABSOLUTE URL keeps Image.network (relative/asset paths
+    // now degrade to Image.asset with a warning) — the positional-arg
+    // mechanism under test stays on the network path.
     let el = props_el(
         "img",
         vec![
-            ("src", lit(serde_json::json!("icon.png"))),
+            (
+                "src",
+                lit(serde_json::json!("https://example.com/icon.png")),
+            ),
             ("alt", lit(serde_json::json!("Settings icon"))),
         ],
     );
     let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
     assert!(
-        expr.starts_with("Image.network('icon.png'"),
+        expr.starts_with("Image.network('https://example.com/icon.png'"),
         "src must be the POSITIONAL arg — `Image.network(image: ...)` is invalid Dart: {}",
         expr
     );

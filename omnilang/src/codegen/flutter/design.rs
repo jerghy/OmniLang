@@ -291,7 +291,14 @@ fn emit_tokens_class(w: &mut CodeWriter, design: &DesignIR, warnings: &mut Vec<S
             continue;
         }
         if let TokenValueIR::Static(v) = &token.value {
-            if let Some(decl) = token_const_decl(design, token, &const_name, v) {
+            // Task 3.10: FontFamily stacks degrade to their first font with
+            // a warning before the constant is emitted.
+            let effective = if token.token_type == TokenTypeIR::FontFamily {
+                font_stack_first_font(design, name, v, warnings)
+            } else {
+                v.clone()
+            };
+            if let Some(decl) = token_const_decl(design, token, &const_name, &effective) {
                 w.emit(&decl);
                 emitted_any = true;
             } else {
@@ -304,7 +311,12 @@ fn emit_tokens_class(w: &mut CodeWriter, design: &DesignIR, warnings: &mut Vec<S
         for theme in theme_names {
             if let Some(TokenValueIR::Static(v)) = token.theme_values.get(theme) {
                 let themed_name = theme_const_name(design, name, theme);
-                if let Some(decl) = token_const_decl(design, token, &themed_name, v) {
+                let effective = if token.token_type == TokenTypeIR::FontFamily {
+                    font_stack_first_font(design, name, v, warnings)
+                } else {
+                    v.clone()
+                };
+                if let Some(decl) = token_const_decl(design, token, &themed_name, &effective) {
                     w.emit(&decl);
                     emitted_any = true;
                 } else {
@@ -335,6 +347,29 @@ fn design_ctx_suffix(design: &DesignIR) -> String {
     } else {
         format!(" of design '{}'", design.name)
     }
+}
+
+/// Task 3.10 (flutter LOW): a CSS font stack (`"system-ui, sans-serif"`)
+/// cannot be expressed as Flutter's single `fontFamily` string — a raw stack
+/// silently falls back to the default font at runtime. Degrade to the FIRST
+/// font with an honest warning (ADR-054); single-font values pass through.
+fn font_stack_first_font(
+    design: &DesignIR,
+    name: &str,
+    value: &str,
+    warnings: &mut Vec<String>,
+) -> String {
+    if !value.contains(',') {
+        return value.to_string();
+    }
+    let first = value.split(',').next().unwrap_or("").trim();
+    warnings.push(format!(
+        "[flutter][design] token '{name}'{}: font stack '{value}' has no \
+         single-font equivalent in Flutter — using first font '{first}' \
+         (multi-font CSS stacks are not expressible)",
+        design_ctx_suffix(design)
+    ));
+    first.to_string()
 }
 
 /// One `[flutter][design]` warning for a token constant that could not be
@@ -3032,7 +3067,16 @@ mod tests {
         assert!(content.contains("static const double opacityDisabled = 0.5;"));
         assert!(content.contains("static const double lineHeight = 1.5;"));
         assert!(content.contains("static const double letterSpacing = 0.0;"));
-        assert!(content.contains("static const String fontFamily = 'system-ui, sans-serif';"));
+        // Task 3.10: a CSS font stack degrades to its FIRST font with an
+        // honest warning — a raw stack silently falls back to the default.
+        assert!(content.contains("static const String fontFamily = 'system-ui';"));
+        assert!(
+            warnings
+                .iter()
+                .any(|w| w.contains("fontFamily") && w.contains("font stack")),
+            "font stacks must warn via the design channel. Got:\n{:#?}",
+            warnings
+        );
         assert!(content.contains(
             "static const BoxShadow shadowSm = BoxShadow(color: Color.fromARGB(13, 0, 0, 0), \
              offset: Offset(0.0, 1.0), blurRadius: 2.0);"

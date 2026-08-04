@@ -1263,6 +1263,12 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
     // Params that belong to a sub-object (TextStyle/InputDecoration) are
     // collected and merged into a single wrapper argument.
     let mut wrapped: Vec<(&'static str, Vec<String>)> = Vec::new();
+    // Task 3.10 (flutter LOW): a relative/asset `src` degrades the emitted
+    // constructor from Image.network to Image.asset (see the src branch
+    // below) — every whitelist/event/alt check keeps the Image.network
+    // param set, because Image.asset shares it; only the constructor NAME
+    // emitted at the tail honors the switch.
+    let mut use_asset_image = false;
     for (name, value) in &el.props {
         // `_design_variant` is a design-class/variant carrier resolved by
         // `wrap_design_decorations` — never a widget param (the `class` prop
@@ -1275,7 +1281,36 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
         // param (`Image.network(image: ...)` is invalid Dart — the named
         // param list has no `image`; the fixture gate surfaced this).
         if widget == "Image.network" && name == "src" {
-            args.insert(0, ctx.format_expr(value));
+            let src_expr = ctx.format_expr(value);
+            // Task 3.10 (flutter LOW): a web-relative src (`/dot.png`) thrown
+            // at Image.network throws NetworkImageLoadException at runtime in
+            // a NATIVE app (relative paths only resolve in the web harness).
+            // Absolute http(s) URLs keep Image.network; anything else
+            // degrades to Image.asset with an honest warning — the file must
+            // live under assets/ and be referenced by its asset key.
+            let absolute_url = match value {
+                ExprIR::LiteralExpr { value } => value
+                    .as_str()
+                    .is_some_and(|s| s.starts_with("http://") || s.starts_with("https://")),
+                // Non-literal src (interpolation/store read) is not
+                // statically decidable — keep Image.network, the author's
+                // explicit network intent.
+                _ => true,
+            };
+            if !absolute_url {
+                use_asset_image = true;
+                let shown = match value {
+                    ExprIR::LiteralExpr { value } => value.as_str().unwrap_or("?"),
+                    _ => "?",
+                };
+                ctx.warnings.push(format!(
+                    "[flutter] img src '{shown}' is not an absolute http(s) URL — \
+                     Image.network throws NetworkImageLoadException at runtime in \
+                     a native app; emitting Image.asset (move the file under \
+                     assets/ and reference it by its asset key)"
+                ));
+            }
+            args.insert(0, src_expr);
             continue;
         }
         // Icon's `icon` positional argument is REQUIRED — `Icon()` with no
@@ -1773,19 +1808,27 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
         }
     }
 
+    // Task 3.10: a relative src swaps the emitted constructor to
+    // Image.asset (whitelist/event/alt checks keep the Image.network param
+    // set — Image.asset shares every one of them).
+    let render_widget = if use_asset_image {
+        "Image.asset"
+    } else {
+        widget
+    };
     let inner = if let Some(children) = text_column_fallback {
         wrap_multi_widget(&children)
     } else if args.is_empty() {
         // Task 5.8: an empty element mapped to Text (`<span/>` with style
         // only) emitted `Text()` — Text requires its positional `data`
         // argument (1 positional expected, 0 found).
-        if widget == "Text" {
+        if render_widget == "Text" {
             "Text('')".to_string()
         } else {
-            format!("{}()", widget)
+            format!("{}()", render_widget)
         }
     } else {
-        format!("{}({})", widget, args.join(", "))
+        format!("{}({})", render_widget, args.join(", "))
     };
 
     // Ref-bound elements that need focus but map to a non-TextField widget:
@@ -2250,7 +2293,18 @@ pub(crate) fn format_page_switcher(
     motions: &[MotionIntent],
     ctx: &mut ViewContext,
 ) -> Option<String> {
-    if cond.transition_mode.is_some() || cond.branches.is_empty() {
+    // Task 3.9 I-1 (3.10): a SINGLE-branch @if with no @else is not the
+    // page-switch shape — an IndexedStack would mount the branch
+    // unconditionally (hidden when the condition is false), running its
+    // initState/timers behind an offstage slot (the criterion-2
+    // contradiction). Note `@else` lowers to `fallback` (not a branch), so
+    // `@if a { A } @else { B }` (branches=[A], fallback=B) IS a two-page
+    // switch and must keep the IndexedStack; only the one-page shape
+    // (single branch, no fallback) is excluded.
+    if cond.transition_mode.is_some()
+        || cond.branches.is_empty()
+        || (cond.branches.len() == 1 && cond.fallback.is_none())
+    {
         return None;
     }
     let mut children: Vec<String> = Vec::with_capacity(cond.branches.len() + 1);

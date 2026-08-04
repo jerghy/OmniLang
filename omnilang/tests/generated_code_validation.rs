@@ -966,7 +966,22 @@ fn learn_omniview_flutter_output_passes_dart_analyze() {
 /// onChanged param is occupied — FilterBar / FormPage name+email+msg /
 /// FormControlsDemo age+rangeVal; the handler must own the write-back), 1×
 /// `bind:checked` on `<input type="checkbox">` (TextField mapping gap).
-const FLUTTER_WARNINGS_BASELINE: usize = 991;
+///
+/// Task 3.10 raised it to 996 with FIVE honest-degradation warnings — the
+/// single sanctioned exception to monotonic decrease (net effect is
+/// behavior improvement; each slot converts a silent runtime failure into a
+/// compile-time warning):
+/// - 4× relative img src → Image.asset: A11yDemo 1 (`/dot.png`), DataTable
+///   1 (9 identical `/dot.png` slots dedupe), EventsDemo 2 (`/dot.png` +
+///   `fallback.jpg`). A web-relative path thrown at Image.network throws
+///   NetworkImageLoadException at runtime in a native app — the warning
+///   names the fix (asset under assets/ referenced by its asset key).
+/// - 1× fontFamily stack → first font: design.omni's
+///   `fontFamily = "system-ui, sans-serif"` — a CSS font stack has no
+///   single-font equivalent in Flutter's fontFamily string (silently fell
+///   back to the default font); the constant now carries `'system-ui'` and
+///   the design channel warns.
+const FLUTTER_WARNINGS_BASELINE: usize = 996;
 
 #[test]
 fn learn_omniview_flutter_warnings_are_tracked() {
