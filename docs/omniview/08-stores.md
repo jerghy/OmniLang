@@ -134,7 +134,7 @@ component TodoApp {
         <button @onPress={TodoStore.clear}>Clear</button>
 
         <!-- 列表 -->
-        @for item in TodoStore.items {
+        @for item in TodoStore.items key={item.id} {
             <li>{item.text}</li>
         }
     }

@@ -584,7 +584,7 @@ top_level_decl ::= function_def
                  | export_stmt
                  // omni-view extensions (see grammar-view.md):
                  | component_def | store_def | theme_def | design_def
-                 | motion_def | timeline_def
+                 | motion_def
 ```
 
 ### 5.2 Function Definition

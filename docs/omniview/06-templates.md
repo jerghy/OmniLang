@@ -17,7 +17,7 @@ view {
 ```
 
 所有标准 HTML5 元素均支持。以下空元素自动自闭和：
-`area` `base` `br` `col` `embed` `hr` `img` `input` `link` `meta` `source` `track` `wbr`
+`area` `base` `br` `col` `embed` `hr` `img` `input` `link` `meta` `param` `source` `track` `wbr`
 
 ## 表达式插值
 

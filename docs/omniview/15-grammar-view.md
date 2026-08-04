@@ -118,12 +118,15 @@ The ref is bound to an element with `@ref={name}` or `ref: name` in the view
 
 ```
 store_ref     ::= '@store' <ident> ';'?
-store_inline  ::= 'store' <ident> '{' (signal_decl | action_def | getter_decl | function_def)* '}'
+store_inline  ::= 'store' <ident> '{' (signal_decl | action_def | getter_decl)* '}'
 ```
 
 Two forms:
 - **Reference**: `@store AppStore;` — links to a separately defined store
 - **Inline**: `store LocalState { signal count = 0; action reset() { count = 0 } }` — defines store inline
+
+`fn` members are a compile error in stores — use `getter` or `action`
+(parser/top_level/store.rs).
 
 ### 1.8 Slot Declaration
 
@@ -398,8 +401,7 @@ ViewNode ::=
   | Interpolation(Expr)
   | IfDirective(IfDirective)
   | ForDirective(ForDirective)
-  | SlotDirective { name: Option<String>, default_content: Option<Vec<ViewNode>>,
-                    type_constraint: Option<TypeAnnotation> }
+  | SlotDirective { name: Option<String>, default_content: Option<Vec<ViewNode>> }
 
 Element ::= {
     tag: String,
@@ -411,7 +413,7 @@ Element ::= {
 ElementProp ::=
   | Static { name: String, value: Expr }
   | Bind { name: String, signal_path: String }
-  | RefBinding { binding: String, signal: Expr }     // focus/scroll-x/scroll-y/value
+  | RefBinding { binding: String, signal: Expr }     // focus/scroll-x/scroll-y (value removed — D2)
   | Event { name: String, handler: EventHandler }
   | Class { value: ClassValue }                       // StyleRef | ClassMap | DesignClass
   | Variant { design_name: String, variant_name: String, dimension_values: Vec<(String, String)> }
@@ -1181,10 +1183,13 @@ When `{expr}` parsing fails inside views, the parser collects all tokens up to t
 | `@unmount` | Component | `@unmount { ... }` |
 | `@effect` | Component | `@effect (deps)? { ... }` |
 | `@motion` | Top-level, Component | `@motion name { from ... to ... }` |
-| `@themes` | Design | `@themes light, dark;` |
+| `@themes` | Design | `@themes { light, dark }` |
 | `@default-theme` | Design | `@default-theme light;` |
 
 > Removed per ADR-053: `@timeline`, `@hero`, `@heroTransition`.
+> The v1 semicolon-terminated form (`@themes light, dark` with a trailing
+> `;`) hard-errors with a migration hint — v2 requires the brace form
+> `@themes { light, dark }` (§6.6, parser/design.rs).
 
 ## Appendix B: Motion Trigger Attributes Quick Reference
 
