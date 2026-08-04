@@ -1724,10 +1724,14 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
     let inner = wrap_a11y(el, inner, ctx);
 
     // Wrap with motion animation widgets if the element has triggers
-    let has_inview = el
-        .motion_behavior()
-        .and_then(|m| m.in_view_once.as_ref().or(m.in_view_repeat.as_ref()))
-        .is_some();
+    // Task 3.4: read the TRIGGER SET for @in-view — the legacy
+    // in_view_once/in_view_repeat fields are filled by lowering as a mirror
+    // (defense in depth), but the trigger set is the source of truth.
+    let has_inview = el.motion_behavior().is_some_and(|m| {
+        m.triggers
+            .iter()
+            .any(|t| matches!(t.kind, TriggerKind::InView))
+    });
     let has_scroll = el.motion_behavior().is_some_and(|m| {
         m.triggers
             .iter()
@@ -1778,8 +1782,11 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
             if let Some(motion_name) = motion_ref {
                 let ctrl_name = motion_ctrl_name(motion_name, motion_idx);
                 let active_name = motion_active_name(motion_name, motion_idx);
+                // Constructor args are inViewOnce/inViewThreshold (not
+                // once/threshold) — the runtime widget's field names; the
+                // named shape keeps the emitted config self-documenting.
                 result = format!(
-                    "OmniInViewWidget(\n  once: {},\n  threshold: {},\n  onInView: () {{ {} = true; {}.forward(); }},\n  child: {},\n)",
+                    "OmniInViewWidget(\n  inViewOnce: {},\n  inViewThreshold: {},\n  onInView: () {{ {} = true; {}.forward(); }},\n  child: {},\n)",
                     once, threshold, active_name, ctrl_name, result
                 );
             }

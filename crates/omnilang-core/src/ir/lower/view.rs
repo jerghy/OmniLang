@@ -474,14 +474,15 @@ fn lower_element(
     let mut inline_style: Option<serde_json::Value> = None;
     let mut class_map_bindings_from_prop: Option<FxHashMap<String, ExprIR>> = None;
     let mut motion_triggers: Vec<TriggerIntent> = Vec::new();
-    // Sub-attribute values (in-view once/repeat/threshold, scroll start/end/
-    // scrub, drag constraints/elastic/threshold/velocity-max) were removed as
-    // @-prefixed tokens per semantic-level DSL spec §3.2. The IR behavior
-    // structs keep their fields for now (always None) until Phase 1
-    // restructures them. paused_override was deleted outright (ADR-053).
-    let in_view_once: Option<ExprIR> = None;
-    let in_view_repeat: Option<ExprIR> = None;
-    let in_view_threshold: Option<ExprIR> = None;
+    // The old @-prefixed sub-attribute tokens (in-view once/repeat/threshold,
+    // scroll start/end/scrub, drag constraints/elastic/scrub/momentum/
+    // threshold/velocity-max) were removed with the semantic-level DSL
+    // (§3.2, ADR-053). The IR behavior structs keep their fields; Task 3.4
+    // fills the in-view ones from the TRIGGER SET after the prop loop below
+    // (an @in-view trigger implies once-semantics — plays on first
+    // visibility, mirroring React's IntersectionObserver disconnect and the
+    // Flutter runtime's once: true default). paused_override was deleted
+    // outright (ADR-053).
     // Note: the former scroll_start/scroll_end/scroll_scrub/drag_* locals
     // (fed into ScrollBehavior/DragBehavior) were deleted with those IR
     // structs (Task 5.1) — the v1 control dimensions are carried directly on
@@ -819,6 +820,26 @@ fn lower_element(
             }
         }
     }
+
+    // Task 3.4: fill the legacy in-view behavior fields from the trigger
+    // set — the v2 DSL's `@in-view={motion}` carries no sub-params, so an
+    // InView trigger IS the config: once-semantics (fires on first
+    // visibility) with the default threshold. Backends that read the legacy
+    // fields (Flutter's has_inview/once flag, OmniView's disconnect
+    // condition, React's threshold) now see a truthful IR instead of
+    // always-None.
+    let in_view_once: Option<ExprIR> = if motion_triggers
+        .iter()
+        .any(|t| matches!(t.kind, TriggerKind::InView))
+    {
+        Some(ExprIR::LiteralExpr {
+            value: serde_json::Value::Bool(true),
+        })
+    } else {
+        None
+    };
+    let in_view_repeat: Option<ExprIR> = None;
+    let in_view_threshold: Option<ExprIR> = None;
 
     let mut children: Vec<ViewTree> = el
         .children

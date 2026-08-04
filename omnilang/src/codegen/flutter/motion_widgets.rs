@@ -41,15 +41,19 @@ pub(crate) fn emit_inview_widget_class(w: &mut CodeWriter) {
     w.emit("class OmniInViewWidget extends StatefulWidget {");
     w.indent();
     w.emit("final Widget child;");
-    w.emit("final bool once;");
-    w.emit("final double threshold;");
+    // Task 3.4: inViewOnce / inViewThreshold — the emitted constructor
+    // passes the config under these names (v2 DSL: an @in-view trigger is
+    // once-semantics by default; threshold stays 0.0 unless the legacy
+    // in_view_threshold IR field is populated).
+    w.emit("final bool inViewOnce;");
+    w.emit("final double inViewThreshold;");
     w.emit("final VoidCallback onInView;");
     w.emit("");
     w.emit("const OmniInViewWidget({");
     w.indent();
     w.emit("required this.child,");
-    w.emit("this.once = true,");
-    w.emit("this.threshold = 0.0,");
+    w.emit("this.inViewOnce = true,");
+    w.emit("this.inViewThreshold = 0.0,");
     w.emit("required this.onInView,");
     w.dedent();
     w.emit("});");
@@ -104,13 +108,13 @@ pub(crate) fn emit_inview_widget_class(w: &mut CodeWriter) {
     w.emit("");
     w.emit("void _checkVisibility() {");
     w.indent();
-    w.emit("if (_hasTriggered && widget.once) return;");
+    w.emit("if (_hasTriggered && widget.inViewOnce) return;");
     w.emit("final renderBox = context.findRenderObject() as RenderBox?;");
     w.emit("if (renderBox == null || !renderBox.hasSize) return;");
     w.emit("");
     w.emit("final position = renderBox.localToGlobal(Offset.zero);");
     w.emit("final viewportHeight = MediaQuery.of(context).size.height;");
-    w.emit("final threshold = widget.threshold;");
+    w.emit("final threshold = widget.inViewThreshold;");
     w.emit("");
     w.emit("final visible = position.dy < viewportHeight * (1.0 - threshold) &&");
     w.emit("    position.dy + renderBox.size.height > viewportHeight * threshold;");
@@ -220,6 +224,23 @@ pub(crate) fn emit_scroll_widget_class(w: &mut CodeWriter) {
     w.dedent();
     w.emit("}");
     w.emit("");
+    w.emit("// Frame-timestamp read that never asserts: currentFrameTimeStamp");
+    w.emit("// throws outside a frame; scroll notifications can legally fire");
+    w.emit("// outside one (Task 3.4 side-fix).");
+    w.emit("Duration _safeFrameTime() {");
+    w.indent();
+    w.emit("try {");
+    w.indent();
+    w.emit("return WidgetsBinding.instance.currentFrameTimeStamp;");
+    w.dedent();
+    w.emit("} catch (_) {");
+    w.indent();
+    w.emit("return _lastUpdate + const Duration(milliseconds: 16);");
+    w.dedent();
+    w.emit("}");
+    w.dedent();
+    w.emit("}");
+    w.emit("");
     w.emit("void _updateProgress() {");
     w.indent();
     w.emit("final renderBox = context.findRenderObject() as RenderBox?;");
@@ -274,7 +295,12 @@ pub(crate) fn emit_scroll_widget_class(w: &mut CodeWriter) {
     w.emit("// on), and the factor is the exact exponential-smoothing term");
     w.emit("// whose 60Hz value matches the old curve (Task 5.6). scrub is the");
     w.emit("// time constant in seconds.");
-    w.emit("final Duration now = WidgetsBinding.instance.currentFrameTimeStamp;");
+    w.emit("// Task 3.4 side-fix: the frame-timestamp getter ASSERTs when read");
+    w.emit("// outside a frame — and scroll notifications legally fire outside");
+    w.emit("// frames (pointer events in widget tests, programmatic scrolls) —");
+    w.emit("// so the read goes through a helper that falls back to the last");
+    w.emit("// update time plus one nominal frame instead of crashing.");
+    w.emit("final Duration now = _safeFrameTime();");
     w.emit("final double dtSeconds = _hasLastUpdate");
     w.emit("    ? (now - _lastUpdate).inMicroseconds / 1000000.0");
     w.emit("    : (1.0 / 60.0);");

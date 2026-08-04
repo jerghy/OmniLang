@@ -8046,6 +8046,54 @@ fn trigger_helpers_shared_runtime_single_emission_and_imports() {
     );
 }
 
+/// Task 3.4 (flutter HIGH): the @in-view trigger must INSTANTIATE the
+/// OmniInViewWidget wrapper with its trigger config — previously the helper
+/// class was only ever imported, never constructed, so the AnimationController
+/// never started and the animation silently never played.
+///
+/// Brief fixture adapted per the 2.9/2.10 precedent: the bare `view V {...}`
+/// shorthand does not parse (component wrapper required) and the
+/// element-level `@motion="m"` attribute has no parse_element branch (hard
+/// error), so it is dropped — the assertion names and failure messages are
+/// kept verbatim from the brief.
+#[test]
+fn in_view_trigger_instantiates_wrapper() {
+    let src = r#"component V { view { <div @in-view={m}/> } } @motion m { from { opacity: 0 } to { opacity: 1 } }"#;
+    let out = compile_flutter(src).unwrap();
+    let out: String = out.files.values().cloned().collect::<Vec<_>>().join("\n");
+    assert!(
+        out.contains("OmniInViewWidget("),
+        "wrapper never instantiated: {}",
+        out
+    );
+    assert!(
+        out.contains("inViewOnce") || out.contains("inViewThreshold"),
+        "trigger config missing: {}",
+        out
+    );
+}
+
+/// Task 3.4 (flutter HIGH): the @focus trigger must be WIRED — the element
+/// is wrapped in `Focus(onFocusChange:)` so gaining focus plays the motion
+/// (previously the trigger had zero listeners in the Flutter backend and
+/// the animation silently never played).
+#[test]
+fn focus_trigger_wraps_with_focus_widget() {
+    let src = r#"component V { view { <input @focus={m}/> } } @motion m { from { opacity: 0 } to { opacity: 1 } }"#;
+    let out = compile_flutter(src).unwrap();
+    let out: String = out.files.values().cloned().collect::<Vec<_>>().join("\n");
+    assert!(
+        out.contains("Focus(\n  onFocusChange: (focused)"),
+        "focus trigger must emit a Focus wrapper with onFocusChange, got:\n{}",
+        out
+    );
+    assert!(
+        out.contains(".forward();"),
+        "focus gain must start the motion controller, got:\n{}",
+        out
+    );
+}
+
 /// T5.6: trigger configurations are typed — the runtime-parsed legacy string
 /// paths ('top 80%' viewport configs, the drag `constraints: 'left:0 right:300'`
 /// string) are gone from the emitted code; the legacy scroll fallback is

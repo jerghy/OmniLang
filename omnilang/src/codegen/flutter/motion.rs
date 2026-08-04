@@ -1018,6 +1018,33 @@ pub(crate) fn wrap_with_motion_widgets(
         );
     }
 
+    // @focus (Task 3.4): wrap in `Focus(onFocusChange:)`. The Focus widget
+    // manages its own internal FocusNode (no State-class fields, no
+    // initState/dispose wiring) and its region reports focus when ANY
+    // descendant node is focused (e.g. an inner TextField), so focus plays
+    // the motion and blur reverses it — mirroring the React target's
+    // focusin/focusout listeners and the hover enter/exit contract.
+    let has_focus = triggers
+        .iter()
+        .any(|t| matches!(t.kind, TriggerKind::Focus));
+    if has_focus {
+        let focus_motion = triggers
+            .iter()
+            .find(|t| matches!(t.kind, TriggerKind::Focus))
+            .and_then(|t| t.motion_ref.as_ref());
+        let focus_ctrl = focus_motion
+            .map(|name| motion_ctrl_name(name, element_idx))
+            .unwrap_or_else(|| "_controller".to_string());
+        let focus_active = focus_motion
+            .map(|name| motion_active_name(name, element_idx))
+            .unwrap_or_else(|| "_active".to_string());
+
+        result = format!(
+            "Focus(\n  onFocusChange: (focused) {{ if (focused) {{ {active} = true; {ctrl}.forward(); }} else {{ {ctrl}.reverse().whenComplete(() {{ if (mounted && {ctrl}.value == 0.0) setState(() {{ {active} = false; }}); }}); }} }},\n  child: {result},\n)",
+            active = focus_active, ctrl = focus_ctrl, result = result
+        );
+    }
+
     result
 }
 
