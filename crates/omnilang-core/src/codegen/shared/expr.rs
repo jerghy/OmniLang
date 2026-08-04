@@ -1271,6 +1271,14 @@ fn format_block_stmt_dart(stmt: &StatementIR, fmt: &impl FormatExpr) -> String {
 /// expressions (`RustFormatExpr::format_block_expr`). Mirrors the Dart
 /// helper's conventions (`let` bindings; `;` appended by the caller; the
 /// final statement of the block is the tail expression without `;`).
+///
+/// Only expression-returning statements (let/expr/return) are
+/// string-representable in this helper's signature. Control-flow and
+/// side-effect statements (if/while/for/try/mutation/emit — 8 of the 11
+/// `StatementIR` variants) cannot be formatted here and must fail LOUDLY
+/// via a `compile_error!` sentinel (review I1): a silent `/* stmt */`
+/// placeholder would drop the statement with zero diagnostics — the exact
+/// silent-wrong-program shape this task exists to close.
 fn format_block_stmt_rust(stmt: &StatementIR, fmt: &impl FormatExpr) -> String {
     match stmt {
         StatementIR::LetStmtIR { name, value, .. } => {
@@ -1288,7 +1296,17 @@ fn format_block_stmt_rust(stmt: &StatementIR, fmt: &impl FormatExpr) -> String {
                 .unwrap_or_else(|| fmt.null_fallback().into());
             format!("return {}", val)
         }
-        _ => "/* stmt */".into(),
+        _ => {
+            // Uncovered statement variant in an expression-position block —
+            // never emit a silent placeholder. The target build fails with
+            // the variant name (variant names are identifiers — safe inside
+            // the string literal, no escaping needed).
+            let debug = format!("{stmt:?}");
+            let name = debug.split(['(', '{']).next().unwrap_or("Statement");
+            format!(
+                "compile_error!(\"statement '{name}' in an expression-position block is not supported on this target\")"
+            )
+        }
     }
 }
 
@@ -1372,6 +1390,33 @@ mod tests {
         };
         let out = fmt.format_expr(&block_expr_with_stmt());
         assert!(out.contains("let x = 5;"), "silent drop: {out}");
+    }
+
+    #[test]
+    fn rust_block_expr_uncovered_stmt_fails_loudly() {
+        // Review I1: `{ if c { } y }` — control-flow statements cannot be
+        // string-formatted by the block helper; the statement must fail
+        // LOUDLY (compile_error! sentinel) instead of a silent `/* stmt */`
+        // placeholder (8/11 StatementIR variants were dropped with zero
+        // diagnostics).
+        let expr = ExprIR::BlockExpr {
+            statements: vec![StatementIR::IfStmtIR {
+                condition: ident("c", None),
+                then_body: BlockIR { statements: vec![] },
+                else_ifs: vec![],
+                else_body: None,
+            }],
+            tail: Box::new(ident("y", None)),
+        };
+        let fmt = RustFormatExpr {
+            move_closures: false,
+            event_param_name: None,
+        };
+        let out = fmt.format_expr(&expr);
+        assert!(
+            out.contains("compile_error!") && !out.contains("/* stmt */"),
+            "uncovered statement must fail loudly, got: {out}"
+        );
     }
 
     /// Helper: an `items.filter(|i| i.done)`-shaped ArrayMethod IR node.

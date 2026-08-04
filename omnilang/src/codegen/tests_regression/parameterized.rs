@@ -665,7 +665,11 @@ fn assert_array_methods_react(files: &FxHashMap<String, String>) {
     // outer-scope values in deps). The computeds read the const via scope
     // hoisting; with no reactive deps the memo recomputes never, which is
     // correct (items is constant).
-    assert_contains(files, "ArrayMethodsDemo.tsx", "const items = [1, 2, 3, 4, 5, 6];");
+    assert_contains(
+        files,
+        "ArrayMethodsDemo.tsx",
+        "const items = [1, 2, 3, 4, 5, 6];",
+    );
     assert_contains(files, "ArrayMethodsDemo.tsx", "}, []);");
     assert!(
         !files["ArrayMethodsDemo.tsx"].contains("}, [items]);"),
@@ -787,6 +791,53 @@ gen_semantic_dsl_tests!(
     assert_array_methods_react,
     assert_array_methods_flutter
 );
+
+/// Compile the array_methods fixture to an unmapped target and assert the
+/// floor gate hard-diagnoses E_CODEGEN (task 4.8 fix round, M1): pins the
+/// facade wiring (`codegen::compile` → `validate_array_method_floor`) so a
+/// future deletion cannot go unnoticed — the mapped-target tests above
+/// would stay green while python/rust/dioxus silently regress to verbatim
+/// emission.
+fn assert_array_methods_unmapped_floor(target: crate::codegen::Target) {
+    let source = include_str!("../../../tests/fixtures/parameterized/array_methods.omni");
+    let sources = FxHashMap::from_iter([("main.omni".to_string(), source.to_string())]);
+    let path_mapping = crate::path_mapping::derive_path_mapping(&sources);
+    let result = crate::compile_multi_internal(sources, target, path_mapping, false, false, None);
+    assert!(
+        !result.success,
+        "array_methods.omni must fail on {:?}, got files: {:?}",
+        target,
+        result.files.keys().collect::<Vec<_>>()
+    );
+    assert!(
+        result
+            .errors
+            .iter()
+            .any(|d| d.kind.code_str() == "E_CODEGEN"),
+        "array_methods.omni must diagnose E_CODEGEN on {:?}, got: {:?}",
+        target,
+        result.errors
+    );
+}
+
+#[cfg(feature = "codegen-python")]
+#[test]
+fn array_methods_python_floor_diagnosed() {
+    assert_array_methods_unmapped_floor(crate::codegen::Target::Python);
+}
+
+#[cfg(feature = "codegen-rust")]
+#[test]
+fn array_methods_rust_floor_diagnosed() {
+    assert_array_methods_unmapped_floor(crate::codegen::Target::Rust);
+}
+
+#[cfg(feature = "codegen-dioxus")]
+#[test]
+fn array_methods_dioxus_floor_diagnosed() {
+    assert_array_methods_unmapped_floor(crate::codegen::Target::Dioxus);
+}
+
 gen_semantic_dsl_tests!(
     control_flow,
     "control_flow.omni",
