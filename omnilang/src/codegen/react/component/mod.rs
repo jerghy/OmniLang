@@ -1009,144 +1009,22 @@ fn component_has_fade_conditional(comp: &ComponentIR) -> bool {
 // ═══════════════════════════════════════════════════════════
 
 /// Collect identifier references from an ExprIR.
+///
+/// Traversal uses the shared IR walker (`crate::ir::walk::walk_expr`) — the
+/// pass is a pure filter collecting `IdentifierExpr` names plus `CallExpr`
+/// callee names (the callee name is not an `ExprIR` child, so it is
+/// collected at the `CallExpr` node itself). `RefOpExpr` child arguments are
+/// covered by the walker's `RefOpIR` descent (Task 5.5 walker convergence).
 pub(super) fn collect_expr_identifiers(expr: &ExprIR, acc: &mut FxHashSet<String>) {
-    match expr {
+    walk::walk_expr(expr, &mut |e| match e {
         ExprIR::IdentifierExpr { name, .. } => {
             acc.insert(name.clone());
         }
-        ExprIR::BinaryOpExpr { left, right, .. } => {
-            collect_expr_identifiers(left, acc);
-            collect_expr_identifiers(right, acc);
-        }
-        ExprIR::UnaryOpExpr { operand, .. } => {
-            collect_expr_identifiers(operand, acc);
-        }
-        ExprIR::CallExpr { name, args, .. } => {
+        ExprIR::CallExpr { name, .. } => {
             acc.insert(name.clone());
-            for arg in args {
-                collect_expr_identifiers(arg, acc);
-            }
         }
-        ExprIR::MethodCallExpr { object, args, .. } => {
-            collect_expr_identifiers(object, acc);
-            for arg in args {
-                collect_expr_identifiers(arg, acc);
-            }
-        }
-        ExprIR::FieldAccessExpr { object, .. } | ExprIR::OptionalChainExpr { object, .. } => {
-            collect_expr_identifiers(object, acc);
-        }
-        ExprIR::IndexExpr { object, index } => {
-            collect_expr_identifiers(object, acc);
-            collect_expr_identifiers(index, acc);
-        }
-        ExprIR::TernaryIR {
-            cond,
-            then_expr,
-            else_expr,
-        } => {
-            collect_expr_identifiers(cond, acc);
-            collect_expr_identifiers(then_expr, acc);
-            collect_expr_identifiers(else_expr, acc);
-        }
-        ExprIR::ArrayExpr { elements } => {
-            for elem in elements {
-                collect_expr_identifiers(elem, acc);
-            }
-        }
-        ExprIR::MapExpr { entries } => {
-            for (k, v) in entries {
-                collect_expr_identifiers(k, acc);
-                collect_expr_identifiers(v, acc);
-            }
-        }
-        ExprIR::ClosureExpr { body, .. } => {
-            collect_expr_identifiers(body, acc);
-        }
-        ExprIR::BlockExpr { statements, tail } => {
-            for stmt in statements {
-                collect_stmt_identifiers(stmt, acc);
-            }
-            collect_expr_identifiers(tail, acc);
-        }
-        ExprIR::MatchExpr { matched, arms } => {
-            collect_expr_identifiers(matched, acc);
-            for arm in arms {
-                for stmt in &arm.body.statements {
-                    collect_stmt_identifiers(stmt, acc);
-                }
-            }
-        }
-        ExprIR::VariantLiteral { fields, .. } => {
-            for (_, v) in fields {
-                collect_expr_identifiers(v, acc);
-            }
-        }
-        ExprIR::StructExpr { fields, .. } => {
-            for (_, v) in fields {
-                collect_expr_identifiers(v, acc);
-            }
-        }
-        ExprIR::SpreadExpr { operand } => {
-            collect_expr_identifiers(operand, acc);
-        }
-        ExprIR::StoreFieldAccessExpr { call_args, .. } => {
-            for arg in call_args {
-                collect_expr_identifiers(arg, acc);
-            }
-        }
-        ExprIR::AwaitExpr { operand } => {
-            collect_expr_identifiers(operand, acc);
-        }
-        ExprIR::ArrayMethod {
-            subject, predicate, ..
-        } => {
-            collect_expr_identifiers(subject, acc);
-            collect_expr_identifiers(predicate, acc);
-        }
-        ExprIR::LiteralExpr { .. } => {}
-        ExprIR::RefOpExpr { op, .. } => {
-            collect_ref_op_identifiers(op, acc);
-        }
-        #[allow(unreachable_patterns)]
-        _ => unreachable!("Unknown ExprIR variant — update codegen for new variant"),
-    }
-}
-
-/// Collect identifier references from a `RefOpIR`'s child expressions
-/// (e.g. ScrollTo/ScrollBy/SetSelection arguments).
-fn collect_ref_op_identifiers(op: &RefOpIR, acc: &mut FxHashSet<String>) {
-    match op {
-        RefOpIR::Focus
-        | RefOpIR::Blur
-        | RefOpIR::Measure { .. }
-        | RefOpIR::Select
-        | RefOpIR::Value => {}
-        RefOpIR::ScrollTo { x, y } => {
-            if let Some(x) = x {
-                collect_expr_identifiers(x, acc);
-            }
-            if let Some(y) = y {
-                collect_expr_identifiers(y, acc);
-            }
-        }
-        RefOpIR::ScrollBy { dx, dy } => {
-            if let Some(dx) = dx {
-                collect_expr_identifiers(dx, acc);
-            }
-            if let Some(dy) = dy {
-                collect_expr_identifiers(dy, acc);
-            }
-        }
-        RefOpIR::SetSelection { start, end } => {
-            collect_expr_identifiers(start, acc);
-            collect_expr_identifiers(end, acc);
-        }
-        RefOpIR::CapturePointer | RefOpIR::ReleasePointer => {}
-        // RefOpIR is #[non_exhaustive] — cross-crate matches need a wildcard.
-        #[allow(unreachable_patterns)]
         _ => {}
-    }
+    });
 }
 
 /// True when the component calls the parameterless pointer-capture ref ops
