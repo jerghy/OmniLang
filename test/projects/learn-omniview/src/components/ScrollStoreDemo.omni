@@ -1,0 +1,36 @@
+// ScrollStoreDemo.omni — Task 3.7 fixture: [scroll] ListView + store reads.
+//
+// The [scroll] hint emits `ListView.builder`; its itemBuilder executes at
+// LAYOUT time — after the build phase, where Riverpod 3.0 forbids
+// `ref.watch`. The item body's `ScrollStore.total` read is hoisted to a
+// build local (`final __omniN = ref.watch(...)`) by the codegen; the
+// itemBuilder references the local by capture. The @empty body's read stays
+// an inline build-phase watch (the `Builder` wrapper builds during build).
+//
+// This fixture was previously impossible to compose: the showcase had zero
+// [scroll] usages, so the layout-phase watch path was untested at runtime.
+// (No `class:` attributes on purpose — bare classes warn in the Flutter
+// backend; this fixture is about the watch-hoisting path, not styling.)
+
+import omniview;
+
+store ScrollStore {
+  signal items: String[] = [];
+  signal total: i32 = 0;
+  action addItem(text: String) { items = [...items, text]; total = items.len(); }
+}
+
+component ScrollStoreDemo {
+    @store ScrollStore;
+    view {
+        @for item in ScrollStore.items [scroll] {
+            <div>
+                <span>{item}</span>
+                <span>{ScrollStore.total}</span>
+            </div>
+        }
+        @empty {
+            <p>Empty list — total {ScrollStore.total}</p>
+        }
+    }
+}

@@ -538,6 +538,8 @@ fn fmt_view_with_program_and_map<'a>(
     let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
     let design_resolver = DesignResolver::new(ir);
     let mut motion_counter = 0usize;
+    let mut hoisted: Vec<(String, String)> = Vec::new();
+    let mut hoist_next = 0usize;
     let mut ctx = ViewContext {
         component_map,
         store_provider_map: &store_provider_map,
@@ -550,6 +552,9 @@ fn fmt_view_with_program_and_map<'a>(
         widget_names: &FxHashSet::default(),
         fn_renames: &FxHashMap::default(),
         comp: &dummy_comp(),
+        hoisted: &mut hoisted,
+        hoist_next: &mut hoist_next,
+        lazy_context: false,
     };
     let result = format_view_tree(node, &[], &mut ctx);
     (result, warnings)
@@ -563,6 +568,8 @@ fn fmt_view_in(node: &ViewTree, motions: &[MotionIntent], ir: &IRProgram) -> (St
     let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
     let design_resolver = DesignResolver::new(ir);
     let mut motion_counter = 0usize;
+    let mut hoisted: Vec<(String, String)> = Vec::new();
+    let mut hoist_next = 0usize;
     let mut ctx = ViewContext {
         component_map: &component_map,
         store_provider_map: &store_provider_map,
@@ -575,6 +582,9 @@ fn fmt_view_in(node: &ViewTree, motions: &[MotionIntent], ir: &IRProgram) -> (St
         widget_names: &FxHashSet::default(),
         fn_renames: &FxHashMap::default(),
         comp: &dummy_comp(),
+        hoisted: &mut hoisted,
+        hoist_next: &mut hoist_next,
+        lazy_context: false,
     };
     let result = format_view_tree(node, motions, &mut ctx);
     (result, warnings)
@@ -5508,6 +5518,214 @@ fn test_view_store_field_read_uses_ref_watch() {
     );
 }
 
+// ── Task 3.7: ref.watch hoisted out of closures (Riverpod 3.0 scope) ────
+
+/// Task 3.7 (flutter MEDIUM): a store read inside a `.where(...)` predicate
+/// — `S.items.where(|x| x.contains(S.filter))` — lands in a LAZY closure.
+/// `Iterable.where` evaluates the predicate when the iterable is consumed:
+/// at build time for `{iter}.length` but at LAYOUT time inside a
+/// ListView itemBuilder — where Riverpod 3.0 forbids `ref.watch` (watch
+/// outside the build phase throws at runtime). The read must be hoisted to
+/// a build local (`final __omniN = ref.watch(...)`) emitted ABOVE the
+/// `.where` call; the closure then references the local.
+#[test]
+fn store_read_hoisted_out_of_filter_predicate() {
+    let src = r#"
+import omniview;
+struct Todo { id: i32, text: String }
+store S {
+    signal items: Todo[] = [];
+    signal filter: String = "";
+}
+component V {
+    @store S;
+    view {
+        @for item in S.items.where(|x| x.contains(S.filter)) { <span>{item}</span> }
+    }
+}
+"#;
+    let out: String = compile_flutter(src)
+        .expect("compile must succeed")
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    let where_pos = out.find(".where(").unwrap();
+    let watch_pos = out.find("ref.watch").unwrap();
+    assert!(
+        watch_pos < where_pos,
+        "watch must be hoisted above predicate: {}",
+        out
+    );
+    // The predicate is lazy — the region after `.where(` must contain NO
+    // ref.watch at all (only the iterable read may watch, evaluated in build
+    // scope before `.where`).
+    let line_end = out[where_pos..]
+        .find('\n')
+        .map(|i| where_pos + i)
+        .unwrap_or(out.len());
+    assert!(
+        !out[where_pos..line_end].contains("ref.watch"),
+        "predicate region must not contain ref.watch: {}",
+        out
+    );
+    assert!(
+        out.contains("final __omni0 = ref.watch(sProvider.select(((SState s) => s.filter)))"),
+        "predicate read must be hoisted to a build local: {}",
+        out
+    );
+}
+
+/// Task 3.7 ([scroll] path): `ListView.builder`'s itemBuilder executes at
+/// LAYOUT time, after the build phase — NO `ref.watch` may appear anywhere
+/// inside the itemBuilder body. Store reads in the item body are hoisted to
+/// build locals; the itemBuilder closure references the locals by capture.
+#[test]
+fn scroll_item_builder_hoists_store_reads() {
+    let src = r#"
+import omniview;
+store S {
+    signal items: String[] = [];
+    signal total: i32 = 0;
+}
+component V {
+    @store S;
+    view {
+        @for item in S.items [scroll] {
+            <span>{item}{S.total}</span>
+        }
+    }
+}
+"#;
+    let out: String = compile_flutter(src)
+        .expect("compile must succeed")
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    let item_builder_pos = out
+        .find("itemBuilder:")
+        .unwrap_or_else(|| panic!("must emit ListView.builder with itemBuilder: {}", out));
+    let item_builder_end = out.rfind('\n').unwrap_or(out.len());
+    let body_region = &out[item_builder_pos..item_builder_end];
+    assert!(
+        !body_region.contains("ref.watch"),
+        "itemBuilder body must not contain ref.watch (layout-phase watch \
+         throws in Riverpod 3.0): {}",
+        out
+    );
+    // The [scroll] iterable is referenced INSIDE the itemBuilder
+    // (`var item = __omni0[index];`) — its read must be hoisted too.
+    assert!(
+        out.contains("final __omni0 = ref.watch(sProvider.select(((SState s) => s.items)))"),
+        "scroll iterable read must be hoisted (itemBuilder evaluates it at \
+         layout): {}",
+        out
+    );
+    // The item-body read must be hoisted as a second build local.
+    assert!(
+        out.contains("final __omni1 = ref.watch(sProvider.select(((SState s) => s.total)))"),
+        "store read in item body must be hoisted to a build local: {}",
+        out
+    );
+    // The item body must reference the locals instead of watching.
+    assert!(
+        body_region.contains("__omni0") && body_region.contains("__omni1"),
+        "item body must reference the hoisted locals: {}",
+        out
+    );
+}
+
+/// Task 3.7 (effect form): `@effect` bodies run from initState /
+/// didUpdateWidget — OUTSIDE the build phase. Riverpod 3.0 forbids
+/// `ref.watch` there; reads must be `ref.read` (event-time read). The
+/// `_runEffect_N` method must contain no `ref.watch`.
+#[test]
+fn effect_body_uses_ref_read_not_watch() {
+    let src = r#"
+import omniview;
+store S {
+    signal filter: String = "";
+}
+component E {
+    @store S;
+    signal label: String = "";
+    @effect(S.filter) {
+        if S.filter != "" {
+            label = S.filter;
+        }
+    }
+    view {
+        <span>{label}</span>
+    }
+}
+"#;
+    let out: String = compile_flutter(src)
+        .expect("compile must succeed")
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    let effect_pos = out
+        .find("void _runEffect_0()")
+        .unwrap_or_else(|| panic!("must emit _runEffect_0: {}", out));
+    let effect_end = out
+        .find("Widget build(")
+        .unwrap_or_else(|| panic!("effect must precede build: {}", out));
+    let effect_region = &out[effect_pos..effect_end];
+    assert!(
+        !effect_region.contains("ref.watch"),
+        "effect body must use ref.read, not ref.watch (watch outside build \
+         throws in Riverpod 3.0): {}",
+        out
+    );
+    assert!(
+        effect_region.contains("ref.read(sProvider.select(((SState s) => s.filter)))"),
+        "effect body read must become ref.read: {}",
+        out
+    );
+}
+
+/// Task 3.7 (event-handler form): an inline handler's store READS become
+/// `ref.watch` today — the handler runs at event time (outside build) and
+/// the watch throws on click. Reads in handler bodies must be `ref.read`.
+#[test]
+fn inline_handler_uses_ref_read_not_watch() {
+    let src = r#"
+import omniview;
+store S {
+    signal count: i32 = 0;
+}
+component H {
+    @store S;
+    signal label: String = "";
+    view {
+        <button @onPress={() => { label = S.count.to_string(); }}/>
+    }
+}
+"#;
+    let out: String = compile_flutter(src)
+        .expect("compile must succeed")
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        !out.contains("ref.watch"),
+        "handler reads must use ref.read (watch at event time throws): {}",
+        out
+    );
+    assert!(
+        out.contains("ref.read(sProvider.select(((SState s) => s.count)))"),
+        "handler read must become ref.read: {}",
+        out
+    );
+}
+
 // ── C5: CSS color conversion ──────────────────────────────
 
 #[test]
@@ -6323,6 +6541,8 @@ fn test_store_action_in_inline_handler_body() {
     let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
     let design_resolver = DesignResolver::new(&ir);
     let mut motion_counter = 0usize;
+    let mut hoisted: Vec<(String, String)> = Vec::new();
+    let mut hoist_next = 0usize;
     let mut ctx = ViewContext {
         component_map: &component_map,
         store_provider_map: &store_provider_map,
@@ -6335,6 +6555,9 @@ fn test_store_action_in_inline_handler_body() {
         widget_names: &FxHashSet::default(),
         fn_renames: &FxHashMap::default(),
         comp: &dummy_comp(),
+        hoisted: &mut hoisted,
+        hoist_next: &mut hoist_next,
+        lazy_context: false,
     };
     let expr = format_view_tree(&view, &[], &mut ctx);
     assert!(
@@ -6425,6 +6648,8 @@ fn test_store_action_method_call_form_in_handler() {
     let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
     let design_resolver = DesignResolver::new(&ir);
     let mut motion_counter = 0usize;
+    let mut hoisted: Vec<(String, String)> = Vec::new();
+    let mut hoist_next = 0usize;
     let mut ctx = ViewContext {
         component_map: &component_map,
         store_provider_map: &store_provider_map,
@@ -6437,6 +6662,9 @@ fn test_store_action_method_call_form_in_handler() {
         widget_names: &FxHashSet::default(),
         fn_renames: &FxHashMap::default(),
         comp: &dummy_comp(),
+        hoisted: &mut hoisted,
+        hoist_next: &mut hoist_next,
+        lazy_context: false,
     };
     let expr = format_view_tree(&view, &[], &mut ctx);
     assert!(
@@ -6649,6 +6877,8 @@ fn test_ref_key_on_widget_and_controller_attachment() {
     let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
     let design_resolver = DesignResolver::new(&ir);
     let mut motion_counter = 0usize;
+    let mut hoisted: Vec<(String, String)> = Vec::new();
+    let mut hoist_next = 0usize;
     let mut ctx = ViewContext {
         component_map: &component_map,
         store_provider_map: &store_provider_map,
@@ -6661,6 +6891,9 @@ fn test_ref_key_on_widget_and_controller_attachment() {
         widget_names: &FxHashSet::default(),
         fn_renames: &FxHashMap::default(),
         comp: &dummy_comp(),
+        hoisted: &mut hoisted,
+        hoist_next: &mut hoist_next,
+        lazy_context: false,
     };
     let view = ViewTree::Element(Box::new(el));
     let expr = format_view_tree(&view, &[], &mut ctx);
@@ -6701,6 +6934,9 @@ fn test_ref_key_on_widget_and_controller_attachment() {
         widget_names: &FxHashSet::default(),
         fn_renames: &FxHashMap::default(),
         comp: &dummy_comp(),
+        hoisted: &mut hoisted,
+        hoist_next: &mut hoist_next,
+        lazy_context: false,
     };
     let view2 = ViewTree::Element(Box::new(el2));
     let expr2 = format_view_tree(&view2, &[], &mut ctx2);
@@ -6736,6 +6972,9 @@ fn test_ref_key_on_widget_and_controller_attachment() {
         widget_names: &FxHashSet::default(),
         fn_renames: &FxHashMap::default(),
         comp: &dummy_comp(),
+        hoisted: &mut hoisted,
+        hoist_next: &mut hoist_next,
+        lazy_context: false,
     };
     let view3 = ViewTree::Element(Box::new(el3));
     let expr3 = format_view_tree(&view3, &[], &mut ctx3);

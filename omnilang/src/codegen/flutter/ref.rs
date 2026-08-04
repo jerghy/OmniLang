@@ -1042,90 +1042,10 @@ fn format_binding_expr(
     ir: &IRProgram,
 ) -> String {
     let rewritten = rewrite_store_accesses(expr, store_provider_map, ir);
-    let callback_legal = watch_to_read(&rewritten);
+    // Task 3.7: shared with the effect/handler read conversion — the
+    // callback-legal Riverpod 3.0 form.
+    let callback_legal = super::expr::watch_to_read(&rewritten);
     format_expr_ir_flutter(&callback_legal)
-}
-
-/// Convert `ref.watch(...)` reads into `ref.read(...)`.
-fn watch_to_read(expr: &ExprIR) -> ExprIR {
-    match expr {
-        ExprIR::MethodCallExpr {
-            object,
-            method,
-            args,
-            is_optional,
-        } if method == "watch" => ExprIR::MethodCallExpr {
-            object: object.clone(),
-            method: "read".into(),
-            args: args.iter().map(watch_to_read).collect(),
-            is_optional: *is_optional,
-        },
-        ExprIR::MethodCallExpr {
-            object,
-            method,
-            args,
-            is_optional,
-        } => ExprIR::MethodCallExpr {
-            object: Box::new(watch_to_read(object)),
-            method: method.clone(),
-            args: args.iter().map(watch_to_read).collect(),
-            is_optional: *is_optional,
-        },
-        ExprIR::FieldAccessExpr { object, field } => ExprIR::FieldAccessExpr {
-            object: Box::new(watch_to_read(object)),
-            field: field.clone(),
-        },
-        ExprIR::OptionalChainExpr { object, field } => ExprIR::OptionalChainExpr {
-            object: Box::new(watch_to_read(object)),
-            field: field.clone(),
-        },
-        ExprIR::BinaryOpExpr { op, left, right } => ExprIR::BinaryOpExpr {
-            op: *op,
-            left: Box::new(watch_to_read(left)),
-            right: Box::new(watch_to_read(right)),
-        },
-        ExprIR::UnaryOpExpr { op, operand } => ExprIR::UnaryOpExpr {
-            op: *op,
-            operand: Box::new(watch_to_read(operand)),
-        },
-        ExprIR::TernaryIR {
-            cond,
-            then_expr,
-            else_expr,
-        } => ExprIR::TernaryIR {
-            cond: Box::new(watch_to_read(cond)),
-            then_expr: Box::new(watch_to_read(then_expr)),
-            else_expr: Box::new(watch_to_read(else_expr)),
-        },
-        ExprIR::CallExpr { name, args } => ExprIR::CallExpr {
-            name: name.clone(),
-            args: args.iter().map(watch_to_read).collect(),
-        },
-        ExprIR::ArrayExpr { elements } => ExprIR::ArrayExpr {
-            elements: elements.iter().map(watch_to_read).collect(),
-        },
-        ExprIR::IndexExpr { object, index } => ExprIR::IndexExpr {
-            object: Box::new(watch_to_read(object)),
-            index: Box::new(watch_to_read(index)),
-        },
-        ExprIR::AwaitExpr { operand } => ExprIR::AwaitExpr {
-            operand: Box::new(watch_to_read(operand)),
-        },
-        ExprIR::ClosureExpr { params, body } => ExprIR::ClosureExpr {
-            params: params.clone(),
-            body: Box::new(watch_to_read(body)),
-        },
-        ExprIR::ArrayMethod {
-            method,
-            subject,
-            predicate,
-        } => ExprIR::ArrayMethod {
-            method: *method,
-            subject: Box::new(watch_to_read(subject)),
-            predicate: Box::new(watch_to_read(predicate)),
-        },
-        leaf => leaf.clone(),
-    }
 }
 
 // ═══════════════════════════════════════════════════════════

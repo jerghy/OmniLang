@@ -14,7 +14,7 @@ use super::design::{class_factory_expr, decoration_fields_to_expr, merge_decorat
 use super::design::{resolve_class_decoration, resolve_variant_decoration, DecorationFields};
 use super::expr::{
     format_expr_ir_flutter, rewrite_stmt_store_accesses, rewrite_stmt_widget_refs,
-    rewrite_store_accesses, rewrite_widget_refs,
+    rewrite_store_accesses, rewrite_widget_refs, watch_to_read_stmt, ClosureHoister,
 };
 use super::motion::{
     is_flutter_motion_element, motion_active_name, motion_ctrl_name, wrap_with_motion_widgets,
@@ -64,6 +64,20 @@ pub(crate) struct ViewContext<'a> {
     pub(crate) fn_renames: &'a FxHashMap<String, String>,
     /// The component being generated — fn-arity lookups for handler wiring.
     pub(crate) comp: &'a ComponentIR,
+    /// Hoisted store reads (Task 3.7, Riverpod 3.0 scope compliance):
+    /// `(local_name, read_dart)` pairs collected while formatting the view
+    /// tree. mod.rs emits `final {name} = {expr};` in build() before the
+    /// return, so lazy closures (`.where` predicates, ListView itemBuilder
+    /// bodies) reference build-scope locals instead of calling `ref.watch`
+    /// — Riverpod 3.0 forbids watch outside the build phase.
+    pub(crate) hoisted: &'a mut Vec<(String, String)>,
+    /// Unique-name counter for hoisted locals — shared across the whole
+    /// view tree so names cannot collide (`__omni0`, `__omni1`, ...).
+    pub(crate) hoist_next: &'a mut usize,
+    /// True while formatting a ListView itemBuilder body (and its iterable):
+    /// the entire expression executes at LAYOUT time, so EVERY store read is
+    /// hoisted, not just closure-internal ones.
+    pub(crate) lazy_context: bool,
 }
 
 impl ViewContext<'_> {
@@ -137,8 +151,30 @@ impl ViewContext<'_> {
     /// Format an expression in view context — `StoreFieldAccessExpr` is
     /// rewritten to Riverpod 3.0 `ref.watch(...)` / `ref.read(...)` forms (C4)
     /// and widget-scope identifiers to `widget.<name>` (Task 5.8).
-    fn format_expr(&self, expr: &ExprIR) -> String {
-        let rewritten = rewrite_store_accesses(expr, self.store_provider_map, self.ir);
+    ///
+    /// Task 3.7: store reads inside CLOSURE bodies (lazy `.where`
+    /// predicates, event handlers) are hoisted into build locals registered
+    /// in `self.hoisted` — the closure gets a reference to the local instead
+    /// of a `ref.watch`, which Riverpod 3.0 forbids outside the build phase.
+    /// In `lazy_context` (ListView itemBuilder) every read is hoisted, since
+    /// the whole expression executes at layout time.
+    fn format_expr(&mut self, expr: &ExprIR) -> String {
+        // Task 3.7: hoist FIRST — the closure walk must see the ORIGINAL
+        // store-access nodes (`S.filter`), before rewrite_store_accesses
+        // turns them into `ref.watch(...)` method calls. The hoisted locals
+        // carry the rewritten read expressions directly.
+        let mut hoister = ClosureHoister::new(
+            self.store_provider_map,
+            self.ir,
+            self.lazy_context,
+            self.hoist_next,
+        );
+        let (expr, locals) = hoister.hoist(expr);
+        for (name, read) in &locals {
+            self.hoisted
+                .push((name.clone(), format_expr_ir_flutter(read)));
+        }
+        let rewritten = rewrite_store_accesses(&expr, self.store_provider_map, self.ir);
         let rewritten = rewrite_widget_refs(&rewritten, self.widget_names, self.fn_renames);
         format_expr_ir_flutter(&rewritten)
     }
@@ -1519,7 +1555,12 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                         // Store accesses inside handler bodies resolve to
                         // ref.watch/ref.read on the Riverpod providers (C4);
                         // widget-scope props/events rewrite to widget.<name>.
+                        // Task 3.7: the handler runs at EVENT time (outside
+                        // the build phase) — reads must be ref.read, not
+                        // ref.watch (Riverpod 3.0 throws on watch in
+                        // callbacks).
                         let s1 = rewrite_stmt_store_accesses(stmt, ctx.store_provider_map, ctx.ir);
+                        let s1 = watch_to_read_stmt(&s1);
                         let s2 = rewrite_stmt_widget_refs(&s1, ctx.widget_names, ctx.fn_renames);
                         // Use custom formatter with event_param_name set
                         // so FieldAccess on "e" emits bare field name (local final binding)
@@ -2181,8 +2222,21 @@ fn format_list_rendering(
     motions: &[MotionIntent],
     ctx: &mut ViewContext,
 ) -> String {
-    let iterable_str = ctx.format_expr(&list.iterable);
     let item_name = &list.item_binding.name;
+    // Task 3.7 (Riverpod 3.0 scope compliance): the [scroll] path emits
+    // `ListView.builder` whose itemBuilder executes at LAYOUT time — after
+    // the build phase, where `ref.watch` throws. The itemBuilder body AND
+    // the iterable (referenced inside the closure as `{iter}[index]`) must
+    // be free of watches: while `lazy_context` is set, every store read is
+    // hoisted to a build local. The plain-flow path stays build-scoped (the
+    // collection-for runs during build) — there only closure-internal reads
+    // (lazy `.where` predicates) are hoisted, which `format_expr` does
+    // unconditionally.
+    let saved_lazy = ctx.lazy_context;
+    if list.scroll_hint {
+        ctx.lazy_context = true;
+    }
+    let iterable_str = ctx.format_expr(&list.iterable);
     // The item body must be a single widget expression — multi-node
     // fragments are Column-wrapped so the emitted expression stays valid.
     let body_str = list
@@ -2201,6 +2255,7 @@ fn format_list_rendering(
         ),
         None => body_str,
     };
+    ctx.lazy_context = saved_lazy;
     let rendered = if list.scroll_hint {
         format!(
             "ListView.builder(\n  itemCount: {iter}.length,\n  itemBuilder: (context, index) {{\n    var {item} = {iter}[index];\n    return {item_widget};\n  }},\n)",
@@ -2233,6 +2288,8 @@ fn format_list_rendering(
 
 /// Build an inline callback string from a BlockIR for Flutter event handlers.
 /// Store accesses in the body are rewritten to Riverpod provider reads (C4).
+/// Task 3.7: reads become `ref.read` — the handler runs at EVENT time
+/// (outside the build phase), where Riverpod 3.0 forbids `ref.watch`.
 fn format_inline_handler_flutter(body: &BlockIR, ctx: &ViewContext) -> String {
     let config = InlineHandlerConfig {
         opener: "() {".into(),
@@ -2247,6 +2304,7 @@ fn format_inline_handler_flutter(body: &BlockIR, ctx: &ViewContext) -> String {
             .iter()
             .map(|s| {
                 let s1 = rewrite_stmt_store_accesses(s, ctx.store_provider_map, ctx.ir);
+                let s1 = watch_to_read_stmt(&s1);
                 rewrite_stmt_widget_refs(&s1, ctx.widget_names, ctx.fn_renames)
             })
             .collect(),

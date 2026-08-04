@@ -773,16 +773,34 @@ impl FlutterCodegen {
         // invoke a getter).
         for computed in &comp.computeds {
             let ret_type = super::dart::dart_type_ir(&computed.r#type);
-            let rewritten = rewrite_store_accesses(&computed.body, &store_provider_map, ir);
-            let rewritten = rewrite_widget_refs(&rewritten, &widget_names, &fn_renames);
             let is_fn_form = matches!(
                 &computed.body,
                 ExprIR::BlockExpr { statements, .. }
                     if statements.iter().any(|s| matches!(s, StatementIR::ReturnStmtIR { .. }))
             );
+            // Task 3.7 (Riverpod 3.0 scope compliance): store reads inside
+            // CLOSURE bodies in the computed expression (e.g. TodoList's
+            // `array_filter(TodoStore.items, |item| ...)` predicate) are
+            // lazy — hoist them into locals FIRST (the walk needs the
+            // original store-access nodes), then apply the standard store
+            // rewrite. The locals are emitted at the top of the getter/fn
+            // body, so the closure references them instead of a
+            // `ref.watch` that could fire outside the build phase.
+            let mut hoist_next = 0usize;
+            let mut hoister = ClosureHoister::new(&store_provider_map, ir, false, &mut hoist_next);
+            let (computed_body, hoisted_locals) = hoister.hoist(&computed.body);
+            let rewritten = rewrite_store_accesses(&computed_body, &store_provider_map, ir);
+            let rewritten = rewrite_widget_refs(&rewritten, &widget_names, &fn_renames);
             if is_fn_form {
                 w.emit_fmt(format_args!("{} {}() {{", ret_type, computed.name));
                 w.indent();
+                for (name, read) in &hoisted_locals {
+                    w.emit_fmt(format_args!(
+                        "final {} = {};",
+                        name,
+                        format_expr_ir_flutter(read)
+                    ));
+                }
                 if let ExprIR::BlockExpr { statements, .. } = &rewritten {
                     for stmt in statements {
                         generate_statement_flutter(&mut w, stmt);
@@ -793,6 +811,13 @@ impl FlutterCodegen {
             } else {
                 w.emit_fmt(format_args!("{} get {} {{", ret_type, computed.name));
                 w.indent();
+                for (name, read) in &hoisted_locals {
+                    w.emit_fmt(format_args!(
+                        "final {} = {};",
+                        name,
+                        format_expr_ir_flutter(read)
+                    ));
+                }
                 w.emit_fmt(format_args!(
                     "return {};",
                     format_expr_ir_flutter(&rewritten)
@@ -1079,6 +1104,11 @@ impl FlutterCodegen {
 
         // @effect method bodies (C2) — Task 5.8: rewritten for store/widget
         // refs, and emitted `async` when the body needs `await`.
+        // Task 3.7: `_runEffect_N` runs from initState / didUpdateWidget —
+        // OUTSIDE the build phase, where Riverpod 3.0 forbids `ref.watch`.
+        // Reads become `ref.read` (the callback-legal form); the effect is
+        // re-driven by its deps (didUpdateWidget comparison), so
+        // watch-style reactivity is not needed inside the body.
         for (i, effect) in comp.effects.iter().enumerate() {
             let mut rewritten: Vec<StatementIR> = effect
                 .body
@@ -1087,6 +1117,7 @@ impl FlutterCodegen {
                 .map(|s| {
                     let s0 = type_annotate::annotate_stmt_types(s, &comp_type_scope);
                     let s1 = rewrite_stmt_store_accesses(&s0, &store_provider_map, ir);
+                    let s1 = watch_to_read_stmt(&s1);
                     rewrite_stmt_widget_refs(&s1, &widget_names, &fn_renames)
                 })
                 .collect();
@@ -1138,6 +1169,13 @@ impl FlutterCodegen {
                 .cloned()
                 .collect::<Vec<_>>();
             let mut motion_counter = 0usize;
+            // Task 3.7: hoisted store reads collected while formatting the
+            // view tree — emitted as `final __omniN = ref.watch(...);`
+            // build locals below so lazy closures (`.where` predicates,
+            // ListView itemBuilder bodies) reference locals by capture
+            // instead of watching outside the build phase.
+            let mut hoisted: Vec<(String, String)> = Vec::new();
+            let mut hoist_next = 0usize;
             let mut ctx = view::ViewContext {
                 component_map,
                 store_provider_map: &store_provider_map,
@@ -1150,6 +1188,9 @@ impl FlutterCodegen {
                 widget_names: &widget_names,
                 fn_renames: &fn_renames,
                 comp,
+                hoisted: &mut hoisted,
+                hoist_next: &mut hoist_next,
+                lazy_context: false,
             };
             // Multi-node root fragments are wrapped in a Column —
             // `return Text('a'), Text('b');` would be invalid Dart
@@ -1160,6 +1201,9 @@ impl FlutterCodegen {
             // (bare TextField renders ~100k px tall without one — 3.2
             // review finding; page shells are the 3.9 Scaffold task's).
             let tree_expr = view::wrap_root_material_if_inputs(view, tree_expr);
+            for (name, expr) in &hoisted {
+                w.emit_fmt(format_args!("final {} = {};", name, expr));
+            }
             w.emit_fmt(format_args!("return {};", tree_expr));
         } else {
             // Default widget tree
