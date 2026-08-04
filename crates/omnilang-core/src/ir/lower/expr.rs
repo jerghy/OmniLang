@@ -550,6 +550,223 @@ pub(crate) fn lower_expr(
     }
 }
 
+// ═══════════════════════════════════════════════════════
+// Task 3.1: typed struct literals in store actions
+// ═══════════════════════════════════════════════════════
+//
+// CRITICAL (flutter): `action add(...) { items = [...items, { id: nextId,
+// text, done: false }] }` on a `Todo[]` signal used to lower the bare
+// `{ ... }` literal to a `MapExpr` — Dart codegen then emitted
+// `Map<String, Object>` (`{ 'id': ... }`), the list became `List<Object>`,
+// and the state's `copyWith` cast (`items as List<Todo>`) threw at runtime —
+// the TodoStore.add() TypeError that crashed the flagship demo's core loop.
+//
+// The expected type of a store action write is NOT resolvable from the symbol
+// table at lowering time (lowering pushes fresh empty scopes; the
+// analysis-time `store:X` scope holding the signal symbols is not on the
+// resolve() parent chain — see the is_signal_like_symbol note above). Instead,
+// `lower_store` has the store's own signal/param type map (`StoreIR.signals`,
+// built from the AST annotations) — this pass runs right after each action
+// body is lowered and rewrites bare map literals whose expected type is a
+// struct into typed `StructExpr`s. Unknown/builtin/container types keep the
+// map form (Dart-legal, and JS backends render both forms identically).
+
+/// Rewrite every mutation in a store action body so bare `{ ... }` map
+/// literals assigned to a typed signal/param (or pushed into a typed array)
+/// become typed `StructExpr`s. `expected_types` maps names → declared types
+/// for the store's signals AND the action's typed params.
+pub(super) fn annotate_typed_struct_literals(
+    block: &mut BlockIR,
+    expected_types: &FxHashMap<String, TypeIR>,
+) {
+    for stmt in &mut block.statements {
+        match stmt {
+            StatementIR::MutationStmt {
+                intent: Some(intent),
+            } => {
+                match intent {
+                    MutationIntent::DirectAssign { target, value, .. } => {
+                        if let Some(value) = value {
+                            rewrite_expected_struct(value, expected_types.get(&target.name));
+                        }
+                    }
+                    MutationIntent::Push { target, item } => {
+                        if let Some(item) = item {
+                            // `items.push({...})` — the item is expected to be
+                            // the array's ELEMENT type.
+                            let element = expected_types
+                                .get(&target.name)
+                                .and_then(array_element_type_ir);
+                            rewrite_expected_struct(item, element);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            StatementIR::IfStmtIR {
+                then_body,
+                else_ifs,
+                else_body,
+                ..
+            } => {
+                annotate_typed_struct_literals(then_body, expected_types);
+                for (_, body) in else_ifs {
+                    annotate_typed_struct_literals(body, expected_types);
+                }
+                if let Some(body) = else_body {
+                    annotate_typed_struct_literals(body, expected_types);
+                }
+            }
+            StatementIR::WhileStmtIR { body, .. } | StatementIR::ForInStmtIR { body, .. } => {
+                annotate_typed_struct_literals(body, expected_types);
+            }
+            StatementIR::BlockStmtIR { body } => {
+                annotate_typed_struct_literals(body, expected_types);
+            }
+            StatementIR::TryCatchStmtIR {
+                try_body,
+                catch_body,
+                finally_body,
+                ..
+            } => {
+                annotate_typed_struct_literals(try_body, expected_types);
+                if let Some(body) = catch_body {
+                    annotate_typed_struct_literals(body, expected_types);
+                }
+                if let Some(body) = finally_body {
+                    annotate_typed_struct_literals(body, expected_types);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Rewrite an expression tree under a known expected type. Array types
+/// descend into elements/spreads/branches; struct types convert bare
+/// `MapExpr`s into `StructExpr`s (typed constructors); anything else is left
+/// untouched.
+fn rewrite_expected_struct(ir: &mut ExprIR, expected: Option<&TypeIR>) {
+    let Some(expected) = expected else { return };
+    if let Some(element) = array_element_type_ir(expected) {
+        match ir {
+            ExprIR::ArrayExpr { elements } => {
+                for elem in elements {
+                    rewrite_expected_struct(elem, Some(element));
+                }
+            }
+            ExprIR::SpreadExpr { operand } => rewrite_expected_struct(operand, Some(expected)),
+            ExprIR::TernaryIR {
+                then_expr,
+                else_expr,
+                ..
+            } => {
+                rewrite_expected_struct(then_expr, Some(expected));
+                rewrite_expected_struct(else_expr, Some(expected));
+            }
+            ExprIR::BinaryOpExpr { left, right, .. } => {
+                rewrite_expected_struct(left, Some(expected));
+                rewrite_expected_struct(right, Some(expected));
+            }
+            ExprIR::BlockExpr { tail, .. } => rewrite_expected_struct(tail, Some(expected)),
+            _ => {}
+        }
+        return;
+    }
+    // Struct element context: a bare map literal becomes a typed constructor.
+    if let TypeKind::Named { name } = &expected.kind {
+        if expected.type_args.is_empty() && is_struct_like_name(name) {
+            if let ExprIR::MapExpr { entries } = ir {
+                let fields: Option<Vec<(String, ExprIR)>> = entries
+                    .iter()
+                    .map(|(k, v)| match k {
+                        ExprIR::LiteralExpr {
+                            value: serde_json::Value::String(s),
+                        } => Some((s.clone(), v.clone())),
+                        _ => None,
+                    })
+                    .collect();
+                if let Some(fields) = fields {
+                    *ir = ExprIR::StructExpr {
+                        type_name: name.clone(),
+                        fields,
+                    };
+                }
+            }
+        }
+    }
+}
+
+/// Element type of an array `TypeIR` (`Array<T>`, `List<T>`, `Vec<T>`), or
+/// `None` for non-array types.
+fn array_element_type_ir(ty: &TypeIR) -> Option<&TypeIR> {
+    match &ty.kind {
+        TypeKind::Named { name } if matches!(name.as_str(), "Array" | "List" | "Vec") => {
+            ty.type_args.first()
+        }
+        _ => None,
+    }
+}
+
+/// A plain user type name that Dart emits as a named-parameter constructor
+/// call — builtins and container types keep the map-literal form.
+fn is_struct_like_name(name: &str) -> bool {
+    !matches!(
+        name,
+        "i8" | "i16"
+            | "i32"
+            | "i64"
+            | "int"
+            | "Int"
+            | "integer"
+            | "isize"
+            | "usize"
+            | "u8"
+            | "u16"
+            | "u32"
+            | "u64"
+            | "f32"
+            | "f64"
+            | "float"
+            | "Float"
+            | "num"
+            | "number"
+            | "double"
+            | "Double"
+            | "String"
+            | "str"
+            | "string"
+            | "bool"
+            | "Bool"
+            | "boolean"
+            | "void"
+            | "Void"
+            | "()"
+            | "unit"
+            | "auto"
+            | "Auto"
+            | "var"
+            | "Var"
+            | "dynamic"
+            | "Dynamic"
+            | "Any"
+            | "null"
+            | "Null"
+            | "nil"
+            | "None"
+            | "Map"
+            | "Array"
+            | "List"
+            | "Vec"
+            | "Set"
+            | "Dict"
+            | "HashMap"
+            | "function"
+            | "Fn"
+            | "fn"
+    )
+}
+
 /// Whether a name resolves to a signal-like symbol — a value with its own
 /// reactive JS binding (signal, computed, prop, getter, ref). Such values
 /// are emitted as `.value`-backed objects (OmniView) or bare variables
@@ -657,7 +874,10 @@ pub(super) fn lower_expr_to_json_from_ir(
                     ExprIR::IdentifierExpr { name, .. } => name.clone(),
                     _ => format!("{:?}", k),
                 };
-                map.insert(key, lower_expr_to_json_from_ir(v, semantics, signal_like_names));
+                map.insert(
+                    key,
+                    lower_expr_to_json_from_ir(v, semantics, signal_like_names),
+                );
             }
             serde_json::Value::Object(map)
         }

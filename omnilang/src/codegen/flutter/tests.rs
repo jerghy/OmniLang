@@ -6201,6 +6201,43 @@ fn test_store_action_method_call_form_in_handler() {
     );
 }
 
+// ── Task 3.1: store action struct literals → typed constructors ──
+
+/// CRITICAL (flutter): `items = [...items, { id: nextId, text, done: false }]`
+/// in a store action must emit a typed `Todo(id: ...)` constructor call — NOT
+/// a JSON-quoted Dart map `{ 'id': ... }`. The map literal is
+/// `Map<String, Object>`, which makes the list `List<Object>` and breaks the
+/// state's `copyWith` cast (`items as List<Todo>`) at runtime — the
+/// TodoStore.add() TypeError that crashes the flagship demo's core loop.
+#[test]
+fn store_action_struct_literal_emits_constructor() {
+    let src = r#"
+        struct Todo { id: i32, text: String, done: bool }
+        store TodoStore {
+            signal todos: Todo[] = [];
+            action add(nextId, text) { todos = [ { id: nextId, text, done: false }, ...todos ] }
+        }
+    "#;
+    let out = compile_flutter(src);
+    let dart: String = out
+        .expect("flutter compile must succeed")
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        !dart.contains(r"'id':"),
+        "JSON-quoted keys in Dart: {}",
+        dart
+    );
+    assert!(
+        dart.contains("Todo(id:"),
+        "expected typed constructor: {}",
+        dart
+    );
+}
+
 // ── Ref codegen tests (Task 5.2) ──────────────────────────
 
 /// Build a minimal element with a tag, optional @ref binding, and semantic

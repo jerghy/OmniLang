@@ -2,7 +2,7 @@
 //!
 //! Includes: `lower_component`, `lower_store`, `lower_type`.
 
-use super::expr::lower_expr;
+use super::expr::{annotate_typed_struct_literals, lower_expr};
 use super::stmt::lower_block;
 use super::view::{lower_slot_common, lower_view_block, SlotDeclShape};
 use crate::ir::logic::*;
@@ -396,7 +396,7 @@ pub(super) fn lower_store(
         .iter()
         .map(|action| {
             semantics.symbols.push_scope(&format!("fn:{}", action.name));
-            let result = FunctionIR {
+            let mut result = FunctionIR {
                 name: action.name.clone(),
                 visibility: Visibility::Public,
                 params: action
@@ -413,6 +413,18 @@ pub(super) fn lower_store(
                 source_span: Some(action.span),
             };
             semantics.symbols.pop_scope();
+            // Task 3.1 (CRITICAL flutter): rewrite bare struct literals
+            // assigned to typed signals/params into typed StructExprs —
+            // `{ id: nextId, text, done: false }` → `Todo(id: ...)` so Dart
+            // emits constructors instead of Map<String, Object> literals
+            // (the TodoStore.add() copyWith cast TypeError).
+            let mut expected_types: FxHashMap<String, TypeIR> = signals.clone();
+            for p in &result.params {
+                if let Some(ty) = &p.r#type {
+                    expected_types.insert(p.name.clone(), ty.clone());
+                }
+            }
+            annotate_typed_struct_literals(&mut result.body, &expected_types);
             result
         })
         .collect();

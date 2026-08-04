@@ -745,6 +745,14 @@ impl FormatExpr for StoreActionExprFormatter<'_> {
             .format_binary_op(op, left, right, left_str, right_str)
     }
 
+    /// Task 3.1: typed struct literals in store actions (`Todo(id: ...)`)
+    /// need the Dart constructor form — without this override the default
+    /// JS-style `{ fields }` wrapper (which ignores `type_name`) would emit
+    /// `{ id: nextId }` — bare identifier keys, invalid Dart.
+    fn format_struct(&self, type_name: &str, fields: &str) -> String {
+        self.inner.format_struct(type_name, fields)
+    }
+
     fn format_struct_field_named(&self, key: &str, value: &str) -> String {
         self.inner.format_struct_field_named(key, value)
     }
