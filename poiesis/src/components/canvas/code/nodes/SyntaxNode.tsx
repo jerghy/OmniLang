@@ -3,14 +3,14 @@
 // 草稿在 NodeField 内部，提交走 onEditProp → setProp；props 仍是唯一事实来源。
 import { Handle, Position } from "@xyflow/react";
 import React, { useMemo } from "react";
-import { formatSyntaxNode, type SyntaxNodeProps } from "../../../../services/codegen/syntax-nodes";
+import { formatSyntaxNode, type SyntaxNodeProps, ASSIGN_OPERATORS } from "../../../../services/codegen/syntax-nodes";
 import { NodeTextField, NodeSelect, NodeChipToggle, NodeArgsRows } from "../fields/NodeField";
 import { validateSyntaxProps, filterCandidates, type FlowScope } from "../../../../services/codegen/flow-scope";
 import styles from "./SyntaxNode.module.css";
 
 const OMNI_TYPES = ["String", "i32", "i64", "f64", "f32", "bool", "Array<String>", "Array<i32>", "Array<f64>", "Map<String, String>"];
-const ASSIGN_OPTS = ["=", "+=", "-=", "*=", "/=", "%="].map((op) => ({ value: op, label: op }));
-const TYPE_OPTS = OMNI_TYPES.map((t) => ({ value: t, label: t }));
+// 首项为空选项（（推断））：未选类型时 select 不显示幻影 "String"（onCommit 侧 "" → undefined）
+const TYPE_OPTS = [{ value: "", label: "（推断）" }, ...OMNI_TYPES.map((t) => ({ value: t, label: t }))];
 
 interface Props {
   data: {
@@ -33,25 +33,6 @@ class HandlesBoundary extends React.Component<{ children: React.ReactNode }, { f
     return this.state.failed ? null : this.props.children;
   }
 }
-
-// store 名：即时提交文本框（原生 select 无法承载任意 store 名；选中即联动重置 action）。
-// datalist 提供 store 候选补全（spec 5.1 [Store▼] affordance）。
-const StoreNameField = ({ value, onCommit, candidates }: { value: string; onCommit: (v: string) => void; candidates: string[] }) => (
-  <>
-    <input
-      data-field-kind="store-name"
-      className={`nodrag ${styles.storeName}`}
-      value={value}
-      aria-label="store 名"
-      placeholder="store 名"
-      list="syntax-store-candidates"
-      onChange={(e) => onCommit(e.target.value)}
-    />
-    <datalist id="syntax-store-candidates">
-      {candidates.map((n) => <option key={n} value={n} />)}
-    </datalist>
-  </>
-);
 
 const SyntaxNode = React.memo(function SyntaxNode({ data }: Props) {
   const { tag, props = {}, scope, onEditProp } = data;
@@ -131,7 +112,7 @@ const SyntaxNode = React.memo(function SyntaxNode({ data }: Props) {
               invalid={errorFields.has("target")}
               className={styles.grow}
             />
-            <NodeSelect value={(props.operator as string) ?? "="} options={ASSIGN_OPTS} onCommit={(v) => set("operator", v)} ariaLabel="运算符" />
+            <NodeSelect value={(props.operator as string) ?? "="} options={ASSIGN_OPERATORS.map((op) => ({ value: op, label: op }))} onCommit={(v) => set("operator", v)} ariaLabel="运算符" />
             <NodeTextField
               value={(props.value as string) ?? ""}
               onCommit={(v) => set("value", v)}
@@ -145,11 +126,18 @@ const SyntaxNode = React.memo(function SyntaxNode({ data }: Props) {
         {tag === "store-call" && (
           <>
             <div className={styles.row}>
-              <StoreNameField
+              {/* store 名：NodeTextField 草稿提交（blur/Enter），提交时才联动重置 action；datalist 提供候选补全 */}
+              <NodeTextField
                 value={(props.storeName as string) ?? ""}
                 onCommit={(v) => { set("storeName", v); set("action", ""); }}
-                candidates={storeCandidates}
+                list="syntax-store-candidates"
+                placeholder="store 名"
+                ariaLabel="store 名"
+                className={styles.storeName}
               />
+              <datalist id="syntax-store-candidates">
+                {storeCandidates.map((n) => <option key={n} value={n} />)}
+              </datalist>
               <span className={styles.op}>.</span>
               <NodeSelect
                 value={(props.action as string) ?? ""}

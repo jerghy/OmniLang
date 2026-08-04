@@ -51,11 +51,26 @@ describe("SyntaxNode 内联编辑", () => {
     expect(opts).not.toContain("nope");
   });
 
-  it("store-call 修改 store 名联动重置 action", () => {
+  it("store-call 修改 store 名 blur 提交并联动重置 action", () => {
     const onEditProp = vi.fn();
     renderNode("store-call", { storeName: "TodoStore", action: "add", args: "" }, onEditProp);
-    fireEvent.change(screen.getByLabelText("store 名"), { target: { value: "OtherStore" } });
+    const input = screen.getByLabelText("store 名");
+    fireEvent.change(input, { target: { value: "OtherStore" } });
+    expect(onEditProp).not.toHaveBeenCalled(); // 草稿阶段不提交
+    fireEvent.blur(input);
     expect(onEditProp).toHaveBeenCalledWith("l1", "storeName", "OtherStore");
+    expect(onEditProp).toHaveBeenCalledWith("l1", "action", "");
+  });
+
+  it("新建 store-call 节点可经 + 添加参数（接缝集成）", () => {
+    const onEditProp = vi.fn();
+    renderNode("store-call", { storeName: "TodoStore", action: "add", args: "" }, onEditProp);
+    expect(screen.queryByLabelText("新参数")).toBeFalsy();
+    fireEvent.click(screen.getByRole("button", { name: "+ 添加参数" }));
+    const input = screen.getByLabelText("新参数");
+    fireEvent.change(input, { target: { value: "text" } });
+    fireEvent.blur(input);
+    expect(onEditProp).toHaveBeenCalledWith("l1", "args", "text");
   });
 
   it("call 的 emit 徽章显示 emit 前缀", () => {

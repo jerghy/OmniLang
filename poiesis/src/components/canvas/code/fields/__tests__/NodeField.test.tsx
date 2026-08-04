@@ -123,6 +123,11 @@ describe("NodeTextField", () => {
     expect((input as HTMLInputElement).value).toBe("external");
   });
 
+  it("list 属性透传到 input", () => {
+    render(<NodeTextField value="x" onCommit={vi.fn()} ariaLabel="变量名" list="syntax-store-candidates" />);
+    expect(screen.getByLabelText("变量名").getAttribute("list")).toBe("syntax-store-candidates");
+  });
+
   it("NodeSelect allowCustom 展示当前自由文本值", () => {
     const options = [{ value: "=", label: "=" }];
     render(<NodeSelect value="自定义值" options={options} onCommit={vi.fn()} ariaLabel="运算符" allowCustom />);

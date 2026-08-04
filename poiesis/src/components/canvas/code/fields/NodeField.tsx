@@ -16,9 +16,11 @@ interface TextProps {
   className?: string;
   invalid?: boolean;
   onCancel?: () => void;
+  list?: string;
+  onBlur?: () => void;
 }
 
-export function NodeTextField({ value, onCommit, placeholder, ariaLabel, className, invalid, onCancel }: TextProps) {
+export function NodeTextField({ value, onCommit, placeholder, ariaLabel, className, invalid, onCancel, list, onBlur }: TextProps) {
   const [draft, setDraft] = useState(value);
   const focusedRef = useRef(false);
   const dirtyRef = useRef(false);
@@ -46,6 +48,7 @@ export function NodeTextField({ value, onCommit, placeholder, ariaLabel, classNa
       placeholder={placeholder}
       aria-label={ariaLabel}
       aria-invalid={invalid || undefined}
+      list={list}
       onFocus={() => { focusedRef.current = true; }}
       onChange={(e) => { setDraft(e.target.value); dirtyRef.current = true; }}
       onBlur={() => {
@@ -53,6 +56,7 @@ export function NodeTextField({ value, onCommit, placeholder, ariaLabel, classNa
         commit();
         focusedRef.current = false;
         if (!wasDirty) setDraft(value);
+        onBlur?.();
       }}
       onKeyDown={(e) => {
         if (e.key === "Enter") { e.preventDefault(); commit(); }
@@ -120,11 +124,12 @@ interface ArgsProps {
 }
 
 export function NodeArgsRows({ values, onChange, placeholder }: ArgsProps) {
-  // 尾随空行折叠为一个可编辑槽位（不堆叠）；中间空行原样保留
+  // 尾随空行折叠为一个可编辑槽位（防御：父组件可能传入）；"+" 按钮走本地 adding 态
   const trimmed = [...values];
   while (trimmed.length > 0 && trimmed[trimmed.length - 1] === "") trimmed.pop();
   const hasTrailing = trimmed.length !== values.length;
   const visible = hasTrailing ? [...trimmed, ""] : trimmed;
+  const [adding, setAdding] = useState(false);
 
   const update = (i: number, v: string) => {
     const next = [...values];
@@ -135,7 +140,11 @@ export function NodeArgsRows({ values, onChange, placeholder }: ArgsProps) {
     onChange(values.filter((_, idx) => idx !== i));
   };
   const add = () => {
-    if (!hasTrailing) onChange([...values, ""]);
+    if (!hasTrailing && !adding) setAdding(true);
+  };
+  const commitAdding = (v: string) => {
+    setAdding(false);
+    if (v.trim() !== "") onChange([...values, v]);
   };
 
   return (
@@ -151,7 +160,25 @@ export function NodeArgsRows({ values, onChange, placeholder }: ArgsProps) {
           >×</button>
         </div>
       ))}
-      {!hasTrailing && (
+      {adding && (
+        <div className={styles.argsRow} data-field-kind="args-adding">
+          <NodeTextField
+            value=""
+            onCommit={commitAdding}
+            onCancel={() => setAdding(false)}
+            onBlur={() => setAdding(false)}
+            placeholder={placeholder}
+            ariaLabel="新参数"
+          />
+          <button
+            type="button"
+            className={`nodrag ${styles.argsRemove}`}
+            aria-label="×"
+            onClick={() => setAdding(false)}
+          >×</button>
+        </div>
+      )}
+      {!hasTrailing && !adding && (
         <button type="button" className={`nodrag ${styles.argsAdd}`} onClick={add}>+ 添加参数</button>
       )}
     </div>

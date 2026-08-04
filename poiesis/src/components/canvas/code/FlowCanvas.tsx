@@ -209,7 +209,8 @@ function FlowCanvasInner() {
         !menuOpenRef.current &&
         !(e.target instanceof HTMLInputElement) &&
         !(e.target instanceof HTMLTextAreaElement) &&
-        !(e.target instanceof HTMLSelectElement)
+        !(e.target instanceof HTMLSelectElement) &&
+        !(e.target instanceof HTMLButtonElement) // 空格不抢按钮焦点（+ 添加参数 / × / mut / emit 等）
       ) {
         e.preventDefault();
         openMenuAt(window.innerWidth / 2, window.innerHeight / 2);
@@ -441,6 +442,14 @@ function FlowCanvasInner() {
           onConnectEnd={onConnectEnd}
           onPaneContextMenu={handlePaneContextMenu}
           onNodeContextMenu={handleNodeContextMenu}
+          // spec 6.4：滚轮缩放/平移画布即关闭搜索菜单
+          onMoveStart={() => {
+            if (menuOpenRef.current) {
+              pendingDragRef.current = null;
+              menuOpenRef.current = false;
+              setMenuState(null);
+            }
+          }}
         >
           <Background variant={BackgroundVariant.Dots} gap={16} size={1} color="#e2e8f0" />
           <Controls
