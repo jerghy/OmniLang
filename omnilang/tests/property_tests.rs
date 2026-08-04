@@ -106,13 +106,25 @@ proptest! {
         // fuzzed whenever the codegen-flutter feature is enabled; without
         // it the backend is not compiled in, so fuzzing it would only
         // cover the graceful "backend not enabled" fallback, not real
-        // codegen.
+        // codegen. The remaining seven backends (Dioxus, Vue, Python, JS,
+        // TS, Rust, Dart) are fuzzed whenever the `all-backends`
+        // meta-feature is enabled.
         let mut targets = vec![
             omnilang::codegen::Target::OmniView,
             omnilang::codegen::Target::React,
         ];
         #[cfg(feature = "codegen-flutter")]
         targets.push(omnilang::codegen::Target::Flutter);
+        #[cfg(feature = "all-backends")]
+        targets.extend([
+            omnilang::codegen::Target::Dioxus,
+            omnilang::codegen::Target::Vue,
+            omnilang::codegen::Target::Python,
+            omnilang::codegen::Target::JavaScript,
+            omnilang::codegen::Target::TypeScript,
+            omnilang::codegen::Target::Rust,
+            omnilang::codegen::Target::Dart,
+        ]);
 
         for target in targets {
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
