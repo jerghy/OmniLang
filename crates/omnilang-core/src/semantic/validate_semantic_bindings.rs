@@ -18,7 +18,8 @@
 //! not re-check whether a ref name is declared.
 
 use crate::error::{Diagnostic, DiagnosticKind, Severity};
-use crate::ir::{ComponentIR, ViewTree};
+use crate::ir::walk::walk_view;
+use crate::ir::ComponentIR;
 use crate::lexer::Span;
 
 /// Migration hint for the removed `value={sig}` semantic-binding form —
@@ -37,92 +38,64 @@ pub fn validate_semantic_bindings(component: &ComponentIR, diagnostics: &mut Vec
         return;
     };
 
-    walk_view_tree(view, component, diagnostics);
+    // Traversal uses the shared IR walker (`ir::walk::walk_view`) with a
+    // per-element callback — the checks only inspect `ElementIR` fields, so
+    // the pass is a pure filter over the walker (Task 5.5 walker
+    // convergence).
+    walk_view(view, &mut |el| {
+        check_element_bindings(el, component, diagnostics);
+    });
 }
 
-/// Recursively walk the view tree, checking `semantic_bindings` on every
-/// element: the removed `value` form errors; the remaining bindings require
-/// a `@ref` on the element itself, and the binding kind must be applicable
-/// to the element's tag.
-fn walk_view_tree(tree: &ViewTree, component: &ComponentIR, diagnostics: &mut Vec<Diagnostic>) {
-    match tree {
-        ViewTree::Element(el) => {
-            // Check semantic_bindings
-            for binding in el.semantic_bindings.keys() {
-                if binding == "value" {
-                    // design D2: the value={sig} semantic-binding form is
-                    // deleted — bind:value is the sole two-way binding.
-                    // Applies regardless of @ref (the form itself is gone).
-                    // Task 4.11: anchors at the element's span (not the
-                    // component start) and carries the verbatim migration
-                    // hint in the structured suggestion field — the message
-                    // stays byte-identical for docs-gate prefix matching.
-                    diagnostics.push(make_diag(
+/// Check one element's `semantic_bindings`: the removed `value` form errors;
+/// the remaining bindings require a `@ref` on the element itself, and the
+/// binding kind must be applicable to the element's tag.
+fn check_element_bindings(
+    el: &crate::ir::ElementIR,
+    component: &ComponentIR,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    // Check semantic_bindings
+    for binding in el.semantic_bindings.keys() {
+        if binding == "value" {
+            // design D2: the value={sig} semantic-binding form is
+            // deleted — bind:value is the sole two-way binding.
+            // Applies regardless of @ref (the form itself is gone).
+            // Task 4.11: anchors at the element's span (not the
+            // component start) and carries the verbatim migration
+            // hint in the structured suggestion field — the message
+            // stays byte-identical for docs-gate prefix matching.
+            diagnostics.push(make_diag(
+                component,
+                el.source_span,
+                Severity::Error,
+                DiagnosticKind::EValueBindingRemoved,
+                format!("'value={{sig}}' 语义绑定形式已删除，{VALUE_BINDING_REMOVED_HINT}"),
+                Some(VALUE_BINDING_REMOVED_HINT.to_string()),
+            ));
+            continue;
+        }
+        match &el.ref_binding {
+            Some(_) => {
+                if !binding_applies_to_tag(binding, &el.tag) {
+                    diagnostics.push(warning_diag(
                         component,
                         el.source_span,
-                        Severity::Error,
-                        DiagnosticKind::EValueBindingRemoved,
-                        format!("'value={{sig}}' 语义绑定形式已删除，{VALUE_BINDING_REMOVED_HINT}"),
-                        Some(VALUE_BINDING_REMOVED_HINT.to_string()),
+                        format!(
+                            "semantic binding '{binding}' is not applicable to element '<{}>'",
+                            el.tag
+                        ),
                     ));
-                    continue;
-                }
-                match &el.ref_binding {
-                    Some(_) => {
-                        if !binding_applies_to_tag(binding, &el.tag) {
-                            diagnostics.push(warning_diag(
-                                component,
-                                el.source_span,
-                                format!(
-                                    "semantic binding '{binding}' is not applicable to element '<{}>'",
-                                    el.tag
-                                ),
-                            ));
-                        }
-                    }
-                    None => {
-                        diagnostics.push(error_diag(
-                            component,
-                            el.source_span,
-                            format!("semantic binding '{binding}' requires @ref on this element"),
-                        ));
-                    }
                 }
             }
-            // Recurse
-            for child in &el.children {
-                walk_view_tree(child, component, diagnostics);
+            None => {
+                diagnostics.push(error_diag(
+                    component,
+                    el.source_span,
+                    format!("semantic binding '{binding}' requires @ref on this element"),
+                ));
             }
         }
-        ViewTree::Conditional(cond) => {
-            for branch in &cond.branches {
-                if let Some(ref body) = branch.body {
-                    walk_view_tree(body, component, diagnostics);
-                }
-            }
-            if let Some(ref fallback) = cond.fallback {
-                walk_view_tree(fallback, component, diagnostics);
-            }
-        }
-        ViewTree::ListRendering(list) => {
-            if let Some(ref body) = list.body {
-                walk_view_tree(body, component, diagnostics);
-            }
-            if let Some(ref empty) = list.empty_body {
-                walk_view_tree(empty, component, diagnostics);
-            }
-        }
-        ViewTree::Slot { ref fallback, .. } => {
-            for child in fallback {
-                walk_view_tree(child, component, diagnostics);
-            }
-        }
-        ViewTree::Fragment(children) => {
-            for child in children {
-                walk_view_tree(child, component, diagnostics);
-            }
-        }
-        ViewTree::Interpolation(_) | ViewTree::Text(_) => {}
     }
 }
 
@@ -238,6 +211,7 @@ fn make_diag(
 mod tests {
     use super::*;
     use crate::error::DiagnosticKind;
+    use crate::ir::ViewTree;
     use crate::ir::{
         BindingIR, ConstructionKind, ElementIR, ExprIR, ListRenderingIntent, RefDeclIR,
     };

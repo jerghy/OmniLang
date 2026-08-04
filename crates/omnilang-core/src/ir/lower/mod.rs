@@ -338,76 +338,11 @@ pub fn lower(
         motion_index,
     };
 
-    // Validate required props at component call sites
-    let prop_errors = crate::semantic::validate_props::validate_required_props(&ir_program);
-    for err in prop_errors {
-        semantics.diagnostics.push(err);
-    }
-
-    // Validate ref declarations and bindings
-    let ref_errors = crate::semantic::validate_refs::validate_refs(&ir_program);
-    for err in ref_errors {
-        semantics.diagnostics.push(err);
-    }
-
-    // Validate ref operations: rewrite legal ref method calls / field reads to
-    // ExprIR::RefOpExpr, error on DOM-specific APIs with migration hints.
-    for module in ir_program.modules.values_mut() {
-        for component in module.components.values_mut() {
-            crate::semantic::validate_ref_ops::validate_ref_ops(
-                component,
-                &mut semantics.diagnostics,
-            );
-        }
-    }
-
-    // Validate array language methods: rewrite `subject.filter/map/count(...)`
-    // method calls to ExprIR::ArrayMethod (cross-target mapping), error on
-    // malformed uses (count without predicate, provably non-array subjects).
-    // Runs after validate_ref_ops so declared-ref subjects keep their
-    // unknown-ref-operation diagnostics.
-    for module in ir_program.modules.values_mut() {
-        crate::semantic::validate_array_methods::validate_array_methods(
-            module,
-            &mut semantics.diagnostics,
-        );
-    }
-
-    // Validate semantic ref bindings: focus={sig}, scroll-x={sig}, scroll-y={sig}
-    // must appear only on elements with a @ref binding whose ref is declared
-    // on the component. The removed value={sig} form (design D2) hard-errors
-    // here with the bind:value migration hint.
-    for module in ir_program.modules.values_mut() {
-        for component in module.components.values_mut() {
-            crate::semantic::validate_semantic_bindings::validate_semantic_bindings(
-                component,
-                &mut semantics.diagnostics,
-            );
-        }
-    }
-
-    // Validate @effect(deps): the declared deps must cover the store-field
-    // reads in the effect body (including closure-internal reads), else the
-    // effect silently never re-fires — E_EFFECT_DEPS_MISSING compile error.
-    for module in ir_program.modules.values() {
-        for component in module.components.values() {
-            crate::semantic::validate_effect_deps::validate_effect_deps(
-                component,
-                &ir_program,
-                &mut semantics.diagnostics,
-            );
-        }
-    }
-
-    // Validate a11y blocks (design doc 域 10): `role` must be in the
-    // Flutter-mappable subset (warning otherwise — Flutter degrades with a
-    // generated-code comment, the web targets pass the role through);
-    // `live` accepts only "polite"/"assertive" (error otherwise).
-    for module in ir_program.modules.values() {
-        for component in module.components.values() {
-            crate::semantic::validate_a11y::validate_a11y(component, &mut semantics.diagnostics);
-        }
-    }
+    // IR-level semantic validation passes. Orchestrated in the unified
+    // pipeline `analyse::run_ir_passes` (Task 5.5 — pass orchestration moved
+    // out of lower(); the pipeline is declared in one place, in analyse.rs,
+    // so every entry point shares the same pass sequence and order).
+    crate::analyse::run_ir_passes(&mut ir_program, &mut semantics.diagnostics);
 
     ir_program
 }

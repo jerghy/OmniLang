@@ -33,7 +33,8 @@
 //! no further constraints.
 
 use crate::error::{Diagnostic, DiagnosticKind, Severity};
-use crate::ir::{ComponentIR, ViewTree};
+use crate::ir::walk::walk_view;
+use crate::ir::ComponentIR;
 
 /// Keyboard-focusable element tags — `a11y: { hidden }` on one of these is
 /// an a11y mismatch (hidden from assistive tech, still keyboard-focusable).
@@ -61,135 +62,108 @@ pub const LEGACY_FLAG_ROLES: &[(&str, &str)] = &[("textField", "textbox"), ("ima
 pub const LIVE_VALUES: &[&str] = &["polite", "assertive"];
 
 /// Validate a11y blocks on every element of the component's view tree.
+///
+/// Traversal uses the shared IR walker (`ir::walk::walk_view`) with a
+/// per-element callback — the a11y checks only inspect `ElementIR` fields, so
+/// the pass is a pure filter over the walker (Task 5.5 walker convergence).
 pub fn validate_a11y(component: &ComponentIR, diagnostics: &mut Vec<Diagnostic>) {
     let Some(ref view) = component.view else {
         return;
     };
-    walk_view_tree(view, component, diagnostics);
+    walk_view(view, &mut |el| check_element(el, component, diagnostics));
 }
 
-/// Recursively walk the view tree, validating every element's `a11y` block.
-fn walk_view_tree(tree: &ViewTree, component: &ComponentIR, diagnostics: &mut Vec<Diagnostic>) {
-    match tree {
-        ViewTree::Element(el) => {
-            // Raw `aria-*` attributes are a deleted form (domain MEDIUM-1 +
-            // D-D): they pass through on the web targets but Flutter
-            // silently drops the semantic (accessible name lost). Hard-error
-            // with the a11y-block migration hint — one diagnostic per
-            // attribute so each offending surface is named.
-            for name in el.props.keys() {
-                if name.starts_with("aria-") {
-                    diagnostics.push(error_diag(
-                        component,
-                        format!(
-                            "aria-* 原生属性已删除：'{name}' 仅 web 透传、\
-                             Flutter 丢失可访问名称；请迁移到 \
-                             a11y: {{ label/role/hidden/live/alt }} 语义块"
-                        ),
-                    ));
-                }
-            }
-            if let Some(ref a11y) = el.a11y {
-                if let Some(ref role) = a11y.role {
-                    if let Some(canonical) = LEGACY_FLAG_ROLES
-                        .iter()
-                        .find(|(flag, _)| *flag == role.as_str())
-                        .map(|(_, canonical)| *canonical)
-                    {
-                        // Legacy Flutter Semantics flag name — not a
-                        // WAI-ARIA role. Warn with the canonical replacement
-                        // (migration hint); codegen still maps it so the
-                        // source keeps working while migrating.
-                        diagnostics.push(warning_diag(
-                            component,
-                            format!(
-                                "a11y role '{role}' 是 Flutter Semantics 旗标名，\
-                                 非 WAI-ARIA 角色；请改用规范名 '{canonical}' \
-                                 （Flutter 内部映射回原旗标）"
-                            ),
-                        ));
-                    } else if !FLUTTER_ROLE_SUBSET.contains(&role.as_str()) {
-                        diagnostics.push(warning_diag(
-                            component,
-                            format!(
-                                "a11y role '{role}' 不在 Flutter 可映射角色子集 \
-                                 (button/textbox/link/checkbox/radio/img)；\
-                                 Flutter 目标降级（无 Semantics flag），其余目标透传"
-                            ),
-                        ));
-                    }
-                }
-                if let Some(live) = &a11y.live {
-                    if !LIVE_VALUES.contains(&live.as_str()) {
-                        diagnostics.push(error_diag(
-                            component,
-                            format!(
-                                "a11y live 仅支持 \"polite\"/\"assertive\"，得到 \"{}\"",
-                                live.as_str()
-                            ),
-                        ));
-                    }
-                }
-                // alt is the image-only alternative-text surface; on any
-                // other tag the intent degrades on every target. (The plain
-                // `alt=` DOM attribute is NOT an a11y surface — D-D ruling.)
-                if a11y.alt.is_some() && el.tag != "img" {
-                    diagnostics.push(warning_diag(
-                        component,
-                        format!(
-                            "a11y alt 仅对 <img> 有意义（→ alt / Image \
-                             semanticLabel）；<{}> 上会降级，请改用 label",
-                            el.tag
-                        ),
-                    ));
-                }
-                // hidden on a keyboard-focusable element: assistive tech
-                // hides it but keyboard focus can still land on it — the
-                // honest fix is conditional rendering.
-                if a11y.hidden.is_some() && FOCUSABLE_TAGS.contains(&el.tag.as_str()) {
-                    diagnostics.push(warning_diag(
-                        component,
-                        format!(
-                            "a11y hidden 使可聚焦元素 <{}> 对辅助技术不可见，\
-                             但键盘仍可聚焦；请改用条件渲染移除元素",
-                            el.tag
-                        ),
-                    ));
-                }
-            }
-            for child in &el.children {
-                walk_view_tree(child, component, diagnostics);
+/// Validate a single element's a11y surface: raw `aria-*` props (deleted
+/// form), the `a11y: { ... }` block's role/live/alt/hidden contracts.
+fn check_element(
+    el: &crate::ir::ElementIR,
+    component: &ComponentIR,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    // Raw `aria-*` attributes are a deleted form (domain MEDIUM-1 +
+    // D-D): they pass through on the web targets but Flutter
+    // silently drops the semantic (accessible name lost). Hard-error
+    // with the a11y-block migration hint — one diagnostic per
+    // attribute so each offending surface is named.
+    for name in el.props.keys() {
+        if name.starts_with("aria-") {
+            diagnostics.push(error_diag(
+                component,
+                format!(
+                    "aria-* 原生属性已删除：'{name}' 仅 web 透传、\
+                     Flutter 丢失可访问名称；请迁移到 \
+                     a11y: {{ label/role/hidden/live/alt }} 语义块"
+                ),
+            ));
+        }
+    }
+    if let Some(ref a11y) = el.a11y {
+        if let Some(ref role) = a11y.role {
+            if let Some(canonical) = LEGACY_FLAG_ROLES
+                .iter()
+                .find(|(flag, _)| *flag == role.as_str())
+                .map(|(_, canonical)| *canonical)
+            {
+                // Legacy Flutter Semantics flag name — not a
+                // WAI-ARIA role. Warn with the canonical replacement
+                // (migration hint); codegen still maps it so the
+                // source keeps working while migrating.
+                diagnostics.push(warning_diag(
+                    component,
+                    format!(
+                        "a11y role '{role}' 是 Flutter Semantics 旗标名，\
+                         非 WAI-ARIA 角色；请改用规范名 '{canonical}' \
+                         （Flutter 内部映射回原旗标）"
+                    ),
+                ));
+            } else if !FLUTTER_ROLE_SUBSET.contains(&role.as_str()) {
+                diagnostics.push(warning_diag(
+                    component,
+                    format!(
+                        "a11y role '{role}' 不在 Flutter 可映射角色子集 \
+                         (button/textbox/link/checkbox/radio/img)；\
+                         Flutter 目标降级（无 Semantics flag），其余目标透传"
+                    ),
+                ));
             }
         }
-        ViewTree::Conditional(cond) => {
-            for branch in &cond.branches {
-                if let Some(ref body) = branch.body {
-                    walk_view_tree(body, component, diagnostics);
-                }
-            }
-            if let Some(ref fallback) = cond.fallback {
-                walk_view_tree(fallback, component, diagnostics);
-            }
-        }
-        ViewTree::ListRendering(list) => {
-            if let Some(ref body) = list.body {
-                walk_view_tree(body, component, diagnostics);
-            }
-            if let Some(ref empty) = list.empty_body {
-                walk_view_tree(empty, component, diagnostics);
+        if let Some(live) = &a11y.live {
+            if !LIVE_VALUES.contains(&live.as_str()) {
+                diagnostics.push(error_diag(
+                    component,
+                    format!(
+                        "a11y live 仅支持 \"polite\"/\"assertive\"，得到 \"{}\"",
+                        live.as_str()
+                    ),
+                ));
             }
         }
-        ViewTree::Slot { ref fallback, .. } => {
-            for child in fallback {
-                walk_view_tree(child, component, diagnostics);
-            }
+        // alt is the image-only alternative-text surface; on any
+        // other tag the intent degrades on every target. (The plain
+        // `alt=` DOM attribute is NOT an a11y surface — D-D ruling.)
+        if a11y.alt.is_some() && el.tag != "img" {
+            diagnostics.push(warning_diag(
+                component,
+                format!(
+                    "a11y alt 仅对 <img> 有意义（→ alt / Image \
+                     semanticLabel）；<{}> 上会降级，请改用 label",
+                    el.tag
+                ),
+            ));
         }
-        ViewTree::Fragment(children) => {
-            for child in children {
-                walk_view_tree(child, component, diagnostics);
-            }
+        // hidden on a keyboard-focusable element: assistive tech
+        // hides it but keyboard focus can still land on it — the
+        // honest fix is conditional rendering.
+        if a11y.hidden.is_some() && FOCUSABLE_TAGS.contains(&el.tag.as_str()) {
+            diagnostics.push(warning_diag(
+                component,
+                format!(
+                    "a11y hidden 使可聚焦元素 <{}> 对辅助技术不可见，\
+                     但键盘仍可聚焦；请改用条件渲染移除元素",
+                    el.tag
+                ),
+            ));
         }
-        ViewTree::Interpolation(_) | ViewTree::Text(_) => {}
     }
 }
 
@@ -226,6 +200,7 @@ fn make_diag(component: &ComponentIR, severity: Severity, message: String) -> Di
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ir::ViewTree;
     use crate::ir::{A11yIR, BindingIR, ConstructionKind, ElementIR, ExprIR, ListRenderingIntent};
     use rustc_hash::FxHashMap;
 

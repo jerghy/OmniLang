@@ -1,4 +1,18 @@
-//! Semantic analysis — 2-pass: collect, then resolve+validate inline.
+//! Semantic analysis — three layers over the compilation pipeline:
+//!
+//! 1. **AST passes** — run inside `SemanticAnalyzer::analyze` (before
+//!    lowering): symbol collection (`collect.rs`, `symbols.rs`), type
+//!    resolution + inline validation (`resolve.rs`, `validate_types.rs`,
+//!    `validate_motion.rs`), store-field access validation
+//!    (`validate_store_access.rs`), and component-level checks (bind
+//!    targets, store action refs, prop assignment — `validate_component.rs`).
+//! 2. **IR passes** — run after lowering on the lowered IR, orchestrated by
+//!    the unified pipeline `analyse::run_ir_passes`: required props, refs,
+//!    ref-ops, array methods, semantic bindings, effect deps, a11y
+//!    (`validate_props.rs` … `validate_a11y.rs`). Two of these
+//!    (`validate_ref_ops`, `validate_array_methods`) rewrite the IR.
+//! 3. **Lints** (`lints/`) — style / anti-pattern rules over ASTs and the
+//!    merged IR, run last in `analyse_multi` / `run_pipeline`.
 
 pub mod cycles;
 pub mod lints;
