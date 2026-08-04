@@ -114,4 +114,31 @@ describe("NodeFormulaField", () => {
     fireEvent.blur(input);
     expect(onCommit).toHaveBeenCalledWith("cou");
   });
+
+  it("运算符候选选择不重复前缀（replaceToken 替换 token）", () => {
+    render(<NodeFormulaField value="" onCommit={vi.fn()} candidates={cands} ariaLabel="初始值" />);
+    const input = screen.getByLabelText("初始值") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "count <", selectionStart: 7 } });
+    // 默认第一项 "<" → 替换后值不变（insertAt 会得到 "count <<"）
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(input.value).toBe("count <");
+    // 重开弹层，导航到 "<=" 选中 → 前缀不重复
+    fireEvent.change(input, { target: { value: "count <", selectionStart: 7 } });
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(input.value).toBe("count <=");
+  });
+
+  it("鼠标点击候选不提前提交（菜单项 onMouseDown 防夺焦）", () => {
+    const onCommit = vi.fn();
+    render(<NodeFormulaField value="" onCommit={onCommit} candidates={cands} ariaLabel="初始值" />);
+    const input = screen.getByLabelText("初始值") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "cou", selectionStart: 3 } });
+    const option = screen.getByRole("option");
+    fireEvent.mouseDown(option);
+    fireEvent.click(option);
+    expect(onCommit).not.toHaveBeenCalled(); // 未完成草稿不得被 blur 提前提交
+    expect(input.value).toBe("count"); // 候选已替换进草稿
+    expect(screen.queryByRole("listbox")).toBeNull();
+  });
 });

@@ -30,7 +30,8 @@ interface MenuState {
   y: number;
   groups: Array<{ label: string; items: CandidateItem[] }>;
   activeIdx: number;
-  replace: { tokenStart: number; cursor: number } | null; // null = 光标处插入（运算符）
+  // 选中候选的替换区间（tokenStart..cursor）；null = 光标处插入（防御性兜底，当前三上下文均走替换）
+  replace: { tokenStart: number; cursor: number } | null;
 }
 
 export function NodeFormulaField({ value, onCommit, candidates, placeholder, ariaLabel, className, invalid, onCancel, onBlur }: Props) {
@@ -60,6 +61,10 @@ export function NodeFormulaField({ value, onCommit, candidates, placeholder, ari
     el.addEventListener("change", fallback);
     return () => el.removeEventListener("change", fallback);
   }, []);
+  // 每次提交后同步最新处理器到 ref（渲染期写 ref 会被 React 重放丢弃，须在 effect 内写）
+  useEffect(() => {
+    onInputChangeRef.current = onInputChange;
+  });
 
   const commit = () => {
     if (dirtyRef.current && draft !== value) onCommit(draft);
@@ -96,7 +101,8 @@ export function NodeFormulaField({ value, onCommit, candidates, placeholder, ari
       }
       const items = operatorCandidates(ctx.token);
       if (items.length === 0) { setMenu(null); return; }
-      openMenu(ctx.tokenStart, cursor, [{ label: "运算符", items }], null);
+      // 走 replaceToken 替换运算符前缀：insertAt 会把已键入的前缀字符（如 "<"）重复插入（"count <<="）
+      openMenu(ctx.tokenStart, cursor, [{ label: "运算符", items }], { tokenStart: ctx.tokenStart, cursor });
       return;
     }
     if (ctx.kind === "member") {
@@ -110,8 +116,6 @@ export function NodeFormulaField({ value, onCommit, candidates, placeholder, ari
     if (items.length === 0) { setMenu(null); return; }
     openMenu(ctx.tokenStart, cursor, [{ label: "候选", items }], { tokenStart: ctx.tokenStart, cursor });
   };
-  // 每次渲染后同步最新处理器（兜底监听用）
-  onInputChangeRef.current = onInputChange;
 
   const openMenu = (tokenStart: number, cursor: number, groups: MenuState["groups"], replace: MenuState["replace"]) => {
     const rect = inputRef.current?.getBoundingClientRect();

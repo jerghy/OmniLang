@@ -55,6 +55,8 @@ export function NodeCandidateMenu({ x, y, groups, activeIdx, onSelect, onMouseEn
                   className={`${styles.item} ${idx === activeIdx ? styles.itemActive : ""}`}
                   onClick={() => onSelect(item)}
                   onMouseEnter={() => onMouseEnter(idx)}
+                  // 防夺焦：mousedown 不把焦点从输入框夺走，避免 input blur 提前提交草稿且菜单卸载导致 click 丢失
+                  onMouseDown={(e) => e.preventDefault()}
                 >
                   <span>{item.label}</span>
                 </button>
