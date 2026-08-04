@@ -4,9 +4,6 @@
 //  - formatSyntaxNode: props → OmniLang 语句文本（GraphCompiler 与 UI 预览共用，单一来源）
 //  - defaultSyntaxProps: 新节点默认值（占位符取自 learn-omniview 真实使用统计）
 
-export const SYNTAX_NODE_TAGS = ["let", "assign", "store-call", "call"] as const;
-export type SyntaxNodeTag = (typeof SYNTAX_NODE_TAGS)[number];
-
 export interface SyntaxNodeProps {
   /** let: 变量名；assign: 赋值目标（signal/变量/store 信号） */
   name?: string;
