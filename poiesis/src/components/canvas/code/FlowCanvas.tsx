@@ -8,6 +8,7 @@ import {
   BackgroundVariant,
   type Node as RFNode,
   type Connection,
+  type NodeChange,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { usePoiesisStore } from "../../../store";
@@ -245,13 +246,18 @@ function FlowCanvasInner() {
     return () => window.removeEventListener("keydown", handler);
   }, []); // stable — bind once
 
-  // ── Drag: commit position only on drag end ──
-  // During drag, ReactFlow manages node positions internally (uncontrolled for position).
-  // We only commit to the Zustand store when the user finishes dragging,
-  // avoiding excessive store updates on every pixel of movement.
-  const onNodeDragStop = useCallback(
-    (_event: MouseEvent | TouchEvent, node: RFNode) => {
-      setElementPosition(node.id, node.position);
+  // ── Drag: controlled 模式必须经 onNodesChange 回写位置 ──
+  // xyflow v12 受控流（nodes prop，无 defaultNodes）下，拖拽中的位置更新被内部
+  // `hasDefaultNodes` 门控丢弃，仅 onNodesChange 会收到变更——不接线则节点拖拽冻结、
+  // 松开后瞬移。这里把 position 变更实时回写 store（setElementPosition 无 undo 条目，
+  // 每帧提交不污染撤销栈；末帧 dragging:false 的变更即最终落点）。
+  const handleNodesChange = useCallback(
+    (changes: NodeChange[]) => {
+      for (const change of changes) {
+        if (change.type === "position" && change.position) {
+          setElementPosition(change.id, change.position);
+        }
+      }
     },
     [setElementPosition],
   );
@@ -436,7 +442,7 @@ function FlowCanvasInner() {
           panOnScroll
           onNodeClick={(_event, node) => setSelectedNodeIds([node.id])}
           onPaneClick={() => setSelectedNodeIds([])}
-          onNodeDragStop={onNodeDragStop}
+          onNodesChange={handleNodesChange}
           onConnect={onConnect}
           onConnectStart={onConnectStart}
           onConnectEnd={onConnectEnd}
