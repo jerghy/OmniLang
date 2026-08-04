@@ -24,14 +24,19 @@ import { test, expect, Page } from '@playwright/test';
 //      immutable bindings).
 //   C. Inline-store actions reference an undefined CartStore object
 //      (TS2304 class — inline-store actions have no emission path).
-//      FIXED (task 2.2): inline stores now hard-diagnose E_CODEGEN on
+//      FIXED (task 2.2): inline stores were hard-diagnosed E_CODEGEN on
 //      React (BUG-C interim, deferral #37) and InlineStoreDemo was
-//      migrated to a top-level CartStore. Test 20 stays fixme for a
-//      DIFFERENT recorded bug it now exposes: store GETTERS are frozen
+//      migrated to a top-level CartStore. Test 20 stayed fixme for a
+//      DIFFERENT recorded bug it exposed: store GETTERS were frozen
 //      after the first set() — Zustand's Object.assign merge flattens
-//      the emitted accessor getters into stale data props (affects
-//      TodoStore.totalCount too; verified in-browser). Getter emission
-//      fix belongs to the IR wave (Phase 5.2 store emission).
+//      the emitted accessor getters into stale data props (affected
+//      TodoStore.totalCount too; verified in-browser).
+//      FIXED (Phase 5.2, deferral #37): inline stores lower to module
+//      StoreIRs and emit real Zustand stores (the demo is inline again,
+//      src/stores/CartStore.omni deleted), and getters are now COMPUTED
+//      VALUES — a `__getters` helper materializes them as data props on
+//      every set and on the initial state (accessor emission removed).
+//      Test 20 un-fixme'd.
 //   D. `&` in static text is escaped to `&amp;` INSIDE JSX string
 //      literals, rendering literally ("Signal &amp; Store Patterns").
 //      FIXED (task 2.4): the string-literal emission path no longer
@@ -324,7 +329,7 @@ test.describe('OmniView React — 9 标签页验证', () => {
       await page.waitForTimeout(200);
     });
 
-    test.fixme('20 - InlineStoreDemo add/remove (BUG-C fixed: demo migrated to top-level CartStore; REMAINING: store getters frozen after first set() — Zustand Object.assign flattens accessor getters, see header note C)', async ({ page }) => {
+    test('20 - InlineStoreDemo add/remove (BUG-C fixed: inline stores lower to real Zustand stores + getters are computed values, Phase 5.2)', async ({ page }) => {
       await switchToTab(page, 4);
       await visible(page, 'Inline Store Demo');
       await visible(page, 'cart empty');
@@ -333,7 +338,9 @@ test.describe('OmniView React — 9 标签页验证', () => {
       // React drops spaces around interpolations — match with \s* (suite convention)
       await visible(page, /Items:\s*1/);
       await visible(page, /Total:\s*5/);
-      await clickBtn(page, 'Remove');
+      // Exact match: SignalPatternsDemo (rendered above on the State tab) has
+      // a "Remove Last" button — the substring match would click that one.
+      await page.getByRole('button', { name: 'Remove', exact: true }).click();
       await page.waitForTimeout(300);
       await visible(page, /Items:\s*0/);
       await visible(page, /Total:\s*0/);

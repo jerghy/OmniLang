@@ -19,6 +19,7 @@ impl<'a> Parser<'a> {
         let mut refs = Vec::new();
         let mut store_refs = Vec::new();
         let mut inline_stores = Vec::new();
+        let mut inline_store_defs = Vec::new();
         let mut motions: Vec<MotionDef> = Vec::new();
         let mut lifecycles = Vec::new();
         let mut fns = Vec::new();
@@ -53,8 +54,15 @@ impl<'a> Parser<'a> {
                     self.advance();
                     let store_name = self.expect_ident("expected store name")?;
                     if *self.peek_kind() == TokenKind::LBrace {
-                        // Inline store definition — parse and extract signals/actions
+                        // Inline store definition — parse and extract
+                        // signals/actions, keeping the full body as a
+                        // StoreDef (Phase 5.2: inline stores lower to the
+                        // same module-level StoreIR as top-level stores).
                         inline_stores.push(store_name.clone());
+                        let mut store_signals = Vec::new();
+                        let mut store_actions = Vec::new();
+                        let mut store_getters = Vec::new();
+                        let store_span = self.peek_span();
                         self.advance(); // '{'
                         while *self.peek_kind() != TokenKind::RBrace
                             && *self.peek_kind() != TokenKind::Eof
@@ -63,14 +71,17 @@ impl<'a> Parser<'a> {
                                 TokenKind::Signal => {
                                     let sig = self.parse_signal_decl()?;
                                     self.reject_theme_marker(&sig)?;
+                                    store_signals.push(sig.clone());
                                     signals.push(sig);
                                 }
                                 TokenKind::Action => {
                                     let action = self.parse_action_def()?;
+                                    store_actions.push(action.clone());
                                     actions.push(action);
                                 }
                                 TokenKind::Getter => {
                                     let getter = self.parse_getter_decl()?;
+                                    store_getters.push(getter.clone());
                                     getters.push(getter);
                                 }
                                 // Task 3.5 (域 5 BNF v2): 内联 store 与顶层
@@ -91,6 +102,13 @@ impl<'a> Parser<'a> {
                             }
                         }
                         self.expect_token(TokenKind::RBrace, "expected '}'")?;
+                        inline_store_defs.push(StoreDef {
+                            name: store_name.clone(),
+                            signals: store_signals,
+                            getters: store_getters,
+                            actions: store_actions,
+                            span: store_span,
+                        });
                     }
                     store_refs.push(store_name);
                     if *self.peek_kind() == TokenKind::Semicolon {
@@ -213,6 +231,7 @@ impl<'a> Parser<'a> {
             refs,
             store_refs,
             inline_stores,
+            inline_store_defs,
             lifecycles,
             fns,
             actions,

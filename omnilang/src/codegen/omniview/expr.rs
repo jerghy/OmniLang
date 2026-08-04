@@ -208,9 +208,33 @@ impl OmniViewGenerator {
                 if self.name_resolver.store_names.contains(&raw_store_name)
                     || self.name_resolver.store_names.contains(&base)
                 {
-                    // First try: resolve the method through name_renames (handles inline stores
-                    // where the store action is merged as a component function, e.g.
-                    // CartStore.addItem → InlineStoreDemo_addItem)
+                    // Phase 5.2: the store (top-level OR inline — both are
+                    // module StoreIRs now) emits a store-level action
+                    // function (`CartStore_addItem`). Prefer it over the
+                    // legacy inline-store flattened-fn rename, so reads and
+                    // writes stay on ONE state. Before this, an inline store
+                    // inlined into a parent view split the state: reads
+                    // resolved to the store-level signals while method calls
+                    // resolved to the flattened component fn mutating
+                    // component-level copies (verified on InlineStoreDemo).
+                    let store_level_fn = if raw_store_name.is_empty() {
+                        format!("{}_{}", base, method)
+                    } else {
+                        format!("{}_{}", raw_store_name, method)
+                    };
+                    if self
+                        .name_resolver
+                        .store_field_names
+                        .contains(&store_level_fn)
+                    {
+                        let arg_strs: Vec<String> =
+                            args.iter().map(|a| self.expr_to_js(a)).collect();
+                        return format!("{}({})", store_level_fn, arg_strs.join(", "));
+                    }
+                    // Legacy fallback: resolve the method through name_renames
+                    // (inline store where the store action is merged as a
+                    // component function, e.g. CartStore.addItem →
+                    // InlineStoreDemo_addItem).
                     if let Some(resolved_fn) = self
                         .name_resolver
                         .name_renames

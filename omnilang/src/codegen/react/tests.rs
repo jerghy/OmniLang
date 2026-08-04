@@ -1385,7 +1385,8 @@ fn unmount_store_field_read_resolves_deps_via_slice() {
 /// together they kill list-cascade re-renders.
 #[test]
 fn prop_fn_wrapped_in_use_callback() {
-    let out = compile_react(r#"
+    let out = compile_react(
+        r#"
         store TodoStore {
             signal items: Array<String> = [];
             action add(item: String) {
@@ -1401,10 +1402,15 @@ fn prop_fn_wrapped_in_use_callback() {
             fn handleAdd(x) { TodoStore.add(x) }
             view { <AddTodo onAdd={handleAdd}/> }
         }
-    "#)
+    "#,
+    )
     .expect("compile must succeed");
     let tsx = out.files.get("TodoList.tsx").expect("TodoList.tsx emitted");
-    assert!(tsx.contains("useCallback"), "prop fn must be memoized: {}", tsx);
+    assert!(
+        tsx.contains("useCallback"),
+        "prop fn must be memoized: {}",
+        tsx
+    );
     assert!(
         tsx.contains("React.memo(AddTodo)") || tsx.contains("memo(AddTodo)"),
         "child must be memoized: {}",
@@ -1466,7 +1472,8 @@ fn motion_table_hoisted_to_module_scope() {
 /// assertions and failure messages are kept verbatim.)
 #[test]
 fn motion_store_value_uses_slice() {
-    let out = compile_react(r#"
+    let out = compile_react(
+        r#"
         store S { signal pos: i32 = 0; }
         @motion m {
             from { translateX: 0 }
@@ -1477,7 +1484,8 @@ fn motion_store_value_uses_slice() {
             @store S;
             view { <div @scroll={m}/> }
         }
-    "#)
+    "#,
+    )
     .expect("compile must succeed");
     let tsx = out.files.get("V.tsx").expect("V.tsx emitted");
     assert!(
@@ -1515,7 +1523,8 @@ fn motion_store_value_uses_slice() {
 /// guard's own variable; test name and failure message are kept verbatim.)
 #[test]
 fn scroll_progress_has_equality_guard() {
-    let out = compile_react(r#"
+    let out = compile_react(
+        r#"
         @motion m {
             from { opacity: 0 }
             to   { opacity: 1 }
@@ -1523,7 +1532,8 @@ fn scroll_progress_has_equality_guard() {
         component V {
             view { <div @scroll={m}/> }
         }
-    "#)
+    "#,
+    )
     .expect("compile must succeed");
     let tsx = out.files.get("V.tsx").expect("V.tsx emitted");
     assert!(
@@ -1646,9 +1656,38 @@ fn test_zustand_store_with_signals_and_getters() {
         "should emit string default: {}",
         result
     );
+    // Phase 5.2 (getter freeze fix): getters are COMPUTED VALUES in a
+    // `__getters` helper — never accessor properties (Zustand's
+    // Object.assign merge flattens accessors into stale data props on the
+    // first set()).
     assert!(
-        result.contains("get doubleCount()"),
-        "should emit getter accessor: {}",
+        result.contains("const __getters = (s: CalcStoreSignals) => {"),
+        "should emit the getter helper: {}",
+        result
+    );
+    assert!(
+        result.contains("type CalcStoreSignals = Pick<CalcStoreState, \"count\" | \"name\">;"),
+        "should emit the signals-only Pick type for contextual typing: {}",
+        result
+    );
+    assert!(
+        result.contains("const doubleCount = s.count * 2;"),
+        "getter body must be computed from the state param: {}",
+        result
+    );
+    assert!(
+        result.contains("return { ...s, doubleCount };"),
+        "getters must be materialized as data properties: {}",
+        result
+    );
+    assert!(
+        result.contains("const __initial = __getters({"),
+        "initial state must go through the same getter path: {}",
+        result
+    );
+    assert!(
+        !result.contains("get doubleCount()"),
+        "accessor getters are gone (freeze bug): {}",
         result
     );
     assert!(
@@ -2488,27 +2527,47 @@ fn design_tokens_hook_uses_slices() {
         r#"design AppDesign { token accent: color = DynamicTokenStore.liveAccent; }"#,
     );
     // useDesignTokens 必须用 per-field selectors
-    assert!(out.contains("useDynamicTokenStore((s) => s."), "whole-store subscription in design hook: {}", out);
+    assert!(
+        out.contains("useDynamicTokenStore((s) => s."),
+        "whole-store subscription in design hook: {}",
+        out
+    );
 }
 
+/// An inline store (`store Cart { ... }` in a component body) must lower to
+/// a real module-level store: React emits a useCart Zustand store file and
+/// the component subscribes through it — no bare undefined `Cart.*`
+/// references (BUG-C / deferral #37; replaces the task-2.2 E_CODEGEN gate).
 #[test]
-fn inline_store_react_hard_diagnosed() {
-    let src =
-        r#"component Inline { store Cart { signal items: Array<String> = []; } view { <div/> } }"#;
-    let (_, diags) = compile_react_with_diags(src);
-    let d = diags
-        .iter()
-        .find(|d| d.kind == DiagnosticKind::ECodegen)
-        .expect("inline store must diagnose on react");
-    assert!(
-        d.message.contains("inline store"),
-        "expected migration hint, got: {}",
-        d.message
+fn inline_store_emits_working_store() {
+    let result = compile_react_full(
+        r#"import omniview; component V { store Cart { signal items: Array<String> = []; action addItem(x: String) { items = [...items, x]; } } fn doAdd() { Cart.addItem("Apple"); } view { <div>{Cart.items.len()}</div> } }"#,
     );
     assert!(
-        d.message.contains("顶层 store"),
-        "expected migration hint, got: {}",
-        d.message
+        result.success,
+        "inline store must compile without errors: {:?}",
+        result.errors
+    );
+    let out: String = result
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        result.files.contains_key("useCart.ts"),
+        "must emit the store file: {}",
+        out
+    );
+    assert!(
+        out.contains("createStore") || out.contains("useCart"),
+        "must emit real store: {}",
+        out
+    );
+    assert!(
+        !out.contains("Cart.addItem") || out.contains("useCart"),
+        "bare-name calls must resolve: {}",
+        out
     );
 }
 
@@ -2671,7 +2730,10 @@ component ListPage {
     let result = compile_react_full(source);
     assert!(result.success, "errors: {:?}", result.errors);
     assert!(
-        result.warnings.iter().all(|d| !d.message.contains("对象项列表")),
+        result
+            .warnings
+            .iter()
+            .all(|d| !d.message.contains("对象项列表")),
         "primitive-item @for must not warn; warnings: {:?}",
         result
             .warnings
@@ -4041,9 +4103,8 @@ component RefOps {
     );
     assert!(
         content.contains("window.addEventListener(\"pointerdown\", onPointerDown, true);")
-            && content.contains(
-                "window.removeEventListener(\"pointerdown\", onPointerDown, true);"
-            )
+            && content
+                .contains("window.removeEventListener(\"pointerdown\", onPointerDown, true);")
             && content.contains("useEffect(() => {"),
         "pointer listener must register in a mount effect with unmount cleanup. Got:\n{}",
         content
@@ -6051,12 +6112,7 @@ component V {
     if !out.success {
         panic!("compile errors: {:?}", out.errors);
     }
-    let content: String = out
-        .files
-        .values()
-        .cloned()
-        .collect::<Vec<_>>()
-        .join("\n");
+    let content: String = out.files.values().cloned().collect::<Vec<_>>().join("\n");
     assert!(
         content.contains("return (() => { const _v = item;"),
         "tail match must emit return of the match IIFE, got:\n{}",
@@ -6082,12 +6138,7 @@ component V {
     if !out.success {
         panic!("compile errors: {:?}", out.errors);
     }
-    let content: String = out
-        .files
-        .values()
-        .cloned()
-        .collect::<Vec<_>>()
-        .join("\n");
+    let content: String = out.files.values().cloned().collect::<Vec<_>>().join("\n");
     assert!(
         content.contains("return y;"),
         "tail block value lost: fn must return the tail expression, got:\n{}",
@@ -6124,12 +6175,7 @@ component V {
     if !out.success {
         panic!("compile errors: {:?}", out.errors);
     }
-    let content: String = out
-        .files
-        .values()
-        .cloned()
-        .collect::<Vec<_>>()
-        .join("\n");
+    let content: String = out.files.values().cloned().collect::<Vec<_>>().join("\n");
     assert!(
         !content.contains("&amp;"),
         "string literal must not be entity-escaped: {}",
@@ -6166,7 +6212,11 @@ component V {
         .cloned()
         .collect::<Vec<_>>()
         .join("\n");
-    assert!(!out.contains("font-size"), "kebab style key leaked: {}", out);
+    assert!(
+        !out.contains("font-size"),
+        "kebab style key leaked: {}",
+        out
+    );
     assert!(out.contains("fontSize"), "expected camelCase: {}", out);
 }
 
@@ -6197,5 +6247,9 @@ component V {
         "must emit React synthetic name: {}",
         out
     );
-    assert!(out.contains("onAnimationEnd"), "expected onAnimationEnd: {}", out);
+    assert!(
+        out.contains("onAnimationEnd"),
+        "expected onAnimationEnd: {}",
+        out
+    );
 }

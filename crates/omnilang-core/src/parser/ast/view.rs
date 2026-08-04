@@ -4,7 +4,7 @@ use serde::Serialize;
 
 use crate::lexer::Span;
 
-use super::motion::{GetterDecl, MotionDef, MotionTrigger};
+use super::motion::{GetterDecl, MotionDef, MotionTrigger, StoreDef};
 use super::{Block, Expr, FunctionDef, Param, TypeAnnotation};
 
 // ── OmniView-Specific AST ─────────────────────────────
@@ -25,6 +25,13 @@ pub struct ComponentDef {
     /// this list records the parse-time distinction so validators can
     /// treat them as locally-defined rather than module-level stores.
     pub inline_stores: Vec<String>,
+    /// Full bodies of the inline stores, in declaration order — the same
+    /// [`StoreDef`] shape used by module-level stores. The members are ALSO
+    /// flattened into the component (see [`Self::inline_stores`]); this list
+    /// retains the store-level grouping so lowering can register a
+    /// module-level [`crate::ir::StoreIR`] per inline store — top-level and
+    /// inline stores share one IR representation (v2 域 5).
+    pub inline_store_defs: Vec<StoreDef>,
     pub lifecycles: Vec<LifecycleHook>,
     pub fns: Vec<FunctionDef>,
     pub actions: Vec<ActionDef>,

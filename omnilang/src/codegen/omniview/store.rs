@@ -47,7 +47,8 @@ impl OmniViewGenerator {
         // Set up rename mapping: store-local names → flat JS names
         // This ensures getter/action bodies reference the correct JS variables
         // Save and restore the rename map to prevent cross-store pollution
-        let saved_renames: FxHashMap<String, String> = std::mem::take(&mut self.name_resolver.name_renames);
+        let saved_renames: FxHashMap<String, String> =
+            std::mem::take(&mut self.name_resolver.name_renames);
         // Also temporarily populate signal_names with flat names so .value is emitted
         let saved_signals: Vec<String> = self.name_resolver.signal_names.iter().cloned().collect();
 
@@ -66,10 +67,15 @@ impl OmniViewGenerator {
                 var_name, var_name, init_val
             );
             // Map local name → flat name for getter/action bodies (must clone before moves)
-            self.name_resolver.name_renames
+            self.name_resolver
+                .name_renames
                 .insert(sig_name.clone(), var_name.clone());
-            self.name_resolver.store_signal_names.insert(var_name.clone());
-            self.name_resolver.store_field_names.insert(var_name.clone());
+            self.name_resolver
+                .store_signal_names
+                .insert(var_name.clone());
+            self.name_resolver
+                .store_field_names
+                .insert(var_name.clone());
             // Also add flat name to signal_names so .value is emitted
             self.name_resolver.signal_names.insert(var_name);
         }
@@ -84,11 +90,14 @@ impl OmniViewGenerator {
                 var_name, var_name, body_js
             );
             // Map local getter name → flat name for action bodies
-            self.name_resolver.name_renames
+            self.name_resolver
+                .name_renames
                 .insert(getter_name.clone(), var_name.clone());
             // Also add flat name to signal_names so .value is emitted when referenced
             self.name_resolver.signal_names.insert(var_name.clone());
-            self.name_resolver.store_signal_names.insert(var_name.clone());
+            self.name_resolver
+                .store_signal_names
+                .insert(var_name.clone());
             self.name_resolver.store_field_names.insert(var_name);
         }
 
@@ -106,9 +115,12 @@ impl OmniViewGenerator {
             }
             self.scope.fn_locals.clear();
             self.js.push_str("}\n\n");
-            self.name_resolver.store_field_names.insert(func_name.clone());
+            self.name_resolver
+                .store_field_names
+                .insert(func_name.clone());
             // Map local action name → flat name for intra-store calls
-            self.name_resolver.name_renames
+            self.name_resolver
+                .name_renames
                 .insert(action.name.clone(), func_name);
         }
 
@@ -175,7 +187,8 @@ impl OmniViewGenerator {
         // Register THIS component's signal/computed names with component prefix.
         for state in &comp.signals {
             let prefixed = format!("{}_{}", name, state.name);
-            self.name_resolver.name_renames
+            self.name_resolver
+                .name_renames
                 .insert(state.name.clone(), prefixed.clone());
             self.name_resolver.signal_names.insert(prefixed);
             // Collect default value for editor canvas preview
@@ -184,7 +197,8 @@ impl OmniViewGenerator {
         }
         for c in &comp.computeds {
             let prefixed = format!("{}_{}", name, c.name);
-            self.name_resolver.name_renames
+            self.name_resolver
+                .name_renames
                 .insert(c.name.clone(), prefixed.clone());
             self.name_resolver.signal_names.insert(prefixed);
         }
@@ -194,7 +208,16 @@ impl OmniViewGenerator {
                 self.name_resolver.fn_prop_names.insert(prop_name.clone());
             }
         }
-        // Add store signal/getter names so store field access uses .value
+        // Add store signal/getter names so store field access uses .value.
+        // Phase 5.2: inline stores (`store Name { ... }` in a component body)
+        // are registered as module StoreIRs, so they resolve through the
+        // module-store branch here like any top-level store — the emit_store
+        // pass (mod.rs) emits their store-level signals/actions and every
+        // reference (view reads AND action calls) resolves to the store
+        // level. The flattened component copies stay emitted but unused.
+        // Treating them as "inline" (name_renames → component) would SPLIT
+        // the state: reads would resolve store-level while the flattened
+        // actions still mutate component-level copies.
         for store_name in &comp.store_refs {
             if let Some(store) = ir.all_stores().get(store_name.as_str()) {
                 // Register the store name so FieldAccessExpr on store objects
@@ -214,12 +237,12 @@ impl OmniViewGenerator {
                     self.name_resolver.signal_names.insert(full_name);
                 }
             } else {
-                // Inline store (defined inside component body, not in all_stores):
-                // its fields are merged into component states/computeds/actions.
-                // Map store name → component name so MethodCallExpr like
-                // CartStore.addItem() resolves to ComponentName_addItem().
+                // Unknown store (semantic error — validators should have
+                // caught it): keep the legacy inline-store fallback mapping
+                // the store alias to this component's flattened members.
                 self.name_resolver.store_names.insert(store_name.clone());
-                self.name_resolver.name_renames
+                self.name_resolver
+                    .name_renames
                     .insert(store_name.clone(), name.to_string());
             }
         }
@@ -244,7 +267,8 @@ impl OmniViewGenerator {
                 "const {} = __omni_readonlySignal(\"{}\", {});",
                 prefixed, prefixed, init_val
             );
-            self.name_resolver.name_renames
+            self.name_resolver
+                .name_renames
                 .insert(prop_name.clone(), prefixed.clone());
             self.name_resolver.signal_names.insert(prefixed);
         }
@@ -263,7 +287,8 @@ impl OmniViewGenerator {
         for event in &comp.events {
             let prefixed_name = format!("{}{}", fn_prefix, event.name);
             // Map event name → prefixed name so CallExpr in function bodies resolves correctly
-            self.name_resolver.name_renames
+            self.name_resolver
+                .name_renames
                 .insert(event.name.clone(), prefixed_name.clone());
         }
         for event in &comp.events {
@@ -301,7 +326,8 @@ impl OmniViewGenerator {
         // BEFORE any function body is emitted.
         for f in &comp.fns {
             let prefixed_name = format!("{}{}", fn_prefix, f.name);
-            self.name_resolver.name_renames
+            self.name_resolver
+                .name_renames
                 .insert(f.name.clone(), prefixed_name.clone());
         }
         // SECOND pass: emit function bodies (name_renames is now fully populated)
@@ -681,7 +707,8 @@ impl OmniViewGenerator {
         for (i, p) in f.params.iter().enumerate() {
             let sanitized = &params[i];
             if sanitized != &p.name {
-                self.name_resolver.name_renames
+                self.name_resolver
+                    .name_renames
                     .insert(p.name.clone(), sanitized.clone());
             }
         }

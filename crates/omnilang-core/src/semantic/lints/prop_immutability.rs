@@ -134,6 +134,7 @@ mod tests {
                     refs: vec![],
                     store_refs: vec![],
                     inline_stores: vec![],
+                    inline_store_defs: vec![],
                     motions: vec![],
                     lifecycles: vec![],
                     fns: vec![FunctionDef {

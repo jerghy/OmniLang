@@ -8,7 +8,6 @@ use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
 use crate::codegen::shared::build_component_map;
 use crate::codegen::shared::types::{FormatType, JsTypeFormatter};
 use crate::codegen::{format_json_value, JSON_REACT};
-use crate::error::{Diagnostic, DiagnosticKind, Severity};
 use crate::ir::*;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
@@ -28,23 +27,12 @@ pub struct ReactCodegen;
 
 impl Codegen for ReactCodegen {
     fn generate(&self, ir: &IRProgram, source_files: &FxHashMap<String, String>) -> CompileOutput {
-        // BUG-C hard diagnostic (Task 2.2, deferral #37): inline stores
-        // (`store Name { ... }` in a component body) have NO React emission
-        // path — they are flattened into the component and never enter
-        // ModuleIR.stores, so action calls compile to bare undefined
-        // references (`CartStore.addItem(...)` → TS2304 → runtime
-        // ReferenceError) while their state freezes to `const []` locals.
-        // Fail honestly with a migration hint instead of emitting that
-        // broken shape; real inline-store emission lands in Phase 5.2
-        // (IR wave).
-        if let Some(errors) = inline_store_react_diagnostics(ir) {
-            return CompileOutput {
-                files: vec![],
-                errors,
-                source_map: vec![],
-                warnings: vec![],
-            };
-        }
+        // Inline stores (`store Name { ... }` in a component body) lower to
+        // module-level StoreIRs (Phase 5.2, deferral #37) — the shared
+        // generate_per_component path emits their useXxx.ts Zustand store
+        // files like any module-level store, and the component's store_refs
+        // resolve through the slice-subscription machinery. The task-2.2
+        // E_CODEGEN gate for inline stores was removed with it.
         let mut output = self.generate_per_component(ir, source_files);
         // Module-level design blocks → design.css + design runtime files
         // (useDesignTokens.ts / useThemeStore.ts) in a dedicated `__design/`
@@ -83,37 +71,6 @@ impl Codegen for ReactCodegen {
             path: format!("{}use{}.ts", dir_prefix, name),
             content,
         }]
-    }
-}
-
-/// Collect one E_CODEGEN diagnostic per inline store declaration (BUG-C,
-/// deferral #37). `None` when the program has no inline stores — the
-/// normal compile path. Each diagnostic names the store and the owning
-/// component and carries the migration hint.
-fn inline_store_react_diagnostics(ir: &IRProgram) -> Option<Vec<Diagnostic>> {
-    let mut diags = Vec::new();
-    for (comp_name, comp) in ir.all_components() {
-        for store_name in &comp.inline_stores {
-            diags.push(Diagnostic {
-                severity: Severity::Error,
-                kind: DiagnosticKind::ECodegen,
-                message: format!(
-                    "inline store `{}` in component `{}` 在 React 目标暂不支持——移至顶层 store（src/stores/ 下定义并 import），或等待 IR wave（Phase 5.2）加入内联 store 发射；当前会生成冻结状态与未定义的 store 引用（deferral #37）",
-                    store_name, comp_name
-                ),
-                file: comp.source_file.clone(),
-                line: 0,
-                col: 0,
-                end_line: None,
-                end_col: None,
-                suggestion: None,
-            });
-        }
-    }
-    if diags.is_empty() {
-        None
-    } else {
-        Some(diags)
     }
 }
 
@@ -309,74 +266,296 @@ impl ReactCodegen {
             .iter()
             .map(|n| (n.clone(), format!("state.{}", n)))
             .collect();
-        // Inside getter accessors `state` is not in scope — use `get().` instead.
-        let getter_renames: FxHashMap<String, String> = store_names
-            .iter()
-            .map(|n| (n.clone(), format!("get().{}", n)))
-            .collect();
 
-        // Check if any getter or action body needs get()
-        let needs_get = !store.getters.is_empty()
-            || store
-                .actions
-                .iter()
-                .any(|a| action_needs_zustand_state(a, &store_signal_names, &store_getter_names));
+        // Check if any action body needs get()
+        let needs_get = store
+            .actions
+            .iter()
+            .any(|a| action_needs_zustand_state(a, &store_signal_names, &store_getter_names));
         let create_params = if needs_get { "(set, get)" } else { "(set)" };
 
-        // create() call — v5 curried form
-        w.emit_fmt(format_args!(
-            "export const use{} = create<{}>()({} => ({{",
-            name, state_interface, create_params
-        ));
-        w.indent();
+        let has_getters = !store.getters.is_empty();
+        let set_fn = if has_getters { "__set" } else { "set" };
 
-        // Signal defaults
-        for sig_name in store.signals.keys() {
-            let init = store
-                .signal_defaults
-                .get(sig_name)
-                .map(|v| format_json_value(v, &JSON_REACT))
-                .unwrap_or_else(|| "null".into());
-            w.emit_fmt(format_args!("{}: {},", sig_name, init));
-        }
-
-        // Getters as accessor properties — use get() for store references
-        for (getter_name, getter_expr) in &store.getters {
-            let final_expr = expr::format_expr_ir_tsx_renamed(
-                getter_expr,
-                &FxHashSet::default(),
-                &getter_renames,
-            );
+        if has_getters {
+            // ── Getter freeze fix (Phase 5.2): getters are emitted as
+            // COMPUTED VALUES inside a `__recompute` helper, evaluated in
+            // dependency order (a getter referencing another getter reads
+            // the freshly computed const). The old accessor-property
+            // emission froze into stale data props on the first set() —
+            // Zustand's Object.assign merge invokes the accessor once and
+            // copies its value, so `s.totalCount` never updated again
+            // (BUG-C follow-up, verified in-browser on TodoStore).
+            //
+            // `__set` wraps every store write: it merges the mutation
+            // partial into the current state and re-runs `__recompute`, so
+            // getter values are always fresh data properties. The initial
+            // state goes through the same helper (`__initial`), so getters
+            // are materialized from the very first render.
             w.emit_fmt(format_args!(
-                "get {}() {{ return {}; }},",
-                getter_name, final_expr
+                "export const use{} = create<{}>()({} => {{",
+                name, state_interface, create_params
             ));
-        }
-
-        // Actions
-        for action in &store.actions {
-            let params: Vec<String> = action
-                .params
-                .iter()
-                .map(|p| escape_js_ident(&p.name))
-                .collect();
-            let params_str = params.join(", ");
-            w.emit_fmt(format_args!("{}: ({}) => {{", action.name, params_str));
+            w.indent();
+            emit_getter_helper(
+                &mut w,
+                name,
+                store,
+                &store_signal_names,
+                &store_getter_names,
+            );
+            // Initial state — signals only; getters materialized by __getters.
+            w.emit("const __initial = __getters({");
+            w.indent();
+            for sig_name in store.signals.keys() {
+                let init = store
+                    .signal_defaults
+                    .get(sig_name)
+                    .map(|v| format_json_value(v, &JSON_REACT))
+                    .unwrap_or_else(|| "null".into());
+                w.emit_fmt(format_args!("{}: {},", sig_name, init));
+            }
+            w.dedent();
+            w.emit("});");
+            // Set wrapper — recompute getters after every mutation merge.
+            // Only stores with actions need it (read-only getter stores emit
+            // no mutations; emitting an unused local would trip the eslint
+            // no-unused-vars gate). `_replace` stays for signature parity
+            // with Zustand's setState; our emissions never pass replace.
+            if !store.actions.is_empty() {
+                w.emit("const __set: typeof set = (partial, _replace) => {");
+                w.indent();
+                w.emit("set((state) => {");
+                w.indent();
+                w.emit("const next = typeof partial === 'function' ? partial(state) : partial;");
+                w.emit("return __getters({ ...state, ...next });");
+                w.dedent();
+                w.emit("});");
+                w.dedent();
+                w.emit("};");
+            }
+            w.emit("return {");
+            w.indent();
+            w.emit("...__initial,");
+            emit_store_actions(
+                &mut w,
+                store,
+                &action_renames,
+                &store_signal_names,
+                &store_getter_names,
+                set_fn,
+            );
+            w.dedent();
+            w.emit("};");
+            w.dedent();
+            w.emit("});");
+        } else {
+            // create() call — v5 curried form (no getters: plain object).
+            w.emit_fmt(format_args!(
+                "export const use{} = create<{}>()({} => ({{",
+                name, state_interface, create_params
+            ));
             w.indent();
 
-            // Emit const state = get(); when the action body references store
-            // signals or getters (C8)
-            emit_zustand_action_prologue(&mut w, action, &store_signal_names, &store_getter_names);
+            // Signal defaults
+            for sig_name in store.signals.keys() {
+                let init = store
+                    .signal_defaults
+                    .get(sig_name)
+                    .map(|v| format_json_value(v, &JSON_REACT))
+                    .unwrap_or_else(|| "null".into());
+                w.emit_fmt(format_args!("{}: {},", sig_name, init));
+            }
 
-            gen_zustand_action_stmts(&mut w, &action.body.statements, &action_renames);
+            emit_store_actions(
+                &mut w,
+                store,
+                &action_renames,
+                &store_signal_names,
+                &store_getter_names,
+                set_fn,
+            );
+
             w.dedent();
-            w.emit("},");
+            w.emit("}));");
         }
 
-        w.dedent();
-        w.emit("}));");
-
         w.into_string()
+    }
+}
+
+/// Emit the getter-materialization machinery (Phase 5.2 getter freeze fix):
+///
+/// ```ts
+/// type <Name>Signals = Pick<<Name>State, "<signal>" | ...>;
+///
+/// const __getters = (s: <Name>Signals) => {
+///   const <getter> = <body with s.<signal> and bare getter refs>;
+///   ...
+///   return { ...s, <getter>, ... };
+/// };
+/// ```
+///
+/// Getters are COMPUTED VALUES, never accessor properties: Zustand's
+/// Object.assign merge flattens accessor getters into stale data props on
+/// the first set() (the freeze bug — TodoStore.totalCount never updated),
+/// so every mutation path re-runs `__getters` over the merged state and
+/// the initial state goes through it too. The signals-only param type gives
+/// the initial literal full contextual typing (`[]` → `number[]`, never
+/// `never[]`) while getter bodies can safely read `s.<signal>`. `Pick`
+/// (not a redeclared member type) avoids duplicating struct-type references
+/// like `Todo[]` — the store interface's own instance stays the only
+/// TS2304-class occurrence.
+///
+/// Getter bodies rename store signals to `s.<signal>` and already-computed
+/// getters to their bare const name — never to `s.<getter>` (a stale data
+/// property). Getter→getter cycles (semantically invalid but defensively
+/// handled) fall back to `s.<getter>` reads for the cyclic members.
+fn emit_getter_helper(
+    w: &mut CodeWriter,
+    name: &str,
+    store: &StoreIR,
+    store_signal_names: &FxHashSet<String>,
+    store_getter_names: &FxHashSet<String>,
+) {
+    // Signals-only view of the state interface — the initial literal is
+    // checked against this, so every member is present and array defaults
+    // get contextual typing. Sorted keys keep the emitted type stable.
+    let mut signal_keys: Vec<&String> = store.signals.keys().collect();
+    signal_keys.sort();
+    let pick = format!(
+        "type {}Signals = Pick<{}State, {}>;",
+        name,
+        name,
+        signal_keys
+            .iter()
+            .map(|k| format!("\"{}\"", k))
+            .collect::<Vec<_>>()
+            .join(" | ")
+    );
+    w.emit(&pick);
+    w.emit("");
+
+    let order = topo_order_getters(store, store_signal_names, store_getter_names);
+    w.emit_fmt(format_args!("const __getters = (s: {}Signals) => {{", name));
+    w.indent();
+    let mut renamed: FxHashSet<String> = FxHashSet::default();
+    for getter_name in &order {
+        let getter_expr = store
+            .getters
+            .get(getter_name.as_str())
+            .expect("topo order must contain declared getters only");
+        // Signals → `s.x`; getters computed so far → bare const; getters not
+        // yet computed (cycle leftovers) → `s.x` (stale but compiles).
+        let mut renames: FxHashMap<String, String> = store_signal_names
+            .iter()
+            .map(|n| (n.clone(), format!("s.{}", n)))
+            .collect();
+        for g in store_getter_names.iter() {
+            if renamed.contains(g.as_str()) {
+                renames.insert(g.clone(), g.clone());
+            } else {
+                renames.insert(g.clone(), format!("s.{}", g));
+            }
+        }
+        let body = expr::format_expr_ir_tsx_renamed(getter_expr, &FxHashSet::default(), &renames);
+        w.emit_fmt(format_args!("const {} = {};", getter_name, body));
+        renamed.insert(getter_name.clone());
+    }
+    w.emit_fmt(format_args!("return {{ ...s, {} }};", order.join(", ")));
+    w.dedent();
+    w.emit("};");
+}
+
+/// Topologically order the getters by their getter-to-getter dependencies
+/// (a getter reading another getter must be evaluated after it). Members of
+/// a dependency cycle are appended in declaration order — the recompute
+/// emission falls back to `s.<getter>` reads for them.
+fn topo_order_getters(
+    store: &StoreIR,
+    _store_signal_names: &FxHashSet<String>,
+    store_getter_names: &FxHashSet<String>,
+) -> Vec<String> {
+    let mut deps_of: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let mut dependents: FxHashMap<String, Vec<String>> = FxHashMap::default();
+    let mut in_degree: FxHashMap<String, usize> = FxHashMap::default();
+    for (g, body) in &store.getters {
+        let mut ids = FxHashSet::default();
+        component::collect_expr_identifiers(body, &mut ids);
+        let deps: FxHashSet<String> = ids
+            .iter()
+            .filter(|n| store_getter_names.contains(n.as_str()) && n.as_str() != g)
+            .cloned()
+            .collect();
+        in_degree.insert(g.clone(), deps.len());
+        for d in &deps {
+            dependents.entry(d.clone()).or_default().push(g.clone());
+        }
+        deps_of.insert(g.clone(), deps);
+    }
+    // Kahn's algorithm over getter→getter edges.
+    let mut ready: Vec<String> = store
+        .getters
+        .keys()
+        .filter(|g| in_degree.get(g.as_str()) == Some(&0))
+        .cloned()
+        .collect();
+    // Deterministic order — declare the ready set in declaration order.
+    ready.sort_by(|a, b| {
+        let ia = store.getters.keys().position(|k| k == a).unwrap_or(0);
+        let ib = store.getters.keys().position(|k| k == b).unwrap_or(0);
+        ia.cmp(&ib)
+    });
+    let mut order: Vec<String> = Vec::new();
+    while let Some(g) = ready.pop() {
+        order.push(g.clone());
+        if let Some(ds) = dependents.get(g.as_str()) {
+            for d in ds {
+                let deg = in_degree
+                    .get_mut(d.as_str())
+                    .expect("dependent getter must be registered");
+                *deg -= 1;
+                if *deg == 0 {
+                    ready.push(d.clone());
+                }
+            }
+        }
+    }
+    // Cycle leftovers — declaration order (the emit falls back to `s.` reads).
+    for g in store.getters.keys() {
+        if !order.contains(g) {
+            order.push(g.clone());
+        }
+    }
+    order
+}
+
+/// Emit the store action members of the creator object.
+fn emit_store_actions(
+    w: &mut CodeWriter,
+    store: &StoreIR,
+    action_renames: &FxHashMap<String, String>,
+    store_signal_names: &FxHashSet<String>,
+    store_getter_names: &FxHashSet<String>,
+    set_fn: &str,
+) {
+    for action in &store.actions {
+        let params: Vec<String> = action
+            .params
+            .iter()
+            .map(|p| escape_js_ident(&p.name))
+            .collect();
+        let params_str = params.join(", ");
+        w.emit_fmt(format_args!("{}: ({}) => {{", action.name, params_str));
+        w.indent();
+
+        // Emit const state = get(); when the action body references store
+        // signals or getters (C8)
+        emit_zustand_action_prologue(w, action, store_signal_names, store_getter_names);
+
+        gen_zustand_action_stmts(w, &action.body.statements, action_renames, set_fn);
+        w.dedent();
+        w.emit("},");
     }
 }
 
@@ -389,6 +568,7 @@ fn gen_zustand_action_stmt(
     w: &mut CodeWriter,
     stmt: &StatementIR,
     renames: &FxHashMap<String, String>,
+    set_fn: &str,
 ) {
     /// Format an expression with the store rename map applied.
     fn fmt_expr(expr: &ExprIR, renames: &FxHashMap<String, String>) -> String {
@@ -397,7 +577,7 @@ fn gen_zustand_action_stmt(
     match stmt {
         StatementIR::MutationStmt { intent } => {
             if let Some(intent) = intent {
-                format_zustand_mutation(w, intent, renames);
+                format_zustand_mutation(w, intent, renames, set_fn);
             }
         }
         StatementIR::ExprStmtIR { expr } => {
@@ -428,19 +608,19 @@ fn gen_zustand_action_stmt(
             let cond = fmt_expr(condition, renames);
             w.emit_fmt(format_args!("if ({}) {{", cond));
             w.indent();
-            gen_zustand_action_stmts_inner(w, &then_body.statements, renames, false);
+            gen_zustand_action_stmts_inner(w, &then_body.statements, renames, false, set_fn);
             w.dedent();
             for (elif_cond, elif_body) in else_ifs {
                 let elif = fmt_expr(elif_cond, renames);
                 w.emit_fmt(format_args!("}} else if ({}) {{", elif));
                 w.indent();
-                gen_zustand_action_stmts_inner(w, &elif_body.statements, renames, false);
+                gen_zustand_action_stmts_inner(w, &elif_body.statements, renames, false, set_fn);
                 w.dedent();
             }
             if let Some(ref eb) = else_body {
                 w.emit("} else {");
                 w.indent();
-                gen_zustand_action_stmts_inner(w, &eb.statements, renames, false);
+                gen_zustand_action_stmts_inner(w, &eb.statements, renames, false, set_fn);
                 w.dedent();
             }
             w.emit("}");
@@ -456,7 +636,7 @@ fn gen_zustand_action_stmt(
             let cond = fmt_expr(condition, renames);
             w.emit_fmt(format_args!("while ({}) {{", cond));
             w.indent();
-            gen_zustand_action_stmts_inner(w, &body.statements, renames, false);
+            gen_zustand_action_stmts_inner(w, &body.statements, renames, false, set_fn);
             w.dedent();
             w.emit("}");
         }
@@ -468,14 +648,14 @@ fn gen_zustand_action_stmt(
             let iter = fmt_expr(iterable, renames);
             w.emit_fmt(format_args!("for (const {} of {}) {{", var_name, iter));
             w.indent();
-            gen_zustand_action_stmts_inner(w, &body.statements, renames, false);
+            gen_zustand_action_stmts_inner(w, &body.statements, renames, false, set_fn);
             w.dedent();
             w.emit("}");
         }
         StatementIR::BlockStmtIR { body } => {
             w.emit("{");
             w.indent();
-            gen_zustand_action_stmts_inner(w, &body.statements, renames, false);
+            gen_zustand_action_stmts_inner(w, &body.statements, renames, false, set_fn);
             w.dedent();
             w.emit("}");
         }
@@ -491,7 +671,7 @@ fn gen_zustand_action_stmt(
         } => {
             w.emit("try {");
             w.indent();
-            gen_zustand_action_stmts_inner(w, &try_body.statements, renames, false);
+            gen_zustand_action_stmts_inner(w, &try_body.statements, renames, false, set_fn);
             w.dedent();
             if let Some(ref cv) = catch_var {
                 w.emit_fmt(format_args!("}} catch ({}) {{", cv));
@@ -500,13 +680,13 @@ fn gen_zustand_action_stmt(
             }
             if let Some(ref cb) = catch_body {
                 w.indent();
-                gen_zustand_action_stmts_inner(w, &cb.statements, renames, false);
+                gen_zustand_action_stmts_inner(w, &cb.statements, renames, false, set_fn);
                 w.dedent();
             }
             if let Some(ref fb) = finally_body {
                 w.emit("} finally {");
                 w.indent();
-                gen_zustand_action_stmts_inner(w, &fb.statements, renames, false);
+                gen_zustand_action_stmts_inner(w, &fb.statements, renames, false, set_fn);
                 w.dedent();
             }
             w.emit("}");
@@ -834,8 +1014,9 @@ fn gen_zustand_action_stmts(
     w: &mut CodeWriter,
     stmts: &[StatementIR],
     renames: &FxHashMap<String, String>,
+    set_fn: &str,
 ) {
-    gen_zustand_action_stmts_inner(w, stmts, renames, true);
+    gen_zustand_action_stmts_inner(w, stmts, renames, true, set_fn);
 }
 
 /// Inner statement loop. `tail_returns` is true ONLY for the top-level
@@ -843,11 +1024,16 @@ fn gen_zustand_action_stmts(
 /// return value (`return <expr>;`, H1 — same silent-value-drop fix as
 /// component fns). Nested blocks (if/while/for/try bodies) never return
 /// their last expression — a `return` inside them would exit the action.
+///
+/// `set_fn` is the Zustand setter callable to emit — `"set"` for stores
+/// without getters, `"__set"` for stores with the getter-recompute wrapper
+/// (Phase 5.2).
 fn gen_zustand_action_stmts_inner(
     w: &mut CodeWriter,
     stmts: &[StatementIR],
     renames: &FxHashMap<String, String>,
     tail_returns: bool,
+    set_fn: &str,
 ) {
     let mut i = 0;
     while i < stmts.len() {
@@ -875,7 +1061,7 @@ fn gen_zustand_action_stmts_inner(
                     }
                     break;
                 }
-                w.emit_fmt(format_args!("set({{ {} }});", parts.join(", ")));
+                w.emit_fmt(format_args!("{}({{ {} }});", set_fn, parts.join(", ")));
                 i = j;
                 continue;
             }
@@ -888,7 +1074,7 @@ fn gen_zustand_action_stmts_inner(
                 continue;
             }
         }
-        gen_zustand_action_stmt(w, &stmts[i], renames);
+        gen_zustand_action_stmt(w, &stmts[i], renames, set_fn);
         i += 1;
     }
 }
@@ -1003,11 +1189,14 @@ fn format_zustand_mutation_part(
 
 /// Format a single mutation into a Zustand `set()` call.
 /// `renames` maps store signals/getters to `state.X` — applied to all value
-/// expressions at the AST level (C8).
+/// expressions at the AST level (C8). `set_fn` is the setter to emit
+/// (`"set"`, or `"__set"` for stores with the getter-recompute wrapper,
+/// Phase 5.2).
 fn format_zustand_mutation(
     w: &mut CodeWriter,
     intent: &MutationIntent,
     renames: &FxHashMap<String, String>,
+    set_fn: &str,
 ) {
     match intent {
         MutationIntent::DirectAssign { target, value, .. } => {
@@ -1017,7 +1206,7 @@ fn format_zustand_mutation(
                 .unwrap_or_else(|| "null".into());
             let target_str = &target.name;
             if renames.contains_key(target_str.as_str()) {
-                w.emit_fmt(format_args!("set({{ {}: {} }});", target_str, val));
+                w.emit_fmt(format_args!("{}({{ {}: {} }});", set_fn, target_str, val));
             } else {
                 w.emit_fmt(format_args!("{} = {};", target_str, val));
             }
@@ -1030,8 +1219,8 @@ fn format_zustand_mutation(
             let target_str = &target.name;
             if renames.contains_key(target_str.as_str()) {
                 w.emit_fmt(format_args!(
-                    "set({{ {}: state.{} + {} }});",
-                    target_str, target_str, amt
+                    "{}({{ {}: state.{} + {} }});",
+                    set_fn, target_str, target_str, amt
                 ));
             } else {
                 w.emit_fmt(format_args!("{} += {};", target_str, amt));
@@ -1045,8 +1234,8 @@ fn format_zustand_mutation(
             let target_str = &target.name;
             if renames.contains_key(target_str.as_str()) {
                 w.emit_fmt(format_args!(
-                    "set({{ {}: state.{} - {} }});",
-                    target_str, target_str, amt
+                    "{}({{ {}: state.{} - {} }});",
+                    set_fn, target_str, target_str, amt
                 ));
             } else {
                 w.emit_fmt(format_args!("{} -= {};", target_str, amt));
@@ -1060,8 +1249,8 @@ fn format_zustand_mutation(
             let target_str = &target.name;
             if renames.contains_key(target_str.as_str()) {
                 w.emit_fmt(format_args!(
-                    "set({{ {}: [...state.{}, {}] }});",
-                    target_str, target_str, it
+                    "{}({{ {}: [...state.{}, {}] }});",
+                    set_fn, target_str, target_str, it
                 ));
             } else {
                 w.emit_fmt(format_args!(
@@ -1074,8 +1263,8 @@ fn format_zustand_mutation(
             let target_str = &target.name;
             if renames.contains_key(target_str.as_str()) {
                 w.emit_fmt(format_args!(
-                    "set({{ {}: state.{}.slice(0, -1) }});",
-                    target_str, target_str
+                    "{}({{ {}: state.{}.slice(0, -1) }});",
+                    set_fn, target_str, target_str
                 ));
             } else {
                 w.emit_fmt(format_args!(
@@ -1092,8 +1281,8 @@ fn format_zustand_mutation(
             let target_str = &target.name;
             if renames.contains_key(target_str.as_str()) {
                 w.emit_fmt(format_args!(
-                    "set({{ {}: state.{} * {} }});",
-                    target_str, target_str, amt
+                    "{}({{ {}: state.{} * {} }});",
+                    set_fn, target_str, target_str, amt
                 ));
             } else {
                 w.emit_fmt(format_args!("{} *= {};", target_str, amt));
@@ -1107,8 +1296,8 @@ fn format_zustand_mutation(
             let target_str = &target.name;
             if renames.contains_key(target_str.as_str()) {
                 w.emit_fmt(format_args!(
-                    "set({{ {}: state.{} / {} }});",
-                    target_str, target_str, amt
+                    "{}({{ {}: state.{} / {} }});",
+                    set_fn, target_str, target_str, amt
                 ));
             } else {
                 w.emit_fmt(format_args!("{} /= {};", target_str, amt));
@@ -1122,8 +1311,8 @@ fn format_zustand_mutation(
             let target_str = &target.name;
             if renames.contains_key(target_str.as_str()) {
                 w.emit_fmt(format_args!(
-                    "set({{ {}: state.{} % {} }});",
-                    target_str, target_str, amt
+                    "{}({{ {}: state.{} % {} }});",
+                    set_fn, target_str, target_str, amt
                 ));
             } else {
                 w.emit_fmt(format_args!("{} %= {};", target_str, amt));

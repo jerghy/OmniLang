@@ -124,6 +124,31 @@ pub fn lower(
             stores.insert(store.name.clone(), ir);
         }
 
+        // Inline stores (`store Name { ... }` in a component body) lower to
+        // the SAME module-level StoreIR as top-level stores — v2 域 5's
+        // "顶层与内联统一" promise. Registered AFTER the module-level stores
+        // so an inline store wins the name lookup for its owning module (the
+        // owning component's `store_refs` must resolve to ITS store, not a
+        // same-named module-level one); their members are also still
+        // flattened into the component (parse-time behavior, unchanged).
+        for comp in &module.components {
+            for def in &comp.inline_store_defs {
+                semantics.symbols.push_scope(&format!("store:{}", def.name));
+                let ir = lower_store(def, &variant_map, semantics);
+                semantics.symbols.pop_scope();
+                let node_id = format!("{}:store:{}", module_name, def.name);
+                source_map.insert(
+                    node_id.clone(),
+                    SourceMapEntry {
+                        node_id,
+                        omni_span: span_to_source_span(&def.span),
+                        target_spans: Vec::new(),
+                    },
+                );
+                stores.insert(def.name.clone(), ir);
+            }
+        }
+
         for func in &module.functions {
             semantics.symbols.push_scope(&format!("fn:{}", func.name));
             let ir = super::lower_logic::lower_function(func, &variant_map, semantics);

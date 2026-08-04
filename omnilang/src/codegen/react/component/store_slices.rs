@@ -986,9 +986,13 @@ pub(crate) fn build_slice_plan(
 
     for (store_ref, fields) in store_field_refs {
         let Some(store) = all_stores.get(store_ref.as_str()) else {
-            // Inline store (no module store file) or unknown — no slice
-            // selectors possible; keep whatever the caller does (nothing
-            // today). Renames stay empty so reads keep their qualified form.
+            // Unknown store (no StoreIR anywhere — a semantic error the
+            // validators should have caught). Phase 5.2: inline stores
+            // (`store Name { ... }` in a component body) now lower to
+            // module-level StoreIRs, so they land in `all_stores` like any
+            // top-level store and slice selectors work for them too. No
+            // slice selectors possible here; renames stay empty so reads
+            // keep their qualified form.
             continue;
         };
         let mut slice = SliceFields::default();

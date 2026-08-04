@@ -130,7 +130,9 @@ fn walk_block(block: &Block, diags: &mut Vec<LintDiagnostic>) {
                     walk_block(body, diags);
                 }
             }
-            Stmt::While { condition, body, .. } => {
+            Stmt::While {
+                condition, body, ..
+            } => {
                 walk_expr(condition, diags);
                 walk_block(body, diags);
             }
@@ -245,7 +247,9 @@ fn walk_view_node(node: &ViewNode, diags: &mut Vec<LintDiagnostic>) {
                 }
             }
         }
-        ViewNode::SlotDirective { default_content, .. } => {
+        ViewNode::SlotDirective {
+            default_content, ..
+        } => {
             if let Some(content) = default_content {
                 for node in content {
                     walk_view_node(node, diags);
@@ -392,6 +396,7 @@ mod tests {
                     refs: vec![],
                     store_refs: vec![],
                     inline_stores: vec![],
+                    inline_store_defs: vec![],
                     lifecycles: vec![],
                     fns: vec![FunctionDef {
                         visibility: Visibility::Private,
@@ -507,7 +512,10 @@ mod tests {
             vec![Stmt::ExprStmt {
                 expr: call_expr(
                     "array_filter",
-                    vec![ident("items"), closure_expr(call_expr("array_map", vec![ident("xs"), ident("f")]))],
+                    vec![
+                        ident("items"),
+                        closure_expr(call_expr("array_map", vec![ident("xs"), ident("f")])),
+                    ],
                 ),
                 span: span(1, 1),
             }],

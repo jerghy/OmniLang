@@ -1,17 +1,53 @@
 // ╔══════════════════════════════════════════════════════════════╗
-// ║  InlineStoreDemo.omni —— Store 引用演示                       ║
-// ║  演示：组件通过 @store 引用顶层 store（CartStore）            ║
-// ║  迁移说明：原为组件内联 store（component 内 store { ... }），  ║
-// ║  React 目标对 inline store 硬诊断 E_CODEGEN（Task 2.2，       ║
-// ║  BUG-C / deferral #37），故迁至 src/stores/CartStore.omni。   ║
-// ╚══════════════════════════════════════════════════════════════╝
+// ║  InlineStoreDemo.omni —— 内联 Store 演示                       ║
+// ║  演示：在 component 内部使用 store Name { ... } 定义局部 store   ║
+// ║  Phase 5.2（IR wave）：内联 store 提升为模块级 StoreIR——React   ║
+// ║  目标发射真实 Zustand store + 切片订阅（deferral #37 关闭），   ║
+// ║  撤销 Task 2.2 的 E_CODEGEN 硬诊断迁移（src/stores/CartStore   ║
+// ║  已删除）。                                                    ║
+// ╚════════════════════════════════════════════════════════════════╝
 
 import omniview;
 import { LearnDesign } from "../design";
-import { CartStore } from "../stores/CartStore";
+import { array_get } from "std/array";
 
 component InlineStoreDemo {
-    @store CartStore;
+    // 内联 store 定义在 component 内部，不导出到外部
+    store CartStore {
+        signal items: Array<String> = [];
+        // 与 items 平行记录单价，removeLast 才能扣减正确金额
+        signal prices: Array<f64> = [];
+        signal totalPrice: f64 = 0.0;
+
+        getter itemCount: i32 = items.len();
+        getter summary: String = if items.len() == 0 {
+            "cart empty"
+        } else {
+            "total: " + items.len().to_string() + " items"
+        };
+
+        action addItem(name: String, price: f64) {
+            items.push(name);
+            prices.push(price);
+            totalPrice = totalPrice + price;
+        }
+
+        action removeLast() {
+            if items.len() > 0 {
+                let lastPrice = array_get(prices, items.len() - 1);
+                items.pop();
+                prices.pop();
+                totalPrice = totalPrice - lastPrice;
+            }
+        }
+
+        action clear() {
+            items = [];
+            prices = [];
+            totalPrice = 0.0;
+        }
+    }
+
 
     signal log: String = "";
 

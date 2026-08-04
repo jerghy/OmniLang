@@ -1440,6 +1440,34 @@ mod roundtrip_tests {
             "inline store signal flattened into component"
         );
         assert_eq!(comp.signals[0].name, "n");
+        assert_eq!(
+            comp.inline_store_defs.len(),
+            1,
+            "inline store body retained as a StoreDef (Phase 5.2 — inline stores \
+             lower to the same module-level StoreIR as top-level stores)"
+        );
+        let def = &comp.inline_store_defs[0];
+        assert_eq!(def.name, "Local");
+        assert_eq!(def.signals.len(), 1, "store signal kept in the StoreDef");
+        assert_eq!(def.signals[0].name, "n");
+    }
+
+    #[test]
+    fn inline_store_body_retains_actions_and_getters() {
+        let comp = component_def(
+            "component X { store Cart { signal items: Array<String> = []; \
+             getter count: i32 = items.len(); action add(x: String) { items = [...items, x]; } } \
+             view { <div/> } }",
+        );
+        let def = &comp.inline_store_defs[0];
+        assert_eq!(def.signals.len(), 1);
+        assert_eq!(def.getters.len(), 1);
+        assert_eq!(def.getters[0].name, "count");
+        assert_eq!(def.actions.len(), 1);
+        assert_eq!(def.actions[0].name, "add");
+        // The flattened copies must agree with the retained bodies.
+        assert_eq!(comp.getters.len(), 1);
+        assert_eq!(comp.actions.len(), 1);
     }
 
     // ── @theme signal marker (v2 域 5: signal_decl ::= 'signal' ident ':' type ('@theme')? '=' expr) ──

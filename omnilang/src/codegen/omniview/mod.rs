@@ -239,7 +239,12 @@ pub fn generate(
         }
     }
 
-    // Emit all stores as global JS variables (signals, getters, actions)
+    // Emit all stores as global JS variables (signals, getters, actions).
+    // Phase 5.2: inline stores (defined in a component body) are registered
+    // as module StoreIRs and emit here like any top-level store — the
+    // component path (store.rs) resolves their references to this store
+    // level, keeping reads and writes consistent (the flattened component
+    // copies stay emitted but unused).
     if !css_only {
         for (store_name, store) in ir.all_stores() {
             gen.emit_store(store_name, store);
