@@ -583,11 +583,11 @@ export class Parser {
     // Parse fn body into code flow graph
     const { elements, wires } = parseCodeFlowGraph(fnBody);
 
-    this.parsedFnBodies.set(fnName, { elements, wires });
-
-    // F2：登记 fn 元数据（组件维度）——componentDefs.fns 物化来源。
-    // @pid 注释在成员分发前已存入 ctx.pendingPid（parser.ts:236-239）。
-    const fnPid = this.ctx.pendingPid || "";
+    // F1：合成 fn 入口元素（@pid 稳定 id + 首语句 wire）——组件 fn 的
+    // codeFlowGraphs 恒含 fn 节点，保存时 pipeline 能找到 fn 入口编译。
+    // @pid 注释在成员分发前已存入 ctx.pendingPid（parser.ts:236-239）；
+    // 无 @pid 时退化为 fn_${name}_${uid()}（镜像 store action 的合成模式）。
+    const fnPid = this.ctx.pendingPid || `fn_${fnName}_${uid()}`;
     this.ctx.pendingPid = null;
     const rawParams = sigMatch?.[2] || "";
     const params = rawParams.split(",").map((p) => {
@@ -595,11 +595,54 @@ export class Parser {
       return { name: pName || "", type: pType || "String" };
     });
     const returnType = fnSignature.match(/->\s*(\w+)/)?.[1] || "void";
+    this.synthesizeFnEntry(fnName, rawParams, returnType, fnPid, elements, wires);
+
+    this.parsedFnBodies.set(fnName, { elements, wires });
+
+    // F2：登记 fn 元数据（组件维度）——componentDefs.fns 物化来源。
+    // 收拢到合成之后：registry 的 pid 与 fn 元素 id 一致（由合成产物决定）。
     const comp = this.ctx.currentComponent;
     if (comp) {
       const list = this.fnRegistry.get(comp) ?? [];
       list.push({ pid: fnPid, name: fnName, params, returnType });
       this.fnRegistry.set(comp, list);
+    }
+  }
+
+  /**
+   * F1：合成 fn 入口元素（store action 与组件 fn 两处共用）。
+   * 图形中缺 fn 节点时，从签名合成 fn 元素（id=fnPid）并 wire 到首语句；
+   * 空 body 仅 fn 无 wire——绝不自环或指向不存在的元素。
+   * fnPid 由调用方决定：组件 fn 用 @pid 注释（或 fn_${name}_${uid()}），
+   * store action 用 `${pid}_fn`。
+   */
+  private synthesizeFnEntry(
+    fnName: string,
+    rawParams: string,
+    returnType: string,
+    fnPid: string,
+    elements: CodeblockElementData[],
+    wires: WireData[],
+  ): void {
+    // 已有 fn 元素（如 body 内含 fn 声明）则不重复合成
+    if (elements.some((e) => e.tag === "fn")) return;
+    elements.unshift({
+      id: fnPid,
+      nodeType: "codeblock",
+      tag: "fn",
+      parentId: null,
+      props: { name: fnName, params: rawParams, returnType },
+      source: "",
+    });
+    // 仅当存在语句时 wire fn → 首语句；空 body 不产生任何 wire
+    if (elements.length > 1) {
+      wires.push({
+        id: `w_${fnPid}_0`,
+        fromId: fnPid,
+        fromPort: "flow-out",
+        toId: elements[1].id,
+        toPort: "flow-in",
+      });
     }
   }
 
@@ -725,32 +768,15 @@ export class Parser {
         // creates its fn element) saved before any statements must keep its
         // fn entry node across reloads, otherwise later-added statements
         // would be silently dropped on save (no fn entry to compile from).
-        if (!elements.some((e) => e.tag === "fn")) {
-          const fnPid = `${pid}_fn`;
-          elements.unshift({
-            id: fnPid,
-            nodeType: "codeblock",
-            tag: "fn",
-            parentId: null,
-            props: {
-              name: nameTok.text,
-              params: params.map((p) => `${p.name}: ${p.type}`).join(", "),
-              returnType: returnType || "",
-            },
-            source: "",
-          });
-          // Wire the fn to the first statement only when statements exist —
-          // never create a self-loop or point at a non-existent element.
-          if (elements.length > 1) {
-            wires.push({
-              id: uid("wire"),
-              fromId: fnPid,
-              fromPort: "flow-out",
-              toId: elements[1].id,
-              toPort: "flow-in",
-            });
-          }
-        }
+        // 与组件 fn（parseFn）共用 synthesizeFnEntry，消除逐字复制。
+        this.synthesizeFnEntry(
+          nameTok.text,
+          params.map((p) => `${p.name}: ${p.type}`).join(", "),
+          returnType || "",
+          `${pid}_fn`,
+          elements,
+          wires,
+        );
         storeDef.actions.push({ pid, name: nameTok.text, params, returnType, isAsync, elements, wires });
         continue;
       }
