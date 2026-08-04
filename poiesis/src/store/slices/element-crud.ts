@@ -20,7 +20,7 @@ export function createElementCrudSlice(set: SetFn, get: GetFn) {
       const undoUpdate = buildUndoUpdate(
         s.undoStacks,
         s.designPage.activeTabId,
-        { type: "removeElement", id: normalized.id },
+        { type: "addElement", element: normalized },
       );
       if (normalized.parentId) {
         return {
@@ -56,8 +56,11 @@ export function createElementCrudSlice(set: SetFn, get: GetFn) {
             : e
         );
       }
+      const removedWires = s.wires.filter(
+        (w) => removedIds.has(w.fromId) || removedIds.has(w.toId),
+      );
       const undoAction = undoPayload
-        ? { type: "addElement" as const, element: undoPayload.element }
+        ? { type: "removeElement" as const, id, element: undoPayload.element, wires: removedWires }
         : null;
       const undoUpdate = undoAction
         ? buildUndoUpdate(s.undoStacks, s.designPage.activeTabId, undoAction)
@@ -82,7 +85,7 @@ export function createElementCrudSlice(set: SetFn, get: GetFn) {
       const undoUpdate = buildUndoUpdate(
         s.undoStacks,
         s.designPage.activeTabId,
-        { type: "setProp", id, prop, oldValue },
+        { type: "setProp", id, prop, oldValue, newValue: value },
       );
       return { ...undoUpdate, elements, isDirty: true };
     }),
@@ -112,7 +115,7 @@ export function createElementCrudSlice(set: SetFn, get: GetFn) {
       const undoUpdate = buildUndoUpdate(
         s.undoStacks,
         s.designPage.activeTabId,
-        { type: "setElementBinding", id, propName, oldBinding },
+        { type: "setElementBinding", id, propName, oldBinding, newBinding: signalName },
       );
       return { ...undoUpdate, elements, isDirty: true };
     }),
@@ -142,7 +145,7 @@ export function createElementCrudSlice(set: SetFn, get: GetFn) {
       const undoUpdate = buildUndoUpdate(
         s.undoStacks,
         s.designPage.activeTabId,
-        { type: "removeWire", id: w.id },
+        { type: "addWire", wire: w },
       );
       return { ...undoUpdate, wires, isDirty: true };
     }),
@@ -154,7 +157,7 @@ export function createElementCrudSlice(set: SetFn, get: GetFn) {
       const undoUpdate = buildUndoUpdate(
         s.undoStacks,
         s.designPage.activeTabId,
-        { type: "addWire", wire },
+        { type: "removeWire", id, wire },
       );
       return { ...undoUpdate, wires, isDirty: true };
     }),
@@ -287,7 +290,7 @@ export function createElementCrudSlice(set: SetFn, get: GetFn) {
       const undoUpdate = buildUndoUpdate(
         s.undoStacks,
         s.designPage.activeTabId,
-        { type: "moveElement", elementId, oldParentId },
+        { type: "moveElement", elementId, oldParentId, newParentId },
       );
       return { ...undoUpdate, elements, rootOrder, isDirty: true };
     }),
@@ -409,7 +412,7 @@ export function createElementCrudSlice(set: SetFn, get: GetFn) {
         const undoUpdate = buildUndoUpdate(
           s.undoStacks,
           s.designPage.activeTabId,
-          { type: "removeElement", id: condId },
+          { type: "addElement", element: condBlock },
         );
         return { ...undoUpdate, elements, isDirty: true };
       });
@@ -418,38 +421,39 @@ export function createElementCrudSlice(set: SetFn, get: GetFn) {
     addConditionalBranch: (blockId: string, type: "elif" | "else") => {
       set((s) => {
         const block = s.elements.find(e => e.id === blockId && e.nodeType === "conditional") as ConditionalBlockData | undefined;
+        // 新分支先于 undo 动作计算（undo 需双向数据：prev/redo 侧）
+        let newBranches: ConditionalBlockData["branches"] | null = null;
+        if (block && type === "elif") {
+          const newBranch = {
+            type: "elif" as const,
+            condition: "",
+            children: [] as string[],
+          };
+          // Insert elif before last branch (else)
+          newBranches = [
+            ...block.branches.slice(0, -1),
+            newBranch,
+            block.branches[block.branches.length - 1],
+          ];
+        }
         const undoUpdate = block
           ? buildUndoUpdate(s.undoStacks, s.designPage.activeTabId, {
               type: "restoreConditionalBlock",
               blockId,
               prevBranches: block.branches.map(b => ({ ...b })),
               prevChildren: [...block.children],
+              newBranches: (newBranches ?? block.branches).map(b => ({ ...b })),
+              newChildren: (newBranches ?? block.branches).flatMap((b) => b.children),
             })
           : {};
         const elements = s.elements.map((e) => {
           if (e.id !== blockId || e.nodeType !== "conditional") return e;
-          const cond = e as ConditionalBlockData;
-          const newBranch = {
-            type: type === "elif" ? "elif" as const : "else" as const,
-            condition: "",
-            children: [] as string[],
+          if (!newBranches) return e; // 已有 else 或非 elif —— no-op
+          return {
+            ...e,
+            branches: newBranches,
+            children: newBranches.flatMap((b) => b.children),
           };
-          // Insert elif before last branch (else), else replaces the else
-          if (type === "elif") {
-            const newBranches: ConditionalBlockData["branches"] = [
-              ...cond.branches.slice(0, -1),
-              newBranch,
-              cond.branches[cond.branches.length - 1],
-            ];
-            return {
-              ...cond,
-              branches: newBranches,
-              children: newBranches.flatMap((b) => b.children),
-            };
-          } else {
-            // Already has else — no-op
-            return e;
-          }
         });
         return { ...s, ...undoUpdate, elements, isDirty: true };
       });
@@ -458,22 +462,27 @@ export function createElementCrudSlice(set: SetFn, get: GetFn) {
     updateBranchCondition: (blockId: string, branchIndex: number, condition: string) => {
       set((s) => {
         const block = s.elements.find(e => e.id === blockId && e.nodeType === "conditional") as ConditionalBlockData | undefined;
+        // 新分支状态先于 undo 动作计算（undo 需双向数据：prev/redo 侧）
+        let newBranches: ConditionalBlockData["branches"] | null = null;
+        if (block && branchIndex >= 0 && branchIndex < block.branches.length) {
+          newBranches = block.branches.map((b, i) =>
+            i === branchIndex ? { ...b, condition } : b
+          );
+        }
         const undoUpdate = block
           ? buildUndoUpdate(s.undoStacks, s.designPage.activeTabId, {
               type: "restoreConditionalBlock",
               blockId,
               prevBranches: block.branches.map(b => ({ ...b })),
               prevChildren: [...block.children],
+              newBranches: (newBranches ?? block.branches).map(b => ({ ...b })),
+              newChildren: (newBranches ?? block.branches).flatMap((b) => b.children),
             })
           : {};
         const elements = s.elements.map((e) => {
           if (e.id !== blockId || e.nodeType !== "conditional") return e;
-          const cond = e as ConditionalBlockData;
-          if (branchIndex < 0 || branchIndex >= cond.branches.length) return e;
-          const newBranches = cond.branches.map((b, i) =>
-            i === branchIndex ? { ...b, condition } : b
-          );
-          return { ...cond, branches: newBranches };
+          if (!newBranches) return e;
+          return { ...e, branches: newBranches };
         });
         return { ...s, ...undoUpdate, elements, isDirty: true };
       });
@@ -485,12 +494,23 @@ export function createElementCrudSlice(set: SetFn, get: GetFn) {
         if (!child) return s;
 
         const block = s.elements.find(e => e.id === blockId && e.nodeType === "conditional") as ConditionalBlockData | undefined;
+        // 新分支状态先于 undo 动作计算（undo 需双向数据：prev/redo 侧）
+        let newBranches: ConditionalBlockData["branches"] | null = null;
+        if (block) {
+          newBranches = block.branches.map((b, i) => {
+            if (i !== branchIndex) return b;
+            if (b.children.includes(childId)) return b; // already there
+            return { ...b, children: [...b.children, childId] };
+          });
+        }
         const undoUpdate = block
           ? buildUndoUpdate(s.undoStacks, s.designPage.activeTabId, {
               type: "restoreConditionalBlock",
               blockId,
               prevBranches: block.branches.map(b => ({ ...b })),
               prevChildren: [...block.children],
+              newBranches: (newBranches ?? block.branches).map(b => ({ ...b })),
+              newChildren: (newBranches ?? block.branches).flatMap((b) => b.children),
             })
           : {};
 
@@ -508,14 +528,9 @@ export function createElementCrudSlice(set: SetFn, get: GetFn) {
           })
           .map((e) => {
             if (e.id !== blockId || e.nodeType !== "conditional") return e;
-            const cond = e as ConditionalBlockData;
-            const newBranches = cond.branches.map((b, i) => {
-              if (i !== branchIndex) return b;
-              if (b.children.includes(childId)) return b; // already there
-              return { ...b, children: [...b.children, childId] };
-            });
+            if (!newBranches) return e;
             return {
-              ...cond,
+              ...e,
               branches: newBranches,
               children: newBranches.flatMap((b) => b.children),
             };
@@ -528,23 +543,29 @@ export function createElementCrudSlice(set: SetFn, get: GetFn) {
     removeChildFromBranch: (blockId: string, branchIndex: number, childId: string) => {
       set((s) => {
         const block = s.elements.find(e => e.id === blockId && e.nodeType === "conditional") as ConditionalBlockData | undefined;
+        // 新分支状态先于 undo 动作计算（undo 需双向数据：prev/redo 侧）
+        let newBranches: ConditionalBlockData["branches"] | null = null;
+        if (block) {
+          newBranches = block.branches.map((b, i) => {
+            if (i !== branchIndex) return b;
+            return { ...b, children: b.children.filter((c) => c !== childId) };
+          });
+        }
         const undoUpdate = block
           ? buildUndoUpdate(s.undoStacks, s.designPage.activeTabId, {
               type: "restoreConditionalBlock",
               blockId,
               prevBranches: block.branches.map(b => ({ ...b })),
               prevChildren: [...block.children],
+              newBranches: (newBranches ?? block.branches).map(b => ({ ...b })),
+              newChildren: (newBranches ?? block.branches).flatMap((b) => b.children),
             })
           : {};
         const elements = s.elements.map((e) => {
           if (e.id !== blockId || e.nodeType !== "conditional") return e;
-          const cond = e as ConditionalBlockData;
-          const newBranches = cond.branches.map((b, i) => {
-            if (i !== branchIndex) return b;
-            return { ...b, children: b.children.filter((c) => c !== childId) };
-          });
+          if (!newBranches) return e;
           return {
-            ...cond,
+            ...e,
             branches: newBranches,
             children: newBranches.flatMap((b) => b.children),
           };
@@ -556,22 +577,26 @@ export function createElementCrudSlice(set: SetFn, get: GetFn) {
     removeConditionalBranch: (blockId: string, branchIndex: number) => {
       set((s) => {
         const block = s.elements.find(e => e.id === blockId && e.nodeType === "conditional") as ConditionalBlockData | undefined;
+        // 新分支状态先于 undo 动作计算（undo 需双向数据：prev/redo 侧）
+        let newBranches: ConditionalBlockData["branches"] | null = null;
+        if (block && branchIndex > 0 && branchIndex < block.branches.length - 1) {
+          newBranches = block.branches.filter((_, i) => i !== branchIndex);
+        }
         const undoUpdate = block
           ? buildUndoUpdate(s.undoStacks, s.designPage.activeTabId, {
               type: "restoreConditionalBlock",
               blockId,
               prevBranches: block.branches.map(b => ({ ...b })),
               prevChildren: [...block.children],
+              newBranches: (newBranches ?? block.branches).map(b => ({ ...b })),
+              newChildren: (newBranches ?? block.branches).flatMap((b) => b.children),
             })
           : {};
         const elements = s.elements.map((e) => {
           if (e.id !== blockId || e.nodeType !== "conditional") return e;
-          const cond = e as ConditionalBlockData;
-          // Cannot remove @if (index 0) or @else (last branch)
-          if (branchIndex <= 0 || branchIndex >= cond.branches.length - 1) return e;
-          const newBranches = cond.branches.filter((_, i) => i !== branchIndex);
+          if (!newBranches) return e;
           return {
-            ...cond,
+            ...e,
             branches: newBranches,
             children: newBranches.flatMap((b) => b.children),
           };

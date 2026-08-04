@@ -8,10 +8,17 @@ import type { ElementData } from "../core/types/element";
 /**
  * Compute the state changes needed to apply (or reverse) an undo/redo action.
  *
+ * 动作语义：undo 栈记录**正向动作**（原操作），本函数按方向应用：
+ * - undo（isRedo=false）：撤销正向动作（addElement → 移除；removeElement → 恢复…）
+ * - redo（isRedo=true）：重放正向动作（addElement → 添加；removeElement → 移除…）
+ *
+ * 此前 removeElement/addElement、addWire/removeWire 等只存逆动作/单方向数据，
+ * redo 方向无数据可用且方向与 undo 相同 → redo 按钮对添加/删除/连线/setProp
+ * 全部失效（E2E 缺陷 1）。本实现为方向性动作补齐双方向数据（undo-slice.ts 类型）。
+ *
  * @param state  Current store state (snapshot before applying).
- * @param action The undo/redo action to apply.
- * @param isRedo Whether this is a redo (vs undo). Only matters for actions where
- *               the undo and redo directions differ (reorderElement, setElementsAndWires).
+ * @param action The undo/redo action to apply (forward action).
+ * @param isRedo Whether this is a redo (vs undo).
  * @returns A Partial<PoiesisState> to merge via set(), or null if the action cannot be applied.
  */
 export function computeInverse(
@@ -20,40 +27,95 @@ export function computeInverse(
   isRedo: boolean = false,
 ): Partial<PoiesisState> | null {
   switch (action.type) {
-    case "removeElement": {
-      // Remove the element (undoing an addElement)
-      const removedIds = new Set<string>();
-      function collectDescendants(eid: string): void {
-        removedIds.add(eid);
+    case "addElement": {
+      if (isRedo) {
+        // Redo：重放添加（元素已在 state 中时幂等跳过）
+        if (state.elements.some((e) => e.id === action.element.id)) return null;
+        const normalized = { ...action.element, props: "props" in action.element ? action.element.props || {} : {} };
+        const elements = [...state.elements, normalized];
+        if (normalized.parentId) {
+          return {
+            elements: elements.map((e) =>
+              e.id === normalized.parentId
+                ? "children" in e
+                  ? { ...e, children: [...e.children, normalized.id] }
+                  : e
+                : e,
+            ),
+            rootOrder: state.rootOrder,
+            isDirty: true,
+          };
+        }
+        return {
+          elements,
+          rootOrder: [...state.rootOrder, normalized.id],
+          isDirty: true,
+        };
+      }
+      // Undo：移除元素 + 后代 + 相连 wire
+      const addRemovedIds = new Set<string>();
+      function addCollectDescendants(eid: string): void {
+        addRemovedIds.add(eid);
         for (const c of state.elements) {
-          if (c.parentId === eid) collectDescendants(c.id);
+          if (c.parentId === eid) addCollectDescendants(c.id);
         }
       }
-      const el = state.elements.find((e) => e.id === action.id);
-      if (el) collectDescendants(el.id);
-
-      let elements = state.elements.filter((e) => !removedIds.has(e.id));
-      if (el?.parentId) {
-        elements = elements.map((e) =>
-          e.id === el.parentId
+      const addEl = state.elements.find((e) => e.id === action.element.id);
+      if (addEl) addCollectDescendants(addEl.id);
+      let addElements = state.elements.filter((e) => !addRemovedIds.has(e.id));
+      if (addEl?.parentId) {
+        addElements = addElements.map((e) =>
+          e.id === addEl.parentId
             ? "children" in e
-              ? { ...e, children: e.children.filter((cid) => !removedIds.has(cid)) }
+              ? { ...e, children: e.children.filter((cid) => !addRemovedIds.has(cid)) }
               : e
             : e,
         );
       }
       return {
-        elements,
-        rootOrder: state.rootOrder.filter((rid) => !removedIds.has(rid)),
-        wires: state.wires.filter((w) => !removedIds.has(w.fromId) && !removedIds.has(w.toId)),
+        elements: addElements,
+        rootOrder: state.rootOrder.filter((rid) => !addRemovedIds.has(rid)),
+        wires: state.wires.filter((w) => !addRemovedIds.has(w.fromId) && !addRemovedIds.has(w.toId)),
         isDirty: true,
       };
     }
 
-    case "addElement": {
-      // Add the element back (undoing a removeElement)
+    case "removeElement": {
+      if (isRedo) {
+        // Redo：重放删除（移除元素 + 后代 + 相连 wire）
+        const removedIds = new Set<string>();
+        function collectDescendants(eid: string): void {
+          removedIds.add(eid);
+          for (const c of state.elements) {
+            if (c.parentId === eid) collectDescendants(c.id);
+          }
+        }
+        const el = state.elements.find((e) => e.id === action.id);
+        if (el) collectDescendants(el.id);
+        if (removedIds.size === 0) return null;
+
+        let elements = state.elements.filter((e) => !removedIds.has(e.id));
+        if (el?.parentId) {
+          elements = elements.map((e) =>
+            e.id === el.parentId
+              ? "children" in e
+                ? { ...e, children: e.children.filter((cid) => !removedIds.has(cid)) }
+                : e
+              : e,
+          );
+        }
+        return {
+          elements,
+          rootOrder: state.rootOrder.filter((rid) => !removedIds.has(rid)),
+          wires: state.wires.filter((w) => !removedIds.has(w.fromId) && !removedIds.has(w.toId)),
+          isDirty: true,
+        };
+      }
+      // Undo：恢复被删元素 + 被连带删除的 wire（removeElement 会清理相连 wire）
+      if (state.elements.some((e) => e.id === action.element.id)) return null;
       const normalized = { ...action.element, props: "props" in action.element ? action.element.props || {} : {} };
       const elements = [...state.elements, normalized];
+      const restoredWires = action.wires.filter((w) => !state.wires.some((sw) => sw.id === w.id));
       if (normalized.parentId) {
         return {
           elements: elements.map((e) =>
@@ -63,12 +125,14 @@ export function computeInverse(
                 : e
               : e,
           ),
+          wires: [...state.wires, ...restoredWires],
           rootOrder: state.rootOrder,
           isDirty: true,
         };
       }
       return {
         elements,
+        wires: [...state.wires, ...restoredWires],
         rootOrder: [...state.rootOrder, normalized.id],
         isDirty: true,
       };
@@ -79,7 +143,7 @@ export function computeInverse(
         elements: state.elements.map((e) =>
           e.id === action.id
             ? "props" in e
-              ? { ...e, props: { ...e.props, [action.prop]: action.oldValue } }
+              ? { ...e, props: { ...e.props, [action.prop]: isRedo ? action.newValue : action.oldValue } }
               : e
             : e,
         ),
@@ -88,20 +152,34 @@ export function computeInverse(
     }
 
     case "addWire": {
-      return { wires: [...state.wires, action.wire], isDirty: true };
+      if (isRedo) {
+        // Redo：重放添加
+        if (state.wires.some((w) => w.id === action.wire.id)) return null;
+        return { wires: [...state.wires, action.wire], isDirty: true };
+      }
+      // Undo：移除
+      return { wires: state.wires.filter((w) => w.id !== action.wire.id), isDirty: true };
     }
 
     case "removeWire": {
-      return { wires: state.wires.filter((w) => w.id !== action.id), isDirty: true };
+      if (isRedo) {
+        // Redo：重放删除
+        if (!state.wires.some((w) => w.id === action.id)) return null;
+        return { wires: state.wires.filter((w) => w.id !== action.id), isDirty: true };
+      }
+      // Undo：恢复被删 wire
+      if (state.wires.some((w) => w.id === action.id)) return null;
+      return { wires: [...state.wires, action.wire], isDirty: true };
     }
 
     case "moveElement": {
-      // Move element back to oldParentId (same logic for undo and redo)
+      // Undo：移回 oldParentId；Redo：重放移动到 newParentId
       const element = state.elements.find((e) => e.id === action.elementId);
       if (!element) return null;
+      const targetParentId = isRedo ? action.newParentId : action.oldParentId;
       const currentParent = element.parentId;
       let elements = state.elements.map((e) =>
-        e.id === action.elementId ? { ...e, parentId: action.oldParentId } : e,
+        e.id === action.elementId ? { ...e, parentId: targetParentId } : e,
       );
       if (currentParent) {
         elements = elements.map((e) =>
@@ -113,9 +191,9 @@ export function computeInverse(
         );
       }
       let rootOrder = state.rootOrder.filter((rid) => rid !== action.elementId);
-      if (action.oldParentId) {
+      if (targetParentId) {
         elements = elements.map((e) =>
-          e.id === action.oldParentId
+          e.id === targetParentId
             ? "children" in e
               ? { ...e, children: [...e.children, action.elementId] }
               : e
@@ -205,11 +283,34 @@ export function computeInverse(
       };
     }
 
+    case "setElementBinding": {
+      // 既有实现从未处理此动作（undo/redo 均静默无操作）——补齐双向；
+      // null 语义镜像 setElementBinding 原实现（删除键，空则 bindings 置 undefined）
+      const targetBinding = isRedo ? action.newBinding : action.oldBinding;
+      return {
+        elements: state.elements.map((e) => {
+          if (e.id !== action.id || e.nodeType !== "view") return e;
+          if (targetBinding === null) {
+            const { [action.propName]: _, ...rest } = (e.bindings ?? {});
+            return Object.keys(rest).length > 0
+              ? { ...e, bindings: rest }
+              : { ...e, bindings: undefined };
+          }
+          return { ...e, bindings: { ...(e.bindings ?? {}), [action.propName]: targetBinding } };
+        }),
+        isDirty: true,
+      };
+    }
+
     case "restoreConditionalBlock": {
       return {
         elements: state.elements.map((e): ElementData =>
           e.id === action.blockId && e.nodeType === "conditional"
-            ? { ...e, branches: action.prevBranches, children: action.prevChildren }
+            ? {
+                ...e,
+                branches: isRedo ? action.newBranches : action.prevBranches,
+                children: isRedo ? action.newChildren : action.prevChildren,
+              }
             : e
         ),
         isDirty: true,
