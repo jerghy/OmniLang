@@ -699,6 +699,32 @@ export class Parser {
         const { elements, wires } = parseCodeFlowGraph(actionBody);
         const pid = pendingPid || `${storeDef.pid}_n${++this.ctx.storeActionCounter}`;
         pendingPid = null;
+        // Round-trip carrier: emitted store action bodies contain only
+        // statements (nested fn declarations are invalid OmniLang), so the
+        // fn element is synthesized here from the action signature. It is
+        // wired to the first statement so the compiled body re-emits on save.
+        if (!elements.some((e) => e.tag === "fn") && elements.length > 0) {
+          const fnPid = `${pid}_fn`;
+          elements.unshift({
+            id: fnPid,
+            nodeType: "codeblock",
+            tag: "fn",
+            parentId: null,
+            props: {
+              name: nameTok.text,
+              params: params.map((p) => `${p.name}: ${p.type}`).join(", "),
+              returnType: returnType || "",
+            },
+            source: "",
+          });
+          wires.push({
+            id: uid("wire"),
+            fromId: fnPid,
+            fromPort: "flow-out",
+            toId: elements[1].id,
+            toPort: "flow-in",
+          });
+        }
         storeDef.actions.push({ pid, name: nameTok.text, params, returnType, isAsync, elements, wires });
         continue;
       }

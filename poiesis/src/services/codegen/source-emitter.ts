@@ -39,6 +39,31 @@ export function formatDefaultValue(value: unknown, type: string): string {
   return str;
 }
 
+/**
+ * Extract the inner body of a compiled fn definition.
+ *
+ * compileCodeFlowGraph returns a full fn definition like:
+ *   // @pid:<fnId>
+ *   fn <name>(<params>) -> <ret> {
+ *     <body>
+ *   }
+ *
+ * OmniLang statement parsing does not support nested fn declarations
+ * (stmt: var/if/while/for/return/break/continue/print/throw/try/emit only),
+ * so store action bodies must contain only the inner statements. The fn
+ * element itself is reconstructed on parse — parser.ts synthesizes it from
+ * the action signature (round-trip carrier).
+ *
+ * @returns The body lines between the first "{" and the last "}", or ""
+ *          when the definition has no body.
+ */
+function extractFnBody(compiled: string): string {
+  const openBrace = compiled.indexOf("{");
+  const closeBrace = compiled.lastIndexOf("}");
+  if (openBrace === -1 || closeBrace <= openBrace) return "";
+  return compiled.slice(openBrace + 1, closeBrace).trim();
+}
+
 export class CodeWriter {
   private lines: string[] = [];
   private _indent = 0;
@@ -110,31 +135,16 @@ export function emitStoreDefinition(store: StoreDefinition): string {
       w.indent();
       const actionFnPid = a.elements.find((e) => e.tag === "fn")?.id;
       if (actionFnPid) {
-        const body = compileCodeFlowGraph(a.elements, a.wires, actionFnPid);
-        if (body.trim().length > 0) {
-          // The compiled body is a full fn definition:
-          //   // @pid:<fnId>\nfn <name>(<params>) {\n  <body>\n}
-          // Emit it verbatim — the fn statement is the editor's round-trip
-          // carrier for the action's fn element (parseCodeFlowGraph
-          // reconstructs it on load), and its closing "}" keeps the action
-          // block balanced.
-          const lines = body.split("\n");
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (trimmed.length > 0) w.emit(trimmed);
-          }
-        } else {
-          // fn element present but no reachable statements — emit an empty
-          // fn block so the fn element is still reconstructed on reload.
-          w.emit(`fn ${a.name}() {`);
-          w.emit(`}`);
+        // Only the inner statements are emitted — nested fn declarations
+        // are invalid OmniLang. The fn element is reconstructed on parse
+        // (parser.ts synthesizes it from the action signature).
+        const body = extractFnBody(compileCodeFlowGraph(a.elements, a.wires, actionFnPid));
+        for (const line of body.split("\n")) {
+          const trimmed = line.trim();
+          if (trimmed.length > 0) w.emit(trimmed);
         }
-      } else {
-        // No fn element found — emit a minimal valid fn block so the action's
-        // fn element is bootstrapped on the next load.
-        w.emit(`fn ${a.name}() {`);
-        w.emit(`}`);
       }
+      // No fn element: nothing to compile — an empty action body is valid.
       w.dedent();
     }
     w.emit(`}`);
@@ -234,25 +244,16 @@ export class SourceEmitter {
         w.indent();
         const actionFnPid = a.elements.find((e) => e.tag === "fn")?.id;
         if (actionFnPid) {
-          const body = compileCodeFlowGraph(a.elements, a.wires, actionFnPid);
-          const lines = body.split("\n");
-          const innerLines = lines.slice(1, -1);
-          let hasContent = false;
-          for (const line of innerLines) {
+          // Only the inner statements are emitted — nested fn declarations
+          // are invalid OmniLang. The fn element is reconstructed on parse
+          // (parser.ts synthesizes it from the action signature).
+          const body = extractFnBody(compileCodeFlowGraph(a.elements, a.wires, actionFnPid));
+          for (const line of body.split("\n")) {
             const trimmed = line.trim();
-            if (trimmed.length > 0) {
-              w.emit(trimmed);
-              hasContent = true;
-            }
+            if (trimmed.length > 0) w.emit(trimmed);
           }
-          if (!hasContent) {
-            w.emit(`fn ${a.name}() {`);
-            w.emit(`}`);
-          }
-        } else {
-          w.emit(`fn ${a.name}() {`);
-          w.emit(`}`);
         }
+        // No fn element: nothing to compile — an empty action body is valid.
         w.dedent();
       }
       w.emit(`}`);
@@ -400,25 +401,16 @@ export class SourceEmitter {
         w.indent();
         const actionFnPid = a.elements.find((e) => e.tag === "fn")?.id;
         if (actionFnPid) {
-          const body = compileCodeFlowGraph(a.elements, a.wires, actionFnPid);
-          const lines = body.split("\n");
-          const innerLines = lines.slice(1, -1);
-          let hasContent = false;
-          for (const line of innerLines) {
+          // Only the inner statements are emitted — nested fn declarations
+          // are invalid OmniLang. The fn element is reconstructed on parse
+          // (parser.ts synthesizes it from the action signature).
+          const body = extractFnBody(compileCodeFlowGraph(a.elements, a.wires, actionFnPid));
+          for (const line of body.split("\n")) {
             const trimmed = line.trim();
-            if (trimmed.length > 0) {
-              w.emit(trimmed);
-              hasContent = true;
-            }
+            if (trimmed.length > 0) w.emit(trimmed);
           }
-          if (!hasContent) {
-            w.emit(`fn ${a.name}() {`);
-            w.emit(`}`);
-          }
-        } else {
-          w.emit(`fn ${a.name}() {`);
-          w.emit(`}`);
         }
+        // No fn element: nothing to compile — an empty action body is valid.
         w.dedent();
       }
       w.emit(`}`);

@@ -47,19 +47,20 @@ describe("store action syntax-node emission", () => {
     expect(out).toContain("action newAction() {");
     expect(out).toContain("newSignal2 = newSignal2 + 1;");
     expect(out).toContain("TodoStore.add();");
-    // The fn statement is the round-trip carrier inside the action block —
-    // the block must be balanced (fn block closed, action block closed).
+    // Action bodies must NOT contain nested fn declarations (invalid
+    // OmniLang — stmt parser rejects them with E0001).
+    expect(out).not.toMatch(/fn\s+newAction\s*\(/);
+    // Statement @pid comments preserved for round-trip reconstruction
+    expect(out).toContain("// @pid:assign-mse1uliz-7el95b-1l");
+    expect(out).toContain("// @pid:store-call-mse1utoy-7o6eoo-1m");
+    // The action block must be balanced — one closing brace for the action,
+    // one for the store, nothing else.
     const actionOpen = out.indexOf("action newAction() {");
-    const fnOpen = out.indexOf("fn newAction() {", actionOpen);
-    expect(fnOpen).toBeGreaterThan(actionOpen);
-    const fnClose = out.indexOf("}", fnOpen);
-    expect(fnClose).toBeGreaterThan(fnOpen);
-    const actionClose = out.indexOf("}", fnClose + 1);
-    expect(actionClose).toBeGreaterThan(fnClose);
-    // After the action block, only the store's closing brace remains
-    expect(out.slice(actionClose + 1).trim()).toBe("}");
-    // fn element pid comment preserved for round-trip reconstruction
-    expect(out).toContain("// @pid:s1_n3_c1");
+    const firstClose = out.indexOf("}", actionOpen);
+    expect(firstClose).toBeGreaterThan(actionOpen);
+    const actionClose = out.indexOf("}", firstClose + 1);
+    expect(actionClose).toBeGreaterThan(firstClose);
+    expect(out.slice(actionClose + 1).trim()).toBe("");
   });
 
   it("emitted store source re-parses with fn/assign/store-call elements preserved", () => {
@@ -84,9 +85,15 @@ describe("store action syntax-node emission", () => {
     expect(reAction.elements.map((e) => e.tag)).toEqual(["fn", "assign", "store-call"]);
     const reAssign = reAction.elements.find((e) => e.tag === "assign")!;
     expect(reAssign.props).toEqual({ target: "newSignal2", operator: "=", value: "newSignal2 + 1" });
+    const reStoreCall = reAction.elements.find((e) => e.tag === "store-call")!;
+    expect(reStoreCall.props).toEqual({ storeName: "TodoStore", action: "add", args: "" });
+    // fn element synthesized from the action signature (round-trip carrier)
     const reFn = reAction.elements.find((e) => e.tag === "fn")!;
-    expect(reFn.id).toBe("s1_n3_c1");
-    // Wiring preserved
+    expect(reFn.id).toBe("s1_n3_fn");
+    expect(reFn.props).toEqual({ name: "newAction", params: "", returnType: "" });
+    expect(reAction.elements[0].id).toBe(reFn.id);
+    // Wiring preserved incl. the synthesized fn → first statement edge
     expect(reAction.wires.some((w) => w.fromId === reFn.id && w.toId === reAssign.id)).toBe(true);
+    expect(reAction.wires.some((w) => w.fromId === reAssign.id && w.toId === reStoreCall.id)).toBe(true);
   });
 });
