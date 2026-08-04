@@ -19,18 +19,21 @@ interface TextProps {
 
 export function NodeTextField({ value, onCommit, placeholder, ariaLabel, className, invalid }: TextProps) {
   const [draft, setDraft] = useState(value);
+  const focusedRef = useRef(false);
+  const dirtyRef = useRef(false);
   // 外部 value 变化（提交成功/重渲染）时同步草稿，但聚焦输入中不打断
-  const focused = useRef(false);
   useEffect(() => {
-    if (!focused.current) setDraft(value);
+    if (!focusedRef.current) setDraft(value);
   }, [value]);
 
   const commit = () => {
-    focused.current = false;
-    if (draft !== value) onCommit(draft);
+    focusedRef.current = false;
+    if (dirtyRef.current && draft !== value) onCommit(draft);
+    dirtyRef.current = false;
   };
   const cancel = () => {
-    focused.current = false;
+    focusedRef.current = false;
+    dirtyRef.current = false;
     setDraft(value);
   };
 
@@ -41,8 +44,9 @@ export function NodeTextField({ value, onCommit, placeholder, ariaLabel, classNa
       value={draft}
       placeholder={placeholder}
       aria-label={ariaLabel}
-      onFocus={() => { focused.current = true; }}
-      onChange={(e) => setDraft(e.target.value)}
+      aria-invalid={invalid || undefined}
+      onFocus={() => { focusedRef.current = true; }}
+      onChange={(e) => { setDraft(e.target.value); dirtyRef.current = true; }}
       onBlur={commit}
       onKeyDown={(e) => {
         if (e.key === "Enter") { e.preventDefault(); commit(); }

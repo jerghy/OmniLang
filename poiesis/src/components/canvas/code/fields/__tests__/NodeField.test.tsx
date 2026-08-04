@@ -40,6 +40,50 @@ describe("NodeTextField", () => {
     render(<NodeTextField value="x" onCommit={vi.fn()} ariaLabel="变量名" invalid />);
     expect(screen.getByLabelText("变量名").className).toContain("invalid");
   });
+
+  it("Enter 提交后 blur 不重复提交（dirty 已消费）", () => {
+    const onCommit = vi.fn();
+    render(<NodeTextField value="x" onCommit={onCommit} ariaLabel="变量名" />);
+    const input = screen.getByLabelText("变量名");
+    fireEvent.change(input, { target: { value: "y" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onCommit).toHaveBeenCalledTimes(1);
+    fireEvent.blur(input);
+    expect(onCommit).toHaveBeenCalledTimes(1);
+  });
+
+  it("聚焦未编辑时外部变化不被 blur 旧值回滚", () => {
+    const onCommit = vi.fn();
+    const { rerender } = render(<NodeTextField value="x" onCommit={onCommit} ariaLabel="变量名" />);
+    fireEvent.focus(screen.getByLabelText("变量名"));
+    rerender(<NodeTextField value="external" onCommit={onCommit} ariaLabel="变量名" />);
+    fireEvent.blur(screen.getByLabelText("变量名"));
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
+  it("聚焦编辑中外部变化不覆盖草稿，blur 提交用户编辑", () => {
+    const onCommit = vi.fn();
+    const { rerender } = render(<NodeTextField value="x" onCommit={onCommit} ariaLabel="变量名" />);
+    const input = screen.getByLabelText("变量名");
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "user" } });
+    rerender(<NodeTextField value="external" onCommit={onCommit} ariaLabel="变量名" />);
+    expect((input as HTMLInputElement).value).toBe("user");
+    fireEvent.blur(input);
+    expect(onCommit).toHaveBeenCalledWith("user");
+  });
+
+  it("invalid 时设置 aria-invalid", () => {
+    render(<NodeTextField value="x" onCommit={vi.fn()} ariaLabel="变量名" invalid />);
+    expect(screen.getByLabelText("变量名").getAttribute("aria-invalid")).toBe("true");
+  });
+
+  it("NodeSelect allowCustom 展示当前自由文本值", () => {
+    const options = [{ value: "=", label: "=" }];
+    render(<NodeSelect value="自定义值" options={options} onCommit={vi.fn()} ariaLabel="运算符" allowCustom />);
+    const select = screen.getByLabelText("运算符") as HTMLSelectElement;
+    expect([...select.options].map((o) => o.value)).toContain("自定义值");
+  });
 });
 
 describe("NodeSelect", () => {
