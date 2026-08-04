@@ -182,6 +182,18 @@ export function ConditionNode({ data }: Props) {
           </>
         )}
       </div>
+
+      {/* 条件块后置续接（flow-out）：emit 侧 condition 分支发射后经 flow-out 续接后继段——
+          解析侧已重建 cond.flow-out → 后置段 wire（中链 condition round-trip，E2E 缺陷 2），
+          画布必须渲染对应 handle，否则既有 flow-out wire 成不可见边（xyflow error008）。 */}
+      <HandlesBoundary>
+        <Handle
+          type="source"
+          position={Position.Bottom}
+          id="flow-out"
+          style={{ background: "var(--ol-text-muted)" }}
+        />
+      </HandlesBoundary>
     </div>
   );
 }

@@ -374,10 +374,14 @@ function assignBranchContext(
         cond.currentBranch++;
         cond.pendingTransition = false;
       }
-      // 2d. This segment's code contains `} else {` or `} else if` inside (not at start)
-      else if (
-        /\}\s*else\s*\{/.test(seg.code) ||
-        /\}\s*else\s+if\b/.test(seg.code)
+
+      // 2d. 段内残余 `} else {` / `} else if` 过渡（段首过渡已由 2a/2b 处理，用 isElifElseCode 排除防重复推进）。
+      // else/else if 行常与前段收尾 `}` 同段挂载（发射侧 `}\nelse {` 跨段），且 2c 消费前段过渡时
+      // 本段尾部可能还挂着下一分支过渡（`}\nelse {` 在 return 段尾）——若 2d 挂在 else-if 链上会被
+      // 2c 短路漏检，下一分支并入当前分支（分支体错位/丢失，E2E 缺陷 2 的末分支 wire 根因）。
+      if (
+        !isElifElseCode &&
+        (/\}\s*else\s*\{/.test(seg.code) || /\}\s*else\s+if\b/.test(seg.code))
       ) {
         cond.pendingTransition = true;
       }
@@ -586,9 +590,14 @@ export function parseCodeFlowGraph(
       }
 
       branchPrev.set(key, i);
-    } else if (seg.type !== "condition") {
-      // Top-level segment (not inside any condition, not a condition itself)
-      // Wire linearly
+    } else {
+      // 顶层段线形重建（含 condition 段）：前驱 flow-out → 本段 flow-in。
+      // condition 段必须同样入链——此前 `seg.type !== "condition"` 跳过 condition，
+      // 中链 condition 永远无 flow-in wire（重载后成孤岛），emit 从 fn 链不可达，
+      // 下次保存条件结构整体丢失（E2E 缺陷 2 的入链 wire 根因）。
+      // condition 的 flow-out 后继由下方续接循环处理；此处 topLevelPrev 也推进到
+      // condition，后续顶层段经线形通道同样指向 condition.flow-out（与续接循环同一
+      // wire，wiredFrom 按 from:fromPort->to:toPort 去重）。
       if (topLevelPrev >= 0) {
         wire(segments[topLevelPrev].pid, "flow-out", seg.pid, "flow-in");
       }
@@ -682,7 +691,17 @@ function parseSyntaxProps(
   type: "let" | "assign" | "store-call" | "call",
   code: string,
 ): Record<string, unknown> {
-  const t = code.split("\n").map((l) => l.trim()).filter(Boolean).join(" ").trim();
+  // 语句段代码可能携带结构尾行：发射侧 `}\nelse if ... {` 把条件块收尾 `}` 与下一分支头
+  // 挂在语句段尾部（同 return 段"表达式只在首行"注释的处理模式）——props 解析只应看到
+  // 语句本身，截到首个结构行（行首 `}` / `} else` / `else if` / `else {`）为止。
+  // 多行语句（续行）不受影响：续行不以结构行开头，join 归一化照旧。
+  const lines = code.split("\n");
+  const stmtEnd = lines.findIndex((l) => {
+    const t = l.trim();
+    return t === "}" || /^\}\s*else/.test(t) || /^else\s*(if\b|\{)/.test(t);
+  });
+  const stmtCode = stmtEnd === -1 ? code : lines.slice(0, stmtEnd).join("\n");
+  const t = stmtCode.split("\n").map((l) => l.trim()).filter(Boolean).join(" ").trim();
 
   switch (type) {
     case "let": {

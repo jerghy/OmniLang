@@ -24,6 +24,7 @@ Files are grouped by primary feature. Many files demonstrate multiple features.
 - `test/projects/learn-omniview/src/components/StatsPanel.omni` — `prop` declaration, if-expression in text interpolation, cross-file import
 - `test/projects/learn-omniview/src/components/AddTodo.omni` — `signal`, `computed`, `bind:value`, `@mount`, `@effect`, custom `event`
 - `test/projects/learn-omniview/src/components/DataTable.omni` — Custom HTML tags (Table/List/Button), self-closing elements, Map literals, closures `|x| expr`, `struct` definition
+- `test/projects/learn-omniview/src/components/CodeFlowMidChain.omni` — 中链 condition 代码流（前驱→condition→三分支→后置段 flow-out 续接，@pid round-trip 回归）
 
 ## Stores
 

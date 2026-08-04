@@ -1,0 +1,44 @@
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║  CodeFlowMidChain.omni — 中链 condition 代码流（round-trip 回归） ║
+// ║                                                                  ║
+// ║  画布 codeflow 的 condition 节点位于语句链中间（前驱 → 条件 → 分   ║
+// ║  支体 → 后置段）：解析侧必须重建对称 wire——前驱 flow-out →         ║
+// ║  condition flow-in、每分支 br 端口、后置段经 condition flow-out    ║
+// ║  续接。@pid 注释与发射侧逐字对应（E2E 缺陷 2 回归语料）。           ║
+// ╚══════════════════════════════════════════════════════════════════╝
+
+import omniview;
+
+component CodeFlowMidChain {
+    event onSelect;
+
+    fn process() -> void {
+        // @pid:cfmc-let-0
+          let total = 0;
+        // @pid:cfmc-assign-0
+          total = total + 1;
+        // @pid:cfmc-cond-0
+          if total > 0 {
+        // @pid:cfmc-call-0
+            emit onSelect();
+          }
+          else if total > 10 {
+        // @pid:cfmc-ret-0
+            return;
+          }
+          else {
+        // @pid:cfmc-ret-1
+            return;
+          }
+        // @pid:cfmc-post-0
+          total = total * 2;
+    }
+
+    view {
+        <div>
+            <p>
+                CodeFlowMidChain
+            </p>
+        </div>
+    }
+}
