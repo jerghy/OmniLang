@@ -295,13 +295,13 @@ impl<'a> Parser<'a> {
     ) -> Result<Expr, ParseError> {
         if self.at(&TokenKind::LParen) {
             self.advance(); // consume '('
-            let args = self.parse_call_args()?;
+            let (args, close_end) = self.parse_call_args()?;
             Ok(Expr::FuncCall {
                 func: Box::new(Expr::VarRef(name.clone(), span)),
                 args,
                 span: Span {
                     start: span.start,
-                    end: self.peek().span.start,
+                    end: close_end,
                     line: span.line,
                     col: span.col,
                 },

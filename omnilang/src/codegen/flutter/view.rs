@@ -2237,6 +2237,32 @@ fn format_list_rendering(
         ctx.lazy_context = true;
     }
     let iterable_str = ctx.format_expr(&list.iterable);
+    // Task 3.8 (perf H2): the [scroll] path references the iterable up to
+    // THREE times — `itemCount`, `var item = {iter}[index]` inside the
+    // itemBuilder (layout-time, per item), and the @empty Builder — so a
+    // COMPUTED iterable (`S.items.filter(...)`) re-evaluates N+1 times per
+    // build (a plain Dart getter has no memo → O(N²) for filtered lists).
+    // Hoist it to a build local evaluated ONCE per build; the itemBuilder
+    // and Builder closures reference the local by capture — the same
+    // mechanism as the 3.7 hoisted reads (build-scope locals are legal
+    // closure captures; only `ref.watch` calls are layout-forbidden). The
+    // name is counter-suffixed so multiple [scroll] @for in one view cannot
+    // collide.
+    let iter_ref = if list.scroll_hint {
+        // First [scroll] @for in the build gets the plain `__omniIter`;
+        // subsequent ones (multiple scroll lists in one view) get
+        // counter-suffixed names — never collide.
+        let name = if ctx.hoisted.iter().any(|(n, _)| n == "__omniIter") {
+            format!("__omniIter{}", *ctx.hoist_next)
+        } else {
+            "__omniIter".to_string()
+        };
+        *ctx.hoist_next += 1;
+        ctx.hoisted.push((name.clone(), iterable_str.clone()));
+        name
+    } else {
+        iterable_str.clone()
+    };
     // The item body must be a single widget expression — multi-node
     // fragments are Column-wrapped so the emitted expression stays valid.
     let body_str = list
@@ -2259,12 +2285,12 @@ fn format_list_rendering(
     let rendered = if list.scroll_hint {
         format!(
             "ListView.builder(\n  itemCount: {iter}.length,\n  itemBuilder: (context, index) {{\n    var {item} = {iter}[index];\n    return {item_widget};\n  }},\n)",
-            iter = iterable_str, item = item_name, item_widget = item_widget
+            iter = iter_ref, item = item_name, item_widget = item_widget
         )
     } else {
         format!(
             "Column(mainAxisSize: MainAxisSize.min, children: [for (final {item} in {iter}) {item_widget}])",
-            item = item_name, iter = iterable_str, item_widget = item_widget
+            item = item_name, iter = iter_ref, item_widget = item_widget
         )
     };
     if list.empty_body.is_some() {
@@ -2275,7 +2301,7 @@ fn format_list_rendering(
             .unwrap_or_else(|| "SizedBox()".to_string());
         format!(
             "Builder(\n  builder: (context) => {}.isEmpty ? {} : {},\n)",
-            iterable_str, empty_str, rendered
+            iter_ref, empty_str, rendered
         )
     } else {
         rendered

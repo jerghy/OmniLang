@@ -107,14 +107,14 @@ impl<'a> Parser<'a> {
                     Some(field) => {
                         if self.at(&TokenKind::LParen) {
                             self.advance(); // consume '('
-                            let args = self.parse_call_args()?;
+                            let (args, close_end) = self.parse_call_args()?;
                             Ok(Expr::MethodCall {
                                 object: Box::new(left),
                                 method: field,
                                 args,
                                 span: Span {
                                     start: span.start,
-                                    end: self.peek().span.start,
+                                    end: close_end,
                                     line: span.line,
                                     col: span.col,
                                 },
@@ -164,13 +164,13 @@ impl<'a> Parser<'a> {
                 }
             }
             TokenKind::LParen => {
-                let args = self.parse_call_args()?;
+                let (args, close_end) = self.parse_call_args()?;
                 Ok(Expr::FuncCall {
                     func: Box::new(left),
                     args,
                     span: Span {
                         start: span.start,
-                        end: span.end,
+                        end: close_end,
                         line: span.line,
                         col: span.col,
                     },

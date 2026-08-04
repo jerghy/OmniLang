@@ -258,7 +258,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub(crate) fn parse_call_args(&mut self) -> Result<Vec<Expr>, ParseError> {
+    pub(crate) fn parse_call_args(&mut self) -> Result<(Vec<Expr>, usize), ParseError> {
         let mut args = Vec::new();
         if !self.at(&TokenKind::RParen) {
             args.push(self.parse_expr()?);
@@ -270,8 +270,16 @@ impl<'a> Parser<'a> {
                 args.push(self.parse_expr()?);
             }
         }
+        // The closing paren's end offset — call nodes (MethodCall/FuncCall)
+        // end spans at `)`, not at the token after it. Without this, a call
+        // chain immediately followed by `[scroll]` (`items.filter(...)
+        // [scroll]`) had span.end == the bracket's start, breaking the
+        // whitespace disambiguation in parse_for_directive (the hint was
+        // parsed as a real index `[scroll]` → "Undeclared variable
+        // 'scroll'", Task 3.8).
+        let close_end = self.peek().span.end;
         self.expect_close(TokenKind::RParen, "expected ')'")?;
-        Ok(args)
+        Ok((args, close_end))
     }
 
     fn expect_close(&mut self, expected: TokenKind, msg: &str) -> Result<(), ParseError> {

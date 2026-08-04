@@ -4482,6 +4482,17 @@ component ListPage {
         dart.contains("key: ValueKey(item)"),
         "[scroll] keyed @for must carry key: ValueKey(expr) per item, got:\n{dart}"
     );
+    // Task 3.8: the iterable is hoisted to a single-eval build local; both
+    // itemCount and the itemBuilder reference it (O(N) instead of O(N²)).
+    assert!(
+        dart.contains("final __omniIter = items;"),
+        "[scroll] iterable must be hoisted to a build local, got:\n{dart}"
+    );
+    assert!(
+        dart.contains("itemCount: __omniIter.length")
+            && dart.contains("var item = __omniIter[index];"),
+        "[scroll] itemCount/itemBuilder must reference the hoisted local, got:\n{dart}"
+    );
 }
 
 /// T5.5: nested @for (list inside list, non-scroll) must stay in document
@@ -5617,23 +5628,111 @@ component V {
         out
     );
     // The [scroll] iterable is referenced INSIDE the itemBuilder
-    // (`var item = __omni0[index];`) — its read must be hoisted too.
+    // (`var item = __omniIter[index];`) — its read must be hoisted too.
     assert!(
         out.contains("final __omni0 = ref.watch(sProvider.select(((SState s) => s.items)))"),
         "scroll iterable read must be hoisted (itemBuilder evaluates it at \
          layout): {}",
         out
     );
-    // The item-body read must be hoisted as a second build local.
+    // Task 3.8: the hoisted read feeds the single-evaluation iterable local
+    // (`final __omniIter = __omni0;`) — the computed chain (none here, the
+    // iterable is the bare read) is cached once per build.
     assert!(
-        out.contains("final __omni1 = ref.watch(sProvider.select(((SState s) => s.total)))"),
+        out.contains("final __omniIter = __omni0;"),
+        "iterable must be hoisted to a single-eval build local: {}",
+        out
+    );
+    // The item-body read must be hoisted as a build local too (its counter
+    // slot is 2 — `__omniIter` occupies slot 1).
+    assert!(
+        out.contains("final __omni2 = ref.watch(sProvider.select(((SState s) => s.total)))"),
         "store read in item body must be hoisted to a build local: {}",
         out
     );
     // The item body must reference the locals instead of watching.
     assert!(
-        body_region.contains("__omni0") && body_region.contains("__omni1"),
+        body_region.contains("__omniIter") && body_region.contains("__omni2"),
         "item body must reference the hoisted locals: {}",
+        out
+    );
+}
+
+/// Task 3.8 (perf H2): a [scroll] @for with a COMPUTED iterable
+/// (`items.filter(...)`) must evaluate the iterable exactly ONCE per build.
+/// The old shape inlined it into `itemCount` AND the itemBuilder's
+/// `var item = {iter}[index]` (layout-time, per item) — a plain Dart getter
+/// re-evaluated N+1 times per build (O(N²) for filtered lists). The
+/// iterable is hoisted to a build local (`final __omniIter = ...`) that all
+/// references share; the itemBuilder closure captures it (same mechanism as
+/// the 3.7 hoisted reads).
+///
+/// brief 适配说明：`<for [scroll] item in ...>` 与顶层 `view V {...}` 非法
+/// （同 task-30 偏差：指令形式是 `@for item in ... [scroll]`、必须包在
+/// component 内、需 import + store 语义）；`filter` 在 Dart 目标发射为
+/// `.where(...).toList()`（ArrayMethodIR::Filter 映射），因此求值点计数
+/// 锚定发射链 `items.where`。
+#[test]
+fn scroll_for_iterable_evaluated_once() {
+    let src = r#"
+import omniview;
+component V {
+    signal items: Array<i32> = [];
+    view {
+        @for item in items.filter(|x| x > 0) [scroll] { <span>{item}</span> }
+    }
+}
+"#;
+    let out: String = compile_flutter(src)
+        .expect("compile must succeed")
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    // iterable 表达式只能出现一次求值点（hoist 变量）
+    let evals = out.matches("items.where").count();
+    assert_eq!(
+        evals, 1,
+        "iterable evaluated {} times — O(N²): {}",
+        evals, out
+    );
+    assert!(out.contains("final __omniIter"), "missing hoist: {}", out);
+}
+
+/// Task 3.8 (@empty path): with an @empty block the [scroll] shape would
+/// inline the computed iterable a THIRD time (`iterable.isEmpty` in the
+/// Builder wrapper) — the hoisted local must be shared there too.
+#[test]
+fn scroll_for_empty_wrapper_shares_hoisted_iterable() {
+    let src = r#"
+import omniview;
+component V {
+    signal items: Array<i32> = [];
+    view {
+        @for item in items.filter(|x| x > 0) [scroll] {
+            <span>{item}</span>
+        }
+        @empty { <span>none</span> }
+    }
+}
+"#;
+    let out: String = compile_flutter(src)
+        .expect("compile must succeed")
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    let evals = out.matches("items.where").count();
+    assert_eq!(
+        evals, 1,
+        "iterable evaluated {} times — O(N²): {}",
+        evals, out
+    );
+    assert!(
+        out.contains("__omniIter.isEmpty"),
+        "@empty wrapper must reference the hoisted iterable: {}",
         out
     );
 }
