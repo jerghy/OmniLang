@@ -463,7 +463,7 @@ ListView.builder(itemCount: items.length, itemBuilder: (c, i) => ListTile(key: V
 | @for + [scroll] | 滚动容器 + map | `ListView.builder` | 既有 |
 | key_expr | `key={expr}`（既有） | `key: ValueKey(expr)`（**实现**） | keyed 克隆复用（ADR-055） |
 | empty_body | 三元（既有） | `if (isEmpty) emptyBody else ...` | 既有 |
-| @if mode:"wait" | 降级注释（既有） | 降级注释（既有） | 既有 |
+| @if mode:"wait" | 降级注释（既有） | AnimatedSwitcher + 显式 FadeTransition（**实现**；等待旧内容过渡完成后插入新内容） | 既有 |
 | @if mode:"fade" | 真实淡入（既有） | AnimatedSwitcher（**实现**） | 既有 |
 
 #### 诊断表
