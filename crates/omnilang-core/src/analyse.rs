@@ -358,6 +358,13 @@ pub fn analyse_multi(
     // also populates DesignIR.theme_signal for every design.
     crate::semantic::validate_theme::validate_theme(&mut merged_ir, &mut diags);
 
+    // Phase 3e: Event-name validation (Task 4.2, D-B) — unknown event names
+    // warn with the nearest legal suggestion. Runs on the merged IR so
+    // cross-file custom `event` declarations and component tags are visible
+    // (a per-file pass cannot tell an imported component's custom-event
+    // binding apart from a typo'd DOM event).
+    crate::semantic::validate_event_names::validate_event_names(&merged_ir, &mut diags);
+
     // Phase 4: Run lint rules against ASTs and merged IR
     let lint_diags = crate::semantic::lints::run_all(&programs, &merged_ir);
     let mut warnings: Vec<Diagnostic> = merge_warnings;
@@ -632,6 +639,13 @@ pub fn analyse_multi_cached(
     // design D1). Runs on the merged IR so cross-file pairing is visible;
     // also populates DesignIR.theme_signal for every design.
     crate::semantic::validate_theme::validate_theme(&mut merged_ir, &mut diags);
+
+    // Phase 3e: Event-name validation (Task 4.2, D-B) — unknown event names
+    // warn with the nearest legal suggestion. Runs on the merged IR so
+    // cross-file custom `event` declarations and component tags are visible
+    // (a per-file pass cannot tell an imported component's custom-event
+    // binding apart from a typo'd DOM event).
+    crate::semantic::validate_event_names::validate_event_names(&merged_ir, &mut diags);
 
     // Phase 4: Run lint rules against ASTs and merged IR
     let lint_diags = crate::semantic::lints::run_all(&all_programs, &merged_ir);

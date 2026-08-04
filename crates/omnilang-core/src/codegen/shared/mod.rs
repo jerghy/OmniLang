@@ -4,6 +4,7 @@
 //! language-family implementations.
 
 pub mod easing;
+pub mod event_names;
 pub mod expr;
 pub mod generator;
 pub mod html;
