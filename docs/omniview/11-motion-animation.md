@@ -144,9 +144,9 @@ easing: steps(6, start)                                  // 阶梯（Flutter 目
 | `@scroll scrub: true` | 平滑系数（布尔 true = 1s） | `scrub > 0` 指数平滑 | `_OmniScrollDrivenWidget(scrub:)` 指数平滑 |
 | `@drag-* constraints: [min, max]` | 拖拽范围限制 + 弹性回弹 | 运行时 clamp + `(1 - elastic)` 回弹 | `_OmniDragWidget(constraintsMin: min, constraintsMax: max)` |
 | `@drag-* elastic:` / `threshold:` | 弹性系数 / 吸附阈值 | 生成数值常量 | 类型化构造参数 |
-| `@drag-* velocity_max:` | 拖拽期间速度跟踪上限（px/s 截断） | `velocity = min(velocityMax, dp/dt*1000)` | `_OmniDragWidget(velocityMax:)` + 截断 |
+| `@drag-* velocity_max:` | 拖拽期间速度跟踪上限（px/s 截断） | 接受但忽略（速度跟踪器已剪除，输出仅诚实降级注释） | `_OmniDragWidget(velocityMax:)` + `clamp(0, velocityMax)` 截断 |
 
-> 缺省行为：`@scroll` 无 `start`/`end` 时回落视口相对字符串配置（`"top 80%"` → `"bottom 20%"`）；`@drag-*` 无 `constraints` 时回落关键帧范围推导（`maxExtent`），无可用范围时带编译器警告。诚实降级（ADR-054）：释放后惯性 decay 在三个目标上均**未实现**——`velocity_max` 仅作为拖拽期间速度跟踪器的上限被消费（三目标一致），释放行为统一为 threshold 吸附（play/reverse）。
+> 缺省行为：`@scroll` 无 `start`/`end` 时回落视口相对字符串配置（`"top 80%"` → `"bottom 20%"`）；`@drag-*` 无 `constraints` 时回落关键帧范围推导（`maxExtent`），无可用范围时生成代码中带警告注释。诚实降级（ADR-054）：释放后惯性 decay 在三个目标上均**未实现**——`velocity_max` 由 Flutter/OmniView 消费（px/s 截断），React 接受但忽略（速度跟踪器已移除，无消费方）；释放行为统一为 threshold 吸附（play/reverse）。
 
 ### 示例
 
@@ -188,7 +188,7 @@ easing: steps(6, start)                                  // 阶梯（Flutter 目
 
 ## 与拖拽触发器配合实现高频拖拽（@drag-*）
 
-`ref.style.*` 已按 ADR-052 删除（DOM 专属 API，用信号 + style 绑定替代）。拖拽驱动的 60fps 位移由 `@drag-*` 触发器 + `@motion` 关键帧实现，最终值用 signal 保存。拖拽进度范围可用 `constraints:` 子参数显式约束（v2 Task 5.1 恢复），缺省回落关键帧范围推导（`maxExtent`，无可用范围时带编译器警告）：
+`ref.style.*` 已按 ADR-052 删除（DOM 专属 API，用信号 + style 绑定替代）。拖拽驱动的 60fps 位移由 `@drag-*` 触发器 + `@motion` 关键帧实现，最终值用 signal 保存。拖拽进度范围可用 `constraints:` 子参数显式约束（v2 Task 5.1 恢复），缺省回落关键帧范围推导（`maxExtent`），无可用范围时生成代码中带警告注释（拖拽无位移）：
 
 ```omni
 @motion dragSlideX {

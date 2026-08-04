@@ -1084,7 +1084,8 @@ motion_trigger ::= '@enter' '=' '{' expr '}'
 
 scroll_params ::= ('start:' expr | 'end:' expr | 'scrub:' expr)*
                 // colon-form control dimensions (v1 syntax, restored by
-                // v2 Task 5.1); any subset, any order, each at most once
+                // v2 Task 5.1); any subset, any order; repeated keys are
+                // silently overwritten (last wins)
 
 drag_params   ::= ('constraints:' '[' expr ',' expr ']'
                  | 'elastic:' expr | 'threshold:' expr
