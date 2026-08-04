@@ -102,3 +102,28 @@ describe("validateSyntaxProps", () => {
     expect(r.some(x => x.field === "target")).toBe(true);
   });
 });
+
+it("storesUsed 纳入无 def 的 store（引用方向：store→组件）", () => {
+  const s = buildFlowScope({ componentDef: undefined, storeDefs: {}, inlineStoreDefs: {}, storesUsed: ["NoDefStore"], fnElements: [] });
+  expect(s.stores.map((x) => x.name)).toContain("NoDefStore");
+});
+
+it("同名 store 冲突时 storeDefs 优先于 inlineStoreDefs", () => {
+  const s = buildFlowScope({
+    componentDef: undefined,
+    storeDefs: { A: { pid: "a1", name: "A", filePath: "A.omni", imports: [], signals: [], getters: [], actions: [{ pid: "a2", name: "global" }] } },
+    inlineStoreDefs: { A: { pid: "b1", name: "A", filePath: "B.omni", imports: [], signals: [], getters: [], actions: [{ pid: "b2", name: "inline" }] } },
+    storesUsed: [], fnElements: [],
+  } as unknown as Parameters<typeof buildFlowScope>[0]);
+  expect(s.stores[0].actions.map((a) => a.name)).toEqual(["global"]);
+});
+
+it("call 空函数名报错，非空通过", () => {
+  expect(validateSyntaxProps("call", { fnName: "" }, {} as FlowScope).some((x) => x.field === "fnName")).toBe(true);
+  expect(validateSyntaxProps("call", { fnName: "close" }, {} as FlowScope)).toEqual([]);
+});
+
+it("assign target 支持 Store.信号，拒绝多段路径", () => {
+  expect(validateSyntaxProps("assign", { target: "ThemeStore.mode" }, {} as FlowScope)).toEqual([]);
+  expect(validateSyntaxProps("assign", { target: "a.b.c" }, {} as FlowScope).some((x) => x.field === "target")).toBe(true);
+});

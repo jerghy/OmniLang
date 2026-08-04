@@ -15,7 +15,9 @@ export function useFlowScope(componentName: string | undefined): FlowScope | nul
 
   return useMemo(() => {
     if (!componentName) return null;
-    const storesUsed = storeReferences[componentName] ?? [];
+    const storesUsed = Object.entries(storeReferences)
+      .filter(([, comps]) => comps.includes(componentName))
+      .map(([name]) => name);
     const fnEl = (elements.filter((e): e is CodeblockElementData => e.nodeType === "codeblock" && e.tag === "fn"));
     return buildFlowScope({
       componentDef,
