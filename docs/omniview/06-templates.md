@@ -204,7 +204,7 @@ component SearchBox {
 <div @drag-vertical={dragSlideY}>...</div>
 ```
 
-> 注：触发器子属性（`@in-view-once`、`@scroll-start`、`@drag-constraints`、`@drag-elastic` 等）与元素级 `@paused` 已按 semantic-level DSL 规范移除（ADR-053）；运行时暂停/恢复请用条件渲染。
+> 注：旧破折号形式触发器子属性（`@in-view-once`、`@scroll-start`、`@drag-constraints`、`@drag-elastic` 等）已随 ADR-053 移除；v2（Task 5.1）已恢复 `@scroll`/`@drag-*` 的控制维度为冒号形式子参数（`@scroll start: 0 end: 1000 scrub: true ={motion}`），详见 [11-运动与动画](11-motion-animation.md)。元素级 `@paused` 仍为删除状态（解析期硬诊断）；运行时暂停/恢复请用条件渲染。
 
 详见 [11-运动与动画](11-motion-animation.md)。
 

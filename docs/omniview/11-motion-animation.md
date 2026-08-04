@@ -3,7 +3,7 @@
 OmniView 提供声明式动画系统：`@motion` 定义补间动画参数，通过 8 个触发器绑定到元素。
 
 **ADR-032 范围界定**：OmniView 动画系统保留 14 项核心功能，移除 19 项（`@timeline`、`states:{}`、Hero、stagger、回调等）。
-**ADR-052/053 语义级 DSL**（2026-08-01 同步）：动画语法更新为冒号形式（`over:`/`easing:`）、17 属性语义白名单、8 触发器（kebab-case）；触发器子属性与 `@paused` 已移除。本文档仅覆盖保留功能。**v2（2026-08-03，Task 5.2）**：白名单扩展为 19 项语义集（新增 `borderRadius`/`fontSize`，三目标均已验证并实现）。
+**ADR-052/053 语义级 DSL**（2026-08-01 同步）：动画语法更新为冒号形式（`over:`/`easing:`）、17 属性语义白名单、8 触发器（kebab-case）；元素级 `@paused` 已移除，旧破折号形式触发器子属性（`@scroll-start`、`@drag-constraints` 等）已移除（控制维度由 **v2（2026-08-03，Task 5.1）** 以冒号形式恢复，见下文「控制维度子参数」）。本文档仅覆盖保留功能。**v2（2026-08-03，Task 5.2）**：白名单扩展为 19 项语义集（新增 `borderRadius`/`fontSize`，三目标均已验证并实现）。
 
 ## @motion 运动定义
 
@@ -122,7 +122,31 @@ easing: steps(6, start)                                  // 阶梯（Flutter 目
 | `@drag-horizontal={motion}` | 水平拖拽 |
 | `@drag-vertical={motion}` | 垂直拖拽 |
 
-> 触发器子属性（`@in-view-once`、`@scroll-start`、`@drag-constraints` 等）已按 semantic-level DSL 规范移除（ADR-053）；拖拽范围约束待重新实现，当前无约束时进度为 0（见 `.architecture/deferrals.md` #19）。
+### 控制维度子参数（v2 恢复，Task 5.1）
+
+`@scroll` 与 `@drag-*` 支持**冒号形式控制维度子参数**——挂在触发器关键字与 `={motion}` 绑定之间（v1 语法，v2 Task 5.1 恢复，`.architecture/deferrals.md` #19 已关闭）。旧破折号形式（`@scroll-start`、`@drag-constraints` 等）已在 ADR-053 移除，不得再用。其余 5 个触发器不接受子参数；未知或畸形子参数是**硬解析错误**（不解析忽略）。
+
+```omni
+<!-- @scroll — 滚动位置映射区间 + 平滑 -->
+<div @scroll start: 0 end: 1000 scrub: true ={scrollProgress}>
+    Scroll progress
+</div>
+
+<!-- @drag-horizontal — 拖拽范围约束 + 弹性回弹 -->
+<div @drag-horizontal constraints: [-100, 100] elastic: 0.5 threshold: 0.3 velocity_max: 500 ={dragSlide}>
+    Drag me →
+</div>
+```
+
+| 子参数 | 语义 | React 实现 | Flutter 实现 |
+|--------|------|-----------|-------------|
+| `@scroll start:` / `end:` | 数字滚动映射区间 | `progress = (scrollY - N) / (M - N)` | `_OmniScrollDrivenWidget(start: N, end: M)`（类型化 `double?` 字段） |
+| `@scroll scrub: true` | 平滑系数（布尔 true = 1s） | `scrub > 0` 指数平滑 | `_OmniScrollDrivenWidget(scrub:)` 指数平滑 |
+| `@drag-* constraints: [min, max]` | 拖拽范围限制 + 弹性回弹 | 运行时 clamp + `(1 - elastic)` 回弹 | `_OmniDragWidget(constraintsMin: min, constraintsMax: max)` |
+| `@drag-* elastic:` / `threshold:` | 弹性系数 / 吸附阈值 | 生成数值常量 | 类型化构造参数 |
+| `@drag-* velocity_max:` | 拖拽期间速度跟踪上限（px/s 截断） | `velocity = min(velocityMax, dp/dt*1000)` | `_OmniDragWidget(velocityMax:)` + 截断 |
+
+> 缺省行为：`@scroll` 无 `start`/`end` 时回落视口相对字符串配置（`"top 80%"` → `"bottom 20%"`）；`@drag-*` 无 `constraints` 时回落关键帧范围推导（`maxExtent`），无可用范围时带编译器警告。诚实降级（ADR-054）：释放后惯性 decay 在三个目标上均**未实现**——`velocity_max` 仅作为拖拽期间速度跟踪器的上限被消费（三目标一致），释放行为统一为 threshold 吸附（play/reverse）。
 
 ### 示例
 
@@ -164,7 +188,7 @@ easing: steps(6, start)                                  // 阶梯（Flutter 目
 
 ## 与拖拽触发器配合实现高频拖拽（@drag-*）
 
-`ref.style.*` 已按 ADR-052 删除（DOM 专属 API，用信号 + style 绑定替代）。拖拽驱动的 60fps 位移由 `@drag-*` 触发器 + `@motion` 关键帧实现，最终值用 signal 保存。注意：当前无约束时拖拽进度为 0（范围约束待重新实现，见 `.architecture/deferrals.md` #19）：
+`ref.style.*` 已按 ADR-052 删除（DOM 专属 API，用信号 + style 绑定替代）。拖拽驱动的 60fps 位移由 `@drag-*` 触发器 + `@motion` 关键帧实现，最终值用 signal 保存。拖拽进度范围可用 `constraints:` 子参数显式约束（v2 Task 5.1 恢复），缺省回落关键帧范围推导（`maxExtent`，无可用范围时带编译器警告）：
 
 ```omni
 @motion dragSlideX {

@@ -1007,12 +1007,15 @@ anim_prop ::= semantic_anim_prop ':' expr
 stop_ease ::= 'ease' (':' easing_expr)?             // per-stop easing (colon optional)
 ```
 
-Animation properties are validated against a **17-property semantic
+Animation properties are validated against a **19-property semantic
 whitelist** (`opacity`, `scale`, `scaleX`, `scaleY`, `translateX`,
 `translateY`, `translateZ`, `rotate`, `rotateX`, `rotateY`, `rotateZ`,
-`skewX`, `skewY`, `backgroundColor`, `color`, `width`, `height`); unknown
-properties are parse errors. `--custom-property` names pass through for
-CSS-based targets (ADR-053 D3).
+`skewX`, `skewY`, `backgroundColor`, `color`, `width`, `height`,
+`borderRadius`, `fontSize` — the last two added by v2 Task 5.2, verified
+on all three targets); unknown properties are parse errors.
+`--custom-property` names pass through for CSS-based targets (ADR-053 D3).
+`borderRadius`/`fontSize` values are treated as lengths (bare numbers or
+`"Npx"` strings).
 
 ```
 @motion fadeIn {
@@ -1075,10 +1078,27 @@ motion_trigger ::= '@enter' '=' '{' expr '}'
                  | '@press' '=' '{' expr '}'
                  | '@focus' '=' '{' expr '}'
                  | '@in-view' '=' '{' expr '}'
-                 | '@scroll' '=' '{' expr '}'
-                 | '@drag-horizontal' '=' '{' expr '}'
-                 | '@drag-vertical' '=' '{' expr '}'
+                 | '@scroll' scroll_params? '=' '{' expr '}'
+                 | '@drag-horizontal' drag_params? '=' '{' expr '}'
+                 | '@drag-vertical' drag_params? '=' '{' expr '}'
+
+scroll_params ::= ('start:' expr | 'end:' expr | 'scrub:' expr)*
+                // colon-form control dimensions (v1 syntax, restored by
+                // v2 Task 5.1); any subset, any order, each at most once
+
+drag_params   ::= ('constraints:' '[' expr ',' expr ']'
+                 | 'elastic:' expr | 'threshold:' expr
+                 | 'velocity_max:' expr)*
+                // drag control dimensions (restored by v2 Task 5.1)
 ```
+
+Semantic validation (`validate_motion`): `@scroll` `start`/`end` must be
+numeric, must appear as a pair, and must form a strictly increasing range
+(`start < end`); `scrub` must be boolean. `@drag-*`
+`constraints` must be a numeric `[min, max]` range with `min < max`;
+`elastic`/`threshold`/`velocity_max` must be non-negative numbers. Unknown
+keys and malformed values are hard parse errors (no parse-and-ignore); the
+other five triggers accept no sub-parameters.
 
 ```
 <div @enter={fadeIn} />
@@ -1086,14 +1106,17 @@ motion_trigger ::= '@enter' '=' '{' expr '}'
 <input @focus={focusGlow} />
 <section @in-view={slideIn} />
 <div @scroll={scrollProgress} />
+<div @scroll start: 0 end: 1000 scrub: true ={scrollProgress} />
 <div @drag-horizontal={dragSlide} @drag-vertical={dragSlideY} />
+<div @drag-horizontal constraints: [-100, 100] elastic: 0.5 threshold: 0.3 velocity_max: 500 ={dragSlide} />
 ```
 
 > Removed per ADR-053: `@leave`, `@unhover`, `@animate`, `@timeline` triggers
-> and all trigger sub-attributes (`@in-view-once`, `@scroll-start`,
-> `@drag-constraints` etc. — drag range constraints are pending
-> reimplementation, see `.architecture/deferrals.md` #19). `@hero` is rejected
-> with a diagnostic.
+> and the legacy dash-form sub-attributes (`@in-view-once`, `@scroll-start`,
+> `@drag-constraints` etc.). The control dimensions were **restored by v2
+> (2026-08-03, Task 5.1)** as colon-form sub-parameters on `@scroll` /
+> `@drag-*` (see `scroll_params` / `drag_params` above; deferral #19 closed).
+> `@hero` is rejected with a diagnostic.
 
 ### 7.5 Motion AST Types
 
