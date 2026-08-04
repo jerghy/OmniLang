@@ -282,7 +282,7 @@ pub struct InternalCompileResult {
     /// Only populated for OmniView target with codegen-omniview enabled.
     #[serde(default, skip_serializing_if = "FxHashMap::is_empty")]
     #[ts(type = "Record<string, { js: string }>")]
-    pub components: FxHashMap<String, serde_json::Value>,
+    pub components: FxHashMap<String, ComponentOutput>,
     /// Source map entries mapping generated code back to .omni source positions.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(
@@ -375,11 +375,7 @@ fn compile_multi_internal_post(
             let gen_output =
                 codegen::omniview::generate(&merged_ir, editor_mode, false, debug_mode);
             let files = codegen::omniview::build_file_output(&gen_output);
-            let comps: FxHashMap<String, serde_json::Value> = gen_output
-                .components
-                .into_iter()
-                .map(|(name, c)| (name, serde_json::json!({ "js": c.js })))
-                .collect();
+            let comps: FxHashMap<String, ComponentOutput> = gen_output.components;
             (files, comps)
         } else {
             (
@@ -389,7 +385,7 @@ fn compile_multi_internal_post(
         }
     };
     #[cfg(not(feature = "codegen-omniview"))]
-    let (output, components): (_, FxHashMap<String, serde_json::Value>) = (
+    let (output, components): (_, FxHashMap<String, ComponentOutput>) = (
         codegen::compile(&merged_ir, target, sources),
         FxHashMap::default(),
     );

@@ -18,6 +18,13 @@ export class OmniCompiler {
      * Run semantic analysis on all registered sources and return
      * symbols + dependencies in addition to diagnostics.
      * Returns JsValue with { symbols, dependencies, diagnostics }.
+     *
+     * Routes through the multi-file analysis path (cross-file aware
+     * diagnostics). Symbols/dependencies are extracted from the pre-parsed
+     * programs via a per-file semantic pass — parsing, cross-file
+     * validation, IR lowering and codegen all run once in the shared
+     * multi-file path, not per-file in isolation. Lint/merge warnings are
+     * folded into `diagnostics` like the pre-refactor single-file path.
      * @returns {any}
      */
     analyse_dependencies() {
@@ -37,7 +44,14 @@ export class OmniCompiler {
     }
     /**
      * Run diagnostics on all registered sources without compiling to output.
-     * Returns JsValue with `success` and `errors` arrays.
+     * Returns JsValue with `success` and `errors` arrays (both error- and
+     * warning-severity diagnostics, matching the pre-refactor single-file
+     * path where lint warnings folded into `compile().errors`).
+     *
+     * Routes through the multi-file analysis path (`analyse_multi_cached`)
+     * so diagnostics are cross-file aware (import errors, cross-file type
+     * mismatches) instead of per-file isolated compiles. Diagnostics cross
+     * the boundary in the unified `DiagnosticJson` shape.
      * @returns {any}
      */
     diagnostics() {
