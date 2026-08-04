@@ -193,37 +193,32 @@ impl<'a> Parser<'a> {
                     let ref_name = self.expect_ident("expected ref name")?;
                     return Ok(ElementProp::Ref(ref_name));
                 }
-                // states: { state1: { ... }, state2: { ... }, ... }
+                // states: { state1: { ... }, state2: { ... }, ... } — the
+                // multi-state animation map was removed with the semantic DSL
+                // (ADR-053): motion intent is now @motion + triggers. This
+                // used to swallow the body and emit a "__states_removed"
+                // sentinel trigger nobody consumed — a silent parse-and-
+                // ignore. Hard error with the migration hint instead (never
+                // silently drop intent).
                 if name == "states" {
-                    self.advance(); // consume ':'
-                    self.expect_token(TokenKind::LBrace, "expected '{' after 'states:'")?;
-                    while !self.at(&TokenKind::RBrace) && !self.at(&TokenKind::Eof) {
-                        self.advance();
-                    }
-                    self.expect_token(TokenKind::RBrace, "expected '}'")?;
-                    // states: is no longer supported — silently drop
-                    return Ok(ElementProp::MotionTrigger(MotionTrigger {
-                        trigger: TriggerKind::Enter,
-                        motion_expr: Expr::Literal(
-                            Literal::String("__states_removed".into()),
-                            self.peek_span(),
-                        ),
-                    }));
+                    let colon_span = self.peek_span();
+                    return Err(ParseError::with_kind(
+                        crate::error::DiagnosticKind::EStatesRemoved,
+                        "states: 已删除（ADR-053），用 @motion + 触发器替代",
+                        colon_span,
+                    ));
                 }
-                // on: { signal } — states signal binding (removed)
+                // on: { signal } — the signal-driven states binding (removed
+                // with `states:` above). Same silent-sentinel history: hard
+                // error with the @onXxx={...} migration hint. (Without this,
+                // `on: { e => ... }` misreported as "箭头仅用于事件内联".)
                 if name == "on" {
-                    self.advance(); // consume ':'
-                    self.expect_token(TokenKind::LBrace, "expected '{' after 'on:'")?;
-                    let _signal = self.parse_expr()?;
-                    self.expect_token(TokenKind::RBrace, "expected '}'")?;
-                    // states signal binding is no longer supported — silently drop
-                    return Ok(ElementProp::MotionTrigger(MotionTrigger {
-                        trigger: TriggerKind::Enter,
-                        motion_expr: Expr::Literal(
-                            Literal::String("__states_removed".into()),
-                            self.peek_span(),
-                        ),
-                    }));
+                    let colon_span = self.peek_span();
+                    return Err(ParseError::with_kind(
+                        crate::error::DiagnosticKind::EOnRemoved,
+                        "on: 已删除，用 @onXxx={...}",
+                        colon_span,
+                    ));
                 }
                 // a11y: { label: string, role: string, hidden: expr,
                 //        live: "polite"|"assertive", alt: expr }
@@ -751,5 +746,52 @@ impl<'a> Parser<'a> {
                 })
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod legacy_states_on_tests {
+    use super::*;
+    use crate::lexer::tokenize;
+    use crate::parser::parse;
+
+    /// Parse a source and return the collected parse diagnostics.
+    fn parse_and_diag(source: &str) -> Vec<ParseError> {
+        let tokens = tokenize(source);
+        let (_program, errors) = parse(tokens, source);
+        errors
+    }
+
+    #[test]
+    fn legacy_states_syntax_hard_errors() {
+        // domain HIGH-1: `states:` used to swallow its body and emit the
+        // "__states_removed" sentinel (a fake MotionTrigger nobody consumed)
+        // — zero diagnostics. It must now hard-error with a migration hint.
+        let src = r#"component App { view { <div states: { hover: { opacity: 0.5 } } /> } }"#;
+        let diags = parse_and_diag(src);
+        let d = diags
+            .iter()
+            .find(|d| d.message.contains("states"))
+            .expect("must diagnose");
+        assert!(
+            d.message.contains("迁移") || d.message.contains("替代"),
+            "missing migration hint: {}",
+            d.message
+        );
+    }
+
+    #[test]
+    fn legacy_on_block_hard_errors() {
+        // domain HIGH-1: `on:` used to be silently dropped (or misreported as
+        // "箭头仅用于事件内联" when the body contained an arrow). It must now
+        // hard-error with the @onXxx={...} migration hint.
+        let src = r#"component App { view { <div on: { x => y } /> } }"#;
+        let diags = parse_and_diag(src);
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.message.contains("on:") || d.message.contains("@onXxx")),
+            "must diagnose on:"
+        );
     }
 }

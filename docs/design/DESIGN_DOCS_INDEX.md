@@ -110,7 +110,7 @@
 | [OmniView README](../omniview/README.md) | ✅ 现行 | OmniView 文档索引 |
 | [01 项目结构](../omniview/01-project-structure.md) | ✅ 现行 | .omni 项目文件组织 |
 | [02 组件](../omniview/02-components.md) | ✅ 现行 | component/props/signals/computed/view/@mount/@effect 等 |
-| [03 模板](../omniview/03-templates.md) | ✅ 现行 | 元素、属性、@if/@for/@slot、bind:/variant:/states: 等 |
+| [03 模板](../omniview/03-templates.md) | ✅ 现行 | 元素、属性、@if/@for/@slot、bind:/variant: 等（`states:` 已删除，见 09-motion） |
 | [04 响应式](../omniview/04-reactivity.md) | ✅ 现行 | signal/computed 响应式系统、批量更新、@effect |
 | [05 Stores](../omniview/05-stores.md) | ✅ 现行 | 全局 store：signal/getter/action + 内联 store |
 | [06 事件](../omniview/06-events.md) | ✅ 现行 | 20 种事件类别、自定义事件、emit |

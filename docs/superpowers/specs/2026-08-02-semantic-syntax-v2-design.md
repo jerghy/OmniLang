@@ -491,10 +491,11 @@ ListView.builder(itemCount: items.length, itemBuilder: (c, i) => ListTile(key: V
 
 ```
 event_attr    ::= '@click' | '@input' | '@change' | ...   (* 20 类型，保留 v1 *)
-event_handler ::= 'on' ':' '{' (params)? '=>' block '}'   (* 事件内联 fn：唯一允许箭头处 *)
+event_handler ::= '@on' ident '=' '{' (params)? '=>' block '}'   (* 事件内联 fn：唯一允许箭头处 *)
+                  | ident '=' '{' expr '}'                (* 裸 onPress/onClick 形式（无 @ 前缀）亦接受 *)
 ```
 
-**修改**：event 字段提取**桩全部诊断化**——每个被提取的字段必须有真实映射（删除 `debugName` 当数据的做法，key 事件用稳定 `keyCode`/`keyLabel` 映射）；`map_event` 表单表复用（删除 react/utils.rs 与 omniview/utils.rs 双写，dblclick 类 bug 源头）
+**修改**：`on:` 块形式（旧 `event_handler ::= 'on' ':' '{' params '=>' block '}'`）**已删除**——parser 对 `on: { ... }` 发射硬错误「on: 已删除，用 @onXxx={...}」（遗留分支曾静默吞 body + `__states_removed` 哨兵零诊断，v3 修复任务 4.1 恢复「绝无 parse-and-ignore」）。事件内联 fn 唯一表面为 `@onXxx={...}`（或裸 `onXxx={...}`）。event 字段提取**桩全部诊断化**——每个被提取的字段必须有真实映射（删除 `debugName` 当数据的做法，key 事件用稳定 `keyCode`/`keyLabel` 映射）；`map_event` 表单表复用（删除 react/utils.rs 与 omniview/utils.rs 双写，dblclick 类 bug 源头）
 
 #### 手写对照样例
 

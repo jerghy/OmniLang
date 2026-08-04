@@ -550,8 +550,8 @@ All animation triggers use `@trigger={expr}` — consistent with existing `@onCl
 | `@drag-horizontal={motion}` | Horizontal drag gesture | — |
 | `@drag-vertical={motion}` | Vertical drag gesture | — |
 | `@paused={bool}` | Per-element pause override | Overrides motion's `paused` value |
-| `states: { ... }` | Multi-state animation map (colon prop) | — |
-| `on: {signal}` | Signal driving `states:` active state (colon prop) | — |
+| `states: { ... }` | Multi-state animation map (colon prop) | ~~已删除~~（ADR-032/053；parser 硬错误：「states: 已删除（ADR-053），用 @motion + 触发器替代」） |
+| `on: {signal}` | Signal driving `states:` active state (colon prop) | ~~已删除~~（parser 硬错误：「on: 已删除，用 @onXxx={...}」） |
 | `@if-mode: "wait"` | Component-level default for @if transition mode | — |
 | `@timeline={motion}` | Parent-level cross-element orchestration (matches children by `id`) | — |
 
@@ -579,7 +579,9 @@ All animation triggers use `@trigger={expr}` — consistent with existing `@onCl
 
 Web: `IntersectionObserver`. Flutter: `VisibilityDetector`.
 
-### 9.5 State-Driven Animation (`states:` + `on:`)
+### 9.5 State-Driven Animation (`states:` + `on:`) ~~已删除~~
+
+> **已删除（ADR-032 范围界定 / ADR-053 语法）**：`states:`/`on:` 不再存在于编译器——parser 对两者发射硬解析错误（迁移提示：「states: 已删除（ADR-053），用 @motion + 触发器替代」/「on: 已删除，用 @onXxx={...}」）。本节为历史设计留档。
 
 Two colon-props for defining named animation states and binding a driving signal. Follows the existing `style:`, `class:`, `ref:` colon-prop pattern.
 

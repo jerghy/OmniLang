@@ -790,7 +790,21 @@ fn lower_element(
                         None,
                         Some(lower_inline_motion_map(entries, variant_map, semantics)),
                     ),
-                    _ => (None, None),
+                    // The legacy `states:`/`on:` branches used to land here as
+                    // the "__states_removed" sentinel literal and silently
+                    // become an inert (None, None) trigger — every backend
+                    // skipped it with zero diagnostics (domain HIGH-1). The
+                    // parser now hard-errors on those (Task 4.1); any other
+                    // non-motion expression is a malformed inline body and
+                    // must be diagnosed, never silently dropped.
+                    _ => {
+                        semantics.diagnostics.push(Diagnostic::error(
+                            DiagnosticKind::E0007,
+                            "motion 表达式必须是命名 motion 引用或内联 tween 体 { ... }",
+                            crate::parser::expr::span_of(&mt.motion_expr),
+                        ));
+                        (None, None)
+                    }
                 };
                 motion_triggers.push(TriggerIntent {
                     kind: lower_trigger_kind(&mt.trigger, variant_map, semantics),

@@ -134,6 +134,10 @@ pub enum DiagnosticKind {
     EPausedRemoved,
     #[error("deleted slot form")]
     ESlotRemoved,
+    #[error("deleted states: block")]
+    EStatesRemoved,
+    #[error("deleted on: block")]
+    EOnRemoved,
     #[error("omniview warning")]
     WOmniviewMarker,
     #[error("motion warning")]
@@ -168,6 +172,8 @@ impl DiagnosticKind {
             Self::EEffectDepsMissing => "E_EFFECT_DEPS_MISSING",
             Self::EPausedRemoved => "E_PAUSED_REMOVED",
             Self::ESlotRemoved => "E_SLOT_REMOVED",
+            Self::EStatesRemoved => "E_STATES_REMOVED",
+            Self::EOnRemoved => "E_ON_REMOVED",
             Self::WOmniviewMarker => "W_OMNIVIEW_MARKER",
             Self::WMotion => "W0001",
             Self::ELint(_) => "E_LINT",
@@ -215,6 +221,8 @@ impl<'de> Deserialize<'de> for DiagnosticKind {
                     "E_EFFECT_DEPS_MISSING" => Ok(DiagnosticKind::EEffectDepsMissing),
                     "E_PAUSED_REMOVED" => Ok(DiagnosticKind::EPausedRemoved),
                     "E_SLOT_REMOVED" => Ok(DiagnosticKind::ESlotRemoved),
+                    "E_STATES_REMOVED" => Ok(DiagnosticKind::EStatesRemoved),
+                    "E_ON_REMOVED" => Ok(DiagnosticKind::EOnRemoved),
                     "W_OMNIVIEW_MARKER" => Ok(DiagnosticKind::WOmniviewMarker),
                     "W0001" => Ok(DiagnosticKind::WMotion),
                     "E_LINT" => Ok(DiagnosticKind::ELint("E_LINT".into())),
@@ -731,6 +739,61 @@ mod tests {
         assert_eq!(diag.kind, DiagnosticKind::ESlotRemoved);
         assert_eq!(diag.severity, Severity::Error);
         assert!(diag.message.contains("slot = 父传内容"));
+    }
+
+    #[test]
+    fn states_removed_code_registered_and_carried() {
+        // E_STATES_REMOVED must be a registered diagnostic code: code_str,
+        // serde round-trip, and ParseError → Diagnostic propagation.
+        assert_eq!(
+            DiagnosticKind::EStatesRemoved.code_str(),
+            "E_STATES_REMOVED"
+        );
+        let json = serde_json::to_value(DiagnosticKind::EStatesRemoved).unwrap();
+        assert_eq!(json, "E_STATES_REMOVED");
+        let back: DiagnosticKind = serde_json::from_value(json).unwrap();
+        assert_eq!(back, DiagnosticKind::EStatesRemoved);
+
+        let diag: Diagnostic = ParseError::with_kind(
+            DiagnosticKind::EStatesRemoved,
+            "states: 已删除（ADR-053），用 @motion + 触发器替代",
+            Span {
+                start: 0,
+                end: 2,
+                line: 1,
+                col: 1,
+            },
+        )
+        .into();
+        assert_eq!(diag.kind, DiagnosticKind::EStatesRemoved);
+        assert_eq!(diag.severity, Severity::Error);
+        assert!(diag.message.contains("@motion"));
+    }
+
+    #[test]
+    fn on_removed_code_registered_and_carried() {
+        // E_ON_REMOVED must be a registered diagnostic code: code_str,
+        // serde round-trip, and ParseError → Diagnostic propagation.
+        assert_eq!(DiagnosticKind::EOnRemoved.code_str(), "E_ON_REMOVED");
+        let json = serde_json::to_value(DiagnosticKind::EOnRemoved).unwrap();
+        assert_eq!(json, "E_ON_REMOVED");
+        let back: DiagnosticKind = serde_json::from_value(json).unwrap();
+        assert_eq!(back, DiagnosticKind::EOnRemoved);
+
+        let diag: Diagnostic = ParseError::with_kind(
+            DiagnosticKind::EOnRemoved,
+            "on: 已删除，用 @onXxx={...}",
+            Span {
+                start: 0,
+                end: 2,
+                line: 1,
+                col: 1,
+            },
+        )
+        .into();
+        assert_eq!(diag.kind, DiagnosticKind::EOnRemoved);
+        assert_eq!(diag.severity, Severity::Error);
+        assert!(diag.message.contains("@onXxx"));
     }
 
     #[test]
