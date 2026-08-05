@@ -28,6 +28,7 @@ import { defaultSyntaxProps } from "../../../services/codegen/syntax-nodes";
 import { useFlowScope } from "../../../services/codegen/flow-scope-hook";
 import { collectLetVarsPerFn, findOwnerFnId } from "../../../services/codegen/fn-topology";
 import { CODE_TAGS, TAG_CN } from "./flowConstants";
+import { computeLayeredLayout } from "../../../services/codegen/flow-layout";
 import { NodeSearchMenu } from "./NodeSearchMenu";
 import { CodeBlockEditor } from "./CodeBlockEditor";
 import type { CodeBlockEditorContext } from "./CodeBlockEditor";
@@ -157,6 +158,7 @@ function FlowCanvasInner() {
   const setProp = usePoiesisStore((s) => s.setProp);
   const setElementSource = usePoiesisStore((s) => s.setElementSource);
   const setNodeMeta = usePoiesisStore((s) => s.setNodeMeta);
+  const setElementsAndWires = usePoiesisStore((s) => s.setElementsAndWires);
   // ── Context for CodeBlockEditor WASM analysis ──
   const activeTabId = usePoiesisStore((s) => s.designPage.activeTabId);
   const openTabs = usePoiesisStore((s) => s.designPage.openTabs);
@@ -346,6 +348,29 @@ function FlowCanvasInner() {
     [wires],
   );
 
+  // ── 自动整理布局：computeLayeredLayout 纯函数 → setElementsAndWires 批量写入（一次 undo 条目）──
+  // 节点尺寸优先 RFNode.measured（xyflow v12 渲染后提供），无则走 estimateNodeSize 兜底；
+  // 全部代码节点重排（含手动拖过的），wires 原样透传。
+  // 注意：必须置于 nodes/edges useMemo 之后——依赖数组在渲染期求值，前置引用 codeElements 会 TDZ。
+  const handleAutoLayout = useCallback(() => {
+    if (codeElements.length === 0) return;
+    const nodeById = new Map(nodes.map((nd) => [nd.id, nd]));
+    const sizes = new Map<string, { width: number; height: number }>();
+    for (const el of codeElements) {
+      const n = nodeById.get(el.id);
+      if (n?.measured?.width && n?.measured?.height) {
+        sizes.set(el.id, { width: n.measured.width, height: n.measured.height });
+      }
+    }
+    const layout = computeLayeredLayout(codeElements, wires, sizes);
+    const nextElements = elements.map((e) =>
+      e.nodeType === "codeblock" && CODE_TAGS.has(e.tag) && layout[e.id]
+        ? { ...e, position: { ...layout[e.id] } } as ElementData
+        : e,
+    );
+    setElementsAndWires(nextElements, wires);
+  }, [codeElements, elements, wires, nodes, setElementsAndWires]);
+
   // Preview node — shows the design canvas inside the flow when in codeflow mode
   const previewNode: RFNode | null = useMemo(() => {
     if (!codeFlowElementId) return null;
@@ -418,7 +443,8 @@ function FlowCanvasInner() {
 
   return (
     <div ref={flowWrapperRef} style={{ width: "100%", height: "100%", display: "flex" }}>
-      <div style={{ flex: 1, height: "100%", minWidth: 0 }}>
+      {/* position: relative 作为布局按钮 absolute 定位的锚点（对齐 Controls bottom-right） */}
+      <div style={{ flex: 1, height: "100%", minWidth: 0, position: "relative" }}>
       {allNodes.length === 0 ? (
         <div
           onContextMenu={handlePaneContextMenu}
@@ -478,6 +504,30 @@ function FlowCanvasInner() {
           />
         </ReactFlow>
       )}
+
+      {/* 自动整理布局：一键重排全部代码节点（含手动拖过的），一次 undo 条目；空画布禁用 */}
+      <button
+        type="button"
+        onClick={handleAutoLayout}
+        disabled={codeElements.length === 0}
+        aria-label="自动整理布局"
+        title="自动整理布局（自上而下分层）"
+        style={{
+          position: "absolute",
+          right: 14,
+          bottom: 86, // Controls（bottom-right）上方
+          zIndex: 5,
+          padding: "4px 8px",
+          fontSize: 12,
+          border: "1px solid var(--ol-border)",
+          borderRadius: 6,
+          background: "var(--ol-surface)",
+          cursor: codeElements.length === 0 ? "not-allowed" : "pointer",
+          opacity: codeElements.length === 0 ? 0.5 : 1,
+        }}
+      >
+        ⤢ 整理布局
+      </button>
 
       {/* 搜索菜单：右键 / 空格 / 拖出创建唤出 */}
       {menuState && (
