@@ -78,7 +78,12 @@ fn flutter_callback_for_canonical(canonical: &str) -> String {
         "keyup" => "onKeyUp".into(),
         "longpress" => "onLongPress".into(),
         "dblclick" => "onDoubleTap".into(),
-        "hover" | "mouseenter" => "onHover".into(),
+        "hover" => "onHover".into(),
+        // Task C2b (#3): mouseenter/mouseleave are the enter/exit events of
+        // Flutter's MouseRegion — `onEnter`/`onExit` (the old onHover/onMouseleave
+        // names had no widget param and dropped with a warning).
+        "mouseenter" => "onEnter".into(),
+        "mouseleave" => "onExit".into(),
         "scroll" => "onScroll".into(),
         "drag" | "dragstart" => "onDragStart".into(),
         "dragend" => "onDragEnd".into(),
@@ -361,18 +366,47 @@ pub(crate) fn widget_allows_param(widget: &str, param: &str) -> bool {
     widget_param_whitelist(widget).contains(&param)
 }
 
-/// Task 3.6: tap-family callbacks that NO widget whitelist accepts — on
-/// generic elements (`div` → Container, `span` → Text, ...) these wrap the
-/// rendered element in a `GestureDetector` (whose param name this returns)
-/// instead of being dropped with a warning (flutter HIGH: ThemeSwitcher's
-/// theme cards emitted no tap target at all). The click family
-/// (press/click/tap all canonicalize to `onPressed`) maps to
-/// `GestureDetector.onTap`; long-press/double-tap keep their names.
-pub(crate) fn generic_tap_wrapper_callback(callback: &str) -> Option<&'static str> {
+/// Wrapper widget that carries an event callback the element's own widget
+/// cannot accept — the wrapper is applied around the fully-rendered element
+/// (Task 3.6 tap family; Task C2b #3: pointer enter/exit, focus change,
+/// key events).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum EventWrapperKind {
+    /// `GestureDetector(<param>: ...)` — one callback per gesture.
+    GestureDetector(&'static str),
+    /// `MouseRegion(<param>: ...)` — pointer enter/exit/hover.
+    MouseRegion(&'static str),
+    /// `Focus(onFocusChange: ...)` — onFocus/onBlur merge into ONE closure
+    /// (the bool payload discriminates focus gain vs loss).
+    FocusChange(&'static str),
+    /// `Focus(onKeyEvent: ...)` — keydown/keyup under the Flutter contract
+    /// `KeyEventResult Function(FocusNode, KeyEvent)`.
+    KeyEvent,
+}
+
+/// Task 3.6 + C2b (#3): event callbacks that NO widget whitelist accepts.
+/// On generic elements (`div` → Container, `span` → Text, ...) these wrap
+/// the rendered element in a wrapper widget instead of being dropped with
+/// a warning. The click family (press/click/tap all canonicalize to
+/// `onPressed`) maps to `GestureDetector.onTap`; long-press/double-tap
+/// keep their names; `mouseenter`/`mouseleave`/`hover` map to
+/// `MouseRegion.onEnter/onExit/onHover`; `focus`/`blur` and
+/// `keydown`/`keyup` map to `Focus.onFocusChange`/`onKeyEvent`.
+pub(crate) fn generic_event_wrapper_callback(callback: &str) -> Option<EventWrapperKind> {
     match callback {
-        "onPressed" | "onTap" => Some("onTap"),
-        "onLongPress" => Some("onLongPress"),
-        "onDoubleTap" => Some("onDoubleTap"),
+        // Task 3.6: tap-family (GestureDetector — one callback per gesture).
+        "onPressed" | "onTap" => Some(EventWrapperKind::GestureDetector("onTap")),
+        "onLongPress" => Some(EventWrapperKind::GestureDetector("onLongPress")),
+        "onDoubleTap" => Some(EventWrapperKind::GestureDetector("onDoubleTap")),
+        // Task C2b (#3): mouse enter/exit/hover → MouseRegion.
+        "onEnter" => Some(EventWrapperKind::MouseRegion("onEnter")),
+        "onExit" => Some(EventWrapperKind::MouseRegion("onExit")),
+        "onHover" => Some(EventWrapperKind::MouseRegion("onHover")),
+        // Task C2b (#3): focus/blur → Focus(onFocusChange:) — merged below.
+        "onFocus" => Some(EventWrapperKind::FocusChange("focus")),
+        "onBlur" => Some(EventWrapperKind::FocusChange("blur")),
+        // Task C2b (#3): key events → Focus(onKeyEvent:).
+        "onKeyDown" | "onKeyUp" => Some(EventWrapperKind::KeyEvent),
         _ => None,
     }
 }

@@ -24,9 +24,10 @@ use super::r#ref::{ref_focus_name, ref_key_name, ref_scroll_name, ref_text_name,
 use super::stmt::{generate_statement_flutter, FlutterStmtFormatter};
 use super::utils::{
     bind_value_write_back, binding_to_flutter_param, callback_is_void, convert_literal_prop_value,
-    css_color_to_dart, event_to_flutter_callback, generic_tap_wrapper_callback, icon_name_to_dart,
-    lower_first, prop_to_flutter_param_name, tag_to_flutter_widget, widget_allows_event,
-    widget_allows_param, widget_has_const_constructor, widget_param_rename, widget_param_wrapper,
+    css_color_to_dart, event_to_flutter_callback, generic_event_wrapper_callback,
+    icon_name_to_dart, lower_first, prop_to_flutter_param_name, tag_to_flutter_widget,
+    widget_allows_event, widget_allows_param, widget_has_const_constructor, widget_param_rename,
+    widget_param_wrapper, EventWrapperKind,
 };
 use std::fmt::Write;
 
@@ -1480,38 +1481,83 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
     // have NO whitelisted callback — instead of silently dropping the
     // handler (flutter HIGH: ThemeSwitcher's theme cards emitted no tap
     // target at all), the rendered element wraps in a GestureDetector
-    // carrying the tap callback. `tap_wrap_args` collects those handlers;
-    // the wrapper is applied around the fully-rendered element below.
-    let mut tap_wrap_args: Vec<(String, String)> = Vec::new();
+    // carrying the tap callback. Task C2b (#3) extends the wrapper set:
+    // pointer enter/exit/hover wrap in a `MouseRegion`, focus/blur and
+    // key events wrap in a `Focus`. `wrap_args` collects (wrapper,
+    // [(param, body)]) pairs; the wrappers are applied around the
+    // fully-rendered element below in a deterministic nesting order.
+    let mut wrap_args: Vec<(&'static str, Vec<(String, String)>)> = Vec::new();
+    // onFocus + onBlur on the same element merge into ONE
+    // Focus(onFocusChange:) closure — `(v) { if (v) {...} else {...} }`.
+    let mut focus_change_bodies: Vec<(&'static str, String)> = Vec::new();
+    // Focus(onKeyEvent:) — one callback per element (a second key event
+    // would collide on the single param; warn and drop).
+    let mut key_wrap_body: Option<String> = None;
     for (name, handler) in &el.events {
         let callback_name = event_to_flutter_callback(name);
         let direct_ok = widget_allows_event(widget, &callback_name);
-        let wrapper_cb = if direct_ok {
+        // Image.network's errorBuilder is the Flutter analogue of the DOM
+        // `error` event — a builder that REPLACES the failed image and must
+        // return a Widget. The handler body runs on failure, then a
+        // placeholder keeps the build valid. Checked BEFORE the wrapper
+        // decision: errorBuilder is a direct Image.network constructor arg.
+        if widget == "Image.network" && callback_name == "onError" {
+            match format_error_builder_handler(handler, ctx) {
+                Some(builder) => args.push(format!("errorBuilder: {builder}")),
+                None => ctx.warnings.push(format!(
+                    "[flutter] event '{name}' → callback '{callback_name}' is not supported on '{widget}'; skipped"
+                )),
+            }
+            continue;
+        }
+        let wrapper = if direct_ok {
             None
         } else {
-            generic_tap_wrapper_callback(&callback_name)
+            generic_event_wrapper_callback(&callback_name)
         };
-        if !direct_ok && wrapper_cb.is_none() {
+        if !direct_ok && wrapper.is_none() {
             ctx.warnings.push(format!(
                 "[flutter] event '{name}' → callback '{callback_name}' is not supported on '{widget}'; skipped"
             ));
             continue;
         }
-        if let Some(cb) = wrapper_cb {
-            // A GestureDetector carries ONE callback per gesture — a second
-            // tap-family event on the same element would collide on the
-            // wrapper; warn and drop it (never emit duplicate onTap params).
-            if tap_wrap_args.iter().any(|(c, _)| c == cb) {
+        // Focus.onKeyEvent takes `KeyEventResult Function(FocusNode,
+        // KeyEvent)` — a param-bearing fn ref cannot satisfy the signature
+        // AND its `e.key`-style accesses cannot read a raw KeyEvent — honest
+        // degradation (C2b #3).
+        let key_event = matches!(wrapper, Some(EventWrapperKind::KeyEvent));
+        if key_event {
+            if let EventHandlerIR::FnRef { r#ref, .. } = handler {
+                if !ctx.widget_names.contains(r#ref) && ctx.ref_takes_params(r#ref) {
+                    ctx.warnings.push(format!(
+                        "[flutter] event '{name}' → callback '{callback_name}' is a Flutter \
+                         key-event callback (Focus.onKeyEvent takes (FocusNode, KeyEvent) and \
+                         returns KeyEventResult); param-bearing handler '{ref}' — dropped",
+                        ref = r#ref
+                    ));
+                    continue;
+                }
+            }
+        }
+        // FocusChange bodies are STATEMENTS — the merged closure's bool `v`
+        // discriminates focus gain vs loss; a closure body would never run.
+        if let Some(EventWrapperKind::FocusChange(which)) = wrapper {
+            let Some(stmts) = format_focus_change_body(handler, ctx) else {
                 ctx.warnings.push(format!(
-                    "[flutter] event '{name}' → callback '{callback_name}' collides with the tap wrapper ('{cb}') on '{widget}'; skipped"
+                    "[flutter] event '{name}' → callback '{callback_name}' is not supported on '{widget}'; skipped"
                 ));
                 continue;
-            }
+            };
+            focus_change_bodies.push((which, stmts));
+            continue;
         }
         // VoidCallback-family params (onPressed/onLongPress/...) receive NO
         // event argument in Flutter — the closure must be parameterless or
         // the generated Dart fails to compile (argument_type_not_assignable).
         let is_void = callback_is_void(&callback_name);
+        // Key-event callbacks receive the raw KeyEvent — the field-extraction
+        // machinery names it `event` (Focus.onKeyEvent's second param).
+        let raw_var = if key_event { "event" } else { "e" };
         let body: Option<String> = match handler {
             EventHandlerIR::FnRef { r#ref, .. } => {
                 // Task 5.8: pass the handler by TEAR-OFF — `onChanged:
@@ -1535,7 +1581,16 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                     );
                 }
                 if ctx.widget_names.contains(r#ref) {
-                    Some(format!("widget.{}", r#ref))
+                    if key_event {
+                        // A tear-off cannot satisfy (FocusNode, KeyEvent) →
+                        // KeyEventResult — wrap it in a call.
+                        Some(format!(
+                            "(node, event) {{ widget.{}(); return KeyEventResult.ignored; }}",
+                            r#ref
+                        ))
+                    } else {
+                        Some(format!("widget.{}", r#ref))
+                    }
                 } else {
                     let renamed = ctx
                         .fn_renames
@@ -1561,8 +1616,16 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                     } else if !is_void && zero_param {
                         // A 0-arg fn tear-off is not assignable to the
                         // payload-bearing callback types (`ValueChanged<String>`)
-                        // — accept the event param and ignore it.
-                        Some(format!("(event) {{ {renamed}(); }}"))
+                        // — accept the event param and ignore it. Key events
+                        // additionally need the (node, event) signature and a
+                        // KeyEventResult return (C2b #3).
+                        Some(if key_event {
+                            format!(
+                                "(node, event) {{ {renamed}(); return KeyEventResult.ignored; }}"
+                            )
+                        } else {
+                            format!("(event) {{ {renamed}(); }}")
+                        })
                     } else {
                         Some(renamed.to_string())
                     }
@@ -1575,7 +1638,7 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                     let _event_obj = emit_event_object_flutter(
                         handler.event_data(),
                         handler.used_fields(),
-                        "e",
+                        raw_var,
                         ctx.warnings,
                     );
                     let fields: Vec<String> = match handler.used_fields() {
@@ -1583,15 +1646,22 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                         _ => vec![],
                     };
                     let mut hw = CodeWriter::new();
-                    hw.emit("(e) {");
+                    // Key events (C2b #3) run under the Focus.onKeyEvent
+                    // signature `(FocusNode, KeyEvent) → KeyEventResult`.
+                    hw.emit(if key_event {
+                        "(node, event) {"
+                    } else {
+                        "(e) {"
+                    });
                     hw.indent();
                     // Emit individual field extractions as local variables
-                    // This shadows e.field references in the body with extracted values
+                    // This shadows raw_var.field references in the body with
+                    // extracted values
                     for field in &fields {
                         let extract = field_extract_flutter(
                             handler.event_data().as_ref().unwrap(),
                             field,
-                            "e",
+                            raw_var,
                             ctx.warnings,
                         );
                         hw.emit_fmt(format_args!("final {} = {};", field, extract));
@@ -1608,11 +1678,15 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                         let s1 = watch_to_read_stmt(&s1);
                         let s2 = rewrite_stmt_widget_refs(&s1, ctx.widget_names, ctx.fn_renames);
                         // Use custom formatter with event_param_name set
-                        // so FieldAccess on "e" emits bare field name (local final binding)
+                        // so FieldAccess on the raw var emits bare field name
+                        // (local final binding)
                         let fmt = FlutterStmtFormatter {
-                            expr: super::r#ref::FlutterFormatExpr::new(Some("e".to_string())),
+                            expr: super::r#ref::FlutterFormatExpr::new(Some(raw_var.to_string())),
                         };
                         fmt.format_stmt(&mut hw, &s2);
+                    }
+                    if key_event {
+                        hw.emit("return KeyEventResult.ignored;");
                     }
                     hw.dedent();
                     hw.emit("}");
@@ -1632,16 +1706,89 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                             "the handler",
                         );
                     }
-                    Some(format_inline_handler_flutter(body, ctx))
+                    if key_event {
+                        Some(format_key_handler_flutter(body, ctx))
+                    } else {
+                        Some(format_inline_handler_flutter(body, ctx))
+                    }
                 }
             }
-            EventHandlerIR::StoreAction { r#ref, .. } => Some(format_store_action_handler(r#ref)),
+            EventHandlerIR::StoreAction { r#ref, .. } => {
+                let base = format_store_action_handler(r#ref);
+                if key_event {
+                    // `() { X(); }` → `(node, event) { X(); return
+                    // KeyEventResult.ignored; }`
+                    Some(format!(
+                        "(node, event) {{ {} return KeyEventResult.ignored; }}",
+                        base.trim_end_matches('}').trim_start_matches("() {")
+                    ))
+                } else {
+                    Some(base)
+                }
+            }
         };
         let Some(body) = body else { continue };
-        match wrapper_cb {
-            Some(cb) => tap_wrap_args.push((cb.to_string(), body)),
+        match wrapper {
+            Some(EventWrapperKind::GestureDetector(cb)) => {
+                // A GestureDetector carries ONE callback per gesture — a
+                // second tap-family event on the same element would collide
+                // on the wrapper; warn and drop it (never emit duplicate
+                // onTap params).
+                if wrap_args
+                    .iter()
+                    .any(|(w, ms)| *w == "GestureDetector" && ms.iter().any(|(p, _)| p == cb))
+                {
+                    ctx.warnings.push(format!(
+                        "[flutter] event '{name}' → callback '{callback_name}' collides with the tap wrapper ('{cb}') on '{widget}'; skipped"
+                    ));
+                    continue;
+                }
+                wrap_push(&mut wrap_args, "GestureDetector", cb, &body);
+            }
+            Some(EventWrapperKind::MouseRegion(param)) => {
+                wrap_push(&mut wrap_args, "MouseRegion", param, &body);
+            }
+            Some(EventWrapperKind::FocusChange(_)) => {
+                // handled above — bodies must be statements, not closures
+                unreachable!("FocusChange bodies are formatted before the generic path")
+            }
+            Some(EventWrapperKind::KeyEvent) => {
+                if key_wrap_body.is_some() {
+                    ctx.warnings.push(format!(
+                        "[flutter] event '{name}' → callback '{callback_name}' collides with the key wrapper ('onKeyEvent') on '{widget}'; skipped"
+                    ));
+                    continue;
+                }
+                key_wrap_body = Some(body);
+            }
             None => args.push(format!("{}: {}", callback_name, body)),
         }
+    }
+    // Merge onFocus + onBlur into the single Focus(onFocusChange:) closure —
+    // the bool `v` is true on focus gain, false on blur. Deterministic
+    // focus-first order (FxHashMap event iteration is not).
+    if !focus_change_bodies.is_empty() {
+        focus_change_bodies.sort_by_key(|(k, _)| if *k == "focus" { 0 } else { 1 });
+        let inner = focus_change_bodies
+            .iter()
+            .map(|(which, stmts)| {
+                if *which == "focus" {
+                    format!("if (v) {{ {stmts} }}")
+                } else {
+                    format!("else {{ {stmts} }}")
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(" ");
+        wrap_push(
+            &mut wrap_args,
+            "Focus",
+            "onFocusChange",
+            &format!("(v) {{ {inner} }}"),
+        );
+    }
+    if let Some(body) = key_wrap_body {
+        wrap_push(&mut wrap_args, "Focus", "onKeyEvent", &body);
     }
 
     // Bindings (C6: per-widget whitelist)
@@ -2155,20 +2302,135 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
         inner
     };
 
-    // Task 3.6: tap-family callbacks on generic elements wrap the FULLY
+    // Task 3.6 / C2b (#3): wrapper callbacks (GestureDetector tap family,
+    // MouseRegion enter/exit/hover, Focus focus/key) wrap the FULLY
     // rendered element (design decoration / a11y / motion wrappers
-    // included) so the tap target covers the whole visual element.
-    let result = if tap_wrap_args.is_empty() {
+    // included) so the interaction target covers the whole visual element.
+    // Nesting order is deterministic — FxHashMap event iteration is not.
+    let result = if wrap_args.is_empty() {
         result
     } else {
+        const WRAP_ORDER: [&str; 4] = ["Tooltip", "Focus", "MouseRegion", "GestureDetector"];
+        let mut sorted: Vec<_> = wrap_args.into_iter().collect();
+        sorted.sort_by_key(|(w, _)| {
+            WRAP_ORDER
+                .iter()
+                .position(|o| o == w)
+                .unwrap_or(WRAP_ORDER.len())
+        });
         let mut wrapped = result;
-        for (cb, body) in tap_wrap_args {
-            wrapped = format!("GestureDetector({}: {}, child: {})", cb, body, wrapped);
+        for (wrapper, mut members) in sorted {
+            members.sort(); // deterministic param order within a wrapper
+            let member_args = members
+                .iter()
+                .map(|(p, b)| format!("{p}: {b}"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            wrapped = format!("{wrapper}({member_args}, child: {wrapped})");
         }
         wrapped
     };
 
     result
+}
+
+/// Append `(param, body)` to a wrapper's member list, creating the wrapper
+/// entry on first use (the wrapper is applied around the fully-rendered
+/// element by the caller).
+fn wrap_push(
+    wrap_args: &mut Vec<(&'static str, Vec<(String, String)>)>,
+    wrapper: &'static str,
+    param: &str,
+    body: &str,
+) {
+    match wrap_args.iter_mut().find(|(w, _)| *w == wrapper) {
+        Some((_, members)) => members.push((param.to_string(), body.to_string())),
+        None => wrap_args.push((wrapper, vec![(param.to_string(), body.to_string())])),
+    }
+}
+
+/// Statement body for the merged Focus(onFocusChange:) closure — the bool
+/// `v` discriminates focus gain vs blur loss, so the handler must be a
+/// CALL (or inline statements), never a closure (which would never run).
+/// Returns None for shapes that cannot wire honestly (param-bearing fns).
+fn format_focus_change_body(handler: &EventHandlerIR, ctx: &ViewContext) -> Option<String> {
+    match handler {
+        EventHandlerIR::FnRef { r#ref, .. } => {
+            if ctx.widget_names.contains(r#ref) {
+                Some(format!("widget.{}();", r#ref))
+            } else {
+                let renamed = ctx
+                    .fn_renames
+                    .get(r#ref)
+                    .cloned()
+                    .unwrap_or_else(|| r#ref.clone());
+                if ctx.ref_is_zero_param_fn(r#ref) {
+                    Some(format!("{renamed}();"))
+                } else {
+                    // The bool payload cannot satisfy a param-bearing
+                    // handler — honest degradation.
+                    None
+                }
+            }
+        }
+        EventHandlerIR::InlineFn { body, .. } => Some(format_inline_statements_flutter(body, ctx)),
+        EventHandlerIR::StoreAction { r#ref, .. } => Some(format_store_action_handler(r#ref)),
+    }
+}
+
+/// The Image.network errorBuilder closure: `(context, error, stackTrace) {
+/// <handler>; return const SizedBox.shrink(); }` — the builder replaces the
+/// failed image and MUST return a Widget, so the handler body is followed
+/// by a placeholder. Returns None for unwireable handler shapes.
+fn format_error_builder_handler(handler: &EventHandlerIR, ctx: &ViewContext) -> Option<String> {
+    let stmts = match handler {
+        EventHandlerIR::FnRef { r#ref, .. } => {
+            if ctx.widget_names.contains(r#ref) {
+                format!("widget.{}();", r#ref)
+            } else {
+                let renamed = ctx
+                    .fn_renames
+                    .get(r#ref)
+                    .cloned()
+                    .unwrap_or_else(|| r#ref.clone());
+                if ctx.ref_is_zero_param_fn(r#ref) {
+                    format!("{renamed}();")
+                } else {
+                    return None;
+                }
+            }
+        }
+        EventHandlerIR::InlineFn { body, .. } => format_inline_statements_flutter(body, ctx),
+        EventHandlerIR::StoreAction { r#ref, .. } => format_store_action_handler(r#ref),
+    };
+    Some(format!(
+        "(context, error, stackTrace) {{ {stmts} return const SizedBox.shrink(); }}"
+    ))
+}
+
+/// The Focus.onKeyEvent closure: `(node, event) { <stmts>; return
+/// KeyEventResult.ignored; }` — `KeyEventResult.ignored` lets the event
+/// continue to other key handlers (the DOM default).
+fn format_key_handler_flutter(body: &BlockIR, ctx: &ViewContext) -> String {
+    if body.statements.is_empty() {
+        return "(node, event) { return KeyEventResult.ignored; }".to_string();
+    }
+    let mut hw = CodeWriter::new();
+    hw.emit("(node, event) {");
+    hw.indent();
+    for stmt in &body.statements {
+        let s1 = rewrite_stmt_store_accesses(stmt, ctx.store_provider_map, ctx.ir);
+        let s1 = watch_to_read_stmt(&s1);
+        let s2 = rewrite_stmt_widget_refs(&s1, ctx.widget_names, ctx.fn_renames);
+        let fmt = FlutterStmtFormatter {
+            expr: super::r#ref::FlutterFormatExpr::new(None),
+        };
+        fmt.format_stmt(&mut hw, &s2);
+    }
+    hw.emit("return KeyEventResult.ignored;");
+    hw.dedent();
+    hw.emit("}");
+    hw.into_string().trim().to_string()
 }
 
 /// Format a ConditionalIntent as a Dart ternary expression wrapped in Builder
@@ -2464,6 +2726,27 @@ fn format_list_rendering(
 // ═══════════════════════════════════════════════════════════════
 // Inline event handler formatting
 // ═══════════════════════════════════════════════════════════════
+
+/// Format an inline handler's STATEMENTS without the closure wrapper —
+/// used by handlers that run inside a shared closure (C2b #3:
+/// Focus.onFocusChange merges focus/blur into one `(v)` closure, and
+/// Image.network's errorBuilder must return a Widget).
+fn format_inline_statements_flutter(body: &BlockIR, ctx: &ViewContext) -> String {
+    if body.statements.is_empty() {
+        return String::new();
+    }
+    let mut hw = CodeWriter::new();
+    for stmt in &body.statements {
+        let s1 = rewrite_stmt_store_accesses(stmt, ctx.store_provider_map, ctx.ir);
+        let s1 = watch_to_read_stmt(&s1);
+        let s2 = rewrite_stmt_widget_refs(&s1, ctx.widget_names, ctx.fn_renames);
+        let fmt = FlutterStmtFormatter {
+            expr: super::r#ref::FlutterFormatExpr::new(None),
+        };
+        fmt.format_stmt(&mut hw, &s2);
+    }
+    hw.into_string().trim().to_string()
+}
 
 /// Build an inline callback string from a BlockIR for Flutter event handlers.
 /// Store accesses in the body are rewritten to Riverpod provider reads (C4).

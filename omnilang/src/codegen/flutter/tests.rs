@@ -4354,6 +4354,180 @@ fn compile_flutter_full(source: &str) -> crate::InternalCompileResult {
 /// the handler (ThemeSwitcher's theme cards emitted no tap target at all),
 /// the rendered element must wrap in an InkWell/GestureDetector.
 #[test]
+/// Task C2b (#3): `@onMouseEnter`/`@onMouseLeave` on a generic element
+/// (Container) wrap in a `MouseRegion(onEnter:/onExit:)` — the DOM
+/// mouseenter/mouseleave analogue — instead of dropping with a warning.
+#[test]
+fn mouse_enter_leave_wraps_in_mouse_region() {
+    let flutter = compile_flutter(
+        r#"
+component HoverDemo {
+    signal hovering: bool = false;
+    fn enter() { hovering = true; }
+    fn exit() { hovering = false; }
+    view {
+        <div @onMouseEnter={enter} @onMouseLeave={exit}>x</div>
+    }
+}
+"#,
+    )
+    .expect("compile must succeed");
+    let out: String = flutter
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        out.contains("MouseRegion(onEnter: (event) { enter(); }, onExit: (event) { exit(); }"),
+        "mouseenter/mouseleave must wrap in MouseRegion(onEnter/onExit), got:\n{out}"
+    );
+    assert!(
+        !flutter
+            .warnings
+            .iter()
+            .any(|w| w.message.contains("'onHover'") || w.message.contains("'onMouseleave'")),
+        "the mouse enter/leave events must no longer be dropped: {:?}",
+        flutter.warnings
+    );
+}
+
+/// Task C2b (#3): `@onFocus`/`@onBlur` on a TextField merge into ONE
+/// `Focus(onFocusChange:)` closure — the bool payload discriminates focus
+/// gain vs loss.
+#[test]
+fn focus_blur_wraps_in_focus_on_focus_change() {
+    let flutter = compile_flutter(
+        r#"
+component FocusDemo {
+    fn focus() { }
+    fn blur() { }
+    view {
+        <input placeholder="x" @onFocus={focus} @onBlur={blur}></input>
+    }
+}
+"#,
+    )
+    .expect("compile must succeed");
+    let out: String = flutter
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        out.contains("Focus(onFocusChange: (v) { if (v) { focus(); } else { blur(); } }, child:"),
+        "focus/blur must merge into one Focus(onFocusChange:), got:\n{out}"
+    );
+    assert!(
+        !flutter
+            .warnings
+            .iter()
+            .any(|w| w.message.contains("'onFocus'") || w.message.contains("'onBlur'")),
+        "the focus/blur events must no longer be dropped: {:?}",
+        flutter.warnings
+    );
+}
+
+/// Task C2b (#3): `@onKeyUp`/`@onKeyDown` with a zero-field handler wrap in
+/// `Focus(onKeyEvent:)` under the Flutter contract `KeyEventResult
+/// Function(FocusNode, KeyEvent)` — the closure returns
+/// `KeyEventResult.ignored` so the event keeps propagating.
+#[test]
+fn key_event_wraps_in_focus_on_key_event() {
+    let flutter = compile_flutter(
+        r#"
+component KeyDemo {
+    signal count: i32 = 0;
+    view {
+        <div @onKeyUp={count = count + 1}>x</div>
+    }
+}
+"#,
+    )
+    .expect("compile must succeed");
+    let out: String = flutter
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        out.contains("Focus(onKeyEvent: (node, event) {")
+            && out.contains("return KeyEventResult.ignored;"),
+        "key events must wrap in Focus(onKeyEvent:) with the KeyEventResult return, got:\n{out}"
+    );
+    assert!(
+        !flutter
+            .warnings
+            .iter()
+            .any(|w| w.message.contains("'onKeyUp'")),
+        "the key event must no longer be dropped: {:?}",
+        flutter.warnings
+    );
+}
+
+/// Task C2b (#3): a param-bearing key handler (its `e.key`-style accesses
+/// cannot read a raw KeyEvent) keeps its honest degradation warning.
+#[test]
+fn param_bearing_key_handler_stays_honest() {
+    let flutter = compile_flutter_full(
+        r#"
+component KeyDemo2 {
+    fn handleKey(e) { }
+    view {
+        <div @onKeyDown={handleKey}>x</div>
+    }
+}
+"#,
+    );
+    assert!(
+        flutter
+            .warnings
+            .iter()
+            .any(|w| w.message.contains("param-bearing handler 'handleKey'")),
+        "the param-bearing key handler must warn, got: {:?}",
+        flutter.warnings
+    );
+}
+
+/// Task C2b (#3): Image.network's `@onError` maps to the `errorBuilder`
+/// builder — the handler fires on load failure, then a placeholder keeps
+/// the widget tree valid (errorBuilder must return a Widget).
+#[test]
+fn image_on_error_maps_to_error_builder() {
+    let flutter = compile_flutter(
+        r#"
+component ImgDemo {
+    signal err: bool = false;
+    view {
+        <img src="https://example.com/x.png" @onError={err = true} alt="x" />
+    }
+}
+"#,
+    )
+    .expect("compile must succeed");
+    let out: String = flutter
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        out.contains("errorBuilder: (context, error, stackTrace) {")
+            && out.contains("return const SizedBox.shrink();"),
+        "img @onError must map to errorBuilder, got:\n{out}"
+    );
+    assert!(
+        !flutter
+            .warnings
+            .iter()
+            .any(|w| w.message.contains("'onError'")),
+        "the error event must no longer be dropped: {:?}",
+        flutter.warnings
+    );
+}
+
 fn generic_element_on_press_gets_tappable_wrapper() {
     let flutter = compile_flutter(
         r#"
