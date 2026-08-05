@@ -59,7 +59,6 @@ export function FlowEdge({ id, source, target, data, style, markerEnd }: FlowEdg
     let ro: ResizeObserver | null = null;
     let mo: MutationObserver | null = null;
     const fromPort = data?.fromPort ?? "flow-out";
-    const toPort = data?.toPort ?? "flow-in";
     const measure = () => {
       const srcEl = document.querySelector(`[data-id="${source}"]`);
       const tgtEl = document.querySelector(`[data-id="${target}"]`);
