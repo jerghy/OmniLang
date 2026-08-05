@@ -187,6 +187,32 @@ describe("NodeFormulaField 草稿提交与候选菜单", () => {
     fireEvent.compositionEnd(el, { target: { textContent: "中" } });
   });
 
+  it("IME 组合结束保留组合文本外的既有字符（真实浏览器 DOM 已上屏，不整树覆盖）", () => {
+    // RED（Task 12 E2E）：onCompositionEnd 里 `textContent = e.data` 整树覆盖，
+    // 吞掉组合文本前的既有字符（字符串左引号）——"你好" 变 "你好"，字面量残缺。
+    // 真实浏览器 compositionend 时 DOM 已自动上屏为 前置字符+组合结果，无需手动覆盖。
+    const { el } = setup();
+    fireEvent.input(el, { target: { textContent: '"' } }); // 左引号
+    fireEvent.compositionStart(el);
+    fireEvent.input(el, { target: { textContent: '"nihao' } }); // 组合期拼音
+    // 组合结束：浏览器 DOM 已是 '"你好'（前置引号保留）
+    fireEvent.compositionEnd(el, { target: { textContent: '"你好' }, data: "你好" });
+    expect(el.textContent).toBe('"你好');
+  });
+
+  it("string token 渲染保留引号（textContent 与 draft 双向一致，编辑不丢引号）", () => {
+    // RED（Task 12 E2E）：渲染用 t.text（Task 7 契约 text 不含引号）→ string token 剥引号
+    // → textContent ≠ draft → 后续编辑读 textContent 丢引号（"你好" + 变 你好+）。
+    // 与 TokenPreview 对齐：渲染统一取 draft.slice(t.start, t.end) 原文（含引号）。
+    const { container, el } = setup();
+    fireEvent.input(el, { target: { textContent: '"你好"' } });
+    const str = container.querySelector('[data-token-kind="string"]');
+    expect(str?.textContent).toBe('"你好"');
+    // 渲染后继续编辑：textContent 含引号 → draft 不丢
+    fireEvent.input(el, { target: { textContent: '"你好" +' } });
+    expect(el.textContent).toBe('"你好" +');
+  });
+
   it("运算符候选选择不重复前缀（replaceToken 替换 token）", () => {
     const { el } = setup();
     fireEvent.input(el, { target: { textContent: "count <" } });

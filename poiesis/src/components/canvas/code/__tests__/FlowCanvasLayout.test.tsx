@@ -23,6 +23,7 @@ const { mockStore } = vi.hoisted(() => ({
     elements: [
       { id: "fn-1", nodeType: "codeblock", tag: "fn", parentId: null, props: { name: "f", params: "", returnType: "void" }, source: "", position: { x: 0, y: 0 } },
       { id: "a-2", nodeType: "codeblock", tag: "assign", parentId: null, props: { target: "n", operator: "=", value: "1" }, source: "n = 1;", position: { x: 300, y: 200 } },
+      { id: "v-3", nodeType: "view", tag: "div", parentId: null, props: {}, source: "", children: [] },
     ],
     wires: [{ id: "w1", fromId: "fn-1", fromPort: "flow-out", toId: "a-2", toPort: "flow-in" }],
     setElementsAndWires: vi.fn(),
@@ -58,13 +59,25 @@ describe("FlowCanvas 自动整理布局", () => {
     fireEvent.click(screen.getByLabelText("自动整理布局"));
     expect(setElementsAndWires).toHaveBeenCalledTimes(1);
     const [elements, wires] = setElementsAndWires.mock.calls[0] as [unknown[], unknown[]];
-    expect(elements).toHaveLength(2);
+    // 3 个元素 = 2 codeblock + 1 view（布局写回必须保留 view 设计树，修复后行为）
+    expect(elements).toHaveLength(3);
     expect(wires).toHaveLength(1);
     // 重排后 fn 在前、位置有序（y 递增）
     const fnEl = (elements as Array<{ id: string; position: { y: number } }>).find((e) => e.id === "fn-1")!;
     const aEl = (elements as Array<{ id: string; position: { y: number } }>).find((e) => e.id === "a-2")!;
     expect(fnEl.position.y).toBeLessThan(aEl.position.y);
   });
+  it("布局不丢非 codeblock 元素（view 树保留——Task 12 E2E 实测缺陷）", () => {
+    // RED：handleAutoLayout 用 useCodeElements（仅 codeblock）map 后全量 setElementsAndWires，
+    // view 元素（设计树 div/p）被覆盖删除——组件 view 块整体丢失（保存报 E0006）。
+    const { setElementsAndWires } = setup();
+    fireEvent.click(screen.getByLabelText("自动整理布局"));
+    const [elements] = setElementsAndWires.mock.calls[0] as [unknown[], unknown[]];
+    expect(elements).toHaveLength(3);
+    const viewEl = (elements as Array<{ id: string }>).find((e) => e.id === "v-3");
+    expect(viewEl).toBeTruthy();
+  });
+
   it("空画布布局按钮禁用", () => {
     setup({ elements: [], wires: [] });
     expect((screen.getByLabelText("自动整理布局") as HTMLButtonElement).disabled).toBe(true);

@@ -173,6 +173,52 @@ describe("analyzeWires", () => {
     expect(result.unwiredProps).toHaveLength(0);
   });
 
+  it("should collect store refs from codeblock syntax props (loop/assign expressions)", () => {
+    // RED（Task 12 E2E 缺陷）：for-in iterable/assign value 等语法节点 props 里的
+    // "Store.信号" 引用未进 storeRefs → 生成的 .omni 缺 import → WASM 门禁拦截保存。
+    const elements: ElementData[] = [
+      {
+        id: "for-1",
+        nodeType: "codeblock",
+        tag: "for-in",
+        props: { varName: "item", iterable: "TodoStore.items" },
+        parentId: null,
+        source: "",
+      },
+      {
+        id: "assign-1",
+        nodeType: "codeblock",
+        tag: "assign",
+        props: { target: "total", operator: "+=", value: "TodoStore.items.length + 1" },
+        parentId: null,
+        source: "",
+      },
+    ];
+
+    const result = analyzeWires(elements, [], ["TodoStore"]);
+
+    expect(result.storeRefs.has("TodoStore")).toBe(true);
+  });
+
+  it("should not collect unknown PascalCase refs as store refs", () => {
+    // 误报防护：非 store 名单内的 PascalCase.成员（如内置函数命名空间）不收集，
+    // 否则 collectImports 会生成指向不存在 store 文件的 import。
+    const elements: ElementData[] = [
+      {
+        id: "assign-1",
+        nodeType: "codeblock",
+        tag: "assign",
+        props: { target: "total", operator: "=", value: "Math.random()" },
+        parentId: null,
+        source: "",
+      },
+    ];
+
+    const result = analyzeWires(elements, [], ["TodoStore"]);
+
+    expect(result.storeRefs.has("Math")).toBe(false);
+  });
+
   it("should ignore wires referencing non-existent elements", () => {
     const elements: ElementData[] = [
       {

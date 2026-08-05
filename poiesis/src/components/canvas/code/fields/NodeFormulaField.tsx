@@ -107,7 +107,10 @@ export function NodeFormulaField({ value, onCommit, candidates, placeholder, ari
     let pos = 0;
     for (const t of tokens) {
       if (t.start > pos) out += escapeHtml(draft.slice(pos, t.start));
-      out += `<span data-token-kind="${t.kind}" class="${BLOCK_DELETE_KINDS.has(t.kind) ? styles.tokenCapsule : styles.tokenPlain}">${escapeHtml(t.text)}</span>`;
+      // 渲染取 draft.slice(t.start, t.end) 原文（与 TokenPreview 同契约）：string token 的
+      // text 不含引号，若渲染 t.text 则 DOM textContent 与 draft 不一致，后续编辑读
+      // textContent 会丢引号（Task 12 E2E 实测：`"你好" +` 变 `你好+`）。
+      out += `<span data-token-kind="${t.kind}" class="${BLOCK_DELETE_KINDS.has(t.kind) ? styles.tokenCapsule : styles.tokenPlain}">${escapeHtml(draft.slice(t.start, t.end))}</span>`;
       pos = t.end;
     }
     if (pos < draft.length) out += escapeHtml(draft.slice(pos));
@@ -267,8 +270,10 @@ export function NodeFormulaField({ value, onCommit, candidates, placeholder, ari
         onCompositionEnd={(e: CompositionEvent<HTMLDivElement>) => {
           composingRef.current = false;
           setComposing(false);
-          // 组合结束：DOM 文本与组合结果对齐（jsdom 的 CompositionEvent data 为空串，跳过以免清空）
-          if (e.data) { editRef.current!.textContent = e.data; }
+          // 组合结束：不整树覆盖 textContent（真实浏览器 compositionend 时 DOM 已上屏
+          // 组合结果，前置字符保留；手动 `textContent = e.data` 会吞掉组合文本外的
+          // 既有字符，如字符串左引号——Task 12 E2E 实测缺陷）。
+          // jsdom 无真实上屏，但测试经 fireEvent 设置 target.textContent 模拟 DOM 已更新。
           onInput();
         }}
         onInput={onInput}

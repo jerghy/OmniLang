@@ -23,6 +23,11 @@ export interface GenerateOmniSourceOptions {
   designName?: string;
   /** Inline store definitions to emit inside the component body. */
   inlineStores?: StoreDefinition[];
+  /**
+   * 已知 store 名（src/stores/*.omni）：语法节点 props/source 里的 "Store.信号"
+   * 引用据此收集进 storeRefs → 生成 import（否则 WASM 门禁 Undeclared variable 拦截保存）。
+   */
+  knownStores?: string[];
 }
 
 /**
@@ -40,6 +45,8 @@ export interface GenerateOmniFilesOptions {
   designName?: string;
   /** Inline store definitions to emit inside the component body. */
   inlineStores?: StoreDefinition[];
+  /** 已知 store 名（src/stores/*.omni），见 GenerateOmniSourceOptions。 */
+  knownStores?: string[];
 }
 
 /**

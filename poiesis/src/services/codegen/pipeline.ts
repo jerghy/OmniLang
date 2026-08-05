@@ -28,7 +28,7 @@ import type {
   LoweredCode,
 } from "./types";
 import type { StoreDefinition } from "../../core/types/store";
-import type { GenerateOmniSourceOptions } from "./pipeline-types";
+import type { GenerateOmniFilesOptions, GenerateOmniSourceOptions } from "./pipeline-types";
 // import { parseStylesFromAST } from "./style-parser";
 import type { PhaseAContext, PhaseBContext, PhaseCContext, StyleCollection } from "./component-builder";
 import { buildComponentPart, buildComponentMeta, computeViewWrapperId } from "./component-builder";
@@ -115,7 +115,7 @@ function runPhaseA(
   // (No filtering of registry components — expansion no longer substitutes for imports.)
 
   const a2 = runPhase("A", "wire-analyzer", () =>
-    analyzeWires(options.designElements, options.designWires),
+    analyzeWires(options.designElements, options.designWires, options.knownStores),
   );
   errors.push(...a2.errors);
   const bindings = a2.value ?? defaultBindingResult();
@@ -372,17 +372,9 @@ export function generateOmniSource(options: GenerateOmniSourceOptions): StageRes
  *   - src/stores/<Name>.omni      — each store as a standalone file
  *   - src/components/<Name>.omni  — each custom component (future)
  */
-export function generateOmniFiles(options: {
-  designElements: ElementData[];
-  designWires: WireData[];
-  codeTabs: CodeTab[];
-  componentName: string;
-  rootOrder?: string[];
+export function generateOmniFiles(options: GenerateOmniFilesOptions & {
   /** Target file path relative to project root (e.g. "src/components/MyCard.omni"). Default: "src/main.omni". */
   filePath?: string;
-  designName?: string;
-  /** Inline store definitions to emit inside the component body. */
-  inlineStores?: StoreDefinition[];
 }): StageResult<Record<string, string>> {
   // Run the full pipeline for the main source
   const mainResult = generateOmniSource(options);

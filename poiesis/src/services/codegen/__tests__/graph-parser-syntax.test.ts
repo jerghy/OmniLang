@@ -181,6 +181,33 @@ describe("graph-parser 循环段", () => {
     expect(r!.props.varName).toBe("item");
     expect(r!.props.iterable).toBe("items");
   });
+  it("member 引用经 tokenizer 空格化（TodoStore . items）后归一化（round-trip 保存不退化）", () => {
+    // RED（Task 12 E2E）：磁盘 `for item in TodoStore.items {` 经 omni tokenizer 重读后
+    // 变成 "TodoStore . items"（点周围空格），parseSyntaxProps 原样保留 → 再保存写回
+    // 带空格表达式（round-trip 退化，WASM 可能拒绝）。
+    const r = parseProps(`fn f() {
+  // @pid:fi-1
+  for item in TodoStore . items {
+    // @pid:b-2
+    total = total + item;
+  }
+}`);
+    expect(r!.tag).toBe("for-in");
+    expect(r!.props.iterable).toBe("TodoStore.items");
+  });
+
+  it("字符串字面量内的点空格不受归一化影响", () => {
+    const r = parseProps(`fn f() {
+  // @pid:w-1
+  while label == "a . b" {
+    // @pid:b-2
+    x = 1;
+  }
+}`);
+    expect(r!.tag).toBe("while");
+    expect(r!.props.condition).toBe('label == "a . b"');
+  });
+
   it("C 风格括号循环（`for (…`) 保持 code-block（防御性，非 OmniLang 语法）", () => {
     const g = parseCodeFlowGraph(`fn f() {
   // @pid:c-1

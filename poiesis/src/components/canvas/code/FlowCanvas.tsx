@@ -52,6 +52,9 @@ const nodeTypes = {
 
 function FlowCanvasInner() {
   const elements = useCodeElements();
+  // 完整元素（含 view 设计树）：布局写回必须基于全量（useCodeElements 仅 codeblock——
+  // 见 handleAutoLayout 注释，Task 12 E2E CRITICAL）。
+  const allElements = usePoiesisStore((s) => s.elements);
   const wires = useWires();
   const addElement = usePoiesisStore((s) => s.addElement);
   const addWire = usePoiesisStore((s) => s.addWire);
@@ -363,13 +366,16 @@ function FlowCanvasInner() {
       }
     }
     const layout = computeLayeredLayout(codeElements, wires, sizes);
-    const nextElements = elements.map((e) =>
+    // 必须以「完整 elements」（含 view 设计树）构建写回数组：本组件顶层 elements 是
+    // useCodeElements（仅 codeblock），若用它 map 后全量 setElementsAndWires，
+    // view 元素会被覆盖删除（组件 view 块整体丢失，保存报 E0006——Task 12 E2E 实测 CRITICAL）。
+    const nextElements = allElements.map((e) =>
       e.nodeType === "codeblock" && CODE_TAGS.has(e.tag) && layout[e.id]
         ? { ...e, position: { ...layout[e.id] } } as ElementData
         : e,
     );
     setElementsAndWires(nextElements, wires);
-  }, [codeElements, elements, wires, nodes, setElementsAndWires]);
+  }, [codeElements, allElements, wires, nodes, setElementsAndWires]);
 
   // Preview node — shows the design canvas inside the flow when in codeflow mode
   const previewNode: RFNode | null = useMemo(() => {

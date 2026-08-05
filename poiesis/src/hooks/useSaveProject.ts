@@ -205,6 +205,14 @@ export function useSaveProject() {
         }
       }
 
+      // 已知 store 名（src/stores/X.omni → X）：语法节点表达式引用 "Store.信号" 时
+      // pipeline 据此生成 import（否则 WASM 门禁 Undeclared variable 拦截保存）。
+      const knownStoreNames = [...new Set(store.designPage.openTabs
+        .map((t) => t.filePath)
+        .filter((p): p is string => !!p)
+        .map((p) => p.match(/^src\/stores\/([A-Za-z0-9_]+)\.omni$/)?.[1])
+        .filter((n): n is string => !!n))];
+
       const genResult = generateOmniFiles({
         designElements: store.elements,
         designWires: store.wires,
@@ -215,6 +223,7 @@ export function useSaveProject() {
         filePath: activeTab?.filePath,
         inlineStores: inlineStores as StoreDefinition[], // NEW
         designName: store.activeDesign?.name && (store.activeDesign.tokens?.length || store.activeDesign.classes?.length || store.activeDesign.variants?.length) ? store.activeDesign.name : undefined,
+        knownStores: knownStoreNames,
       });
 
       if (genResult.value) {

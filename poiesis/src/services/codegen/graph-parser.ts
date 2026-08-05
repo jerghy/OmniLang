@@ -219,7 +219,7 @@ function parseConditionBranches(code: string): BranchDef[] {
 
     if ((match = trimmed.match(ifRe))) {
       currentType = "if";
-      currentCond = match[1].trim();
+      currentCond = compactSpacedMembers(match[1].trim());
     } else if ((match = trimmed.match(elifRe))) {
       // Save previous if/elif
       branches.push({
@@ -228,7 +228,7 @@ function parseConditionBranches(code: string): BranchDef[] {
         condition: currentCond,
       });
       currentType = "elif";
-      currentCond = match[1].trim();
+      currentCond = compactSpacedMembers(match[1].trim());
     } else if (elseRe.test(trimmed)) {
       // Save previous if/elif
       branches.push({
@@ -544,7 +544,7 @@ export function parseCodeFlowGraph(
       // follow on subsequent lines if this is the last segment in a block).
       const retLine = seg.code.split("\n")[0];
       const retMatch = retLine.match(/return\s+(.*?)\s*;?\s*$/);
-      source = retMatch?.[1] || "";
+      source = retMatch ? compactSpacedMembers(retMatch[1]) : "";
     }
 
     const el: CodeblockElementData = {
@@ -699,6 +699,31 @@ export function normalizeAnnotations(
 // parseSyntaxProps – extract syntax node props from code text
 // ---------------------------------------------------------------------------
 
+/** 引号感知的 member 空格还原：tokenizer 空格化的 "TodoStore . items" → "TodoStore.items"
+ *  （round-trip 保存不退化——Task 12 E2E 实测：磁盘 `TodoStore.items` 重读后变成带空格
+ *  表达式，再保存写回坏代码）。字符串字面量内（"a . b"）原样保留。 */
+function compactSpacedMembers(s: string): string {
+  let out = "";
+  let i = 0;
+  let quote: string | null = null;
+  while (i < s.length) {
+    const ch = s[i]!;
+    if (quote) {
+      out += ch;
+      if (ch === "\\" && i + 1 < s.length) { out += s[i + 1]!; i += 2; continue; }
+      if (ch === quote) quote = null;
+      i++;
+      continue;
+    }
+    if (ch === "'" || ch === '"') { quote = ch; out += ch; i++; continue; }
+    const m = s.slice(i).match(/^([A-Za-z_]\w*)\s*\.\s*([A-Za-z_]\w*)/);
+    if (m) { out += m[1]! + "." + m[2]!; i += m[0].length; continue; }
+    out += ch;
+    i++;
+  }
+  return out;
+}
+
 /**
  * Extract props for a syntax node from its code text.
  * Inverse of formatSyntaxNode (round-trip stable): every emitted line
@@ -736,28 +761,30 @@ function parseSyntaxProps(
       // tokenizer may be spaced ("newSignal2 = newSignal2 + 1 ;").
       const m = t.match(/^([a-zA-Z_]\w*(?:\s*\.\s*[a-zA-Z_]\w*)?)\s*(=|\+=|-=|\*=|\/=|%=)\s*(.*?);?\s*$/);
       if (!m) return {};
-      return { target: m[1].trim(), operator: m[2], value: m[3].trim() };
+      return { target: m[1].trim(), operator: m[2], value: compactSpacedMembers(m[3].trim()) };
     }
     case "store-call": {
       const m = t.match(/^([A-Z]\w*)\s*\.\s*([a-zA-Z_]\w*)\s*\((.*?)\)\s*;?\s*$/);
       if (!m) return {};
-      return { storeName: m[1], action: m[2], args: m[3].trim() };
+      return { storeName: m[1], action: m[2], args: compactSpacedMembers(m[3].trim()) };
     }
     case "call": {
       const m = t.match(/^(emit\s+)?([a-zA-Z_]\w*(?:\s*\.\s*[a-zA-Z_]\w*)?)\s*\((.*?)\)\s*;?\s*$/);
       if (!m) return { fnName: "fn", args: "" };
-      return { emit: !!m[1], fnName: m[2], args: m[3].trim() };
+      return { emit: !!m[1], fnName: m[2], args: compactSpacedMembers(m[3].trim()) };
     }
     case "while": {
       // 段头形如 `while n < 10 {`（OmniLang 风格，无括号），提取条件表达式。
       const m = t.match(/^while\s+(.*?)\s*\{?\s*$/);
-      return m ? { condition: m[1].trim() } : {};
+      return m ? { condition: compactSpacedMembers(m[1].trim()) } : {};
     }
     case "for-in": {
       // 段头形如 `for item in items {`，提取循环变量与可迭代表达式。
       const m = t.match(/^for\s+([a-zA-Z_]\w*)\s+in\s+(.*?)\s*\{?\s*$/);
-      return m ? { varName: m[1], iterable: m[2].trim() } : {};
+      return m ? { varName: m[1], iterable: compactSpacedMembers(m[2].trim()) } : {};
     }
+    default:
+      return {};
   }
 }
 

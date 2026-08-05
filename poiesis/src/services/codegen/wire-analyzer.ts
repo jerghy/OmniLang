@@ -4,7 +4,11 @@
 import type { ElementData, WireData } from "../../core/types";
 import type { BindingResult } from "./types";
 
-export function analyzeWires(elements: ElementData[], wires: WireData[]): BindingResult {
+export function analyzeWires(
+  elements: ElementData[],
+  wires: WireData[],
+  knownStores?: string[],
+): BindingResult {
   const signalBindings = new Map<string, Array<{ elementId: string; propName: string }>>();
   const storeRefs = new Map<string, string[]>();
   const computedDeps = new Map<string, string[]>();
@@ -42,6 +46,30 @@ export function analyzeWires(elements: ElementData[], wires: WireData[]): Bindin
       const tgtName = tgtProps.name as string;
       if (!computedDeps.has(tgtName)) computedDeps.set(tgtName, []);
       computedDeps.get(tgtName)!.push(srcName);
+    }
+  }
+
+  // 语法节点（assign/for-in/condition/return 等）的 props/source 表达式里可能引用
+  // "Store.信号"（公式框候选含 store 信号）——wire 上无痕，但生成的 .omni 需要
+  // import 该 store（否则 WASM 门禁 Undeclared variable 拦截保存）。
+  // 只收集 knownStores 名单内的 PascalCase 引用（防止 Math.random() 类误报
+  // 生成指向不存在 store 文件的 import）。
+  const STORE_REF_RE = /([A-Z][A-Za-z0-9_]*)\.[A-Za-z_]\w*/g;
+  if (knownStores && knownStores.length > 0) {
+    const known = new Set(knownStores);
+    for (const el of elements) {
+      if (el.nodeType !== "codeblock") continue;
+      const candidates = new Set<string>();
+      const scan = (v: unknown) => {
+        if (typeof v === "string") {
+          for (const m of v.matchAll(STORE_REF_RE)) candidates.add(m[1]!);
+        }
+      };
+      for (const v of Object.values(el.props ?? {})) scan(v);
+      if (typeof el.source === "string") scan(el.source);
+      for (const name of candidates) {
+        if (known.has(name) && !storeRefs.has(name)) storeRefs.set(name, []);
+      }
     }
   }
 
