@@ -152,6 +152,38 @@ describe("graph-parser 中链 loop", () => {
     expect(w).toContain("w-2(br0)->a-3(flow-in)");
   });
 
+  it("while 作为 else 分支体首段：2c 消费后仍压栈（br1 入链 + br0 body + flow-out 续接三者并存）", () => {
+    // 全任务风险最高路径：else 分支体首段是 loop 段头，尾行 `} else {` 过渡由 2c 消费
+    // （currentBranch 推进到 br1）后 loop 必须仍压栈——否则 body 段被续接为 flow-out、
+    // 分支体错位。Task 3 修复后回归保护：cond-1(br1)->w-3 与 w-3(br0)->x-4 同存，
+    // 且 w-3(flow-out)->r-5 续接到分支外后置段。
+    const g = parseCodeFlowGraph(`fn f() {
+  // @pid:cond-1
+    if ok {
+  // @pid:a-2
+      a();
+    }
+    else {
+  // @pid:w-3
+      while n > 0 {
+  // @pid:x-4
+        n = n - 1;
+      }
+    }
+  // @pid:r-5
+    return;
+  }`);
+    const w = wireList(g.wires);
+    expect(w).toContain("cond-1(br0)->a-2(flow-in)");
+    expect(w).toContain("cond-1(br1)->w-3(flow-in)");
+    expect(w).toContain("w-3(br0)->x-4(flow-in)");
+    expect(w).toContain("w-3(flow-out)->r-5(flow-in)");
+    expect(w).toContain("cond-1(flow-out)->r-5(flow-in)");
+    // br1 分支体只含 w-3/x-4，不被续接循环误接 r-5 入分支
+    const br1Wires = g.wires.filter((x) => x.fromId === "cond-1" && x.fromPort === "br1");
+    expect(br1Wires.map((x) => x.toId)).toEqual(["w-3"]);
+  });
+
   it("for-in 段元素 props/source 派生（round-trip 用）", () => {
     const g = parseCodeFlowGraph(`fn f() {
   // @pid:fi-1

@@ -85,3 +85,56 @@ fn filter(items: Array<String>) {
     expect(reparsed.elements.find((e) => e.id === "r1")?.tag).toBe("return");
   });
 });
+
+// ---------------------------------------------------------------------------
+// loop round-trip 幂等契约（Task 5）
+// ---------------------------------------------------------------------------
+
+/** 嵌套图形：while(body: condition) → flow-out 续接 assign。 */
+const ELEMS: CodeblockElementData[] = [
+  { id: "fn-1", nodeType: "codeblock", tag: "fn", parentId: null, props: { name: "f", params: "", returnType: "void" }, source: "" },
+  { id: "w-2", nodeType: "codeblock", tag: "while", parentId: null, props: { condition: "running" }, source: "while running {" },
+  { id: "cond-3", nodeType: "codeblock", tag: "condition", parentId: null, props: { branches: [{ id: "br0", type: "if", condition: "n > 0" }, { id: "br1", type: "else", condition: "" }] }, source: "" },
+  { id: "a-4", nodeType: "codeblock", tag: "assign", parentId: null, props: { target: "n", operator: "-=", value: "1" }, source: "n -= 1;" },
+  { id: "a-5", nodeType: "codeblock", tag: "assign", parentId: null, props: { target: "n", operator: "=", value: "10" }, source: "n = 10;" },
+  { id: "a-6", nodeType: "codeblock", tag: "assign", parentId: null, props: { target: "done", operator: "=", value: "true" }, source: "done = true;" },
+];
+const WIRES: WireData[] = [
+  { id: "w1", fromId: "fn-1", fromPort: "flow-out", toId: "w-2", toPort: "flow-in" },
+  { id: "w2", fromId: "w-2", fromPort: "br0", toId: "cond-3", toPort: "flow-in" },
+  { id: "w3", fromId: "cond-3", fromPort: "br0", toId: "a-4", toPort: "flow-in" },
+  { id: "w4", fromId: "cond-3", fromPort: "br1", toId: "a-5", toPort: "flow-in" },
+  { id: "w5", fromId: "cond-3", fromPort: "flow-out", toId: "a-6", toPort: "flow-in" },
+  { id: "w6", fromId: "w-2", fromPort: "flow-out", toId: "a-6", toPort: "flow-in" },
+];
+
+describe("loop round-trip", () => {
+  it("compile → parse → compile 幂等（嵌套 condition-in-while，wire 双入口去重）", () => {
+    const out1 = compileCodeFlowGraph(ELEMS, WIRES, "fn-1");
+    const g = parseCodeFlowGraph(out1);
+    const out2 = compileCodeFlowGraph(g.elements, g.wires, "fn-1");
+    // 结构幂等：二次发射与首次发射逐字一致（循环/分支/语句全部保持）
+    expect(out2).toBe(out1);
+    // wire 集幂等：out1 再解析与首次解析的 wire 集一致（无累积 wire）
+    const g2 = parseCodeFlowGraph(out2);
+    const wires1 = g.wires.map((x) => `${x.fromId}(${x.fromPort})->${x.toId}(${x.toPort})`).sort();
+    const wires2 = g2.wires.map((x) => `${x.fromId}(${x.fromPort})->${x.toId}(${x.toPort})`).sort();
+    expect(wires2).toEqual(wires1);
+  });
+  it("解析后 while 节点 props 完整（condition 不丢）", () => {
+    const out1 = compileCodeFlowGraph(ELEMS, WIRES, "fn-1");
+    const g = parseCodeFlowGraph(out1);
+    const w = g.elements.find((e) => e.id === "w-2");
+    expect(w?.props.condition).toBe("running");
+    const wires = g.wires.map((x) => `${x.fromId}(${x.fromPort})->${x.toId}(${x.toPort})`).sort();
+    // 双入口（cond-3(flow-out) 与 w-2(flow-out) 同指 a-6）是合法图形，但线性文本中
+    // 同一节点只能落位一处：a-6 发射为 cond-3 的 flow-out 续接（循环体内），w-2 的
+    // flow-out 经 visited 集去重为注释残留——解析重建以文本为准（ADR-061 negative
+    // 已知形态），幂等由 out2 === out1 契约保证。
+    expect(wires).toContain("w-2(br0)->cond-3(flow-in)");
+    expect(wires).toContain("cond-3(br0)->a-4(flow-in)");
+    expect(wires).toContain("cond-3(br1)->a-5(flow-in)");
+    expect(wires).toContain("cond-3(flow-out)->a-6(flow-in)");
+    expect(wires).not.toContain("w-2(flow-out)->a-6(flow-in)");
+  });
+});
