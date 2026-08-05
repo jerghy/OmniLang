@@ -149,3 +149,46 @@ close();`;
     expect(aw?.toId).toBe("c1");
   });
 });
+
+function parseProps(src: string) {
+  const g = parseCodeFlowGraph(src);
+  const el = g.elements.find((e) => e.tag === "while" || e.tag === "for-in");
+  return el ? { tag: el.tag, props: el.props } : null;
+}
+
+describe("graph-parser 循环段", () => {
+  it("while 段头识别为 while 节点并提取 condition", () => {
+    const r = parseProps(`fn f() {
+  // @pid:w-1
+  while n < 10 {
+    // @pid:b-2
+    n = n + 1;
+  }
+}`);
+    expect(r).not.toBeNull();
+    expect(r!.tag).toBe("while");
+    expect(r!.props.condition).toBe("n < 10");
+  });
+  it("for-in 段头识别并提取 varName/iterable", () => {
+    const r = parseProps(`fn f() {
+  // @pid:fi-1
+  for item in items {
+    // @pid:b-2
+    total = total + item;
+  }
+}`);
+    expect(r!.tag).toBe("for-in");
+    expect(r!.props.varName).toBe("item");
+    expect(r!.props.iterable).toBe("items");
+  });
+  it("C 风格括号循环（`for (…`) 保持 code-block（防御性，非 OmniLang 语法）", () => {
+    const g = parseCodeFlowGraph(`fn f() {
+  // @pid:c-1
+  for (let i = 0; i < n; i++) {
+    x = i;
+  }
+}`);
+    const el = g.elements.find((e) => e.id === "c-1");
+    expect(el?.tag).toBe("code-block");
+  });
+});

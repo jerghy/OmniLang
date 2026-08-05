@@ -28,7 +28,7 @@ interface ParsedSegment {
   startLine: number;
   endLine: number;
   code: string;
-  type: "fn" | "code-block" | "condition" | "return" | "let" | "assign" | "store-call" | "call";
+  type: "fn" | "code-block" | "condition" | "return" | "let" | "assign" | "store-call" | "call" | "while" | "for-in";
   operations?: import("../../core/types/code-op").CodeOp[];
 }
 
@@ -156,7 +156,7 @@ function splitByPid(
 // detectSegmentType – classify a segment from its first non-empty line
 // ---------------------------------------------------------------------------
 
-type SegmentType = "fn" | "code-block" | "condition" | "return" | "let" | "assign" | "store-call" | "call";
+type SegmentType = "fn" | "code-block" | "condition" | "return" | "let" | "assign" | "store-call" | "call" | "while" | "for-in";
 
 /** Determine segment type from first non-empty line of code. */
 function detectSegmentType(
@@ -175,8 +175,12 @@ function detectSegmentType(
     return "condition";
   if (trimmed.startsWith("return ") || trimmed === "return;" || trimmed === "return")
     return "return";
+  // OmniLang 风格循环段头（无括号）：`while <expr> {` / `for <ident> in <expr> {`
+  if (/^while\s+/.test(trimmed)) return "while";
+  if (/^for\s+[a-zA-Z_]\w*\s+in\s+/.test(trimmed)) return "for-in";
   // Loop headers stay code-blocks (they look like call prefixes: `for (`).
   // Mirrors TYPE_TO_SEGMENT: for/while → code-block.
+  // C 风格防御规则（不匹配 OmniLang 语法），必须位于 OmniLang 风格规则之后。
   if (/^(for|while)\s*\(/.test(trimmed)) return "code-block";
   if (/^let\s+(mut\s+)?[a-zA-Z_]\w*/.test(trimmed)) return "let";
   if (trimmed.startsWith("emit ")) return "call";
@@ -514,7 +518,9 @@ export function parseCodeFlowGraph(
       seg.type === "let" ||
       seg.type === "assign" ||
       seg.type === "store-call" ||
-      seg.type === "call"
+      seg.type === "call" ||
+      seg.type === "while" ||
+      seg.type === "for-in"
     ) {
       const parsed = parseSyntaxProps(seg.type, seg.code);
       props = parsed;
@@ -688,7 +694,7 @@ export function normalizeAnnotations(
  * truncated or silently dropped.
  */
 function parseSyntaxProps(
-  type: "let" | "assign" | "store-call" | "call",
+  type: "let" | "assign" | "store-call" | "call" | "while" | "for-in",
   code: string,
 ): Record<string, unknown> {
   // 语句段代码可能携带结构尾行：发射侧 `}\nelse if ... {` 把条件块收尾 `}` 与下一分支头
@@ -727,6 +733,16 @@ function parseSyntaxProps(
       const m = t.match(/^(emit\s+)?([a-zA-Z_]\w*(?:\s*\.\s*[a-zA-Z_]\w*)?)\s*\((.*?)\)\s*;?\s*$/);
       if (!m) return { fnName: "fn", args: "" };
       return { emit: !!m[1], fnName: m[2], args: m[3].trim() };
+    }
+    case "while": {
+      // 段头形如 `while n < 10 {`（OmniLang 风格，无括号），提取条件表达式。
+      const m = t.match(/^while\s+(.*?)\s*\{?\s*$/);
+      return m ? { condition: m[1].trim() } : {};
+    }
+    case "for-in": {
+      // 段头形如 `for item in items {`，提取循环变量与可迭代表达式。
+      const m = t.match(/^for\s+([a-zA-Z_]\w*)\s+in\s+(.*?)\s*\{?\s*$/);
+      return m ? { varName: m[1], iterable: m[2].trim() } : {};
     }
   }
 }
