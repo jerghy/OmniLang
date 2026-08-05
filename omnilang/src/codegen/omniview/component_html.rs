@@ -4,7 +4,6 @@ use super::utils::map_event;
 use super::OmniViewGenerator;
 use crate::ir::*;
 use rustc_hash::FxHashMap;
-use rustc_hash::FxHashSet;
 use std::fmt::Write;
 use std::sync::Arc;
 
@@ -178,13 +177,13 @@ impl OmniViewGenerator {
                 // parent's prefixed signal name (SignalPatternsDemo_count.value)
                 // rather than a bare `count` identifier.
                 for (name, prefixed) in &saved_scope.name_renames {
-                    if saved_scope.signal_names.contains(prefixed.as_str()) {
-                        if !self.name_resolver.name_renames.contains_key(name.as_str()) {
-                            self.name_resolver.signal_names.insert(prefixed.clone());
-                            self.name_resolver
-                                .name_renames
-                                .insert(name.clone(), prefixed.clone());
-                        }
+                    if saved_scope.signal_names.contains(prefixed.as_str())
+                        && !self.name_resolver.name_renames.contains_key(name.as_str())
+                    {
+                        self.name_resolver.signal_names.insert(prefixed.clone());
+                        self.name_resolver
+                            .name_renames
+                            .insert(name.clone(), prefixed.clone());
                     }
                 }
 

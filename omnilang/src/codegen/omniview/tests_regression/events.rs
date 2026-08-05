@@ -15,8 +15,6 @@
 //! These tests guard the fix and the sibling event families (onSwitch /
 //! onNavigate / onSelect).
 
-use super::super::*;
-
 /// Compiles `src` and returns the generated JS, asserting compilation
 /// succeeded.
 fn compile_js(src: &str) -> String {

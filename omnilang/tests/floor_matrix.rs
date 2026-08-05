@@ -10,10 +10,7 @@
 //! 行为级标注（widget test/Playwright——3.2 基建扩展队列，标注 future 不阻塞）。
 //! 新增/删除 floor 条目必须先挂机器验证——「floor 内行为对等」从声明变断言。
 //!
-//! 计数说明：规范口径为 24 项（v1 设计文档 §10.1 P0 Feature Floor：Ref 5 + 动画 4
-//! + Design 5 + Slots 1 + 控制流 2 + Stores 1 + Lifecycle 1 + 表达式 5）。ADR-052
-//! 表的 Expressions 行另列 `compound assignment` 原语（v1 §10.1 未列）——本矩阵以
-//! 第 25 行收录，保证 ADR-052 表列原语零静默丢项（这正是 P5 要消灭的失败模式）。
+//! 计数说明：规范口径为 24 项（v1 设计文档 §10.1 P0 Feature Floor：Ref 5 + 动画 4 + Design 5 + Slots 1 + 控制流 2 + Stores 1 + Lifecycle 1 + 表达式 5）。ADR-052 表的 Expressions 行另列 `compound assignment` 原语（v1 §10.1 未列）——本矩阵以第 25 行收录，保证 ADR-052 表列原语零静默丢项（这正是 P5 要消灭的失败模式）。
 //!
 //! 权威清单：本文件 `floor_table()`（硬编码）；设计文档
 //! `docs/superpowers/specs/2026-08-02-semantic-syntax-v2-design.md` §9 与其逐行一致。

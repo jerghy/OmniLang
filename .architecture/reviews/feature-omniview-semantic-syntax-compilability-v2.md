@@ -423,3 +423,56 @@
 - 整体 Recommendation: ⚠️ Approve with simplifications——v2 删除清扫勿重开；剩余动作小而外科
 
 **Review Complete**
+
+---
+
+## v3 处置记录（2026-08-05）——v3 修复轮闭环（fix round 完成 + 终验矩阵）
+
+> 计划：`docs/superpowers/plans/2026-08-03-semantic-syntax-v3-fixes.md`（8 阶段 68 任务 + 7.5b 子任务 + 终验 8.1）
+> 终验事实源：`task-8.1a-acceptance.md` / `task-8.1a-report.md`（2026-08-05，8 门禁 + 8 项验收矩阵）
+> 治理收口：Task 8.1b（本记录 + deferrals 台账 + ADR-062）
+
+### Consolidated Findings 逐条处置（15 条 Areas for Improvement）
+
+| # | 发现 | 处置 | 落地证据 |
+|---|------|------|---------|
+| 1 | 注入三连（motion/unquoted handler/design token，CRITICAL） | **fix-now 完成** | Phase 1：语料插入点扩展 9bf3170e+2f38d50a、motion transform 转义 3dc96f60、unquoted handler 编译期拒绝门 f585eb96；覆盖地图测试（emission_surface.rs 4 测试）。终验 M1 PASS：all-backends tests_regression **119 passed / 0 failed**（含 `[alert(1)]`/`x*/ alert(1) //` 载荷族，断言对生成代码） |
+| 2 | Flutter struct 字面量发射（CRITICAL TypeError） | **fix-now 完成** | 3.1 c790ced5（typed 上下文构造调用）+ 3.2 9a70b7ec（widget test harness——`TodoStore.add()` 容器直驱执行）。终验 G5：flutter gate 23/23 binaries 全绿 |
+| 3 | React BUG-A/BUG-C（CRITICAL/HIGH） | **fix-now 完成** | 2.1 edb19786（const→let 廉价路径 + un-fixme）+ 2.2 86f820be（inline store 硬诊断 E_CODEGEN）+ 5.1 db68d812（LetStmtIR.mut 完整落地，关闭 #36）+ 5.2 a9526faf（inline store 入 IR 模块级发射，关闭 #37）。终验 react 套件 41/1/0 零 runtime error |
+| 4 | `states:`/`on:` 硬诊断化（HIGH） | **fix-now 完成** | 4.1 bc4b81be（EStatesRemoved/EOnRemoved verbatim 迁移提示 + 哨兵移除 + 回归）。终验 M4：states:/on: 诊断类 lib 测试全绿 |
+| 5 | Flutter 行为缺口群（HIGH） | **fix-now 完成** | 3.3 8c53942d+ba93004f（bind:value 非 ref 接线）、3.4 66f686d5（@in-view/@focus 接线）、3.5 500276e5（textarea/disabled 映射）、3.6 5dc4d322+3bf6496f（主题选择器四态 + **D-G >2 主题塌缩警告**）。终验 widget harness：bind:value 回写/主题四卡片/@in-view 全过 |
+| 6 | 未知事件名验证 pass（HIGH） | **fix-now 完成（D-B：warning 级）** | 4.2 556a489e+d167215c（validate_event_names + 最近合法事件建议，warning 非 error——Trade-off 4 消解）。终验 event_name_validation 5/5 |
+| 7 | 门禁度量升级（HIGH） | **fix-now 完成** | 0.1 a0b11b63（#60 OmniView 套件入 CI）、0.2 24c67bcb（all-backends 去 if:false + codegen-flutter 全量）、0.4 381f9ad7（路径 glob 收窄 + 实例计数上限 + fixture strict:true）、0.5 fa901e5d（Flutter warnings 断言基线）。终验：豁免 **29 条**（路径级 + cap）、warnings 断言 cap 879/实测 874 |
+| 8 | 缓存 parse 诊断洞（HIGH） | **fix-now 完成** | 0.3 1c7479a4（parse 诊断并入缓存写入 + RED 复现 success=true+diags:[] 修复）。终验 G7 analyse 0 err/1 warn（用户区） |
+| 9 | 尾表达式 return（HIGH） | **fix-now 完成** | 2.3 cd72fcb2（component fn / 模块级 fn / store action 三发射点尾 ExprStmtIR → return） |
+| 10 | a11y role 词汇 ARIA 化（HIGH） | **fix-now 完成** | 4.3 6fce0f16（role 子集换 ARIA 规范名 + Flutter 内部映射 textbox→textField/image→image） |
+| 11 | 文档漂移批量（HIGH） | **fix-now 完成** | Phase 6：6.1 6ef1c751+68671b2b（@scroll/@drag 恢复表述）、6.2 aefd3c4b（v1 spec Superseded 双权威收敛）、6.3 7f478961（grammar 事实批次）、6.4 895507c6（fade/wait 跨目标表）、6.5 207fe28a（陈旧教学）、6.6 6ea40a5d+63d84dfd（docs-gate 语义白名单）。终验 docs-gate **247 blocks / 0 failed** |
+| 12 | 该删未删收尾（MEDIUM） | **fix-now 完成** | 4.5 275cc524（@fallback/@error 死 token + TestId 死变体删除）、4.6 ac7fec51+63ed226c（**D-E prove 裁决**：语言方法保留、stdlib 降级路径）、4.7 d12039c3（默认主题双声明验证 + E_PAUSED_REMOVED block 形式）、4.8 95699b6d（Rust/Dioxus block-expr 发射 + ArrayMethod floor 门，关闭 #55） |
+| 13 | 结构性债（MEDIUM/L） | **fix-now 完成** | 5.4 a72f007d+c2bfb3b0（param 遮蔽移植 React/Flutter）、5.5 e43e6082+d112b68d+22e23715（walker 收敛 + pass 编排移出 lower）、5.7 213f3a8b（flutter/design.rs 按域拆分）、4.8 95699b6d（Rust/Dioxus block-expr）、4.12 e454f907（unused-import 假阳性清零）、4.10 aabaa07b+35dc15ef（具体类型方法名验证）。C-FFI 信封统一 + JSON 对象键转义已于评审基线前修复（c36fad21） |
+| 14 | 性能对等收尾（MEDIUM） | **fix-now 完成（1 项 defer-with-trigger）** | 2.6 c5e60bf0+a156fb5a（cleanup 依赖 + _M 提升）、2.8 84731972（useCallback/React.memo）、2.9 1324234f（字面量信号 hoist）、2.10 76bf3a02（motion slice + 相等守卫）、3.7 dd6970d6（ref.watch 提升）、3.8 40df6929（[scroll] O(N²) 修复）、4.9 491857d6（**D-H motion-in-@for 编译诊断**——逐项实例化实现为长期项，见 deferral #83） |
+| 15 | AI 工作流工具（MEDIUM） | **fix-now 完成** | 6.8 e6ac4afe（00-cheatsheet 10 域可编译示例）、4.11 4074af1a（诊断位置精确化 + suggestion 字段）、7.5 82c59651（LLM eval 语料 30 fixtures + `// [omni] file:line` 源注释 + 再生成契约） |
+
+**处置统计**：15 条中 14 条 fix-now 完成（附 commit 范围）；1 条部分完成（finding 14——主体 fix-now、motion-in-@for 逐项实现 defer-with-trigger）。
+
+### Success Metrics 逐项实测状态（8.1a 数字）
+
+| # | 指标 | 实测状态 |
+|---|------|---------|
+| 1 | 注入面：motion/design payload 族全后端回归；覆盖地图枚举全部发射面；`[alert(1)]` 类载荷被拒绝 | ✅ **达成**——M1 PASS：all-backends tests_regression 119/0；覆盖地图 4 测试全绿（every_string_emission_surface_is_covered 等）；载荷拒绝断言在生成代码上 |
+| 2 | Flutter 行为：widget-test 挂载 + `TodoStore.add()` 执行；bind:value 表单 E2E、主题四卡片、@in-view/@focus 动画 | ✅ **达成**——G5：23/23 binaries（widget harness 23 文件全过：TodoStore.add 冒烟 + bind:value 回写 + 主题四卡片 + @in-view） |
+| 3 | React 行为：Playwright 36/36 全跑 0 runtime error | ✅ **达成**——G3：**41 passed / 1 skipped / 0 failed**（skip = behavioral-parity B4 KNOWN PARITY GAP，blocker 已注册）；各 tab「no runtime errors」断言内置 |
+| 4 | 静默降级归零：states:/on:/未知事件名/aria-*/block-expr/inline-store/多主题 全部产生诊断 | ✅ **达成**——M4 PASS：event_name_validation 5 + unknown_method_validation 7 + motion_in_for 4 + a11y_role_aria 6 + theme_initial_consistency 2 + diagnostic_position 5 + 122 条诊断类 lib 测试全绿 |
+| 5 | 门禁度量：React 豁免「类别」→「实例计数」；Flutter warnings 断言基线入库；#60 入 CI；all-backends 在 CI 跑 | ✅ **达成**——G2：豁免 **29 条**（路径级 + 实例 cap + 0 stale）；G8：warnings 断言基线 cap 879 / 实测 **874**（单调下降 1004→997→874）；#60 关闭 a0b11b63；all-backends/Flutter 模块测试入 CI 24c67bcb |
+| 6 | 文档一致性：@scroll/@drag/fade-wait/steps/双权威 修复落地；docs-gate 语义诊断白名单 | ✅ **达成**——G6：docs-gate **247 blocks / 0 failed** / 173 semantic notes；verify-vocabulary 0 problems；verify-semantic-universe 0 problems；syntax-lifecycle 门禁 8.1b 修复后 0 problems（D1） |
+| 7 | 编辑器信任：缓存 parse 洞修复 + 回归；诊断位置精确化 | ✅ **达成**——0.3 @ 1c7479a4（含 RED 回归）；4.11 @ 4074af1a（两 pass span 线程化）；G7 analyse 0 err/1 warn（用户区豁免） |
+
+### 治理同步项核对（v2 Follow-up Tracking 承诺）
+
+- **豁免台账重连**（strategy MEDIUM-1）✅ Task 0.6 @ e3cb0fdc——29 条全带 deferral 列，`check_exemption_ledger.sh` 0 untracked（8.1a 复验）
+- **deferral 新增候选**（multi-theme Flutter 塌缩 / @in-view/@focus 接线 / injection 插入点缺口 / struct 字面量 TypeError）✅ 全部 fix-now 完成（3.6 / 3.4 / 1.1+1.5 / 3.1）——未转 deferral，验证了评审「按注入→行为→门禁度量→文档」执行顺序
+- **#60 关闭** ✅ a0b11b63（omniview-e2e CI job 接线；本地等价物 44/1/0）
+- **ADR 决策候选**（未知事件名 error vs warning；filter/map/count 收口方向；aria-* 原生属性去留；BUG-A 廉价路径长期保留）✅ 全部裁决并记录于 **ADR-062**（D-B warning 级 / D-E prove / D-D aria-* 硬诊断 + alt= DOM 边界 / D-I 两步走终态）
+
+### 终验遗留（不阻塞，已登记 deferrals 台账 2026-08-05 节）
+
+D1（spec 路径陈旧）与 D2（clippy 3 警告）已于 8.1b 修复；M3（warnings 874 > 目标 300）与 K1 观察 2 项、golden 镜像滞留、生命周期文档路径同步机制登记 #78-#82；#76 保持 open。

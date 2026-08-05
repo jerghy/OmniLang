@@ -309,3 +309,37 @@
 ## 2026-08-05 处置同步（v3 Phase 6 文档治理 Task 6.7——设计文档 §7 承诺处置）
 
 **同步**：#28/#33 台账状态不变（open，defer-with-trigger，行内已附 T7.3 终验证据）；v2 设计文档（`docs/superpowers/specs/2026-08-02-semantic-syntax-v2-design.md`）§7 deferrals 行与状态行已按本台账事实改写——原「#28（Map.set）随域 8 处理；#33（嵌套 #root）随域 6/终验处理」在文档标 Implemented 的语境下构成过度宣称（T7.3 终验复核确认两项均未落地），现标注为「未落地 → 移出 v2 实现范围、保持 defer-with-trigger」，两权威源不再互相矛盾。纯文档治理，零代码变更。
+
+---
+
+## 2026-08-05 v3 终验处置（Task 8.1b——v3 fix round 收口）
+
+**来源**：终验矩阵 `task-8.1a-acceptance.md` / `task-8.1a-report.md`（PASS×4 / 部分×3 / FAIL×1）+ 评审处置 `.architecture/reviews/feature-omniview-semantic-syntax-compilability-v2.md`（v3 处置记录节）+ ADR-062。
+
+### 关闭确认（计划承诺逐条核对）
+
+| # | 台账行 | 关闭证据（实测/commit） | 计划承诺核对 |
+|---|--------|----------------------|-------------|
+| 36 | React `let mut` 发射为 `const`（BUG-A） | **已关闭**——Task 5.1 `db68d812`（LetStmtIR.mut 字段 + 三后端发射 + prefer-const re-enable + TS2588 零残留）；先于 IR 修复的 2.1 廉价路径 `edb19786` 已止损 | 5.1「#36 关闭，D-I 第二步」✅ |
+| 37 | React 内联 store 不发射（BUG-C） | **已关闭**——Task 5.2 `a9526faf`（inline store 降级为模块级 Zustand store 发射 + 切片订阅，CartStore.addItem 可执行）；2.2 `86f820be` 先行硬诊断 | 5.2「inline store 入 IR」✅ |
+| 49 | React 不发射用户 struct | **已关闭**——Task 5.3 `96c8e297`（StructIR 发射 + React TS 类型——豁免 burn-down ~30 条目） | 5.3「用户 struct 类型发射」✅ |
+| 50 | Flutter 非 ref 元素 bind:value 单向 no-op | **已关闭**——Task 3.3 `8c53942d`+`ba93004f`（onChanged 回写 + controller_covers 三层判定 + Checkbox/Switch/Slider 接线）+ 3.6 `5dc4d322`+`3bf6496f`（主题选择器/四态）；widget harness 实测 bind:value 回写 | 3.3/3.6（D2「唯一双向」兑现）✅（brief 台账标注「ArrayMethod floor @ 95699b6d」系错配——#50 与 #55 不同根因，已按实测分开核对） |
+| 55 | 数组方法未映射后端 verbatim 发射 | **已关闭**——Task 4.8 `95699b6d`+`206532a7`（out-of-floor 后端 ArrayMethod floor 门 E_CODEGEN——mirror BlockExpr 先例） | 4.8「ArrayMethod floor」✅ |
+| 60 | OmniView 44-test 浏览器套件未接入 CI | **已关闭**——Task 0.1 `a0b11b63`（omniview config 接线独立 e2e job；webServer `--directory` 修复；44 passed 1 skipped） | 0.1「#60 入 CI」✅ |
+
+### 新增登记（defer-with-trigger，均带触发条件）
+
+| # | 项目 | 触发条件 | 影响 |
+|---|------|---------|------|
+| 78 | **[LOW]** OmniView `stmt_to_js_inline` 缺 `EventEmitStmtIR` 臂——`emit` 出现在 BlockExpr 表达式内（如 computed fn 体 block）退化为 `/* unhandled stmt */` + warnings 条目（K1 修复轮观察 1；**pre-existing**——降级臂自 `09c18415`（2026-08-01）即有，非 K1 引入；K1 的组件化事件解析只覆盖 fn 体语句路径与 CallExpr 形式） | BlockExpr 内使用 `emit` 的语料/demo 出现（现语料零触发）；或 stmt_to_js_inline 发射逻辑改写时 | 生成 JS 注释占位而非事件发射——静默不可用输出（有 warning 无硬诊断）；修复方向：加 EventEmitStmtIR 臂复用 `resolve_event_emit` |
+| 79 | **[LOW]** `test-results-omniview.json` 未入 .gitignore（playwright json reporter 产物；相邻 `test-results.json` 已覆盖——K1 修复轮观察 2，每次跑 omniview 套件留下 untracked 文件） | 下次触碰 .gitignore 或 CI e2e 产物清理任务 | untracked 噪音文件；无功能影响 |
+| 80 | **[LOW]** golden 镜像 8 份陈旧拷贝（`tests/fixtures/golden/test/`——纯文档快照，无测试读取：golden_parse/cross_target 只读 MANIFEST.md，路径解析到 live 树）。7.5b-S1 后实测：11 个 moved 文件仍滞留镜像 `components/`（10 个字节一致但路径形态错误 + array_ext 字节陈旧），镜像 `lib/` 缺 11 文件；7.5b-LS 报告时点计数 8 份 | 镜像维护任务（`diff -rq` 重同步）或镜像删除/改造 | 文档快照失真（MANIFEST 已声明 live 树为权威）；无测试影响 |
+| 81 | **[MEDIUM]** Flutter warnings 874 → 目标 <300 未达（8.1a G8：cap 879 断言内 PASS 但计划目标未兑现）。构成演变：1004（0.5 基线）→ 997（3.3）→ 879（cap）→ **874 实测（873 ECodegen + 0 unused-import + 1 未分类）**——下降连续但按类拆分需继续燃尽（ECodegen 类为主） | 编排层裁决：继续燃尽任务 or 更新目标/触发条件（维持单调下降纪律下目标不可达） | 计划 M3 部分——门禁绿、目标未达 |
+| 82 | **[MEDIUM]** 设计层（M7 部分项）剩余机制缺口：生命周期文档语料路径与文件移动的同步机制（D1 暴露：7.5b-S1 移动 11 文件后 spec 路径人工同步漏掉——`verify-syntax-lifecycle.py` 只验路径存在性，文件移动与 spec 更新之间无强制绑定；8.1b 已修路径本身，机制缺口保留） | 下次 learn-omniview/src 结构移动/重构任务；或 lifecycle 门禁脚本升级（路径映射表/自动解析） | 文件移动后 spec 漂移到下一次门禁运行才暴露（CI 级红，非静默） |
+| 83 | **[LOW]** motion-in-@for 逐项实例化实现（D-H 长期项）——4.9 `491857d6` 已落编译诊断（WMotion warning，双目标诚实降级）；「@for 内 motion 逐项实例化」（React 共享 ref 只动最后项 / Flutter 全项同播的语义修复）为长期实现项 | 用户对 @for 内 motion 的逐项实例化语义的实际需求（现语料零命中）；或 motion 域重设计任务 | 诊断已消除静默分叉；逐项实现前 @for 内 motion 保持 warning 降级 |
+
+### #76 状态复核（保持 open）
+
+- **#76**（React stdlib 方法翻译缺口 `to_uppercase`/`to_lowercase`/`is_empty`/`abs`）：**保持 open 不动**。台账描述复核一致——同族 `splice` 缺口已随 `35dc15ef`（fix(codegen): translate splice on shared table）修复，台账「splice 同族缺口已随 I-1 修复」与事实吻合；#76 本体 4 方法仍落默认臂，defer-with-trigger 不变。
+
+**验证**：本更新仅记录 8.1a 实测事实 + 8.1b 治理收口；零代码变更（D1/D2 修复见终验 commit）。

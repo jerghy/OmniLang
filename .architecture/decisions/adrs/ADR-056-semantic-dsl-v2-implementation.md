@@ -4,6 +4,8 @@
 
 Accepted
 
+> **2026-08-05 注记**：v3 fix round 完成（15 findings 处置 + 计划决策 D-A..I + K1 组件化事件解析新裁决 + 终验 8.1 收口）——见 **ADR-062**；本 ADR 记录的 Negative 节缺口（BUG-A/豁免体系/#60 未入 CI）已在 v3 全部关闭（#36/#37/#49/#50/#55/#60）。deferrals #36-#60 处置确认见 `.architecture/deferrals.md` 2026-08-05 节。
+
 ## Context
 
 ADR-054（语义 DSL 时代设计理念）与 ADR-055（@for 契约）之后，13 专家评审（`.architecture/reviews/feature-omniview-semantic-syntax-compilability.md`）证明：语义级 DSL 架构必要且充分（Pragmatic Ratio 0.63），但「语法 → 地道 React/Flutter 代码」在 HEAD 未兑现——React 输出不编译（C1/C2）、Flutter 含静默破坏构造（@for ListView.builder 无条件发射 + key_expr 丢弃、classes/variants 空桩）、1 个已端到端验证的 className 代码注入、主题切换静默失效、验证门禁系统性盲区（react-test-app 假门禁/展示项目 Flutter 无门禁/proptest 空测试）、文档-规范-parser 三方漂移 10+ 处。
