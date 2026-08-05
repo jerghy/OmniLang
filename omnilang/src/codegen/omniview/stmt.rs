@@ -133,12 +133,7 @@ impl OmniViewGenerator {
             }
             StatementIR::EventEmitStmtIR { event_name, args } => {
                 let arg_str: Vec<String> = args.iter().map(|a| self.expr_to_js(a)).collect();
-                let resolved_name = self
-                    .name_resolver
-                    .name_renames
-                    .get(event_name.as_str())
-                    .cloned()
-                    .unwrap_or_else(|| event_name.clone());
+                let resolved_name = self.resolve_event_emit(event_name);
                 let _ = writeln!(self.js, "  {}({});", resolved_name, arg_str.join(", "));
             }
             StatementIR::BlockStmtIR { body } => {
@@ -154,6 +149,51 @@ impl OmniViewGenerator {
                 );
             }
         }
+    }
+
+    /// The prefixed emitter name for `event_name` IF the currently-emitting
+    /// component declares an event with that name — component-scoped event
+    /// resolution (fix 7.5b-K1). Returns `None` when the current component
+    /// does not declare the event, so callers fall back to the module-wide
+    /// rename tables (unchanged behavior).
+    ///
+    /// Mirrors the `{current_component}_{name}` prefix used for FnRef
+    /// resolution in view/events.rs.
+    pub(super) fn component_event_prefixed(&self, event_name: &str) -> Option<String> {
+        let comp = &self.scope.current_component;
+        if comp.is_empty() {
+            return None;
+        }
+        let comp_ir = self.name_resolver.component_map.get(comp)?;
+        if comp_ir.events.iter().any(|e| e.name == event_name) {
+            Some(format!("{}_{}", comp, event_name))
+        } else {
+            None
+        }
+    }
+
+    /// Resolve an `emit eventName(...)` statement to the prefixed emitter name.
+    ///
+    /// Component-scoped resolution (fix 7.5b-K1): the currently-emitting
+    /// component's own event table wins — `emit onSwitch(...)` inside TabBar
+    /// resolves to `TabBar_onSwitch` even when sibling components (HomePage,
+    /// AboutPage) declare same-named events. A bare-name module-wide rename
+    /// table is last-wins (the last declaring component overwrites earlier
+    /// ones), so it cannot distinguish two `onSwitch` declarations — that
+    /// collision made every TabBar button dispatch to AboutPage's emitter
+    /// and broke all tab switching (33/45 browser tests, single root cause).
+    ///
+    /// Miss → fall back to the global rename table (unchanged behavior for
+    /// emits of events the current component does not declare).
+    fn resolve_event_emit(&mut self, event_name: &str) -> String {
+        if let Some(prefixed) = self.component_event_prefixed(event_name) {
+            return prefixed;
+        }
+        self.name_resolver
+            .name_renames
+            .get(event_name)
+            .cloned()
+            .unwrap_or_else(|| event_name.to_string())
     }
 
     /// Convert a single statement to an inline JS string (no buffer push).

@@ -113,6 +113,16 @@ impl OmniViewGenerator {
                 if let Some(native) = try_format_stdlib_call(name, &arg_strs, Target::OmniView) {
                     return native;
                 }
+                // Event-call form `onSwitch("x")` (semantically equivalent to
+                // `emit onSwitch("x")`): resolve component-scoped FIRST (fix
+                // 7.5b-K1). The module-wide rename tables below are last-wins
+                // and cannot distinguish same-named events across components —
+                // every TabBar button used to dispatch to AboutPage's emitter.
+                // fn-prop/computed calls are unaffected: this branch only fires
+                // when the current component actually declares the event.
+                if let Some(prefixed) = self.component_event_prefixed(name) {
+                    return format!("{}({})", prefixed, arg_strs.join(", "));
+                }
                 let resolved = self
                     .name_resolver
                     .name_renames

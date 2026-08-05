@@ -2,6 +2,7 @@
 //! Tests focus on motion/animation codegen output correctness.
 
 mod design;
+mod events;
 mod list;
 mod motion;
 mod refs;
