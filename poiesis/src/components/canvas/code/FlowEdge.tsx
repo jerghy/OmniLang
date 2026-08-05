@@ -43,7 +43,13 @@ function domToCanvas(el: Element, vp: DOMRect, transform: [number, number, numbe
   return { x: (r.x - vp.x - transform[0]) / transform[2], y: (r.y - vp.y - transform[1]) / transform[2] };
 }
 
-export function FlowEdge({ id, source, target, sourceHandle, targetHandle, style, markerEnd }: EdgeProps) {
+/** EdgeProps 类型缺 sourceHandle/targetHandle（安装版 v12 类型不含），扩展补上 */
+interface FlowEdgeProps extends EdgeProps {
+  sourceHandle?: string | null;
+  targetHandle?: string | null;
+}
+
+export function FlowEdge({ id, source, target, sourceHandle, targetHandle, style, markerEnd }: FlowEdgeProps) {
   const transform = useStore((s) => s.transform);
   const [pos, setPos] = useState<FlowEdgeInput | null>(null);
 
