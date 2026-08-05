@@ -6,7 +6,6 @@ import React, { useMemo } from "react";
 import { formatSyntaxNode, type SyntaxNodeProps, ASSIGN_OPERATORS } from "../../../../services/codegen/syntax-nodes";
 import { NodeTextField, NodeSelect, NodeChipToggle, NodeArgsRows } from "../fields/NodeField";
 import { NodeFormulaField } from "../fields/NodeFormulaField";
-import { TokenPreview } from "../fields/TokenPreview";
 import { countUnbalancedParens } from "../fields/expression-trigger";
 import { validateSyntaxProps, filterCandidates, buildTargetOptions, buildFormulaSource, type FlowScope } from "../../../../services/codegen/flow-scope";
 import styles from "./SyntaxNode.module.css";
@@ -117,11 +116,6 @@ const SyntaxNode = React.memo(function SyntaxNode({ data }: Props) {
                 className={styles.grow}
               />
             </div>
-            {/* 值字段只读结构预览（value 字段行换 TokenPreview）：输入常驻为编辑面（节点即编辑面），
-                TokenPreview 行展示当前值的 token 结构（胶囊/符号/文本），与编辑态同构 */}
-            <div className={styles.row}>
-              <TokenPreview value={(props.value as string) ?? ""} />
-            </div>
           </>
         )}
 
@@ -146,10 +140,6 @@ const SyntaxNode = React.memo(function SyntaxNode({ data }: Props) {
                 ariaLabel="表达式"
                 className={styles.grow}
               />
-            </div>
-            {/* 值字段只读结构预览（value 字段行换 TokenPreview）：与 let 同款 */}
-            <div className={styles.row}>
-              <TokenPreview value={(props.value as string) ?? ""} />
             </div>
           </>
         )}

@@ -36,3 +36,11 @@
   padding: 1px 8px; cursor: pointer;
 }
 .argsAdd:hover { color: var(--ol-text); border-color: var(--ol-border-hover); }
+
+/* ── NodeFormulaField Notion 式（contenteditable + token 胶囊）── */
+.notionField { min-width: 140px; line-height: 1.6; white-space: pre-wrap; word-break: break-all; }
+.notionField:empty::before { content: attr(data-placeholder); color: #94a3b8; }
+.tokenCapsule { background: rgba(168, 85, 247, 0.1); border-radius: 3px; padding: 0 2px; color: #7c3aed; }
+.tokenCapsule[data-token-kind="operator"],
+.tokenCapsule[data-token-kind="paren"] { background: transparent; color: #475569; padding: 0; }
+.tokenPlain { color: #334155; }

@@ -2,94 +2,154 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { NodeFormulaField, type FormulaCandidateSource } from "../NodeFormulaField";
 
+// contenteditable 测试以 jsdom 可实现为准：真实键盘编辑无法模拟，用
+// `fireEvent.input(el, { target: { textContent } })` 直设文本 + input 事件
+// （testing-library 对 target 的 textContent 做 Object.assign，等同真实键入）。
+// 光标位置无 Selection 时回退到文本末尾（caretOffset 契约），与各用例光标在尾一致。
+
 const cands: FormulaCandidateSource = {
   filter: (q) => (q === "" ? [{ value: "count", label: "count" }] : [{ value: "count", label: "count" }].filter((c) => c.value.startsWith(q))),
   storeSignals: (name) => (name === "ThemeStore" ? [{ value: "ThemeStore.mode", label: "ThemeStore.mode" }] : []),
 };
 
-describe("NodeFormulaField", () => {
-  it("blur 提交 onCommit（草稿语义不变）", () => {
+function setup(initial = "", candidates: FormulaCandidateSource | undefined = cands, onCommit = vi.fn()) {
+  const { container } = render(<NodeFormulaField value={initial} onCommit={onCommit} candidates={candidates} ariaLabel="初始值" />);
+  return { container, el: container.querySelector("[contenteditable]") as HTMLElement, onCommit };
+}
+
+describe("NodeFormulaField Notion 式分词", () => {
+  it("输入即分词：键入 `count + 1` 渲染 token 胶囊", () => {
+    const { container, el } = setup();
+    fireEvent.input(el, { target: { textContent: "count + 1" } });
+    expect(container.querySelectorAll('[data-token-kind="identifier"]')).toHaveLength(1);
+    expect(container.querySelectorAll('[data-token-kind="operator"]')).toHaveLength(1);
+    expect(container.querySelectorAll('[data-token-kind="number"]')).toHaveLength(1);
+  });
+
+  it("初始 value 挂载即分词渲染（结构同 TokenPreview）", () => {
+    const { container } = setup("TodoStore.total == 1");
+    expect(container.querySelector('[data-token-kind="member"]')?.textContent).toBe("TodoStore.total");
+    expect(container.querySelector('[data-token-kind="operator"]')?.textContent).toBe("==");
+    expect(container.querySelector('[data-token-kind="number"]')?.textContent).toBe("1");
+  });
+
+  it("敲运算符字符：直插成符号 token 且弹候选（多字符变体）", () => {
+    const { container, el } = setup("count <");
+    // 输入 `<` 前缀后继续输入 `=` → 完整 `<=` token
+    fireEvent.input(el, { target: { textContent: "count <=" } });
+    expect(container.querySelector('[data-token-kind="operator"]')?.textContent).toBe("<=");
+  });
+
+  it("Enter 提交字符串（草稿语义不变）", () => {
+    const { onCommit, el } = setup();
+    fireEvent.input(el, { target: { textContent: "count + 1" } });
+    fireEvent.keyDown(el, { key: "Enter" });
+    expect(onCommit).toHaveBeenCalledWith("count + 1");
+  });
+
+  it("IME 组合期间不分词（compositionstart → 原样文本），组合结束恢复分词", () => {
+    const { container, el } = setup();
+    fireEvent.compositionStart(el);
+    fireEvent.input(el, { target: { textContent: "变量名" } });
+    expect(container.querySelectorAll('[data-token-kind="identifier"]')).toHaveLength(0);
+    fireEvent.compositionEnd(el, { target: { textContent: "变量名" } });
+    expect(el.textContent).toBe("变量名");
+    expect(container.querySelectorAll("[data-token-kind]").length).toBeGreaterThan(0);
+  });
+
+  it("无 candidates 退化纯文本输入（无分词无弹层，blur 仍提交）", () => {
+    // 注意：不能经 setup() 传 undefined（默认参数会兜底成 cands），直接渲染
     const onCommit = vi.fn();
-    render(<NodeFormulaField value="0" onCommit={onCommit} candidates={cands} ariaLabel="初始值" />);
-    const input = screen.getByLabelText("初始值");
-    fireEvent.change(input, { target: { value: "count + 1" } });
+    const { container } = render(<NodeFormulaField value="" onCommit={onCommit} ariaLabel="初始值" />);
+    const el = container.querySelector("[contenteditable]") as HTMLElement;
+    fireEvent.input(el, { target: { textContent: "abc" } });
+    expect(container.querySelectorAll("[data-token-kind]")).toHaveLength(0);
+    expect(screen.queryByRole("listbox")).toBeNull();
+    fireEvent.blur(el);
+    expect(onCommit).toHaveBeenCalledWith("abc");
+  });
+
+  it("光标在数字字面量内不弹候选（字面量无补全语义，Enter 提交契约的基础）", () => {
+    const { el } = setup();
+    fireEvent.input(el, { target: { textContent: "count + 1" } });
+    expect(screen.queryByRole("listbox")).toBeNull();
+  });
+
+  it("Backspace 在标识符 token 末尾整块删除", () => {
+    const { el } = setup("count");
+    fireEvent.keyDown(el, { key: "Backspace" });
+    expect(el.textContent).toBe("");
+  });
+});
+
+describe("NodeFormulaField 草稿提交与候选菜单", () => {
+  it("blur 提交 onCommit（草稿语义不变）", () => {
+    const { el, onCommit } = setup("0");
+    fireEvent.input(el, { target: { textContent: "count + 1" } });
     expect(onCommit).not.toHaveBeenCalled();
-    fireEvent.blur(input);
+    fireEvent.blur(el);
     expect(onCommit).toHaveBeenCalledWith("count + 1");
   });
 
   it("输入字母 → 弹候选（operand 上下文）", () => {
-    render(<NodeFormulaField value="" onCommit={vi.fn()} candidates={cands} ariaLabel="初始值" />);
-    const input = screen.getByLabelText("初始值") as HTMLInputElement;
-    fireEvent.change(input, { target: { value: "cou", selectionStart: 3 } });
+    const { el } = setup();
+    fireEvent.input(el, { target: { textContent: "cou" } });
     expect(screen.getByRole("listbox")).toBeTruthy();
     expect(screen.getByText("count")).toBeTruthy();
   });
 
   it("Tab 选中候选 → 替换当前 token 并关闭弹层（不提交）", () => {
-    const onCommit = vi.fn();
-    render(<NodeFormulaField value="" onCommit={onCommit} candidates={cands} ariaLabel="初始值" />);
-    const input = screen.getByLabelText("初始值") as HTMLInputElement;
-    fireEvent.change(input, { target: { value: "cou", selectionStart: 3 } });
-    fireEvent.keyDown(input, { key: "Tab" });
-    expect(input.value).toBe("count");
+    const { el, onCommit } = setup();
+    fireEvent.input(el, { target: { textContent: "cou" } });
+    fireEvent.keyDown(el, { key: "Tab" });
+    expect(el.textContent).toBe("count");
     expect(screen.queryByRole("listbox")).toBeNull();
     expect(onCommit).not.toHaveBeenCalled();
   });
 
-  it("输入单字符运算符（+）→ 直接插入不弹框", () => {
-    render(<NodeFormulaField value="" onCommit={vi.fn()} candidates={cands} ariaLabel="初始值" />);
-    const input = screen.getByLabelText("初始值") as HTMLInputElement;
-    fireEvent.change(input, { target: { value: "count ", selectionStart: 6 } });
-    fireEvent.change(input, { target: { value: "count +", selectionStart: 7 } });
-    expect(input.value).toBe("count +");
+  it("输入单字符运算符（+）→ 直接插入不弹框（无多字符变体）", () => {
+    const { el } = setup();
+    fireEvent.input(el, { target: { textContent: "count +" } });
+    expect(el.textContent).toBe("count +");
     expect(screen.queryByRole("listbox")).toBeNull();
   });
 
   it("输入运算符前缀（<）→ 弹运算符选择框", () => {
-    render(<NodeFormulaField value="" onCommit={vi.fn()} candidates={cands} ariaLabel="初始值" />);
-    const input = screen.getByLabelText("初始值") as HTMLInputElement;
-    fireEvent.change(input, { target: { value: "count <", selectionStart: 7 } });
+    const { el } = setup();
+    fireEvent.input(el, { target: { textContent: "count <" } });
     expect(screen.getByRole("listbox")).toBeTruthy();
     expect(screen.getByText("<=")).toBeTruthy();
   });
 
-  it("光标在运算符串中间（<= 之间）→ 完整串无候选不弹层（不产生截断替换）", () => {
-    // token 覆盖完整 "<=" 而非截断的 "<"：候选表无 "<=" 前缀 → 弹层关闭，
-    // 避免选中候选只替换前半段、残留 "="（"count <==" 污染）
-    render(<NodeFormulaField value="" onCommit={vi.fn()} candidates={cands} ariaLabel="初始值" />);
-    const input = screen.getByLabelText("初始值") as HTMLInputElement;
-    fireEvent.change(input, { target: { value: "count <=", selectionStart: 6 } });
+  it("完整运算符串（<=）无变体候选 → 不弹层（不产生截断替换）", () => {
+    // 完整 "<=" 在候选表中无前缀 → 弹层关闭，避免选中候选只替换前半段、残留 "="（"count <==" 污染）
+    const { el } = setup();
+    fireEvent.input(el, { target: { textContent: "count <=" } });
     expect(screen.queryByRole("listbox")).toBeNull();
-    expect(input.value).toBe("count <=");
+    expect(el.textContent).toBe("count <=");
   });
 
   it("Enter 在弹层打开时选中候选（提交语义由后续 blur 完成）", () => {
-    const onCommit = vi.fn();
-    render(<NodeFormulaField value="" onCommit={onCommit} candidates={cands} ariaLabel="初始值" />);
-    const input = screen.getByLabelText("初始值") as HTMLInputElement;
-    fireEvent.change(input, { target: { value: "cou", selectionStart: 3 } });
-    fireEvent.keyDown(input, { key: "Enter" });
-    expect(input.value).toBe("count");
+    const { el, onCommit } = setup();
+    fireEvent.input(el, { target: { textContent: "cou" } });
+    fireEvent.keyDown(el, { key: "Enter" });
+    expect(el.textContent).toBe("count");
     expect(screen.queryByRole("listbox")).toBeNull();
     expect(onCommit).not.toHaveBeenCalled();
   });
 
   it("Esc 关闭弹层（草稿保留，不提交不取消）", () => {
-    const onCommit = vi.fn();
-    render(<NodeFormulaField value="0" onCommit={onCommit} candidates={cands} ariaLabel="初始值" />);
-    const input = screen.getByLabelText("初始值") as HTMLInputElement;
-    fireEvent.change(input, { target: { value: "cou", selectionStart: 3 } });
-    fireEvent.keyDown(input, { key: "Escape" });
+    const { el, onCommit } = setup("0");
+    fireEvent.input(el, { target: { textContent: "cou" } });
+    fireEvent.keyDown(el, { key: "Escape" });
     expect(screen.queryByRole("listbox")).toBeNull();
-    expect(input.value).toBe("cou"); // 草稿保留
+    expect(el.textContent).toBe("cou"); // 草稿保留
     expect(onCommit).not.toHaveBeenCalled();
   });
 
   it("Store. 输入 → member 候选（storeSignals）", () => {
-    render(<NodeFormulaField value="" onCommit={vi.fn()} candidates={cands} ariaLabel="初始值" />);
-    const input = screen.getByLabelText("初始值") as HTMLInputElement;
-    fireEvent.change(input, { target: { value: "ThemeStore.", selectionStart: 11 } });
+    const { el } = setup();
+    fireEvent.input(el, { target: { textContent: "ThemeStore." } });
     expect(screen.getByText("ThemeStore.mode")).toBeTruthy();
   });
 
@@ -99,12 +159,11 @@ describe("NodeFormulaField", () => {
       filter: () => [],
       storeSignals: (name) => (name === "demostore" ? [{ value: "demostore.newSignal", label: "demostore.newSignal" }] : []),
     };
-    render(<NodeFormulaField value="" onCommit={vi.fn()} candidates={candsStore} ariaLabel="初始值" />);
-    const input = screen.getByLabelText("初始值") as HTMLInputElement;
-    fireEvent.change(input, { target: { value: "demostore.", selectionStart: 10 } });
+    const { el } = setup("", candsStore);
+    fireEvent.input(el, { target: { textContent: "demostore." } });
     expect(screen.getByRole("listbox")).toBeTruthy();
-    fireEvent.keyDown(input, { key: "Tab" });
-    expect(input.value).toBe("demostore.newSignal");
+    fireEvent.keyDown(el, { key: "Tab" });
+    expect(el.textContent).toBe("demostore.newSignal");
     expect(screen.queryByRole("listbox")).toBeNull();
   });
 
@@ -113,75 +172,42 @@ describe("NodeFormulaField", () => {
       filter: () => [{ value: "a", label: "a" }, { value: "b", label: "b" }],
       storeSignals: () => [],
     };
-    render(<NodeFormulaField value="" onCommit={vi.fn()} candidates={cands2} ariaLabel="初始值" />);
-    const input = screen.getByLabelText("初始值") as HTMLInputElement;
-    fireEvent.change(input, { target: { value: "", selectionStart: 0 } });
-    fireEvent.keyDown(input, { key: "ArrowDown" });
-    fireEvent.keyDown(input, { key: "Enter" });
-    expect(input.value).toBe("b");
+    const { el } = setup("", cands2);
+    fireEvent.input(el, { target: { textContent: "" } });
+    fireEvent.keyDown(el, { key: "ArrowDown" });
+    fireEvent.keyDown(el, { key: "Enter" });
+    expect(el.textContent).toBe("b");
   });
 
   it("IME 组合输入期间不弹候选", () => {
-    render(<NodeFormulaField value="" onCommit={vi.fn()} candidates={cands} ariaLabel="初始值" />);
-    const input = screen.getByLabelText("初始值") as HTMLInputElement;
-    fireEvent.compositionStart(input);
-    fireEvent.change(input, { target: { value: "中", selectionStart: 1 } });
+    const { el } = setup();
+    fireEvent.compositionStart(el);
+    fireEvent.input(el, { target: { textContent: "中" } });
     expect(screen.queryByRole("listbox")).toBeNull();
-    fireEvent.compositionEnd(input);
-  });
-
-  it("blur 提交后兜底 change 不再重开弹层（事件序守卫）", () => {
-    // 终审修复 5：部分浏览器 blur 先于 change——commit 关闭弹层后，native change
-    // 兜底监听若再触发候选计算会重开悬空弹层。守卫（曾聚焦且已 blur）应阻止。
-    const onCommit = vi.fn();
-    render(<NodeFormulaField value="" onCommit={onCommit} candidates={cands} ariaLabel="初始值" />);
-    const input = screen.getByLabelText("初始值") as HTMLInputElement;
-    fireEvent.focus(input); // 真实浏览器必先聚焦（everFocusedRef 置位）
-    fireEvent.change(input, { target: { value: "cou", selectionStart: 3 } });
-    expect(screen.getByRole("listbox")).toBeTruthy();
-    fireEvent.blur(input); // commit + 关层
-    expect(onCommit).toHaveBeenCalledWith("cou");
-    // 模拟 blur 先于 change 的事件序：真实浏览器中迟发 change 的值与 React 值追踪器
-    // 相同（合成 onChange 不派发），只走 native change 兜底监听——守卫应拦截重开弹层。
-    // （若值不同，React onChange 会直接处理新值，属正常输入流，不在本守卫范围。）
-    fireEvent.change(input, { target: { value: "cou", selectionStart: 3 } });
-    expect(screen.queryByRole("listbox")).toBeNull();
-  });
-
-  it("无 candidates → 退化纯文本（不弹层不报错）", () => {
-    const onCommit = vi.fn();
-    render(<NodeFormulaField value="0" onCommit={onCommit} ariaLabel="初始值" />);
-    const input = screen.getByLabelText("初始值");
-    fireEvent.change(input, { target: { value: "cou", selectionStart: 3 } });
-    expect(screen.queryByRole("listbox")).toBeNull();
-    fireEvent.blur(input);
-    expect(onCommit).toHaveBeenCalledWith("cou");
+    fireEvent.compositionEnd(el, { target: { textContent: "中" } });
   });
 
   it("运算符候选选择不重复前缀（replaceToken 替换 token）", () => {
-    render(<NodeFormulaField value="" onCommit={vi.fn()} candidates={cands} ariaLabel="初始值" />);
-    const input = screen.getByLabelText("初始值") as HTMLInputElement;
-    fireEvent.change(input, { target: { value: "count <", selectionStart: 7 } });
+    const { el } = setup();
+    fireEvent.input(el, { target: { textContent: "count <" } });
     // 默认第一项 "<" → 替换后值不变（insertAt 会得到 "count <<"）
-    fireEvent.keyDown(input, { key: "Enter" });
-    expect(input.value).toBe("count <");
+    fireEvent.keyDown(el, { key: "Enter" });
+    expect(el.textContent).toBe("count <");
     // 重开弹层，导航到 "<=" 选中 → 前缀不重复
-    fireEvent.change(input, { target: { value: "count <", selectionStart: 7 } });
-    fireEvent.keyDown(input, { key: "ArrowDown" });
-    fireEvent.keyDown(input, { key: "Enter" });
-    expect(input.value).toBe("count <=");
+    fireEvent.input(el, { target: { textContent: "count <" } });
+    fireEvent.keyDown(el, { key: "ArrowDown" });
+    fireEvent.keyDown(el, { key: "Enter" });
+    expect(el.textContent).toBe("count <=");
   });
 
   it("鼠标点击候选不提前提交（菜单项 onMouseDown 防夺焦）", () => {
-    const onCommit = vi.fn();
-    render(<NodeFormulaField value="" onCommit={onCommit} candidates={cands} ariaLabel="初始值" />);
-    const input = screen.getByLabelText("初始值") as HTMLInputElement;
-    fireEvent.change(input, { target: { value: "cou", selectionStart: 3 } });
+    const { el, onCommit } = setup();
+    fireEvent.input(el, { target: { textContent: "cou" } });
     const option = screen.getByRole("option");
     fireEvent.mouseDown(option);
     fireEvent.click(option);
     expect(onCommit).not.toHaveBeenCalled(); // 未完成草稿不得被 blur 提前提交
-    expect(input.value).toBe("count"); // 候选已替换进草稿
+    expect(el.textContent).toBe("count"); // 候选已替换进草稿
     expect(screen.queryByRole("listbox")).toBeNull();
   });
 });

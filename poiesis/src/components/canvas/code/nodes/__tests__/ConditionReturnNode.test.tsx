@@ -18,7 +18,7 @@ describe("ConditionNode 内联编辑", () => {
     render(<ConditionNode data={{ label: "判断", branches: [{ id: "br0", type: "if", condition: "" }], onEditCondition }} />);
     fireEvent.click(screen.getByText("..."));
     const input = screen.getByLabelText("编辑条件表达式");
-    fireEvent.change(input, { target: { value: "count > 0" } });
+    fireEvent.input(input, { target: { textContent: "count > 0" } });
     fireEvent.blur(input);
     expect(onEditCondition).toHaveBeenCalledWith("br0", "count > 0");
   });
@@ -62,7 +62,7 @@ describe("ReturnNode 内联编辑", () => {
     const { container } = render(<ReturnNode data={{ label: "返回", returnExpr: "x", onCommitReturn: onCommit }} />);
     fireEvent.click(container.querySelector('[data-testid="token-preview"]')!);
     const input = screen.getByLabelText("return 表达式");
-    fireEvent.change(input, { target: { value: "y" } });
+    fireEvent.input(input, { target: { textContent: "y" } });
     fireEvent.keyDown(input, { key: "Enter" });
     expect(onCommit).toHaveBeenCalledWith("y");
   });
@@ -95,8 +95,8 @@ describe("ConditionNode 公式框", () => {
   it("条件输入字母弹候选（scope 信号）", () => {
     const { container } = render(<ConditionNode data={data} />);
     fireEvent.click(screen.getByTestId("token-preview"));
-    const input = container.querySelector('[data-field-kind="formula"]') as HTMLInputElement;
-    fireEvent.change(input, { target: { value: "cou", selectionStart: 3 } });
+    const input = container.querySelector('[data-field-kind="formula"]') as HTMLElement;
+    fireEvent.input(input, { target: { textContent: "cou" } });
     expect(screen.getByRole("listbox")).toBeTruthy();
     // 信号候选 label 为 "count: i32"，限定菜单作用域断言包含 count
     expect(container.querySelector('[role="listbox"]')?.textContent).toContain("count");
@@ -106,8 +106,8 @@ describe("ConditionNode 公式框", () => {
     const onEditCondition = vi.fn();
     const { container } = render(<ConditionNode data={{ ...data, onEditCondition }} />);
     fireEvent.click(screen.getByTestId("token-preview"));
-    const input = container.querySelector('[data-field-kind="formula"]') as HTMLInputElement;
-    fireEvent.change(input, { target: { value: "count > 0", selectionStart: 9 } });
+    const input = container.querySelector('[data-field-kind="formula"]') as HTMLElement;
+    fireEvent.input(input, { target: { textContent: "count > 0" } });
     fireEvent.blur(input);
     expect(onEditCondition).toHaveBeenCalledWith("br0", "count > 0");
   });
@@ -115,8 +115,8 @@ describe("ConditionNode 公式框", () => {
   it("无 scope → 退化纯文本不弹层", () => {
     const { container } = render(<ConditionNode data={{ ...data, scope: undefined }} />);
     fireEvent.click(screen.getByTestId("token-preview"));
-    const input = container.querySelector('[data-field-kind="formula"]') as HTMLInputElement;
-    fireEvent.change(input, { target: { value: "cou", selectionStart: 3 } });
+    const input = container.querySelector('[data-field-kind="formula"]') as HTMLElement;
+    fireEvent.input(input, { target: { textContent: "cou" } });
     expect(screen.queryByRole("listbox")).toBeNull();
   });
 });
@@ -128,8 +128,8 @@ describe("ReturnNode 公式框", () => {
       <ReturnNode data={{ label: "返回", returnExpr: "", scope: formulaScope, letVars: [], onCommitReturn }} />,
     );
     fireEvent.click(screen.getByText("return")); // 点击进入编辑态才挂载公式框
-    const input = container.querySelector('[data-field-kind="formula"]') as HTMLInputElement;
-    fireEvent.change(input, { target: { value: "count + 1", selectionStart: 9 } });
+    const input = container.querySelector('[data-field-kind="formula"]') as HTMLElement;
+    fireEvent.input(input, { target: { textContent: "count + 1" } });
     fireEvent.blur(input);
     expect(onCommitReturn).toHaveBeenCalledWith("count + 1");
   });

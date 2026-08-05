@@ -67,8 +67,8 @@ describe("SyntaxNode 内联编辑", () => {
     renderNode("store-call", { storeName: "TodoStore", action: "add", args: "" }, onEditProp);
     expect(screen.queryByLabelText("新参数")).toBeFalsy();
     fireEvent.click(screen.getByRole("button", { name: "+ 添加参数" }));
-    const input = screen.getByLabelText("新参数");
-    fireEvent.change(input, { target: { value: "text" } });
+    const input = screen.getByLabelText("新参数"); // store-call 传 candidates → 公式框（contenteditable）
+    fireEvent.input(input, { target: { textContent: "text" } });
     fireEvent.blur(input);
     expect(onEditProp).toHaveBeenCalledWith("l1", "args", "text");
   });
@@ -95,12 +95,13 @@ describe("SyntaxNode 内联编辑", () => {
     expect(screen.getByText("let mut x = 0;")).toBeTruthy();
   });
 
-  it("let 值字段行显示 TokenPreview 结构预览（胶囊/符号/文本）", () => {
+  it("let 值字段公式框内嵌 token 渲染（Task 9 替换 TokenPreview 预览行）", () => {
     const { container } = renderNode("let", { name: "x", mutable: false, value: "count + 1" });
-    // token 结构断言：identifier 胶囊 / operator 符号（空白被 tokenizer 跳过，容器文本 "count+1"）
-    expect(container.querySelector('[data-testid="token-preview"]')?.textContent).toBe("count+1");
+    // NodeFormulaField 内部分词渲染：identifier 胶囊 / operator 符号；空白段保留（textContent 双向一致）
+    expect(container.querySelector('[data-testid="token-preview"]')).toBeNull(); // 预览行已删除
     expect(container.querySelector('[data-token-kind="identifier"]')?.textContent).toBe("count");
     expect(container.querySelector('[data-token-kind="operator"]')?.textContent).toBe("+");
+    expect(container.querySelector('[data-field-kind="formula"]')?.textContent).toBe("count + 1");
   });
 
   it("store 名 datalist 提供候选", () => {
@@ -139,8 +140,8 @@ describe("SyntaxNode 公式框集成", () => {
     const { container } = render(
       <SyntaxNode data={{ id: "n1", label: "赋值", tag: "assign", props: { target: "count", operator: "=", value: "" }, scope, letVars: [{ name: "total" }], onEditProp: vi.fn() }} />,
     );
-    const input = container.querySelector('[data-field-kind="formula"]') as HTMLInputElement;
-    fireEvent.change(input, { target: { value: "tot", selectionStart: 3 } });
+    const input = container.querySelector('[data-field-kind="formula"]') as HTMLElement;
+    fireEvent.input(input, { target: { textContent: "tot" } });
     // 候选菜单（role=listbox）内应出现 total；target 下拉也有同名 option（letVars 目标），故限定菜单作用域
     expect(container.querySelector('[role="listbox"]')?.textContent).toContain("total");
   });
@@ -159,8 +160,8 @@ describe("SyntaxNode 公式框集成", () => {
     const { container } = render(
       <SyntaxNode data={{ id: "n1", label: "变量声明", tag: "let", props: { name: "x", mutable: false, value: "0" }, scope, onEditProp }} />,
     );
-    const input = container.querySelector('[data-field-kind="formula"]') as HTMLInputElement;
-    fireEvent.change(input, { target: { value: "count + 1" } });
+    const input = container.querySelector('[data-field-kind="formula"]') as HTMLElement;
+    fireEvent.input(input, { target: { textContent: "count + 1" } });
     fireEvent.blur(input);
     expect(onEditProp).toHaveBeenCalledWith("n1", "value", "count + 1");
   });

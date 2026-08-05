@@ -126,8 +126,8 @@ describe("NodeArgsRows candidates", () => {
 
   it("行内输入弹候选", () => {
     render(<NodeArgsRows values={[""]} onChange={vi.fn()} candidates={cands} />);
-    const input = screen.getByRole("combobox") as HTMLInputElement;
-    fireEvent.change(input, { target: { value: "cou", selectionStart: 3 } });
+    const input = screen.getByRole("combobox") as HTMLElement;
+    fireEvent.input(input, { target: { textContent: "cou" } });
     expect(screen.getByRole("listbox")).toBeTruthy();
     expect(screen.getByText("count")).toBeTruthy();
   });

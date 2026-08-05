@@ -63,9 +63,10 @@ describe("FlowInspector 降级为预览", () => {
 describe("FlowInspector loop 表单", () => {
   it("while 节点渲染条件字段，提交走 setProp(condition)", () => {
     render(<FlowInspector selectedNodeIds={["w1"]} />);
-    const input = screen.getByLabelText("循环条件") as HTMLInputElement;
-    expect(input.value).toBe("count < 10");
-    fireEvent.change(input, { target: { value: "count <= 20" } });
+    // 测试 mock 无 scope → 公式框退化纯文本（raw 文本渲染，textContent 即值）
+    const input = screen.getByLabelText("循环条件") as HTMLElement;
+    expect(input.textContent).toBe("count < 10");
+    fireEvent.input(input, { target: { textContent: "count <= 20" } });
     fireEvent.blur(input);
     expect(mockSetProp).toHaveBeenCalledWith("w1", "condition", "count <= 20");
   });
@@ -74,9 +75,9 @@ describe("FlowInspector loop 表单", () => {
     render(<FlowInspector selectedNodeIds={["fi1"]} />);
     const varInput = screen.getByLabelText("循环变量") as HTMLInputElement;
     expect(varInput.value).toBe("item");
-    const iterInput = screen.getByLabelText("遍历表达式") as HTMLInputElement;
-    expect(iterInput.value).toBe("items");
-    fireEvent.change(iterInput, { target: { value: "todos" } });
+    const iterInput = screen.getByLabelText("遍历表达式") as HTMLElement;
+    expect(iterInput.textContent).toBe("items");
+    fireEvent.input(iterInput, { target: { textContent: "todos" } });
     fireEvent.blur(iterInput);
     expect(mockSetProp).toHaveBeenCalledWith("fi1", "iterable", "todos");
   });
