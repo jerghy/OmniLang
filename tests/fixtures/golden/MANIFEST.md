@@ -90,14 +90,14 @@ Files are grouped by primary feature. Many files demonstrate multiple features.
 
 ## Advanced (Pure Logic Libraries)
 
-- `test/projects/learn-omniview/src/components/array_ext.omni` — `std/array` methods: `array_map`, `array_find`, `array_contains`, `array_remove`
-- `test/projects/learn-omniview/src/components/string_ext.omni` — `std/string` methods: `string_split`, `string_join`, `string_replace`, `string_to_upper`, `string_ends_with`
-- `test/projects/learn-omniview/src/components/datetime_demo.omni` — `std/datetime`: `datetime_now`, `datetime_format`, date-part extraction
-- `test/projects/learn-omniview/src/components/regex_demo.omni` — `std/regex`: `regex_match`, `regex_search`, `regex_replace`
-- `test/projects/learn-omniview/src/components/math_ext.omni` — `std/math`: min, max, pow, trig (sin/cos/tan), clamp, random_int, log, pi, e
-- `test/projects/learn-omniview/src/components/error_handling.omni` — `throw` statement, `try`/`catch` error handling
-- `test/projects/learn-omniview/src/components/encode_demo.omni` — `std/encode`: base64/hex/url encode+decode roundtrips
-- `test/projects/learn-omniview/src/components/async_demo.omni` — `std/async`: `async_sleep`/`async_spawn`/`async_all`/`async_race`/`async_timeout` with `async fn` + `await`
+- `test/projects/learn-omniview/src/lib/array_ext.omni` — `std/array` methods: `array_map`, `array_find`, `array_contains`, `array_remove`
+- `test/projects/learn-omniview/src/lib/string_ext.omni` — `std/string` methods: `string_split`, `string_join`, `string_replace`, `string_to_upper`, `string_ends_with`
+- `test/projects/learn-omniview/src/lib/datetime_demo.omni` — `std/datetime`: `datetime_now`, `datetime_format`, date-part extraction
+- `test/projects/learn-omniview/src/lib/regex_demo.omni` — `std/regex`: `regex_match`, `regex_search`, `regex_replace`
+- `test/projects/learn-omniview/src/lib/math_ext.omni` — `std/math`: min, max, pow, trig (sin/cos/tan), clamp, random_int, log, pi, e
+- `test/projects/learn-omniview/src/lib/error_handling.omni` — `throw` statement, `try`/`catch` error handling
+- `test/projects/learn-omniview/src/lib/encode_demo.omni` — `std/encode`: base64/hex/url encode+decode roundtrips
+- `test/projects/learn-omniview/src/lib/async_demo.omni` — `std/async`: `async_sleep`/`async_spawn`/`async_all`/`async_race`/`async_timeout` with `async fn` + `await`
 - `test/projects/learn-omniview/src/lib/transform.omni` — `for..in` with `break`/`continue` semantics, return-as-break pattern
 - `test/projects/learn-omniview/src/lib/stats.omni` — `let`, `let mut`, `while` loop, comparison operators (`&&`, `||`, `!=`, `<`, `>`)
 - `test/projects/learn-omniview/src/lib.omni` — Minimal pure-logic utility function (zero-dependency)
