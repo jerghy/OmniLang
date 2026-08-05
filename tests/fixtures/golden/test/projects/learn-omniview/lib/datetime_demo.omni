@@ -1,5 +1,5 @@
 // ╔══════════════════════════════════════════════════════════════╗
-// ║  components/datetime_demo.omni —— std/datetime 模块演示             ║
+// ║  lib/datetime_demo.omni —— std/datetime 模块演示                    ║
 // ║  演示：datetime_now, datetime_format, datetime_from_timestamp, ║
 // ║        datetime_year/month/day/hour/minute/second             ║
 // ║  纯逻辑文件，不写 import omniview;                              ║

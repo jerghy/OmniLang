@@ -45,28 +45,28 @@ component ThemeSourceDemo {
                 <div class: generated-panel>
                     <h4 class: panel-title>CSS</h4>
                     <pre class: code-block css>
-                        :root &#123;
+                        :root {"{"}
                           --primary: #6366f1;
                           --surface: #ffffff;
                           --textPrimary: #111827;
-                        &#125;
-                        [data-theme="dark"] &#123;
+                        {"}"}
+                        [data-theme="dark"] {"{"}
                           --primary: #a5b4fc;
                           --surface: #111827;
-                        &#125;
-                        [data-theme="sepia"] &#123;
+                        {"}"}
+                        [data-theme="sepia"] {"{"}
                           --primary: #8B4513;
                           --surface: #F5E6C8;
-                        &#125;
-                        [data-theme="highContrast"] &#123;
+                        {"}"}
+                        [data-theme="highContrast"] {"{"}
                           --primary: #ffff00;
                           --surface: #000000;
-                        &#125;
-                        @media (prefers-color-scheme: dark) &#123;
-                          :root:not([data-theme]) &#123;
+                        {"}"}
+                        @media (prefers-color-scheme: dark) {"{"}
+                          :root:not([data-theme]) {"{"}
                             --primary: #a5b4fc;
-                          &#125;
-                        &#125;
+                          {"}"}
+                        {"}"}
                     </pre>
                 </div>
             </div>

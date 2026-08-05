@@ -1,5 +1,5 @@
 // ╔══════════════════════════════════════════════════════════════╗
-// ║  components/encode_demo.omni —— std/encode 模块演示                 ║
+// ║  lib/encode_demo.omni —— std/encode 模块演示                        ║
 // ║  演示：base64_encode/decode, hex_encode/decode,              ║
 // ║        url_encode/decode                                     ║
 // ║  纯逻辑文件，不写 import omniview;                              ║

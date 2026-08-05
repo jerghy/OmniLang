@@ -1,5 +1,5 @@
 // ╔══════════════════════════════════════════════════════════════╗
-// ║  components/regex_demo.omni —— std/regex 模块演示                   ║
+// ║  lib/regex_demo.omni —— std/regex 模块演示                          ║
 // ║  演示：regex_match, regex_search, regex_replace              ║
 // ║  纯逻辑文件，不写 import omniview;                              ║
 // ╚══════════════════════════════════════════════════════════════╝

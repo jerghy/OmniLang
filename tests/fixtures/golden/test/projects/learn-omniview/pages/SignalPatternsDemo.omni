@@ -59,7 +59,8 @@ component SlotBox {
 // ═══════════════════════════════════════════════════════════════
 component SignalPatternsDemo {
     // ── 本地 signal + computed ──
-    // (Inline store 模式见 InlineStoreDemo.omni)
+    // (内联 store 模式见 InlineStoreDemo.omni——Phase 5.2 起内联 store
+    //  提升为模块级 StoreIR，React 目标发射真实 Zustand store)
     signal count: i32 = 0;
     signal name: String = "";
     signal email: String = "";
@@ -111,7 +112,8 @@ component SignalPatternsDemo {
     }
 
     @unmount {
-        mountTime = "unmounting...";
+        // 7.5b-L5：死写入已移除——卸载时组件已不可见，写入 mountTime
+        // 无任何消费者（write-only 信号写入）。事件接线见父级 StatePage。
     }
 
     view {

@@ -5,14 +5,10 @@
 
 import omniview;
 
-// import type: only imports type definitions (struct/tagged union/alias),
-// no runtime values — useful for avoiding circular dependency chains
-import type { Point, Percentage } from "../lib/types";
-
 import { demo_i8, demo_i16, demo_i64,
          demo_u8, demo_u16, demo_u32, demo_u64,
          demo_f32, demo_isize, demo_usize,
-         type_system_summary } from "./type_system";
+         type_system_summary } from "../lib/type_system";
 
 component TypeSystemDemo {
     signal summary: String = "";

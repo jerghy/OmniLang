@@ -1,7 +1,6 @@
 // CapabilityCard.omni -- reusable capability domain card
 
 import omniview;
-import { LearnDesign } from "../design";
 
 component CapabilityCard {
     prop icon: String = "\u{1F527}";

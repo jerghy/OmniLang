@@ -1,13 +1,13 @@
 // ╔══════════════════════════════════════════════════════════════╗
 // ║  FilterBar.omni —— 过滤排序工具栏                              ║
-// ║  演示：@onChange 过滤、@onClick 排序、                            ║
+// ║  演示：@effect 订阅 searchText 过滤、@onClick 排序、                ║
 // ║        computed 过滤标签、@store 读取                            ║
 // ╚══════════════════════════════════════════════════════════════╝
 
 import omniview;
 import { LearnDesign } from "../design";
 import { TodoStore } from "../stores/TodoStore";
-import { array_filter, array_length } from "std/array";
+import { array_length } from "std/array";
 
 component FilterBar {
     @store TodoStore;
@@ -16,17 +16,33 @@ component FilterBar {
     signal sortAsc: bool = true;
     signal changeCount: i32 = 0;
 
-    // Demo data for array_filter closure demonstration
+    // Demo data for filter language-method closure demonstration
     signal demoFrameworks: Array<String> = ["React", "Vue", "Svelte", "Solid", "Angular"];
 
-    // computed using array_filter with a closure that filters by search text
-    computed filteredFrameworks: Array<String> = array_filter(demoFrameworks, |f| if searchText == "" { true } else { f == searchText });
+    // computed using the filter language method with a closure that filters by search text
+    computed filteredFrameworks: Array<String> = demoFrameworks.filter(|f| if searchText == "" { true } else { f == searchText });
 
     // computed 排序标签（仅依赖本地 signal）
     computed sortLabel: String = if sortAsc { "ASC" } else { "DESC" };
 
     fn handleSortToggle() {
         if sortAsc { sortAsc = false; } else { sortAsc = true; }
+    }
+
+    // 搜索过滤由 @effect 承担：searchText 变化即写入 Store。
+    // @onChange 内不再读取 searchText（React 目标闭包捕获旧值——缺陷修复），
+    // 只保留 changeCount 计数。
+    // (searchText, setFilter) 显式依赖：React 目标 useEffect 依赖数组
+    // 的来源（setFilter 为 slice 局部动作，exhaustive-deps 必需）；
+    // OmniView 目标 __omni_effect 自动跟踪信号读取，依赖列表忽略。
+    // 首挂载守卫：setFilter("") 与 "all" 不等价（TodoList 按文本匹配过滤），
+    // 空串须归一到 "all"。
+    @effect (searchText, setFilter) {
+        if searchText == "" {
+            TodoStore.setFilter("all");
+        } else {
+            TodoStore.setFilter(searchText);
+        }
     }
 
     view {
@@ -38,12 +54,9 @@ component FilterBar {
                     placeholder="Filter todos..."
                     class: search-input
                     @onChange={() => {
+                        // 过滤已移交 @effect（见组件体注释）——此处仅计数，
+                        // 避免 React 目标闭包捕获旧 searchText 的失效读取
                         changeCount = changeCount + 1;
-                        if searchText == "" {
-                            TodoStore.setFilter("all");
-                        } else {
-                            TodoStore.setFilter(searchText);
-                        }
                     }}
                 ></input>
                 <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={() => {

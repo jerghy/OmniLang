@@ -1,5 +1,4 @@
 import omniview;
-import { LearnDesign } from "../design";
 
 component TodoItem {
   prop id: i32 = 0;

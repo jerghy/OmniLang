@@ -1,7 +1,11 @@
 // ╔══════════════════════════════════════════════════════════════╗
 // ║  InlineStoreDemo.omni —— 内联 Store 演示                       ║
 // ║  演示：在 component 内部使用 store Name { ... } 定义局部 store   ║
-// ╚══════════════════════════════════════════════════════════════╝
+// ║  Phase 5.2（IR wave）：内联 store 提升为模块级 StoreIR——React   ║
+// ║  目标发射真实 Zustand store + 切片订阅（deferral #37 关闭），   ║
+// ║  撤销 Task 2.2 的 E_CODEGEN 硬诊断迁移（src/stores/CartStore   ║
+// ║  已删除）。                                                    ║
+// ╚════════════════════════════════════════════════════════════════╝
 
 import omniview;
 import { LearnDesign } from "../design";
@@ -75,9 +79,9 @@ component InlineStoreDemo {
     view {
         <div class: LearnDesign.Container>
             <h3 class: LearnDesign.CardTitle>Inline Store Demo</h3>
-            <p>Items: {itemCount}</p>
-            <p>Summary: {summary}</p>
-            <p>Total: {totalPrice}</p>
+            <p>Items: {CartStore.itemCount}</p>
+            <p>Summary: {CartStore.summary}</p>
+            <p>Total: {CartStore.totalPrice}</p>
             <div class: LearnDesign.Row>
                 <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={addApple}>
                     Add Apple

@@ -15,7 +15,7 @@ component Overview {
             <div class: LearnDesign.Banner>
                 <h1 class: LearnDesign.BannerTitle>{'\u{1F680}'} OmniLang Capability Showcase</h1>
                 <p class: LearnDesign.BannerSubtitle>
-                    v2 语义级 DSL · 93 源文件 · 4 主题 · 10 语义域 · 9 标签页
+                    v2 语义级 DSL · 96 源文件 · 4 主题 · 10 语义域 · 9 标签页
                 </p>
             </div>
 

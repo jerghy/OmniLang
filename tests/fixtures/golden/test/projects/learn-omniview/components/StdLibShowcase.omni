@@ -1,7 +1,7 @@
 // ╔══════════════════════════════════════════════════════════════╗
 // ║  StdLibShowcase.omni —— 标准库演示聚合组件                      ║
 // ║                                                              ║
-// ║  聚合展示 components/ 下的纯逻辑标准库演示文件：               ║
+// ║  聚合展示 lib/ 下的纯逻辑标准库演示文件：                     ║
 // ║    array_ext    — std/array 扩展（remove/map/find/contains）  ║
 // ║    strings      — 字符串转义序列（\n \t \" \\ \u{XXXX}）      ║
 // ║    string_ext   — std/string 扩展（split/join/case 等）       ║
@@ -17,50 +17,50 @@
 import omniview;
 import { LearnDesign } from "../design";
 
-// ── std/array 扩展演示（components/array_ext.omni）──
-import { demo_remove, demo_map, demo_find, demo_contains } from "./array_ext";
-// ── 字符串转义序列演示（components/strings.omni）──
+// ── std/array 扩展演示（lib/array_ext.omni）──
+import { demo_remove, demo_map, demo_find, demo_contains } from "../lib/array_ext";
+// ── 字符串转义序列演示（lib/strings.omni）──
 import {
     multiline_greeting, tabular_data, quoted_value,
     windows_path, emoji_smile, japanese_hello,
     format_card, status_message,
-} from "./strings";
-// ── std/string 扩展演示（components/string_ext.omni）──
+} from "../lib/strings";
+// ── std/string 扩展演示（lib/string_ext.omni）──
 import {
     demo_split_join, demo_replace, demo_substring, demo_case,
     demo_ends_with, demo_concat,
-} from "./string_ext";
+} from "../lib/string_ext";
 // ── print / println 演示（lib/print_demo.omni）──
 import { demo_print_concat, demo_println_vs_print } from "../lib/print_demo";
-// ── 进制字面量 / 科学计数法 / 一元取反演示（components/numerics.omni）──
+// ── 进制字面量 / 科学计数法 / 一元取反演示（lib/numerics.omni）──
 import {
     hex_max, hex_color_code, octal_perms, octal_small,
     binary_mask, binary_flags, avogadro_approx, electron_charge,
     million, negate, abs_diff, color_from_hex, physics_summary,
-} from "./numerics";
-// ── std/datetime 演示（components/datetime_demo.omni）──
+} from "../lib/numerics";
+// ── std/datetime 演示（lib/datetime_demo.omni）──
 import {
     now_formatted, get_date_parts, get_time_parts, timestamp_to_string, all_extractors,
-} from "./datetime_demo";
-// ── std/encode 演示（components/encode_demo.omni）──
+} from "../lib/datetime_demo";
+// ── std/encode 演示（lib/encode_demo.omni）──
 import {
     base64_roundtrip, hex_demo, hex_roundtrip, url_encode_demo,
     url_decode_demo, encode_summary,
-} from "./encode_demo";
-// ── std/regex 演示（components/regex_demo.omni）──
+} from "../lib/encode_demo";
+// ── std/regex 演示（lib/regex_demo.omni）──
 import {
     test_regex_match, test_regex_search, test_regex_replace,
     validate_email, extract_numbers, regex_demo_summary,
-} from "./regex_demo";
-// ── std/math 扩展演示（components/math_ext.omni）──
+} from "../lib/regex_demo";
+// ── std/math 扩展演示（lib/math_ext.omni）──
 import {
     demo_trig, demo_logs, demo_constants, demo_clamp,
     demo_random_in_range, math_summary,
-} from "./math_ext";
-// ── std/async 演示（components/async_demo.omni）──
+} from "../lib/math_ext";
+// ── std/async 演示（lib/async_demo.omni）──
 import {
     demo_sleep_and_return, demo_parallel, demo_race, demo_timeout,
-} from "./async_demo";
+} from "../lib/async_demo";
 
 component StdLibShowcase {
     // ── std/async 演示结果：@mount 时运行异步动作并写入信号 ──
@@ -94,7 +94,7 @@ component StdLibShowcase {
             <div class: module-card>
                 <h4 class: module-title>① std/array 扩展 — array_ext.omni</h4>
                 <p class: module-desc>
-                    <code>array_remove</code> · <code>array_map</code> ·
+                    <code>array_remove</code> · <code>map</code>（语言方法） ·
                     <code>array_find</code> · <code>array_contains</code>
                 </p>
                 <ul class: output-list>
