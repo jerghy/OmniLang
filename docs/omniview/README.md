@@ -50,6 +50,12 @@ OmniView 是 OmniLang 语言的 UI 框架层，用于构建响应式 Web 应用�
 | [14-语法规范-核心语言](14-grammar-lang.md) | BNF 产生式：词法、类型、表达式、语句、顶层声明、模块系统 |
 | [15-语法规范-UI框架](15-grammar-view.md) | BNF 产生式：组件、Store、视图模板、指令、样式、设计系统、动画 |
 
+### 第六部分：工程契约
+
+| 文件 | 内容 |
+|------|------|
+| [再生成契约](regeneration-contract.md) | 编辑 `.omni` 而非生成代码；覆盖语义声明；`// [omni] file:line` 源追踪标记；诊断契约 |
+
 ## 核心概念
 
 OmniView 将以下概念提升为**语言第一公民**（Language-First Citizens）：

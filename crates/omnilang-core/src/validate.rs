@@ -12,7 +12,7 @@ use crate::error::{Diagnostic, DiagnosticKind, Severity};
 use crate::parser::ast::{ImportStmt, Program, Visibility};
 
 /// The marker library import that identifies a file as an OmniView (view) file.
-const OMNIVIEW_MARKER: &str = "omniview";
+pub(crate) const OMNIVIEW_MARKER: &str = "omniview";
 
 /// Build a file-level diagnostic (line/col = 0) for multi-file validation.
 fn make_diag(severity: Severity, kind: DiagnosticKind, file: &str, message: String) -> Diagnostic {

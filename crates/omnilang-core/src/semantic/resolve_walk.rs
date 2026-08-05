@@ -13,6 +13,7 @@ use crate::error::suggest_similar_name;
 use crate::error::{Diagnostic, DiagnosticKind};
 use crate::lexer::Span;
 use crate::parser::ast::*;
+use crate::validate::OMNIVIEW_MARKER;
 
 impl SemanticAnalyzer {
     /// Walk all expressions in a module and check VarRef names resolve.
@@ -109,6 +110,11 @@ impl SemanticAnalyzer {
             self.validate_store_action_refs(comp, module);
             self.validate_store_field_access(comp);
             self.validate_prop_assignment_in_component(comp);
+            let is_omniview_file = module
+                .imports
+                .iter()
+                .any(|imp| matches!(imp, ImportStmt::Lib(name) if name == OMNIVIEW_MARKER));
+            self.validate_component_has_view(comp, is_omniview_file);
         }
         for f in &module.functions {
             let fn_scope_name = format!("fn:{}", f.name);

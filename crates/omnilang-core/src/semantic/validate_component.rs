@@ -11,6 +11,42 @@ use crate::parser::ast::*;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 
+// ── View requirement ───────────────────────────────
+
+impl SemanticAnalyzer {
+    /// A `component` in a UI file is a rendering unit: without a `view`
+    /// block every target silently emits an empty component
+    /// (zero-diagnostic silent degradation — the ADR-050 review pattern).
+    /// Hard error with a migration hint anchored at the component
+    /// declaration (task 7.5: the LLM error corpus pins this diagnostic
+    /// for the "missing view{}" error mode).
+    ///
+    /// Gated on the `import omniview;` marker: a viewless component in a
+    /// NON-marker file is the logic-wrapper pattern (existing codegen
+    /// tests) and already carries the WOmniviewMarker warning — only
+    /// files that declare UI intent get the hard error.
+    pub(super) fn validate_component_has_view(
+        &mut self,
+        comp: &ComponentDef,
+        is_omniview_file: bool,
+    ) {
+        if !is_omniview_file || comp.view.is_some() {
+            return;
+        }
+        self.diagnostics.push(
+            Diagnostic::error(
+                DiagnosticKind::E0006,
+                &format!(
+                    "component '{}' 缺少 view 块——组件必须声明 view {{ ... }}",
+                    comp.name
+                ),
+                &comp.span,
+            )
+            .with_suggestion("在组件内添加 view 块，例如：view { <div/> }"),
+        );
+    }
+}
+
 // ── Bind target validation ──────────────────────────
 
 impl SemanticAnalyzer {
