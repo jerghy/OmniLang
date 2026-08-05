@@ -398,3 +398,87 @@ component App {
         js
     );
 }
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Shape 4 — emit inside a BlockExpr (deferral #78)
+// ═════════════════════════════════════════════════════════════════════════════
+
+/// Deferral #78: `stmt_to_js_inline` had no `EventEmitStmtIR` arm, so an
+/// `emit` statement inside a BlockExpr degraded to a `/* unhandled stmt */`
+/// comment + warnings entry instead of emitting the event. `emit` is legal
+/// in block expressions at every layer — the parser accepts
+/// `TokenKind::Emit` inside `parse_block` (stmt.rs::parse_stmt), the
+/// semantic layer walks `Stmt::EventEmit` without rejection, and a
+/// function-form computed's body is preserved as `Expr::Block` →
+/// `ExprIR::BlockExpr` with ALL statements (component.rs::parse_computed_decl)
+/// — so the codegen catch-all was the only silent gap. The emit must resolve
+/// component-scoped like the fn-body path (resolve_event_emit).
+#[test]
+fn emit_in_computed_body_blockexpr_emits_event() {
+    let js = compile_js(
+        r#"
+component Badge {
+    event onReady: String;
+    computed label() -> String {
+        emit onReady("computed-ready");
+        return "ready";
+    }
+    view {
+        <div>{label()}</div>
+    }
+}
+"#,
+    );
+
+    // The emit statement inside the computed's block body must become a real
+    // component-scoped event call (the deferred `/* unhandled stmt */` gap).
+    assert!(
+        js.contains("Badge_onReady(\"computed-ready\");"),
+        "emit inside a BlockExpr should emit the real event call. JS:\n{}",
+        js
+    );
+    assert!(
+        js.contains("function Badge_onReady("),
+        "the Badge_onReady emitter stub should be defined. JS:\n{}",
+        js
+    );
+    assert!(
+        !js.contains("unhandled stmt"),
+        "emit inside a BlockExpr must not degrade to a placeholder comment. JS:\n{}",
+        js
+    );
+}
+
+/// Plain block expression in expression position (`let v = { emit onPing(); 42 }`)
+/// — the `{ ... }` initializer is `Expr::Block` → `ExprIR::BlockExpr` with the
+/// emit statement in `statements` and `42` as the tail. (A bare `{ ... };`
+/// STATEMENT lowers to `BlockStmtIR` and takes the working statement path —
+/// lower/stmt.rs:56 — so only an expression-position block exercises
+/// `stmt_to_js_inline`.)
+#[test]
+fn emit_in_plain_blockexpr_in_fn_body_emits_event() {
+    let js = compile_js(
+        r#"
+component Badge {
+    event onPing: Void;
+    fn fire() {
+        let v = { emit onPing(); 42 };
+    }
+    view {
+        <button @onPress={fire}>Fire</button>
+    }
+}
+"#,
+    );
+
+    assert!(
+        js.contains("Badge_onPing();"),
+        "emit inside a plain block expression should emit the event call. JS:\n{}",
+        js
+    );
+    assert!(
+        !js.contains("unhandled stmt"),
+        "emit inside a plain block expression must not degrade to a placeholder comment. JS:\n{}",
+        js
+    );
+}

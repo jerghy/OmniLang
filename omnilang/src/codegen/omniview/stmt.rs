@@ -298,6 +298,18 @@ impl OmniViewGenerator {
             }
             StatementIR::BreakStmtIR => "break".to_string(),
             StatementIR::ContinueStmtIR => "continue".to_string(),
+            // Deferral #78: `emit` inside a BlockExpr (e.g. a function-form
+            // computed's body block, which is preserved as Expr::Block →
+            // BlockExpr with all statements) used to fall into the catch-all
+            // below — a `/* unhandled stmt */` comment + warnings entry with
+            // no event emitted. Mirror the emit_statement arm (including the
+            // component-scoped resolve_event_emit) so inline emission is a
+            // real event call.
+            StatementIR::EventEmitStmtIR { event_name, args } => {
+                let arg_str: Vec<String> = args.iter().map(|a| self.expr_to_js(a)).collect();
+                let resolved_name = self.resolve_event_emit(event_name);
+                format!("{}({})", resolved_name, arg_str.join(", "))
+            }
             _ => {
                 self.warnings
                     .push("OmniView: unhandled StatementIR variant in inline expression".into());
