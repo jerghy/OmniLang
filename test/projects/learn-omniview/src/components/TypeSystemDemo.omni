@@ -8,7 +8,7 @@ import omniview;
 import { demo_i8, demo_i16, demo_i64,
          demo_u8, demo_u16, demo_u32, demo_u64,
          demo_f32, demo_isize, demo_usize,
-         type_system_summary } from "./type_system";
+         type_system_summary } from "../lib/type_system";
 
 component TypeSystemDemo {
     signal summary: String = "";
