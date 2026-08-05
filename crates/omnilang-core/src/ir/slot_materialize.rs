@@ -66,11 +66,7 @@ pub fn materialize_view_slots(
                 ViewTree::Interpolation(expr.clone())
             }
             ViewTree::Element(el) => {
-                let children = el
-                    .children
-                    .iter()
-                    .map(|c| go(c, excluded, slots))
-                    .collect();
+                let children = el.children.iter().map(|c| go(c, excluded, slots)).collect();
                 ViewTree::Element(Box::new(ElementIR {
                     children,
                     ..*el.clone()
@@ -87,20 +83,14 @@ pub fn materialize_view_slots(
                     .collect();
                 ViewTree::Conditional(Box::new(ConditionalIntent {
                     branches,
-                    fallback: cond
-                        .fallback
-                        .as_ref()
-                        .map(|v| go(v, excluded, slots)),
+                    fallback: cond.fallback.as_ref().map(|v| go(v, excluded, slots)),
                     transition_mode: cond.transition_mode.clone(),
                 }))
             }
             ViewTree::ListRendering(list) => {
                 ViewTree::ListRendering(Box::new(ListRenderingIntent {
                     body: list.body.as_ref().map(|v| go(v, excluded, slots)),
-                    empty_body: list
-                        .empty_body
-                        .as_ref()
-                        .map(|v| go(v, excluded, slots)),
+                    empty_body: list.empty_body.as_ref().map(|v| go(v, excluded, slots)),
                     ..*list.clone()
                 }))
             }

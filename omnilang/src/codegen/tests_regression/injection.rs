@@ -1176,23 +1176,79 @@ fn handler_gate_is_shared_and_whitelist_precise() {
 #[test]
 fn live_handler_scan_is_tokenizer_state_aware() {
     // Real unquoted leaks — MUST flag.
-    assert!(contains_live_handler_attr(r#"<div title=x onmouseover=alert(1)>"#), "unquoted leak");
-    assert!(contains_live_handler_attr(r#"<div onmouseover="alert(1)">"#), "quoted handler attr");
-    assert!(contains_live_handler_attr(r#"<div onmouseover = alert(1)>"#), "ws around =");
-    assert!(contains_live_handler_attr(r#"<div title=x onerror=alert(1)>"#), "other handler");
-    assert!(contains_live_handler_attr(r#"<script> x.innerHTML = '<div onmouseover=alert(1)>' </script>"#), "script body");
-    assert!(contains_live_handler_attr(r#"<div onmouseover='alert(1)'>"#), "single-quoted handler");
-    assert!(contains_live_handler_attr(r#"<div onmouseover=alert(1) title="y">"#), "bare handler value");
-    assert!(contains_live_handler_attr(r#"<div nonmouseover=1 onclick=2>"#), "onclick after non-handler");
+    assert!(
+        contains_live_handler_attr(r#"<div title=x onmouseover=alert(1)>"#),
+        "unquoted leak"
+    );
+    assert!(
+        contains_live_handler_attr(r#"<div onmouseover="alert(1)">"#),
+        "quoted handler attr"
+    );
+    assert!(
+        contains_live_handler_attr(r#"<div onmouseover = alert(1)>"#),
+        "ws around ="
+    );
+    assert!(
+        contains_live_handler_attr(r#"<div title=x onerror=alert(1)>"#),
+        "other handler"
+    );
+    assert!(
+        contains_live_handler_attr(
+            r#"<script> x.innerHTML = '<div onmouseover=alert(1)>' </script>"#
+        ),
+        "script body"
+    );
+    assert!(
+        contains_live_handler_attr(r#"<div onmouseover='alert(1)'>"#),
+        "single-quoted handler"
+    );
+    assert!(
+        contains_live_handler_attr(r#"<div onmouseover=alert(1) title="y">"#),
+        "bare handler value"
+    );
+    assert!(
+        contains_live_handler_attr(r#"<div nonmouseover=1 onclick=2>"#),
+        "onclick after non-handler"
+    );
     // Inert shapes — must NOT flag.
-    assert!(!contains_live_handler_attr(r#"<div title="x onmouseover=alert(1)">"#), "quoted value inert");
-    assert!(!contains_live_handler_attr(r#"<div style="color:xx onmouseover=alert(1)">"#), "style value inert");
-    assert!(!contains_live_handler_attr("  xx onmouseover=alert(1)\n"), "text inert");
-    assert!(!contains_live_handler_attr(r#"<div title=onmouseover=alert(1)>"#), "unquoted value contains shape");
-    assert!(!contains_live_handler_attr(r#"<div onmouseover=&quot;alert(1)&quot;>"#), "entity-exempt");
-    assert!(!contains_live_handler_attr(r#"<div nonmouseover=1>"#), "nonmouseover not a handler");
-    assert!(!contains_live_handler_attr(r#"<div onclicker=1>"#), "onclicker not a handler");
-    assert!(!contains_live_handler_attr(r#"<onmouseover-el x=1>"#), "tag name not scanned");
-    assert!(!contains_live_handler_attr(r#"a < b onerror=c"#), "lt-in-text not tag");
-    assert!(!contains_live_handler_attr(r#"<div title='x onerror=alert(1)'>"#), "single-quoted value inert");
+    assert!(
+        !contains_live_handler_attr(r#"<div title="x onmouseover=alert(1)">"#),
+        "quoted value inert"
+    );
+    assert!(
+        !contains_live_handler_attr(r#"<div style="color:xx onmouseover=alert(1)">"#),
+        "style value inert"
+    );
+    assert!(
+        !contains_live_handler_attr("  xx onmouseover=alert(1)\n"),
+        "text inert"
+    );
+    assert!(
+        !contains_live_handler_attr(r#"<div title=onmouseover=alert(1)>"#),
+        "unquoted value contains shape"
+    );
+    assert!(
+        !contains_live_handler_attr(r#"<div onmouseover=&quot;alert(1)&quot;>"#),
+        "entity-exempt"
+    );
+    assert!(
+        !contains_live_handler_attr(r#"<div nonmouseover=1>"#),
+        "nonmouseover not a handler"
+    );
+    assert!(
+        !contains_live_handler_attr(r#"<div onclicker=1>"#),
+        "onclicker not a handler"
+    );
+    assert!(
+        !contains_live_handler_attr(r#"<onmouseover-el x=1>"#),
+        "tag name not scanned"
+    );
+    assert!(
+        !contains_live_handler_attr(r#"a < b onerror=c"#),
+        "lt-in-text not tag"
+    );
+    assert!(
+        !contains_live_handler_attr(r#"<div title='x onerror=alert(1)'>"#),
+        "single-quoted value inert"
+    );
 }

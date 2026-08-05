@@ -383,7 +383,8 @@ fn test_keyed_for_reused_clones_move_and_rebind() {
     // The emitted keyed rebind fn must be invoked for reused clones, wired
     // to the current loop item through __omni_forItemVar.
     assert!(
-        gen.js.contains("if (!isNew && typeof __omni_rebind__row === 'function')"),
+        gen.js
+            .contains("if (!isNew && typeof __omni_rebind__row === 'function')"),
         "reused keyed clones must trigger the rebind fn. JS:\n{}",
         gen.js
     );

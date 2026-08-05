@@ -288,8 +288,8 @@ impl<'a> Parser<'a> {
     ) -> Result<SlotDecl, ParseError> {
         let start = self.peek_span();
         self.advance(); // '@slot'
-        // D4: `@slot(name)` directive form is deleted — the body-level
-        // declaration is `@slot name { ... }` (no parens).
+                        // D4: `@slot(name)` directive form is deleted — the body-level
+                        // declaration is `@slot name { ... }` (no parens).
         if self.at(&TokenKind::LParen) {
             return Err(ParseError::with_kind(
                 crate::error::DiagnosticKind::ESlotRemoved,

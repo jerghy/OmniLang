@@ -103,7 +103,7 @@ mod tests {
                             name: "x".into(),
                             value: None,
                             r#type: None,
-                        is_mut: false,
+                            is_mut: false,
                         }],
                     },
                     is_async: false,

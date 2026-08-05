@@ -248,14 +248,16 @@ fn format_transform_part(
                 return format!("{}({})", prop, escaped);
             }
             // Non-numeric non-string literal (bool/null) — emit as-is
-            let js = expr::format_expr_ir_tsx_renamed(value, &FxHashSet::default(), store_field_renames);
+            let js =
+                expr::format_expr_ir_tsx_renamed(value, &FxHashSet::default(), store_field_renames);
             format!("{}({})", prop, js)
         }
         _ => {
             // Expression — embed as a template-literal escape so units
             // compose: `translateX(${dx}px)`. The entry wrapper adds the
             // backticks. Built with push_str to avoid format! brace escapes.
-            let js = expr::format_expr_ir_tsx_renamed(value, &FxHashSet::default(), store_field_renames);
+            let js =
+                expr::format_expr_ir_tsx_renamed(value, &FxHashSet::default(), store_field_renames);
             let mut s = String::new();
             s.push_str(prop);
             s.push('(');
@@ -334,11 +336,7 @@ fn format_animate_options(
             "delay:{}",
             duration_expr_to_js(
                 delay,
-                expr::format_expr_ir_tsx_renamed(
-                    delay,
-                    &FxHashSet::default(),
-                    store_field_renames
-                )
+                expr::format_expr_ir_tsx_renamed(delay, &FxHashSet::default(), store_field_renames)
             )
         ));
     }

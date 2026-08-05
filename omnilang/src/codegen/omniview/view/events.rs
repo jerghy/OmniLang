@@ -40,7 +40,9 @@ impl OmniViewGenerator {
                 if !self.scope.for_event_types.contains(&js_event) {
                     self.scope.for_event_types.push(js_event.clone());
                     if let Some(kind) = handler.event_data() {
-                        self.scope.for_event_kinds.push((js_event.clone(), kind.clone()));
+                        self.scope
+                            .for_event_kinds
+                            .push((js_event.clone(), kind.clone()));
                     }
                 }
                 // Union used_fields across handlers of the same EventDataKind label.

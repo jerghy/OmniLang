@@ -245,14 +245,7 @@ pub(super) fn emit_motion_effects_tsx(
             .clone()
             .unwrap_or_else(|| format!("__el_{}", idx));
         let ref_ident = format!("{}Ref.current", ref_name);
-        emit_element_motion(
-            w,
-            el,
-            idx,
-            &ref_ident,
-            motion_bodies,
-            store_field_renames,
-        );
+        emit_element_motion(w, el, idx, &ref_ident, motion_bodies, store_field_renames);
     });
 }
 

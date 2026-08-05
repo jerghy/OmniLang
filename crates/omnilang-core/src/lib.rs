@@ -308,13 +308,9 @@ mod pipeline_tests {
         let result = compile(
             "component App {\n    fn f(e) {}\n    view {\n        <div @onTotallyBogus={f} />\n    }\n}",
         );
-        let warn = result
-            .errors
-            .iter()
-            .find(|d| {
-                d.severity == crate::error::Severity::Warning
-                    && d.message.contains("onTotallyBogus")
-            });
+        let warn = result.errors.iter().find(|d| {
+            d.severity == crate::error::Severity::Warning && d.message.contains("onTotallyBogus")
+        });
         assert!(
             warn.is_some(),
             "single-file compile must warn on unknown event names, got: {:?}",
@@ -326,7 +322,9 @@ mod pipeline_tests {
         );
         let w = warn.expect("checked above");
         assert!(
-            w.message.contains("@onTap") || w.message.contains("@onClick") || w.message.contains("@onPress"),
+            w.message.contains("@onTap")
+                || w.message.contains("@onClick")
+                || w.message.contains("@onPress"),
             "missing nearest suggestion: {}",
             w.message
         );

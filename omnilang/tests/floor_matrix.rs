@@ -483,7 +483,12 @@ fn compile_p0_ok(source: &str, target: Target) -> String {
         "compilation to {:?} should succeed; errors: {:?}",
         target, result.errors
     );
-    result.files.values().cloned().collect::<Vec<_>>().join("\n")
+    result
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 fn p0_targets() -> Vec<Target> {

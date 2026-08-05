@@ -105,10 +105,8 @@ impl OmniViewGenerator {
                     }
                 }
                 if let Some(parts) = obj.get("$concat").and_then(|v| v.as_array()) {
-                    let js_parts: Vec<String> = parts
-                        .iter()
-                        .map(|p| self.style_json_to_js(p))
-                        .collect();
+                    let js_parts: Vec<String> =
+                        parts.iter().map(|p| self.style_json_to_js(p)).collect();
                     if js_parts.is_empty() {
                         return String::new();
                     }
@@ -152,9 +150,11 @@ impl OmniViewGenerator {
                             }
                             let js_prop = prop; // camelCase for el.style
                             if self.scope.in_for_template {
-                                self.scope
-                                    .for_style_bindings
-                                    .push((nid.to_string(), js_prop.to_string(), js_expr));
+                                self.scope.for_style_bindings.push((
+                                    nid.to_string(),
+                                    js_prop.to_string(),
+                                    js_expr,
+                                ));
                             } else {
                                 let _ = write!(
                                     self.js,

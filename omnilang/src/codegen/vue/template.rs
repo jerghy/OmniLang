@@ -314,7 +314,9 @@ pub(crate) fn gen_template_node(w: &mut CodeWriter, node: &ViewTree, fmt: &VueFo
             let formatted = fmt.format_expr(expr);
             w.emit_fmt(format_args!("{{{{ {} }}}}", formatted));
         }
-        ViewTree::Slot { name: slot_name, .. } => match slot_name {
+        ViewTree::Slot {
+            name: slot_name, ..
+        } => match slot_name {
             None => w.emit("<slot />"),
             Some(name) => w.emit_fmt(format_args!("<slot name=\"{}\" />", name)),
         },

@@ -298,7 +298,10 @@ mod tests {
                             type_ann: None,
                         },
                     ),
-                    ("translateY".into(), ExprIR::LiteralExpr { value: 100.into() }),
+                    (
+                        "translateY".into(),
+                        ExprIR::LiteralExpr { value: 100.into() },
+                    ),
                 ]),
                 ease: None,
                 source_span: None,

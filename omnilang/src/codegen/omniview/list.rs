@@ -184,8 +184,9 @@ impl OmniViewGenerator {
             // showing the empty state (the early return skips key cleanup).
             // No-op for non-keyed lists (already cleared above).
             self.js.push_str("    // Clear existing rendered items\n");
-            self.js
-                .push_str("    while (tpl.nextElementSibling && tpl.nextElementSibling !== ctr) {\n");
+            self.js.push_str(
+                "    while (tpl.nextElementSibling && tpl.nextElementSibling !== ctr) {\n",
+            );
             self.js
                 .push_str("      parent.removeChild(tpl.nextElementSibling);\n");
             self.js.push_str("    }\n");
@@ -221,8 +222,9 @@ impl OmniViewGenerator {
             // Clear leaves stale notification items).
             self.js.push_str("  if (!data || data.length === 0) {\n");
             self.js.push_str("    // Clear existing rendered items\n");
-            self.js
-                .push_str("    while (tpl.nextElementSibling && tpl.nextElementSibling !== ctr) {\n");
+            self.js.push_str(
+                "    while (tpl.nextElementSibling && tpl.nextElementSibling !== ctr) {\n",
+            );
             self.js
                 .push_str("      parent.removeChild(tpl.nextElementSibling);\n");
             self.js.push_str("    }\n");
@@ -252,7 +254,8 @@ impl OmniViewGenerator {
         let used_fields_by_kind = self.scope.used_fields_by_kind.clone();
 
         // Batch insert via DocumentFragment to reduce DOM reflow
-        self.js.push_str("  var frag = document.createDocumentFragment();\n");
+        self.js
+            .push_str("  var frag = document.createDocumentFragment();\n");
 
         // Iterate and clone
         let _ = writeln!(self.js, "  data.forEach(({item_var}, _idx) => {{");
@@ -408,10 +411,14 @@ impl OmniViewGenerator {
         // __omni_effect would run before the clone exists and outside the
         // iteration where `item`/`row` is undefined).
         if !self.scope.for_style_bindings.is_empty() {
-            self.js.push_str("    // Pre-compiled style bindings
-");
-            self.js.push_str("    (function() {
-");
+            self.js.push_str(
+                "    // Pre-compiled style bindings
+",
+            );
+            self.js.push_str(
+                "    (function() {
+",
+            );
             for (nid, prop, js_expr) in &self.scope.for_style_bindings {
                 // See for_text_bindings: prefix fallback for reused keyed clones.
                 let _ = writeln!(
@@ -428,8 +435,10 @@ impl OmniViewGenerator {
                     assignment
                 );
             }
-            self.js.push_str("    })();
-");
+            self.js.push_str(
+                "    })();
+",
+            );
         }
 
         // Pre-compiled attribute bindings (no new Function)
@@ -495,8 +504,9 @@ impl OmniViewGenerator {
             self.js
                 .push_str("        const leavingNid = el.getAttribute('data-nid');\n");
             self.js.push_str("        if (leavingNid) {\n");
-            self.js
-                .push_str("          __omni_cleanupElement(leavingNid); el.remove(); _forKeys.delete(key);\n");
+            self.js.push_str(
+                "          __omni_cleanupElement(leavingNid); el.remove(); _forKeys.delete(key);\n",
+            );
             self.js.push_str("        } else {\n");
             self.js
                 .push_str("          el.remove(); _forKeys.delete(key);\n");
@@ -559,13 +569,12 @@ impl OmniViewGenerator {
             // component emit events (data-emit-*): emit handlers receive the
             // CustomEvent payload (e.detail), element handlers the extracted
             // native event fields.
-            self.js.push_str(
-                "      const _evtAttr = t.getAttribute('data-event-' + e.type);\n",
-            );
-            self.js.push_str(
-                "      const _emitAttr = t.getAttribute('data-emit-' + e.type);\n",
-            );
-            self.js.push_str("      const attr = _evtAttr || _emitAttr;\n");
+            self.js
+                .push_str("      const _evtAttr = t.getAttribute('data-event-' + e.type);\n");
+            self.js
+                .push_str("      const _emitAttr = t.getAttribute('data-emit-' + e.type);\n");
+            self.js
+                .push_str("      const attr = _evtAttr || _emitAttr;\n");
             self.js.push_str("      if (!attr) return;\n");
             // Expose the current clone's component root to emit functions so
             // onXxx dispatches land on THIS instance, not the first match.

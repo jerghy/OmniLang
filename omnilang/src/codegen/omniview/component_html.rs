@@ -19,7 +19,12 @@ impl OmniViewGenerator {
         pad: &str,
     ) -> Option<String> {
         self.assert_can_emit_js();
-        if let Some(child_comp) = self.name_resolver.component_map.get(&el.tag).map(Arc::clone) {
+        if let Some(child_comp) = self
+            .name_resolver
+            .component_map
+            .get(&el.tag)
+            .map(Arc::clone)
+        {
             if let Some(ref child_view) = child_comp.view {
                 // Save and update current component context
                 let saved_scope = ComponentScope::take(self);
@@ -53,14 +58,17 @@ impl OmniViewGenerator {
                     for state in &child_comp.signals {
                         let prefixed = format!("{}_{}", child_comp.name, state.name);
                         let default_js = self.expr_to_js(&state.initial_value);
-                        self.name_resolver.name_renames
+                        self.name_resolver
+                            .name_renames
                             .insert(state.name.clone(), prefixed.clone());
-                        self.name_resolver.for_state_names
+                        self.name_resolver
+                            .for_state_names
                             .insert(prefixed, (state.name.clone(), default_js));
                     }
                     for c in &child_comp.computeds {
                         let prefixed = format!("{}_{}", child_comp.name, c.name);
-                        self.name_resolver.name_renames
+                        self.name_resolver
+                            .name_renames
                             .insert(c.name.clone(), prefixed.clone());
                         self.name_resolver.signal_names.insert(prefixed);
                     }
@@ -69,7 +77,9 @@ impl OmniViewGenerator {
                     // prefixed name (e.g. isActive -> TabPanel_isActive).
                     for f in &child_comp.fns {
                         let prefixed = format!("{}_{}", child_comp.name, f.name);
-                        self.name_resolver.name_renames.insert(f.name.clone(), prefixed);
+                        self.name_resolver
+                            .name_renames
+                            .insert(f.name.clone(), prefixed);
                     }
                     // Props: map to their value expression (which references
                     // the @for loop variable), not to prefixed signal names.
@@ -78,13 +88,16 @@ impl OmniViewGenerator {
                     // expr_to_js to emit "text.value" instead of the mapped "item".
                     for (prop_name, prop_value) in &el.props {
                         let js_value = self.expr_to_js(prop_value);
-                        self.name_resolver.name_renames.insert(prop_name.clone(), js_value);
+                        self.name_resolver
+                            .name_renames
+                            .insert(prop_name.clone(), js_value);
                     }
                     // Default props that aren't passed: use prefixed names.
                     for prop_name in child_comp.prop_defaults.keys() {
                         if !el.props.contains_key(prop_name) {
                             let prefixed = format!("{}_{}", child_comp.name, prop_name);
-                            self.name_resolver.name_renames
+                            self.name_resolver
+                                .name_renames
                                 .insert(prop_name.clone(), prefixed.clone());
                             self.name_resolver.signal_names.insert(prefixed);
                         }
@@ -98,13 +111,15 @@ impl OmniViewGenerator {
                     }
                     for state in &child_comp.signals {
                         let prefixed = format!("{}_{}", child_comp.name, state.name);
-                        self.name_resolver.name_renames
+                        self.name_resolver
+                            .name_renames
                             .insert(state.name.clone(), prefixed.clone());
                         self.name_resolver.signal_names.insert(prefixed);
                     }
                     for c in &child_comp.computeds {
                         let prefixed = format!("{}_{}", child_comp.name, c.name);
-                        self.name_resolver.name_renames
+                        self.name_resolver
+                            .name_renames
                             .insert(c.name.clone(), prefixed.clone());
                         self.name_resolver.signal_names.insert(prefixed);
                     }
@@ -124,7 +139,9 @@ impl OmniViewGenerator {
                     // prefixed name (e.g. isActive -> TabPanel_isActive).
                     for f in &child_comp.fns {
                         let prefixed = format!("{}_{}", child_comp.name, f.name);
-                        self.name_resolver.name_renames.insert(f.name.clone(), prefixed);
+                        self.name_resolver
+                            .name_renames
+                            .insert(f.name.clone(), prefixed);
                     }
                     for (prop_name, default_value) in &child_comp.prop_defaults {
                         // Use per-instance signal names (based on nid) so that
@@ -149,7 +166,8 @@ impl OmniViewGenerator {
                             "const {} = __omni_signal(\"{}\", {});",
                             prefixed, prefixed, default_js
                         );
-                        self.name_resolver.name_renames
+                        self.name_resolver
+                            .name_renames
                             .insert(prop_name.clone(), prefixed.clone());
                         self.name_resolver.signal_names.insert(prefixed);
                     }
@@ -163,7 +181,8 @@ impl OmniViewGenerator {
                     if saved_scope.signal_names.contains(prefixed.as_str()) {
                         if !self.name_resolver.name_renames.contains_key(name.as_str()) {
                             self.name_resolver.signal_names.insert(prefixed.clone());
-                            self.name_resolver.name_renames
+                            self.name_resolver
+                                .name_renames
                                 .insert(name.clone(), prefixed.clone());
                         }
                     }
@@ -286,11 +305,7 @@ impl OmniViewGenerator {
                         let js_event = map_event(event_name);
                         if let EventHandlerIR::FnRef { r#ref, .. } = handler {
                             let fn_key = format!("{}_{}", parent_comp, r#ref);
-                            let _ = write!(
-                                emit_attrs,
-                                " data-emit-{}=\"fn:{}\"",
-                                js_event, fn_key
-                            );
+                            let _ = write!(emit_attrs, " data-emit-{}=\"fn:{}\"", js_event, fn_key);
                             // The component-instance event binding is consumed
                             // here (try_inline_component never reaches
                             // emit_element_events), so the handler must be

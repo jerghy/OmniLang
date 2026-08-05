@@ -10,8 +10,8 @@
 
 mod ast_collectors;
 mod computed_purity;
-mod deprecated_array_stdlib;
 mod dead_code;
+mod deprecated_array_stdlib;
 mod for_key;
 mod helpers;
 mod invalid_event_field;

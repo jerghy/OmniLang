@@ -54,7 +54,11 @@ pub fn sanitize_css_helpers_js(sanitize_fn: &str, normalize_fn: &str, ts_typed: 
     // Declaration keywords per mode. Reassigned bindings (result/i/hex/str)
     // always get the mutable keyword; never-reassigned ones (len/ch/code/
     // lower/urlIdx/afterUrl) get `const` in modern TS output.
-    let (mutable_kw, immutable_kw) = if ts_typed { ("let", "const") } else { ("var", "var") };
+    let (mutable_kw, immutable_kw) = if ts_typed {
+        ("let", "const")
+    } else {
+        ("var", "var")
+    };
     let mut out = String::with_capacity(4096);
     let _ = write!(
         out,
