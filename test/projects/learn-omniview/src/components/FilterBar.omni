@@ -32,11 +32,12 @@ component FilterBar {
     // 搜索过滤由 @effect 承担：searchText 变化即写入 Store。
     // @onChange 内不再读取 searchText（React 目标闭包捕获旧值——缺陷修复），
     // 只保留 changeCount 计数。
-    // (searchText) 显式依赖：React 目标 useEffect 依赖数组的来源；
-    // OmniView 目标 __omni_effect 自动跟踪信号读取，二者均响应变化。
+    // (searchText, setFilter) 显式依赖：React 目标 useEffect 依赖数组
+    // 的来源（setFilter 为 slice 局部动作，exhaustive-deps 必需）；
+    // OmniView 目标 __omni_effect 自动跟踪信号读取，依赖列表忽略。
     // 首挂载守卫：setFilter("") 与 "all" 不等价（TodoList 按文本匹配过滤），
     // 空串须归一到 "all"。
-    @effect (searchText) {
+    @effect (searchText, setFilter) {
         if searchText == "" {
             TodoStore.setFilter("all");
         } else {
