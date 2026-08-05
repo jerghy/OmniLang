@@ -3,6 +3,7 @@ import { Handle, Position } from "@xyflow/react";
 import React, { useMemo, useState } from "react";
 import styles from "./ReturnNode.module.css";
 import { NodeFormulaField } from "../fields/NodeFormulaField";
+import { TokenPreview } from "../fields/TokenPreview";
 import { buildFormulaSource, type FlowScope } from "../../../../services/codegen/flow-scope";
 
 interface Props {
@@ -71,7 +72,7 @@ export function ReturnNode({ data }: Props) {
               cursor: "pointer",
             }}
           >
-            return{expr ? ` ${expr}` : ""}
+            return{expr ? <> <TokenPreview value={expr} /></> : ""}
           </button>
         )}
       </div>

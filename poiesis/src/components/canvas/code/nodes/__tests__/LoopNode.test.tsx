@@ -26,9 +26,13 @@ const baseData = {
 };
 
 describe("LoopNode", () => {
-  it("while 形态渲染条件文本与三端口 handle", () => {
-    render(<LoopNode id="w-1" data={baseData as never} />);
-    expect(screen.getByText("n < 10")).toBeTruthy();
+  it("while 形态渲染条件 TokenPreview 与三端口 handle", () => {
+    const { container } = render(<LoopNode id="w-1" data={baseData as never} />);
+    // 条件行 token 结构断言：identifier/operator/number 分胶囊（空白被 tokenizer 跳过，容器文本 "n<10"）
+    const preview = container.querySelector('[data-testid="token-preview"]');
+    expect(preview?.textContent).toBe("n<10");
+    expect(container.querySelector('[data-token-kind="identifier"]')?.textContent).toBe("n");
+    expect(container.querySelector('[data-token-kind="number"]')?.textContent).toBe("10");
     // 端口 handle（xyflow 测试环境经 HandlesBoundary 返回 inert 节点）
     expect(document.querySelector('[data-handle-id="flow-in"]')).toBeTruthy();
     expect(document.querySelector('[data-handle-id="br0"]')).toBeTruthy();

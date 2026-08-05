@@ -6,6 +6,7 @@ import React, { useMemo } from "react";
 import { formatSyntaxNode, type SyntaxNodeProps, ASSIGN_OPERATORS } from "../../../../services/codegen/syntax-nodes";
 import { NodeTextField, NodeSelect, NodeChipToggle, NodeArgsRows } from "../fields/NodeField";
 import { NodeFormulaField } from "../fields/NodeFormulaField";
+import { TokenPreview } from "../fields/TokenPreview";
 import { countUnbalancedParens } from "../fields/expression-trigger";
 import { validateSyntaxProps, filterCandidates, buildTargetOptions, buildFormulaSource, type FlowScope } from "../../../../services/codegen/flow-scope";
 import styles from "./SyntaxNode.module.css";
@@ -116,30 +117,41 @@ const SyntaxNode = React.memo(function SyntaxNode({ data }: Props) {
                 className={styles.grow}
               />
             </div>
+            {/* 值字段只读结构预览（value 字段行换 TokenPreview）：输入常驻为编辑面（节点即编辑面），
+                TokenPreview 行展示当前值的 token 结构（胶囊/符号/文本），与编辑态同构 */}
+            <div className={styles.row}>
+              <TokenPreview value={(props.value as string) ?? ""} />
+            </div>
           </>
         )}
 
         {tag === "assign" && (
-          <div className={styles.row}>
-            <NodeSelect
-              value={(props.target as string) ?? ""}
-              options={scope ? buildTargetOptions(scope, letVars ?? []) : []}
-              onCommit={(v) => set("target", v)}
-              ariaLabel="目标"
-              invalid={errorFields.has("target")}
-              allowCustom
-              className={styles.grow}
-            />
-            <NodeSelect value={(props.operator as string) ?? "="} options={ASSIGN_OPERATORS.map((op) => ({ value: op, label: op }))} onCommit={(v) => set("operator", v)} ariaLabel="运算符" />
-            <NodeFormulaField
-              value={(props.value as string) ?? ""}
-              candidates={formulaSource}
-              onCommit={(v) => set("value", v)}
-              placeholder="表达式（变量/值/运算）"
-              ariaLabel="表达式"
-              className={styles.grow}
-            />
-          </div>
+          <>
+            <div className={styles.row}>
+              <NodeSelect
+                value={(props.target as string) ?? ""}
+                options={scope ? buildTargetOptions(scope, letVars ?? []) : []}
+                onCommit={(v) => set("target", v)}
+                ariaLabel="目标"
+                invalid={errorFields.has("target")}
+                allowCustom
+                className={styles.grow}
+              />
+              <NodeSelect value={(props.operator as string) ?? "="} options={ASSIGN_OPERATORS.map((op) => ({ value: op, label: op }))} onCommit={(v) => set("operator", v)} ariaLabel="运算符" />
+              <NodeFormulaField
+                value={(props.value as string) ?? ""}
+                candidates={formulaSource}
+                onCommit={(v) => set("value", v)}
+                placeholder="表达式（变量/值/运算）"
+                ariaLabel="表达式"
+                className={styles.grow}
+              />
+            </div>
+            {/* 值字段只读结构预览（value 字段行换 TokenPreview）：与 let 同款 */}
+            <div className={styles.row}>
+              <TokenPreview value={(props.value as string) ?? ""} />
+            </div>
+          </>
         )}
 
         {tag === "store-call" && (

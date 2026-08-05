@@ -7,6 +7,7 @@
 import React, { memo } from "react";
 import { Handle, Position } from "@xyflow/react";
 import { formatSyntaxNode, type SyntaxNodeProps } from "../../../../services/codegen/syntax-nodes";
+import { TokenPreview } from "../fields/TokenPreview";
 import type { FlowScope } from "../../../../services/codegen/flow-scope";
 import styles from "./LoopNode.module.css";
 
@@ -49,7 +50,7 @@ export const LoopNode = memo(function LoopNode({ id, data }: Props) {
         {isWhile ? (
           <div className={styles.fieldRow} data-field-kind="condition">
             <span className={styles.fieldLabel}>条件</span>
-            <span className={styles.fieldValue} data-testid="loop-condition">{data.props.condition ?? ""}</span>
+            <span className={styles.fieldValue} data-testid="loop-condition"><TokenPreview value={data.props.condition ?? ""} /></span>
           </div>
         ) : (
           <>
@@ -59,7 +60,7 @@ export const LoopNode = memo(function LoopNode({ id, data }: Props) {
             </div>
             <div className={styles.fieldRow}>
               <span className={styles.fieldLabel}>遍历</span>
-              <span className={styles.fieldValue} data-testid="loop-iterable">{data.props.iterable ?? ""}</span>
+              <span className={styles.fieldValue} data-testid="loop-iterable"><TokenPreview value={data.props.iterable ?? ""} /></span>
             </div>
           </>
         )}

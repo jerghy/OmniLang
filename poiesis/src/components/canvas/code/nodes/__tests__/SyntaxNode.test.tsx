@@ -95,6 +95,14 @@ describe("SyntaxNode 内联编辑", () => {
     expect(screen.getByText("let mut x = 0;")).toBeTruthy();
   });
 
+  it("let 值字段行显示 TokenPreview 结构预览（胶囊/符号/文本）", () => {
+    const { container } = renderNode("let", { name: "x", mutable: false, value: "count + 1" });
+    // token 结构断言：identifier 胶囊 / operator 符号（空白被 tokenizer 跳过，容器文本 "count+1"）
+    expect(container.querySelector('[data-testid="token-preview"]')?.textContent).toBe("count+1");
+    expect(container.querySelector('[data-token-kind="identifier"]')?.textContent).toBe("count");
+    expect(container.querySelector('[data-token-kind="operator"]')?.textContent).toBe("+");
+  });
+
   it("store 名 datalist 提供候选", () => {
     renderNode("store-call", { storeName: "TodoStore", action: "add", args: "" });
     const list = document.querySelector("#syntax-store-candidates");

@@ -23,9 +23,15 @@ describe("ConditionNode 内联编辑", () => {
     expect(onEditCondition).toHaveBeenCalledWith("br0", "count > 0");
   });
 
-  it("已有条件直接显示，点击进入编辑", () => {
-    render(<ConditionNode data={{ label: "判断", branches: [{ id: "br0", type: "if", condition: "x == 1" }], onEditCondition: vi.fn() }} />);
-    expect(screen.getByText("x == 1")).toBeTruthy();
+  it("已有条件直接显示（TokenPreview 胶囊），点击进入编辑", () => {
+    const { container } = render(<ConditionNode data={{ label: "判断", branches: [{ id: "br0", type: "if", condition: "x == 1" }], onEditCondition: vi.fn() }} />);
+    // token 结构断言：identifier/operator/number 分胶囊（空白被 tokenizer 跳过，容器文本 "x==1"）
+    const preview = container.querySelector('[data-testid="token-preview"]');
+    expect(preview?.textContent).toBe("x==1");
+    expect(container.querySelector('[data-token-kind="identifier"]')?.textContent).toBe("x");
+    expect(container.querySelectorAll('[data-token-kind="operator"]')).toHaveLength(1);
+    fireEvent.click(preview!);
+    expect(screen.getByLabelText("编辑条件表达式")).toBeTruthy();
   });
 
   it("else 分支不可编辑", () => {
@@ -34,25 +40,27 @@ describe("ConditionNode 内联编辑", () => {
   });
 
   it("Esc 取消退出编辑态恢复显示", () => {
-    render(<ConditionNode data={{ label: "判断", branches: [{ id: "br0", type: "if", condition: "x == 1" }], onEditCondition: vi.fn() }} />);
-    fireEvent.click(screen.getByText("x == 1"));
+    const { container } = render(<ConditionNode data={{ label: "判断", branches: [{ id: "br0", type: "if", condition: "x == 1" }], onEditCondition: vi.fn() }} />);
+    fireEvent.click(screen.getByTestId("token-preview"));
     const input = screen.getByLabelText("编辑条件表达式");
     fireEvent.keyDown(input, { key: "Escape" });
     expect(screen.queryByLabelText("编辑条件表达式")).toBeFalsy();
-    expect(screen.getByText("x == 1")).toBeTruthy();
+    expect(container.querySelector('[data-testid="token-preview"]')?.textContent).toBe("x==1");
   });
 });
 
 describe("ReturnNode 内联编辑", () => {
-  it("显示 return 表达式", () => {
-    render(<ReturnNode data={{ label: "返回", returnExpr: "items.len()" }} />);
-    expect(screen.getByText(/items\.len\(\)/)).toBeTruthy();
+  it("显示 return 表达式（TokenPreview 胶囊）", () => {
+    const { container } = render(<ReturnNode data={{ label: "返回", returnExpr: "items.len()" }} />);
+    // token 结构断言：member 整体胶囊 + paren 符号
+    expect(container.querySelector('[data-token-kind="member"]')?.textContent).toBe("items.len");
+    expect(container.querySelector('[data-token-kind="paren"]')?.textContent).toBe("(");
   });
 
   it("点击表达式区进入编辑，Enter 提交", () => {
     const onCommit = vi.fn();
-    render(<ReturnNode data={{ label: "返回", returnExpr: "x", onCommitReturn: onCommit }} />);
-    fireEvent.click(screen.getByText("return x"));
+    const { container } = render(<ReturnNode data={{ label: "返回", returnExpr: "x", onCommitReturn: onCommit }} />);
+    fireEvent.click(container.querySelector('[data-testid="token-preview"]')!);
     const input = screen.getByLabelText("return 表达式");
     fireEvent.change(input, { target: { value: "y" } });
     fireEvent.keyDown(input, { key: "Enter" });
@@ -60,12 +68,12 @@ describe("ReturnNode 内联编辑", () => {
   });
 
   it("Esc 取消退出编辑态恢复显示", () => {
-    render(<ReturnNode data={{ label: "返回", returnExpr: "x", onCommitReturn: vi.fn() }} />);
-    fireEvent.click(screen.getByText("return x"));
+    const { container } = render(<ReturnNode data={{ label: "返回", returnExpr: "x", onCommitReturn: vi.fn() }} />);
+    fireEvent.click(container.querySelector('[data-testid="token-preview"]')!);
     expect(screen.getByLabelText("return 表达式")).toBeTruthy();
     fireEvent.keyDown(screen.getByLabelText("return 表达式"), { key: "Escape" });
     expect(screen.queryByLabelText("return 表达式")).toBeFalsy();
-    expect(screen.getByText("return x")).toBeTruthy();
+    expect(container.querySelector('[data-testid="token-preview"]')?.textContent).toBe("x");
   });
 });
 
@@ -80,13 +88,13 @@ describe("ConditionNode 公式框", () => {
 
   it("条件字段渲染公式框（data-field-kind=formula）", () => {
     const { container } = render(<ConditionNode data={data} />);
-    fireEvent.click(screen.getByText("a > 1")); // 点击进入编辑态才挂载公式框
+    fireEvent.click(screen.getByTestId("token-preview")); // 点击进入编辑态才挂载公式框
     expect(container.querySelector('[data-field-kind="formula"]')).toBeTruthy();
   });
 
   it("条件输入字母弹候选（scope 信号）", () => {
     const { container } = render(<ConditionNode data={data} />);
-    fireEvent.click(screen.getByText("a > 1"));
+    fireEvent.click(screen.getByTestId("token-preview"));
     const input = container.querySelector('[data-field-kind="formula"]') as HTMLInputElement;
     fireEvent.change(input, { target: { value: "cou", selectionStart: 3 } });
     expect(screen.getByRole("listbox")).toBeTruthy();
@@ -97,7 +105,7 @@ describe("ConditionNode 公式框", () => {
   it("提交走 onEditCondition（条件文本更新到 branches）", () => {
     const onEditCondition = vi.fn();
     const { container } = render(<ConditionNode data={{ ...data, onEditCondition }} />);
-    fireEvent.click(screen.getByText("a > 1"));
+    fireEvent.click(screen.getByTestId("token-preview"));
     const input = container.querySelector('[data-field-kind="formula"]') as HTMLInputElement;
     fireEvent.change(input, { target: { value: "count > 0", selectionStart: 9 } });
     fireEvent.blur(input);
@@ -106,7 +114,7 @@ describe("ConditionNode 公式框", () => {
 
   it("无 scope → 退化纯文本不弹层", () => {
     const { container } = render(<ConditionNode data={{ ...data, scope: undefined }} />);
-    fireEvent.click(screen.getByText("a > 1"));
+    fireEvent.click(screen.getByTestId("token-preview"));
     const input = container.querySelector('[data-field-kind="formula"]') as HTMLInputElement;
     fireEvent.change(input, { target: { value: "cou", selectionStart: 3 } });
     expect(screen.queryByRole("listbox")).toBeNull();

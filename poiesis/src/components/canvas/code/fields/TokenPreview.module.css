@@ -1,0 +1,24 @@
+/* poiesis/src/components/canvas/code/fields/TokenPreview.module.css */
+.root {
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 1px;
+}
+.capsule {
+  background: rgba(168, 85, 247, 0.1);
+  border-radius: 3px;
+  padding: 0 3px;
+  color: #7c3aed;
+}
+.capsule[data-token-kind="operator"],
+.capsule[data-token-kind="paren"] {
+  background: transparent;
+  color: #475569;
+  padding: 0 1px;
+}
+.plain {
+  color: #334155;
+}

@@ -1,6 +1,7 @@
 import { Handle, Position } from "@xyflow/react";
 import React, { useMemo, useState } from "react";
 import { NodeFormulaField } from "../fields/NodeFormulaField";
+import { TokenPreview } from "../fields/TokenPreview";
 import { buildFormulaSource, type FlowScope } from "../../../../services/codegen/flow-scope";
 
 interface BranchData {
@@ -141,7 +142,7 @@ export function ConditionNode({ data }: Props) {
                 }}
                 disabled={br.type === "else"}
               >
-                {br.type === "else" ? "" : br.condition || "..."}
+                {br.type === "else" ? "" : (br.condition ? <TokenPreview value={br.condition} /> : "...")}
               </button>
             )}
           </div>
