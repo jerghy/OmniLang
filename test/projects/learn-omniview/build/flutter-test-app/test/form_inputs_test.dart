@@ -10,10 +10,10 @@
 //    `enabled: false`: the field must report `enabled == false` (the
 //    TextField contract for "not editable") and stay inert on tap.
 //
-// The message field carries bind:value + @onChange; per the 3.3 contract the
-// user @onChange owns the onChanged callback, so typing is asserted at the
-// field level (text visible), not via signal write-back (FilterBar-style
-// known gap, documented warning).
+// The message field carries bind:value + @onChange. Task C2b (#9) merged
+// the write-back INTO the user's onChanged handler, so typing now flows
+// back into the signal — the trimmed-message display mirrors the typed
+// text (the pre-C2b behavior dropped the write-back silently).
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -55,10 +55,14 @@ void main() {
     await tester.enterText(msgField, 'hello from widget test');
     await tester.pump();
 
+    // The field shows the typed text AND the two-way binding flows it back
+    // into the `message` signal — the trimmed-message display mirrors it
+    // (C2b #9: the write-back merges into the user's @onChange).
     expect(
       find.text('hello from widget test'),
-      findsOneWidget,
-      reason: 'typed text must be visible in the field',
+      findsNWidgets(2),
+      reason: 'typed text must be visible in the field and mirrored by the '
+          'trimmed-message display (write-back merge)',
     );
     expect(tester.takeException(), isNull);
   });
