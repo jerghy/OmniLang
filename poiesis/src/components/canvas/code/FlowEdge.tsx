@@ -9,7 +9,7 @@
 // 实测 handle 归位后 edge 的 sourceX 仍用漂移值 → 走廊越过目标列左缘 → 仍穿节点）。
 // ResizeObserver（节点尺寸）+ MutationObserver（节点 transform）跟随一切变化。
 import { useEffect, useState } from "react";
-import { BaseEdge, useStore, type EdgeProps, type Position } from "@xyflow/react";
+import { BaseEdge, Position, useStore, type EdgeProps } from "@xyflow/react";
 
 /** 走廊偏移：source 右侧水平段距离（列间空隙 H_GAP=60，24px 落在空隙内不穿节点） */
 export const CORRIDOR = 24;
