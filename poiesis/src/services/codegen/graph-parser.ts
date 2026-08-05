@@ -398,11 +398,22 @@ function assignBranchContext(
     }
 
     // ------------------------------------------------------------------
-    // 3. Push new condition nodes onto the stack.
-    //    Branch continuations (else/elif) do NOT create new stack entries.
+    // 3. Push new block-header nodes (condition / loop) onto the stack.
+    //    - condition：else/elif 延续（isBranchContinuation）不压栈；
+    //    - loop（while/for-in）：单分支（branchCount 1）、无 elif 语义，一律压栈——
+    //      即使它作为 else 分支体首段消费了 2c 的 pendingTransition
+    //      （`} else {` 尾行过渡），它仍是块头，body 必须挂 br0
+    //      （否则 loop-in-else 的 body 段被续接为 flow-out，分支体错位）。
     // ------------------------------------------------------------------
-    if (seg.type === "condition" && !isBranchContinuation) {
-      const branches = parseConditionBranches(seg.code);
+    if (
+      seg.type === "while" ||
+      seg.type === "for-in" ||
+      (seg.type === "condition" && !isBranchContinuation)
+    ) {
+      const branches =
+        seg.type === "condition"
+          ? parseConditionBranches(seg.code)
+          : [{ id: "br0", type: "if" as const, condition: "" }];
       conditionStack.push({
         pid: seg.pid,
         baseDepth: startDepth,
@@ -611,9 +622,12 @@ export function parseCodeFlowGraph(
     }
   }
 
-  // For conditions, wire flow-out to the first post-condition segment
+  // 块头段（condition / while / for-in）flow-out 续接：
+  // 作用域之后首个段接到块头 flow-out（与 condition 对称——loop 的 body 经 br0
+  // 进入，循环结束经 flow-out 跳出作用域继续线形链）。
   for (let i = 0; i < segments.length; i++) {
-    if (segments[i].type !== "condition") continue;
+    const segType = segments[i].type;
+    if (segType !== "condition" && segType !== "while" && segType !== "for-in") continue;
 
     // Find the first segment after this condition's brace scope
     const condSeg = segments[i];

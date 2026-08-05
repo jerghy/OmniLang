@@ -110,3 +110,60 @@ describe("graph-parser 中链 condition", () => {
     expect(wireList(g.wires)).toContain("cond-0(br0)->then-1(flow-in)");
   });
 });
+
+// 中链 loop 线形重建（Task 3）：loop 段头压入 branchCtx 栈（body 段 wire 到 br0）+
+// 续接循环覆盖 loop（flow-out 续接）——与 condition 对称。
+describe("graph-parser 中链 loop", () => {
+  const MIDCHAIN_LOOP = `fn handleAdd() -> void {
+    // @pid:let-1
+      let total = 0;
+    // @pid:w-2
+      while total < 10 {
+    // @pid:assign-3
+        total = total + 1;
+      }
+    // @pid:ret-4
+      return total;
+  }`;
+
+  it("中链 while：入链 + body(br0) + flow-out 续接完整", () => {
+    const g = parseCodeFlowGraph(MIDCHAIN_LOOP);
+    const w = wireList(g.wires);
+    expect(w).toContain("let-1(flow-out)->w-2(flow-in)");
+    expect(w).toContain("w-2(br0)->assign-3(flow-in)");
+    expect(w).toContain("w-2(flow-out)->ret-4(flow-in)");
+  });
+
+  it("loop 嵌套在 condition 分支体内（branchCtx 栈复用）", () => {
+    const g = parseCodeFlowGraph(`fn f() {
+  // @pid:cond-1
+    if ok {
+  // @pid:w-2
+      while n > 0 {
+  // @pid:a-3
+        n = n - 1;
+      }
+    }
+  // @pid:ret-4
+    return;
+  }`);
+    const w = wireList(g.wires);
+    expect(w).toContain("cond-1(br0)->w-2(flow-in)");
+    expect(w).toContain("w-2(br0)->a-3(flow-in)");
+  });
+
+  it("for-in 段元素 props/source 派生（round-trip 用）", () => {
+    const g = parseCodeFlowGraph(`fn f() {
+  // @pid:fi-1
+    for item in items {
+  // @pid:a-2
+      total = total + item;
+    }
+  }`);
+    const el = g.elements.find((e) => e.id === "fi-1");
+    expect(el?.tag).toBe("for-in");
+    expect(el?.props.varName).toBe("item");
+    expect(el?.props.iterable).toBe("items");
+    expect(el?.source).toBe("for item in items {");
+  });
+});
