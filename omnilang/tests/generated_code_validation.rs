@@ -1095,7 +1095,14 @@ design LearnDesign {
 /// 12→3 (Matrix4 per-axis transforms + _OmniStepsCurve), #8 inline style
 /// 6→4 (TextStyle wrapper; 残差为 var(--) token/动态值), #9 bind:value
 /// 5→3 (write-back 合并进用户 onChanged; 残差为 select 标签/bool/i32 类型)。
-const FLUTTER_WARNINGS_BASELINE: usize = 700;
+///
+/// Task C2d (P4 诊断合并 + span 线程化) lowered it to 671: #1 class 未声明
+/// 75→46 (message-keyed 程序级合并——C2a 已将 633 归一至 75，46 = 唯一名),
+/// #2 204 (a7f1a483 已合并——204 = 唯一使用类), #6 225 (定义点 1/类,
+/// 416 类 corpus 的 layout/text-only 类; 合并无可再消减), 其余族不变。
+/// 671 为按唯一名合并的诚实下限——<300 需语义燃尽（#2+#6 TextStyle/
+/// layout 映射，-429 可达 242），编排层裁决（deferral #81 记录）。
+const FLUTTER_WARNINGS_BASELINE: usize = 671;
 
 #[test]
 fn learn_omniview_flutter_warnings_are_tracked() {
