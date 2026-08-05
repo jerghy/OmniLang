@@ -53,7 +53,9 @@ STAGES = [
 ]
 APPROVAL_HEADING = "批准标准"
 REGISTRY_HEADING = "登记册"
-BNF_APPROVAL_KEYWORDS = ("BNF 批准",)
+# BNF approval must be a real heading — a plain-text mention or a deleted
+# stage subsection would otherwise pass a whole-text substring check.
+BNF_APPROVAL_HEADING_RE = re.compile(r"^### BNF 批准", re.M)
 # Approval-criteria keywords that must appear in the 批准标准 section.
 CRITERIA_KEYWORDS = ("demo 使用", "三目标门禁", "使用基准")
 # Registry table columns — the three-stage record contract.
@@ -120,8 +122,8 @@ def audit_file(path, problems):
     for num, keyword in STAGES:
         if not re.search(rf'^### {re.escape(num)}[^\n]*{re.escape(keyword)}', text, re.M):
             fail(f"missing stage heading '### {num}: …{keyword}…'")
-    if not any(k in text for k in BNF_APPROVAL_KEYWORDS):
-        fail(f"missing BNF approval stage ('BNF 批准' heading/mention)")
+    if not BNF_APPROVAL_HEADING_RE.search(text):
+        fail(f"missing BNF approval stage ('### BNF 批准' heading)")
 
     # ── approval criteria section ────────────────────────────────────────
     criteria = subsection(text, APPROVAL_HEADING)

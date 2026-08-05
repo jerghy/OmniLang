@@ -384,6 +384,13 @@ jobs:
       # implementation absent from the whitelist — fails CI.
       - name: Semantic-universe audit
         run: python3 scripts/verify-semantic-universe.py --check
+      # Syntax-lifecycle gate (Task 7.4, design P6): every approved syntax
+      # in the lifecycle registry must carry its 提案 → 试点 → 批准
+      # three-stage record and cite existing pilot demo files — a BNF
+      # change without a proposal trace fails CI, so the filter/map/count
+      # class (0-consumer syntax shipped in the BNF) cannot recur.
+      - name: Syntax-lifecycle audit
+        run: python3 scripts/verify-syntax-lifecycle.py --check
       - name: Compile learn-omniview (omniview target)
         working-directory: test/projects/learn-omniview
         run: ../../target/release/omnic build --target omniview -o /tmp/omniview-docs-gate-out
