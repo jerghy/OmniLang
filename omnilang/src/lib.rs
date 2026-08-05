@@ -420,17 +420,21 @@ fn compile_multi_internal_post(
     );
 
     // C2a (C1 audit P1 companion): the "design class has no
-    // decoration-mappable properties" family is keyed by CLASS NAME — the
-    // per-component dedup (flutter/mod.rs) still reports the same root cause
-    // once per component. Merging by message program-wide keeps the honest
-    // text on the first occurrence and collapses the family to one entry per
-    // unique class (the C1 P1 "#2 唯一名合并"). Only this class-keyed family
-    // is merged — all other codegen warnings stay per-occurrence (spec §10.3
-    // no-silent-drop contract).
+    // decoration-mappable properties; skipped" usage-point warning is keyed
+    // by CLASS NAME — the per-component dedup (flutter/mod.rs) still reports
+    // the same root cause once per component. Merging by message
+    // program-wide keeps the honest text on the first occurrence and
+    // collapses the family to one entry per unique class (the C1 P1
+    // "#2 唯一名合并"). The matcher pins the usage-point suffix "; skipped"
+    // so the variant family (view.rs "...no visual effect on Flutter") and
+    // the definition-point factory family (design_classes.rs "...no
+    // BoxDecoration factory emitted") stay untouched — only this class-keyed
+    // family is merged, all other codegen warnings stay per-occurrence
+    // (spec §10.3 no-silent-drop contract).
     let mut seen_decoration: FxHashSet<String> = FxHashSet::default();
     warnings.retain(|d| {
         !(d.kind == crate::error::DiagnosticKind::ECodegen
-            && d.message.contains("no decoration-mappable properties"))
+            && d.message.contains("no decoration-mappable properties; skipped"))
             || seen_decoration.insert(d.message.clone())
     });
 
