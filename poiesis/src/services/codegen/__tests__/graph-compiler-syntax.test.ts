@@ -67,3 +67,39 @@ describe("compileCodeFlowGraph — syntax nodes", () => {
     expect(out).toContain("emit onSelect(item);");
   });
 });
+
+/** while + body 链 + 续接：fn → while → [body: assign] → flow-out 续接 return */
+const ELEMS: CodeblockElementData[] = [
+  { id: "fn-1", nodeType: "codeblock", tag: "fn", parentId: null, props: { name: "f", params: "", returnType: "void" }, source: "" },
+  { id: "w-2", nodeType: "codeblock", tag: "while", parentId: null, props: { condition: "n < 10" }, source: "while n < 10 {" },
+  { id: "a-3", nodeType: "codeblock", tag: "assign", parentId: null, props: { target: "n", operator: "=", value: "n + 1" }, source: "n = n + 1;" },
+  { id: "ret-4", nodeType: "codeblock", tag: "return", parentId: null, props: {}, source: "n" },
+];
+const WIRES = [
+  { id: "w1", fromId: "fn-1", fromPort: "flow-out", toId: "w-2", toPort: "flow-in" },
+  { id: "w2", fromId: "w-2", fromPort: "br0", toId: "a-3", toPort: "flow-in" },
+  { id: "w3", fromId: "w-2", fromPort: "flow-out", toId: "ret-4", toPort: "flow-in" },
+];
+
+describe("graph-compiler 循环发射", () => {
+  it("while：@pid 注释 + 块头 + body 缩进块 + flow-out 续接同缩进", () => {
+    const out = compileCodeFlowGraph(ELEMS, WIRES, "fn-1");
+    expect(out).toContain("// @pid:w-2");
+    expect(out).toContain("while n < 10 {");
+    expect(out).toContain("  n = n + 1;"); // body 缩进 2
+    expect(out).toContain("}");
+    expect(out).toContain("return n;"); // 续接与 while 同缩进（0）
+    expect(out.indexOf("while")).toBeLessThan(out.indexOf("return"));
+  });
+  it("for-in 发射 `for item in items {`", () => {
+    const elems = ELEMS.map((e) => e.id === "w-2" ? { ...e, tag: "for-in" as const, props: { varName: "item", iterable: "items" }, source: "for item in items {" } : e);
+    const out = compileCodeFlowGraph(elems, WIRES, "fn-1");
+    expect(out).toContain("for item in items {");
+  });
+  it("无 body wire 时块头空块（`while c { }` 不发射孤儿 body）", () => {
+    const wires = WIRES.filter((w) => !(w.fromId === "w-2" && w.fromPort === "br0"));
+    const out = compileCodeFlowGraph(ELEMS, wires, "fn-1");
+    // 闭括号与块头同缩进（镜像 condition 模式），fn 体内为缩进 2 的 `  }`
+    expect(out).toContain("while n < 10 {\n  }");
+  });
+});

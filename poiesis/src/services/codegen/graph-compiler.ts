@@ -193,6 +193,26 @@ function emitNode(
       return out;
     }
 
+    case "while":
+    case "for-in": {
+      const header = formatSyntaxNode(tag, (node.element.props ?? {}) as SyntaxNodeProps);
+      let out = emitPidComment(pid);
+      out += `${pad}${header}\n`;
+      // body 链：从 br0 端口可达的节点（块内缩进）
+      const bodySuccIds = node.branchSuccessors.get("br0") || [];
+      for (const succId of bodySuccIds) {
+        const succ = adj.get(succId);
+        if (succ) out += emitNode(succ, adj, indent + 1, visited);
+      }
+      out += `${pad}}\n`;
+      // flow-out 续接：循环结束后的代码（与循环头同缩进，镜像 condition 模式）
+      for (const succId of node.successors) {
+        const succ = adj.get(succId);
+        if (succ) out += emitNode(succ, adj, indent, visited);
+      }
+      return out;
+    }
+
     case "let":
     case "assign":
     case "store-call":
