@@ -7,9 +7,28 @@ import { InlineStoreDemo } from "../components/InlineStoreDemo";
 import { ComputedFnFormDemo } from "../components/ComputedFnFormDemo";
 
 component StatePage {
+    // 7.5b-L5: event 接线展示——SignalPatternsDemo 声明并发射
+    // onItemAdded(String)/onItemRemoved(i32)，由父级在此接收并显示，
+    // 保持 events 域的教学价值（声明 → 发射 → 父级中继）
+    signal lastItemAdded: String = "-";
+    signal lastItemRemoved: i32 = -1;
+
+    fn handleItemAdded(item: String) {
+        lastItemAdded = item;
+    }
+
+    fn handleItemRemoved(id: i32) {
+        lastItemRemoved = id;
+    }
+
     view {
         <section class: LearnDesign.DemoSection>
-            <div class: LearnDesign.DemoFull><SignalPatternsDemo /></div>
+            <div class: LearnDesign.DemoFull>
+                <SignalPatternsDemo @onItemAdded={handleItemAdded} @onItemRemoved={handleItemRemoved} />
+            </div>
+            <p class: LearnDesign.Hint>
+                Event 中继 ← 上一次发射：added: {lastItemAdded} | removed id: {lastItemRemoved}
+            </p>
             <div class: LearnDesign.Row>
                 <div class: LearnDesign.Col><InlineStoreDemo /></div>
                 <div class: LearnDesign.Col><ComputedFnFormDemo /></div>

@@ -112,7 +112,8 @@ component SignalPatternsDemo {
     }
 
     @unmount {
-        mountTime = "unmounting...";
+        // 7.5b-L5：死写入已移除——卸载时组件已不可见，写入 mountTime
+        // 无任何消费者（write-only 信号写入）。事件接线见父级 StatePage。
     }
 
     view {
