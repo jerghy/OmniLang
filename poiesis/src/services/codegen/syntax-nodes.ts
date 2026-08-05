@@ -17,6 +17,12 @@ export interface SyntaxNodeProps {
   args?: string;
   emit?: boolean;
   fnName?: string;
+  /** while: 循环条件表达式 */
+  condition?: string;
+  /** for-in: 循环变量名 */
+  varName?: string;
+  /** for-in: 可迭代表达式 */
+  iterable?: string;
 }
 
 export const ASSIGN_OPERATORS = ["=", "+=", "-=", "*=", "/=", "%="];
@@ -32,6 +38,10 @@ export function defaultSyntaxProps(tag: string): SyntaxNodeProps {
       return { storeName: "TodoStore", action: "add", args: "" };
     case "call":
       return { fnName: "close", args: "", emit: false };
+    case "while":
+      return { condition: "count < 10" };
+    case "for-in":
+      return { varName: "item", iterable: "items" };
     default:
       return {};
   }
@@ -52,6 +62,10 @@ export function formatSyntaxNode(tag: string, props: SyntaxNodeProps): string {
       return `${props.storeName ?? "Store"}.${props.action ?? "action"}(${props.args ?? ""});`;
     case "call":
       return `${props.emit ? "emit " : ""}${props.fnName ?? "fn"}(${props.args ?? ""});`;
+    case "while":
+      return `while ${props.condition ?? "true"} {`;
+    case "for-in":
+      return `for ${props.varName ?? "item"} in ${props.iterable ?? "items"} {`;
     default:
       return "";
   }

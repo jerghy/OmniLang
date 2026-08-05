@@ -35,3 +35,16 @@ describe("defaultSyntaxProps", () => {
     }
   });
 });
+
+describe("loop 语法节点", () => {
+  it("while 生成 `while <condition> {`（无尾分号，块头由编译器补）", () => {
+    expect(formatSyntaxNode("while", { condition: "n < 10" })).toBe("while n < 10 {");
+  });
+  it("for-in 生成 `for <var> in <iterable> {`", () => {
+    expect(formatSyntaxNode("for-in", { varName: "item", iterable: "items" })).toBe("for item in items {");
+  });
+  it("defaultSyntaxProps 提供占位默认值", () => {
+    expect(defaultSyntaxProps("while")).toEqual({ condition: "count < 10" });
+    expect(defaultSyntaxProps("for-in")).toEqual({ varName: "item", iterable: "items" });
+  });
+});
