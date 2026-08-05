@@ -422,22 +422,23 @@ fn compile_multi_internal_post(
             }),
     );
 
-    // C2a (C1 audit P1 companion): the "design class has no
-    // decoration-mappable properties; skipped" usage-point warning is keyed
-    // by CLASS NAME — the per-component dedup (flutter/mod.rs) still reports
-    // the same root cause once per component. Merging by message
-    // program-wide keeps the honest text on the first occurrence and
-    // collapses the family to one entry per unique class (the C1 P1
-    // "#2 唯一名合并"). The matcher pins the usage-point suffix "; skipped"
-    // so the variant family (view.rs "...no visual effect on Flutter") and
-    // the definition-point factory family (design_classes.rs "...no
-    // BoxDecoration factory emitted") stay untouched — only this class-keyed
-    // family is merged, all other codegen warnings stay per-occurrence
-    // (spec §10.3 no-silent-drop contract).
+    // C2a/C2d (C1 audit P1 + P4): the three class-name-keyed design
+    // decoration families are merged program-wide by message — the class
+    // name IS the message discriminator, so message-keyed dedup collapses
+    // each family to one entry per unique class (the C1 P1 "#2 唯一名合并",
+    // extended to #1/#6 in C2d). Matchers pin each family's distinguishing
+    // text so neighboring families stay untouched (the usage-point
+    // "; skipped" suffix vs the definition-point "no BoxDecoration factory
+    // emitted" vs the variant family "...no visual effect on Flutter");
+    // every other codegen warning stays per-occurrence (spec §10.3
+    // no-silent-drop contract).
     let mut seen_decoration: FxHashSet<String> = FxHashSet::default();
     warnings.retain(|d| {
         !(d.kind == crate::error::DiagnosticKind::ECodegen
-            && d.message.contains("no decoration-mappable properties; skipped"))
+            && (d.message.contains("not declared by any design block")
+                || d.message
+                    .contains("no decoration-mappable properties; skipped")
+                || d.message.contains("no BoxDecoration factory emitted")))
             || seen_decoration.insert(d.message.clone())
     });
 
