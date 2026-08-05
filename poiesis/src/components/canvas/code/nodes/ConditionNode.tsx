@@ -83,7 +83,6 @@ export function ConditionNode({ data }: Props) {
       }}
     >
       <HandlesBoundary>
-        className="codeflow-handle"
         <Handle
           className="codeflow-handle"
           type="target"
@@ -151,7 +150,6 @@ export function ConditionNode({ data }: Props) {
           </div>
 
           <HandlesBoundary>
-            className="codeflow-handle"
             <Handle
               className="codeflow-handle"
               type="source"
@@ -193,7 +191,6 @@ export function ConditionNode({ data }: Props) {
           解析侧已重建 cond.flow-out → 后置段 wire（中链 condition round-trip，E2E 缺陷 2），
           画布必须渲染对应 handle，否则既有 flow-out wire 成不可见边（xyflow error008）。 */}
       <HandlesBoundary>
-        className="codeflow-handle"
         <Handle
           className="codeflow-handle"
           type="source"

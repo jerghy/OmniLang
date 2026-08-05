@@ -78,7 +78,6 @@ export function ReturnNode({ data }: Props) {
         )}
       </div>
       <HandlesBoundary>
-        className="codeflow-handle"
         <Handle
           className="codeflow-handle"
           type="target"
