@@ -6,7 +6,7 @@ describe("filterMenuItems", () => {
   it("空 query 返回全部 3 个分组", () => {
     const r = filterMenuItems("");
     expect(r.map((s) => s.section)).toEqual(["控制流", "变量与赋值", "调用"]);
-    expect(r.flatMap((s) => s.items)).toHaveLength(8);
+    expect(r.flatMap((s) => s.items)).toHaveLength(10);
   });
   it("中文子串匹配", () => {
     const r = filterMenuItems("赋值");

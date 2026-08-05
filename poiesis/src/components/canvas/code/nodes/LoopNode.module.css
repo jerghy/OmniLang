@@ -1,0 +1,17 @@
+.node {
+  min-width: 180px;
+  border-radius: 8px;
+  border: 1px solid var(--ol-color-primary, #14b8a6);
+  background: var(--ol-surface, #fff);
+  font-size: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+.header { padding: 4px 10px; background: rgba(20, 184, 166, 0.12); font-weight: 600; border-radius: 8px 8px 0 0; }
+.body { padding: 6px 10px; display: flex; flex-direction: column; gap: 4px; }
+.fieldRow { display: flex; gap: 6px; align-items: baseline; }
+.fieldLabel { color: #64748b; font-size: 11px; }
+.fieldValue { flex: 1; font-family: ui-monospace, monospace; }
+.bodyRow { display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin-top: 2px; }
+.bodyLabel { color: #64748b; font-size: 11px; }
+.preview { padding: 4px 10px; border-top: 1px dashed var(--ol-border, #e2e8f0); color: #475569; font-family: ui-monospace, monospace; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.handle { width: 10px; height: 10px; background: #14b8a6; }

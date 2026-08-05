@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { FlowInspector } from "../FlowInspector";
 
 const { mockSetProp } = vi.hoisted(() => ({ mockSetProp: vi.fn() }));
@@ -16,6 +16,16 @@ vi.mock("../../../../store", () => ({
         {
           id: "f1", nodeType: "codeblock", tag: "fn", parentId: null,
           props: { name: "add", params: "text: String" },
+          source: "",
+        },
+        {
+          id: "w1", nodeType: "codeblock", tag: "while", parentId: null,
+          props: { condition: "count < 10" },
+          source: "",
+        },
+        {
+          id: "fi1", nodeType: "codeblock", tag: "for-in", parentId: null,
+          props: { varName: "item", iterable: "items" },
           source: "",
         },
       ],
@@ -47,5 +57,32 @@ describe("FlowInspector 降级为预览", () => {
   it("未选择时显示占位提示", () => {
     render(<FlowInspector selectedNodeIds={[]} />);
     expect(screen.getByText("Select a node to edit")).toBeTruthy();
+  });
+});
+
+describe("FlowInspector loop 表单", () => {
+  it("while 节点渲染条件字段，提交走 setProp(condition)", () => {
+    render(<FlowInspector selectedNodeIds={["w1"]} />);
+    const input = screen.getByLabelText("循环条件") as HTMLInputElement;
+    expect(input.value).toBe("count < 10");
+    fireEvent.change(input, { target: { value: "count <= 20" } });
+    fireEvent.blur(input);
+    expect(mockSetProp).toHaveBeenCalledWith("w1", "condition", "count <= 20");
+  });
+
+  it("for-in 节点渲染循环变量（文本）与遍历表达式（公式框）", () => {
+    render(<FlowInspector selectedNodeIds={["fi1"]} />);
+    const varInput = screen.getByLabelText("循环变量") as HTMLInputElement;
+    expect(varInput.value).toBe("item");
+    const iterInput = screen.getByLabelText("遍历表达式") as HTMLInputElement;
+    expect(iterInput.value).toBe("items");
+    fireEvent.change(iterInput, { target: { value: "todos" } });
+    fireEvent.blur(iterInput);
+    expect(mockSetProp).toHaveBeenCalledWith("fi1", "iterable", "todos");
+  });
+
+  it("loop 表单底部给出 formatSyntaxNode 实时预览", () => {
+    render(<FlowInspector selectedNodeIds={["w1"]} />);
+    expect(screen.getByText("while count < 10 {")).toBeTruthy();
   });
 });

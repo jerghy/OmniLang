@@ -11,6 +11,8 @@ export const TAG_CN: Record<string, string> = {
   assign: "赋值",
   "store-call": "store 调用",
   call: "调用",
+  while: "循环",
+  "for-in": "迭代",
 };
 
 export const CODE_TAGS = new Set([
@@ -22,6 +24,8 @@ export const CODE_TAGS = new Set([
   "assign",
   "store-call",
   "call",
+  "while",
+  "for-in",
 ]);
 
 export interface MenuItem {
@@ -43,6 +47,8 @@ export const MENU_SECTIONS: MenuSection[] = [
       { label: "判断 (condition)", tag: "condition", shortcut: "cond" },
       { label: "代码块 (code-block)", tag: "code-block", shortcut: "cb" },
       { label: "返回 (return)", tag: "return", shortcut: "ret" },
+      { label: "循环 (while)", tag: "while", shortcut: "while" },
+      { label: "迭代 (for-in)", tag: "for-in", shortcut: "for" },
     ],
   },
   {

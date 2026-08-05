@@ -23,6 +23,7 @@ import { CodeBlockNode } from "./nodes/CodeBlockNode";
 import { ReturnNode } from "./nodes/ReturnNode";
 import { DesignPreviewNode } from "./nodes/DesignPreviewNode";
 import { SyntaxNode } from "./nodes/SyntaxNode";
+import { LoopNode } from "./nodes/LoopNode";
 import { defaultSyntaxProps } from "../../../services/codegen/syntax-nodes";
 import { useFlowScope } from "../../../services/codegen/flow-scope-hook";
 import { collectLetVarsPerFn, findOwnerFnId } from "../../../services/codegen/fn-topology";
@@ -44,6 +45,8 @@ const nodeTypes = {
   "assign": SyntaxNode,
   "store-call": SyntaxNode,
   "call": SyntaxNode,
+  "while": LoopNode,
+  "for-in": LoopNode,
 };
 
 function FlowCanvasInner() {
@@ -130,7 +133,7 @@ function FlowCanvasInner() {
       let props: Record<string, unknown> = {};
       if (tag === "fn") { props = { name: "newFn", params: "" }; }
       if (tag === "condition") { props = { branches: [{ id: "br0", type: "if", condition: "" }] }; }
-      if (["let", "assign", "store-call", "call"].includes(tag)) { props = { ...defaultSyntaxProps(tag) }; }
+      if (["let", "assign", "store-call", "call", "while", "for-in"].includes(tag)) { props = { ...defaultSyntaxProps(tag) }; }
       addElement({ id, nodeType: "codeblock", tag, props, parentId: null, position: { x: menuState.flowX + jitter, y: menuState.flowY + jitter }, source: "" });
       if (pendingDragRef.current) {
         addWire({
@@ -304,8 +307,10 @@ function FlowCanvasInner() {
           returnExpr: el.source,
           onCommitReturn: (expr: string) => setElementSource(el.id, expr),
           description: el.props?.description as string | undefined,
-          // fn 无 source（CodeBlockEditor 打开即空白）：双击仅聚焦选中（FlowInspector 表单编辑参数）
-          onDoubleClick: el.tag === "fn" ? undefined : () => setEditingNodeId(el.id),
+          // fn 无 source（CodeBlockEditor 打开即空白）：双击仅聚焦选中（FlowInspector 表单编辑参数）。
+          // loop 同 fn：props 为权威（LoopNode 画布静态渲染），双击不开 Monaco（与 SyntaxNode 同机制——
+          // 禁用点在数据层，SyntaxNode 组件内部无 onDoubleClick 覆盖）。
+          onDoubleClick: el.tag === "fn" || el.tag === "while" || el.tag === "for-in" ? undefined : () => setEditingNodeId(el.id),
           onUpdateBranches: (branches: unknown) => {
             setProp(el.id, "branches", branches);
           },

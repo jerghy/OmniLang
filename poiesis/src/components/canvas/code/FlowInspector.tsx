@@ -3,12 +3,16 @@
 // Inline-editing era: syntax nodes (let/assign/store-call/call) and return are edited
 // directly on the node in the canvas — this panel is degraded to a live preview
 // (single source: formatSyntaxNode) + validation hints. fn param editing is retained.
+// Loop 节点（while/for-in）画布静态渲染、props 为权威：面板承担唯一编辑表单。
 
+import { useMemo } from "react";
 import { usePoiesisStore } from "../../../store";
 import type { CodeblockElementData } from "../../../core/types/element";
 import { formatSyntaxNode, type SyntaxNodeProps } from "../../../services/codegen/syntax-nodes";
-import { validateSyntaxProps, type FlowScope } from "../../../services/codegen/flow-scope";
+import { validateSyntaxProps, buildFormulaSource, type FlowScope } from "../../../services/codegen/flow-scope";
 import { useFlowScope } from "../../../services/codegen/flow-scope-hook";
+import { NodeTextField } from "./fields/NodeField";
+import { NodeFormulaField } from "./fields/NodeFormulaField";
 import { TAG_CN } from "./flowConstants";
 
 const OMNI_TYPES = [
@@ -164,6 +168,10 @@ export function FlowInspector({ selectedNodeIds }: Props) {
     return <SyntaxPreview tag={el.tag} props={el.props ?? {}} scope={scope ?? undefined} />;
   }
 
+  if (el.tag === "while" || el.tag === "for-in") {
+    return <LoopForm el={el} setProp={setProp} scope={scope ?? undefined} />;
+  }
+
   return (
     <div style={S.panel}>
       <div style={{ padding: 16, color: "var(--ol-text-muted)", textAlign: "center" }}>
@@ -298,6 +306,68 @@ function SyntaxPreview({ tag, props, scope }: {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────
+// Loop 节点表单（while / for-in）
+// ────────────────────────────────────────────
+// 与 SyntaxNode 内联编辑相反的契约：loop 画布静态渲染（props 权威、双击豁免），
+// 面板是唯一编辑面——while 条件 / for-in 变量+遍历 走字段提交（onCommit → setProp），
+// 底部仍给 formatSyntaxNode 实时预览（单一来源）。
+
+function LoopForm({ el, setProp, scope }: {
+  el: CodeblockElementData;
+  setProp: (id: string, prop: string, value: unknown) => void;
+  scope?: FlowScope;
+}) {
+  const props = (el.props ?? {}) as SyntaxNodeProps;
+  const code = formatSyntaxNode(el.tag, props);
+  // 公式框候选源：scope 全量候选（面板无 wire 拓扑，不含 letVars；无 scope 退化纯文本）
+  const formulaSource = useMemo(() => buildFormulaSource(scope, []), [scope]);
+  const set = (prop: string, value: unknown) => setProp(el.id, prop, value);
+  return (
+    <div style={S.panel}>
+      <div style={S.header}>{TAG_CN[el.tag] ?? el.tag}</div>
+      {el.tag === "while" ? (
+        <div style={S.field}>
+          <div style={S.label}>条件</div>
+          <NodeFormulaField
+            value={props.condition ?? ""}
+            candidates={formulaSource}
+            onCommit={(v) => set("condition", v)}
+            placeholder="循环条件"
+            ariaLabel="循环条件"
+          />
+        </div>
+      ) : (
+        <>
+          <div style={S.field}>
+            <div style={S.label}>循环变量</div>
+            <NodeTextField
+              value={props.varName ?? ""}
+              onCommit={(v) => set("varName", v)}
+              placeholder="循环变量"
+              ariaLabel="循环变量"
+            />
+          </div>
+          <div style={S.field}>
+            <div style={S.label}>遍历表达式</div>
+            <NodeFormulaField
+              value={props.iterable ?? ""}
+              candidates={formulaSource}
+              onCommit={(v) => set("iterable", v)}
+              placeholder="遍历表达式"
+              ariaLabel="遍历表达式"
+            />
+          </div>
+        </>
+      )}
+      <div style={S.field}>
+        <div style={S.label}>生成代码（实时预览）</div>
+        <pre style={PRE_STYLE}>{code}</pre>
+      </div>
     </div>
   );
 }
