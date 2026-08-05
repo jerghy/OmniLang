@@ -5,6 +5,10 @@
 
 /* ── 节点基础 ── */
 .codeflow-node {
+  /* position: relative 是 handle 定位的包含块锚点：xyflow Handle 绝对定位（left:100%），
+     无此锚点时定位上下文错乱——实测 handle 漂到节点右侧 84-130px（body handle 悬空，
+     且正交 wire 走廊按漂移后的 handle 位置计算 → 走廊越过目标列左缘 → 穿过节点）。 */
+  position: relative;
   border-radius: 10px;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06), 0 4px 14px rgba(15, 23, 42, 0.08);
   transition: box-shadow 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
