@@ -21,25 +21,31 @@ export interface LayoutNodeSize {
   height: number;
 }
 
+// 估算尺寸以真实渲染为准（2026-08-05 实测收集：fn 125×28/let 195×79/assign 195×63/
+// condition 128×71/while 114×61/for-in 122×74/return 95×23/call 133×75）——
+// 估算严重偏大（旧 200 宽）会使「分支源右对齐」失效：右对齐按估算算，估算时分支源
+// 恰为列内最宽则无需右移，真实渲染时右缘仍被同列下方更宽节点覆盖（wire 起点被挡）。
+// 取值保守略大（列宽/行高偏大安全，偏小才重叠）；measured 就绪时布局优先真实值。
 const BASE_SIZES: Record<string, LayoutNodeSize> = {
-  fn: { width: 200, height: 64 },
-  "code-block": { width: 220, height: 64 },
-  condition: { width: 200, height: 96 },
-  return: { width: 160, height: 44 },
-  let: { width: 200, height: 88 },
-  assign: { width: 200, height: 88 },
-  "store-call": { width: 200, height: 88 },
-  call: { width: 200, height: 64 },
-  while: { width: 200, height: 88 },
-  "for-in": { width: 200, height: 108 },
+  fn: { width: 150, height: 44 },
+  "code-block": { width: 200, height: 64 },
+  condition: { width: 140, height: 80 },
+  return: { width: 110, height: 36 },
+  let: { width: 200, height: 84 },
+  assign: { width: 200, height: 72 },
+  "store-call": { width: 200, height: 84 },
+  call: { width: 150, height: 84 },
+  while: { width: 130, height: 68 },
+  "for-in": { width: 140, height: 80 },
 };
 
 /** 按 tag/props 估算节点尺寸（布局坐标化的兜底；有 measured 尺寸时优先真实值）。 */
 export function estimateNodeSize(tag: string, props?: Record<string, unknown>): LayoutNodeSize {
   const base = BASE_SIZES[tag] ?? { width: 200, height: 64 };
   if (tag === "condition") {
-    const n = Array.isArray(props?.branches) ? (props.branches as unknown[]).length : 1;
-    return { width: base.width, height: 48 + n * 32 };
+    // 每分支一行（~20px/行）+ 头尾：3 分支 ≈ 71（实测）；公式随分支数线性
+    const n = Math.max(Array.isArray(props?.branches) ? (props.branches as unknown[]).length : 1, 1);
+    return { width: base.width, height: 34 + n * 14 };
   }
   return base;
 }
@@ -47,6 +53,14 @@ export function estimateNodeSize(tag: string, props?: Record<string, unknown>): 
 /** 端口是否分支口（brN / body）：分支子树右展一列 */
 function isBranchPort(port: string | undefined): boolean {
   return port !== undefined && port !== "flow-in" && port !== "flow-out";
+}
+
+/** 分支口排序键：br0 < br1 < br2（数字后缀序）；无数字后缀的（body 等）排最后。
+ *  分支 lane 按此序分配——消除 wire 数组乱序导致的兄弟分支 wire 交叉
+ *  （lane 分配若跟 wire 数组序，br1 的 wire 在前时 br1 目标占左列、br0 目标占右列 → 交叉）。 */
+function branchPortOrder(port: string): number {
+  const m = port.match(/(\d+)$/);
+  return m ? Number(m[1]) : Number.MAX_SAFE_INTEGER;
 }
 
 /**
@@ -122,22 +136,23 @@ export function computeLayeredLayout(
     // 无入边但非根的节点（如孤立 fn）从 0 起，无碍
 
     // 分支列：flow-out/flow-in 随主干；分支口（br*/body）进入右展——
-    // 同一节点的各分支边依次占用递增列（分支车道），同层分支首句各自独列（同层同 y 且不重叠）
+    // 同一节点的各分支边依次占用递增列（分支车道），同层分支首句各自独列（同层同 y 且不重叠）。
+    // 分支边按端口 id 排序分配 lane（br0→最左）：wire 数组乱序时兄弟分支 wire 仍不交叉
+    // （lane 分配跟 wire 数组序 → br1 的 wire 在前时 br1 目标占左列、br0 目标占右列 → 交叉）。
     const column = new Map<string, number>();
     const colVisited = new Set<string>();
     const walk = (id: string, col: number) => {
       if (colVisited.has(id)) return;
       colVisited.add(id);
       column.set(id, col);
-      let lane = 0;
-      for (const o of outEdges.get(id) ?? []) {
-        if (isBranchPort(o.port)) {
-          walk(o.to, col + 1 + lane);
-          lane++;
-        } else {
-          walk(o.to, col);
-        }
+      const out = outEdges.get(id) ?? [];
+      // 非分支边（flow-out 续接）随主干列
+      for (const o of out) {
+        if (!isBranchPort(o.port)) walk(o.to, col);
       }
+      // 分支边按端口 id 排序序逐一分配递增 lane（br0→最左）
+      const branches = out.filter((o) => isBranchPort(o.port)).sort((a, b) => branchPortOrder(a.port) - branchPortOrder(b.port));
+      branches.forEach((o, lane) => walk(o.to, col + 1 + lane));
     };
     walk(rootId, 0);
     ids.forEach((id) => { if (!column.has(id)) column.set(id, 0); });
@@ -172,7 +187,10 @@ export function computeLayeredLayout(
     for (let c = 0; c <= maxCol; c++) {
       colWidth.set(c, Math.max(...ids.filter((id) => column.get(id) === c).map((id) => sizeOf(id, elemById.get(id)!.tag, elemById.get(id)!.props).width)) + LAYOUT_CONSTS.H_GAP);
     }
-    // 同 (depth, column) 多节点纵向均布
+    // 同 (depth, column) 多节点纵向均布；分支源节点（有分支出口）右对齐到列右缘——
+    // 分支 wire 起点（节点右侧 handle）不被同列下方更宽的节点右缘覆盖（实测 while→body wire
+    // 起点被同列更宽的 for-in 遮挡）；右对齐后分支源右缘 = 列右缘 = 列内最大右缘。
+    const hasBranchOut = (id: string) => (outEdges.get(id) ?? []).some((o) => isBranchPort(o.port));
     for (const id of ids) {
       const k = `${depth.get(id)}:${column.get(id)}`;
       const idx = inlineIdx.get(k) ?? 0;
@@ -180,8 +198,12 @@ export function computeLayeredLayout(
       const d = depth.get(id) ?? 0;
       const yBase = d === 0 ? 0 : Array.from({ length: d }, (_, i) => rowHeight.get(i) ?? 0).reduce((a, b) => a + b, 0);
       const xBase = (column.get(id) ?? 0) === 0 ? 0 : Array.from({ length: column.get(id) ?? 0 }, (_, i) => colWidth.get(i) ?? 0).reduce((a, b) => a + b, 0);
+      const col = column.get(id) ?? 0;
+      const w = sizeOf(id, elemById.get(id)!.tag, elemById.get(id)!.props).width;
+      // 分支源右对齐：x = 列左缘 + (列内最大宽 − 自身宽)；列宽定义 = maxW + H_GAP
+      const x = hasBranchOut(id) ? xBase + (colWidth.get(col) ?? 0) - LAYOUT_CONSTS.H_GAP - w : xBase;
       pos[id] = {
-        x: xBase,
+        x,
         y: stackedY + yBase + idx * (sizeOf(id, elemById.get(id)!.tag, elemById.get(id)!.props).height + LAYOUT_CONSTS.INLINE_GAP),
       };
     }

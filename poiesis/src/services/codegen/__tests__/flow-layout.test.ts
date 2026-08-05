@@ -43,7 +43,9 @@ describe("computeLayeredLayout", () => {
   it("分支右展：分支 x > 主干 x", () => {
     const pos = computeLayeredLayout(ELEMS, WIRES, new Map());
     expect(pos["a1"].x).toBeGreaterThan(pos["cond"].x);
-    expect(pos["post"].x).toBe(pos["cond"].x); // flow-out 续接随主干列
+    // flow-out 续接随主干列（post 左缘对齐）；分支源 cond 右对齐到列右缘（x > 0）
+    expect(pos["post"].x).toBe(0);
+    expect(pos["cond"].x).toBeGreaterThan(0);
   });
   it("无重叠：两两矩形不相交（估算尺寸）", () => {
     const pos = computeLayeredLayout(ELEMS, WIRES, new Map());
@@ -83,7 +85,8 @@ describe("computeLayeredLayout", () => {
     ];
     const pos = computeLayeredLayout(elems, wires, new Map());
     expect(pos["body"].x).toBeGreaterThan(pos["loop"].x);
-    expect(pos["after"].x).toBe(pos["loop"].x);
+    expect(pos["after"].x).toBe(0); // after 左缘对齐（主干列）
+    expect(pos["loop"].x).toBeGreaterThan(0); // loop 分支源右对齐
     expect(pos["body"].y).toBeGreaterThan(pos["loop"].y);
   });
   it("同桶多节点行高预留：2×2 网格合并两两无重叠（含跨子图边界）", () => {
@@ -122,5 +125,48 @@ describe("computeLayeredLayout", () => {
     expect(pos["c2"].y + estimateNodeSize("assign", {}).height).toBeLessThanOrEqual(pos["p1"].y);
     // 关键对：p2（最深行桶 idx=1）底不穿入下一子图首节点 gfn2 顶（间距 ≥ SUBGRAPH_GAP）
     expect(pos["gfn2"].y - (pos["p2"].y + estimateNodeSize("assign", {}).height)).toBeGreaterThanOrEqual(LAYOUT_CONSTS.SUBGRAPH_GAP);
+  });
+
+  it("分支 lane 按分支 id 排序分配（wire 数组乱序不产生兄弟交叉）", () => {
+    // wires 数组乱序：br1 的 wire 在前——lane 分配须按 br0 < br1 排序，使 a1 列 < a2 列
+    const elems = [el("fn", "fn"), el("cond", "condition", { branches: [{ id: "br0", type: "if", condition: "a" }, { id: "br1", type: "else", condition: "" }] }), el("a1", "assign", { target: "n", operator: "=", value: "1" }), el("a2", "assign", { target: "n", operator: "=", value: "2" })];
+    const wires = [
+      wire("x1", "fn", "flow-out", "cond", "flow-in"),
+      wire("x2", "cond", "br1", "a2", "flow-in"), // 乱序：br1 在前
+      wire("x3", "cond", "br0", "a1", "flow-in"),
+    ];
+    const pos = computeLayeredLayout(elems, wires, new Map());
+    // br0 目标（a1）必须占更小的列（lane0 → x 更小），与分支 id 视觉序一致
+    expect(pos["a1"].x).toBeLessThan(pos["a2"].x);
+  });
+
+  it("分支源右对齐：有分支出口的节点右缘 = 列右缘（wire 起点不被同列下方更宽节点覆盖）", () => {
+    // 主干：fn → while（宽 200）→ for-in（宽 200 估宽一致？用自定义尺寸制造右缘参差）
+    // 用 nodeSizes 制造：while 宽 120（窄）、下方主干节点 for-in 宽 160（宽）——
+    // 修复前 while 左对齐 → while 右缘 < for-in 右缘 → 分支 wire 起点（while 右缘）被 for-in 覆盖
+    const elems = [
+      el("fn", "fn"),
+      el("loop", "while", { condition: "n < 10" }),
+      el("body", "assign", { target: "n", operator: "=", value: "n + 1" }),
+      el("next", "for-in", { varName: "item", iterable: "items" }),
+    ];
+    const wires = [
+      wire("a", "fn", "flow-out", "loop", "flow-in"),
+      wire("b", "loop", "br0", "body", "flow-in"),
+      wire("c", "loop", "flow-out", "next", "flow-in"),
+    ];
+    const sizes = new Map<string, { width: number; height: number }>([
+      ["fn", { width: 200, height: 64 }],
+      ["loop", { width: 120, height: 88 }],
+      ["body", { width: 200, height: 88 }],
+      ["next", { width: 160, height: 88 }],
+    ]);
+    const pos = computeLayeredLayout(elems, wires, sizes);
+    // 分支源 loop 右缘 ≥ 同列（主干列）所有节点右缘——wire 起点不被 next 覆盖
+    const loopRight = pos["loop"].x + 120;
+    const nextRight = pos["next"].x + 160;
+    expect(loopRight).toBeGreaterThanOrEqual(nextRight);
+    // body（分支目标）在主干列右缘之后（走廊存在）
+    expect(pos["body"].x).toBeGreaterThanOrEqual(loopRight);
   });
 });

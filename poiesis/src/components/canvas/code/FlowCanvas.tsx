@@ -28,7 +28,7 @@ import { defaultSyntaxProps } from "../../../services/codegen/syntax-nodes";
 import { useFlowScope } from "../../../services/codegen/flow-scope-hook";
 import { collectLetVarsPerFn, findOwnerFnId } from "../../../services/codegen/fn-topology";
 import { CODE_TAGS, TAG_CN } from "./flowConstants";
-import { computeLayeredLayout } from "../../../services/codegen/flow-layout";
+import { computeLayeredLayout, estimateNodeSize } from "../../../services/codegen/flow-layout";
 import { NodeSearchMenu } from "./NodeSearchMenu";
 import { CodeBlockEditor } from "./CodeBlockEditor";
 import type { CodeBlockEditorContext } from "./CodeBlockEditor";
@@ -375,20 +375,35 @@ function FlowCanvasInner() {
         : e,
     );
     setElementsAndWires(nextElements, wires);
+    // 预览组件（design-preview）不参与布局（不在 store elements）：归位到布局包围盒
+    // 右下角外，避免盖住布局后的节点（用户实测：固定 (50,50) 挡左上角节点）。
+    let maxX = 0;
+    let maxY = 0;
+    for (const el of codeElements) {
+      const p = layout[el.id];
+      if (!p) continue;
+      const s = sizes.get(el.id) ?? estimateNodeSize(el.tag, el.props);
+      maxX = Math.max(maxX, p.x + s.width);
+      maxY = Math.max(maxY, p.y + s.height);
+    }
+    setPreviewPos({ x: maxX + 40, y: maxY + 40 });
   }, [codeElements, allElements, wires, nodes, setElementsAndWires]);
 
   // Preview node — shows the design canvas inside the flow when in codeflow mode
+  // position 为 state：布局按钮点击时把预览组件归位到布局包围盒右下角外（不参与布局——
+  // 它不在 store elements 里；否则固定 (50,50) 会盖住布局后的左上角节点，E2E 用户实测）。
+  const [previewPos, setPreviewPos] = useState({ x: 50, y: 50 });
   const previewNode: RFNode | null = useMemo(() => {
     if (!codeFlowElementId) return null;
     return {
       id: "design-preview",
       type: "design-preview",
-      position: { x: 50, y: 50 },
+      position: previewPos,
       selectable: false,
       draggable: true,
       data: { output: previewOutput },
     };
-  }, [codeFlowElementId, previewOutput]);
+  }, [codeFlowElementId, previewOutput, previewPos]);
 
   const allNodes = useMemo(
     () => (previewNode ? [...nodes, previewNode] : nodes),
