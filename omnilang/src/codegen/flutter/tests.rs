@@ -4491,6 +4491,152 @@ component KeyDemo2 {
     );
 }
 
+/// Task C2b (#4): `<textarea rows=N>` maps to TextField's `maxLines` as
+/// an INT (a raw string would not type-check) and the DOM `max` maps to
+/// `maxLength`.
+#[test]
+fn textarea_rows_and_max_map_to_int_params() {
+    let flutter = compile_flutter(
+        r#"
+component RowsDemo {
+    signal body: String = "";
+    view {
+        <textarea bind:value={body} rows="3"></textarea>
+        <input type="number" max="120"></input>
+    }
+}
+"#,
+    )
+    .expect("compile must succeed");
+    let out: String = flutter
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        out.contains("maxLines: 3") && out.contains("maxLength: 120"),
+        "rows must map to maxLines and max to maxLength as ints, got:\n{out}"
+    );
+    assert!(
+        !flutter
+            .warnings
+            .iter()
+            .any(|w| w.message.contains("'rows'") || w.message.contains("'max'")),
+        "rows/max must no longer be dropped: {:?}",
+        flutter.warnings
+    );
+}
+
+/// Task C2b (#4): `disabled` on button widgets (no `enabled` param in the
+/// SDK) maps to the required param's null form — `onPressed: null` renders
+/// the button disabled; `disabled={false}` emits nothing.
+#[test]
+fn button_disabled_maps_to_on_pressed_null() {
+    let flutter = compile_flutter(
+        r#"
+component DisabledDemo {
+    fn go() { }
+    view {
+        <button disabled @onPress={go}>Off</button>
+        <button disabled={false} @onPress={go}>On</button>
+    }
+}
+"#,
+    )
+    .expect("compile must succeed");
+    let out: String = flutter
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        out.contains("onPressed: null"),
+        "disabled must map to onPressed: null, got:\n{out}"
+    );
+    assert!(
+        !flutter
+            .warnings
+            .iter()
+            .any(|w| w.message.contains("'disabled'")),
+        "disabled must no longer be dropped: {:?}",
+        flutter.warnings
+    );
+}
+
+/// Task C2b (#4): `data-testid` maps to `key: ValueKey('...')` — the
+/// Flutter testing hook.
+#[test]
+fn data_testid_maps_to_value_key() {
+    let flutter = compile_flutter(
+        r#"
+component TestIdDemo {
+    view {
+        <div data-testid="card-a">x</div>
+        <input data-testid="name-field" placeholder="n"></input>
+    }
+}
+"#,
+    )
+    .expect("compile must succeed");
+    let out: String = flutter
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        out.contains("key: ValueKey('card-a')") && out.contains("key: ValueKey('name-field')"),
+        "data-testid must map to key: ValueKey('...'), got:\n{out}"
+    );
+    assert!(
+        !flutter
+            .warnings
+            .iter()
+            .any(|w| w.message.contains("'data-testid'")),
+        "data-testid must no longer be dropped: {:?}",
+        flutter.warnings
+    );
+}
+
+/// Task C2b (#4): `title` on widgets without a title/tooltip param wraps
+/// the element in a Tooltip — the DOM title attribute's Flutter analogue.
+#[test]
+fn title_maps_to_tooltip_wrapper() {
+    let flutter = compile_flutter(
+        r##"
+component TitleDemo {
+    fn go() { }
+    view {
+        <a href="#" title="Demo link" @onPress={go}>Click</a>
+        <input title="Enter your age"></input>
+    }
+}
+"##,
+    )
+    .expect("compile must succeed");
+    let out: String = flutter
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        out.contains("Tooltip(message: 'Demo link', child:")
+            && out.contains("Tooltip(message: 'Enter your age', child:"),
+        "title must wrap in Tooltip(message:), got:\n{out}"
+    );
+    assert!(
+        !flutter
+            .warnings
+            .iter()
+            .any(|w| w.message.contains("'title'")),
+        "title must no longer be dropped: {:?}",
+        flutter.warnings
+    );
+}
+
 /// Task C2b (#3): Image.network's `@onError` maps to the `errorBuilder`
 /// builder — the handler fires on load failure, then a placeholder keeps
 /// the widget tree valid (errorBuilder must return a Widget).

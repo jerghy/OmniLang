@@ -1280,6 +1280,10 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
     // param set, because Image.asset shares it; only the constructor NAME
     // emitted at the tail honors the switch.
     let mut use_asset_image = false;
+    // Wrapper widgets applied around the fully-rendered element — filled by
+    // BOTH the props loop (C2b #4: `title` → Tooltip) and the events loop
+    // (C2b #3: MouseRegion/Focus/GestureDetector); applied below.
+    let mut wrap_args: Vec<(&'static str, Vec<(String, String)>)> = Vec::new();
     for (name, value) in &el.props {
         // `_design_variant` is a design-class/variant carrier resolved by
         // `wrap_design_decorations` — never a widget param (the `class` prop
@@ -1371,7 +1375,40 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
             }
             continue;
         }
+        // Task C2b (#4): button widgets have no `enabled` param — a
+        // disabled button is CALLBACK-LESS, so `disabled` maps to the
+        // required param's null form (`onPressed: null` renders the button
+        // disabled). `disabled={false}` emits nothing (the button stays
+        // enabled); non-literal values keep the honest warning below.
+        if name == "disabled" && matches!(widget, "ElevatedButton" | "TextButton" | "IconButton") {
+            if let ExprIR::LiteralExpr { value } = value {
+                if value.as_bool() == Some(true) || value.is_null() {
+                    args.push("onPressed: null".into());
+                }
+                continue;
+            }
+        }
+        // Task C2b (#4): `data-testid` maps to `key: ValueKey('...')` —
+        // the Flutter testing hook (widget tests find elements by key).
+        // Skipped silently when a ref binding already occupies `key`.
+        if name == "data-testid" {
+            if let ExprIR::LiteralExpr { value } = value {
+                if let Some(s) = value.as_str() {
+                    if !args.iter().any(|a| a.starts_with("key:")) {
+                        args.push(format!("key: ValueKey('{}')", s.replace('\'', "\\'")));
+                    }
+                    continue;
+                }
+            }
+        }
         if !widget_allows_param(widget, param) {
+            // Task C2b (#4): `title` on widgets with no title/tooltip param
+            // wraps the element in a Tooltip — the DOM title attribute's
+            // Flutter analogue (hover / long-press hint).
+            if name == "title" {
+                wrap_push(&mut wrap_args, "Tooltip", "message", &formatted);
+                continue;
+            }
             ctx.warnings.push(format!(
                 "[flutter] prop '{name}' → param '{param}' is not supported on '{widget}'; skipped"
             ));
@@ -1483,10 +1520,10 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
     // target at all), the rendered element wraps in a GestureDetector
     // carrying the tap callback. Task C2b (#3) extends the wrapper set:
     // pointer enter/exit/hover wrap in a `MouseRegion`, focus/blur and
-    // key events wrap in a `Focus`. `wrap_args` collects (wrapper,
-    // [(param, body)]) pairs; the wrappers are applied around the
-    // fully-rendered element below in a deterministic nesting order.
-    let mut wrap_args: Vec<(&'static str, Vec<(String, String)>)> = Vec::new();
+    // key events wrap in a `Focus`. `wrap_args` (declared above the props
+    // loop — `title` → Tooltip joins it) collects (wrapper, [(param,
+    // body)]) pairs; the wrappers are applied around the fully-rendered
+    // element below in a deterministic nesting order.
     // onFocus + onBlur on the same element merge into ONE
     // Focus(onFocusChange:) closure — `(v) { if (v) {...} else {...} }`.
     let mut focus_change_bodies: Vec<(&'static str, String)> = Vec::new();

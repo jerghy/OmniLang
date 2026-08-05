@@ -334,6 +334,7 @@ fn widget_param_whitelist(widget: &str) -> &'static [&'static str] {
             "keyboardType",
             "enabled",
             "maxLines",
+            "maxLength",
             "textInputAction",
             "decoration",
         ],
@@ -445,10 +446,15 @@ pub(crate) fn widget_has_const_constructor(widget: &str) -> bool {
 /// Rename a mapped prop param for a specific widget.
 ///
 /// E.g. `alt` maps to `semanticLabel` generically, but Text's correct
-/// parameter is `semanticsLabel`.
+/// parameter is `semanticsLabel`. Task C2b (#4): `<textarea rows=N>` maps
+/// to TextField's `maxLines` and the DOM `max` (number inputs) maps to
+/// `maxLength` (no `max` param exists on TextField; the numeric limit is
+/// the length analogue).
 pub(crate) fn widget_param_rename<'a>(widget: &str, param: &'a str) -> &'a str {
     match (widget, param) {
         ("Text", "semanticLabel") => "semanticsLabel",
+        ("TextField", "rows") => "maxLines",
+        ("TextField", "max") => "maxLength",
         _ => param,
     }
 }
@@ -578,12 +584,16 @@ fn convert_string_prop_value(widget: &str, param: &str, s: &str) -> Option<Strin
         "padding" | "margin" => {
             css_length_to_dart_double(s).map(|n| format!("EdgeInsets.all({})", n))
         }
+        // Task C2b (#4): maxLines/maxLength are INT params — a raw string
+        // literal ('3') would not type-check.
+        "maxLines" | "maxLength" => s.trim().parse::<i64>().ok().map(|i| i.to_string()),
         _ => None,
     }
 }
 
 /// Number-literal prop conversion — integral values get a `.0` suffix so
 /// they type-check as `double` (fontSize/width/height/size take doubles).
+/// `maxLines`/`maxLength` stay RAW integers (int params — C2b #4).
 fn convert_number_prop_value(param: &str, n: &serde_json::Number) -> Option<String> {
     match param {
         "fontSize" | "width" | "height" | "size" => n.as_f64().map(|f| {
@@ -593,6 +603,7 @@ fn convert_number_prop_value(param: &str, n: &serde_json::Number) -> Option<Stri
                 f.to_string()
             }
         }),
+        "maxLines" | "maxLength" => n.as_i64().map(|i| i.to_string()),
         _ => None,
     }
 }
