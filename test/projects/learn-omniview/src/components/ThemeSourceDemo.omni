@@ -22,10 +22,10 @@ component ThemeSourceDemo {
                 Per-token per-theme values compile to layer CSS.
             </p>
 
-            <div class: code-layout>
-                <div class: source-panel>
-                    <h4 class: panel-title>Source</h4>
-                    <pre class: code-block>
+            <div class: CodeLayout>
+                <div class: SourcePanel>
+                    <h4 class: PanelTitle>Source</h4>
+                    <pre class: CodeBlock>
                         @themes { light, dark, sepia, highContrast }
                         @default-theme light;
                         token primary: color = "#6366f1"
@@ -42,9 +42,9 @@ component ThemeSourceDemo {
                             highContrast "#ffffff";
                     </pre>
                 </div>
-                <div class: generated-panel>
-                    <h4 class: panel-title>CSS</h4>
-                    <pre class: code-block css>
+                <div class: GeneratedPanel>
+                    <h4 class: PanelTitle>CSS</h4>
+                    <pre class: CodeBlock >
                         :root {"{"}
                           --primary: #6366f1;
                           --surface: #ffffff;
@@ -71,35 +71,15 @@ component ThemeSourceDemo {
                 </div>
             </div>
 
-            <div class: key-points>
-                <span class: key-point>CSS Cascade — one data-theme toggle updates ALL tokens at once</span>
-                <span class: key-point>Zero runtime — per-theme CSS is generated at compile time</span>
-                <span class: key-point>N themes — add "forest", "ocean", or any named theme</span>
+            <div class: KeyPoints>
+                <span class: KeyPoint>CSS Cascade — one data-theme toggle updates ALL tokens at once</span>
+                <span class: KeyPoint>Zero runtime — per-theme CSS is generated at compile time</span>
+                <span class: KeyPoint>N themes — add "forest", "ocean", or any named theme</span>
             </div>
         </div>
     }
 
     style {
-        .code-layout { display: flex; gap: 14px; margin: 0 0 14px 0; }
-        .source-panel { flex: 1; min-width: 0; }
-        .generated-panel { flex: 1; min-width: 0; }
-        .panel-title { font-size: var(--fontSizeSm); color: var(--textPrimary); margin: 0 0 8px 0; }
-        .code-block {
-            background: var(--surfaceSubtle);
-            border: 1px solid var(--border);
-            border-radius: var(--radiusMd);
-            padding: 14px;
-            overflow-x: auto;
-            margin: 0;
-            font-family: "ui-monospace, SFMono-Regular, monospace";
-            font-size: var(--fontSizeXs);
-            line-height: 1.6;
-            color: var(--textPrimary);
-            white-space: pre;
-        }
-
-        .key-points { display: flex; flex-direction: column; gap: 6px; padding: 12px; background: var(--surfaceMuted); border-radius: var(--radiusMd); }
-        .key-point { font-size: var(--fontSizeXs); color: var(--textSecondary); }
-        .key-point code { font-size: var(--fontSizeXs); background: var(--surfaceSubtle); padding: "1px 4px"; border-radius: "3px"; }
+        .KeyPoint code { font-size: var(--fontSizeXs); background: var(--surfaceSubtle); padding: "1px 4px"; border-radius: "3px"; }
     }
 }

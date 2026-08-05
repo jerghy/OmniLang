@@ -28,87 +28,87 @@ component ThemeSwitcher {
             <h3 class: LearnDesign.CardTitle>Theme Selector</h3>
             <p class: LearnDesign.Subtitle>OmniLang supports N themes — not just light/dark</p>
 
-            <div class: theme-grid>
+            <div class: ThemeGrid>
                 <div class: { themeCard: true, active: isActive("light") }
                      @onPress={() => { selectTheme("light"); }}>
-                    <span class: card-icon>☀️</span>
-                    <span class: card-name>Light</span>
-                    <div class: card-swatches>
-                        <span class: swatch style: { background: "#6366f1" } />
-                        <span class: swatch style: { background: "#ffffff" } />
-                        <span class: swatch style: { background: "#111827" } />
+                    <span class: CardIcon>☀️</span>
+                    <span class: CardName>Light</span>
+                    <div class: CardSwatches>
+                        <span class: Swatch style: { background: "#6366f1" } />
+                        <span class: Swatch style: { background: "#ffffff" } />
+                        <span class: Swatch style: { background: "#111827" } />
                     </div>
                 </div>
 
                 <div class: { themeCard: true, active: isActive("dark") }
                      @onPress={() => { selectTheme("dark"); }}>
-                    <span class: card-icon>🌙</span>
-                    <span class: card-name>Dark</span>
-                    <div class: card-swatches>
-                        <span class: swatch style: { background: "#a5b4fc" } />
-                        <span class: swatch style: { background: "#111827" } />
-                        <span class: swatch style: { background: "#f9fafb" } />
+                    <span class: CardIcon>🌙</span>
+                    <span class: CardName>Dark</span>
+                    <div class: CardSwatches>
+                        <span class: Swatch style: { background: "#a5b4fc" } />
+                        <span class: Swatch style: { background: "#111827" } />
+                        <span class: Swatch style: { background: "#f9fafb" } />
                     </div>
                 </div>
 
                 <div class: { themeCard: true, active: isActive("sepia") }
                      @onPress={() => { selectTheme("sepia"); }}>
-                    <span class: card-icon>📜</span>
-                    <span class: card-name>Sepia</span>
-                    <div class: card-swatches>
-                        <span class: swatch style: { background: "#8B4513" } />
-                        <span class: swatch style: { background: "#F5E6C8" } />
-                        <span class: swatch style: { background: "#3E2723" } />
+                    <span class: CardIcon>📜</span>
+                    <span class: CardName>Sepia</span>
+                    <div class: CardSwatches>
+                        <span class: Swatch style: { background: "#8B4513" } />
+                        <span class: Swatch style: { background: "#F5E6C8" } />
+                        <span class: Swatch style: { background: "#3E2723" } />
                     </div>
                 </div>
 
                 <div class: { themeCard: true, active: isActive("highContrast") }
                      @onPress={() => { selectTheme("highContrast"); }}>
-                    <span class: card-icon>🔲</span>
-                    <span class: card-name>High Contrast</span>
-                    <div class: card-swatches>
-                        <span class: swatch style: { background: "#ffff00" } />
-                        <span class: swatch style: { background: "#000000" } />
-                        <span class: swatch style: { background: "#ffffff" } />
+                    <span class: CardIcon>🔲</span>
+                    <span class: CardName>High Contrast</span>
+                    <div class: CardSwatches>
+                        <span class: Swatch style: { background: "#ffff00" } />
+                        <span class: Swatch style: { background: "#000000" } />
+                        <span class: Swatch style: { background: "#ffffff" } />
                     </div>
                 </div>
             </div>
 
-            <div class: status-bar>
+            <div class: StatusBar>
                 <span class: status-text>
                     Current: {ThemeStore.modeLabel}
                 </span>
-                <span class: status-count>
+                <span class: StatusCount>
                     Toggled {ThemeStore.toggleCount} times
                 </span>
             </div>
 
-            <div class: palette-preview>
-                <p class: palette-title>Token Palette — <code>var(--name)</code> live</p>
-                <div class: palette-grid>
-                    <div class: palette-chip style: { background: "var(--surface)", border: "1px solid var(--border)" }>
-                        <span class: chip-label>--surface</span>
+            <div class: PalettePreview>
+                <p class: PaletteTitle>Token Palette — <code>var(--name)</code> live</p>
+                <div class: PaletteGrid>
+                    <div class: PaletteChip style: { background: "var(--surface)", border: "1px solid var(--border)" }>
+                        <span class: ChipLabel>--surface</span>
                     </div>
-                    <div class: palette-chip style: { background: "var(--primary)" }>
-                        <span class: chip-label style: { color: "white" }>--primary</span>
+                    <div class: PaletteChip style: { background: "var(--primary)" }>
+                        <span class: ChipLabel style: { color: "white" }>--primary</span>
                     </div>
-                    <div class: palette-chip style: { background: "var(--textPrimary)" }>
-                        <span class: chip-label style: { color: "var(--surface)" }>--textPrimary</span>
+                    <div class: PaletteChip style: { background: "var(--textPrimary)" }>
+                        <span class: ChipLabel style: { color: "var(--surface)" }>--textPrimary</span>
                     </div>
-                    <div class: palette-chip style: { background: "var(--success)" }>
-                        <span class: chip-label style: { color: "white" }>--success</span>
+                    <div class: PaletteChip style: { background: "var(--success)" }>
+                        <span class: ChipLabel style: { color: "white" }>--success</span>
                     </div>
-                    <div class: palette-chip style: { background: "var(--warning)" }>
-                        <span class: chip-label style: { color: "white" }>--warning</span>
+                    <div class: PaletteChip style: { background: "var(--warning)" }>
+                        <span class: ChipLabel style: { color: "white" }>--warning</span>
                     </div>
-                    <div class: palette-chip style: { background: "var(--danger)" }>
-                        <span class: chip-label style: { color: "white" }>--danger</span>
+                    <div class: PaletteChip style: { background: "var(--danger)" }>
+                        <span class: ChipLabel style: { color: "white" }>--danger</span>
                     </div>
                 </div>
             </div>
 
-            <div class: hint-bar>
-                <span class: hint-text>
+            <div class: HintBar>
+                <span class: HintText>
                     💡 4 themes · CSS cascade via <code>[data-theme]</code> · zero JS per toggle
                 </span>
             </div>
@@ -116,8 +116,6 @@ component ThemeSwitcher {
     }
 
     style {
-        .theme-grid { display: flex; gap: 12px; margin: 0 0 16px 0; }
-
         .themeCard {
             flex: 1; min-width: 0;
             display: flex; flex-direction: column; align-items: center; gap: 8px;
@@ -138,26 +136,8 @@ component ThemeSwitcher {
             box-shadow: "0 0 0 3px " var(--primaryLight);
             background: var(--surfaceMuted);
         }
-
-        .card-icon { font-size: 28px; }
-        .card-name { font-size: var(--fontSizeMd); font-weight: var(--fontWeightSemibold); color: var(--textPrimary); }
-
-        .card-swatches { display: flex; gap: 4px; }
-        .swatch { width: 20px; height: 20px; border-radius: var(--radiusSm); }
-
-        .status-bar { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-top: 1px solid var(--borderLight); margin: 0 0 14px 0; }
         .status-text { font-size: var(--fontSizeSm); color: var(--textPrimary); font-weight: var(--fontWeightSemibold); }
-        .status-count { font-size: var(--fontSizeXs); color: var(--textSecondary); }
-
-        .palette-preview { padding: 14px; background: var(--surfaceMuted); border-radius: var(--radiusMd); margin: 0 0 12px 0; }
-        .palette-title { font-size: var(--fontSizeXs); color: var(--textSecondary); margin: 0 0 10px 0; }
-        .palette-title code { font-size: var(--fontSizeXs); background: var(--surfaceSubtle); padding: "1px 4px"; border-radius: "3px"; }
-        .palette-grid { display: flex; flex-wrap: wrap; gap: 6px; }
-        .palette-chip { padding: "10px 14px"; border-radius: var(--radiusMd); min-width: "100px"; text-align: center; }
-        .chip-label { font-size: var(--fontSizeXs); font-weight: var(--fontWeightSemibold); font-family: monospace; }
-
-        .hint-bar { padding: "8px 0"; }
-        .hint-text { font-size: var(--fontSizeXs); color: var(--textMuted); }
-        .hint-text code { font-size: var(--fontSizeXs); background: var(--surfaceSubtle); padding: "1px 4px"; border-radius: "3px"; }
+        .PaletteTitle code { font-size: var(--fontSizeXs); background: var(--surfaceSubtle); padding: "1px 4px"; border-radius: "3px"; }
+        .HintText code { font-size: var(--fontSizeXs); background: var(--surfaceSubtle); padding: "1px 4px"; border-radius: "3px"; }
     }
 }

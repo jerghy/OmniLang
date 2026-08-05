@@ -48,36 +48,26 @@ component UserSettings {
     }
 
     view {
-        <div class: user-settings>
-            <h3 class: title>Storage Demo</h3>
-            <p class: desc>storage get/set + json parse/stringify + mount</p>
+        <div class: UserSettings>
+            <h3 class: Title>Storage Demo</h3>
+            <p class: Desc>storage get/set + json parse/stringify + mount</p>
 
-            <div class: form>
-                <label class: field-label>Username</label>
-                <input bind:value={username} class: field-input placeholder="Your name..."></input>
+            <div class: Form>
+                <label class: FieldLabel>Username</label>
+                <input bind:value={username} class: FieldInput placeholder="Your name..."></input>
 
-                <div class: btn-row>
-                    <button class: btn-save @onPress={saveSettings}>Save</button>
-                    <button class: btn-clear @onPress={clearSettings}>Clear</button>
+                <div class: BtnRow>
+                    <button class: BtnSave @onPress={saveSettings}>Save</button>
+                    <button class: BtnClear @onPress={clearSettings}>Clear</button>
                 </div>
             </div>
 
-            <div class: info-bar>
+            <div class: InfoBar>
                 <p class: info-text>{savedText}</p>
             </div>
         </div>
     }
     style {
-        .user-settings { background: #fff; border: 1px solid #ddd; border-radius: 12px; padding: 20px 16px; margin: 16px 0; }
-        .title { font-size: 18px; color: #1f2937; margin: 0 0 4px 0; }
-        .desc { font-size: 13px; color: #6b7280; margin: 0 0 12px 0; }
-        .form { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
-        .field-label { font-size: 13px; font-weight: 600; color: #374151; }
-        .field-input { padding: 8px 12px; border: 1px solid #d4d4d8; border-radius: 6px; font-size: 14px; }
-        .btn-row { display: flex; gap: 8px; }
-        .btn-save { padding: 8px 16px; background: #6366f1; color: #fff; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; }
-        .btn-clear { padding: 8px 16px; background: #f97316; color: #fff; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; }
-        .info-bar { padding: 10px 12px; background: #f9fafb; border-radius: 8px; border: 1px solid #d4d4d8; }
         .info-text { font-size: 13px; color: #374151; margin: 0; }
     }
 }

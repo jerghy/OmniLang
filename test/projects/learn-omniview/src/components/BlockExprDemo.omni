@@ -26,47 +26,37 @@ component BlockExprDemo {
     fn reset() { a = 10; b = 5; }
 
     view {
-        <div class: container>
-            <h3 class: title>Block Expression Demo</h3>
-            <p class: subtitle>演示 { stmts; trailing_expr } 块表达式</p>
+        <div class: Container>
+            <h3 class: Title>Block Expression Demo</h3>
+            <p class: Subtitle>演示 { stmts; trailing_expr } 块表达式</p>
 
-            <div class: card>
-                <h4 class: label>输入值: a={a}, b={b}</h4>
-                <div class: btn-row>
-                    <button class: btn @onPress={incA}>a + 5</button>
-                    <button class: btn @onPress={incB}>b + 5</button>
-                    <button class: btn-outline @onPress={reset}>Reset</button>
+            <div class: DemoCard>
+                <h4 class: Label>输入值: a={a}, b={b}</h4>
+                <div class: BtnRow>
+                    <button class: Btn @onPress={incA}>a + 5</button>
+                    <button class: Btn @onPress={incB}>b + 5</button>
+                    <button class: BtnOutline @onPress={reset}>Reset</button>
                 </div>
             </div>
 
-            <div class: card>
-                <h4 class: label>块表达式 computed: calculation</h4>
-                <p class: value-text>{calculation}</p>
+            <div class: DemoCard>
+                <h4 class: Label>块表达式 computed: calculation</h4>
+                <p class: ValueText>{calculation}</p>
             </div>
 
-            <div class: card>
-                <h4 class: label>块表达式 computed: total（块内临时变量加倍）</h4>
-                <p class: value-text>total = {total}</p>
+            <div class: DemoCard>
+                <h4 class: Label>块表达式 computed: total（块内临时变量加倍）</h4>
+                <p class: ValueText>total = {total}</p>
             </div>
 
-            <div class: card>
-                <h4 class: label>对比：普通 computed: simpleSum</h4>
-                <p class: value-text>simpleSum = a + b = {simpleSum}</p>
+            <div class: DemoCard>
+                <h4 class: Label>对比：普通 computed: simpleSum</h4>
+                <p class: ValueText>simpleSum = a + b = {simpleSum}</p>
             </div>
 
-            <p class: note>块表达式允许在值上下文中声明临时变量，最后一行表达式即为块的值</p>
+            <p class: Note>块表达式允许在值上下文中声明临时变量，最后一行表达式即为块的值</p>
         </div>
     }
     style {
-        .container { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 16px; margin: 16px 0; }
-        .title { font-size: 18px; color: var(--textPrimary); margin: 0 0 4px 0; }
-        .subtitle { font-size: 13px; color: var(--textSecondary); margin: 0 0 16px 0; }
-        .card { margin-bottom: 14px; padding: 12px; background: var(--surfaceMuted); border-radius: 8px; }
-        .label { font-size: 14px; font-weight: 600; color: var(--textPrimary); margin: 0 0 8px 0; }
-        .value-text { font-size: 15px; color: var(--textPrimary); margin: 5px 0; font-family: monospace; }
-        .btn-row { display: flex; gap: 8px; margin-bottom: 8px; }
-        .btn { padding: 8px 16px; background: #6366f1; color: white; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; }
-        .btn-outline { padding: 8px 16px; background: var(--surface); color: #6366f1; border: 1px solid #6366f1; border-radius: 8px; font-size: 14px; cursor: pointer; }
-        .note { font-size: 12px; color: var(--textSecondary); margin: 4px 0 0 0; }
     }
 }

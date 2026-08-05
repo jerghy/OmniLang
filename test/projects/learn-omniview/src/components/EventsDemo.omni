@@ -35,14 +35,14 @@ component EventsDemo {
     view {
         <main class: LearnDesign.Card>
             <nav a11y: { label: "Event Demo" }>
-                <h2 class: title>事件处理器全覆盖</h2>
+                <h2 class: Title>事件处理器全覆盖</h2>
                 <p class: LearnDesign.Hint>双击 · 右键 · 拖拽 · 触摸 · 滚轮 · 媒体 · 动画 · 切换</p>
             </nav>
 
             <!-- 输入与键盘事件 :: @onInput @onKeyUp @onCopy @onCut @onPaste -->
-            <article class: card>
+            <article class: DemoCard>
                 <h3 class: LearnDesign.CardTitle>输入与键盘事件</h3>
-                <input class: input
+                <input class: Input
                     placeholder="在此输入..."
                     @onInput={addLog("input")}
                     @onKeyUp={addLog("keyup")}
@@ -52,105 +52,105 @@ component EventsDemo {
             </article>
 
             <!-- 双击 + 右键 :: @onDoubleClick @onContextMenu -->
-            <article class: card>
-                <h3 class: card-title>双击与右键</h3>
-                <div class: interactive-box
+            <article class: DemoCard>
+                <h3 class: CardTitle>双击与右键</h3>
+                <div class: InteractiveBox
                     @onDoubleClick={addLog("double-click")}
                     @onContextMenu={addLog("context-menu")}>
-                    <p class: hint>双击或右键点击此区域</p>
+                    <p class: Hint>双击或右键点击此区域</p>
                 </div>
             </article>
 
             <!-- 拖拽事件 :: @onDragStart @onDragOver @onDragEnd @onDrop -->
-            <article class: card>
-                <h3 class: card-title>拖拽事件</h3>
-                <div class: drag-box
+            <article class: DemoCard>
+                <h3 class: CardTitle>拖拽事件</h3>
+                <div class: DragBox
                     @onDragStart={dragStatus = "dragging"}
                     @onDragOver={dragStatus = "dragover"}
                     @onDragEnd={dragStatus = "ended"}
                     @onDrop={dragStatus = "dropped"}
                     draggable="true">
-                    <p class: hint>拖拽状态: {dragStatus}</p>
+                    <p class: Hint>拖拽状态: {dragStatus}</p>
                 </div>
             </article>
 
             <!-- 触摸事件 :: @onTouchStart @onTouchEnd @onTouchMove -->
-            <article class: card>
-                <h3 class: card-title>触摸事件</h3>
-                <div class: touch-box
+            <article class: DemoCard>
+                <h3 class: CardTitle>触摸事件</h3>
+                <div class: TouchBox
                     @onTouchStart={addLog("touchstart")}
                     @onTouchEnd={addLog("touchend")}
                     @onTouchMove={addLog("touchmove")}>
-                    <p class: hint>在移动设备上触摸此处</p>
+                    <p class: Hint>在移动设备上触摸此处</p>
                 </div>
             </article>
 
             <!-- 滚轮事件 :: @onWheel -->
-            <article class: card>
-                <h3 class: card-title>滚轮事件</h3>
-                <div class: wheel-box @onWheel={handleWheel}>
-                    <p class: hint>滚轮计数: {wheelCount} | deltaY: {deltaY}</p>
+            <article class: DemoCard>
+                <h3 class: CardTitle>滚轮事件</h3>
+                <div class: WheelBox @onWheel={handleWheel}>
+                    <p class: Hint>滚轮计数: {wheelCount} | deltaY: {deltaY}</p>
                 </div>
             </article>
 
             <!-- 滚动事件 :: @onScroll -->
-            <article class: card>
-                <h3 class: card-title>滚动事件</h3>
-                <div class: scroll-box @onScroll={handleScroll}>
-                    <p class: hint>Scroll Y: {scrollY} ({scrollCount}次)</p>
+            <article class: DemoCard>
+                <h3 class: CardTitle>滚动事件</h3>
+                <div class: ScrollBox @onScroll={handleScroll}>
+                    <p class: Hint>Scroll Y: {scrollY} ({scrollCount}次)</p>
                 </div>
             </article>
 
             <!-- 媒体与资源事件 :: @onLoad @onError @onPlay @onPause @onEnded -->
-            <article class: card>
-                <h3 class: card-title>媒体与资源事件</h3>
+            <article class: DemoCard>
+                <h3 class: CardTitle>媒体与资源事件</h3>
                 <!-- @onLoad/@onError 挂到真实 src 的 img 上（资源由 harness public/ 提供） -->
-                <img src="/dot.png" class: hidden-img
+                <img src="/dot.png" class: HiddenImg
                     @onLoad={addLog("img-loaded")}
                     @onError={addLog("img-error")} alt="test" />
                 <!-- @onPlay/@onPause/@onEnded 必须挂到真实媒体元素上（div 永远不会触发） -->
-                <video class: media-box width="240" controls
+                <video class: MediaBox width="240" controls
                     @onPlay={mediaStatus = "playing"}
                     @onPause={mediaStatus = "paused"}
                     @onEnded={mediaStatus = "ended"}>
                     <source src="sample.mp4" type="video/mp4" />
                 </video>
-                <p class: hint>媒体状态: {mediaStatus}（播放/暂停/播完 sample.mp4 时触发）</p>
+                <p class: Hint>媒体状态: {mediaStatus}（播放/暂停/播完 sample.mp4 时触发）</p>
             </article>
 
             <!-- 动画与过渡事件 :: @onAnimationStart @onAnimationEnd @onAnimationIteration @onTransitionEnd -->
-            <article class: card>
-                <h3 class: card-title>动画与过渡事件</h3>
-                <div class: anim-box
+            <article class: DemoCard>
+                <h3 class: CardTitle>动画与过渡事件</h3>
+                <div class: AnimBox
                     @onAnimationStart={animStatus = "anim-start"}
                     @onAnimationEnd={animStatus = "anim-end"}
                     @onAnimationIteration={animStatus = "anim-iter"}
                     @onTransitionEnd={animStatus = "trans-end"}>
-                    <p class: hint>动画状态: {animStatus}</p>
+                    <p class: Hint>动画状态: {animStatus}</p>
                 </div>
             </article>
 
             <!-- @onToggle 事件 -->
-            <article class: card>
-                <h3 class: card-title>Toggle 事件</h3>
-                <details class: details-box @onToggle={toggleCount = toggleCount + 1}>
-                    <summary class: summary>点击展开 (toggle count: {toggleCount})</summary>
-                    <p class: details-text>这是详情内容。每次展开/折叠触发 @onToggle。</p>
+            <article class: DemoCard>
+                <h3 class: CardTitle>Toggle 事件</h3>
+                <details class: DetailsBox @onToggle={toggleCount = toggleCount + 1}>
+                    <summary class: Summary>点击展开 (toggle count: {toggleCount})</summary>
+                    <p class: DetailsText>这是详情内容。每次展开/折叠触发 @onToggle。</p>
                 </details>
             </article>
 
             <!-- 事件日志 -->
-            <article class: card>
-                <h3 class: card-title>事件日志</h3>
-                <p class: log-text>日志: {eventLog.len()} 条事件</p>
+            <article class: DemoCard>
+                <h3 class: CardTitle>事件日志</h3>
+                <p class: LogText>日志: {eventLog.len()} 条事件</p>
             </article>
 
             <!-- ═══ HTML 语义标签一览 ═══ -->
-            <article class: card>
-                <h3 class: card-title>HTML 语义标签</h3>
+            <article class: DemoCard>
+                <h3 class: CardTitle>HTML 语义标签</h3>
 
-                <section class: tag-section>
-                    <h4 class: tag-group>文本语义</h4>
+                <section class: TagSection>
+                    <h4 class: TagGroup>文本语义</h4>
                     <p><b>粗体 (b)</b> <strong>重要 (strong)</strong>
                     <i>斜体 (i)</i> <em>强调 (em)</em>
                     <mark>高亮 (mark)</mark> <small>小字 (small)</small>
@@ -161,7 +161,7 @@ component EventsDemo {
                     <p><abbr title="HyperText Markup Language">HTML (abbr)</abbr>
                     <dfn>定义 (dfn)</dfn></p>
                     <p><q>短引用 (q)</q></p>
-                    <blockquote class: blockquote>
+                    <blockquote class: Blockquote>
                         块引用 (blockquote)
                         <cite>— 来源 (cite)</cite>
                     </blockquote>
@@ -172,16 +172,16 @@ component EventsDemo {
                     <p>换行<wbr />机会 (wbr)</p>
                 </section>
 
-                <section class: tag-section>
-                    <h4 class: tag-group>表单标签</h4>
-                    <fieldset class: fieldset>
+                <section class: TagSection>
+                    <h4 class: TagGroup>表单标签</h4>
+                    <fieldset class: Fieldset>
                         <legend>分组字段 (fieldset + legend)</legend>
                         <label>搜索: <input list="options" /></label>
                         <datalist id="options">
                             <option value="Apple" />
                             <option value="Banana" />
                         </datalist>
-                        <select class: select>
+                        <select class: Select>
                             <optgroup label="水果">
                                 <option>苹果</option>
                                 <option>香蕉</option>
@@ -190,18 +190,18 @@ component EventsDemo {
                     </fieldset>
                 </section>
 
-                <section class: tag-section>
-                    <h4 class: tag-group>媒体与嵌入</h4>
-                    <figure class: figure>
+                <section class: TagSection>
+                    <h4 class: TagGroup>媒体与嵌入</h4>
+                    <figure class: Figure>
                         <figcaption>插图标题 (figure + figcaption)</figcaption>
-                        <video class: media width="200" controls>
+                        <video class: Media width="200" controls>
                             <source src="sample.mp4" type="video/mp4" />
                         </video>
-                        <audio class: media controls>
+                        <audio class: Media controls>
                             <source src="sample.mp3" type="audio/mpeg" />
                         </audio>
                     </figure>
-                    <canvas class: canvas />
+                    <canvas class: Canvas />
                     <picture>
                         <source srcset="large.jpg" media="(min-width: 800px)" />
                         <img src="fallback.jpg" alt="responsive" />
@@ -211,14 +211,14 @@ component EventsDemo {
                     </map>
                 </section>
 
-                <section class: tag-section>
-                    <h4 class: tag-group>度量与进度</h4>
-                    <progress class: progress value="70" max="100">70%</progress>
-                    <meter class: meter value="0.6" min="0" max="1">60%</meter>
+                <section class: TagSection>
+                    <h4 class: TagGroup>度量与进度</h4>
+                    <progress class: Progress value="70" max="100">70%</progress>
+                    <meter class: Meter value="0.6" min="0" max="1">60%</meter>
                 </section>
 
-                <section class: tag-section>
-                    <h4 class: tag-group>注音</h4>
+                <section class: TagSection>
+                    <h4 class: TagGroup>注音</h4>
                     <ruby>漢字<rt>かんじ</rt></ruby>
                 </section>
             </article>
@@ -226,33 +226,5 @@ component EventsDemo {
     }
     style {
         // 事件演示特有的卡片内布局和事件交互框颜色
-        .title { font-size: 18px; color: #1f2937; margin: 0 0 4px 0; }
-        .input { width: 100%; padding: 8px; border: 1px solid #d4d4d8; border-radius: 6px; font-size: 13px; }
-        .hint { font-size: 13px; color: #6b7280; margin: 0; }
-
-        .interactive-box { padding: 20px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; cursor: pointer; text-align: center; }
-        .drag-box { padding: 20px; background: #fef3c7; border: 1px solid #fde68a; border-radius: 8px; text-align: center; }
-        .touch-box { padding: 20px; background: #fce7f3; border: 1px solid #fbcfe8; border-radius: 8px; text-align: center; }
-        .wheel-box { padding: 20px; background: #e0e7ff; border: 1px solid #c7d2fe; border-radius: 8px; text-align: center; }
-        .scroll-box { padding: 20px; background: #ede9fe; border: 1px solid #ddd6fe; border-radius: 8px; text-align: center; overflow-y: auto; height: 80px; }
-        .media-box { padding: 12px; background: #d1fae5; border: 1px solid #a7f3d0; border-radius: 8px; text-align: center; }
-        .anim-box { padding: 12px; background: #f3e8ff; border: 1px solid #e9d5ff; border-radius: 8px; text-align: center; }
-        .details-box { padding: 8px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 6px; }
-        .summary { font-size: 14px; color: #374151; cursor: pointer; }
-        .details-text { font-size: 13px; color: #6b7280; margin: 8px 0 0 0; }
-        .log-text { font-size: 13px; color: #6366f1; margin: 0; }
-
-        .hidden-img { width: 1px; height: 1px; }
-
-        .tag-section { margin-bottom: 12px; }
-        .tag-group { font-size: 14px; color: #374151; margin: 0 0 6px 0; }
-        .blockquote { font-size: 13px; color: #6b7280; border-left: 3px solid #d4d4d8; padding-left: 12px; margin: 6px 0; }
-        .fieldset { padding: 8px; border: 1px solid #d4d4d8; border-radius: 6px; }
-        .select { padding: 4px; border: 1px solid #d4d4d8; border-radius: 4px; }
-        .figure { margin: 8px 0; }
-        .media { width: 200px; }
-        .canvas { width: 100px; height: 50px; border: 1px solid #d4d4d8; }
-        .progress { margin: 4px; }
-        .meter { margin: 4px; }
     }
 }

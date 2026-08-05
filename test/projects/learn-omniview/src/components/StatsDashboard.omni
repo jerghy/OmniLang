@@ -43,14 +43,14 @@ component StatsDashboard {
         <div class: LearnDesign.Card>
             <h3 class: LearnDesign.CardTitle>StatsDashboard Demo</h3>
 
-            <div class: const-area>
-                <p class: small>MAX_ITEMS: {MAX_ITEMS}</p>
-                <p class: small>prefixed consts declared</p>
+            <div class: ConstArea>
+                <p class: Small>MAX_ITEMS: {MAX_ITEMS}</p>
+                <p class: Small>prefixed consts declared</p>
             </div>
 
-            <div class: counter-area>
-                <p class: counter-text>Counter: {counter} ({getModStatus()})</p>
-                <div class: btn-row>
+            <div class: CounterArea>
+                <p class: CounterText>Counter: {counter} ({getModStatus()})</p>
+                <div class: BtnRow>
                     <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={addFive}>+5</button>
                     <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={subThree}>-3</button>
                     <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={double}>x2</button>
@@ -59,17 +59,17 @@ component StatsDashboard {
                 </div>
             </div>
 
-            <div class: math-area>
-                <p class: small>math_abs(counter) = {math_abs(counter)} | math_sqrt(counter) = {math_sqrt(counter)}</p>
+            <div class: MathArea>
+                <p class: Small>math_abs(counter) = {math_abs(counter)} | math_sqrt(counter) = {math_sqrt(counter)}</p>
             </div>
 
-            <div class: dice-area>
-                <p class: small>Random: {randomValue} | Ceil*100 = {math_ceil(randomValue * 100)} | Floor*100 = {math_floor(randomValue * 100)}</p>
+            <div class: DiceArea>
+                <p class: Small>Random: {randomValue} | Ceil*100 = {math_ceil(randomValue * 100)} | Floor*100 = {math_floor(randomValue * 100)}</p>
                 <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={rollDice}>Roll Dice</button>
             </div>
 
-            <div class: array-area>
-                <p class: small>First value: {getFirst()}</p>
+            <div class: ArrayArea>
+                <p class: Small>First value: {getFirst()}</p>
             </div>
 
             @if !removed {
@@ -81,14 +81,6 @@ component StatsDashboard {
     }
     style {
         // 组件特有的演示区域颜色和内部布局
-        .const-area { background: #f9fafb; padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; }
-        .small { font-size: 12px; color: #6b7280; margin: 2px 0; }
-        .counter-area { margin-bottom: 12px; }
-        .counter-text { font-size: 24px; font-weight: bold; color: #6366f1; margin-bottom: 8px; }
-        .btn-row { display: flex; gap: 6px; }
-        .math-area { background: #f0fdf4; padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; }
-        .dice-area { background: #fff7ed; padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; }
-        .array-area { margin-bottom: 12px; }
         // .dashboard / .title / .btn / .btn-danger 已由 LearnDesign.Card / CardTitle / Button 变体提供
     }
 }

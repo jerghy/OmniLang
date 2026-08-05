@@ -11,33 +11,33 @@ component ViewAttributesDemo {
     signal richText: String = "";
 
     view {
-        <div class: container>
-            <h3 class: title>视图属性演示</h3>
-            <p class: subtitle>data-testid · class:string · bind:checked</p>
+        <div class: Container>
+            <h3 class: Title>视图属性演示</h3>
+            <p class: Subtitle>data-testid · class:string · bind:checked</p>
 
-            <div class: card>
-                <h4 class: label>data-testid 属性标记</h4>
-                <div data-testid="attr-demo-container" class: info-box>
+            <div class: DemoCard>
+                <h4 class: Label>data-testid 属性标记</h4>
+                <div data-testid="attr-demo-container" class: InfoBox>
                     <p class: info-text>此 div 使用 data-testid 属性标记，用于测试定位</p>
                 </div>
             </div>
 
-            <div class: card>
-                <h4 class: label>bind:checked 复选框绑定</h4>
-                <label class: checkbox-label>
+            <div class: DemoCard>
+                <h4 class: Label>bind:checked 复选框绑定</h4>
+                <label class: CheckboxLabel>
                     <input type="checkbox" bind:checked={isChecked} data-testid="agree-checkbox" />
                     <span>同意条款: {isChecked.to_string()}</span>
                 </label>
             </div>
 
-            <div class: card>
-                <h4 class: label>bind:value 文本输入</h4>
-                <textarea bind:value={richText} class: rich-input placeholder="输入文本..." />
-                <p class: preview>预览: {richText}</p>
+            <div class: DemoCard>
+                <h4 class: Label>bind:value 文本输入</h4>
+                <textarea bind:value={richText} class: RichInput placeholder="输入文本..." />
+                <p class: Preview>预览: {richText}</p>
             </div>
 
-            <div class: card>
-                <h4 class: label>class:"string" 字面量绑定</h4>
+            <div class: DemoCard>
+                <h4 class: Label>class:"string" 字面量绑定</h4>
                 <div class: "bg-blue-100 border border-blue-300 rounded-lg p-3 mb-2">
                     <p class: info-text>此 div 使用 class: "bg-blue-100 ..." 字符串字面量</p>
                 </div>
@@ -51,16 +51,6 @@ component ViewAttributesDemo {
         </div>
     }
     style {
-        .container { background: white; border: 1px solid #d4d4d8; border-radius: 12px; padding: 20px 16px; margin: 16px 0; }
-        .title { font-size: 18px; color: #1f2937; margin: 0 0 4px 0; }
-        .subtitle { font-size: 13px; color: #9ca3af; margin: 0 0 16px 0; }
-
-        .card { margin-bottom: 14px; padding: 12px; background: #f9fafb; border-radius: 8px; }
-        .label { font-size: 14px; font-weight: bold; color: #374151; margin: 0 0 8px 0; }
-        .info-box { padding: 10px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px; }
         .info-text { font-size: 13px; color: #0369a1; margin: 0; }
-        .checkbox-label { display: flex; gap: 8px; align-items: center; font-size: 14px; color: #4b5563; }
-        .rich-input { width: 100%; min-height: 50px; padding: 8px; border: 1px solid #d4d4d8; border-radius: 6px; font-size: 13px; }
-        .preview { margin-top: 6px; font-size: 13px; color: #6b7280; padding: 6px; background: #f3f4f6; border-radius: 4px; }
     }
 }

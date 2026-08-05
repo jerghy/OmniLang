@@ -33,7 +33,7 @@ component EmitEventChild {
     }
 
     view {
-        <div class: child-box>
+        <div class: ChildBox>
             <strong>{label}</strong>
             <p>Clicks: {clickCount}</p>
             <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={doAction}>Send Action</button>
@@ -43,9 +43,8 @@ component EmitEventChild {
 
     style {
         // 子组件特有的浅紫背景和布局
-        .child-box { padding: 14px; background: #f3f0ff; border-radius: 10px; border: 1px solid #c7d2fe; margin: 8px 0; }
-        .child-box strong { font-size: 13px; color: #4338ca; display: block; margin-bottom: 4px; }
-        .child-box p { font-size: 12px; color: #6b7280; margin: 0 0 8px 0; }
+        .ChildBox strong { font-size: 13px; color: #4338ca; display: block; margin-bottom: 4px; }
+        .ChildBox p { font-size: 12px; color: #6b7280; margin: 0 0 8px 0; }
     }
 }
 
@@ -75,7 +74,7 @@ component EmitEventDemo {
             <h3 class: LearnDesign.CardTitle>事件流演示</h3>
             <p class: LearnDesign.Hint>event 声明 · @onAction 绑定 · 可选事件 event? · 父→子→父回调链</p>
 
-            <div class: event-grid>
+            <div class: EventGrid>
                 <EmitEventChild
                     label="Sender A"
                     @onAction={onChildAction}
@@ -89,14 +88,14 @@ component EmitEventDemo {
                 />
             </div>
 
-            <div class: log-section>
-                <div class: log-header>
+            <div class: LogSection>
+                <div class: LogHeader>
                     <strong>Event Log（{messages.len().to_string()} entries）</strong>
                     <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={clearLog}>Clear</button>
                 </div>
-                <div class: log-list>
+                <div class: LogList>
                     @for msg in messages {
-                        <p class: log-entry>{msg}</p>
+                        <p class: LogEntry>{msg}</p>
                     }
                     @empty {
                         <p class: LearnDesign.Hint>No events yet — click buttons above</p>
@@ -108,12 +107,7 @@ component EmitEventDemo {
 
     style {
         // 事件日志特有的结构和布局
-        .event-grid { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
-        .log-section { border: 1px solid #e5e7eb; border-radius: 10px; overflow: hidden; }
-        .log-header { padding: 10px 14px; background: #f9fafb; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; }
-        .log-header strong { font-size: 13px; color: #374151; }
-        .log-list { padding: 10px 14px; max-height: 200px; overflow-y: auto; }
-        .log-entry { font-size: 12px; color: #4b5563; margin: 2px 0; padding: 4px 8px; background: #f3f4f6; border-radius: 4px; }
+        .LogHeader strong { font-size: 13px; color: #374151; }
         // .container / .title / .subtitle / .clear-btn / .empty-hint
         // 已由 LearnDesign.Card / CardTitle / Hint / Button 变体提供
     }

@@ -19,37 +19,34 @@ component SlotPanel {
     // Body-level slot declarations with fallback content;
     // the view references them via {header} / {children} / {footer}.
     @slot header {
-        <span class: default-text>Default Header (来自 header 插槽声明的回退)</span>
+        <span class: DefaultText>Default Header (来自 header 插槽声明的回退)</span>
     }
     @slot {
-        <p class: default-text>Default Body — 这是匿名插槽的默认回退内容</p>
+        <p class: DefaultText>Default Body — 这是匿名插槽的默认回退内容</p>
     }
     @slot footer
 
     view {
-        <div class: slot-panel>
+        <div class: SlotPanel>
             <div class: slot-section>
-                <span class: section-label>header slot:</span>
+                <span class: SectionLabel>header slot:</span>
                 {header}
             </div>
 
             <div class: slot-section main>
-                <span class: section-label>main slot:</span>
+                <span class: SectionLabel>main slot:</span>
                 {children}
             </div>
 
             <div class: slot-section>
-                <span class: section-label>footer slot:</span>
+                <span class: SectionLabel>footer slot:</span>
                 {footer}
             </div>
         </div>
     }
     style {
-        .slot-panel { background: white; border: 1px solid #d4d4d8; border-radius: 10px; padding: 14px; }
         .slot-section { margin-bottom: 10px; padding: 10px; background: #f8fafc; border-radius: 6px; border: 1px dashed #cbd5e1; }
         .slot-section.main { background: #f0f9ff; border-color: #bae6fd; }
-        .section-label { display: block; font-size: 11px; color: #64748b; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
-        .default-text { font-size: 13px; color: #64748b; font-style: italic; margin: 0; }
     }
 }
 
@@ -60,40 +57,40 @@ component SlotDefaultDemo {
     fn toggleContent() { useCustomContent = !useCustomContent; }
 
     view {
-        <div class: wrapper>
-            <h3 class: section-title>Slot Default Content (回退内容)</h3>
-            <p class: subtitle>
+        <div class: Wrapper>
+            <h3 class: SectionHeader>Slot Default Content (回退内容)</h3>
+            <p class: Subtitle>
                 演示插槽默认回退内容语法 + 对比有/无自定义内容
             </p>
 
             <!-- 演示区 1: 使用默认回退（无自定义插槽内容） -->
-            <div class: demo-card>
-                <h4 class: demo-label>① Using Default Slot Content</h4>
-                <p class: demo-desc>
+            <div class: DemoCard>
+                <h4 class: DemoLabel>① Using Default Slot Content</h4>
+                <p class: DemoDesc>
                     消费者<strong>没有</strong>提供插槽内容 →
                     组件显示 <code>header</code> 插槽声明中定义的默认回退。
                 </p>
-                <div class: demo-box>
+                <div class: DemoBox>
                     <!-- 没有传入插槽内容，使用默认回退 -->
                     <SlotPanel />
                 </div>
             </div>
 
             <!-- 演示区 2: 提供自定义插槽内容（覆盖默认回退） -->
-            <div class: demo-card>
-                <h4 class: demo-label>② Overriding Default with Custom Content</h4>
-                <p class: demo-desc>
+            <div class: DemoCard>
+                <h4 class: DemoLabel>② Overriding Default with Custom Content</h4>
+                <p class: DemoDesc>
                     消费者<strong>提供</strong>插槽内容 → 默认回退被覆盖。
                     <code>footer</code> 插槽没有默认值，若未提供则保持空白。
                 </p>
-                <div class: demo-box>
+                <div class: DemoBox>
                     <!-- 命名属性投影命名插槽；子元素隐式进入匿名插槽 -->
                     <SlotPanel
-                        header={<div class: custom-header><span class: custom-icon>★</span><span>Custom Header — 覆盖了默认回退</span></div>}
+                        header={<div class: custom-header><span class: CustomIcon>★</span><span>Custom Header — 覆盖了默认回退</span></div>}
                     >
                         <div class: custom-body>
                             <p>Custom Body Content</p>
-                            <p class: custom-note>默认回退已被消费者替代</p>
+                            <p class: CustomNote>默认回退已被消费者替代</p>
                         </div>
                         <!-- 不提供 footer → footer 为空（无默认值） -->
                     </SlotPanel>
@@ -101,20 +98,20 @@ component SlotDefaultDemo {
             </div>
 
             <!-- 演示区 3: 条件切换 -->
-            <div class: demo-card>
-                <h4 class: demo-label>③ Toggle: With / Without Custom Content</h4>
-                <p class: demo-desc>
+            <div class: DemoCard>
+                <h4 class: DemoLabel>③ Toggle: With / Without Custom Content</h4>
+                <p class: DemoDesc>
                     点击按钮在有/无自定义插槽内容之间切换，
                     观察默认回退的出现和消失。
                 </p>
-                <button class: toggle-btn @onPress={toggleContent}>
+                <button class: ToggleBtn @onPress={toggleContent}>
                     {if useCustomContent { "Reset to Defaults" } else { "Provide Custom Content" }}
                 </button>
-                <div class: demo-box toggle-area>
+                <div class: DemoBox ToggleArea>
                     @if useCustomContent {
                         <SlotPanel
-                            header={<div class: custom-header alt><span class: custom-icon>✦</span><span>Custom Header (alt)</span></div>}
-                            footer={<div class: custom-footer><span>提供了 footer 插槽</span></div>}
+                            header={<div class: custom-header alt><span class: CustomIcon>✦</span><span>Custom Header (alt)</span></div>}
+                            footer={<div class: CustomFooter><span>提供了 footer 插槽</span></div>}
                         >
                             <p class: custom-body alt>Custom body — 回退已被覆盖</p>
                         </SlotPanel>
@@ -125,9 +122,9 @@ component SlotDefaultDemo {
             </div>
 
             <!-- 技术说明 -->
-            <div class: tech-note>
-                <h4 class: note-title>💡 插槽默认内容语义</h4>
-                <ul class: note-list>
+            <div class: TechNote>
+                <h4 class: NoteTitle>💡 插槽默认内容语义</h4>
+                <ul class: NoteList>
                     <li>如果消费者<strong>没有</strong>为命名的 <code>{"@slot"}</code> 提供内容，显示其默认回退</li>
                     <li>如果消费者<strong>有</strong>提供内容，默认回退被完全替换</li>
                     <li>不带默认值的 <code>{"@slot 声明"}</code>（无回退体）在无内容时渲染空白</li>
@@ -139,32 +136,12 @@ component SlotDefaultDemo {
     }
 
     style {
-        .wrapper { background: white; border: 1px solid #d4d4d8; border-radius: 12px; padding: 20px; margin: 16px 0; }
-        .section-title { font-size: 18px; color: #1e293b; margin: 0 0 4px 0; }
-        .subtitle { font-size: 13px; color: #64748b; margin: 0 0 16px 0; }
         code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
-
-        .demo-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; margin-bottom: 12px; }
-        .demo-label { font-size: 14px; font-weight: 600; color: #1e293b; margin: 0 0 4px 0; }
-        .demo-desc { font-size: 12px; color: #64748b; margin: 0 0 10px 0; line-height: 1.5; }
-        .demo-box { margin-top: 10px; }
-
-        .toggle-btn { padding: 10px 20px; background: #6366f1; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
-        .toggle-btn:hover { background: #4f46e5; }
-        .toggle-area { margin-top: 12px; }
-
         // Custom content styles
         .custom-header { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #e0e7ff; border-radius: 6px; font-size: 13px; color: #3730a3; font-weight: 600; }
         .custom-header.alt { background: #fce7f3; color: #9d174d; }
-        .custom-icon { font-size: 16px; }
         .custom-body { padding: 10px; background: #dbeafe; border-radius: 6px; font-size: 13px; color: #1e40af; margin: 0; }
         .custom-body.alt { background: #d1fae5; color: #065f46; }
-        .custom-note { font-size: 11px; color: #3b82f6; margin: 4px 0 0 0; }
-        .custom-footer { padding: 8px 12px; background: #f3e8ff; border-radius: 6px; font-size: 12px; color: #6b21a8; }
-
-        .tech-note { background: #0f172a; border-radius: 8px; padding: 14px 18px; margin-top: 12px; }
-        .note-title { font-size: 14px; color: #e2e8f0; margin: 0 0 8px 0; }
-        .note-list { margin: 0; padding-left: 18px; }
-        .note-list li { font-size: 12px; color: #94a3b8; margin-bottom: 4px; line-height: 1.5; }
+        .NoteList li { font-size: 12px; color: #94a3b8; margin-bottom: 4px; line-height: 1.5; }
     }
 }

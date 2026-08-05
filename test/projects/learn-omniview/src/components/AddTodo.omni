@@ -45,7 +45,7 @@ component AddTodo {
     }
 
     view {
-        <div class: add-todo-container>
+        <div class: AddTodoContainer>
             <div class: LearnDesign.Row>
                 <input bind:value={input} placeholder={hint} class: LearnDesign.Input style: { flex: 1 } />
                 <button variant: LearnDesign.Button(color=primary, size=md) @onPress={handleAdd}>添加</button>
@@ -55,6 +55,5 @@ component AddTodo {
         </div>
     }
     style {
-        .add-todo-container { padding: 0 16px 16px 16px; }
     }
 }

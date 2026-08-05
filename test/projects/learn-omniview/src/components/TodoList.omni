@@ -30,18 +30,18 @@ component TodoList {
 
     view {
         <div>
-            <h2 class: title>待办列表
+            <h2 class: Title>待办列表
                 <span class: LearnDesign.Badge style: { background: "#6366f1", color: "#fff" }>{TodoStore.totalCount}</span>
             </h2>
 
             <AddTodo @onAdd={handleAdd} />
 
-            <div class: items>
+            <div class: Items>
                 @for item in visibleItems key={item.id} {
                     <TodoItem id={item.id} text={item.text} @onDelete={handleDelete} />
                 }
                 @empty {
-                    <div class: empty-state>
+                    <div class: EmptyState>
                         <p class: LearnDesign.Hint style: { font-size: "16px" }>还没有待办事项，在上方添加吧</p>
                     </div>
                 }
@@ -51,8 +51,6 @@ component TodoList {
     style {
         // 待办列表特有的标题和空状态布局
         .title { font-size: 20px; padding: 16px 16px 0 16px; color: #1f2937; display: flex; align-items: center; gap: 8px; }
-        .items { padding: 0 16px 16px 16px; }
-        .empty-state { text-align: center; padding: 48px 24px; }
         // .badge / .empty-text 已由 LearnDesign.Badge / Hint 提供
     }
 }

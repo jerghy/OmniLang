@@ -48,11 +48,11 @@ component FilterBar {
     view {
         <div class: LearnDesign.Card>
             <!-- 搜索输入 + @onChange 过滤 -->
-            <div class: search-row>
+            <div class: SearchRow>
                 <input
                     bind:value={searchText}
                     placeholder="Filter todos..."
-                    class: search-input
+                    class: SearchInput
                     @onChange={() => {
                         // 过滤已移交 @effect（见组件体注释）——此处仅计数，
                         // 避免 React 目标闭包捕获旧 searchText 的失效读取
@@ -66,8 +66,8 @@ component FilterBar {
             </div>
 
             <!-- 排序按钮 + @onClick 排序 -->
-            <div class: sort-row>
-                <p class: filter-label>
+            <div class: SortRow>
+                <p class: FilterLabel>
                     {if searchText == "" {
                         "Showing all " + TodoStore.totalCount.to_string() + " items"
                     } else {
@@ -85,7 +85,7 @@ component FilterBar {
             </div>
 
             <!-- Store 状态展示 -->
-            <div class: store-info>
+            <div class: StoreInfo>
                 <p class: LearnDesign.Hint>
                     Store: {TodoStore.totalCount} items
                     | Filter: {TodoStore.filterStatus}
@@ -98,12 +98,6 @@ component FilterBar {
     }
     style {
         // 组件特有的搜索栏布局和状态区背景
-        .search-row { display: flex; gap: 8px; margin-bottom: 12px; }
-        .search-input { flex: 1; padding: 10px 12px; border: 2px solid #d4d4d8; border-radius: 8px; font-size: 14px; outline: none; }
-        .search-input:focus { border-color: #6366f1; }
-        .sort-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-        .filter-label { font-size: 14px; color: #374151; margin: 0; }
-        .store-info { background: #f9fafb; padding: 10px 12px; border-radius: 8px; }
         // .filter-bar / .clear-btn / .sort-btn / .sync-btn / .info-text
         // 已由 LearnDesign.Card / Button 变体 / Hint 类提供
     }

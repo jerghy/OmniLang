@@ -11,8 +11,7 @@ component Overview {
     event onNavigate: String;
 
     view {
-        <section class: overview-section>
-            <div class: LearnDesign.Banner>
+        <section ><div class: LearnDesign.Banner>
                 <h1 class: LearnDesign.BannerTitle>{'\u{1F680}'} OmniLang Capability Showcase</h1>
                 <p class: LearnDesign.BannerSubtitle>
                     v2 语义级 DSL · 96 源文件 · 4 主题 · 10 语义域 · 9 标签页
@@ -70,22 +69,22 @@ component Overview {
                 />
             </div>
 
-            <div class: stats-bar>
-                <div class: stat-item>
-                    <span class: stat-value>93</span>
-                    <span class: stat-label>Source Files</span>
+            <div class: StatsBar>
+                <div class: StatItem>
+                    <span class: StatValue>93</span>
+                    <span class: StatLabel>Source Files</span>
                 </div>
-                <div class: stat-item>
-                    <span class: stat-value>10</span>
-                    <span class: stat-label>语义域</span>
+                <div class: StatItem>
+                    <span class: StatValue>10</span>
+                    <span class: StatLabel>语义域</span>
                 </div>
-                <div class: stat-item>
-                    <span class: stat-value>4</span>
-                    <span class: stat-label>Themes</span>
+                <div class: StatItem>
+                    <span class: StatValue>4</span>
+                    <span class: StatLabel>Themes</span>
                 </div>
-                <div class: stat-item>
-                    <span class: stat-value>{ThemeStore.toggleCount}</span>
-                    <span class: stat-label>Theme Toggles</span>
+                <div class: StatItem>
+                    <span class: StatValue>{ThemeStore.toggleCount}</span>
+                    <span class: StatLabel>Theme Toggles</span>
                 </div>
             </div>
         </section>
@@ -93,9 +92,5 @@ component Overview {
 
     style {
         .capability-grid { display: grid; grid-template-columns: "1fr 1fr 1fr 1fr"; gap: 14px; margin: 0 0 20px 0; }
-        .stats-bar { display: flex; gap: 16px; justify-content: center; padding: 16px; background: var(--surface); border-radius: var(--radiusLg); border: 1px solid var(--borderLight); }
-        .stat-item { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 80px; }
-        .stat-value { font-size: var(--fontSize3xl); font-weight: var(--fontWeightBold); color: var(--primary); }
-        .stat-label { font-size: var(--fontSizeXs); color: var(--textSecondary); }
     }
 }

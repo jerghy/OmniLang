@@ -60,14 +60,14 @@ component UiComponents {
 
             <h3 class: LearnDesign.SectionTitle>Todo App Demo</h3>
             <!-- TodoList 内部组合了自己的 AddTodo（@onAdd → TodoStore.add）-->
-            <div class: todo-section>
-                <div class: todo-sidebar>
+            <div class: TodoSection>
+                <div class: TodoSidebar>
                     <FilterBar />
                 </div>
-                <div class: todo-main>
+                <div class: TodoMain>
                     <TodoList />
                 </div>
-                <div class: todo-stats>
+                <div class: TodoStats>
                     <StatsDashboard />
                 </div>
             </div>
@@ -75,9 +75,5 @@ component UiComponents {
     }
 
     style {
-        .todo-section { display: flex; gap: 14px; }
-        .todo-sidebar { width: 200px; flex-shrink: 0; }
-        .todo-main { flex: 1; min-width: 0; }
-        .todo-stats { width: 200px; flex-shrink: 0; }
     }
 }

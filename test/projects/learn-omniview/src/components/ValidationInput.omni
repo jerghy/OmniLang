@@ -63,32 +63,25 @@ component ValidationInput {
             <h3 class: LearnDesign.CardTitle>ValidationInput Demo</h3>
             <p class: LearnDesign.Hint>{getDefaultMessage()}</p>
 
-            <div class: row>
-                <input bind:value={input} placeholder="Enter text to validate..." class: input></input>
+            <div class: Row>
+                <input bind:value={input} placeholder="Enter text to validate..." class: Input></input>
                 <button variant: LearnDesign.Button(color=primary, size=md) @onPress={handleValidate}>
                     {if isProcessing { "..." } else { "Validate" }}
                 </button>
                 <button variant: LearnDesign.Button(color=danger, size=md) @onPress={handleClear}>Clear</button>
             </div>
 
-            <div class: result-area>
-                <p class: result-text>Status: {getStatusLabel()}</p>
-                <p class: result-value>
+            <div class: ResultArea>
+                <p class: ResultText>Status: {getStatusLabel()}</p>
+                <p class: ResultValue>
                     {if result == "" { "-" } else { result }}
                 </p>
-                <p class: stats>Chars: {input.len()} | EvenPos: {countEvenPositions(input)}</p>
+                <p class: Stats>Chars: {input.len()} | EvenPos: {countEvenPositions(input)}</p>
             </div>
 
         </div>
     }
     style {
         // 验证器特有的输入行布局和状态区
-        .row { display: flex; gap: 8px; margin: 0 0 12px 0; }
-        .input { flex: 1; padding: 12px; border: 2px solid #d4d4d8; border-radius: 8px; font-size: 16px; outline: none; }
-        .input:focus { border-color: #6366f1; }
-        .result-area { background: #f9fafb; padding: 12px; border-radius: 8px; }
-        .result-text { font-size: 14px; color: #6b7280; margin: 0 0 4px 0; }
-        .result-value { font-size: 18px; font-weight: bold; color: #1f2937; margin: 0 0 4px 0; }
-        .stats { font-size: 12px; color: #9ca3af; margin: 0; }
     }
 }

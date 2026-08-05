@@ -37,9 +37,9 @@ component ThemeCssVarsDemo {
     }
 
     view {
-        <div class: wrapper>
-            <h3 class: section-title>Theme with CSS Variables</h3>
-            <p class: subtitle>
+        <div class: Wrapper>
+            <h3 class: SectionHeader>Theme with CSS Variables</h3>
+            <p class: Subtitle>
                 设计块主题系统自动生成 <code>--surface</code>、<code>--textPrimary</code>
                 等 CSS 变量，子元素用 <code>var()</code> 继承。<code>[data-theme]</code>
                 切换时自动更新，无需手动 <code>setProperty()</code>。
@@ -50,7 +50,7 @@ component ThemeCssVarsDemo {
                 由编译器生成到 :root 和 [data-theme="dark"] 选择器内。
                 --theme-scale 和 --theme-border-w 是本地交互信号。
             -->
-            <div class: theme-root
+            <div class: ThemeRoot
                 style: {
                     --theme-scale: boxScale,
                     --theme-border-w: borderWidth
@@ -58,68 +58,68 @@ component ThemeCssVarsDemo {
             >
                 <!-- 卡片 1: 基本主题变量继承 -->
                 <div class: themed-card>
-                    <h4 class: card-title>CSS Variable Cascading</h4>
-                    <p class: card-desc>
+                    <h4 class: CardTitle>CSS Variable Cascading</h4>
+                    <p class: CardDesc>
                         background、color、border-color 均通过 <code>var(--*)</code>
                         从设计系统继承。主题切换时所有卡片同步变化。
                     </p>
-                    <div class: stat-row>
-                        <span class: stat-badge>BG: var(--surface)</span>
-                        <span class: stat-badge>TX: var(--textPrimary)</span>
-                        <span class: stat-badge>PR: var(--primary)</span>
+                    <div class: StatRow>
+                        <span class: StatBadge>BG: var(--surface)</span>
+                        <span class: StatBadge>TX: var(--textPrimary)</span>
+                        <span class: StatBadge>PR: var(--primary)</span>
                     </div>
                 </div>
 
                 <!-- 卡片 2: var() 与 calc() 组合 -->
                 <div class: themed-card accent>
-                    <h4 class: card-title>Composition with calc()</h4>
-                    <p class: card-desc>
+                    <h4 class: CardTitle>Composition with calc()</h4>
+                    <p class: CardDesc>
                         <code>calc(var(--theme-border-w) * 2px)</code> 动态计算边框宽度。
                         点击按钮切换 <code>--theme-border-w</code> 值。
                     </p>
-                    <button class: var-action-btn @onPress={toggleBorder}>
+                    <button class: VarActionBtn @onPress={toggleBorder}>
                         Toggle Border Width ({borderWidth}px → {if borderWidth == 2 { 4 } else { 2 }}px)
                     </button>
                 </div>
 
                 <!-- 卡片 3: var() 与 transform 组合 -->
                 <div class: themed-card interactive>
-                    <h4 class: card-title>Transform via CSS Variable</h4>
-                    <p class: card-desc>
+                    <h4 class: CardTitle>Transform via CSS Variable</h4>
+                    <p class: CardDesc>
                         <code>transform: scale(var(--theme-scale))</code>。
                         信号 <code>boxScale</code> 以 style: 绑定驱动该 CSS 变量。
                     </p>
-                    <button class: var-action-btn @onPress={toggleScale}>
+                    <button class: VarActionBtn @onPress={toggleScale}>
                         Toggle Scale ({boxScale})
                     </button>
                 </div>
 
                 <!-- 卡片 4: 主题色预览色板 -->
-                <div class: palette-section>
-                    <h4 class: card-title>Theme Palette via var()</h4>
-                    <div class: palette-grid>
-                        <div class: palette-chip style: { background: "var(--surface)", border: "2px solid var(--border)" }>
-                            <span class: chip-label style: { color: "var(--textPrimary)" }>--surface</span>
+                <div class: PaletteSection>
+                    <h4 class: CardTitle>Theme Palette via var()</h4>
+                    <div class: PaletteGrid>
+                        <div class: PaletteChip style: { background: "var(--surface)", border: "2px solid var(--border)" }>
+                            <span class: ChipLabel style: { color: "var(--textPrimary)" }>--surface</span>
                         </div>
-                        <div class: palette-chip style: { background: "var(--primary)" }>
-                            <span class: chip-label style: { color: "white" }>--primary</span>
+                        <div class: PaletteChip style: { background: "var(--primary)" }>
+                            <span class: ChipLabel style: { color: "white" }>--primary</span>
                         </div>
-                        <div class: palette-chip style: { background: "var(--textPrimary)" }>
-                            <span class: chip-label style: { color: "var(--surface)" }>--textPrimary</span>
+                        <div class: PaletteChip style: { background: "var(--textPrimary)" }>
+                            <span class: ChipLabel style: { color: "var(--surface)" }>--textPrimary</span>
                         </div>
-                        <div class: palette-chip style: { background: "var(--surfaceMuted)", border: "1px solid var(--border)" }>
-                            <span class: chip-label style: { color: "var(--textPrimary)" }>--surfaceMuted</span>
+                        <div class: PaletteChip style: { background: "var(--surfaceMuted)", border: "1px solid var(--border)" }>
+                            <span class: ChipLabel style: { color: "var(--textPrimary)" }>--surfaceMuted</span>
                         </div>
                     </div>
                 </div>
             </div>
 
             <!-- 切换按钮（在 CSS 变量作用域之外） -->
-            <div class: action-row>
-                <button class: toggle-btn @onPress={() => { ThemeStore.toggle(); }}>
+            <div class: ActionRow>
+                <button class: ToggleBtn @onPress={() => { ThemeStore.toggle(); }}>
                     Toggle Theme (light → dark → sepia → highContrast)
                 </button>
-                <p class: hint>
+                <p class: Hint>
                     Current: {ThemeStore.modeLabel} ·
                     Toggles: {ThemeStore.toggleCount} ·
                     <code>@themes { light, dark, sepia, highContrast }</code>
@@ -127,51 +127,21 @@ component ThemeCssVarsDemo {
             </div>
 
             <!-- 技术说明 -->
-            <div class: tech-note>
-                <h4 class: note-title>Key Design Patterns</h4>
+            <div class: TechNote>
+                <h4 class: NoteTitle>Key Design Patterns</h4>
                 <p>Design block theme system: @themes + per-token theme values. CSS generated automatically.</p>
             </div>
         </div>
     }
 
     style {
-        .wrapper {
-            --card-radius: 12px;
-            --action-h: 48px;
-        }
-
-        .wrapper {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: var(--card-radius);
-            padding: 20px;
-            margin: 16px 0;
-        }
-
-        .section-title {
-            font-size: 18px;
-            color: var(--textPrimary);
-            margin: 0 0 4px 0;
-        }
-        .subtitle {
-            font-size: 13px;
-            color: var(--textSecondary);
-            margin: 0 0 16px 0;
-        }
         code {
             background: var(--surfaceMuted);
             padding: 2px 6px;
             border-radius: 4px;
             font-size: 12px;
         }
-
         // Design token CSS variables (from design.omni @themes)
-        .theme-root {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-
         .themed-card {
             background: var(--surface);
             color: var(--textPrimary);
@@ -187,117 +157,10 @@ component ThemeCssVarsDemo {
         .themed-card.interactive {
             border-style: dashed;
         }
-
-        .card-title {
-            font-size: 14px;
-            font-weight: 600;
-            color: var(--primary);
-            margin: 0 0 6px 0;
-        }
-        .card-desc {
-            font-size: 12px;
-            color: var(--textPrimary);
-            margin: 0 0 10px 0;
-            opacity: 0.8;
-            line-height: 1.5;
-        }
-
-        .stat-row {
-            display: flex;
-            gap: 6px;
-            flex-wrap: wrap;
-        }
-        .stat-badge {
-            font-size: 11px;
-            padding: 3px 8px;
-            background: var(--surfaceMuted);
-            color: var(--textPrimary);
-            border-radius: 4px;
-            font-family: monospace;
-        }
-
-        .var-action-btn {
-            padding: 8px 16px;
-            background: var(--primary);
-            color: white;
-            border: none;
-            border-radius: 6px;
-            font-size: 13px;
-            cursor: pointer;
-        }
-        .var-action-btn:hover {
-            filter: brightness(1.1);
-        }
-
         // Palette
-        .palette-section {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: var(--card-radius);
-            padding: 14px;
-        }
-        .palette-grid {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-        .palette-chip {
-            padding: 12px 16px;
-            border-radius: 8px;
-            flex: 1;
-            min-width: 100px;
-            text-align: center;
-        }
-        .chip-label {
-            font-size: 11px;
-            font-weight: 600;
-            font-family: monospace;
-        }
-
         // Actions
-        .action-row {
-            margin-top: 14px;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-        .toggle-btn {
-            height: var(--action-h);
-            padding: 0 20px;
-            background: var(--primary);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-        }
-        .toggle-btn:hover {
-            background: var(--primaryDark);
-        }
-        .hint {
-            font-size: 12px;
-            color: var(--textSecondary);
-            margin: 0;
-        }
-
         // Tech note
-        .tech-note {
-            background: #0f172a;
-            border-radius: 8px;
-            padding: 14px 18px;
-            margin-top: 16px;
-        }
-        .note-title {
-            font-size: 14px;
-            color: #e2e8f0;
-            margin: 0 0 8px 0;
-        }
-        .note-list {
-            margin: 0;
-            padding-left: 18px;
-        }
-        .note-list li {
+        .NoteList li {
             font-size: 12px;
             color: #94a3b8;
             margin-bottom: 4px;

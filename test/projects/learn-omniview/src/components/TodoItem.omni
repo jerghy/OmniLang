@@ -7,15 +7,11 @@ component TodoItem {
   event onDelete: i32;
 
   view {
-    <div class: todo-item>
-      <span class: todo-text>{text}</span>
-      <button class: delete-btn @onPress={() => { onDelete(id); }}>✕</button>
+    <div class: TodoItem>
+      <span class: TodoText>{text}</span>
+      <button class: DeleteBtn @onPress={() => { onDelete(id); }}>✕</button>
     </div>
   }
   style {
-    .todo-item { display: flex; align-items: center; padding: 12px 16px; border-bottom: 1px solid #f3f4f6; }
-    .todo-text { font-size: 15px; color: #1f2937; }
-    .delete-btn { margin-left: auto; padding: 4px 10px; border: none; border-radius: 6px; background: #f3f4f6; color: #6b7280; font-size: 13px; cursor: pointer; }
-    .delete-btn:hover { background: #fee2e2; color: #dc2626; }
   }
 }

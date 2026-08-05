@@ -85,63 +85,62 @@ component DataTable {
     view {
         <div class: LearnDesign.Card>
             <!-- Header -->
-            <div class: header-row>
+            <div class: HeaderRow>
                 <img src="/dot.png" alt="dot" />
                 <h2 class: LearnDesign.CardTitle>DataTable Demo</h2>
                 <hr />
             </div>
 
             <!-- Controls -->
-            <div class: controls>
+            <div class: Controls>
                 <p class: info-text>Scroll count: {scrollCount}<br />Sort: {getSortIcon()}</p>
                 <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={toggleSort}>Toggle Sort</button>
                 <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={handleScroll}>Scroll +1</button>
             </div>
 
             <!-- Table -->
-            <div class: table-wrapper @onScroll={handleScroll}>
-                <Table class: data-table>
+            <div class: TableWrapper @onScroll={handleScroll}>
+                <Table class: DataTable>
                     <thead>
                         <tr>
-                            <th class: th>ID</th>
-                            <th class: th>Name</th>
-                            <th class: th>Status</th>
-                            <th class: th>Score</th>
+                            <th class: Th>ID</th>
+                            <th class: Th>Name</th>
+                            <th class: Th>Status</th>
+                            <th class: Th>Score</th>
                         </tr>
                     </thead>
                     <tbody>
                         @for row in rows key={row.id} {
-                            <tr class: tr>
-                                <td class: td>{row.id}</td>
-                                <td class: td>{row.name}</td>
-                                <td class: td>
-                                    <span class: { badge: true, active: row.status == "Active", inactive: row.status == "Inactive" }>{row.status}</span>
+                            <tr ><td class: Td>{row.id}</td>
+                                <td class: Td>{row.name}</td>
+                                <td class: Td>
+                                    <span class: { Badge: true, active: row.status == "Active", Inactive: row.status == "Inactive" }>{row.status}</span>
                                 </td>
-                                <td class: td>
-                                    <span class: score-text style: { color: getScoreColor(row.score) }>{row.score}</span>
+                                <td class: Td>
+                                    <span class: ScoreText style: { color: getScoreColor(row.score) }>{row.score}</span>
                                 </td>
                             </tr>
                         }
                         @empty {
-                            <tr><td class: td-empty>No data</td></tr>
+                            <tr><td class: TdEmpty>No data</td></tr>
                         }
                     </tbody>
                 </Table>
             </div>
 
             <!-- Summary -->
-            <div class: summary-section>
-                <h3 class: section-title>Summary</h3>
-                <List class: summary-list>
-                    <ListItem class: summary-item>
+            <div class: SummarySection>
+                <h3 class: SectionHeader>Summary</h3>
+                <List class: SummaryList>
+                    <ListItem class: SummaryItem>
                         <img src="/dot.png" alt="dot" />
                         Total items: {array_length(rows)}
                     </ListItem>
-                    <ListItem class: summary-item>
+                    <ListItem class: SummaryItem>
                         <img src="/dot.png" alt="dot" />
                         Active items: {array_length(getActiveRows())}
                     </ListItem>
-                    <ListItem class: summary-item>
+                    <ListItem class: SummaryItem>
                         <img src="/dot.png" alt="dot" />
                         Scroll events: {scrollCount}
                     </ListItem>
@@ -149,22 +148,22 @@ component DataTable {
             </div>
 
             <!-- Map and Closure Demo -->
-            <div class: features-section>
-                <h3 class: section-title>Map and Closure Demo</h3>
-                <List class: features-list>
-                    <ListItem class: features-item>
+            <div class: FeaturesSection>
+                <h3 class: SectionHeader>Map and Closure Demo</h3>
+                <List class: FeaturesList>
+                    <ListItem class: FeaturesItem>
                         <img src="/dot.png" alt="dot" />
                         Grade for 95: {getGradeForScore(95)}
                     </ListItem>
-                    <ListItem class: features-item>
+                    <ListItem class: FeaturesItem>
                         <img src="/dot.png" alt="dot" />
                         Grade for 72: {getGradeForScore(72)}
                     </ListItem>
-                    <ListItem class: features-item>
+                    <ListItem class: FeaturesItem>
                         <img src="/dot.png" alt="dot" />
                         Grade for 59: {getGradeForScore(59)}
                     </ListItem>
-                    <ListItem class: features-item>
+                    <ListItem class: FeaturesItem>
                         <img src="/dot.png" alt="dot" />
                         Adj total (s+5): {getBonusTotal()}
                     </ListItem>
@@ -172,35 +171,15 @@ component DataTable {
             </div>
 
             <hr />
-            <div class: footer-row>
+            <div class: FooterRow>
                 <img src="/dot.png" alt="dot" />
-                <p class: footer-text>DataTable Demo — custom tags · Map literals · closures</p>
+                <p class: FooterText>DataTable Demo — custom tags · Map literals · closures</p>
             </div>
         </div>
     }
     style {
         // 数据表格特有的表格布局和行内样式
-        .header-row { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
-        .controls { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
         .info-text { font-size: 13px; color: #6b7280; margin: 0; }
-        .table-wrapper { max-height: 400px; overflow-y: auto; border: 1px solid #d4d4d8; border-radius: 8px; }
-        .data-table { width: 100%; border-collapse: collapse; }
-        .th { padding: 12px; color: #6b7280; background: #f9fafb; border-bottom: 2px solid #d4d4d8; }
-        .td { padding: 10px 12px; font-size: 14px; color: #374151; border-bottom: 1px solid #f3f4f6; }
-        .tr { }
-        .badge { font-size: 12px; padding: 2px 10px; border-radius: 10px; }
         .active { background: #d1fac5; color: #166534; }
-        .inactive { background: #f3f4f6; color: #9ca3af; }
-        .score-text { font-size: 14px; font-weight: bold; }
-        .td-empty { padding: 20px; text-align: center; color: #9ca3af; }
-        .summary-section { margin-top: 20px; }
-        .section-title { font-size: 16px; color: #1f2937; margin: 0 0 8px 0; }
-        .summary-list { list-style: none; padding: 0; margin: 0; }
-        .summary-item { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 14px; color: #374151; }
-        .features-section { margin-top: 20px; }
-        .features-list { list-style: none; padding: 0; margin: 0; }
-        .features-item { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 13px; color: #4b5563; }
-        .footer-row { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
-        .footer-text { font-size: 12px; color: #9ca3af; margin: 0; }
     }
 }

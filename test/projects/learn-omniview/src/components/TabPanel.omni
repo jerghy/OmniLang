@@ -26,7 +26,7 @@ component TabPanel {
 
     view {
         <div class: LearnDesign.Card>
-            <div class: tab-bar>
+            <div class: TabBar>
                 <button
                     variant: LearnDesign.Button(color=primary, size=sm)
                     class: { active: isActive("home") }
@@ -46,39 +46,35 @@ component TabPanel {
 
             @if activeTab == "home" {
                 <div class: LearnDesign.Card style: { borderLeft: "5px solid " + activeStyle }>
-                    <h3 class: card-title>Home Tab</h3>
-                    <div class: row>
+                    <h3 class: CardTitle>Home Tab</h3>
+                    <div class: Row>
                         <span>variant: LearnDesign.Button 变体按钮</span>
                     </div>
-                    <p class: text>class: map 条件类演示（按钮 active 态）</p>
+                    <p class: Text>class: map 条件类演示（按钮 active 态）</p>
                 </div>
             }
             @else if activeTab == "about" {
                 <div class: LearnDesign.Card style: { borderLeft: "5px solid " + activeStyle }>
-                    <h3 class: card-title>About Tab</h3>
-                    <p class: text>style: 内联样式（左侧主题色边框由 computed 驱动）</p>
-                    <p class: text>class: 条件类在按钮上演示</p>
+                    <h3 class: CardTitle>About Tab</h3>
+                    <p class: Text>style: 内联样式（左侧主题色边框由 computed 驱动）</p>
+                    <p class: Text>class: 条件类在按钮上演示</p>
                 </div>
             }
             @else if activeTab == "settings" {
                 <div class: LearnDesign.Card style: { borderLeft: "5px solid " + activeStyle }>
-                    <h3 class: card-title>Settings Tab</h3>
-                    <p class: text>Active tab: {activeTab}</p>
+                    <h3 class: CardTitle>Settings Tab</h3>
+                    <p class: Text>Active tab: {activeTab}</p>
                 </div>
             }
             @else {
                 <div class: LearnDesign.Card style: { borderLeft: "5px solid " + activeStyle }>
-                    <p class: text>Unknown tab</p>
+                    <p class: Text>Unknown tab</p>
                 </div>
             }
         </div>
     }
     style {
         // 标签面板特有的内部布局
-        .tab-bar { display: flex; gap: 8px; margin-bottom: 16px; }
         .active { background: #6366f1; color: white; }
-        .card-title { font-size: 18px; color: #222; margin-bottom: 8px; }
-        .row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
-        .text { font-size: 14px; color: #666; margin: 4px 0; }
     }
 }

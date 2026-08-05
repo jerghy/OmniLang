@@ -196,9 +196,9 @@ component ElementRefDemo {
 
             <!-- ═══ 焦点管理 ═══ -->
             <h4 class: LearnDesign.SectionTitle>焦点管理 (.focus / .blur)</h4>
-            <div class: demo-row>
+            <div class: DemoRow>
                 <input
-                    class: ref-input
+                    class: RefInput
                     @ref={inputBox}
                     @onInput={() => {}}
                     placeholder="ref-bound input"
@@ -209,21 +209,21 @@ component ElementRefDemo {
                 <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={blurInput}>
                     Blur
                 </button>
-                <span class: status-text>Status: {focusStatus}</span>
+                <span class: StatusText>Status: {focusStatus}</span>
             </div>
 
             <!-- ═══ 文本全选 ═══ -->
             <h4 class: LearnDesign.SectionTitle>文本全选 (.select)</h4>
-            <div class: demo-row>
+            <div class: DemoRow>
                 <input
-                    class: ref-input
+                    class: RefInput
                     @ref={selectInput}
                     bind:value={selectText}
                 />
                 <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={selectAllText}>
                     全选
                 </button>
-                <span class: status-text>{selectStatus}</span>
+                <span class: StatusText>{selectStatus}</span>
             </div>
 
             <!-- ═══ 选区控制 ═══ -->
@@ -232,9 +232,9 @@ component ElementRefDemo {
                 点击按钮调用 setSelection(start, end)（→ setSelectionRange）；手动拖动文本时
                 @onSelect 事件（SelectEvent: start/end/text）也会实时回显选区
             </p>
-            <div class: demo-row>
+            <div class: DemoRow>
                 <input
-                    class: ref-input
+                    class: RefInput
                     @ref={rangeInput}
                     bind:value={rangeText}
                     @onSelect={onRangeSelect}
@@ -245,7 +245,7 @@ component ElementRefDemo {
                 <button variant: LearnDesign.Button(color=accent, size=sm) @onPress={selectMiddle5}>
                     中间 5 字符 (2, 7)
                 </button>
-                <span class: status-text>{rangeStatus}</span>
+                <span class: StatusText>{rangeStatus}</span>
             </div>
 
             <!-- ═══ 语义绑定 focus={sig} ═══ -->
@@ -254,9 +254,9 @@ component ElementRefDemo {
                 focus={shouldFocus} 把布尔信号绑定到元素焦点：true → .focus()，false → .blur()。
                 @mount 中置 true，进入本页即自动聚焦。
             </p>
-            <div class: demo-row>
+            <div class: DemoRow>
                 <input
-                    class: ref-input
+                    class: RefInput
                     @ref={focusSigInput}
                     focus={shouldFocus}
                     placeholder="focus={shouldFocus} 驱动"
@@ -264,18 +264,18 @@ component ElementRefDemo {
                 <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={toggleFocusSig}>
                     切换 focus={shouldFocus}
                 </button>
-                <span class: status-text>{sigFocusStatus}</span>
+                <span class: StatusText>{sigFocusStatus}</span>
             </div>
 
             <!-- ═══ 滚动控制 ═══ -->
             <h4 class: LearnDesign.SectionTitle>滚动控制 (scroll-y 绑定 + .scrollBy + .scrollTo)</h4>
-            <div scroll-y={scrollTarget} @ref={scrollArea} class: scroll-box>
-                <p class: scroll-item>Item 1 — 滚动演示区域</p>
-                <p class: scroll-item>Item 2 — 使用 scroll-y 绑定跳转</p>
-                <p class: scroll-item>Item 3 — 使用 .scrollBy() 增量</p>
-                <p class: scroll-item>Item 4 — Element Ref API</p>
-                <p class: scroll-item>Item 5 — Element Ref API 全集</p>
-                <p class: scroll-item>Item 6 — 底部</p>
+            <div scroll-y={scrollTarget} @ref={scrollArea} class: ScrollBox>
+                <p class: ScrollItem>Item 1 — 滚动演示区域</p>
+                <p class: ScrollItem>Item 2 — 使用 scroll-y 绑定跳转</p>
+                <p class: ScrollItem>Item 3 — 使用 .scrollBy() 增量</p>
+                <p class: ScrollItem>Item 4 — Element Ref API</p>
+                <p class: ScrollItem>Item 5 — Element Ref API 全集</p>
+                <p class: ScrollItem>Item 6 — 底部</p>
             </div>
             <div class: LearnDesign.Row>
                 <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={scrollToTop}>
@@ -293,25 +293,25 @@ component ElementRefDemo {
                 <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={scrollTo200}>
                     scrollTo(0, 200)
                 </button>
-                <span class: status-text>Pos: {scrollPos}</span>
+                <span class: StatusText>Pos: {scrollPos}</span>
             </div>
 
             <!-- ═══ 位置查询 ═══ -->
             <h4 class: LearnDesign.SectionTitle>位置查询 (.measure)</h4>
-            <div @ref={rectBox} class: rect-box>
+            <div @ref={rectBox} class: RectBox>
                 <p>Query Box — click "Query Rect" to read position</p>
             </div>
             <div class: LearnDesign.Row>
                 <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={queryRect}>
                     Query Rect
                 </button>
-                <span class: status-text>{rectInfo}</span>
+                <span class: StatusText>{rectInfo}</span>
             </div>
 
             <!-- ═══ 尺寸查询 + 样式绑定 ═══ -->
             <h4 class: LearnDesign.SectionTitle>尺寸查询 + 样式绑定 (.measure / style 绑定)</h4>
-            <div class: demo-row>
-                <div @ref={sizeBox} class: size-box
+            <div class: DemoRow>
+                <div @ref={sizeBox} class: SizeBox
                     style: { width: boxWidthPx, height: boxHeightPx }>
                     <p>resize via style binding</p>
                 </div>
@@ -324,19 +324,19 @@ component ElementRefDemo {
                 <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={resetBox}>
                     Reset
                 </button>
-                <span class: status-text>Width: {boxWidthPx} · 实测: {boxWidth}px · Height: {boxHeightPx} · 实测: {boxHeight}px</span>
+                <span class: StatusText>Width: {boxWidthPx} · 实测: {boxWidth}px · Height: {boxHeightPx} · 实测: {boxHeight}px</span>
             </div>
 
             <!-- ═══ 多 ref 联动 ═══ -->
             <h4 class: LearnDesign.SectionTitle>多 ref 联动 (.value)</h4>
-            <div class: demo-row>
+            <div class: DemoRow>
                 <input
-                    class: ref-input
+                    class: RefInput
                     @ref={mirrorInput}
                     placeholder="Type here..."
                     @onInput={syncMirror}
                 />
-                <span class: mirror-text>
+                <span class: MirrorText>
                     Mirror: {mirrorText}
                 </span>
             </div>
@@ -348,16 +348,16 @@ component ElementRefDemo {
                 capturePointer() / releasePointer() 为无参语义（设计 D3）：运行时自动使用活动指针，
                 多指针锁定不支持（有参调用为编译错误）。
             </p>
-            <div class: demo-row>
+            <div class: DemoRow>
                 <div
                     @ref={pointerBox}
                     @onPointerDown={onPtrDown}
                     @onPointerUp={onPtrUp}
-                    class: { pointerbox: true, pointerCaptured: pointerActive }
+                    class: { Pointerbox: true, PointerCaptured: pointerActive }
                 >
                     <p>Press & hold me</p>
                 </div>
-                <span class: status-text>Pointer: {pointerStatus}</span>
+                <span class: StatusText>Pointer: {pointerStatus}</span>
             </div>
 
             <!-- ═══ 高频拖拽（@drag-horizontal 触发器） ═══ -->
@@ -368,7 +368,7 @@ component ElementRefDemo {
             <div class: LearnDesign.Row>
                 <div
                     @drag-horizontal={dragX300}
-                    class: drag-box>
+                    class: DragBox>
                     <p>↔ Drag me</p>
                 </div>
             </div>
@@ -378,11 +378,11 @@ component ElementRefDemo {
                 constraints: [min, max] 限定拖拽范围（超出部分由 elastic 回弹）；
                 拖拽进度映射到 motion 自身的 keyframe 范围（水平用 translateX、垂直用 translateY）。
             </p>
-            <div class: constraints-row>
-                <div @drag-horizontal constraints: [-150, 150] elastic: 0.4={dragX150} class: drag-demo-box>
+            <div class: ConstraintsRow>
+                <div @drag-horizontal constraints: [-150, 150] elastic: 0.4={dragX150} class: DragDemoBox>
                     <p>↔ 约束 ±150px</p>
                 </div>
-                <div @drag-vertical constraints: [0, 100] elastic: 0.5={dragY100} class: drag-demo-box>
+                <div @drag-vertical constraints: [0, 100] elastic: 0.5={dragY100} class: DragDemoBox>
                     <p>↕ 约束 0–100px</p>
                 </div>
             </div>
@@ -390,23 +390,9 @@ component ElementRefDemo {
     }
 
     style {
-        .demo-row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
-        .status-text { font-size: 13px; color: var(--textSecondary); }
-        .ref-input { padding: 10px 12px; border: 2px solid var(--border); border-radius: var(--radiusMd); font-size: 14px; outline: none; flex: 1; min-width: 180px; }
-        .ref-input:focus { border-color: var(--primary); }
-        .scroll-box { height: 120px; overflow-y: auto; background: var(--surfaceMuted); border: 1px solid var(--border); border-radius: var(--radiusMd); padding: 8px 12px; margin-bottom: 8px; }
-        .scroll-item { padding: 8px 0; font-size: 13px; color: var(--textSecondary); border-bottom: 1px solid var(--borderLighter); }
-        .rect-box { padding: 16px; background: var(--surfaceMuted); border: 1px solid var(--border); border-radius: var(--radiusMd); text-align: center; margin-bottom: 8px; }
-        .drag-box { width: 120px; padding: 16px; background: var(--accent); color: white; border-radius: var(--radiusMd); text-align: center; cursor: grab; user-select: none; }
-        .size-box { width: 200px; height: 80px; background: var(--primaryLight); border-radius: var(--radiusMd); display: flex; align-items: center; justify-content: center; transition: "all 300ms"; }
-        .size-box p { font-size: var(--fontSizeXs); color: white; margin: 0; }
-        .mirror-text { font-size: var(--fontSizeSm); color: var(--textSecondary); padding: 8px 14px; background: var(--surfaceMuted); border-radius: var(--radiusMd); min-width: 150px; }
-        .pointerbox { width: 150px; padding: 16px; background: var(--surfaceMuted); border: 2px dashed var(--border); border-radius: var(--radiusMd); text-align: center; cursor: grab; user-select: none; touch-action: none; transition: "border-color 200ms, background-color 200ms"; }
-        .pointerbox p { font-size: var(--fontSizeXs); color: var(--textSecondary); margin: 0; }
-        .pointerCaptured { border-color: var(--primary); border-style: solid; background: var(--primaryLight); }
-        .pointerCaptured p { color: white; }
-        .constraints-row { display: flex; gap: 16px; margin-bottom: 12px; flex-wrap: wrap; }
-        .drag-demo-box { width: 100px; height: 80px; padding: 12px; background: var(--primary); color: white; border-radius: var(--radiusMd); text-align: center; cursor: grab; user-select: none; }
-        .drag-demo-box p { font-size: var(--fontSizeXs); margin: 0; }
+        .SizeBox p { font-size: var(--fontSizeXs); color: white; margin: 0; }
+        .Pointerbox p { font-size: var(--fontSizeXs); color: var(--textSecondary); margin: 0; }
+        .PointerCaptured p { color: white; }
+        .DragDemoBox p { font-size: var(--fontSizeXs); margin: 0; }
     }
 }

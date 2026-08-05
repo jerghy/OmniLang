@@ -63,13 +63,13 @@ component FormPage {
             <h2 class: LearnDesign.CardTitle>FormPage Demo</h2>
 
             <!-- Form demonstrating @onSubmit, @onChange, boolean attrs, aria/data attrs -->
-            <form class: form @onSubmit={handleSubmit}>
+            <form class: Form @onSubmit={handleSubmit}>
                 <!-- Name field with @onFocus, @onBlur, @onChange, required, a11y block, data-testid -->
-                <div class: field>
-                    <label class: label for="name">Name</label>
+                <div class: Field>
+                    <label class: Label for="name">Name</label>
                     <input
                         id="name"
-                        class: input
+                        class: Input
                         placeholder="Your name"
                         bind:value={name}
                         required
@@ -81,16 +81,16 @@ component FormPage {
                         @onChange={handleNameChange}
                     ></input>
                     @if nameError != "" {
-                        <span class: error-text>{nameError}</span>
+                        <span class: ErrorText>{nameError}</span>
                     }
                 </div>
 
                 <!-- Email field with boolean attrs and hyphenated attrs -->
-                <div class: field>
-                    <label class: label for="email">Email</label>
+                <div class: Field>
+                    <label class: Label for="email">Email</label>
                     <input
                         id="email"
-                        class: input
+                        class: Input
                         placeholder="your@email.com"
                         bind:value={email}
                         required
@@ -102,16 +102,16 @@ component FormPage {
                         @onChange={handleEmailChange}
                     ></input>
                     @if emailError != "" {
-                        <span class: error-text>{emailError}</span>
+                        <span class: ErrorText>{emailError}</span>
                     }
                 </div>
 
                 <!-- Message field with @onChange, @onScroll, readonly (conditional) -->
-                <div class: field>
-                    <label class: label for="msg">Message</label>
+                <div class: Field>
+                    <label class: Label for="msg">Message</label>
                     <textarea
                         id="msg"
-                        class: textarea
+                        class: Textarea
                         placeholder="Your message (optional)"
                         bind:value={message}
                         a11y: { label: "Message input" }
@@ -122,11 +122,11 @@ component FormPage {
                 </div>
 
                 <!-- Disabled field demonstration -->
-                <div class: field>
-                    <label class: label for="disabled-field">Disabled field</label>
+                <div class: Field>
+                    <label class: Label for="disabled-field">Disabled field</label>
                     <input
                         id="disabled-field"
-                        class: input
+                        class: Input
                         placeholder="This field is disabled"
                         disabled
                         a11y: { label: "Disabled input" }
@@ -135,11 +135,11 @@ component FormPage {
                 </div>
 
                 <!-- Readonly field demonstration -->
-                <div class: field>
-                    <label class: label for="readonly-field">Readonly field</label>
+                <div class: Field>
+                    <label class: Label for="readonly-field">Readonly field</label>
                     <input
                         id="readonly-field"
-                        class: input
+                        class: Input
                         value="Read-only value"
                         readonly
                         a11y: { label: "Read-only input" }
@@ -148,32 +148,32 @@ component FormPage {
                 </div>
 
                 <!-- Scrollable area with @onScroll -->
-                <div class: scroll-box @onScroll={handleScroll}>
-                    <p class: scroll-title>Scrollable area (scroll count: {scrollPos})</p>
-                    <p class: scroll-line>Line 1: Scroll to trigger @onScroll</p>
-                    <p class: scroll-line>Line 2: More content below</p>
-                    <p class: scroll-line>Line 3: Keep scrolling</p>
-                    <p class: scroll-line>Line 4: Almost there</p>
-                    <p class: scroll-line>Line 5: Bottom reached</p>
+                <div class: ScrollBox @onScroll={handleScroll}>
+                    <p class: ScrollTitle>Scrollable area (scroll count: {scrollPos})</p>
+                    <p class: ScrollLine>Line 1: Scroll to trigger @onScroll</p>
+                    <p class: ScrollLine>Line 2: More content below</p>
+                    <p class: ScrollLine>Line 3: Keep scrolling</p>
+                    <p class: ScrollLine>Line 4: Almost there</p>
+                    <p class: ScrollLine>Line 5: Bottom reached</p>
                 </div>
 
                 <!-- Status display -->
-                <div class: status-area>
-                    <p class: { status: true, success: submitted, error: false, idle: false }>
+                <div class: StatusArea>
+                    <p class: { Status: true, Success: submitted, Error: false, Idle: false }>
                         {getStatusText()}
                     </p>
                 </div>
 
                 <!-- Trimmed message display -->
                 @if message != "" {
-                    <div class: trimmed-area>
-                        <p class: trimmed-label>Trimmed message:</p>
-                        <p class: trimmed-value>{getTrimmedMessage()}</p>
+                    <div class: TrimmedArea>
+                        <p class: TrimmedLabel>Trimmed message:</p>
+                        <p class: TrimmedValue>{getTrimmedMessage()}</p>
                     </div>
                 }
 
                 <!-- Form actions -->
-                <div class: actions>
+                <div class: Actions>
                     <button
                         variant: LearnDesign.Button(color=primary, size=lg)
                         type="submit"
@@ -191,7 +191,7 @@ component FormPage {
                 </div>
 
                 <!-- Conditional disabled button -->
-                <div class: conditional-area>
+                <div class: ConditionalArea>
                     <button
                         variant: LearnDesign.Button(color=ghost, size=md)
                         @onPress={handleSubmit}
@@ -206,36 +206,13 @@ component FormPage {
 
             <!-- Focus indicator -->
             @if focusField != "" {
-                <div class: focus-indicator>
-                    <p class: focus-text>Focused field: {focusField}</p>
+                <div class: FocusIndicator>
+                    <p class: FocusText>Focused field: {focusField}</p>
                 </div>
             }
         </div>
     }
     style {
         // 表单特有的布局和验证样式
-        .form { display: flex; flex-direction: column; gap: 16px; }
-        .field { display: flex; flex-direction: column; gap: 4px; }
-        .label { font-size: 14px; font-weight: bold; color: #374151; margin-bottom: 4px; }
-        .input { padding: 12px; border: 2px solid #d4d4d8; border-radius: 8px; font-size: 15px; color: #1f2937; outline: none; }
-        .input:focus { border-color: #6366f1; }
-        .textarea { padding: 12px; border: 2px solid #d4d4d8; border-radius: 8px; font-size: 15px; min-height: 80px; color: #1f2937; outline: none; }
-        .textarea:focus { border-color: #6366f1; }
-        .error-text { font-size: 12px; color: #dc2626; }
-        .scroll-box { height: 120px; overflow-y: scroll; padding: 12px; background: #f9fafb; border: 1px solid #d4d4d8; border-radius: 8px; }
-        .scroll-title { font-size: 14px; font-weight: bold; color: #374151; margin: 0 0 8px 0; }
-        .scroll-line { font-size: 13px; color: #6b7280; margin: 2px 0; }
-        .status-area { padding: 12px; border-radius: 8px; }
-        .status { font-size: 14px; margin: 0; padding: 8px 12px; border-radius: 6px; }
-        .success { background: #d1fac5; color: #166534; }
-        .error { background: #fddddd; color: #991b1b; }
-        .idle { background: #f3f4f6; color: #6b7280; }
-        .actions { display: flex; gap: 8px; }
-        .trimmed-area { margin: 8px 0; padding: 8px 12px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; }
-        .trimmed-label { font-size: 12px; color: #6b7280; margin: 0 0 2px 0; }
-        .trimmed-value { font-size: 14px; color: #166534; margin: 0; font-family: monospace; }
-        .conditional-area { padding: 8px 0; }
-        .focus-indicator { margin-top: 12px; padding: 8px 16px; background: #dbf0ff; border-radius: 8px; }
-        .focus-text { font-size: 13px; color: #1d40d0; margin: 0; }
     }
 }

@@ -28,7 +28,7 @@ component Dashboard {
 
     view {
         <div class: LearnDesign.Container>
-            <header class: page-header>
+            <header class: PageHeader>
                 <h2 class: LearnDesign.PageTitle>Dashboard</h2>
                 <p class: LearnDesign.PageSubtitle>
                     Overview of {totalItems} items · Updated {lastUpdated}
@@ -52,7 +52,6 @@ component Dashboard {
         </div>
     }
     style {
-        .page-header { padding: 20px; background: var(--surface); border-bottom: 1px solid var(--borderLight); display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
         .demo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     }
 }

@@ -10,10 +10,10 @@ component HomePage {
     signal draft: String = "";
 
     view {
-        <div class: page>
+        <div class: DemoPage>
             <h3>Home Page</h3>
             <input
-                class: field
+                class: Field
                 placeholder="Home draft"
                 bind:value={draft}
                 a11y: { label: "Home draft input" }
@@ -22,8 +22,6 @@ component HomePage {
         </div>
     }
     style {
-        .page { display: flex; flex-direction: column; gap: 12px; padding: 16px; }
-        .field { padding: 12px; border: 1px solid #d4d4d8; border-radius: 8px; font-size: 15px; }
     }
 }
 
@@ -32,10 +30,10 @@ component AboutPage {
     signal draft: String = "";
 
     view {
-        <div class: page>
+        <div class: DemoPage>
             <h3>About Page</h3>
             <input
-                class: field
+                class: Field
                 placeholder="About draft"
                 bind:value={draft}
                 a11y: { label: "About draft input" }
@@ -44,8 +42,6 @@ component AboutPage {
         </div>
     }
     style {
-        .page { display: flex; flex-direction: column; gap: 12px; padding: 16px; }
-        .field { padding: 12px; border: 1px solid #d4d4d8; border-radius: 8px; font-size: 15px; }
     }
 }
 

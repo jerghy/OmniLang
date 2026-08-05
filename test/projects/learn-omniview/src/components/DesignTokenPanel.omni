@@ -19,100 +19,84 @@ component DesignTokenPanel {
             </p>
 
             <h4 class: LearnDesign.SectionTitle>Color Tokens (11)</h4>
-            <div class: color-grid>
-                <div class: color-item>
-                    <div class: color-swatch style: { background: "var(--primary)" }></div>
-                    <span class: color-name>--primary</span>
+            <div class: ColorGrid>
+                <div class: ColorItem>
+                    <div class: ColorSwatch style: { background: "var(--primary)" }></div>
+                    <span class: ColorName>--primary</span>
                 </div>
-                <div class: color-item>
-                    <div class: color-swatch style: { background: "var(--primaryLight)" }></div>
-                    <span class: color-name>--primaryLight</span>
+                <div class: ColorItem>
+                    <div class: ColorSwatch style: { background: "var(--primaryLight)" }></div>
+                    <span class: ColorName>--primaryLight</span>
                 </div>
-                <div class: color-item>
-                    <div class: color-swatch style: { background: "var(--success)" }></div>
-                    <span class: color-name>--success</span>
+                <div class: ColorItem>
+                    <div class: ColorSwatch style: { background: "var(--success)" }></div>
+                    <span class: ColorName>--success</span>
                 </div>
-                <div class: color-item>
-                    <div class: color-swatch style: { background: "var(--warning)" }></div>
-                    <span class: color-name>--warning</span>
+                <div class: ColorItem>
+                    <div class: ColorSwatch style: { background: "var(--warning)" }></div>
+                    <span class: ColorName>--warning</span>
                 </div>
-                <div class: color-item>
-                    <div class: color-swatch style: { background: "var(--danger)" }></div>
-                    <span class: color-name>--danger</span>
+                <div class: ColorItem>
+                    <div class: ColorSwatch style: { background: "var(--danger)" }></div>
+                    <span class: ColorName>--danger</span>
                 </div>
-                <div class: color-item>
-                    <div class: color-swatch style: { background: "var(--accent)" }></div>
-                    <span class: color-name>--accent</span>
+                <div class: ColorItem>
+                    <div class: ColorSwatch style: { background: "var(--accent)" }></div>
+                    <span class: ColorName>--accent</span>
                 </div>
-                <div class: color-item>
-                    <div class: color-swatch style: { background: "var(--surface)", border: "1px solid var(--border)" }></div>
-                    <span class: color-name>--surface</span>
+                <div class: ColorItem>
+                    <div class: ColorSwatch style: { background: "var(--surface)", border: "1px solid var(--border)" }></div>
+                    <span class: ColorName>--surface</span>
                 </div>
-                <div class: color-item>
-                    <div class: color-swatch style: { background: "var(--surfaceMuted)" }></div>
-                    <span class: color-name>--surfaceMuted</span>
+                <div class: ColorItem>
+                    <div class: ColorSwatch style: { background: "var(--surfaceMuted)" }></div>
+                    <span class: ColorName>--surfaceMuted</span>
                 </div>
-                <div class: color-item>
-                    <div class: color-swatch style: { background: "var(--textPrimary)" }></div>
-                    <span class: color-name>--textPrimary</span>
+                <div class: ColorItem>
+                    <div class: ColorSwatch style: { background: "var(--textPrimary)" }></div>
+                    <span class: ColorName>--textPrimary</span>
                 </div>
-                <div class: color-item>
-                    <div class: color-swatch style: { background: "var(--textSecondary)" }></div>
-                    <span class: color-name>--textSecondary</span>
+                <div class: ColorItem>
+                    <div class: ColorSwatch style: { background: "var(--textSecondary)" }></div>
+                    <span class: ColorName>--textSecondary</span>
                 </div>
-                <div class: color-item>
-                    <div class: color-swatch style: { background: "var(--border)" }></div>
-                    <span class: color-name>--border</span>
+                <div class: ColorItem>
+                    <div class: ColorSwatch style: { background: "var(--border)" }></div>
+                    <span class: ColorName>--border</span>
                 </div>
             </div>
 
             <h4 class: LearnDesign.SectionTitle>Size Tokens</h4>
-            <div class: size-demo>
-                <div class: size-bar style: { width: "var(--spaceXs)" }>xs</div>
-                <div class: size-bar style: { width: "var(--spaceSm)" }>sm</div>
-                <div class: size-bar style: { width: "var(--spaceMd)" }>md</div>
-                <div class: size-bar style: { width: "var(--spaceLg)" }>lg</div>
-                <div class: size-bar style: { width: "var(--spaceXl)" }>xl</div>
-                <div class: size-bar style: { width: "var(--spaceXxl)" }>xxl</div>
+            <div class: SizeDemo>
+                <div class: SizeBar style: { width: "var(--spaceXs)" }>xs</div>
+                <div class: SizeBar style: { width: "var(--spaceSm)" }>sm</div>
+                <div class: SizeBar style: { width: "var(--spaceMd)" }>md</div>
+                <div class: SizeBar style: { width: "var(--spaceLg)" }>lg</div>
+                <div class: SizeBar style: { width: "var(--spaceXl)" }>xl</div>
+                <div class: SizeBar style: { width: "var(--spaceXxl)" }>xxl</div>
             </div>
 
             <h4 class: LearnDesign.SectionTitle>Radius Tokens</h4>
-            <div class: radius-demo>
-                <div class: radius-box style: { border-radius: "var(--radiusSm)" }>sm</div>
-                <div class: radius-box style: { border-radius: "var(--radiusMd)" }>md</div>
-                <div class: radius-box style: { border-radius: "var(--radiusLg)" }>lg</div>
-                <div class: radius-box style: { border-radius: "var(--radiusFull)" }>full</div>
+            <div class: RadiusDemo>
+                <div class: RadiusBox style: { border-radius: "var(--radiusSm)" }>sm</div>
+                <div class: RadiusBox style: { border-radius: "var(--radiusMd)" }>md</div>
+                <div class: RadiusBox style: { border-radius: "var(--radiusLg)" }>lg</div>
+                <div class: RadiusBox style: { border-radius: "var(--radiusFull)" }>full</div>
             </div>
 
             <h4 class: LearnDesign.SectionTitle>Shadow Tokens</h4>
-            <div class: shadow-demo>
-                <div class: shadow-box style: { box-shadow: "var(--shadowSm)" }>sm</div>
-                <div class: shadow-box style: { box-shadow: "var(--shadowMd)" }>md</div>
-                <div class: shadow-box style: { box-shadow: "var(--shadowLg)" }>lg</div>
+            <div class: ShadowDemo>
+                <div class: ShadowBox style: { box-shadow: "var(--shadowSm)" }>sm</div>
+                <div class: ShadowBox style: { box-shadow: "var(--shadowMd)" }>md</div>
+                <div class: ShadowBox style: { box-shadow: "var(--shadowLg)" }>lg</div>
             </div>
 
-            <div class: hint-bar>
-                <span class: hint-text>Switch themes above — all tokens update automatically via CSS cascade</span>
+            <div class: HintBar>
+                <span class: HintText>Switch themes above — all tokens update automatically via CSS cascade</span>
             </div>
         </div>
     }
 
     style {
-        .color-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
-        .color-item { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-        .color-swatch { width: 36px; height: 36px; border-radius: var(--radiusMd); }
-        .color-name { font-size: var(--fontSizeXs); color: var(--textSecondary); font-family: monospace; }
-
-        .size-demo { display: flex; align-items: center; gap: 8px; margin-bottom: 18px; }
-        .size-bar { height: 24px; background: var(--primary); border-radius: var(--radiusSm); color: white; font-size: var(--fontSizeXs); display: flex; align-items: center; padding: "0 6px"; }
-
-        .radius-demo { display: flex; gap: 12px; margin-bottom: 18px; }
-        .radius-box { width: 60px; height: 60px; background: var(--primary); color: white; display: flex; align-items: center; justify-content: center; font-size: var(--fontSizeXs); }
-
-        .shadow-demo { display: flex; gap: 16px; margin-bottom: 18px; }
-        .shadow-box { width: 80px; height: 60px; background: var(--surface); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: var(--fontSizeXs); color: var(--textSecondary); }
-
-        .hint-bar { padding: "8px 0"; }
-        .hint-text { font-size: var(--fontSizeXs); color: var(--textMuted); }
     }
 }

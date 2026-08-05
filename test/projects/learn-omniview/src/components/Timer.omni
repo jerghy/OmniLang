@@ -57,12 +57,12 @@ component Timer {
 
     view {
         <div class: LearnDesign.Card>
-            <h3 class: title>Timer Demo</h3>
+            <h3 class: Title>Timer Demo</h3>
             <p class: count-text>Count: {count} / 10</p>
-            <p class: info>Status: {if running { "Running" } else { "Stopped" }}</p>
-            <p class: info>手动步进：点击 Tick 手动 +1（自动计时见 StdLibShowcase 的 async_sleep）</p>
+            <p class: Info>Status: {if running { "Running" } else { "Stopped" }}</p>
+            <p class: Info>手动步进：点击 Tick 手动 +1（自动计时见 StdLibShowcase 的 async_sleep）</p>
 
-            <div class: btn-row>
+            <div class: BtnRow>
                 <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={start}>Start</button>
                 <button variant: LearnDesign.Button(color=accent, size=sm) @onPress={stop}>Stop</button>
                 <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={tick}>Tick</button>
@@ -72,9 +72,6 @@ component Timer {
     }
     style {
         // 计时器特有的数字显示和布局
-        .title { font-size: 18px; margin-bottom: 12px; color: #222; }
         .count-text { font-size: 36px; font-weight: bold; color: #6366f1; margin-bottom: 8px; }
-        .info { font-size: 14px; color: #666; margin-bottom: 12px; }
-        .btn-row { display: flex; gap: 8px; margin-bottom: 8px; }
     }
 }

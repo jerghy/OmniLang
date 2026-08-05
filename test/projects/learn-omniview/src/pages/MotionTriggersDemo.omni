@@ -46,46 +46,41 @@ component MotionTriggersDemo {
             <p class: LearnDesign.Subtitle>@in-view · @scroll (start/end/scrub) · @focus · @drag (constraints/elastic)</p>
 
             <!-- @in-view 触发器 -->
-            <div class: card>
-                <h4 class: label>@in-view 触发器</h4>
+            <div class: DemoCard>
+                <h4 class: Label>@in-view 触发器</h4>
                 <div @in-view={slideInView}>
                     <p>Slide in (entering viewport)</p>
                 </div>
             </div>
 
             <!-- @scroll 触发器 + 控制维度：start/end/scrub -->
-            <div class: card>
-                <h4 class: label>@scroll 触发器 + start/end/scrub</h4>
-                <div @scroll start: 200 end: 800 scrub: true={scrollFade} class: scroll-area>
+            <div class: DemoCard>
+                <h4 class: Label>@scroll 触发器 + start/end/scrub</h4>
+                <div @scroll start: 200 end: 800 scrub: true={scrollFade} class: ScrollArea>
                     <p>在 200–800px 滚动区间内，进度实时映射到动画（scrub）</p>
                     <p>区间外的滚动位置不驱动动画（start/end 限定）</p>
                 </div>
             </div>
 
             <!-- @focus 触发器 -->
-            <div class: card>
-                <h4 class: label>focus 触发器</h4>
-                <input placeholder="Focus me" @focus={slideInView} class: focus-input />
+            <div class: DemoCard>
+                <h4 class: Label>focus 触发器</h4>
+                <input placeholder="Focus me" @focus={slideInView} class: FocusInput />
                 <p>Focus the input to trigger slideInView</p>
             </div>
 
             <!-- @drag-horizontal + @drag-vertical 拖拽（constraints 限定范围、elastic 回弹） -->
-            <div class: card>
-                <h4 class: label>@drag-horizontal / @drag-vertical 拖拽</h4>
-                <div @drag-horizontal constraints: [-100, 100] elastic: 0.5 threshold: 8={dragSlide} class: drag-box>
+            <div class: DemoCard>
+                <h4 class: Label>@drag-horizontal / @drag-vertical 拖拽</h4>
+                <div @drag-horizontal constraints: [-100, 100] elastic: 0.5 threshold: 8={dragSlide} class: DragBox>
                     <p>约束 ±100px · 弹性 0.5</p>
                 </div>
-                <div @drag-vertical constraints: [0, 150] elastic: 0.3 threshold: 4={dragSlideY} class: drag-box-vertical>
+                <div @drag-vertical constraints: [0, 150] elastic: 0.3 threshold: 4={dragSlideY} class: DragBoxVertical>
                     <p>约束 0–150px · 弹性 0.3</p>
                 </div>
             </div>
         </div>
     }
     style {
-        .card { margin-bottom: 14px; padding: 12px; background: var(--surfaceMuted); border-radius: var(--radiusMd); }
-        .scroll-area { height: 120px; overflow-y: auto; background: var(--surfaceSubtle); padding: 16px; border-radius: var(--radiusMd); }
-        .drag-box { width: 120px; padding: 16px; background: var(--accent); color: white; border-radius: var(--radiusMd); text-align: center; cursor: grab; user-select: none; }
-        .drag-box-vertical { width: 100px; padding: 16px; background: var(--primary); color: white; border-radius: var(--radiusMd); text-align: center; cursor: grab; user-select: none; margin-top: 8px; }
-        .focus-input { padding: 8px 12px; border: 2px solid var(--borderLight); border-radius: var(--radiusMd); font-size: 13px; }
     }
 }
