@@ -1,5 +1,5 @@
 // ╔══════════════════════════════════════════════════════════════╗
-// ║  components/math_ext.omni —— std/math 扩展函数演示                   ║
+// ║  lib/math_ext.omni —— std/math 扩展函数演示                          ║
 // ║  演示：math_min, max, pow, sin, cos, tan, log, log2, log10,  ║
 // ║        pi, e, clamp, random_int, round                       ║
 // ║  纯逻辑文件，不写 import omniview;                              ║

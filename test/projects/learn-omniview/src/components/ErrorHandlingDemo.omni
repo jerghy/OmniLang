@@ -26,7 +26,7 @@ component ErrorHandlingDemo {
         <div class: LearnDesign.Container>
             <h3 class: LearnDesign.CardTitle>异常处理：throw / try / catch / finally</h3>
             <p class: LearnDesign.Subtitle>
-                演示 components/error_handling.omni 中的 throw 语句与 try/catch/finally 结构
+                演示 lib/error_handling.omni 中的 throw 语句与 try/catch/finally 结构
             </p>
 
             <!-- ═══ throw + try/catch ═══ -->

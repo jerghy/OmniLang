@@ -1,5 +1,5 @@
 // ╔══════════════════════════════════════════════════════════════╗
-// ║  components/async_demo.omni —— std/async 模块演示                   ║
+// ║  lib/async_demo.omni —— std/async 模块演示                          ║
 // ║  演示：async_sleep, async_spawn, async_all, async_race,      ║
 // ║        async_timeout                                         ║
 // ║  纯逻辑文件，不写 import omniview;                              ║

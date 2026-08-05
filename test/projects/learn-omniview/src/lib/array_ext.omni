@@ -1,5 +1,5 @@
 // ╔══════════════════════════════════════════════════════════════╗
-// ║  components/array_ext.omni —— std/array 扩展函数演示                 ║
+// ║  lib/array_ext.omni —— std/array 扩展函数演示                        ║
 // ║  演示：array_remove, map（语言方法）, array_find, array_contains   ║
 // ║  纯逻辑文件，不写 import omniview;                              ║
 // ╚══════════════════════════════════════════════════════════════╝
