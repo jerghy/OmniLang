@@ -347,4 +347,2901 @@ design LearnDesign {
             font-size: token(fontSizeLg);
         }
     }
+
+    // ═══════════════════════════════════════════════════════════
+    // 4. 演示类（C2a 迁移）——由各 demo 的 legacy style block 迁移而来
+    //    属性值原样保留（var(--x) 归一为 token(x)）；Flutter 端仅
+    //    BoxDecoration 可映射属性生效，其余属性诚实降级
+    // ═══════════════════════════════════════════════════════════
+
+    // (C2a migration) 4 properties
+    class ActionRow {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-top: 14px;
+    }
+    // (C2a migration) 2 properties
+    class Actions {
+        display: flex;
+        gap: 8px;
+    }
+    // (C2a migration) 1 properties
+    class AddTodoContainer {
+        padding: 0 16px 16px 16px;
+    }
+    // (C2a migration) 5 properties
+    class AnimBox {
+        background: #f3e8ff;
+        border: 1px solid #e9d5ff;
+        border-radius: 8px;
+        padding: 12px;
+        text-align: center;
+    }
+    // (C2a migration) 1 properties
+    class ArrayArea {
+        margin-bottom: 12px;
+    }
+    // (C2a migration) 2 properties
+    class Arrow {
+        color: #a16207;
+        font-size: 14px;
+    }
+    // (C2a migration) 5 properties
+    class BadgeBlurred {
+        background: #f3f4f6;
+        border-radius: 12px;
+        color: #6b7280;
+        font-size: 14px;
+        padding: 4px 12px;
+    }
+    // (C2a migration) 5 properties
+    class BadgeFocused {
+        background: #dbf0ff;
+        border-radius: 12px;
+        color: #1d40d0;
+        font-size: 14px;
+        padding: 4px 12px;
+    }
+    // (C2a migration) 5 properties
+    class BadgeIdle {
+        background: #fdf0c0;
+        border-radius: 12px;
+        color: #924000;
+        font-size: 14px;
+        padding: 4px 12px;
+    }
+    // (C2a migration) 5 properties
+    class BadgeNew {
+        background: #f97316;
+        border-radius: 10px;
+        color: white;
+        font-size: 11px;
+        padding: 2px 8px;
+    }
+    // (C2a migration) 5 properties
+    class BadgeUnknown {
+        background: #fddddd;
+        border-radius: 12px;
+        color: #dc2626;
+        font-size: 14px;
+        padding: 4px 12px;
+    }
+    // (C2a migration) 4 properties
+    class BigNumber {
+        color: token(primary);
+        font-size: 36px;
+        font-weight: bold;
+        margin: 4px 0;
+    }
+    // (C2a migration) 5 properties
+    class Blockquote {
+        border-left: 3px solid #d4d4d8;
+        color: #6b7280;
+        font-size: 13px;
+        margin: 6px 0;
+        padding-left: 12px;
+    }
+    // (C2a migration) 7 properties
+    class Box {
+        background: #eef2ff;
+        border: 1px solid #6366f1;
+        border-radius: 8px;
+        flex: 0 0 auto;
+        overflow: hidden;
+        padding: 12px;
+        text-align: center;
+    }
+    // (C2a migration) 6 properties
+    class BoxCh {
+        background: #e0e7ff;
+        border-radius: 6px;
+        font-size: 12px;
+        padding: 8px;
+        text-align: center;
+        width: 20ch;
+    }
+    // (C2a migration) 6 properties
+    class BoxCm {
+        background: #fef08a;
+        border-radius: 6px;
+        font-size: 12px;
+        padding: 8px;
+        text-align: center;
+        width: 1cm;
+    }
+    // (C2a migration) 6 properties
+    class BoxCq {
+        background: #ede9fe;
+        border-radius: 6px;
+        font-size: 12px;
+        padding: 8px;
+        text-align: center;
+        width: 10cqw;
+    }
+    // (C2a migration) 6 properties
+    class BoxCqb {
+        background: #a5f3fc;
+        border-radius: 6px;
+        font-size: 12px;
+        height: 5cqb;
+        padding: 8px;
+        text-align: center;
+    }
+    // (C2a migration) 6 properties
+    class BoxCqh {
+        background: #fbcfe8;
+        border-radius: 6px;
+        font-size: 12px;
+        height: 5cqh;
+        padding: 8px;
+        text-align: center;
+    }
+    // (C2a migration) 7 properties
+    class BoxCqi {
+        background: #ffedd5;
+        border-radius: 6px;
+        font-size: 10px;
+        height: 5cqb;
+        padding: 4px;
+        text-align: center;
+        width: 5cqi;
+    }
+    // (C2a migration) 7 properties
+    class BoxCqmax {
+        background: #d9f99d;
+        border-radius: 6px;
+        font-size: 10px;
+        height: 5cqmax;
+        padding: 4px;
+        text-align: center;
+        width: 5cqmax;
+    }
+    // (C2a migration) 7 properties
+    class BoxCqmin {
+        background: #fed7aa;
+        border-radius: 6px;
+        font-size: 10px;
+        height: 5cqmin;
+        padding: 4px;
+        text-align: center;
+        width: 5cqmin;
+    }
+    // (C2a migration) 6 properties
+    class BoxDeg {
+        background: #fbcfe8;
+        border-radius: 6px;
+        font-size: 12px;
+        padding: 8px;
+        text-align: center;
+        transform: rotate(15deg);
+    }
+    // (C2a migration) 6 properties
+    class BoxDvh {
+        background: #d1fae5;
+        border-radius: 6px;
+        font-size: 12px;
+        height: 5dvh;
+        padding: 8px;
+        text-align: center;
+    }
+    // (C2a migration) 6 properties
+    class BoxDvw {
+        background: #ddd6fe;
+        border-radius: 6px;
+        font-size: 12px;
+        padding: 8px;
+        text-align: center;
+        width: 5dvw;
+    }
+    // (C2a migration) 6 properties
+    class BoxEx {
+        background: #fee2e2;
+        border-radius: 6px;
+        font-size: 12px;
+        padding: 8px;
+        text-align: center;
+        width: 10ex;
+    }
+    // (C2a migration) 5 properties
+    class BoxFr {
+        background: #bbf7d0;
+        border-radius: 6px;
+        font-size: 12px;
+        padding: 8px;
+        text-align: center;
+    }
+    // (C2a migration) 6 properties
+    class BoxGrad {
+        background: #d9f99d;
+        border-radius: 6px;
+        font-size: 12px;
+        padding: 8px;
+        text-align: center;
+        transform: rotate(50grad);
+    }
+    // (C2a migration) 6 properties
+    class BoxIc {
+        background: #dbeafe;
+        border-radius: 6px;
+        font-size: 12px;
+        padding: 8px;
+        text-align: center;
+        width: 15ic;
+    }
+    // (C2a migration) 6 properties
+    class BoxLh {
+        background: #f3e8ff;
+        border-radius: 6px;
+        font-size: 12px;
+        line-height: 2lh;
+        padding: 8px;
+        text-align: center;
+    }
+    // (C2a migration) 6 properties
+    class BoxLvh {
+        background: #fce7f3;
+        border-radius: 6px;
+        font-size: 12px;
+        height: 5lvh;
+        padding: 8px;
+        text-align: center;
+    }
+    // (C2a migration) 6 properties
+    class BoxLvw {
+        background: #fde68a;
+        border-radius: 6px;
+        font-size: 12px;
+        padding: 8px;
+        text-align: center;
+        width: 5lvw;
+    }
+    // (C2a migration) 6 properties
+    class BoxMm {
+        background: #ddd6fe;
+        border-radius: 6px;
+        font-size: 12px;
+        padding: 8px;
+        text-align: center;
+        width: 10mm;
+    }
+    // (C2a migration) 6 properties
+    class BoxMs {
+        background: #fed7aa;
+        border-radius: 6px;
+        font-size: 12px;
+        padding: 8px;
+        text-align: center;
+        transition-duration: 150ms;
+    }
+    // (C2a migration) 5 properties
+    class BoxPt {
+        background: #bfdbfe;
+        border-radius: 6px;
+        font-size: 12pt;
+        padding: 8px;
+        text-align: center;
+    }
+    // (C2a migration) 6 properties
+    class BoxRad {
+        background: #a5f3fc;
+        border-radius: 6px;
+        font-size: 12px;
+        padding: 8px;
+        text-align: center;
+        transform: rotate(0.5rad);
+    }
+    // (C2a migration) 6 properties
+    class BoxRlh {
+        background: #f3e8ff;
+        border-radius: 6px;
+        font-size: 12px;
+        line-height: 2rlh;
+        padding: 8px;
+        text-align: center;
+    }
+    // (C2a migration) 6 properties
+    class BoxS {
+        animation-duration: 1s;
+        background: #fecdd3;
+        border-radius: 6px;
+        font-size: 12px;
+        padding: 8px;
+        text-align: center;
+    }
+    // (C2a migration) 6 properties
+    class BoxSvh {
+        background: #cffafe;
+        border-radius: 6px;
+        font-size: 12px;
+        height: 5svh;
+        padding: 8px;
+        text-align: center;
+    }
+    // (C2a migration) 6 properties
+    class BoxSvw {
+        background: #c7d2fe;
+        border-radius: 6px;
+        font-size: 12px;
+        padding: 8px;
+        text-align: center;
+        width: 5svw;
+    }
+    // (C2a migration) 6 properties
+    class BoxTurn {
+        background: #e9d5ff;
+        border-radius: 6px;
+        font-size: 12px;
+        padding: 8px;
+        text-align: center;
+        transform: rotate(0.25turn);
+    }
+    // (C2a migration) 6 properties
+    class BoxVh {
+        background: #fecaca;
+        border-radius: 6px;
+        font-size: 12px;
+        height: 10vh;
+        padding: 8px;
+        text-align: center;
+    }
+    // (C2a migration) 7 properties
+    class BoxVmax {
+        background: #a7f3d0;
+        border-radius: 6px;
+        font-size: 10px;
+        height: 5vmax;
+        padding: 4px;
+        text-align: center;
+        width: 5vmax;
+    }
+    // (C2a migration) 7 properties
+    class BoxVmin {
+        background: #fde68a;
+        border-radius: 6px;
+        font-size: 10px;
+        height: 5vmin;
+        padding: 4px;
+        text-align: center;
+        width: 5vmin;
+    }
+    // (C2a migration) 7 properties
+    class Btn {
+        background: #6366f1;
+        border: none;
+        border-radius: 8px;
+        color: white;
+        cursor: pointer;
+        font-size: 14px;
+        padding: 8px 16px;
+    }
+    // (C2a migration) 7 properties
+    class BtnActive {
+        background: #dc2626;
+        border: none;
+        border-radius: 8px;
+        color: white;
+        cursor: pointer;
+        font-size: 14px;
+        padding: 10px 20px;
+    }
+    // (C2a migration) 7 properties
+    class BtnClear {
+        background: #f97316;
+        border: none;
+        border-radius: 6px;
+        color: #fff;
+        cursor: pointer;
+        font-size: 13px;
+        padding: 8px 16px;
+    }
+    // (C2a migration) 7 properties
+    class BtnDark {
+        background: #1e293b;
+        border: none;
+        border-radius: 8px;
+        color: white;
+        cursor: pointer;
+        font-size: 14px;
+        padding: 10px 20px;
+    }
+    // (C2a migration) 7 properties
+    class BtnDec {
+        background: #dc2626;
+        border: none;
+        border-radius: 8px;
+        color: white;
+        cursor: pointer;
+        font-size: 13px;
+        padding: 8px 16px;
+    }
+    // (C2a migration) 8 properties
+    class BtnFocus {
+        background: #2563eb;
+        border: none;
+        border-radius: 8px;
+        color: white;
+        cursor: pointer;
+        font-size: 14px;
+        margin-right: 8px;
+        padding: 10px 20px;
+    }
+    // (C2a migration) 8 properties
+    class BtnHover {
+        background: #7c3aed;
+        border: none;
+        border-radius: 8px;
+        color: white;
+        cursor: pointer;
+        font-size: 14px;
+        margin-right: 8px;
+        padding: 10px 20px;
+    }
+    // (C2a migration) 7 properties
+    class BtnInc {
+        background: #16a34a;
+        border: none;
+        border-radius: 8px;
+        color: white;
+        cursor: pointer;
+        font-size: 13px;
+        padding: 8px 16px;
+    }
+    // (C2a migration) 7 properties
+    class BtnOutline {
+        background: white;
+        border: 1px solid #6366f1;
+        border-radius: 8px;
+        color: #6366f1;
+        cursor: pointer;
+        font-size: 14px;
+        padding: 8px 16px;
+    }
+    // (C2a migration) 7 properties
+    class BtnReset {
+        background: #6b7280;
+        border: none;
+        border-radius: 6px;
+        color: #fff;
+        cursor: pointer;
+        font-size: 13px;
+        padding: 8px 16px;
+    }
+    // (C2a migration) 4 properties
+    class BtnRow {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 8px;
+    }
+    // (C2a migration) 7 properties
+    class BtnSave {
+        background: #6366f1;
+        border: none;
+        border-radius: 6px;
+        color: #fff;
+        cursor: pointer;
+        font-size: 13px;
+        padding: 8px 16px;
+    }
+    // (C2a migration) 8 properties
+    class BtnSm {
+        background: #6366f1;
+        border: 1px solid #d4d4d8;
+        border-radius: 6px;
+        color: white;
+        cursor: pointer;
+        font-size: 13px;
+        margin-top: 8px;
+        padding: 6px 12px;
+    }
+    // (C2a migration) 7 properties
+    class BtnSmall {
+        background: #6366f1;
+        border: none;
+        border-radius: 6px;
+        color: white;
+        cursor: pointer;
+        font-size: 12px;
+        padding: 6px 12px;
+    }
+    // (C2a migration) 7 properties
+    class BtnSubmit {
+        background: #22c55d;
+        border: none;
+        border-radius: 6px;
+        color: #fff;
+        cursor: pointer;
+        font-size: 13px;
+        padding: 8px 16px;
+    }
+    // (C2a migration) 3 properties
+    class Canvas {
+        border: 1px solid #d4d4d8;
+        height: 50px;
+        width: 100px;
+    }
+    // (C2a migration) 8 properties
+    class CapabilityCard {
+        background: token(surface);
+        border: 1px solid token(borderLight);
+        border-radius: token(radiusLg);
+        cursor: pointer;
+        display: flex;
+        flex-direction: column;
+        padding: 20px;
+        transition: all token(durationFast);
+    }
+    // (C2a migration) 7 properties
+    class CardColor {
+        background: token(surfaceMuted);
+        border: 2px solid token(border);
+        border-radius: 10px;
+        flex: 0 0 auto;
+        min-width: 140px;
+        padding: 14px 16px;
+        text-align: center;
+    }
+    // (C2a migration) 6 properties
+    class CardDesc {
+        color: token(textPrimary);
+        flex: 1;
+        font-size: 12px;
+        line-height: 1.5;
+        margin: 0 0 10px 0;
+        opacity: 0.8;
+    }
+    // (C2a migration) 8 properties
+    class CardHover {
+        background: #f0fdf4;
+        border: 1px solid #bbf7d0;
+        border-radius: 8px;
+        color: #166534;
+        cursor: pointer;
+        font-size: 14px;
+        padding: 20px;
+        text-align: center;
+    }
+    // (C2a migration) 2 properties
+    class CardIcon {
+        font-size: 28px;
+        margin: 0 0 10px 0;
+    }
+    // (C2a migration) 6 properties
+    class CardLabel {
+        color: #64748b;
+        display: block;
+        font-size: 11px;
+        letter-spacing: 0.5px;
+        margin-bottom: 8px;
+        text-transform: uppercase;
+    }
+    // (C2a migration) 3 properties
+    class CardLink {
+        color: token(primary);
+        font-size: token(fontSizeXs);
+        font-weight: token(fontWeightSemibold);
+    }
+    // (C2a migration) 3 properties
+    class CardName {
+        color: token(textPrimary);
+        font-size: token(fontSizeMd);
+        font-weight: token(fontWeightSemibold);
+    }
+    // (C2a migration) 2 properties
+    class CardSwatches {
+        display: flex;
+        gap: 4px;
+    }
+    // (C2a migration) 8 properties
+    class CardTranslate {
+        background: #fef9c3;
+        border: 1px solid #eab308;
+        border-radius: 10px;
+        flex: 0 0 auto;
+        min-width: 120px;
+        padding: 14px 16px;
+        position: relative;
+        text-align: center;
+    }
+    // (C2a migration) 2 properties
+    class CascadeArea {
+        background: white;
+        border-radius: var(--radius-sm);
+    }
+    // (C2a migration) 5 properties
+    class CascadeBox {
+        background: hsl(var(--accent-h, 221), 70%, 95%);
+        border: 2px solid hsl(var(--accent-h, 221), 70%, 75%);
+        border-radius: var(--radius-sm);
+        padding: 16px;
+        text-align: center;
+    }
+    // (C2a migration) 3 properties
+    class CascadeDesc {
+        color: hsl(var(--accent-h, 221), 40%, 45%);
+        font-size: 12px;
+        margin: 0 0 12px 0;
+    }
+    // (C2a migration) 3 properties
+    class CascadeTitle {
+        color: hsl(var(--accent-h, 221), 50%, 30%);
+        font-size: 16px;
+        margin: 0 0 6px 0;
+    }
+    // (C2a migration) 4 properties
+    class CheckLabel {
+        align-items: center;
+        cursor: pointer;
+        display: flex;
+        gap: 8px;
+    }
+    // (C2a migration) 3 properties
+    class CheckStatus {
+        color: #6b7280;
+        font-size: 13px;
+        margin: 4px 0 0 0;
+    }
+    // (C2a migration) 2 properties
+    class CheckText {
+        color: #374151;
+        font-size: 14px;
+    }
+    // (C2a migration) 5 properties
+    class CheckboxLabel {
+        align-items: center;
+        color: #4b5563;
+        display: flex;
+        font-size: 14px;
+        gap: 8px;
+    }
+    // (C2a migration) 5 properties
+    class ChildBox {
+        background: #f3f0ff;
+        border: 1px solid #c7d2fe;
+        border-radius: 10px;
+        margin: 8px 0;
+        padding: 14px;
+    }
+    // (C2a migration) 1 properties
+    class ChildColumn {
+        max-width: 400px;
+    }
+    // (C2a migration) 3 properties
+    class ChildDesc {
+        color: #64748b;
+        font-size: 12px;
+        margin: 0 0 12px 0;
+    }
+    // (C2a migration) 3 properties
+    class ChildHint {
+        color: #94a3b8;
+        font-size: 11px;
+        margin: 8px 0 0 0;
+    }
+    // (C2a migration) 3 properties
+    class ChildTitle {
+        color: #1e293b;
+        font-size: 15px;
+        margin: 0 0 4px 0;
+    }
+    // (C2a migration) 3 properties
+    class ChipLabel {
+        font-family: monospace;
+        font-size: token(fontSizeXs);
+        font-weight: token(fontWeightSemibold);
+    }
+    // (C2a migration) 7 properties
+    class CloseBtn {
+        background: #f3f4f6;
+        border: 1px solid #d4d4d8;
+        border-radius: 6px;
+        color: #6b7280;
+        cursor: pointer;
+        font-size: 16px;
+        padding: 6px 12px;
+    }
+    // (C2a migration) 5 properties
+    class Code {
+        background: #f3f4f6;
+        border-radius: 4px;
+        color: #6366f1;
+        font-size: 13px;
+        padding: 1px 6px;
+    }
+    // (C2a migration) 11 properties
+    class CodeBlock {
+        background: token(surfaceSubtle);
+        border: 1px solid token(border);
+        border-radius: token(radiusMd);
+        color: token(textPrimary);
+        font-family: ui-monospace, SFMono-Regular, monospace;
+        font-size: token(fontSizeXs);
+        line-height: 1.6;
+        margin: 0;
+        overflow-x: auto;
+        padding: 14px;
+        white-space: pre;
+    }
+    // (C2a migration) 3 properties
+    class CodeHint {
+        color: var(--text-muted);
+        font-size: 11px;
+        margin: 0;
+    }
+    // (C2a migration) 3 properties
+    class CodeLayout {
+        display: flex;
+        gap: 14px;
+        margin: 0 0 14px 0;
+    }
+    // (C2a migration) 4 properties
+    class ColorGrid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 18px;
+    }
+    // (C2a migration) 4 properties
+    class ColorItem {
+        align-items: center;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    // (C2a migration) 3 properties
+    class ColorName {
+        color: token(textSecondary);
+        font-family: monospace;
+        font-size: token(fontSizeXs);
+    }
+    // (C2a migration) 3 properties
+    class ColorSwatch {
+        border-radius: token(radiusMd);
+        height: 36px;
+        width: 36px;
+    }
+    // (C2a migration) 4 properties
+    class ColumnLabel {
+        color: #64748b;
+        font-size: 13px;
+        font-weight: 600;
+        margin: 0 0 8px 0;
+    }
+    // (C2a migration) 1 properties
+    class ConditionalArea {
+        padding: 8px 0;
+    }
+    // (C2a migration) 4 properties
+    class ConstArea {
+        background: #f9fafb;
+        border-radius: 6px;
+        margin-bottom: 12px;
+        padding: 8px 12px;
+    }
+    // (C2a migration) 4 properties
+    class ConstraintsRow {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        margin-bottom: 12px;
+    }
+    // (C2a migration) 4 properties
+    class Controls {
+        align-items: center;
+        display: flex;
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+    // (C2a migration) 1 properties
+    class CounterArea {
+        margin-bottom: 12px;
+    }
+    // (C2a migration) 4 properties
+    class CounterText {
+        color: #6366f1;
+        font-size: 24px;
+        font-weight: bold;
+        margin-bottom: 8px;
+    }
+    // (C2a migration) 5 properties
+    class CustomFooter {
+        background: #f3e8ff;
+        border-radius: 6px;
+        color: #6b21a8;
+        font-size: 12px;
+        padding: 8px 12px;
+    }
+    // (C2a migration) 1 properties
+    class CustomIcon {
+        font-size: 16px;
+    }
+    // (C2a migration) 3 properties
+    class CustomNote {
+        color: #3b82f6;
+        font-size: 11px;
+        margin: 4px 0 0 0;
+    }
+    // (C2a migration) 8 properties
+    class CycleBtn {
+        background: token(primary);
+        border: none;
+        border-radius: var(--radius-sm);
+        color: white;
+        cursor: pointer;
+        font-size: 13px;
+        margin-bottom: 8px;
+        padding: 8px 16px;
+    }
+    // (C2a migration) 5 properties
+    class DataSubmit {
+        background: #fff;
+        border: 1px solid #ddd;
+        border-radius: 12px;
+        margin: 16px 0;
+        padding: 20px 16px;
+    }
+    // (C2a migration) 2 properties
+    class DataTable {
+        border-collapse: collapse;
+        width: 100%;
+    }
+    // (C2a migration) 4 properties
+    class DefaultText {
+        color: #64748b;
+        font-size: 13px;
+        font-style: italic;
+        margin: 0;
+    }
+    // (C2a migration) 8 properties
+    class DeleteBtn {
+        background: #f3f4f6;
+        border: none;
+        border-radius: 6px;
+        color: #6b7280;
+        cursor: pointer;
+        font-size: 13px;
+        margin-left: auto;
+        padding: 4px 10px;
+    }
+    // (C2a migration) 9 properties
+    class DemoBox {
+        align-items: center;
+        background: token(surface);
+        border: 1px solid token(border);
+        border-radius: token(constRadius);
+        display: flex;
+        height: 80px;
+        justify-content: center;
+        margin-top: 10px;
+        width: 120px;
+    }
+    // (C2a migration) 5 properties
+    class DemoCard {
+        background: token(surfaceMuted);
+        border: 1px solid #e2e8f0;
+        border-radius: token(radiusMd);
+        margin-bottom: 14px;
+        padding: 12px;
+    }
+    // (C2a migration) 4 properties
+    class DemoCheckbox {
+        accent-color: #6366f1;
+        cursor: pointer;
+        height: 18px;
+        width: 18px;
+    }
+    // (C2a migration) 4 properties
+    class DemoDesc {
+        color: #64748b;
+        font-size: 12px;
+        line-height: 1.5;
+        margin: 0 0 10px 0;
+    }
+    // (C2a migration) 2 properties
+    class DemoImg {
+        height: 24px;
+        width: 24px;
+    }
+    // (C2a migration) 5 properties
+    class DemoInput {
+        border: 2px solid #d4d4d8;
+        border-radius: 8px;
+        font-size: 14px;
+        padding: 8px 12px;
+        width: 100%;
+    }
+    // (C2a migration) 5 properties
+    class DemoLabel {
+        color: token(textSecondary);
+        font-family: monospace;
+        font-size: token(fontSizeXs);
+        font-weight: 600;
+        margin: 0 0 4px 0;
+    }
+    // (C2a migration) 4 properties
+    class DemoLink {
+        color: #6366f1;
+        cursor: pointer;
+        font-size: 14px;
+        text-decoration: underline;
+    }
+    // (C2a migration) 4 properties
+    class DemoPage {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding: 16px;
+    }
+    // (C2a migration) 2 properties
+    class DemoRange {
+        margin: 8px 0;
+        width: 100%;
+    }
+    // (C2a migration) 5 properties
+    class DemoRow {
+        align-items: center;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+    // (C2a migration) 5 properties
+    class DemoSelect {
+        border: 2px solid #d4d4d8;
+        border-radius: 8px;
+        font-size: 14px;
+        padding: 8px 12px;
+        width: 100%;
+    }
+    // (C2a migration) 8 properties
+    class DemoShadow {
+        align-items: center;
+        background: token(surface);
+        border-radius: token(radiusSm);
+        box-shadow: token(constShadow);
+        display: flex;
+        height: 80px;
+        justify-content: center;
+        width: 120px;
+    }
+    // (C2a migration) 4 properties
+    class DemoSpacer {
+        background: token(primaryLight);
+        border-radius: token(radiusSm);
+        height: 24px;
+        min-width: 8px;
+    }
+    // (C2a migration) 3 properties
+    class Desc {
+        color: #6b7280;
+        font-size: 13px;
+        margin: 0 0 12px 0;
+    }
+    // (C2a migration) 4 properties
+    class DetailsBox {
+        background: #fff7ed;
+        border: 1px solid #fed7aa;
+        border-radius: 6px;
+        padding: 8px;
+    }
+    // (C2a migration) 3 properties
+    class DetailsText {
+        color: #6b7280;
+        font-size: 13px;
+        margin: 8px 0 0 0;
+    }
+    // (C2a migration) 4 properties
+    class DiceArea {
+        background: #fff7ed;
+        border-radius: 6px;
+        margin-bottom: 12px;
+        padding: 8px 12px;
+    }
+    // (C2a migration) 4 properties
+    class Dot {
+        background: #6366f1;
+        border-radius: 50%;
+        height: 8px;
+        width: 8px;
+    }
+    // (C2a migration) 9 properties
+    class DragBox {
+        background: token(accent);
+        border: 1px solid #fde68a;
+        border-radius: token(radiusMd);
+        color: white;
+        cursor: grab;
+        padding: 16px;
+        text-align: center;
+        user-select: none;
+        width: 120px;
+    }
+    // (C2a migration) 9 properties
+    class DragBoxVertical {
+        background: token(primary);
+        border-radius: token(radiusMd);
+        color: white;
+        cursor: grab;
+        margin-top: 8px;
+        padding: 16px;
+        text-align: center;
+        user-select: none;
+        width: 100px;
+    }
+    // (C2a migration) 9 properties
+    class DragDemoBox {
+        background: token(primary);
+        border-radius: token(radiusMd);
+        color: white;
+        cursor: grab;
+        height: 80px;
+        padding: 12px;
+        text-align: center;
+        user-select: none;
+        width: 100px;
+    }
+    // (C2a migration) 6 properties
+    class DynCard {
+        align-items: center;
+        display: flex;
+        gap: 20px;
+        margin: 0 0 8px 0;
+        padding: 24px;
+        transition: all 0.3s ease;
+    }
+    // (C2a migration) 3 properties
+    class DynCount {
+        font-family: monospace;
+        font-size: token(fontSizeXl);
+        font-weight: token(fontWeightBold);
+    }
+    // (C2a migration) 3 properties
+    class DynInfo {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+    // (C2a migration) 4 properties
+    class DynLabel {
+        color: token(textMuted);
+        font-size: token(fontSizeXs);
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+    }
+    // (C2a migration) 2 properties
+    class DynSig {
+        font-family: monospace;
+        font-size: token(fontSizeSm);
+    }
+    // (C2a migration) 5 properties
+    class DynSwatch {
+        border-radius: token(radiusFull);
+        box-shadow: token(constShadow);
+        flex-shrink: 0;
+        height: 80px;
+        width: 80px;
+    }
+    // (C2a migration) 2 properties
+    class DynValue {
+        font-size: token(fontSizeLg);
+        font-weight: token(fontWeightBold);
+    }
+    // (C2a migration) 2 properties
+    class DynamicArea {
+        background: white;
+        border-radius: var(--radius-sm);
+    }
+    // (C2a migration) 4 properties
+    class DynamicSwatches {
+        align-items: center;
+        display: flex;
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+    // (C2a migration) 3 properties
+    class DynamicText {
+        color: var(--text-primary);
+        font-size: 14px;
+        margin: 0 0 10px 0;
+    }
+    // (C2a migration) 4 properties
+    class EmitChild {
+        background: white;
+        border: 1px solid #d4d4d8;
+        border-radius: 10px;
+        padding: 16px;
+    }
+    // (C2a migration) 2 properties
+    class EmptyState {
+        padding: 48px 24px;
+        text-align: center;
+    }
+    // (C2a migration) 2 properties
+    class Error {
+        background: #fddddd;
+        color: #991b1b;
+    }
+    // (C2a migration) 2 properties
+    class ErrorBox {
+        background: #fff5f0;
+        border-color: #f97316;
+    }
+    // (C2a migration) 3 properties
+    class ErrorText {
+        color: #f97316;
+        font-size: 14px;
+        margin: 0;
+    }
+    // (C2a migration) 4 properties
+    class EventGrid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+    // (C2a migration) 6 properties
+    class FeaturesItem {
+        align-items: center;
+        color: #4b5563;
+        display: flex;
+        font-size: 13px;
+        gap: 8px;
+        padding: 4px 0;
+    }
+    // (C2a migration) 3 properties
+    class FeaturesList {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+    }
+    // (C2a migration) 1 properties
+    class FeaturesSection {
+        margin-top: 20px;
+    }
+    // (C2a migration) 7 properties
+    class Field {
+        border: 1px solid #d4d4d8;
+        border-radius: 8px;
+        display: flex;
+        flex-direction: column;
+        font-size: 15px;
+        gap: 4px;
+        padding: 12px;
+    }
+    // (C2a migration) 4 properties
+    class FieldInput {
+        border: 1px solid #d4d4d8;
+        border-radius: 6px;
+        font-size: 14px;
+        padding: 8px 12px;
+    }
+    // (C2a migration) 3 properties
+    class FieldLabel {
+        color: #374151;
+        font-size: 13px;
+        font-weight: 600;
+    }
+    // (C2a migration) 5 properties
+    class FieldTextarea {
+        border: 1px solid #d4d4d8;
+        border-radius: 6px;
+        font-family: sans-serif;
+        font-size: 14px;
+        padding: 8px 12px;
+    }
+    // (C2a migration) 3 properties
+    class Fieldset {
+        border: 1px solid #d4d4d8;
+        border-radius: 6px;
+        padding: 8px;
+    }
+    // (C2a migration) 1 properties
+    class Figure {
+        margin: 8px 0;
+    }
+    // (C2a migration) 3 properties
+    class FilterLabel {
+        color: #374151;
+        font-size: 14px;
+        margin: 0;
+    }
+    // (C2a migration) 4 properties
+    class FnCard {
+        background: #f8fafc;
+        border: 1px dashed #cbd5e1;
+        border-radius: 8px;
+        padding: 12px;
+    }
+    // (C2a migration) 3 properties
+    class FnDesc {
+        color: #334155;
+        font-size: 13px;
+        margin: 0 0 10px 0;
+    }
+    // (C2a migration) 8 properties
+    class FocusBtn {
+        background: token(primary);
+        border: none;
+        border-radius: 6px;
+        color: #fff;
+        cursor: pointer;
+        font-size: 11px;
+        margin-top: 6px;
+        padding: 4px 10px;
+    }
+    // (C2a migration) 4 properties
+    class FocusIndicator {
+        background: #dbf0ff;
+        border-radius: 8px;
+        margin-top: 12px;
+        padding: 8px 16px;
+    }
+    // (C2a migration) 4 properties
+    class FocusInput {
+        border: 2px solid token(borderLight);
+        border-radius: token(radiusMd);
+        font-size: 13px;
+        padding: 8px 12px;
+    }
+    // (C2a migration) 3 properties
+    class FocusText {
+        color: #1d40d0;
+        font-size: 13px;
+        margin: 0;
+    }
+    // (C2a migration) 5 properties
+    class FooterRow {
+        align-items: center;
+        display: flex;
+        gap: 8px;
+        justify-content: space-between;
+        margin-top: 12px;
+    }
+    // (C2a migration) 4 properties
+    class Form {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+    // (C2a migration) 6 properties
+    class FormInput {
+        border: 2px solid token(border);
+        border-radius: token(radiusMd);
+        flex: 1;
+        font-size: 14px;
+        outline: none;
+        padding: 8px 12px;
+    }
+    // (C2a migration) 3 properties
+    class FormLabel {
+        color: token(textPrimary);
+        font-size: 14px;
+        min-width: 50px;
+    }
+    // (C2a migration) 4 properties
+    class FormRow {
+        align-items: center;
+        display: flex;
+        gap: 8px;
+        margin-bottom: 8px;
+    }
+    // (C2a migration) 8 properties
+    class FuncBtn {
+        background: #ec4899;
+        border: none;
+        border-radius: 6px;
+        color: white;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 600;
+        padding: 8px 16px;
+    }
+    // (C2a migration) 2 properties
+    class GeneratedPanel {
+        flex: 1;
+        min-width: 0;
+    }
+    // (C2a migration) 5 properties
+    class Grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
+        margin-bottom: 4px;
+    }
+    // (C2a migration) 6 properties
+    class GroupTitle {
+        border-bottom: 1px solid token(borderLight);
+        color: token(textPrimary);
+        font-size: 14px;
+        font-weight: 600;
+        margin: 20px 0 10px 0;
+        padding-bottom: 4px;
+    }
+    // (C2a migration) 5 properties
+    class Header {
+        align-items: center;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 12px;
+    }
+    // (C2a migration) 2 properties
+    class HeaderActions {
+        display: flex;
+        gap: 6px;
+    }
+    // (C2a migration) 4 properties
+    class HeaderRow {
+        align-items: center;
+        display: flex;
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+    // (C2a migration) 1 properties
+    class Hidden {
+        display: none;
+    }
+    // (C2a migration) 6 properties
+    class HiddenHint {
+        background: token(surfaceMuted);
+        border: 1px dashed token(borderLight);
+        border-radius: token(radiusMd);
+        color: token(textSecondary);
+        font-size: 13px;
+        padding: 10px 14px;
+    }
+    // (C2a migration) 2 properties
+    class HiddenImg {
+        height: 1px;
+        width: 1px;
+    }
+    // (C2a migration) 1 properties
+    class HintBar {
+        padding: 8px 0;
+    }
+    // (C2a migration) 3 properties
+    class HintText {
+        color: token(textSecondary);
+        font-size: token(fontSizeSm);
+        margin: 0 0 12px 0;
+    }
+    // (C2a migration) 1 properties
+    class Hover {
+        background: #f9fafb;
+    }
+    // (C2a migration) 3 properties
+    class HueBar {
+        display: flex;
+        gap: 6px;
+        justify-content: center;
+    }
+    // (C2a migration) 5 properties
+    class HueStep {
+        border-radius: 4px;
+        color: white;
+        font-size: 11px;
+        font-weight: 600;
+        padding: 6px 12px;
+    }
+    // (C2a migration) 2 properties
+    class Idle {
+        background: #f3f4f6;
+        color: #6b7280;
+    }
+    // (C2a migration) 3 properties
+    class IdleText {
+        color: token(textSecondary);
+        font-size: 14px;
+        margin: 0;
+    }
+    // (C2a migration) 2 properties
+    class Inactive {
+        background: #f3f4f6;
+        color: #9ca3af;
+    }
+    // (C2a migration) 6 properties
+    class Info {
+        background: #f3f4f6;
+        border-radius: 6px;
+        color: token(textSecondary);
+        font-size: 13px;
+        margin: 4px 0;
+        padding: 8px 12px;
+    }
+    // (C2a migration) 4 properties
+    class InfoBar {
+        background: #f9fafb;
+        border: 1px solid #d4d4d8;
+        border-radius: 8px;
+        padding: 10px 12px;
+    }
+    // (C2a migration) 4 properties
+    class InfoBox {
+        background: #f0f9ff;
+        border: 1px solid #bae6fd;
+        border-radius: 6px;
+        padding: 10px;
+    }
+    // (C2a migration) 7 properties
+    class InlineStaticBox {
+        background: var(--box-bg, #e0e7ff);
+        border: 1px solid var(--border-color);
+        border-radius: var(--box-radius, 8px);
+        color: var(--box-text, #3730a3);
+        font-size: 12px;
+        font-weight: 600;
+        padding: 14px 20px;
+    }
+    // (C2a migration) 3 properties
+    class InlineStaticRow {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+    // (C2a migration) 6 properties
+    class InputFocus {
+        border: 1px solid #d4d4d8;
+        border-radius: 8px;
+        font-size: 14px;
+        outline: none;
+        padding: 10px 14px;
+        width: 100%;
+    }
+    // (C2a migration) 6 properties
+    class InteractiveBox {
+        background: #f0f9ff;
+        border: 1px solid #bae6fd;
+        border-radius: 8px;
+        cursor: pointer;
+        padding: 20px;
+        text-align: center;
+    }
+    // (C2a migration) 3 properties
+    class Item {
+        color: #4b5563;
+        font-size: 14px;
+        margin: 4px 0;
+    }
+    // (C2a migration) 3 properties
+    class ItemList {
+        list-style: none;
+        margin: 8px 0;
+        padding: 0;
+    }
+    // (C2a migration) 2 properties
+    class ItemText {
+        color: #374151;
+        font-size: 14px;
+    }
+    // (C2a migration) 1 properties
+    class Items {
+        padding: 0 16px 16px 16px;
+    }
+    // (C2a migration) 2 properties
+    class KeyPoint {
+        color: token(textSecondary);
+        font-size: token(fontSizeXs);
+    }
+    // (C2a migration) 6 properties
+    class KeyPoints {
+        background: token(surfaceMuted);
+        border-radius: token(radiusMd);
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding: 12px;
+    }
+    // (C2a migration) 6 properties
+    class List {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        list-style: none;
+        margin: 0;
+        padding: 0;
+    }
+    // (C2a migration) 6 properties
+    class LiveRegion {
+        background: token(primaryLight);
+        border-radius: token(radiusMd);
+        color: token(textPrimary);
+        font-size: 13px;
+        min-width: 200px;
+        padding: 10px 14px;
+    }
+    // (C2a migration) 2 properties
+    class LoadingBox {
+        background: #f0f4ff;
+        border-color: #6366f1;
+    }
+    // (C2a migration) 3 properties
+    class LoadingText {
+        color: #6366f1;
+        font-size: 14px;
+        margin: 0;
+    }
+    // (C2a migration) 5 properties
+    class LogBox {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        min-height: 80px;
+        padding: 10px;
+    }
+    // (C2a migration) 1 properties
+    class LogColumn {
+        flex: 1;
+    }
+    // (C2a migration) 5 properties
+    class LogEmpty {
+        color: #94a3b8;
+        font-size: 12px;
+        margin: 0;
+        padding: 16px 0;
+        text-align: center;
+    }
+    // (C2a migration) 9 properties
+    class LogEntry {
+        align-items: center;
+        background: #f3f4f6;
+        border-radius: 4px;
+        color: #4b5563;
+        display: flex;
+        font-size: 12px;
+        gap: 6px;
+        margin: 2px 0;
+        padding: 4px 0;
+    }
+    // (C2a migration) 6 properties
+    class LogHeader {
+        align-items: center;
+        background: #f9fafb;
+        border-bottom: 1px solid #e5e7eb;
+        display: flex;
+        justify-content: space-between;
+        padding: 10px 14px;
+    }
+    // (C2a migration) 3 properties
+    class LogLine {
+        color: #475569;
+        font-size: 12px;
+        margin: 10px 0 0 0;
+    }
+    // (C2a migration) 3 properties
+    class LogList {
+        max-height: 200px;
+        overflow-y: auto;
+        padding: 10px 14px;
+    }
+    // (C2a migration) 2 properties
+    class LogMsg {
+        color: #334155;
+        font-size: 12px;
+    }
+    // (C2a migration) 6 properties
+    class LogSection {
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        display: flex;
+        gap: 12px;
+        margin-bottom: 16px;
+        overflow: hidden;
+    }
+    // (C2a migration) 3 properties
+    class LogText {
+        color: #6366f1;
+        font-size: 13px;
+        margin: 0;
+    }
+    // (C2a migration) 4 properties
+    class LogTitle {
+        color: #334155;
+        font-size: 13px;
+        font-weight: 600;
+        margin: 0 0 6px 0;
+    }
+    // (C2a migration) 4 properties
+    class MatchCard {
+        background: #f8fafc;
+        border: 1px dashed #cbd5e1;
+        border-radius: 8px;
+        padding: 12px;
+    }
+    // (C2a migration) 3 properties
+    class MatchOut {
+        color: #334155;
+        font-size: 13px;
+        margin: 0;
+    }
+    // (C2a migration) 4 properties
+    class MathArea {
+        background: #f0fdf4;
+        border-radius: 6px;
+        margin-bottom: 12px;
+        padding: 8px 12px;
+    }
+    // (C2a migration) 1 properties
+    class Media {
+        width: 200px;
+    }
+    // (C2a migration) 5 properties
+    class MediaBox {
+        background: #d1fae5;
+        border: 1px solid #a7f3d0;
+        border-radius: 8px;
+        padding: 12px;
+        text-align: center;
+    }
+    // (C2a migration) 1 properties
+    class Meter {
+        margin: 4px;
+    }
+    // (C2a migration) 6 properties
+    class MirrorText {
+        background: token(surfaceMuted);
+        border-radius: token(radiusMd);
+        color: token(textSecondary);
+        font-size: token(fontSizeSm);
+        min-width: 150px;
+        padding: 8px 14px;
+    }
+    // (C2a migration) 1 properties
+    class ModalBody {
+        margin-bottom: 20px;
+    }
+    // (C2a migration) 3 properties
+    class ModalFooter {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+    }
+    // (C2a migration) 4 properties
+    class ModalHeader {
+        align-items: center;
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 16px;
+    }
+    // (C2a migration) 3 properties
+    class ModalText {
+        color: #374151;
+        font-size: 15px;
+        margin: 0 0 8px 0;
+    }
+    // (C2a migration) 3 properties
+    class ModalTitle {
+        color: #1f2937;
+        font-size: 20px;
+        margin: 0;
+    }
+    // (C2a migration) 5 properties
+    class Modalcontent {
+        background: white;
+        border-radius: 12px;
+        max-width: 90vw;
+        padding: 24px;
+        width: 400px;
+    }
+    // (C2a migration) 5 properties
+    class ModuleCard {
+        background: token(surfaceMuted);
+        border: 1px solid token(borderLight);
+        border-radius: 8px;
+        margin-bottom: 12px;
+        padding: 12px 16px;
+    }
+    // (C2a migration) 3 properties
+    class ModuleDesc {
+        color: token(textSecondary);
+        font-size: 12px;
+        margin: 0 0 8px 0;
+    }
+    // (C2a migration) 4 properties
+    class ModuleTitle {
+        color: token(textPrimary);
+        font-size: 14px;
+        font-weight: 600;
+        margin: 0 0 4px 0;
+    }
+    // (C2a migration) 8 properties
+    class MotionCard {
+        background: token(surfaceMuted);
+        border: 1px solid token(borderLight);
+        border-radius: token(radiusMd);
+        cursor: default;
+        flex: 0 0 auto;
+        min-width: 140px;
+        padding: 14px 16px;
+        text-align: center;
+    }
+    // (C2a migration) 2 properties
+    class Msg {
+        color: #6b7280;
+        font-size: 14px;
+    }
+    // (C2a migration) 3 properties
+    class MultiStop {
+        background: token(surfaceMuted);
+        padding: 24px;
+        text-align: center;
+    }
+    // (C2a migration) 3 properties
+    class Note {
+        color: token(textSecondary);
+        font-size: 12px;
+        margin: 4px 0 0 0;
+    }
+    // (C2a migration) 2 properties
+    class NoteList {
+        margin: 0;
+        padding-left: 18px;
+    }
+    // (C2a migration) 3 properties
+    class NoteTitle {
+        color: #e2e8f0;
+        font-size: 14px;
+        margin: 0 0 8px 0;
+    }
+    // (C2a migration) 8 properties
+    class NotificationItem {
+        align-items: center;
+        background: white;
+        border-radius: 6px;
+        cursor: pointer;
+        display: flex;
+        gap: 8px;
+        margin-bottom: 4px;
+        padding: 8px;
+    }
+    // (C2a migration) 4 properties
+    class OutputItem {
+        color: token(textPrimary);
+        font-size: 13px;
+        line-height: 1.5;
+        margin: 4px 0;
+    }
+    // (C2a migration) 2 properties
+    class OutputList {
+        margin: 0;
+        padding-left: 16px;
+    }
+    // (C2a migration) 7 properties
+    class OutputPre {
+        background: token(surfaceSubtle);
+        border-radius: 4px;
+        font-family: monospace;
+        font-size: 12px;
+        margin: 4px 0;
+        padding: 6px 10px;
+        white-space: pre-wrap;
+    }
+    // (C2a migration) 5 properties
+    class Overlay {
+        align-items: center;
+        background: #808080;
+        display: flex;
+        justify-content: center;
+        padding: 40px;
+    }
+    // (C2a migration) 7 properties
+    class PageHeader {
+        align-items: center;
+        background: token(surface);
+        border-bottom: 1px solid token(borderLight);
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        padding: 20px;
+    }
+    // (C2a migration) 5 properties
+    class PaletteChip {
+        border-radius: token(radiusMd);
+        flex: 1;
+        min-width: 100px;
+        padding: 10px 14px;
+        text-align: center;
+    }
+    // (C2a migration) 3 properties
+    class PaletteGrid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+    // (C2a migration) 4 properties
+    class PalettePreview {
+        background: token(surfaceMuted);
+        border-radius: token(radiusMd);
+        margin: 0 0 12px 0;
+        padding: 14px;
+    }
+    // (C2a migration) 4 properties
+    class PaletteSection {
+        background: token(surface);
+        border: 1px solid token(border);
+        border-radius: var(--card-radius);
+        padding: 14px;
+    }
+    // (C2a migration) 3 properties
+    class PaletteTitle {
+        color: token(textSecondary);
+        font-size: token(fontSizeXs);
+        margin: 0 0 10px 0;
+    }
+    // (C2a migration) 5 properties
+    class Panel {
+        background: token(surfaceSubtle);
+        border: 1px solid token(borderLight);
+        border-radius: token(radiusMd);
+        margin-top: 10px;
+        padding: 14px;
+    }
+    // (C2a migration) 5 properties
+    class PanelHighlight {
+        background: #fefce8;
+        border-radius: 8px;
+        color: #713f12;
+        font-size: 14px;
+        padding: 16px;
+    }
+    // (C2a migration) 7 properties
+    class PanelInput {
+        border: 1px solid #d4d4d8;
+        border-radius: 6px;
+        font-size: 13px;
+        margin-top: 8px;
+        outline: none;
+        padding: 8px 12px;
+        width: 100%;
+    }
+    // (C2a migration) 3 properties
+    class PanelTitle {
+        color: token(textPrimary);
+        font-size: token(fontSizeSm);
+        margin: 0 0 8px 0;
+    }
+    // (C2a migration) 5 properties
+    class PatternCard {
+        background: token(surfaceMuted);
+        border: 1px solid token(borderLight);
+        border-radius: token(radiusMd);
+        margin-bottom: 12px;
+        padding: 14px;
+    }
+    // (C2a migration) 4 properties
+    class PipeDesc {
+        color: token(textSecondary);
+        font-size: token(fontSizeSm);
+        line-height: 1.5;
+        margin: 0;
+    }
+    // (C2a migration) 4 properties
+    class PipeStep {
+        background: token(surfaceMuted);
+        border: 1px solid token(borderLight);
+        border-radius: token(radiusMd);
+        padding: 16px;
+    }
+    // (C2a migration) 4 properties
+    class PipeTitle {
+        color: token(textPrimary);
+        font-size: token(fontSizeMd);
+        font-weight: token(fontWeightSemibold);
+        margin: 0 0 6px 0;
+    }
+    // (C2a migration) 3 properties
+    class PointerCaptured {
+        background: token(primaryLight);
+        border-color: token(primary);
+        border-style: solid;
+    }
+    // (C2a migration) 10 properties
+    class Pointerbox {
+        background: token(surfaceMuted);
+        border: 2px dashed token(border);
+        border-radius: token(radiusMd);
+        cursor: grab;
+        padding: 16px;
+        text-align: center;
+        touch-action: none;
+        transition: border-color 200ms, background-color 200ms;
+        user-select: none;
+        width: 150px;
+    }
+    // (C2a migration) 9 properties
+    class PresetBtn {
+        background: token(surface);
+        border: 2px solid token(border);
+        border-radius: token(radiusMd);
+        color: token(textPrimary);
+        cursor: pointer;
+        font-size: token(fontSizeMd);
+        font-weight: token(fontWeightSemibold);
+        padding: 10px 18px;
+        transition: all 0.2s ease;
+    }
+    // (C2a migration) 4 properties
+    class PresetRow {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin: 0 0 14px 0;
+    }
+    // (C2a migration) 6 properties
+    class Preview {
+        background: #f3f4f6;
+        border-radius: 4px;
+        color: #6b7280;
+        font-size: 13px;
+        margin-top: 6px;
+        padding: 6px;
+    }
+    // (C2a migration) 5 properties
+    class PreviewRow {
+        align-items: center;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        margin: 0 0 8px 0;
+    }
+    // (C2a migration) 1 properties
+    class Progress {
+        margin: 4px;
+    }
+    // (C2a migration) 8 properties
+    class RadiusBox {
+        align-items: center;
+        background: token(primary);
+        color: white;
+        display: flex;
+        font-size: token(fontSizeXs);
+        height: 60px;
+        justify-content: center;
+        width: 60px;
+    }
+    // (C2a migration) 3 properties
+    class RadiusDemo {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 18px;
+    }
+    // (C2a migration) 6 properties
+    class RectBox {
+        background: token(surfaceMuted);
+        border: 1px solid token(border);
+        border-radius: token(radiusMd);
+        margin-bottom: 8px;
+        padding: 16px;
+        text-align: center;
+    }
+    // (C2a migration) 7 properties
+    class RefInput {
+        border: 2px solid token(border);
+        border-radius: token(radiusMd);
+        flex: 1;
+        font-size: 14px;
+        min-width: 180px;
+        outline: none;
+        padding: 10px 12px;
+    }
+    // (C2a migration) 8 properties
+    class Result {
+        background: #fff;
+        border-radius: 4px;
+        color: #333;
+        font-size: 12px;
+        margin: 0;
+        max-height: 200px;
+        overflow-y: auto;
+        padding: 8px;
+    }
+    // (C2a migration) 3 properties
+    class ResultArea {
+        background: #f9fafb;
+        border-radius: 8px;
+        padding: 12px;
+    }
+    // (C2a migration) 3 properties
+    class ResultCount {
+        color: #6b7280;
+        font-size: 13px;
+        margin: 0;
+    }
+    // (C2a migration) 3 properties
+    class ResultText {
+        color: #6b7280;
+        font-size: 14px;
+        margin: 0 0 4px 0;
+    }
+    // (C2a migration) 4 properties
+    class ResultValue {
+        color: #1f2937;
+        font-size: 18px;
+        font-weight: bold;
+        margin: 0 0 4px 0;
+    }
+    // (C2a migration) 6 properties
+    class RichInput {
+        border: 1px solid #d4d4d8;
+        border-radius: 6px;
+        font-size: 13px;
+        min-height: 50px;
+        padding: 8px;
+        width: 100%;
+    }
+    // (C2a migration) 3 properties
+    class RulesBox {
+        background: token(surfaceMuted);
+        border-left: 3px solid token(primary);
+        padding: 14px 18px;
+    }
+    // (C2a migration) 2 properties
+    class RulesList {
+        margin: 0;
+        padding-left: 18px;
+    }
+    // (C2a migration) 4 properties
+    class RulesTitle {
+        color: token(textPrimary);
+        font-size: token(fontSizeMd);
+        font-weight: token(fontWeightSemibold);
+        margin: 0 0 8px 0;
+    }
+    // (C2a migration) 2 properties
+    class ScoreText {
+        font-size: 14px;
+        font-weight: bold;
+    }
+    // (C2a migration) 6 properties
+    class ScrollArea {
+        background: token(surfaceSubtle);
+        border-radius: token(radiusMd);
+        height: 120px;
+        max-height: 200px;
+        overflow-y: auto;
+        padding: 16px;
+    }
+    // (C2a migration) 8 properties
+    class ScrollBox {
+        background: token(surfaceMuted);
+        border: 1px solid token(border);
+        border-radius: token(radiusMd);
+        height: 120px;
+        margin-bottom: 8px;
+        overflow-y: auto;
+        padding: 8px 12px;
+        text-align: center;
+    }
+    // (C2a migration) 4 properties
+    class ScrollItem {
+        border-bottom: 1px solid token(borderLighter);
+        color: token(textSecondary);
+        font-size: 13px;
+        padding: 8px 0;
+    }
+    // (C2a migration) 3 properties
+    class ScrollLine {
+        color: #6b7280;
+        font-size: 13px;
+        margin: 2px 0;
+    }
+    // (C2a migration) 4 properties
+    class ScrollTitle {
+        color: #374151;
+        font-size: 14px;
+        font-weight: bold;
+        margin: 0 0 8px 0;
+    }
+    // (C2a migration) 7 properties
+    class SearchInput {
+        border: 2px solid #d4d4d8;
+        border-radius: 8px;
+        flex: 1;
+        font-size: 14px;
+        min-width: 160px;
+        outline: none;
+        padding: 10px 12px;
+    }
+    // (C2a migration) 3 properties
+    class SearchRow {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+    // (C2a migration) 5 properties
+    class SectionBox {
+        background: #f9fafb;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        margin-bottom: 16px;
+        padding: 10px 12px;
+    }
+    // (C2a migration) 6 properties
+    class SectionHeader {
+        border-bottom: 1px solid #e5e7eb;
+        color: #374151;
+        font-size: 15px;
+        font-weight: 600;
+        margin: 0 0 8px 0;
+        padding-bottom: 4px;
+    }
+    // (C2a migration) 6 properties
+    class SectionLabel {
+        color: #64748b;
+        display: block;
+        font-size: 11px;
+        letter-spacing: 0.5px;
+        margin-bottom: 6px;
+        text-transform: uppercase;
+    }
+    // (C2a migration) 3 properties
+    class Select {
+        border: 1px solid #d4d4d8;
+        border-radius: 4px;
+        padding: 4px;
+    }
+    // (C2a migration) 3 properties
+    class SelectValue {
+        color: #374151;
+        font-size: 13px;
+        margin: 4px 0 0 0;
+    }
+    // (C2a migration) 9 properties
+    class ShadowBox {
+        align-items: center;
+        background: token(surface);
+        border: 1px solid token(border);
+        color: token(textSecondary);
+        display: flex;
+        font-size: token(fontSizeXs);
+        height: 60px;
+        justify-content: center;
+        width: 80px;
+    }
+    // (C2a migration) 3 properties
+    class ShadowDemo {
+        display: flex;
+        gap: 16px;
+        margin-bottom: 18px;
+    }
+    // (C2a migration) 1 properties
+    class SideBySide {
+        margin-bottom: 16px;
+    }
+    // (C2a migration) 8 properties
+    class SizeBar {
+        align-items: center;
+        background: token(primary);
+        border-radius: token(radiusSm);
+        color: white;
+        display: flex;
+        font-size: token(fontSizeXs);
+        height: 24px;
+        padding: 0 6px;
+    }
+    // (C2a migration) 8 properties
+    class SizeBox {
+        align-items: center;
+        background: token(primaryLight);
+        border-radius: token(radiusMd);
+        display: flex;
+        height: 80px;
+        justify-content: center;
+        transition: all 300ms;
+        width: 200px;
+    }
+    // (C2a migration) 4 properties
+    class SizeDemo {
+        align-items: center;
+        display: flex;
+        gap: 8px;
+        margin-bottom: 18px;
+    }
+    // (C2a migration) 2 properties
+    class SlotBodyArea {
+        min-height: 40px;
+        padding: 14px;
+    }
+    // (C2a migration) 4 properties
+    class SlotContainer {
+        background: token(surface);
+        border: 1px solid token(border);
+        border-radius: token(radiusLg);
+        overflow: hidden;
+    }
+    // (C2a migration) 3 properties
+    class SlotContent {
+        color: token(textSecondary);
+        font-size: 13px;
+        margin: 4px 0;
+    }
+    // (C2a migration) 3 properties
+    class SlotDefaultBody {
+        color: token(textSecondary);
+        font-size: 13px;
+        margin: 0;
+    }
+    // (C2a migration) 2 properties
+    class SlotDefaultHeader {
+        color: token(textPrimary);
+        font-size: 14px;
+    }
+    // (C2a migration) 6 properties
+    class SlotFooterArea {
+        background: token(surfaceMuted);
+        border-top: 1px solid token(borderLight);
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+        padding: 10px 14px;
+    }
+    // (C2a migration) 4 properties
+    class SlotHeaderArea {
+        background: token(surfaceMuted);
+        border-bottom: 1px solid token(borderLight);
+        margin-bottom: 8px;
+        padding: 12px 14px;
+    }
+    // (C2a migration) 4 properties
+    class SlotPanel {
+        background: white;
+        border: 1px solid #d4d4d8;
+        border-radius: 10px;
+        padding: 14px;
+    }
+    // (C2a migration) 3 properties
+    class Small {
+        color: #6b7280;
+        font-size: 12px;
+        margin: 2px 0;
+    }
+    // (C2a migration) 4 properties
+    class SortRow {
+        align-items: center;
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 12px;
+    }
+    // (C2a migration) 2 properties
+    class SourcePanel {
+        flex: 1;
+        min-width: 0;
+    }
+    // (C2a migration) 6 properties
+    class StatBadge {
+        background: token(surfaceMuted);
+        border-radius: 4px;
+        color: token(textPrimary);
+        font-family: monospace;
+        font-size: 11px;
+        padding: 3px 8px;
+    }
+    // (C2a migration) 6 properties
+    class StatCard {
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        flex: 1;
+        padding: 16px;
+        text-align: center;
+    }
+    // (C2a migration) 5 properties
+    class StatItem {
+        align-items: center;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 80px;
+    }
+    // (C2a migration) 2 properties
+    class StatLabel {
+        color: token(textSecondary);
+        font-size: token(fontSizeXs);
+    }
+    // (C2a migration) 3 properties
+    class StatRow {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+    // (C2a migration) 3 properties
+    class StatValue {
+        color: token(primary);
+        font-size: token(fontSize3xl);
+        font-weight: token(fontWeightBold);
+    }
+    // (C2a migration) 3 properties
+    class Stats {
+        color: #9ca3af;
+        font-size: 12px;
+        margin: 0;
+    }
+    // (C2a migration) 7 properties
+    class StatsBar {
+        background: token(surface);
+        border: 1px solid token(borderLight);
+        border-radius: token(radiusLg);
+        display: flex;
+        gap: 16px;
+        justify-content: center;
+        padding: 16px;
+    }
+    // (C2a migration) 4 properties
+    class Status {
+        border-radius: 6px;
+        font-size: 14px;
+        margin: 0;
+        padding: 8px 12px;
+    }
+    // (C2a migration) 5 properties
+    class StatusArea {
+        background: #f0fdf4;
+        border: 1px solid #bbf7d0;
+        border-radius: 8px;
+        margin-top: 12px;
+        padding: 12px;
+    }
+    // (C2a migration) 6 properties
+    class StatusBar {
+        align-items: center;
+        border-top: 1px solid token(borderLight);
+        display: flex;
+        justify-content: space-between;
+        margin: 0 0 14px 0;
+        padding: 10px 0;
+    }
+    // (C2a migration) 4 properties
+    class StatusBox {
+        background: #f9fafb;
+        border: 1px solid #d4d4d8;
+        border-radius: 8px;
+        padding: 12px;
+    }
+    // (C2a migration) 2 properties
+    class StatusCount {
+        color: token(textSecondary);
+        font-size: token(fontSizeXs);
+    }
+    // (C2a migration) 3 properties
+    class StatusText {
+        color: token(textSecondary);
+        font-size: 13px;
+        margin-top: 8px;
+    }
+    // (C2a migration) 2 properties
+    class StepText {
+        color: token(textSecondary);
+        font-size: 14px;
+    }
+    // (C2a migration) 3 properties
+    class StoreInfo {
+        background: #f9fafb;
+        border-radius: 8px;
+        padding: 10px 12px;
+    }
+    // (C2a migration) 2 properties
+    class Success {
+        background: #d1fac5;
+        color: #166534;
+    }
+    // (C2a migration) 2 properties
+    class SuccessBox {
+        background: #f0fdf4;
+        border-color: #22c55d;
+    }
+    // (C2a migration) 3 properties
+    class Summary {
+        color: #374151;
+        cursor: pointer;
+        font-size: 14px;
+    }
+    // (C2a migration) 5 properties
+    class SummaryBox {
+        background: #f0f9ff;
+        border: 1px solid #bae6fd;
+        border-radius: 8px;
+        margin-top: 12px;
+        padding: 10px 14px;
+    }
+    // (C2a migration) 6 properties
+    class SummaryItem {
+        align-items: center;
+        color: #374151;
+        display: flex;
+        font-size: 14px;
+        gap: 8px;
+        padding: 6px 0;
+    }
+    // (C2a migration) 3 properties
+    class SummaryList {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+    }
+    // (C2a migration) 1 properties
+    class SummarySection {
+        margin-top: 20px;
+    }
+    // (C2a migration) 3 properties
+    class SummaryText {
+        color: #0369a1;
+        font-size: 13px;
+        margin: 0;
+    }
+    // (C2a migration) 3 properties
+    class Swatch {
+        border-radius: token(radiusSm);
+        height: 20px;
+        width: 20px;
+    }
+    // (C2a migration) 3 properties
+    class SwatchLabel {
+        color: var(--text-muted);
+        font-family: monospace;
+        font-size: 13px;
+    }
+    // (C2a migration) 4 properties
+    class SwatchPreview {
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        height: 32px;
+        width: 32px;
+    }
+    // (C2a migration) 11 properties
+    class Tab {
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: 8px 8px 0 0;
+        color: token(textSecondary);
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 500;
+        padding: 10px 18px;
+        position: relative;
+        transition: all 150ms;
+        white-space: nowrap;
+    }
+    // (C2a migration) 5 properties
+    class TabActive {
+        background: token(surface);
+        border-color: token(border);
+        color: token(primary);
+        font-weight: 600;
+        padding-bottom: 11px;
+    }
+    // (C2a migration) 3 properties
+    class TabBar {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 16px;
+    }
+    // (C2a migration) 4 properties
+    class TabStrip {
+        border-bottom: 1px solid token(border);
+        display: flex;
+        gap: 0;
+        padding: 0 8px;
+    }
+    // (C2a migration) 4 properties
+    class TableWrapper {
+        border: 1px solid #d4d4d8;
+        border-radius: 8px;
+        max-height: 400px;
+        overflow-y: auto;
+    }
+    // (C2a migration) 3 properties
+    class TagGroup {
+        color: #374151;
+        font-size: 14px;
+        margin: 0 0 6px 0;
+    }
+    // (C2a migration) 1 properties
+    class TagSection {
+        margin-bottom: 12px;
+    }
+    // (C2a migration) 4 properties
+    class Td {
+        border-bottom: 1px solid #f3f4f6;
+        color: #374151;
+        font-size: 14px;
+        padding: 10px 12px;
+    }
+    // (C2a migration) 3 properties
+    class TdEmpty {
+        color: #9ca3af;
+        padding: 20px;
+        text-align: center;
+    }
+    // (C2a migration) 4 properties
+    class TechNote {
+        background: #0f172a;
+        border-radius: 8px;
+        margin-top: 16px;
+        padding: 14px 18px;
+    }
+    // (C2a migration) 3 properties
+    class Text {
+        color: #666;
+        font-size: 14px;
+        margin: 4px 0;
+    }
+    // (C2a migration) 7 properties
+    class Textarea {
+        border: 2px solid #d4d4d8;
+        border-radius: 8px;
+        color: #1f2937;
+        font-size: 15px;
+        min-height: 80px;
+        outline: none;
+        padding: 12px;
+    }
+    // (C2a migration) 4 properties
+    class Th {
+        background: #f9fafb;
+        border-bottom: 2px solid #d4d4d8;
+        color: #6b7280;
+        padding: 12px;
+    }
+    // (C2a migration) 3 properties
+    class ThemeGrid {
+        display: flex;
+        gap: 12px;
+        margin: 0 0 16px 0;
+    }
+    // (C2a migration) 3 properties
+    class ThemeRoot {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+    // (C2a migration) 3 properties
+    class Title {
+        color: #1f2937;
+        font-size: 18px;
+        margin: 0 0 4px 0;
+    }
+    // (C2a migration) 4 properties
+    class TodoItem {
+        align-items: center;
+        border-bottom: 1px solid #f3f4f6;
+        display: flex;
+        padding: 12px 16px;
+    }
+    // (C2a migration) 2 properties
+    class TodoMain {
+        flex: 1;
+        min-width: 0;
+    }
+    // (C2a migration) 2 properties
+    class TodoSection {
+        display: flex;
+        gap: 14px;
+    }
+    // (C2a migration) 2 properties
+    class TodoSidebar {
+        flex-shrink: 0;
+        width: 200px;
+    }
+    // (C2a migration) 2 properties
+    class TodoStats {
+        flex-shrink: 0;
+        width: 200px;
+    }
+    // (C2a migration) 2 properties
+    class TodoText {
+        color: #1f2937;
+        font-size: 15px;
+    }
+    // (C2a migration) 1 properties
+    class ToggleArea {
+        margin-top: 12px;
+    }
+    // (C2a migration) 9 properties
+    class ToggleBtn {
+        background: token(primary);
+        border: none;
+        border-radius: 8px;
+        color: white;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 600;
+        height: var(--action-h);
+        padding: 0 20px;
+    }
+    // (C2a migration) 5 properties
+    class TouchBox {
+        background: #fce7f3;
+        border: 1px solid #fbcfe8;
+        border-radius: 8px;
+        padding: 20px;
+        text-align: center;
+    }
+    // (C2a migration) 8 properties
+    class TriggerBtn {
+        background: token(primary);
+        border: none;
+        border-radius: 6px;
+        color: #fff;
+        cursor: pointer;
+        font-size: 13px;
+        margin-bottom: 8px;
+        padding: 8px 16px;
+    }
+    // (C2a migration) 4 properties
+    class TriggerGrid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin: 12px 0;
+    }
+    // (C2a migration) 5 properties
+    class TrimmedArea {
+        background: #f0fdf4;
+        border: 1px solid #bbf7d0;
+        border-radius: 8px;
+        margin: 8px 0;
+        padding: 8px 12px;
+    }
+    // (C2a migration) 3 properties
+    class TrimmedLabel {
+        color: #6b7280;
+        font-size: 12px;
+        margin: 0 0 2px 0;
+    }
+    // (C2a migration) 4 properties
+    class TrimmedValue {
+        color: #166534;
+        font-family: monospace;
+        font-size: 14px;
+        margin: 0;
+    }
+    // (C2a migration) 5 properties
+    class UrlInput {
+        border: 1px solid token(border);
+        border-radius: token(radiusMd);
+        flex: 1;
+        font-size: 13px;
+        padding: 8px 12px;
+    }
+    // (C2a migration) 5 properties
+    class UserSettings {
+        background: #fff;
+        border: 1px solid #ddd;
+        border-radius: 12px;
+        margin: 16px 0;
+        padding: 20px 16px;
+    }
+    // (C2a migration) 4 properties
+    class ValueText {
+        color: token(textPrimary);
+        font-family: monospace;
+        font-size: 15px;
+        margin: 5px 0;
+    }
+    // (C2a migration) 7 properties
+    class VarActionBtn {
+        background: token(primary);
+        border: none;
+        border-radius: 6px;
+        color: white;
+        cursor: pointer;
+        font-size: 13px;
+        padding: 8px 16px;
+    }
+    // (C2a migration) 3 properties
+    class VarDemoArea {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    // (C2a migration) 4 properties
+    class VariantRow {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin: 0 0 16px 0;
+    }
+    // (C2a migration) 5 properties
+    class WheelBox {
+        background: #e0e7ff;
+        border: 1px solid #c7d2fe;
+        border-radius: 8px;
+        padding: 20px;
+        text-align: center;
+    }
+    // (C2a migration) 15 properties
+    class Wrapper {
+        action-h: 48px;
+        background: token(surface);
+        border: 1px solid token(border);
+        border-radius: var(--card-radius);
+        card-radius: 12px;
+        margin: 16px 0;
+        padding: 20px;
+        primary: #6366f1;
+        primary-alt: #ec4899;
+        radius-md: 12px;
+        radius-sm: 6px;
+        surface: #f8fafc;
+        surface-alt: #f1f5f9;
+        text-muted: #64748b;
+        text-primary: #1e293b;
+    }
+    // (C2a migration) pseudo states
+    class Btn {
+        &:hover {
+            background: #4f46e5;
+        }
+    }
+    // (C2a migration) pseudo states
+    class BtnActive {
+        &:active {
+            background: #b91c1c;
+            transform: scale(0.97);
+        }
+    }
+    // (C2a migration) pseudo states
+    class BtnDark {
+        &:active {
+            background: #0f172a;
+            transform: scale(0.97);
+        }
+        &:focus {
+            outline: 2px solid #fbbf24;
+            outline-offset: 2;
+        }
+        &:hover {
+            background: #334155;
+            transform: scale(1.03);
+        }
+    }
+    // (C2a migration) pseudo states
+    class BtnFocus {
+        &:focus {
+            outline: 2px solid #93c5fd;
+            outline-offset: 2;
+        }
+    }
+    // (C2a migration) pseudo states
+    class BtnHover {
+        &:hover {
+            background: #6d28d9;
+            transform: scale(1.05);
+        }
+    }
+    // (C2a migration) pseudo states
+    class CapabilityCard {
+        &:hover {
+            transform: translateY(-3px);
+            box-shadow: token(shadowMd);
+            border-color: token(primaryLight);
+        }
+    }
+    // (C2a migration) pseudo states
+    class CardHover {
+        &:hover {
+            background: #dcfce7;
+            border-color: #86efac;
+            transform: translateY(-2px);
+        }
+    }
+    // (C2a migration) pseudo states
+    class CycleBtn {
+        &:hover {
+            filter: brightness(1.1);
+        }
+    }
+    // (C2a migration) pseudo states
+    class DeleteBtn {
+        &:hover {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+    }
+    // (C2a migration) pseudo states
+    class FormInput {
+        &:focus {
+            border-color: token(primary);
+        }
+    }
+    // (C2a migration) pseudo states
+    class FuncBtn {
+        &:hover {
+            background: #db2777;
+        }
+    }
+    // (C2a migration) pseudo states
+    class InputFocus {
+        &:focus {
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99,102,241,0.3);
+        }
+    }
+    // (C2a migration) pseudo states
+    class PanelHighlight {
+        &:hover {
+            background: #fef08a;
+            border: 1px solid #eab308;
+        }
+    }
+    // (C2a migration) pseudo states
+    class PanelInput {
+        &:focus {
+            border-color: #6366f1;
+            box-shadow: 0 0 0 2px rgba(99,102,241,0.3);
+        }
+    }
+    // (C2a migration) pseudo states
+    class PresetBtn {
+        &:hover {
+            border-color: token(primary);
+            background: token(surfaceMuted);
+        }
+    }
+    // (C2a migration) pseudo states
+    class RefInput {
+        &:focus {
+            border-color: token(primary);
+        }
+    }
+    // (C2a migration) pseudo states
+    class SearchInput {
+        &:focus {
+            border-color: #6366f1;
+        }
+    }
+    // (C2a migration) pseudo states
+    class Tab {
+        &:hover {
+            background: token(surfaceSubtle);
+            border-color: token(borderLight);
+            color: token(textPrimary);
+        }
+    }
+    // (C2a migration) pseudo states
+    class Textarea {
+        &:focus {
+            border-color: #6366f1;
+        }
+    }
+    // (C2a migration) pseudo states
+    class ToggleBtn {
+        &:hover {
+            background: #4f46e5;
+            background: token(primaryDark);
+        }
+    }
+    // (C2a migration) pseudo states
+    class VarActionBtn {
+        &:hover {
+            filter: brightness(1.1);
+        }
+    }
+    // (C2a) IdleBox — completes DataFetching's 4-state status box (missing style rule)
+    class IdleBox {
+        border-color: token(borderLighter);
+        background: "#f9fafb";
+    }
 }
