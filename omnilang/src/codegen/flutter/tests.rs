@@ -4626,6 +4626,85 @@ component RichDemo {
     );
 }
 
+/// Task C2b (#8): Text inline `style: { color: ... }` maps into the
+/// TextStyle wrapper (`style: TextStyle(color: ...)`) — hex, rgb() and
+/// basic named colors convert; the mapping merges with prop-driven
+/// TextStyle members.
+#[test]
+fn text_inline_color_maps_into_text_style() {
+    let flutter = compile_flutter(
+        r##"
+component InlineStyleDemo {
+    view {
+        <p style: { color: "#f59e0b" }>x</p>
+        <p fontSize="18" style: { color: "white" }>y</p>
+    }
+}
+"##,
+    )
+    .expect("compile must succeed");
+    let out: String = flutter
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        out.contains("style: TextStyle(color: Color(0xFFF59E0B))")
+            && out.contains("style: TextStyle(fontSize: 18.0, color: Color(0xFFFFFFFF))"),
+        "Text inline color must map into the TextStyle wrapper, got:\n{out}"
+    );
+    assert!(
+        !flutter
+            .warnings
+            .iter()
+            .any(|w| w.message.contains("inline style property 'color'")),
+        "inline color on Text must no longer warn: {:?}",
+        flutter.warnings
+    );
+}
+
+/// Task C2b (#9): a TextField whose `bind:value` shares the element with
+/// a user @onChange keeps the two-way binding — the write-back MERGES into
+/// the occupied onChanged handler instead of being dropped.
+#[test]
+fn bind_value_with_user_on_change_merges_write_back() {
+    let flutter = compile_flutter(
+        r#"
+component MergeDemo {
+    signal name: String = "";
+    fn handleNameChange() { nameError = ""; }
+    signal nameError: String = "";
+    view {
+        <input bind:value={name} @onChange={handleNameChange}></input>
+    }
+}
+"#,
+    )
+    .expect("compile must succeed");
+    let out: String = flutter
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        out.contains("onChanged: (event) {  handleNameChange(); setState(() { name = event; }); }")
+            || out.contains(
+                "onChanged: (event) { handleNameChange(); setState(() { name = event; }); }"
+            ),
+        "the write-back must merge into the user's onChanged, got:\n{out}"
+    );
+    assert!(
+        !flutter
+            .warnings
+            .iter()
+            .any(|w| w.message.contains("'bind:value'")),
+        "bind:value with a user handler must no longer warn: {:?}",
+        flutter.warnings
+    );
+}
+
 /// Task C2b (#4): `<textarea rows=N>` maps to TextField's `maxLines` as
 /// an INT (a raw string would not type-check) and the DOM `max` maps to
 /// `maxLength`.
@@ -6734,7 +6813,9 @@ fn test_inline_style_unsupported_color_warns() {
         bindings: FxHashMap::default(),
         events: FxHashMap::default(),
         style_classes: None,
-        inline_style: Some(serde_json::json!({ "color": "red" })),
+        // Task C2b (#8): the basic CSS named colors ARE supported now —
+        // use a design-token string (var(--...)) as the unmappable sample.
+        inline_style: Some(serde_json::json!({ "color": "var(--primary)" })),
         children: vec![],
         construction_kind: ConstructionKind::Component,
         source_span: None,
@@ -7293,21 +7374,37 @@ fn test_container_color_prop_converted_to_color() {
 
 #[test]
 fn test_inline_style_color_respects_widget_whitelist() {
-    // `<p style: { color: "#f59e0b" }>` — inline-style props must go through
-    // the same per-widget whitelist as plain props (Text has no `color` param;
-    // emitting one was invalid Dart — the review's String->Color class).
+    // Task C2b (#8): `<p style: { color: "#f59e0b" }>` — Text has no
+    // `color` param, so the inline color routes through the TextStyle
+    // wrapper (`style: TextStyle(color: Color(0xFFF59E0B))`) instead of
+    // emitting invalid Dart or warning.
     let mut el = props_el("p", vec![]);
     el.inline_style = Some(serde_json::json!({ "color": "#f59e0b" }));
     let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
     assert!(
-        !expr.contains("color: Color"),
-        "Text must not receive an inline-style color param: {}",
+        expr.contains("style: TextStyle(color: Color(0xFFF59E0B))"),
+        "Text inline color must map into the TextStyle wrapper: {}",
         expr
     );
     assert!(
-        warnings.iter().any(|w| w.contains("color")),
-        "inline-style color on Text must warn: {:?}",
+        !expr.contains("Text(color:"),
+        "Text must not receive a bare color param: {}",
+        expr
+    );
+    assert!(
+        !warnings.iter().any(|w| w.contains("color")),
+        "inline-style color on Text must not warn: {:?}",
         warnings
+    );
+
+    // Widgets whose whitelist DOES allow color keep the direct param.
+    let mut div = props_el("div", vec![]);
+    div.inline_style = Some(serde_json::json!({ "color": "#f59e0b" }));
+    let (expr, _) = fmt_view(&ViewTree::Element(Box::new(div)));
+    assert!(
+        expr.contains("color: Color(0xFFF59E0B)"),
+        "Container inline color stays a direct param: {}",
+        expr
     );
 }
 

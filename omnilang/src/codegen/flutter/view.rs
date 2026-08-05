@@ -25,9 +25,9 @@ use super::stmt::{generate_statement_flutter, FlutterStmtFormatter};
 use super::utils::{
     bind_value_write_back, binding_to_flutter_param, callback_is_void, convert_literal_prop_value,
     css_color_to_dart, event_to_flutter_callback, generic_event_wrapper_callback,
-    icon_name_to_dart, lower_first, prop_to_flutter_param_name, tag_to_flutter_widget,
-    widget_allows_event, widget_allows_param, widget_has_const_constructor, widget_param_rename,
-    widget_param_wrapper, EventWrapperKind,
+    icon_name_to_dart, lower_first, merge_write_back_into_on_changed, prop_to_flutter_param_name,
+    tag_to_flutter_widget, widget_allows_event, widget_allows_param, widget_has_const_constructor,
+    widget_param_rename, widget_param_wrapper, EventWrapperKind,
 };
 use std::fmt::Write;
 
@@ -1469,15 +1469,6 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
         }
         args.push(format!("{}: {}", param, formatted));
     }
-    // Merge wrapped params into sub-object constructor args
-    for (wrapper, members) in wrapped {
-        let arg_name = match wrapper {
-            "TextStyle" => "style",
-            "InputDecoration" => "decoration",
-            _ => wrapper,
-        };
-        args.push(format!("{}: {}({})", arg_name, wrapper, members.join(", ")));
-    }
 
     // Task 3.5: `<textarea>` is a multiline intent — `TextField(maxLines: 4)`
     // (a bare `<textarea/>` rendered `Container()` before: invisible). An
@@ -1514,6 +1505,29 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
             // (invalid Dart; review's String->Color error class).
             let inline_param = css_prop_to_flutter_param(css_prop);
             if let Some(param) = inline_param {
+                // Task C2b (#8): Text inline styles route through the
+                // TextStyle wrapper — `style: { color: ... }` →
+                // `style: TextStyle(color: ...)` (Text has no color param;
+                // the wrapper merges with the props' TextStyle members).
+                if let Some((wrapper, member)) = widget_param_wrapper(widget, param) {
+                    if param == "color" {
+                        if let Some(color_expr) = css_color_to_dart(css_val_str) {
+                            match wrapped.iter_mut().find(|(w, _)| *w == wrapper) {
+                                Some((_, members)) => {
+                                    members.push(format!("{}: {}", member, color_expr))
+                                }
+                                None => wrapped
+                                    .push((wrapper, vec![format!("{}: {}", member, color_expr)])),
+                            }
+                            continue;
+                        }
+                        // Unsupported color value — falls through to the
+                        // existing color-value warning below.
+                    } else {
+                        // font*/other wrapped members — no inline value
+                        // converter; keep the honest warning below.
+                    }
+                }
                 if !widget_allows_param(widget, param) {
                     ctx.warnings.push(format!(
                         "[flutter] inline style property '{css_prop}' → param '{param}' \
@@ -1563,6 +1577,18 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                 }
             }
         }
+    }
+
+    // Merge wrapped params into sub-object constructor args — AFTER the
+    // inline-style loop (C2b #8: Text inline `color` joins the props'
+    // TextStyle members into ONE `style: TextStyle(...)` arg).
+    for (wrapper, members) in wrapped {
+        let arg_name = match wrapper {
+            "TextStyle" => "style",
+            "InputDecoration" => "decoration",
+            _ => wrapper,
+        };
+        args.push(format!("{}: {}({})", arg_name, wrapper, members.join(", ")));
     }
 
     // Events -> callback parameters (C6: per-widget event whitelist)
@@ -1930,14 +1956,26 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
             "Slider" => matches!(s.r#type.kind, TypeKind::Float),
             _ => true, // DropdownButton's callback is T? — any bare signal type writes back
         });
-        let write_back = (bind_name == "value"
-            && write_back_type_ok
-            && !already_has_on_changed
-            && widget_allows_param(widget, "onChanged"))
-        .then(|| bind_value_write_back(widget, &signal_ref.name));
+        let write_back_eligible =
+            bind_name == "value" && write_back_type_ok && widget_allows_param(widget, "onChanged");
+        let write_back =
+            write_back_eligible.then(|| bind_value_write_back(widget, &signal_ref.name));
         if !widget_allows_param(widget, param) {
             if let Some(cb) = write_back {
-                args.push(format!("onChanged: {cb}"));
+                if already_has_on_changed {
+                    // Task C2b (#9): the user's @onChange owns the onChanged
+                    // slot — MERGE the write-back INTO it (the two-way
+                    // binding must survive; the callback cannot duplicate).
+                    if let Some(idx) = args.iter().position(|a| a.starts_with("onChanged:")) {
+                        let body = args[idx].trim_start_matches("onChanged: ");
+                        args[idx] = format!(
+                            "onChanged: {}",
+                            merge_write_back_into_on_changed(body, &signal_ref.name)
+                        );
+                    }
+                } else {
+                    args.push(format!("onChanged: {cb}"));
+                }
             } else {
                 ctx.warnings.push(format!(
                     "[flutter] binding 'bind:{bind_name}' → param '{param}' is not supported on '{widget}'; skipped"
@@ -1945,8 +1983,10 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
             }
             continue;
         }
-        if let Some(cb) = write_back {
-            args.push(format!("onChanged: {cb}"));
+        if write_back_eligible && !already_has_on_changed {
+            if let Some(cb) = write_back {
+                args.push(format!("onChanged: {cb}"));
+            }
         }
         args.push(format!("{}: {}", param, signal_ref.name));
     }

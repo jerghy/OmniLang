@@ -163,6 +163,32 @@ pub(crate) fn bind_value_write_back(widget: &str, signal: &str) -> String {
     }
 }
 
+/// Task C2b (#9): merge the bind:value write-back INTO the user's
+/// onChanged handler — the callback slot is occupied (a second onChanged
+/// would be a duplicate named argument), so the two-way binding appends
+/// `setState(() { signal = <payload>; })` to the existing handler body.
+/// `arg` is the formatted handler body (closure or tear-off).
+pub(crate) fn merge_write_back_into_on_changed(arg: &str, signal: &str) -> String {
+    let (prefix, var) = if arg.starts_with("(event) {") {
+        ("(event) {", "event")
+    } else if arg.starts_with("(e) {") {
+        ("(e) {", "e")
+    } else if arg.starts_with("() {") {
+        ("(event) {", "event")
+    } else if arg == "() {}" {
+        return format!("(event) {{ setState(() {{ {signal} = event; }}); }}");
+    } else {
+        // Tear-off (param-bearing fn) — call it with the payload first.
+        return format!("(event) {{ {arg}(event); setState(() {{ {signal} = event; }}); }}");
+    };
+    let inner = arg
+        .strip_prefix(prefix)
+        .unwrap_or_default()
+        .trim_end_matches('}')
+        .trim_end();
+    format!("{prefix} {inner} setState(() {{ {signal} = {var}; }}); }}")
+}
+
 // ═══════════════════════════════════════════════════════════════
 // CSS color conversion (C5)
 // ═══════════════════════════════════════════════════════════════
@@ -191,12 +217,18 @@ pub(crate) fn css_hex_to_dart_color(hex: &str) -> Option<String> {
     Some(format!("Color(0xFF{})", expanded.to_uppercase()))
 }
 
-/// Convert a CSS color value (hex or rgb()/rgba()) to a Dart Color expression.
-/// Returns `None` for unsupported formats.
+/// Convert a CSS color value (hex, rgb()/rgba(), or a basic named color)
+/// to a Dart Color expression. Returns `None` for unsupported formats
+/// (design tokens `var(--...)` and dynamic expressions stay honest).
 pub(crate) fn css_color_to_dart(value: &str) -> Option<String> {
     let trimmed = value.trim();
     if let Some(hex) = css_hex_to_dart_color(trimmed) {
         return Some(hex);
+    }
+    // Task C2b (#8): the basic CSS named colors (white/black/red/...)
+    // cover the inline-style palette the corpus uses.
+    if let Some(named) = css_named_color_to_dart(trimmed) {
+        return Some(named);
     }
     // rgb(r, g, b) / rgba(r, g, b, a) — r/g/b in 0-255 or percentages
     let (prefix, rest) = if let Some(rest) = trimmed.strip_prefix("rgb(") {
@@ -228,6 +260,35 @@ pub(crate) fn css_color_to_dart(value: &str) -> Option<String> {
     } else {
         Some(format!("Color.fromARGB(255, {}, {}, {})", r, g, b))
     }
+}
+
+/// Convert a basic CSS named color to a Dart `Color(0xFF......)` expression.
+/// Covers the palette the showcase corpus writes literally (white/black/
+/// red/...); returns `None` for names outside the table.
+fn css_named_color_to_dart(name: &str) -> Option<String> {
+    let hex = match name.to_ascii_lowercase().as_str() {
+        "white" => "FFFFFF",
+        "black" => "000000",
+        "red" => "FF0000",
+        "green" => "008000",
+        "blue" => "0000FF",
+        "yellow" => "FFFF00",
+        "cyan" => "00FFFF",
+        "magenta" => "FF00FF",
+        "gray" | "grey" => "808080",
+        "silver" => "C0C0C0",
+        "orange" => "FFA500",
+        "purple" => "800080",
+        "pink" => "FFC0CB",
+        "brown" => "A52A2A",
+        "transparent" => "00000000",
+        _ => return None,
+    };
+    if hex.len() == 8 {
+        // transparent — fully transparent black (0x00000000)
+        return Some(format!("Color(0x{})", hex.to_uppercase()));
+    }
+    Some(format!("Color(0xFF{})", hex.to_uppercase()))
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -476,6 +537,10 @@ pub(crate) fn widget_param_wrapper(
             "fontSize" => Some(("TextStyle", "fontSize")),
             "fontWeight" => Some(("TextStyle", "fontWeight")),
             "fontStyle" => Some(("TextStyle", "fontStyle")),
+            // Task C2b (#8): Text has no `color` param — the DOM color
+            // intent flows through the TextStyle wrapper
+            // (`style: TextStyle(color: ...)`).
+            "color" => Some(("TextStyle", "color")),
             _ => None,
         },
         "TextField" => match param {
