@@ -82,4 +82,16 @@ describe("FlowCanvas 自动整理布局", () => {
     setup({ elements: [], wires: [] });
     expect((screen.getByLabelText("自动整理布局") as HTMLButtonElement).disabled).toBe(true);
   });
+
+  it("无 view 设计树（纯 codeblock 状态）布局仍生效——守卫移除回归", () => {
+    // 历史：2d14f9ff 加的「view 设计树缺失时早退」守卫在纯 code 状态（如从架构页进入
+    // 代码流）静默废掉布局按钮（用户实测按钮无反应）。写回 map 基于 allElements 全量
+    // 保留元素，本身不丢 view 树，守卫删除——纯 code 状态必须能布局。
+    const codeOnly = mockStore.elements.filter((e) => e.nodeType === "codeblock");
+    const { setElementsAndWires } = setup({ elements: codeOnly });
+    fireEvent.click(screen.getByLabelText("自动整理布局"));
+    expect(setElementsAndWires).toHaveBeenCalledTimes(1);
+    const [elements] = setElementsAndWires.mock.calls[0] as [unknown[], unknown[]];
+    expect(elements).toHaveLength(2); // 2 codeblock 全保留（无 view 可丢）
+  });
 });

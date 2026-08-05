@@ -37,6 +37,25 @@
   background: var(--ol-color-primary, #4f46e5);
 }
 
+/* ── flow-in/flow-out 固定到节点左缘内侧（主干左缘对齐布局的前提）──
+   布局算法主干列（flow-out 续接链）节点左缘对齐 x=0（flow-layout.ts）；handle 若保持
+   xyflow 默认 left:50% 水平居中，其列随节点宽度漂移（主干各节点宽度不同 → handle 列
+   错开 → 同列 flow wire 画成斜线，用户实测"连线没连上"）。左缘内侧固定偏移使
+   handle 列 = 列左缘 + 7.5，与节点宽度无关 → 主干 wire 垂直直线。
+   分支口（br0/br1/body）保持组件 Position.Right 右缘定位：分支源节点右缘对齐列右缘
+   （flow-layout.ts hasBranchOut），分支 wire 的 smoothstep 垂直段落在列间空隙，不穿节点。
+   !important 压过 xyflow 的 inline style；hover 放大需合并 translate 保持定位。 */
+.react-flow__node .codeflow-handle[data-handleid="flow-in"],
+.react-flow__node .codeflow-handle[data-handleid="flow-out"] {
+  left: 0 !important;
+  right: auto !important;
+  transform: translate(-50%, -50%) !important;
+}
+.react-flow__node .codeflow-handle[data-handleid="flow-in"]:hover,
+.react-flow__node .codeflow-handle[data-handleid="flow-out"]:hover {
+  transform: translate(-50%, -50%) scale(1.5) !important;
+}
+
 /* ── 节点头部标签（fn/loop/condition 等）统一字距/字号 ── */
 .codeflow-header {
   font-weight: 600;

@@ -34,7 +34,6 @@ import { CodeBlockEditor } from "./CodeBlockEditor";
 import type { CodeBlockEditorContext } from "./CodeBlockEditor";
 import type { DependencyInfo } from "../../../core/types/dependency-info";
 import { FlowInspector } from "./FlowInspector";
-import { FlowEdge } from "./FlowEdge";
 import styles from "./FlowCanvas.module.css";
 
 const nodeTypes = {
@@ -51,8 +50,12 @@ const nodeTypes = {
   "for-in": LoopNode,
 };
 
-/** 正交 wire 路由（2026-08-05）：分支 wire 走走廊，不扫过目标列上方节点（bezier 圆弧穿节点根除） */
-const edgeTypes = { flow: FlowEdge };
+/** 连线用 ReactFlow 原生默认 edge（bezier 拓扑曲线）——原生渲染与跟随（移动/滑动自动重算），
+ *  不自定义 edge（FlowEdge 已删除：DOM 测量开销大）。用户 2026-08-05 实测拍板：放弃
+ *  smoothstep 正交折线（此前 ADR-064 决策 2），换回原生拓扑曲线，接受曲线自然交叉
+ *  （"让连线有交点"）。主干 flow wire 因 flow-in/out handle 钉节点左缘内侧（node-base.css）
+ *  + 主干左缘对齐（flow-layout.ts）而近似垂直直线（两端同 x → 曲线退化为竖直线）；分支
+ *  wire（br0/br1 右缘 → 目标左缘）呈 S 形扫过列间空隙，多分支自然交叉。 */
 
 function FlowCanvasInner() {
   const elements = useCodeElements();
@@ -347,13 +350,13 @@ function FlowCanvasInner() {
     () =>
       wires.map((w) => ({
         id: w.id,
-        type: "flow",
+        // 原生默认 edge（bezier 拓扑曲线）——显式声明防"注释与实现矛盾"回归（2026-08-05
+        // 曾注释声称 smoothstep 但未配置 → 实际 bezier 却无人知晓）；用户拍板要曲线交叉
+        type: "default",
         source: w.fromId,
         target: w.toId,
         sourceHandle: w.fromPort,
         targetHandle: w.toPort,
-        // FlowEdge 需要端口信息（v12 不传 sourceHandle 给自定义 edge——见 FlowEdge 注释）
-        data: { fromPort: w.fromPort, toPort: w.toPort },
       })),
     [wires],
   );
@@ -364,19 +367,35 @@ function FlowCanvasInner() {
   // 注意：必须置于 nodes/edges useMemo 之后——依赖数组在渲染期求值，前置引用 codeElements 会 TDZ。
   const handleAutoLayout = useCallback(() => {
     if (codeElements.length === 0) return;
-    // 防线：view 设计树缺失时禁止布局——setElementsAndWires 全量替换在
-    // elements 异常（仅 codeblock 无 design）状态下会覆盖 view 树（E2E 实测 CRITICAL
-    // 变体：布局后 view 元素丢失、保存 E0006/覆盖 .omni view 块）。正常组件必有
-    // design 元素；缺失即状态异常，宁可不动。
-    const hasDesignElements = allElements.some((e) => e.nodeType !== "codeblock");
-    if (!hasDesignElements) return;
+    // 数据防线（历史：E2E 实测 CRITICAL——布局后 view 元素丢失、保存 E0006/覆盖
+    // .omni view 块）：写回必须基于「完整 elements」（allElements，含 view 设计树）
+    // 构建——下方 map 对非 codeblock 元素原样保留（nextElements 全量 = allElements
+    // 全量），只替换 codeblock 位置，任何状态下都不丢元素。曾用「view 设计树缺失时
+    // 早退」守卫（2d14f9ff），但代码流视图下 store 无 view 元素是合法状态（如从
+    // 架构页进入），守卫把布局按钮静默废掉（用户实测按钮无反应）——守卫删除，
+    // 数据安全由 allElements 全量 map 保证。
     const nodeById = new Map(nodes.map((nd) => [nd.id, nd]));
     const sizes = new Map<string, { width: number; height: number }>();
+    // 受控模式下 RFNode.measured 恒缺（xyflow 内部状态不回填受控 nodes）——布局尺寸须
+    // DOM 实测（节点已渲染，getBoundingClientRect 真实值；除以 zoom 换算画布单位）：
+    // 估算 200 vs 实测 310.67 偏差会让右缘对齐在渲染后错位 → 主干 handle 列错开 → 斜线
+    //（用户实测"连线没连上"）。measured 先验（万一非受控填充），DOM 其次，估算兜底。
+    const vpEl = document.querySelector(".react-flow__viewport");
+    const vpMatch = vpEl ? getComputedStyle(vpEl).transform.match(/matrix\(([^)]+)\)/) : null;
+    const zoom = vpMatch ? Number(vpMatch[1].split(",")[0]) || 1 : 1;
     for (const el of codeElements) {
       const n = nodeById.get(el.id);
-      if (n?.measured?.width && n?.measured?.height) {
-        sizes.set(el.id, { width: n.measured.width, height: n.measured.height });
+      let w = n?.measured?.width;
+      let h = n?.measured?.height;
+      if (!w || !h) {
+        const dom = document.querySelector(`[data-id="${el.id}"]`);
+        if (dom) {
+          const r = dom.getBoundingClientRect();
+          w = r.width / zoom;
+          h = r.height / zoom;
+        }
       }
+      if (w && h) sizes.set(el.id, { width: w, height: h });
     }
     const layout = computeLayeredLayout(codeElements, wires, sizes);
     // 必须以「完整 elements」（含 view 设计树）构建写回数组：本组件顶层 elements 是
@@ -502,14 +521,10 @@ function FlowCanvasInner() {
         </div>
       ) : (
         <ReactFlow
-          // key 强制重挂载：进入 codeflow / 布局后 ReactFlow 全新挂载，handle 重新测量
-          // handleBounds（CSS 变化如 position:relative 归位不触发重测——edge 的 sourceX 用过期的
-          // handleBounds 偏移 → 正交走廊越过目标列左缘 → 仍穿节点）。
           key={`flow-${codeFlowElementId ?? "none"}`}
           nodes={allNodes}
           edges={edges}
           nodeTypes={nodeTypes}
-          edgeTypes={edgeTypes}
           fitView
           fitViewOptions={{ maxZoom: 1 }}
           nodesDraggable

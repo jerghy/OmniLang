@@ -187,9 +187,14 @@ export function computeLayeredLayout(
     for (let c = 0; c <= maxCol; c++) {
       colWidth.set(c, Math.max(...ids.filter((id) => column.get(id) === c).map((id) => sizeOf(id, elemById.get(id)!.tag, elemById.get(id)!.props).width)) + LAYOUT_CONSTS.H_GAP);
     }
-    // 同 (depth, column) 多节点纵向均布；分支源节点（有分支出口）右对齐到列右缘——
-    // 分支 wire 起点（节点右侧 handle）不被同列下方更宽的节点右缘覆盖（实测 while→body wire
-    // 起点被同列更宽的 for-in 遮挡）；右对齐后分支源右缘 = 列右缘 = 列内最大右缘。
+    // 列内对齐：无分支口的节点左缘对齐（x = 列左缘）——主干/线性链左缘成一条垂直脊柱，
+    // 代码缩进感；有分支口的节点（condition/loop，br0/br1/body 出口）右缘对齐到列右缘
+    // （x = 列左缘 + 列内最大宽 − 自身宽）——分支 wire 起点（节点右侧分支 handle）落在
+    // 列右缘，其 smoothstep 垂直段在列间空隙（列右缘 + offset），不被同列下方更宽节点
+    // 覆盖（ADR-063 实测 while→body wire 起点被 for-in 遮挡）。
+    // 历史：列内统一右缘对齐——主干节点左缘参差、无脊柱感（用户实测"整理后更乱"）；
+    // 主干 wire 垂直改由 flow-in/out handle 钉节点左缘内侧保证（node-base.css），
+    // 与节点宽度无关，无需右缘对齐。
     const hasBranchOut = (id: string) => (outEdges.get(id) ?? []).some((o) => isBranchPort(o.port));
     for (const id of ids) {
       const k = `${depth.get(id)}:${column.get(id)}`;
@@ -200,7 +205,6 @@ export function computeLayeredLayout(
       const xBase = (column.get(id) ?? 0) === 0 ? 0 : Array.from({ length: column.get(id) ?? 0 }, (_, i) => colWidth.get(i) ?? 0).reduce((a, b) => a + b, 0);
       const col = column.get(id) ?? 0;
       const w = sizeOf(id, elemById.get(id)!.tag, elemById.get(id)!.props).width;
-      // 分支源右对齐：x = 列左缘 + (列内最大宽 − 自身宽)；列宽定义 = maxW + H_GAP
       const x = hasBranchOut(id) ? xBase + (colWidth.get(col) ?? 0) - LAYOUT_CONSTS.H_GAP - w : xBase;
       pos[id] = {
         x,

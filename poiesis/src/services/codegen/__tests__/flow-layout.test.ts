@@ -85,8 +85,12 @@ describe("computeLayeredLayout", () => {
     ];
     const pos = computeLayeredLayout(elems, wires, new Map());
     expect(pos["body"].x).toBeGreaterThan(pos["loop"].x);
-    expect(pos["after"].x).toBe(0); // after 左缘对齐（主干列）
-    expect(pos["loop"].x).toBeGreaterThan(0); // loop 分支源右对齐
+    // 主干左缘对齐：after（无分支口）x = 0——主干节点左缘成垂直脊柱（代码缩进感）
+    expect(pos["after"].x).toBe(0);
+    // 分支源右缘对齐到列右缘：loop（有 br0）宽 130 < 列内最宽 fn 150 → x = 150 − 130 = 20；
+    // 右缘 150 = 列右缘 → 分支 wire 起点（loop 右缘 br0）落在列右缘，走廊不被更宽节点覆盖
+    expect(pos["loop"].x).toBe(20);
+    expect(pos["loop"].x + estimateNodeSize("while", {}).width).toBe(pos["fn"].x + estimateNodeSize("fn", {}).width);
     expect(pos["body"].y).toBeGreaterThan(pos["loop"].y);
   });
   it("同桶多节点行高预留：2×2 网格合并两两无重叠（含跨子图边界）", () => {
@@ -138,6 +142,45 @@ describe("computeLayeredLayout", () => {
     const pos = computeLayeredLayout(elems, wires, new Map());
     // br0 目标（a1）必须占更小的列（lane0 → x 更小），与分支 id 视觉序一致
     expect(pos["a1"].x).toBeLessThan(pos["a2"].x);
+  });
+
+  it("主干节点左缘对齐成脊柱（x=0）+ 分支源右缘 = 列右缘（主干 wire 垂直直线前提）", () => {
+    // 主干列（col0）：fn/let/post 无分支口 → 左缘对齐 x = 0（代码缩进感，主干一条脊柱）；
+    // cond 有分支口（br0/br1）→ 右缘对齐到列右缘。主干 flow wire 垂直由 flow-in/out
+    // handle 钉节点左缘内侧保证（node-base.css）——主干节点左缘同列即可，与宽度无关。
+    const pos = computeLayeredLayout(ELEMS, WIRES, new Map());
+    for (const id of ["fn", "let", "post"]) expect(pos[id].x).toBe(0);
+    expect(pos["cond"].x).toBeGreaterThan(0); // 分支源右移补齐
+    const condRight = pos["cond"].x + estimateNodeSize("condition", ELEMS.find((e) => e.id === "cond")!.props).width;
+    const letRight = pos["let"].x + estimateNodeSize("let", {}).width;
+    expect(condRight).toBe(letRight); // 分支源右缘 = 列右缘（= 列内最宽节点右缘）
+    // 兄弟分支各占一列（lane 分配不变：br0→col1、br1→col2）
+    expect(pos["a1"].x).not.toBe(pos["a2"].x);
+  });
+
+  it("同列宽差节点均左缘对齐（宽窄不齐由 handle 钉左缘兜底，无需右移）", () => {
+    // c1（宽 200）与 c2（宽 150）经 glet 双 flow-out 同列同桶——均左缘对齐 x = 0；
+    // 主干 flow wire 垂直由 handle 钉左缘保证（node-base.css），不依赖右缘同列。
+    const grid = [
+      el("gfn", "fn", { name: "g", params: "", returnType: "void" }),
+      el("glet", "let", { name: "n", value: "0" }),
+      el("c1", "assign", { target: "a", operator: "=", value: "1" }),
+      el("c2", "assign", { target: "b", operator: "=", value: "2" }),
+    ];
+    const gridWires = [
+      wire("g1", "gfn", "flow-out", "glet", "flow-in"),
+      wire("g2", "glet", "flow-out", "c1", "flow-in"),
+      wire("g3", "glet", "flow-out", "c2", "flow-in"),
+    ];
+    const sizes = new Map<string, { width: number; height: number }>([
+      ["gfn", { width: 200, height: 64 }],
+      ["glet", { width: 200, height: 84 }],
+      ["c1", { width: 200, height: 72 }],
+      ["c2", { width: 150, height: 72 }],
+    ]);
+    const pos = computeLayeredLayout(grid, gridWires, sizes);
+    expect(pos["c1"].x).toBe(0);
+    expect(pos["c2"].x).toBe(0);
   });
 
   it("分支源右对齐：有分支出口的节点右缘 = 列右缘（wire 起点不被同列下方更宽节点覆盖）", () => {
