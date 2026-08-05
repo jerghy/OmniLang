@@ -4391,11 +4391,6 @@ fn compile_flutter_full(source: &str) -> crate::InternalCompileResult {
 
 // ── Task 3.6: generic-element tap wrappers + multi-theme warning ──
 
-/// Task 3.6 (flutter HIGH): `@onPress` on a generic element (`div` →
-/// Container) has no whitelisted callback — instead of silently dropping
-/// the handler (ThemeSwitcher's theme cards emitted no tap target at all),
-/// the rendered element must wrap in an InkWell/GestureDetector.
-#[test]
 /// Task C2b (#3): `@onMouseEnter`/`@onMouseLeave` on a generic element
 /// (Container) wrap in a `MouseRegion(onEnter:/onExit:)` — the DOM
 /// mouseenter/mouseleave analogue — instead of dropping with a warning.
@@ -4888,6 +4883,11 @@ component ImgDemo {
     );
 }
 
+/// Task 3.6 (flutter HIGH): `@onPress` on a generic element (`div` →
+/// Container) has no whitelisted callback — instead of silently dropping
+/// the handler (ThemeSwitcher's theme cards emitted no tap target at all),
+/// the rendered element must wrap in an InkWell/GestureDetector.
+#[test]
 fn generic_element_on_press_gets_tappable_wrapper() {
     let flutter = compile_flutter(
         r#"
