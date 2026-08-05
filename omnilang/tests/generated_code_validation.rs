@@ -1082,8 +1082,20 @@ design LearnDesign {
 /// declaration (`event onSelect: Void;` + `let mut` for the reassigned
 /// `total`) to unblock the react/ts/react gate; the fixture now compiles
 /// and contributes its single dead-code warning ("Function 'process' is
-/// never called") — the +1. Next task should lower the baseline back.
-const FLUTTER_WARNINGS_BASELINE: usize = 879;
+/// never called") — the +1.
+///
+/// Task C2a (legacy cleanup #81) lowered it to 753: corpus migration
+/// (class references → declared design classes, 633→75 #1 warnings) with
+/// the #2 class-name merge in lib.rs; measured 753 ≤ 879 at the time.
+///
+/// Task C2b (P2 映射表 + P3 语义) lowered it to 700: #3 events 39→31
+/// (MouseRegion/Focus/errorBuilder wrappers), #4 props 33→23
+/// (rows→maxLines/max→maxLength/disabled→onPressed:null/data-testid→key/
+/// title→Tooltip), #5 Text 混合内容 22→0 (Text.rich/TextSpan), #7 motion
+/// 12→3 (Matrix4 per-axis transforms + _OmniStepsCurve), #8 inline style
+/// 6→4 (TextStyle wrapper; 残差为 var(--) token/动态值), #9 bind:value
+/// 5→3 (write-back 合并进用户 onChanged; 残差为 select 标签/bool/i32 类型)。
+const FLUTTER_WARNINGS_BASELINE: usize = 700;
 
 #[test]
 fn learn_omniview_flutter_warnings_are_tracked() {
