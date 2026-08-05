@@ -28,7 +28,7 @@ component BlockExprDemo {
     view {
         <div class: Container>
             <h3 class: Title>Block Expression Demo</h3>
-            <p class: Subtitle>演示 { stmts; trailing_expr } 块表达式</p>
+            <p class: subtitle>演示 { stmts; trailing_expr } 块表达式</p>
 
             <div class: DemoCard>
                 <h4 class: Label>输入值: a={a}, b={b}</h4>
@@ -58,5 +58,7 @@ component BlockExprDemo {
         </div>
     }
     style {
+    
+        .subtitle { font-size: 13px; color: var(--textSecondary); margin: 0 0 16px 0; }
     }
 }

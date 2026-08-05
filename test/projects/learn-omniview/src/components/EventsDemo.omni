@@ -57,7 +57,7 @@ component EventsDemo {
                 <div class: InteractiveBox
                     @onDoubleClick={addLog("double-click")}
                     @onContextMenu={addLog("context-menu")}>
-                    <p class: Hint>双击或右键点击此区域</p>
+                    <p class: hint>双击或右键点击此区域</p>
                 </div>
             </article>
 
@@ -70,7 +70,7 @@ component EventsDemo {
                     @onDragEnd={dragStatus = "ended"}
                     @onDrop={dragStatus = "dropped"}
                     draggable="true">
-                    <p class: Hint>拖拽状态: {dragStatus}</p>
+                    <p class: hint>拖拽状态: {dragStatus}</p>
                 </div>
             </article>
 
@@ -81,7 +81,7 @@ component EventsDemo {
                     @onTouchStart={addLog("touchstart")}
                     @onTouchEnd={addLog("touchend")}
                     @onTouchMove={addLog("touchmove")}>
-                    <p class: Hint>在移动设备上触摸此处</p>
+                    <p class: hint>在移动设备上触摸此处</p>
                 </div>
             </article>
 
@@ -89,7 +89,7 @@ component EventsDemo {
             <article class: DemoCard>
                 <h3 class: CardTitle>滚轮事件</h3>
                 <div class: WheelBox @onWheel={handleWheel}>
-                    <p class: Hint>滚轮计数: {wheelCount} | deltaY: {deltaY}</p>
+                    <p class: hint>滚轮计数: {wheelCount} | deltaY: {deltaY}</p>
                 </div>
             </article>
 
@@ -97,7 +97,7 @@ component EventsDemo {
             <article class: DemoCard>
                 <h3 class: CardTitle>滚动事件</h3>
                 <div class: ScrollBox @onScroll={handleScroll}>
-                    <p class: Hint>Scroll Y: {scrollY} ({scrollCount}次)</p>
+                    <p class: hint>Scroll Y: {scrollY} ({scrollCount}次)</p>
                 </div>
             </article>
 
@@ -115,7 +115,7 @@ component EventsDemo {
                     @onEnded={mediaStatus = "ended"}>
                     <source src="sample.mp4" type="video/mp4" />
                 </video>
-                <p class: Hint>媒体状态: {mediaStatus}（播放/暂停/播完 sample.mp4 时触发）</p>
+                <p class: hint>媒体状态: {mediaStatus}（播放/暂停/播完 sample.mp4 时触发）</p>
             </article>
 
             <!-- 动画与过渡事件 :: @onAnimationStart @onAnimationEnd @onAnimationIteration @onTransitionEnd -->
@@ -126,7 +126,7 @@ component EventsDemo {
                     @onAnimationEnd={animStatus = "anim-end"}
                     @onAnimationIteration={animStatus = "anim-iter"}
                     @onTransitionEnd={animStatus = "trans-end"}>
-                    <p class: Hint>动画状态: {animStatus}</p>
+                    <p class: hint>动画状态: {animStatus}</p>
                 </div>
             </article>
 
@@ -226,5 +226,7 @@ component EventsDemo {
     }
     style {
         // 事件演示特有的卡片内布局和事件交互框颜色
+    
+        .hint { font-size: 13px; color: #6b7280; margin: 0; }
     }
 }

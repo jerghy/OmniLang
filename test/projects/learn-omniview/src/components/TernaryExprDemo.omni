@@ -17,7 +17,7 @@ component TernaryExprDemo {
     view {
         <div class: Container>
             <h3 class: Title>Ternary ( ? : ) 三元表达式 Demo</h3>
-            <p class: Subtitle>演示 cond ? then : else 运算符</p>
+            <p class: subtitle>演示 cond ? then : else 运算符</p>
 
             <div class: DemoCard>
                 <h4 class: Label>数值判定: count = {count}</h4>
@@ -44,5 +44,7 @@ component TernaryExprDemo {
         </div>
     }
     style {
+    
+        .subtitle { font-size: 13px; color: var(--textSecondary); margin: 0 0 16px 0; }
     }
 }

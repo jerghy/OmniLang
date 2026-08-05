@@ -225,7 +225,7 @@ component EasingFunctionsDemo {
     view {
         <div class: Container>
             <h3 class: Title>缓动函数全家桶</h3>
-            <p class: Subtitle>23 种缓动 · 点击按钮播放当前屏幕所有 @enter 动画</p>
+            <p class: subtitle>23 种缓动 · 点击按钮播放当前屏幕所有 @enter 动画</p>
             <button @press={backOutMove} @click={toggleAll} class: TriggerBtn>
                 Replay All Animations
             </button>
@@ -288,5 +288,7 @@ component EasingFunctionsDemo {
     style {
         .MotionCard strong { font-size: 11px; color: var(--textPrimary); display: block; margin-bottom: 2px; }
         .MotionCard p { font-size: 10px; color: var(--textSecondary); margin: 0; }
+    
+        .subtitle { font-size: 12px; color: var(--textSecondary); margin: 0 0 12px 0; }
     }
 }

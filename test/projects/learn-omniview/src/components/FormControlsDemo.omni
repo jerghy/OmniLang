@@ -43,7 +43,7 @@ component FormControlsDemo {
 
             <!-- <a> 标签 + href + title + target 属性 -->
             <div class: SectionBox>
-                <p class: SectionHeader>a-tag link with href / title / target:</p>
+                <p class: section-title>a-tag link with href / title / target:</p>
                 <a href="#" title="Demo link — click to count" class: DemoLink @onPress={handleLinkClick}>
                     Click me ({linkClicked})
                 </a>
@@ -51,7 +51,7 @@ component FormControlsDemo {
 
             <!-- <select> + <option> + bind:value -->
             <div class: SectionBox>
-                <p class: SectionHeader>select with option:</p>
+                <p class: section-title>select with option:</p>
                 <select class: DemoSelect bind:value={selected} @onChange={handleSelect}>
                     <option value="option1">Option 1 — First</option>
                     <option value="option2">Option 2 — Second</option>
@@ -62,7 +62,7 @@ component FormControlsDemo {
 
             <!-- checkbox + checked 属性 -->
             <div class: SectionBox>
-                <p class: SectionHeader>Checkbox with checked attribute:</p>
+                <p class: section-title>Checkbox with checked attribute:</p>
                 <label class: CheckLabel>
                     <input type="checkbox" class: DemoCheckbox checked={agreed} @onChange={handleAgree} />
                     <span class: CheckText>I agree to the terms</span>
@@ -72,7 +72,7 @@ component FormControlsDemo {
 
             <!-- number input + min/max/step -->
             <div class: SectionBox>
-                <p class: SectionHeader>Number input with min/max/step:</p>
+                <p class: section-title>Number input with min/max/step:</p>
                 <input
                     type="number"
                     class: DemoInput
@@ -88,7 +88,7 @@ component FormControlsDemo {
 
             <!-- range input + min/max/step -->
             <div class: SectionBox>
-                <p class: SectionHeader>Range slider with min/max/step:</p>
+                <p class: section-title>Range slider with min/max/step:</p>
                 <input
                     type="range"
                     class: DemoRange
@@ -111,5 +111,7 @@ component FormControlsDemo {
     style {
         // 表单控件特有的 section 分组和控件样式
         .status-text { font-size: 14px; color: #166534; margin: 0; }
+    
+        .section-title { font-size: 13px; font-weight: 600; color: #6b7280; margin: 0 0 8px 0; }
     }
 }

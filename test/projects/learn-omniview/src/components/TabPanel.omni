@@ -47,7 +47,7 @@ component TabPanel {
             @if activeTab == "home" {
                 <div class: LearnDesign.Card style: { borderLeft: "5px solid " + activeStyle }>
                     <h3 class: CardTitle>Home Tab</h3>
-                    <div class: Row>
+                    <div class: row>
                         <span>variant: LearnDesign.Button 变体按钮</span>
                     </div>
                     <p class: Text>class: map 条件类演示（按钮 active 态）</p>
@@ -76,5 +76,7 @@ component TabPanel {
     style {
         // 标签面板特有的内部布局
         .active { background: #6366f1; color: white; }
+    
+        .row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
     }
 }

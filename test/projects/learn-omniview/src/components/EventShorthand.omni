@@ -35,14 +35,14 @@ component EventShorthand {
 
             <!-- 简写1: {fnName(args)} — 解析器自动生成 () => { fnName(args); } -->
             <div class: SectionBox>
-                <p class: SectionHeader>Form 1: { "{fnName(args)}" } — auto-wraps inline</p>
+                <p class: section-title>Form 1: { "{fnName(args)}" } — auto-wraps inline</p>
                 <button variant: LearnDesign.Button(color=primary, size=sm) @onClick={greet("World")}>greet("World")</button>
                 <button variant: LearnDesign.Button(color=primary, size=sm) @onClick={farewell("World")}>farewell("World")</button>
             </div>
 
             <!-- 简写2: {store.action} — 直接引用 store action -->
             <div class: SectionBox>
-                <p class: SectionHeader>Form 2: { "{store.action}" } — StoreAction ref</p>
+                <p class: section-title>Form 2: { "{store.action}" } — StoreAction ref</p>
                 <button variant: LearnDesign.Button(color=accent, size=sm) @onPress={() => { NotificationStore.add("Hello from shorthand"); }}>
                     NotificationStore.add(...)
                 </button>
@@ -53,7 +53,7 @@ component EventShorthand {
 
             <!-- @eventName 简写形式（对比 onEventName） -->
             <div class: SectionBox>
-                <p class: SectionHeader>@eventName syntax (same as onEventName):</p>
+                <p class: section-title>@eventName syntax (same as onEventName):</p>
                 <div class: DemoRow>
                     <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={() => { msg = "onPress"; }}>
                         onPress
@@ -78,5 +78,7 @@ component EventShorthand {
         // 事件简写演示特有的 section 分组和结果区
         .result-area { margin-top: 12px; padding: 12px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; }
         .result-text { font-size: 16px; color: #166534; margin: 0 0 4px 0; font-weight: 600; }
+    
+        .section-title { font-size: 13px; font-weight: 600; color: #6b7280; margin: 0 0 8px 0; }
     }
 }

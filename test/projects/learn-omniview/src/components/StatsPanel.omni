@@ -18,11 +18,11 @@ component StatsPanel {
             <div class: Grid>
                 <div class: StatCard>
                     <span class: value>{total}</span>
-                    <span class: Label>总事项</span>
+                    <span class: label>总事项</span>
                 </div>
                 <div class: StatCard>
                     <span class: value>{if total > 0 { "有" } else { "无" }}</span>
-                    <span class: Label>状态</span>
+                    <span class: label>状态</span>
                 </div>
             </div>
             <span class: Msg>{
@@ -38,5 +38,7 @@ component StatsPanel {
         // 统计面板特有的内部布局和数据展示
         .value { font-size: 28px; font-weight: bold; color: #6366f1; }
         // 外部容器 .panel / .title 已由 LearnDesign.Card / CardTitle 提供
+    
+        .label { font-size: 13px; color: #6b7280; }
     }
 }

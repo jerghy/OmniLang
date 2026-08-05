@@ -151,7 +151,7 @@ component AnimPropertiesDemo {
     view {
         <div class: Container>
             <h3 class: Title>全动画属性覆盖</h3>
-            <p class: Subtitle>17 个可动画属性 · 点击按钮播放所有 @enter 动画</p>
+            <p class: subtitle>17 个可动画属性 · 点击按钮播放所有 @enter 动画</p>
 
             <button @click={toggleAll} class: TriggerBtn>
                 Replay All Animations
@@ -247,5 +247,7 @@ component AnimPropertiesDemo {
         .Box p { font-size: 11px; color: #6366f1; margin: 0; white-space: nowrap; }
         .CardTranslate strong { font-size: 13px; color: var(--textPrimary); display: block; margin-bottom: 4px; }
         .CardTranslate p { font-size: 11px; color: var(--textSecondary); margin: 0; }
+    
+        .subtitle { font-size: 12px; color: var(--textSecondary); margin: 0 0 8px 0; line-height: 1.5; }
     }
 }

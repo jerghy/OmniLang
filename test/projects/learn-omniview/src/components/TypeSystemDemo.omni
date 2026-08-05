@@ -27,7 +27,7 @@ component TypeSystemDemo {
             <p class: Subtitle>i8 · i16 · i64 · u8 · u16 · u32 · u64 · f32 · isize · usize · Void</p>
 
             <div class: SectionBox>
-                <h4 class: SectionHeader>有符号整数</h4>
+                <h4 class: section-title>有符号整数</h4>
                 <ul class: List>
                     <li class: Item><code class: Code>i8</code> max = {demo_i8()}</li>
                     <li class: Item><code class: Code>i16</code> max = {demo_i16()}</li>
@@ -37,7 +37,7 @@ component TypeSystemDemo {
             </div>
 
             <div class: SectionBox>
-                <h4 class: SectionHeader>无符号整数</h4>
+                <h4 class: section-title>无符号整数</h4>
                 <ul class: List>
                     <li class: Item><code class: Code>u8</code> max = {demo_u8()}</li>
                     <li class: Item><code class: Code>u16</code> max = {demo_u16()}</li>
@@ -48,7 +48,7 @@ component TypeSystemDemo {
             </div>
 
             <div class: SectionBox>
-                <h4 class: SectionHeader>浮点类型</h4>
+                <h4 class: section-title>浮点类型</h4>
                 <ul class: List>
                     <li class: Item><code class: Code>f32</code> = {demo_f32()}</li>
                 </ul>
@@ -60,5 +60,7 @@ component TypeSystemDemo {
         </div>
     }
     style {
+    
+        .section-title { font-size: 15px; color: #374151; margin: 0 0 8px 0; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px; }
     }
 }

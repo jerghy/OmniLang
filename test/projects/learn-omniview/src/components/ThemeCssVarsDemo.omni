@@ -39,7 +39,7 @@ component ThemeCssVarsDemo {
     view {
         <div class: Wrapper>
             <h3 class: SectionHeader>Theme with CSS Variables</h3>
-            <p class: Subtitle>
+            <p class: subtitle>
                 设计块主题系统自动生成 <code>--surface</code>、<code>--textPrimary</code>
                 等 CSS 变量，子元素用 <code>var()</code> 继承。<code>[data-theme]</code>
                 切换时自动更新，无需手动 <code>setProperty()</code>。
@@ -119,7 +119,7 @@ component ThemeCssVarsDemo {
                 <button class: ToggleBtn @onPress={() => { ThemeStore.toggle(); }}>
                     Toggle Theme (light → dark → sepia → highContrast)
                 </button>
-                <p class: Hint>
+                <p class: hint>
                     Current: {ThemeStore.modeLabel} ·
                     Toggles: {ThemeStore.toggleCount} ·
                     <code>@themes { light, dark, sepia, highContrast }</code>
@@ -165,6 +165,17 @@ component ThemeCssVarsDemo {
             color: #94a3b8;
             margin-bottom: 4px;
             line-height: 1.5;
+        }
+    
+        .subtitle {
+            font-size: 13px;
+            color: var(--textSecondary);
+            margin: 0 0 16px 0;
+        }
+        .hint {
+            font-size: 12px;
+            color: var(--textSecondary);
+            margin: 0;
         }
     }
 }

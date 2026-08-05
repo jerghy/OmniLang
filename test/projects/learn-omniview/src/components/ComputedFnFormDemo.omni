@@ -28,12 +28,12 @@ component ComputedFnFormDemo {
             <p class: Subtitle>演示 computed name() → Type 函数式写法</p>
 
             <div class: DemoCard>
-                <h4 class: Label>Simple form: computed simple: String = expr</h4>
+                <h4 class: label>Simple form: computed simple: String = expr</h4>
                 <p class: value>{simple}</p>
             </div>
 
             <div class: DemoCard>
-                <h4 class: Label>Function form: computed fullName() → String（函数体）</h4>
+                <h4 class: label>Function form: computed fullName() → String（函数体）</h4>
                 <p class: value>{fullName()}</p>
             </div>
 
@@ -49,5 +49,7 @@ component ComputedFnFormDemo {
     }
     style {
         .value { font-size: 18px; font-weight: 600; color: #6366f1; margin: 0; }
+    
+        .label { font-size: 13px; font-weight: 600; color: #6b7280; margin: 0 0 4px 0; }
     }
 }

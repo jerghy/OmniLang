@@ -28,12 +28,12 @@ component CssVarsDemo {
     view {
         <div class: Wrapper>
             <h3 class: SectionHeader>CSS Custom Properties (CSS Variables)</h3>
-            <p class: Subtitle>
+            <p class: subtitle>
                 演示编译器对 <code>--*</code> 声明、<code>var()</code> 引用、内联静态/动态 CSS 变量的完整支持
             </p>
 
             <!-- ═══ Demo 1: Style 块声明 + var() 引用 ═══ -->
-            <div class: DemoCard>
+            <div class: demo-card>
                 <h4 class: DemoLabel>① Style 块声明 --* + var() 引用</h4>
                 <p class: DemoDesc>
                     Style 块内部声明 <code>--primary</code>、<code>--bg</code> 等自定义属性，
@@ -49,7 +49,7 @@ component CssVarsDemo {
             </div>
 
             <!-- ═══ Demo 2: 内联样式静态 CSS 变量 ═══ -->
-            <div class: DemoCard>
+            <div class: demo-card>
                 <h4 class: DemoLabel>② 内联样式静态 CSS 变量</h4>
                 <p class: DemoDesc>
                     在 <code>style: {"{"} --name: "value" {"}"}</code> 中直接写 <code>--</code> 属性。
@@ -88,7 +88,7 @@ component CssVarsDemo {
             </div>
 
             <!-- ═══ Demo 3: 内联样式动态 CSS 变量（信号引用） ═══ -->
-            <div class: DemoCard>
+            <div class: demo-card>
                 <h4 class: DemoLabel>③ 内联样式动态 CSS 变量（信号 → setProperty）</h4>
                 <p class: DemoDesc>
                     传递<strong>信号引用</strong>给 <code>--*</code> 属性。编译器生成 effect
@@ -119,7 +119,7 @@ component CssVarsDemo {
             </div>
 
             <!-- ═══ Demo 4: CSS 变量 + 动态 hue 实现主题色循环 ═══ -->
-            <div class: DemoCard>
+            <div class: demo-card>
                 <h4 class: DemoLabel>④ CSS 变量级联 + Motion 驱动</h4>
                 <p class: DemoDesc>
                     外层设 <code>--accent-h</code>（由 accentHue 信号驱动），内层用
@@ -205,6 +205,19 @@ component CssVarsDemo {
             color: #94a3b8;
             margin-bottom: 4px;
             line-height: 1.5;
+        }
+    
+        .subtitle {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin: 0 0 20px 0;
+        }
+        .demo-card {
+            background: var(--surface);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 16px;
+            margin-bottom: 16px;
         }
     }
 }

@@ -217,6 +217,9 @@ design LearnDesign {
         padding-left: token(spaceMd);
         padding-right: token(spaceMd);
         margin: "16px 0";
+        // C2a review HIGH-1: CssUnitsDemo's cq units (BoxCq…) resolve against
+        // this query container — restored from the legacy style block
+        container-type: inline-size;
     }
 
     class Subtitle {
@@ -1239,10 +1242,18 @@ design LearnDesign {
     // (C2a migration) 5 properties
     class DemoCard {
         background: token(surfaceMuted);
-        border: 1px solid #e2e8f0;
         border-radius: token(radiusMd);
         margin-bottom: 14px;
         padding: 12px;
+    }
+    // (C2a fix) DemoCardPanel — AdvancedTypesDemo/SlotDefaultDemo 原 .demo-card 值
+    // （与 .card 合并漂移 padding 14→12 / margin 12→14 / bg #f8fafc→#f9fafb 的还原）
+    class DemoCardPanel {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        margin-bottom: 12px;
+        padding: 14px;
     }
     // (C2a migration) 4 properties
     class DemoCheckbox {
@@ -2480,12 +2491,9 @@ design LearnDesign {
     }
     // (C2a migration) 6 properties
     class SectionHeader {
-        border-bottom: 1px solid #e5e7eb;
-        color: #374151;
-        font-size: 15px;
-        font-weight: 600;
-        margin: 0 0 8px 0;
-        padding-bottom: 4px;
+        color: token(textPrimary);
+        font-size: 18px;
+        margin: 0 0 4px 0;
     }
     // (C2a migration) 6 properties
     class SectionLabel {

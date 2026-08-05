@@ -63,7 +63,7 @@ component ValidationInput {
             <h3 class: LearnDesign.CardTitle>ValidationInput Demo</h3>
             <p class: LearnDesign.Hint>{getDefaultMessage()}</p>
 
-            <div class: Row>
+            <div class: row>
                 <input bind:value={input} placeholder="Enter text to validate..." class: Input></input>
                 <button variant: LearnDesign.Button(color=primary, size=md) @onPress={handleValidate}>
                     {if isProcessing { "..." } else { "Validate" }}
@@ -83,5 +83,7 @@ component ValidationInput {
     }
     style {
         // 验证器特有的输入行布局和状态区
+    
+        .row { display: flex; gap: 8px; margin: 0 0 12px 0; }
     }
 }

@@ -42,7 +42,7 @@ component ForDirectiveKeyDemo {
     view {
         <div class: Container>
             <h3 class: Title>@for key= 身份追踪 Demo</h3>
-            <p class: Subtitle>对象项列表 key={ "{item.id}" } — 增删/重排时保持列表项身份</p>
+            <p class: subtitle>对象项列表 key={ "{item.id}" } — 增删/重排时保持列表项身份</p>
 
             <div class: Controls>
                 <button class: Btn @onPress={addItem}>Add Item</button>
@@ -64,5 +64,7 @@ component ForDirectiveKeyDemo {
     style {
         .list-item { padding: 8px 12px; font-size: 14px; color: #374151; border-bottom: 1px solid #f3f4f6; }
         .list-item.empty { color: #9ca3af; font-style: italic; }
+    
+        .subtitle { font-size: 13px; color: #6b7280; margin: 0 0 12px 0; }
     }
 }
