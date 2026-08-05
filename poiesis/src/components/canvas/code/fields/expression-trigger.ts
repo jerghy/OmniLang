@@ -120,7 +120,11 @@ export function tokenizeFormula(value: string): FormulaToken[] {
       const start = i;
       i++;
       while (i < value.length) {
-        if (value[i] === "\\") { i += 2; continue; }
+        if (value[i] === "\\") {
+          // 转义边界防护：尾部反斜杠（未闭合字符串，如 `"abc\`）无后继字符可跳——只推进 1，防止 end 越界
+          if (i + 1 < value.length) i += 2; else i++;
+          continue;
+        }
         if (value[i] === ch) { i++; break; }
         i++;
       }
@@ -169,6 +173,9 @@ export function tokenizeFormula(value: string): FormulaToken[] {
     // 未知字符（逐字符收集连续段）
     const start = i;
     while (i < value.length && !/[A-Za-z0-9_\s()+\-*/%<>=!&|?.'"]/.test(value[i]!)) i++;
+    // 空转防护：独立 "." 等字符落在停止字符类内、又不被任何前置分支消费（member 需 ident.ident、
+    // 数字需数字先行、?. 需 ? 先行）——至少推进 1 字符，杜绝空 token 死循环（如 `Store.` 成员补全中间态）
+    if (start === i) i++;
     tokens.push({ kind: "unknown", text: value.slice(start, i), start, end: i });
   }
   return tokens;

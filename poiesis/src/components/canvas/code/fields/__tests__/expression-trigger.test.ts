@@ -129,4 +129,17 @@ describe("tokenizeFormula", () => {
     expect(toks.map((t) => [t.start, t.end])).toEqual([[0, 1], [2, 4], [5, 6]]);
     expect(toks.map((t) => "a <= 2".slice(t.start, t.end)).join("")).toBe("a<=2");
   });
+  it("独立点不挂死：Store.（成员补全典型中间态）→ identifier + unknown 单字符", () => {
+    // 回归：修复前 "." 不被任何前置分支消费、又落在 unknown 停止字符类内 → 空 token 死循环
+    expect(kinds("Store.")).toEqual(["identifier:Store", "unknown:."]);
+  });
+  it("独立点不挂死：a . b / .5 / a..b（空转防护，逐字符单点 unknown）", () => {
+    expect(kinds("a . b")).toEqual(["identifier:a", "unknown:.", "identifier:b"]);
+    expect(kinds(".5")).toEqual(["unknown:.", "number:5"]);
+    expect(kinds("a..b")).toEqual(["identifier:a", "unknown:.", "unknown:.", "identifier:b"]);
+  });
+  it("未闭合字符串尾部反斜杠：不越界（end 不超 length）", () => {
+    // 回归：修复前 `"abc\` 转义分支 i += 2 无边界检查 → end=6 > length=5
+    expect(tokenizeFormula('"abc\\')).toEqual([{ kind: "string", text: "abc\\", start: 0, end: 5 }]);
+  });
 });
