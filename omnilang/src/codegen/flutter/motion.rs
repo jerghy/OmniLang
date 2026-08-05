@@ -381,7 +381,12 @@ fn natural_boundary_defaults(prop: &str) -> (&'static str, &'static str) {
     match motion_prop_kind(prop) {
         MotionPropKind::Color => ("Color(0x00000000)", "Color(0xFFFFFFFF)"),
         MotionPropKind::BorderRadius => ("BorderRadius.zero", "BorderRadius.zero"),
-        MotionPropKind::Numeric if matches!(prop, "opacity" | "scale") => ("1.0", "1.0"),
+        // scaleX/scaleY share scale's natural boundary — 1.0 (unscaled).
+        // (Review MEDIUM-3: they fell into the 0.0 group, so a from-omitted
+        // scaleX keyframe synthesized begin 0.0 — a collapsed element.)
+        MotionPropKind::Numeric if matches!(prop, "opacity" | "scale" | "scaleX" | "scaleY") => {
+            ("1.0", "1.0")
+        }
         MotionPropKind::Numeric => ("0.0", "0.0"), // translate*/rotate/width/height/fontSize
         MotionPropKind::Other => ("0.0", "1.0"),
     }
@@ -575,6 +580,17 @@ pub(crate) fn format_easing_flutter(ease: &Option<EasingIR>) -> String {
 pub(crate) fn format_named_curve(name: &str) -> String {
     if let Some((count, start)) = steps_curve_args(name) {
         return format!("_OmniStepsCurve({count}, start: {start})");
+    }
+    // stepStart/stepEnd (and their kebab forms) RESOLVE to
+    // "steps(1,start|end)" in the shared easing table — route the resolved
+    // form through the same steps-curve mapping. (Review MEDIUM-1: the
+    // raw-name check missed the aliases → the _OmniStepsCurve class was
+    // emitted but the easing fell back to Curves.linear — dead class +
+    // silent linear fallback where pre-C2b warned honestly.)
+    if let Some(css) = omnilang_core::codegen::shared::easing::resolve_easing(name) {
+        if let Some((count, start)) = steps_curve_args(css) {
+            return format!("_OmniStepsCurve({count}, start: {start})");
+        }
     }
     omnilang_core::codegen::shared::easing::resolve_easing_flutter(name)
         .unwrap_or("Curves.linear")

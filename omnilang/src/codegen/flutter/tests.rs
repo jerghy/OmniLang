@@ -3709,6 +3709,22 @@ fn test_steps_curve_args() {
         format_named_curve("steps(4,start)"),
         "_OmniStepsCurve(4, start: true)"
     );
+    // Review MEDIUM-1: stepStart/stepEnd (and kebab forms) RESOLVE to
+    // "steps(1,start|end)" in the shared easing table — the resolved form
+    // must route through the steps-curve mapping too (the raw-name check
+    // alone left them on Curves.linear while the class was emitted).
+    assert_eq!(
+        format_named_curve("stepStart"),
+        "_OmniStepsCurve(1, start: true)"
+    );
+    assert_eq!(
+        format_named_curve("stepEnd"),
+        "_OmniStepsCurve(1, start: false)"
+    );
+    assert_eq!(
+        format_named_curve("step-start"),
+        "_OmniStepsCurve(1, start: true)"
+    );
 }
 
 #[test]
@@ -4494,6 +4510,12 @@ component KeyDemo {
             && out.contains("return KeyEventResult.ignored;"),
         "key events must wrap in Focus(onKeyEvent:) with the KeyEventResult return, got:\n{out}"
     );
+    // Review LOW-1: Focus.onKeyEvent fires for BOTH keydown and keyup —
+    // an @onKeyUp handler must not run on presses (event-type guard).
+    assert!(
+        out.contains("if (event is! KeyUpEvent) { return KeyEventResult.ignored; }"),
+        "the key wrapper must discriminate the event type, got:\n{out}"
+    );
     assert!(
         !flutter
             .warnings
@@ -4524,6 +4546,99 @@ component KeyDemo2 {
             .iter()
             .any(|w| w.message.contains("param-bearing handler 'handleKey'")),
         "the param-bearing key handler must warn, got: {:?}",
+        flutter.warnings
+    );
+}
+
+/// Review MEDIUM-1: the stepStart/stepEnd aliases (which RESOLVE to
+/// steps(1,start|end) in the shared easing table) must emit the
+/// _OmniStepsCurve — not a dead class + silent Curves.linear fallback.
+#[test]
+fn steps_alias_easing_emits_steps_curve() {
+    let flutter = compile_flutter(
+        r#"
+@motion stepsAlias {
+    from { opacity: 0 }
+    to   { opacity: 1 }
+    over: 800ms
+    easing: stepStart
+}
+
+component StepsAliasDemo {
+    view {
+        <div @enter={stepsAlias}>x</div>
+    }
+}
+"#,
+    )
+    .expect("compile must succeed");
+    let out: String = flutter
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        out.contains("_OmniStepsCurve(1, start: true)"),
+        "stepStart must emit the steps curve, got:\n{out}"
+    );
+    assert!(
+        !out.contains("_stepsAliasOpacity_0 = Tween<double>(begin: 0.0, end: 1.0).chain(CurveTween(curve: Curves.linear))"),
+        "the alias must not fall back to Curves.linear, got:\n{out}"
+    );
+}
+
+/// Review MEDIUM-3: a from-omitted scaleX keyframe synthesizes its begin
+/// from the NATURAL 1.0 boundary (unscaled) — not 0.0 (collapsed).
+#[test]
+fn scale_x_missing_from_synthesizes_natural_one() {
+    let motion = MotionIntent {
+        name: "growX".into(),
+        body: test_keyframe(&[(1.0, &[("scaleX", serde_json::json!(2.0))])]),
+        source_span: None,
+    };
+    let tween = build_prop_tween_expr(&motion.body, "scaleX", false);
+    assert!(
+        tween.contains("begin: 1.0, end: 2.0"),
+        "from-omitted scaleX must synthesize begin 1.0, got: {tween}"
+    );
+}
+
+/// Review MEDIUM-2: an element with BOTH a ref binding and data-testid
+/// must emit exactly ONE `key:` argument (the ref's GlobalKey wins; the
+/// testid drop is an honest warning) — two key args would not compile.
+#[test]
+fn ref_and_data_testid_emit_single_key() {
+    let flutter = compile_flutter(
+        r#"
+import omniview;
+component RefTestIdDemo {
+    ref box: HtmlElement;
+    fn go() { box.focus(); }
+    view {
+        <div @ref={box} data-testid="card-a">x</div>
+    }
+}
+"#,
+    )
+    .expect("compile must succeed");
+    let out: String = flutter
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    let key_count = out.matches("key: _").count() + out.matches("key: ValueKey(").count();
+    assert_eq!(
+        key_count, 1,
+        "ref + data-testid must emit exactly ONE key arg, got:\n{out}"
+    );
+    assert!(
+        flutter
+            .warnings
+            .iter()
+            .any(|w| w.message.contains("'data-testid' is dropped")),
+        "the testid drop must be an honest warning: {:?}",
         flutter.warnings
     );
 }

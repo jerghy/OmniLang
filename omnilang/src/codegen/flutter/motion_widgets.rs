@@ -2,6 +2,7 @@
 
 use crate::codegen::CodeWriter;
 use crate::ir::*;
+use rustc_hash::FxHashSet;
 
 // ═══════════════════════════════════════════════════════════════════
 // InView / Scroll helper widget codegen
@@ -513,6 +514,70 @@ pub(crate) fn emit_drag_widget_class(w: &mut CodeWriter) {
 /// and the shared runtime emission on the program (Task 5.6).
 pub(crate) fn view_uses_trigger_helpers(view: &ViewTree) -> bool {
     has_trigger_kind_in_view(view) || has_trigger_kind_scroll(view) || has_trigger_kind_drag(view)
+}
+
+/// Whether a view binds key events that WIRE a Focus(onKeyEvent:) guard
+/// (@onKeyDown/@onKeyUp with a wireable handler) — the guard names
+/// KeyDownEvent/KeyUpEvent, which live in `package:flutter/services.dart`
+/// (material.dart does NOT re-export them), so the import is gated on this
+/// scan (review LOW-1). A param-bearing fn-ref key handler degrades
+/// honestly (no guard emitted) — the import must NOT fire for it
+/// (unnecessary_import).
+pub(crate) fn view_uses_wired_key_events(
+    view: &ViewTree,
+    widget_names: &FxHashSet<String>,
+    comp: &ComponentIR,
+    ir: &IRProgram,
+) -> bool {
+    let takes_params = |r#ref: &str| -> bool {
+        comp.fns
+            .iter()
+            .any(|f| f.name == r#ref && !f.params.is_empty())
+            || ir
+                .all_functions()
+                .iter()
+                .any(|f| f.name == r#ref && !f.params.is_empty())
+    };
+    let wired_key = |el: &ElementIR| -> bool {
+        el.events.iter().any(|(name, handler)| {
+            matches!(name.as_str(), "onKeyDown" | "keydown" | "onKeyUp" | "keyup")
+                && !matches!(
+                    handler,
+                    EventHandlerIR::FnRef { r#ref, .. }
+                        if !widget_names.contains(r#ref.as_str()) && takes_params(r#ref)
+                )
+        })
+    };
+    match view {
+        ViewTree::Element(el) => {
+            if wired_key(el) {
+                return true;
+            }
+            el.children
+                .iter()
+                .any(|c| view_uses_wired_key_events(c, widget_names, comp, ir))
+        }
+        ViewTree::Conditional(cond) => cond
+            .branches
+            .iter()
+            .filter_map(|b| b.body.as_ref())
+            .chain(cond.fallback.iter())
+            .any(|c| view_uses_wired_key_events(c, widget_names, comp, ir)),
+        ViewTree::ListRendering(list) => list
+            .body
+            .iter()
+            .chain(list.empty_body.iter())
+            .any(|c| view_uses_wired_key_events(c, widget_names, comp, ir)),
+        ViewTree::Fragment(children) => children
+            .iter()
+            .any(|c| view_uses_wired_key_events(c, widget_names, comp, ir)),
+        ViewTree::Slot { fallback, .. } => fallback
+            .iter()
+            .any(|c| view_uses_wired_key_events(c, widget_names, comp, ir)),
+        ViewTree::Text(_) | ViewTree::Interpolation(_) => false,
+        // ViewTree is #[non_exhaustive] (core IR contract).
+        _ => false,
+    }
 }
 
 /// Emit the shared `_omniview_runtime.dart` — the Omni* trigger wrapper

@@ -1443,10 +1443,21 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
         }
         // Task C2b (#4): `data-testid` maps to `key: ValueKey('...')` —
         // the Flutter testing hook (widget tests find elements by key).
-        // Skipped silently when a ref binding already occupies `key`.
+        // Skipped when a `key` prop already emitted the arg, or when the
+        // element's ref binding occupies the slot (the ref's GlobalKey is
+        // pushed LATER in the ref section — two `key:` args would not
+        // compile; the GlobalKey must win, and the drop is an honest
+        // warning, never silent — review MEDIUM-2).
         if name == "data-testid" {
             if let ExprIR::LiteralExpr { value } = value {
                 if let Some(s) = value.as_str() {
+                    if el.ref_binding.is_some() {
+                        ctx.warnings.push(format!(
+                            "[flutter] prop 'data-testid' is dropped on '{widget}': \
+                             the element's ref binding occupies the key slot"
+                        ));
+                        continue;
+                    }
                     if !args.iter().any(|a| a.starts_with("key:")) {
                         args.push(format!("key: ValueKey('{}')", s.replace('\'', "\\'")));
                     }
@@ -1640,8 +1651,15 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
         // Focus.onKeyEvent takes `KeyEventResult Function(FocusNode,
         // KeyEvent)` — a param-bearing fn ref cannot satisfy the signature
         // AND its `e.key`-style accesses cannot read a raw KeyEvent — honest
-        // degradation (C2b #3).
+        // degradation (C2b #3). The callback fires for BOTH keydown and
+        // keyup events — discriminate by event type so an `@onKeyUp` handler
+        // does not run on presses (review LOW-1).
         let key_event = matches!(wrapper, Some(EventWrapperKind::KeyEvent));
+        let key_event_kind = match callback_name.as_str() {
+            "onKeyDown" => Some("KeyDownEvent"),
+            "onKeyUp" => Some("KeyUpEvent"),
+            _ => None,
+        };
         if key_event {
             if let EventHandlerIR::FnRef { r#ref, .. } = handler {
                 if !ctx.widget_names.contains(r#ref) && ctx.ref_takes_params(r#ref) {
@@ -1875,7 +1893,13 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                     ));
                     continue;
                 }
-                key_wrap_body = Some(body);
+                // Review LOW-1: Focus.onKeyEvent fires for BOTH keydown and
+                // keyup — inject the event-type guard so the handler runs
+                // only for its declared event kind.
+                key_wrap_body = Some(match key_event_kind {
+                    Some(kind) => inject_key_event_guard(&body, kind),
+                    None => body,
+                });
             }
             None => args.push(format!("{}: {}", callback_name, body)),
         }
@@ -2018,7 +2042,19 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
     let mut focus_wrap_ref: Option<&str> = None;
     if let Some(ref_name) = &el.ref_binding {
         let usage = ctx.ref_usage.get(ref_name).copied().unwrap_or_default();
-        args.push(format!("key: {}", ref_key_name(ref_name)));
+        // Defense in depth (review MEDIUM-2): a `key` prop emitted its arg
+        // in the props loop — a second `key:` would not compile. The
+        // GlobalKey is what the ref machinery needs, so its loss is an
+        // honest warning, never a silent skip.
+        if !args.iter().any(|a| a.starts_with("key:")) {
+            args.push(format!("key: {}", ref_key_name(ref_name)));
+        } else {
+            ctx.warnings.push(format!(
+                "[flutter] ref binding '{ref_name}' on '{widget}': the element's \
+                 key slot is occupied by a key prop — the ref GlobalKey is dropped \
+                 (ref lookups by key will not work)"
+            ));
+        }
         if usage.needs_text && widget == "TextField" {
             args.push(format!("controller: {}", ref_text_name(ref_name)));
         }
@@ -2533,6 +2569,19 @@ fn format_error_builder_handler(handler: &EventHandlerIR, ctx: &ViewContext) -> 
     Some(format!(
         "(context, error, stackTrace) {{ {stmts} return const SizedBox.shrink(); }}"
     ))
+}
+
+/// Review LOW-1: Focus.onKeyEvent receives BOTH keydown and keyup events —
+/// inject an event-type guard so an `@onKeyDown` handler does not fire on
+/// key releases (and vice versa). The guard returns early with
+/// `KeyEventResult.ignored`, keeping the event flowing to other handlers.
+fn inject_key_event_guard(body: &str, event_type: &str) -> String {
+    match body.strip_prefix("(node, event) {") {
+        Some(rest) => format!(
+            "(node, event) {{ if (event is! {event_type}) {{ return KeyEventResult.ignored; }}{rest}"
+        ),
+        None => body.to_string(),
+    }
 }
 
 /// The Focus.onKeyEvent closure: `(node, event) { <stmts>; return

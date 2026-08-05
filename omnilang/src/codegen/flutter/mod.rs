@@ -476,6 +476,22 @@ impl FlutterCodegen {
         if view.is_some_and(view_uses_trigger_helpers) {
             w.emit("import './_omniview_runtime.dart';");
         }
+        // Review LOW-1: the Focus(onKeyEvent:) wrapper's KeyDownEvent/
+        // KeyUpEvent guards live in flutter/services.dart — material.dart
+        // does not re-export them. Gated on key events that actually WIRE a
+        // guard (a param-bearing fn-ref key handler degrades honestly and
+        // emits no guard — no import, else unnecessary_import).
+        if view.is_some_and(|v| {
+            let widget_names: FxHashSet<String> = comp
+                .props
+                .keys()
+                .cloned()
+                .chain(comp.events.iter().map(|e| e.name.clone()))
+                .collect();
+            view_uses_wired_key_events(v, &widget_names, comp, ir)
+        }) {
+            w.emit("import 'package:flutter/services.dart';");
+        }
         if !comp.store_refs.is_empty() {
             w.emit("import 'package:flutter_riverpod/flutter_riverpod.dart';");
             w.emit("");
