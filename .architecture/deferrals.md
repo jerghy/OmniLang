@@ -275,6 +275,7 @@
 - 推迟项**不是**废弃项——它们是"现在不做，等时机成熟再做"的决策
 - 本文件在每次 Sprint 回顾时更新状态
 - 新增推迟项追加到本文件末尾
+- **新语法进 BNF 前必须走语法生命周期制度**（`docs/superpowers/specs/syntax-lifecycle.md`——提案 → spike → 语料试点 → 收口评审；批准标准：≥1 demo 使用 + 三目标门禁 + 使用基准预估）；收口评审未通过 → defer-with-trigger 入本台账（模板引用见文末 2026-08-05 登记节）
 
 ---
 
@@ -292,6 +293,16 @@
 | 77 | **[LOW]** CodeFlowCanvas 修复轮 parked 项 4 条：(a) `removeElement`-undo 不恢复被删子树后代元素（恢复 wire 但元素缺失→xyflow 不可见边；codeflow 元素全扁平实际不可达，view 树 conditional 场景重载解析重建自愈，不落盘）；(b) 嵌套 condition 为外层分支末句且后接外层 elif 时续接循环可能产生双 wire（既有行为，同对去重已挡）；(c) validate-sources 测试用例 4 用 mockRejectedValue 而绑定同步（应 mockImplementation throw，测试空转未覆盖 catch 分支——一行级）；(d) materializeFnGraphs 的 persistedPos 直接引用共享（无原地修改路径，建议 spread 拷贝——一行级） | (a)(b) 触发即记录，无修复排期；(c)(d) 下次触碰相关文件时顺手修 | (a)(b) 视觉/连线完整性边界；(c) 测试诚信；(d) 不可变惯例一致性 |
 
 > 另注：`task-5-report.md` 误入 git 跟踪（`.superpowers/sdd/.gitignore` 为 `*` 全忽略，仅此一个报告被跟踪）——`git rm --cached` 即可清理，未登记编号。
+
+---
+
+## 2026-08-05 语法生命周期制度登记（v3 Phase 7 设计层制度 Task 7.4——设计 P6）
+
+**制度（非推迟项，模板引用）**：新语法进 BNF 前必须走语法生命周期（`docs/superpowers/specs/syntax-lifecycle.md`）——提案 → spike → 语料试点 → 收口评审 → BNF 批准；批准标准：≥1 demo 使用 + 三目标门禁 + 使用基准预估。`scripts/verify-syntax-lifecycle.py` 强制已批准语法必含「提案 → 试点 → 批准」三段记录 + 试点文件存在性（docs-gate 同批）。本台账凡「新语法/新表面」触发条件一律引用该模板；收口评审未通过 → defer-with-trigger 入本台账。
+
+**动因（设计 P6）**：v2 域 8 新增语言方法 filter/map/count 0/93 语料消费者直接进 BNF（demo 全走 stdlib array_filter/array_map，v3 Task 4.6 prove-or-retire 才迁移 4 处）——删除有纪律（硬诊断 + 迁移提示）、新增没有；本制度把新增纳入与删除对称的纪律：先进语料，再进 BNF。
+
+**补档（一次性豁免）**：v2 现有语法按「已批准」反向登记（源：7.1 登记册 + 7.2 语义全集 + v2 设计文档 §5 逐域验证清单），12 语法组已登记于生命周期文档登记册。
 
 ---
 
