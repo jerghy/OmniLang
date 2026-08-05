@@ -3680,12 +3680,35 @@ fn test_easing_flutter_diagnostic() {
         })
     )
     .is_none());
-    // steps(N,dir) strings lower from steps() easing — no Flutter equivalent
-    let diag = easing_flutter_diagnostic("m", &Some(EasingIR::Named("steps(6,end)".into())));
-    assert!(diag.is_some());
-    assert!(diag.unwrap().contains("steps()"));
-    // Named step aliases (stepStart/stepEnd lower to steps(1,...))
-    assert!(easing_flutter_diagnostic("m", &Some(EasingIR::Named("stepEnd".into()))).is_some());
+    // Task C2b (#7): steps() easings map to the generated _OmniStepsCurve
+    // class — no diagnostic anymore.
+    assert!(
+        easing_flutter_diagnostic("m", &Some(EasingIR::Named("steps(6,end)".into()))).is_none()
+    );
+    assert!(easing_flutter_diagnostic("m", &Some(EasingIR::Named("stepEnd".into()))).is_none());
+}
+
+#[test]
+fn test_steps_curve_args() {
+    assert_eq!(
+        steps_curve_args("steps(6,end)"),
+        Some(("6".to_string(), false))
+    );
+    assert_eq!(
+        steps_curve_args("steps(4,start)"),
+        Some(("4".to_string(), true))
+    );
+    assert_eq!(steps_curve_args("steps(2)"), Some(("2".to_string(), false)));
+    assert_eq!(steps_curve_args("easeOut"), None);
+    assert_eq!(steps_curve_args("steps(x)"), None);
+    assert_eq!(
+        format_named_curve("steps(6,end)"),
+        "_OmniStepsCurve(6, start: false)"
+    );
+    assert_eq!(
+        format_named_curve("steps(4,start)"),
+        "_OmniStepsCurve(4, start: true)"
+    );
 }
 
 #[test]
@@ -3696,8 +3719,10 @@ fn test_prop_flutter_diagnostic() {
     let diag = prop_flutter_diagnostic("m", "width").unwrap();
     assert!(diag.contains("layout-dependent"), "width diag: {}", diag);
 
-    let diag = prop_flutter_diagnostic("m", "skewX").unwrap();
-    assert!(diag.contains("skew"), "skew diag: {}", diag);
+    // Task C2b (#7): skew composes into the Matrix4 transform — no diag.
+    assert!(prop_flutter_diagnostic("m", "skewX").is_none());
+    assert!(prop_flutter_diagnostic("m", "scaleX").is_none());
+    assert!(prop_flutter_diagnostic("m", "rotateZ").is_none());
 
     let diag = prop_flutter_diagnostic("m", "blur").unwrap();
     assert!(
@@ -3869,8 +3894,9 @@ fn test_build_animated_builder_body_border_radius_and_font_size() {
 
 #[test]
 fn test_build_animated_builder_body_no_wrappers() {
-    // Motion whose only property is unsupported (skew) must still produce a
-    // Widget-typed body — the builder closure's `child` is `Widget?`.
+    // Task C2b (#7): skewX now composes into a Matrix4 Transform — the
+    // Flutter SDK has no Transform.skew, so the per-axis family builds
+    // `Matrix4.identity()..setEntry(0, 1, tan(angle))`.
     let motion = MotionIntent {
         name: "skew".into(),
         body: test_keyframe(&[
@@ -3879,8 +3905,24 @@ fn test_build_animated_builder_body_no_wrappers() {
         ]),
         source_span: None,
     };
+    let body = build_animated_builder_body(&motion, "skew", 0);
+    assert!(
+        body.contains("Matrix4.identity()..setEntry(0, 1, tan(_skewSkewX_0.value))"),
+        "skewX must compose into the Matrix4 transform, got: {body}"
+    );
+
+    // A motion with NO supported properties still produces a Widget-typed
+    // body — the builder closure's `child` is `Widget?`.
+    let none_motion = MotionIntent {
+        name: "unsupported".into(),
+        body: test_keyframe(&[
+            (0.0, &[("blur", serde_json::json!(0))]),
+            (1.0, &[("blur", serde_json::json!(10))]),
+        ]),
+        source_span: None,
+    };
     assert_eq!(
-        build_animated_builder_body(&motion, "skew", 0),
+        build_animated_builder_body(&none_motion, "unsupported", 0),
         "child ?? const SizedBox.shrink()"
     );
 }
@@ -4012,11 +4054,18 @@ fn test_motion_pipeline_warnings_and_playback() {
     let (dart, warnings, _errors) =
         codegen.gen_component_dart("App", comp_ref, &ir, &component_map, &component_slots);
 
-    // steps() easing → diagnostic warning
+    // Task C2b (#7): steps() easing → the generated _OmniStepsCurve class
+    // (no warning anymore), with the class emitted in the component file.
     assert!(
-        warnings.iter().any(|w| w.contains("steps() easing")),
-        "steps() warning: {:?}",
+        !warnings.iter().any(|w| w.contains("steps() easing")),
+        "steps() must no longer warn: {:?}",
         warnings
+    );
+    assert!(
+        dart.contains("class _OmniStepsCurve extends Curve")
+            && dart.contains("_OmniStepsCurve(6, start: false)"),
+        "steps() must map to the emitted _OmniStepsCurve: {}",
+        dart
     );
     // width → layout-dependent warning
     assert!(
@@ -4036,13 +4085,6 @@ fn test_motion_pipeline_warnings_and_playback() {
     assert!(
         dart.contains("_pulseWidth_0 = Tween<double>(begin: 100.0, end: 200.0)"),
         "width tween: {}",
-        dart
-    );
-
-    // steps() falls back to Curves.linear
-    assert!(
-        dart.contains("CurveTween(curve: Curves.linear)"),
-        "steps fallback: {}",
         dart
     );
 
@@ -4487,6 +4529,62 @@ component KeyDemo2 {
             .iter()
             .any(|w| w.message.contains("param-bearing handler 'handleKey'")),
         "the param-bearing key handler must warn, got: {:?}",
+        flutter.warnings
+    );
+}
+
+/// Task C2b (#7): per-axis transform motions (scaleX/rotateX/skewX...)
+/// compose into a Matrix4 Transform — the Flutter SDK has no
+/// per-axis transform constructors — and steps() easings map to the
+/// emitted _OmniStepsCurve class.
+#[test]
+fn per_axis_motion_composes_matrix4_and_steps_curve() {
+    let flutter = compile_flutter(
+        r#"
+@motion scaleXDemo {
+    from { scaleX: 1 }
+    to   { scaleX: 1.8 }
+    over: 600ms
+    easing: power2-out
+}
+
+@motion stepsMove {
+    from { opacity: 0 }
+    to   { opacity: 1 }
+    over: 800ms
+    easing: steps(4,end)
+}
+
+component MotionDemo {
+    view {
+        <div @enter={scaleXDemo}>x</div>
+        <div @enter={stepsMove}>y</div>
+    }
+}
+"#,
+    )
+    .expect("compile must succeed");
+    let out: String = flutter
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        out.contains("Matrix4.identity()..scaleByDouble(_scaleXDemoScaleX_0.value, 1.0, 1.0, 1.0)"),
+        "scaleX must compose into the Matrix4 transform, got:\n{out}"
+    );
+    assert!(
+        out.contains("class _OmniStepsCurve extends Curve")
+            && out.contains("_OmniStepsCurve(4, start: false)"),
+        "steps() must map to the emitted _OmniStepsCurve, got:\n{out}"
+    );
+    assert!(
+        !flutter
+            .warnings
+            .iter()
+            .any(|w| w.message.contains("'scaleX'") || w.message.contains("steps()")),
+        "scaleX/steps must no longer warn: {:?}",
         flutter.warnings
     );
 }
@@ -5153,14 +5251,20 @@ component MotionCheck {
     );
     assert!(content.contains("_multiStopDemoActive_1 ? Container(color: _multiStopDemoBackgroundColor_1.value, child: Transform.scale(scale: _multiStopDemoScale_1.value, child: Opacity(opacity: _multiStopDemoOpacity_1.value, child: child))) : child ?? const SizedBox.shrink()"), "multi-property body: {}", content);
 
-    // Diagnostics: steps() easing warning
+    // Task C2b (#7): steps() easing is now a real Curve — no warning, and
+    // the component file carries the _OmniStepsCurve class.
     assert!(
-        output
+        !output
             .warnings
             .iter()
             .any(|w| w.message.contains("steps() easing")),
-        "steps warning: {:?}",
+        "steps must no longer warn: {:?}",
         output.warnings
+    );
+    assert!(
+        content.contains("class _OmniStepsCurve extends Curve"),
+        "steps must emit the _OmniStepsCurve class, got:\n{}",
+        content
     );
 }
 

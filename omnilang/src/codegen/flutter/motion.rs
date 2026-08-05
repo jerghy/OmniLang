@@ -189,9 +189,16 @@ pub(crate) fn is_supported_motion_prop(prop: &str) -> bool {
         prop,
         "opacity"
             | "scale"
+            | "scaleX"
+            | "scaleY"
             | "translateX"
             | "translateY"
             | "rotate"
+            | "rotateX"
+            | "rotateY"
+            | "rotateZ"
+            | "skewX"
+            | "skewY"
             | "backgroundColor"
             | "color"
             | "width"
@@ -230,7 +237,8 @@ pub(crate) fn motion_prop_kind(prop: &str) -> MotionPropKind {
     match prop {
         "backgroundColor" | "color" => MotionPropKind::Color,
         "borderRadius" => MotionPropKind::BorderRadius,
-        "opacity" | "scale" | "translateX" | "translateY" | "rotate" | "width" | "height"
+        "opacity" | "scale" | "scaleX" | "scaleY" | "translateX" | "translateY" | "rotate"
+        | "rotateX" | "rotateY" | "rotateZ" | "skewX" | "skewY" | "width" | "height"
         | "fontSize" => MotionPropKind::Numeric,
         _ => MotionPropKind::Other,
     }
@@ -458,8 +466,13 @@ pub(crate) fn build_prop_tween_expr_with(
         points.push((1.0, end_default.to_string()));
     }
 
-    // rotate is declared in degrees — convert to radians for Flutter.
-    if prop == "rotate" {
+    // rotate*/skew* are declared in degrees — convert to radians for
+    // Flutter (Matrix4 rotation/skew angles; skew entries take tan(angle)
+    // of the RADIAN value in the transform wrapper — C2b #7).
+    if matches!(
+        prop,
+        "rotate" | "rotateX" | "rotateY" | "rotateZ" | "skewX" | "skewY"
+    ) {
         for point in &mut points {
             point.1 = rotate_deg_to_rad_expr(&point.1);
         }
@@ -553,36 +566,58 @@ pub(crate) fn format_easing_flutter(ease: &Option<EasingIR>) -> String {
     }
 }
 
-/// Map a named easing string to a Flutter Curves constant.
-///
+/// Map a named easing string to a Flutter Curves constant — or the
+/// per-component `_OmniStepsCurve` class for CSS `steps(N, start|end)`
+/// easings (Flutter has no built-in discrete curve; the class is emitted
+/// by the component generator when a steps easing is used — C2b #7).
 /// Delegates to the shared [`NAMED_EASINGS`] table.
 /// Falls back to `Curves.linear` for unknown names.
 pub(crate) fn format_named_curve(name: &str) -> String {
+    if let Some((count, start)) = steps_curve_args(name) {
+        return format!("_OmniStepsCurve({count}, start: {start})");
+    }
     omnilang_core::codegen::shared::easing::resolve_easing_flutter(name)
         .unwrap_or("Curves.linear")
         .to_string()
 }
 
-/// Returns a diagnostic for easings that cannot be mapped onto Flutter.
-///
-/// `steps(...)` easings (and the `stepStart`/`stepEnd` aliases, which lower
-/// to `steps(1,...)`) are discrete — Flutter has no `Curves` equivalent, so
-/// the generated code falls back to `Curves.linear` and the user is told.
-pub(crate) fn easing_flutter_diagnostic(
-    motion_name: &str,
-    ease: &Option<EasingIR>,
-) -> Option<String> {
-    let name = match ease {
-        Some(EasingIR::Named(n)) => n,
+/// Parse a CSS `steps(N, direction)` easing name into (count, start).
+/// `stepStart`/`stepEnd` aliases lower to `steps(1, start|end)`.
+pub(crate) fn steps_curve_args(name: &str) -> Option<(String, bool)> {
+    let inner = name.strip_prefix("steps(")?.strip_suffix(')')?;
+    let mut parts = inner.split(',');
+    let count = parts.next()?.trim().parse::<u64>().ok()?;
+    let start = match parts.next().map(str::trim) {
+        Some("start") => true,
+        Some("end") | None => false,
         _ => return None,
     };
-    let css = omnilang_core::codegen::shared::easing::resolve_easing(name);
-    if name.starts_with("steps(") || css.is_some_and(|c| c.starts_with("steps(")) {
-        return Some(format!(
-            "[flutter] motion '{motion_name}' uses steps() easing, which has no Flutter \
-             Curves equivalent; falling back to Curves.linear"
-        ));
+    if parts.next().is_some() {
+        return None;
     }
+    Some((count.to_string(), start))
+}
+
+/// Whether a motion's easing is a CSS `steps(...)` — the component
+/// generator emits the `_OmniStepsCurve` class for it (C2b #7).
+pub(crate) fn motion_uses_steps_easing(ease: &Option<EasingIR>) -> bool {
+    let name = match ease {
+        Some(EasingIR::Named(n)) => n,
+        _ => return false,
+    };
+    let css = omnilang_core::codegen::shared::easing::resolve_easing(name);
+    steps_curve_args(name).is_some() || css.is_some_and(|c| c.starts_with("steps("))
+}
+
+/// Returns a diagnostic for easings that cannot be mapped onto Flutter.
+///
+/// All named easings now map (`steps(...)` → the generated
+/// `_OmniStepsCurve` class — C2b #7), so this returns None for every
+/// easing; kept as the single future diagnostic entry point.
+pub(crate) fn easing_flutter_diagnostic(
+    _motion_name: &str,
+    _ease: &Option<EasingIR>,
+) -> Option<String> {
     None
 }
 
@@ -591,23 +626,18 @@ pub(crate) fn easing_flutter_diagnostic(
 ///
 /// - `width`/`height`: layout-dependent size animation — emitted via
 ///   `SizedBox` but flagged for prefer-transform.
-/// - `skewX`/`skewY`: no stable Flutter transform constructor (the Flutter
-///   SDK has no `Transform.skew`) — skipped.
 /// - anything else outside the supported set: skipped.
 ///
 /// `borderRadius`/`fontSize` (Task 5.2) are first-class: `BorderRadiusTween`
 /// is a Flutter SDK class and fontSize applies through `TextStyle`, so no
-/// diagnostic is emitted for them.
+/// diagnostic is emitted for them. `skewX`/`skewY` (C2b #7) compose into
+/// the Matrix4 transform — no diagnostic either.
 pub(crate) fn prop_flutter_diagnostic(motion_name: &str, prop: &str) -> Option<String> {
     match prop {
         "width" | "height" => Some(format!(
             "[flutter] motion '{motion_name}' animates '{prop}', which is layout-dependent \
              in Flutter; animating via SizedBox — prefer scale/transform for performant \
              size animation"
-        )),
-        "skewX" | "skewY" => Some(format!(
-            "[flutter] motion '{motion_name}' animates '{prop}', which is rarely used and \
-             has no Flutter transform constructor; skipping it"
         )),
         p if is_supported_motion_prop(p) => None,
         p => Some(format!(
@@ -706,6 +736,42 @@ pub(crate) fn build_animated_builder_body(
             prop_anim_field_for(motion_name, "rotate", element_idx),
             body
         );
+    }
+
+    // Per-axis scale/rotate/skew (Task C2b #7): the Flutter SDK has NO
+    // Transform.scaleX/rotateX/skew constructors — the per-axis family
+    // composes into ONE Matrix4 Transform (`Matrix4.identity()..rotateZ(a)
+    // ..rotateX(b)..scale(sx, sy, 1.0)..setEntry(...)`). Values arrive in
+    // RADIANS (deg→rad at tween build); skew entries are tan(angle).
+    const PER_AXIS_PROPS: [&str; 7] = [
+        "rotateX", "rotateY", "rotateZ", "scaleX", "scaleY", "skewX", "skewY",
+    ];
+    if PER_AXIS_PROPS.iter().any(|p| has(p)) {
+        let mut chain = "Matrix4.identity()".to_string();
+        for prop in PER_AXIS_PROPS {
+            if !has(prop) {
+                continue;
+            }
+            let field = prop_anim_field_for(motion_name, prop, element_idx);
+            match prop {
+                "rotateX" | "rotateY" | "rotateZ" => {
+                    let axis = prop.trim_start_matches("rotate");
+                    chain.push_str(&format!("..rotate{axis}({field}.value)"));
+                }
+                // Matrix4.scale is DEPRECATED (vector_math 2.2.0) —
+                // scaleByDouble composes correctly with preceding rotations.
+                "scaleX" => {
+                    chain.push_str(&format!("..scaleByDouble({field}.value, 1.0, 1.0, 1.0)"))
+                }
+                "scaleY" => {
+                    chain.push_str(&format!("..scaleByDouble(1.0, {field}.value, 1.0, 1.0)"))
+                }
+                "skewX" => chain.push_str(&format!("..setEntry(0, 1, tan({field}.value))")),
+                "skewY" => chain.push_str(&format!("..setEntry(1, 0, tan({field}.value))")),
+                _ => {}
+            }
+        }
+        body = format!("Transform(transform: {chain}, child: {body})");
     }
 
     // backgroundColor → Container
