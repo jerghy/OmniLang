@@ -142,11 +142,30 @@ export function computeLayeredLayout(
     walk(rootId, 0);
     ids.forEach((id) => { if (!column.has(id)) column.set(id, 0); });
 
+    // 桶统计：同 (depth, column) 为一桶（inline 均布单元）
+    const bucketKey = (id: string) => `${depth.get(id)}:${column.get(id)}`;
+    const inlineIdx = new Map<string, number>();
+    const inlineCount = new Map<string, number>();
+    for (const id of ids) {
+      const k = bucketKey(id);
+      inlineCount.set(k, (inlineCount.get(k) ?? 0) + 1);
+    }
+    // 每层最满桶的节点数：行高按桶容量预留，防同桶 idx 偏移穿入下一行（2×2 网格合并形态）
+    const maxBucketPerDepth = new Map<number, number>();
+    for (const id of ids) {
+      const d = depth.get(id) ?? 0;
+      const n = inlineCount.get(bucketKey(id)) ?? 1;
+      maxBucketPerDepth.set(d, Math.max(maxBucketPerDepth.get(d) ?? 1, n));
+    }
+
     // 行高/列宽：按层/列取最大估算尺寸
     const maxDepth = Math.max(...ids.map((id) => depth.get(id) ?? 0));
     const rowHeight = new Map<number, number>();
     for (let d = 0; d <= maxDepth; d++) {
-      rowHeight.set(d, Math.max(...ids.filter((id) => depth.get(id) === d).map((id) => sizeOf(id, elemById.get(id)!.tag, elemById.get(id)!.props).height)) + LAYOUT_CONSTS.V_GAP);
+      const maxH = Math.max(...ids.filter((id) => depth.get(id) === d).map((id) => sizeOf(id, elemById.get(id)!.tag, elemById.get(id)!.props).height));
+      const n = maxBucketPerDepth.get(d) ?? 1;
+      // 单节点桶：maxH + V_GAP；多节点桶：为最满桶的 inline 均布预留整行（idx 最大 = n-1，且 maxH ≥ 任意节点高）
+      rowHeight.set(d, maxH + (n - 1) * (maxH + LAYOUT_CONSTS.INLINE_GAP) + LAYOUT_CONSTS.V_GAP);
     }
     const colWidth = new Map<number, number>();
     const maxCol = Math.max(...ids.map((id) => column.get(id) ?? 0));
@@ -154,12 +173,6 @@ export function computeLayeredLayout(
       colWidth.set(c, Math.max(...ids.filter((id) => column.get(id) === c).map((id) => sizeOf(id, elemById.get(id)!.tag, elemById.get(id)!.props).width)) + LAYOUT_CONSTS.H_GAP);
     }
     // 同 (depth, column) 多节点纵向均布
-    const inlineIdx = new Map<string, number>();
-    const inlineCount = new Map<string, number>();
-    for (const id of ids) {
-      const k = `${depth.get(id)}:${column.get(id)}`;
-      inlineCount.set(k, (inlineCount.get(k) ?? 0) + 1);
-    }
     for (const id of ids) {
       const k = `${depth.get(id)}:${column.get(id)}`;
       const idx = inlineIdx.get(k) ?? 0;

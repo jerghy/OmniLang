@@ -86,4 +86,36 @@ describe("computeLayeredLayout", () => {
     expect(pos["after"].x).toBe(pos["loop"].x);
     expect(pos["body"].y).toBeGreaterThan(pos["loop"].y);
   });
+  it("同桶多节点行高预留：2×2 网格合并两两无重叠", () => {
+    // let 双 flow-out → c1/c2 同桶 (2,0)；c1/c2 各 flow-out → p1/p2 同桶 (3,0)
+    const grid = [
+      el("gfn", "fn", { name: "g", params: "", returnType: "void" }),
+      el("glet", "let", { name: "n", value: "0" }),
+      el("c1", "assign", { target: "a", operator: "=", value: "1" }),
+      el("c2", "assign", { target: "b", operator: "=", value: "2" }),
+      el("p1", "assign", { target: "a", operator: "=", value: "3" }),
+      el("p2", "assign", { target: "b", operator: "=", value: "4" }),
+    ];
+    const gridWires = [
+      wire("g1", "gfn", "flow-out", "glet", "flow-in"),
+      wire("g2", "glet", "flow-out", "c1", "flow-in"),
+      wire("g3", "glet", "flow-out", "c2", "flow-in"),
+      wire("g4", "c1", "flow-out", "p1", "flow-in"),
+      wire("g5", "c2", "flow-out", "p2", "flow-in"),
+    ];
+    const pos = computeLayeredLayout(grid, gridWires, new Map());
+    // 两两矩形不相交（估算尺寸）
+    const gridIds = grid.map((e) => e.id);
+    for (let i = 0; i < gridIds.length; i++) {
+      for (let j = i + 1; j < gridIds.length; j++) {
+        const a = pos[gridIds[i]]!, b = pos[gridIds[j]]!;
+        const sa = estimateNodeSize(grid.find((e) => e.id === gridIds[i])!.tag, grid.find((e) => e.id === gridIds[i])!.props);
+        const sb = estimateNodeSize(grid.find((e) => e.id === gridIds[j])!.tag, grid.find((e) => e.id === gridIds[j])!.props);
+        const noOverlap = a.x + sa.width <= b.x || b.x + sb.width <= a.x || a.y + sa.height <= b.y || b.y + sb.height <= a.y;
+        expect(noOverlap, `${gridIds[i]} vs ${gridIds[j]}`).toBe(true);
+      }
+    }
+    // 关键对：c2（桶 idx=1）底不穿入下一行 p1 顶
+    expect(pos["c2"].y + estimateNodeSize("assign", {}).height).toBeLessThanOrEqual(pos["p1"].y);
+  });
 });
