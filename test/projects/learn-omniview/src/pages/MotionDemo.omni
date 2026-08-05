@@ -1,5 +1,4 @@
 import omniview;
-import { LearnDesign } from "../design";
 
 @motion fadeInUp {
   from { opacity: 0, translateY: 20 }

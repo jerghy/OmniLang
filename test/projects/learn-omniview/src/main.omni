@@ -1,4 +1,4 @@
-// OmniView 能力展示 — 10 语义域 · 4 主题 · 93 源文件
+// OmniView 能力展示 — 10 语义域 · 4 主题 · 96 源文件
 // 运行：omnic run    编译：omnic build --target omniview
 //
 // 架构：design（设计系统）→ components/pages（UI 组件）→ main（根组装）
@@ -31,7 +31,6 @@ import "./lib/types" as Types;
 import "./lib/stats" as StatsLib;
 import "./lib/transform" as TransformLib;
 import "./lib/validation" as ValidationLib;
-import { Percentage } from "./lib/reexports";
 
 component App {
     @store TodoStore;

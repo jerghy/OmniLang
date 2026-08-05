@@ -98,7 +98,6 @@ pub type Percentage = f64;                          // 公共
 ```toml
 [aliases]
 "@lib" = "./src/lib"
-"@shared" = "./src/shared"
 ```
 
 使用别名导入：

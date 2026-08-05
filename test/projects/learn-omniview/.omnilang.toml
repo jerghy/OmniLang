@@ -8,10 +8,9 @@ version = "1.0.0"
 # 使用 import "@lib/types" 即可从别名路径导入
 [aliases]
 "@lib" = "./src/lib"
-"@shared" = "./src/shared"
 
 # 源文件目录（递归发现 src/**/*.omni）
-# 子目录 src/lib/ 和 src/shared/ 自动包含，无需额外配置
+# 子目录 src/lib/ 自动包含，无需额外配置
 [source]
 dir = "src"
 
