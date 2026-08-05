@@ -28,7 +28,7 @@ pub use omnilang_core::validate;
 
 #[cfg(feature = "codegen-omniview")]
 use crate::codegen::omniview::{ComponentOutput, StyleResolveResult};
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
@@ -418,6 +418,21 @@ fn compile_multi_internal_post(
                 suggestion: None,
             }),
     );
+
+    // C2a (C1 audit P1 companion): the "design class has no
+    // decoration-mappable properties" family is keyed by CLASS NAME — the
+    // per-component dedup (flutter/mod.rs) still reports the same root cause
+    // once per component. Merging by message program-wide keeps the honest
+    // text on the first occurrence and collapses the family to one entry per
+    // unique class (the C1 P1 "#2 唯一名合并"). Only this class-keyed family
+    // is merged — all other codegen warnings stay per-occurrence (spec §10.3
+    // no-silent-drop contract).
+    let mut seen_decoration: FxHashSet<String> = FxHashSet::default();
+    warnings.retain(|d| {
+        !(d.kind == crate::error::DiagnosticKind::ECodegen
+            && d.message.contains("no decoration-mappable properties"))
+            || seen_decoration.insert(d.message.clone())
+    });
 
     let success = diags.iter().all(|d| d.severity != error::Severity::Error);
     InternalCompileResult {
