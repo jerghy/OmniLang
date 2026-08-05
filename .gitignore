@@ -61,6 +61,7 @@ test/projects/learn-omniview/build/react-test-app/__design/
 test/projects/learn-omniview/build/react-test-app/dist/
 test/projects/learn-omniview/build/react-test-app/test-results/
 test/projects/learn-omniview/build/react-test-app/test-results.json
+test/projects/learn-omniview/build/react-test-app/test-results-omniview.json
 test/projects/learn-omniview/build/react-test-app/playwright-report/
 
 .claude/worktrees/
@@ -70,6 +71,9 @@ test/projects/learn-omniview/dist/
 
 # ts-rs auto-generated bindings (default export directory)
 bindings/
+
+# Codegen-validation harness residue (one dir per flutter gate run)
+tmp_codegen_validation_flutter_*/
 
 # Screenshots and temp files
 *.png
