@@ -5,6 +5,7 @@ import styles from "./ReturnNode.module.css";
 import { NodeFormulaField } from "../fields/NodeFormulaField";
 import { TokenPreview } from "../fields/TokenPreview";
 import { buildFormulaSource, type FlowScope } from "../../../../services/codegen/flow-scope";
+import "./node-base.css";
 
 interface Props {
   data: {
@@ -40,7 +41,7 @@ export function ReturnNode({ data }: Props) {
 
   return (
     <div
-      className={`flow-node ${styles.node}`}
+      className={`flow-node ${styles.node} codeflow-node`}
       data-node-type="return"
       onDoubleClick={data.onDoubleClick}
     >
@@ -77,7 +78,9 @@ export function ReturnNode({ data }: Props) {
         )}
       </div>
       <HandlesBoundary>
+        className="codeflow-handle"
         <Handle
+          className="codeflow-handle"
           type="target"
           position={Position.Top}
           id="flow-in"

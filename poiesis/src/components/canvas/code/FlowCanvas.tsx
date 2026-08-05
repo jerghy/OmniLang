@@ -34,6 +34,7 @@ import { CodeBlockEditor } from "./CodeBlockEditor";
 import type { CodeBlockEditorContext } from "./CodeBlockEditor";
 import type { DependencyInfo } from "../../../core/types/dependency-info";
 import { FlowInspector } from "./FlowInspector";
+import { FlowEdge } from "./FlowEdge";
 import styles from "./FlowCanvas.module.css";
 
 const nodeTypes = {
@@ -49,6 +50,9 @@ const nodeTypes = {
   "while": LoopNode,
   "for-in": LoopNode,
 };
+
+/** 正交 wire 路由（2026-08-05）：分支 wire 走走廊，不扫过目标列上方节点（bezier 圆弧穿节点根除） */
+const edgeTypes = { flow: FlowEdge };
 
 function FlowCanvasInner() {
   const elements = useCodeElements();
@@ -343,6 +347,7 @@ function FlowCanvasInner() {
     () =>
       wires.map((w) => ({
         id: w.id,
+        type: "flow",
         source: w.fromId,
         target: w.toId,
         sourceHandle: w.fromPort,
@@ -492,6 +497,7 @@ function FlowCanvasInner() {
           nodes={allNodes}
           edges={edges}
           nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
           fitView
           fitViewOptions={{ maxZoom: 1 }}
           nodesDraggable

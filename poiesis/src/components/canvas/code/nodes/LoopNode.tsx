@@ -10,6 +10,7 @@ import { formatSyntaxNode, type SyntaxNodeProps } from "../../../../services/cod
 import { TokenPreview } from "../fields/TokenPreview";
 import type { FlowScope } from "../../../../services/codegen/flow-scope";
 import styles from "./LoopNode.module.css";
+import "./node-base.css";
 
 interface LoopNodeData {
   tag: "while" | "for-in";
@@ -41,11 +42,11 @@ export const LoopNode = memo(function LoopNode({ id, data }: Props) {
   const preview = data.source || formatSyntaxNode(tag, data.props);
   const isWhile = tag === "while";
   return (
-    <div className={`${styles.node} nodrag`}>
+    <div className={`${styles.node} codeflow-node nodrag`}>
       <HandlesBoundary>
-        <Handle type="target" position={Position.Top} id="flow-in" className={styles.handle} data-handle-id="flow-in" />
+        <Handle type="target" position={Position.Top} id="flow-in" className={`${styles.handle} codeflow-handle`} data-handle-id="flow-in" />
       </HandlesBoundary>
-      <div className={styles.header}>{isWhile ? "while" : "for-in"}</div>
+      <div className={`${styles.header} codeflow-header`}>{isWhile ? "while" : "for-in"}</div>
       <div className={styles.body}>
         {isWhile ? (
           <div className={styles.fieldRow} data-field-kind="condition">
@@ -66,13 +67,13 @@ export const LoopNode = memo(function LoopNode({ id, data }: Props) {
         )}
         <div className={styles.bodyRow}>
           <HandlesBoundary>
-            <Handle type="source" position={Position.Right} id="br0" className={styles.handle} data-handle-id="br0" />
+            <Handle type="source" position={Position.Right} id="br0" className={`${styles.handle} codeflow-handle`} data-handle-id="br0" />
           </HandlesBoundary>
           <span className={styles.bodyLabel}>循环体</span>
         </div>
       </div>
       <HandlesBoundary>
-        <Handle type="source" position={Position.Bottom} id="flow-out" className={styles.handle} data-handle-id="flow-out" />
+        <Handle type="source" position={Position.Bottom} id="flow-out" className={`${styles.handle} codeflow-handle`} data-handle-id="flow-out" />
       </HandlesBoundary>
       <div className={styles.preview} data-testid="loop-preview">{preview}</div>
     </div>

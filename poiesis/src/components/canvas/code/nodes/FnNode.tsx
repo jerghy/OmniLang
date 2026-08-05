@@ -1,5 +1,6 @@
 import { Handle, Position } from "@xyflow/react";
 import styles from "./FnNode.module.css";
+import "./node-base.css";
 
 interface Props {
   data: {
@@ -16,7 +17,7 @@ export function FnNode({ data }: Props) {
 
   return (
     <div
-      className={`flow-node ${styles.node}`}
+      className={`flow-node ${styles.node} codeflow-node`}
       data-node-type="fn"
       onDoubleClick={data.onDoubleClick}
     >
@@ -26,6 +27,7 @@ export function FnNode({ data }: Props) {
         {params && <span style={{ fontWeight: 400 }}>({params})</span>}
       </div>
       <Handle
+        className="codeflow-handle"
         type="source"
         position={Position.Bottom}
         id="flow-out"

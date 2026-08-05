@@ -1,0 +1,42 @@
+/* node-base.css — CodeFlowCanvas 节点统一视觉体系（2026-08-05 美观优化轮）
+   共享类：各节点组件 import 后加 className，与各自 module.css 的 tag 色系叠加。
+   设计：统一圆角/阴影/过渡 + 选中态高亮 + handle 圆点（hover 放大）——对标 ComfyUI/Notion 的
+   专业节点编辑器视觉（视觉评审：生硬矩形、无层级感、handle 不清晰）。 */
+
+/* ── 节点基础 ── */
+.codeflow-node {
+  border-radius: 10px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06), 0 4px 14px rgba(15, 23, 42, 0.08);
+  transition: box-shadow 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+.codeflow-node:hover {
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.10), 0 8px 24px rgba(15, 23, 42, 0.12);
+}
+/* 选中态（FlowCanvas 已按 selectedNodeIds 注入 .flow-node-selected 类） */
+.codeflow-node.flow-node-selected,
+.codeflow-node.selected {
+  box-shadow: 0 0 0 2px var(--ol-color-primary, #4f46e5), 0 4px 14px rgba(15, 23, 42, 0.12);
+}
+
+/* ── 端口 handle 统一：10px 圆点 + 白边 + hover 放大 ── */
+.codeflow-handle {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid var(--ol-surface, #fff);
+  background: var(--ol-gray-400, #94a3b8);
+  transition: transform 0.12s ease, background 0.12s ease;
+}
+.codeflow-handle:hover {
+  transform: scale(1.5);
+  background: var(--ol-color-primary, #4f46e5);
+}
+
+/* ── 节点头部标签（fn/loop/condition 等）统一字距/字号 ── */
+.codeflow-header {
+  font-weight: 600;
+  font-size: var(--ol-font-size-11, 11px);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  user-select: none;
+}

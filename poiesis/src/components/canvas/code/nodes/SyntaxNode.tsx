@@ -9,6 +9,7 @@ import { NodeFormulaField } from "../fields/NodeFormulaField";
 import { countUnbalancedParens } from "../fields/expression-trigger";
 import { validateSyntaxProps, filterCandidates, buildTargetOptions, buildFormulaSource, type FlowScope } from "../../../../services/codegen/flow-scope";
 import styles from "./SyntaxNode.module.css";
+import "./node-base.css";
 
 const OMNI_TYPES = ["String", "i32", "i64", "f64", "f32", "bool", "Array<String>", "Array<i32>", "Array<f64>", "Map<String, String>"];
 // 首项为空选项（（推断））：未选类型时 select 不显示幻影 "String"（onCommit 侧 "" → undefined）
@@ -84,7 +85,7 @@ const SyntaxNode = React.memo(function SyntaxNode({ data }: Props) {
 
   return (
     <div
-      className={`flow-node ${styles.node}`}
+      className={`flow-node ${styles.node} codeflow-node`}
       data-node-type={tag}
       data-syntax-code={code}
     >
@@ -219,8 +220,8 @@ const SyntaxNode = React.memo(function SyntaxNode({ data }: Props) {
       )}
 
       <HandlesBoundary>
-        <Handle type="target" position={Position.Top} id="flow-in" style={{ background: "var(--ol-text-muted)" }} />
-        <Handle type="source" position={Position.Bottom} id="flow-out" style={{ background: "var(--ol-text-muted)" }} />
+        <Handle type="target" position={Position.Top} id="flow-in" className="codeflow-handle" style={{ background: "var(--ol-text-muted)" }} />
+        <Handle type="source" position={Position.Bottom} id="flow-out" className="codeflow-handle" style={{ background: "var(--ol-text-muted)" }} />
       </HandlesBoundary>
     </div>
   );

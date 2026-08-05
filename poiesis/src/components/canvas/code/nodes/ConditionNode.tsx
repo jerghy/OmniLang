@@ -3,6 +3,7 @@ import React, { useMemo, useState } from "react";
 import { NodeFormulaField } from "../fields/NodeFormulaField";
 import { TokenPreview } from "../fields/TokenPreview";
 import { buildFormulaSource, type FlowScope } from "../../../../services/codegen/flow-scope";
+import "./node-base.css";
 
 interface BranchData {
   id: string;
@@ -70,7 +71,7 @@ export function ConditionNode({ data }: Props) {
 
   return (
     <div
-      className="flow-node"
+      className="flow-node codeflow-node"
       data-node-type="condition"
       style={{
         background: "var(--ol-color-warning-subtle)",
@@ -82,7 +83,9 @@ export function ConditionNode({ data }: Props) {
       }}
     >
       <HandlesBoundary>
+        className="codeflow-handle"
         <Handle
+          className="codeflow-handle"
           type="target"
           position={Position.Top}
           id="flow-in"
@@ -148,7 +151,9 @@ export function ConditionNode({ data }: Props) {
           </div>
 
           <HandlesBoundary>
+            className="codeflow-handle"
             <Handle
+              className="codeflow-handle"
               type="source"
               position={Position.Right}
               id={br.id}
@@ -188,7 +193,9 @@ export function ConditionNode({ data }: Props) {
           解析侧已重建 cond.flow-out → 后置段 wire（中链 condition round-trip，E2E 缺陷 2），
           画布必须渲染对应 handle，否则既有 flow-out wire 成不可见边（xyflow error008）。 */}
       <HandlesBoundary>
+        className="codeflow-handle"
         <Handle
+          className="codeflow-handle"
           type="source"
           position={Position.Bottom}
           id="flow-out"
