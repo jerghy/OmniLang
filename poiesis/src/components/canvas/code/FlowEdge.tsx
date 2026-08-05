@@ -54,11 +54,19 @@ export function FlowEdge({ id, source, target, sourceHandle, targetHandle, style
   const [pos, setPos] = useState<FlowEdgeInput | null>(null);
 
   useEffect(() => {
+    let rafId = 0;
+    let ro: ResizeObserver | null = null;
+    let mo: MutationObserver | null = null;
     const measure = () => {
       const srcEl = document.querySelector(`[data-nodeid="${source}"][data-handleid="${sourceHandle}"]`);
       const tgtEl = document.querySelector(`[data-nodeid="${target}"][data-handleid="${targetHandle}"]`);
       const vp = document.querySelector(".react-flow__viewport")?.getBoundingClientRect();
-      if (!srcEl || !tgtEl || !vp) return;
+      // handle 未就绪（xyflow 渲染顺序：edges 先于 nodes——首次 measure 常早于 handle 挂载）：
+      // rAF 重试直到就绪，否则 pos=null 永久不渲染（实测 edge 全空）。
+      if (!srcEl || !tgtEl || !vp) {
+        rafId = requestAnimationFrame(measure);
+        return;
+      }
       const s = domToCanvas(srcEl, vp, transform);
       const t = domToCanvas(tgtEl, vp, transform);
       setPos({
@@ -74,11 +82,11 @@ export function FlowEdge({ id, source, target, sourceHandle, targetHandle, style
     // 跟随节点变化：尺寸（ResizeObserver）+ 位置 transform（MutationObserver——CSS 变化/布局按钮后重测）
     const srcNode = document.querySelector(`[data-id="${source}"]`);
     const tgtNode = document.querySelector(`[data-id="${target}"]`);
-    const ro = new ResizeObserver(measure);
-    const mo = new MutationObserver(measure);
+    ro = new ResizeObserver(measure);
+    mo = new MutationObserver(measure);
     if (srcNode) { ro.observe(srcNode); mo.observe(srcNode, { attributes: true, attributeFilter: ["style"] }); }
     if (tgtNode) { ro.observe(tgtNode); mo.observe(tgtNode, { attributes: true, attributeFilter: ["style"] }); }
-    return () => { ro.disconnect(); mo.disconnect(); };
+    return () => { cancelAnimationFrame(rafId); ro?.disconnect(); mo?.disconnect(); };
   }, [source, target, sourceHandle, targetHandle, transform]);
 
   if (!pos) return null; // 测量前不渲染（防闪烁）

@@ -3,8 +3,9 @@
    设计：统一圆角/阴影/过渡 + 选中态高亮 + handle 圆点（hover 放大）——对标 ComfyUI/Notion 的
    专业节点编辑器视觉（视觉评审：生硬矩形、无层级感、handle 不清晰）。 */
 
-/* ── 节点基础 ── */
-.codeflow-node {
+/* ── 节点基础（.react-flow__node 前缀提特异性——各节点 module.css 的 .node 同特异性 (0,1,0)，
+    import 顺序不保证，实测 module 阴影覆盖 base；(0,2,0) 保证 base 生效）── */
+.react-flow__node .codeflow-node {
   /* position: relative 是 handle 定位的包含块锚点：xyflow Handle 绝对定位（left:100%），
      无此锚点时定位上下文错乱——实测 handle 漂到节点右侧 84-130px（body handle 悬空，
      且正交 wire 走廊按漂移后的 handle 位置计算 → 走廊越过目标列左缘 → 穿过节点）。 */
@@ -13,12 +14,12 @@
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06), 0 4px 14px rgba(15, 23, 42, 0.08);
   transition: box-shadow 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
 }
-.codeflow-node:hover {
+.react-flow__node .codeflow-node:hover {
   box-shadow: 0 2px 6px rgba(15, 23, 42, 0.10), 0 8px 24px rgba(15, 23, 42, 0.12);
 }
 /* 选中态（FlowCanvas 已按 selectedNodeIds 注入 .flow-node-selected 类） */
-.codeflow-node.flow-node-selected,
-.codeflow-node.selected {
+.react-flow__node .codeflow-node.flow-node-selected,
+.react-flow__node .codeflow-node.selected {
   box-shadow: 0 0 0 2px var(--ol-color-primary, #4f46e5), 0 4px 14px rgba(15, 23, 42, 0.12);
 }
 
