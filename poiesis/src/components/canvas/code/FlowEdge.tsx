@@ -50,9 +50,6 @@ function domToCanvas(el: Element, vp: DOMRect, transform: [number, number, numbe
   return { x: (r.x - vp.x - transform[0]) / transform[2], y: (r.y - vp.y - transform[1]) / transform[2] };
 }
 
-/** handle 直径 8px，中心偏移 */
-const HANDLE_CENTER = 4;
-
 export function FlowEdge({ id, source, target, data, style, markerEnd }: FlowEdgeProps) {
   const transform = useStore((s) => s.transform);
   const [pos, setPos] = useState<FlowEdgeInput | null>(null);
@@ -80,11 +77,16 @@ export function FlowEdge({ id, source, target, data, style, markerEnd }: FlowEdg
       }
       const s = domToCanvas(srcHandleEl, vp, transform);
       const t = domToCanvas(tgtHandleEl, vp, transform);
+      // handle 中心：rect 中心动态计算（视口宽/2 ÷ zoom）——不硬编码半径：
+      // codeflow-handle 10px + 2px 边框 = 12px，旧常数 4px（8px handle）致端点偏 2px
+      const srcRect = srcHandleEl.getBoundingClientRect();
+      const tgtRect = tgtHandleEl.getBoundingClientRect();
+      const zoom = transform[2];
       setPos({
-        sourceX: s.x + HANDLE_CENTER,
-        sourceY: s.y + HANDLE_CENTER,
-        targetX: t.x + HANDLE_CENTER,
-        targetY: t.y + HANDLE_CENTER,
+        sourceX: s.x + srcRect.width / 2 / zoom,
+        sourceY: s.y + srcRect.height / 2 / zoom,
+        targetX: t.x + tgtRect.width / 2 / zoom,
+        targetY: t.y + tgtRect.height / 2 / zoom,
         sourcePosition: (srcHandleEl.getAttribute("data-handlepos") as Position) ?? Position.Right,
         targetPosition: (tgtHandleEl.getAttribute("data-handlepos") as Position) ?? Position.Top,
       });
