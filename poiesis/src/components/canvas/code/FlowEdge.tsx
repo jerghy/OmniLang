@@ -50,6 +50,9 @@ function domToCanvas(el: Element, vp: DOMRect, transform: [number, number, numbe
   return { x: (r.x - vp.x - transform[0]) / transform[2], y: (r.y - vp.y - transform[1]) / transform[2] };
 }
 
+/** handle 直径 8px，中心偏移 */
+const HANDLE_CENTER = 4;
+
 export function FlowEdge({ id, source, target, data, style, markerEnd }: FlowEdgeProps) {
   const transform = useStore((s) => s.transform);
   const [pos, setPos] = useState<FlowEdgeInput | null>(null);
@@ -59,28 +62,31 @@ export function FlowEdge({ id, source, target, data, style, markerEnd }: FlowEdg
     let ro: ResizeObserver | null = null;
     let mo: MutationObserver | null = null;
     const fromPort = data?.fromPort ?? "flow-out";
+    const toPort = data?.toPort ?? "flow-in";
     const measure = () => {
-      const srcEl = document.querySelector(`[data-id="${source}"]`);
-      const tgtEl = document.querySelector(`[data-id="${target}"]`);
       const vp = document.querySelector(".react-flow__viewport")?.getBoundingClientRect();
-      if (!srcEl || !tgtEl || !vp) {
-        rafId = requestAnimationFrame(measure); // handle 未就绪（渲染顺序）——重试
+      if (!vp) {
+        rafId = requestAnimationFrame(measure); // 画布未就绪（渲染顺序）——重试
         return;
       }
-      const sr = srcEl.getBoundingClientRect();
-      const tr = tgtEl.getBoundingClientRect();
-      const s = domToCanvas(srcEl, vp, transform);
-      const t = domToCanvas(tgtEl, vp, transform);
-      // handle 位置：source 底部中点（flow-out）/ 右缘中部（分支）；target 顶部中点（flow-in）
-      const sX = fromPort === "flow-out" ? s.x + sr.width / 2 : s.x + sr.width;
-      const sY = fromPort === "flow-out" ? s.y + sr.height : s.y + sr.height / 2;
+      // 具体 handle 元素（data.fromPort 现在有值可查）：
+      // 之前用节点 rect 推断「右缘中部」——condition 多分支 handle 分散在各分支行，
+      // wire 起点全堆节点中部 → 视觉悬空断线（用户实测）。
+      const srcHandleEl = document.querySelector(`[data-nodeid="${source}"][data-handleid="${fromPort}"]`);
+      const tgtHandleEl = document.querySelector(`[data-nodeid="${target}"][data-handleid="${toPort}"]`);
+      if (!srcHandleEl || !tgtHandleEl) {
+        rafId = requestAnimationFrame(measure); // handle 未挂载——重试
+        return;
+      }
+      const s = domToCanvas(srcHandleEl, vp, transform);
+      const t = domToCanvas(tgtHandleEl, vp, transform);
       setPos({
-        sourceX: sX,
-        sourceY: sY,
-        targetX: t.x + tr.width / 2,
-        targetY: t.y,
-        sourcePosition: fromPort === "flow-out" ? Position.Bottom : Position.Right,
-        targetPosition: Position.Top,
+        sourceX: s.x + HANDLE_CENTER,
+        sourceY: s.y + HANDLE_CENTER,
+        targetX: t.x + HANDLE_CENTER,
+        targetY: t.y + HANDLE_CENTER,
+        sourcePosition: (srcHandleEl.getAttribute("data-handlepos") as Position) ?? Position.Right,
+        targetPosition: (tgtHandleEl.getAttribute("data-handlepos") as Position) ?? Position.Top,
       });
     };
     measure();
