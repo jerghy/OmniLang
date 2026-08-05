@@ -48,14 +48,14 @@ component App {
 
             <div class: LearnDesign.TabContent>
                 @if activeTab == "overview"  { <Overview @onNavigate={switchTab} /> }
-                @if activeTab == "ui"        { <UiComponents /> }
-                @if activeTab == "motion"    { <MotionPage /> }
-                @if activeTab == "design"    { <DesignTheme /> }
-                @if activeTab == "state"     { <StatePage /> }
-                @if activeTab == "language"  { <LanguagePage /> }
-                @if activeTab == "ref"  { <ElementRefDemo /> }
-                @if activeTab == "tokens"  { <DynamicTokens /> }
-                @if activeTab == "compiler"  { <CompilerPage /> }
+                @else if activeTab == "ui"        { <UiComponents /> }
+                @else if activeTab == "motion"    { <MotionPage /> }
+                @else if activeTab == "design"    { <DesignTheme /> }
+                @else if activeTab == "state"     { <StatePage /> }
+                @else if activeTab == "language"  { <LanguagePage /> }
+                @else if activeTab == "ref"  { <ElementRefDemo /> }
+                @else if activeTab == "tokens"  { <DynamicTokens /> }
+                @else { <CompilerPage /> }
             </div>
 
             <footer class: LearnDesign.Footer>
