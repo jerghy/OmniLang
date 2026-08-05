@@ -371,8 +371,7 @@ Expected: PASS（含既有 condition/中链回归）
 
 ```bash
 git add poiesis/src/services/codegen/graph-parser.ts poiesis/src/services/codegen/__tests__/graph-parser-midchain.test.ts
-git commit -m "feat(codeflow): graph-parser 线形重建支持 loop（body→br0 + flow-out 续接）
-```
+git commit -m "feat(codeflow): graph-parser 线形重建支持 loop（body→br0 + flow-out 续接）"
 ```
 
 ---
@@ -475,8 +474,7 @@ Expected: PASS
 
 ```bash
 git add poiesis/src/services/codegen/graph-compiler.ts poiesis/src/services/codegen/__tests__/graph-compiler-syntax.test.ts
-git commit -m "feat(codeflow): graph-compiler 循环发射（body 块 + flow-out 续接，镜像 condition 模式）
-```
+git commit -m "feat(codeflow): graph-compiler 循环发射（body 块 + flow-out 续接，镜像 condition 模式）"
 ```
 
 ---
@@ -563,8 +561,7 @@ Expected: 全绿 + tsc 零错误
 
 ```bash
 git add poiesis/src/services/codegen/__tests__/syntax-roundtrip.test.ts
-git commit -m "test(codeflow): loop round-trip 幂等契约（嵌套 condition-in-while + 双入口 wire）
-```
+git commit -m "test(codeflow): loop round-trip 幂等契约（嵌套 condition-in-while + 双入口 wire）"
 ```
 
 ---
@@ -762,8 +759,7 @@ Expected: PASS + tsc 零错误
 
 ```bash
 git add poiesis/src/components/canvas/code/flowConstants.ts poiesis/src/components/canvas/code/nodes/LoopNode.tsx poiesis/src/components/canvas/code/nodes/LoopNode.module.css poiesis/src/components/canvas/code/FlowCanvas.tsx poiesis/src/components/canvas/code/FlowInspector.tsx poiesis/src/components/canvas/code/nodes/__tests__/LoopNode.test.tsx
-git commit -m "feat(codeflow): LoopNode 组件（while/for-in 三端口）+ 菜单 + FlowInspector 表单
-```
+git commit -m "feat(codeflow): LoopNode 组件（while/for-in 三端口）+ 菜单 + FlowInspector 表单"
 ```
 
 ---
@@ -917,8 +913,7 @@ Expected: PASS（既有触发规则测试回归）
 
 ```bash
 git add poiesis/src/components/canvas/code/fields/expression-trigger.ts poiesis/src/components/canvas/code/fields/__tests__/expression-trigger.test.ts
-git commit -m "feat(codeflow): tokenizeFormula 表达式分词（Notion 式公式框数据基础）
-```
+git commit -m "feat(codeflow): tokenizeFormula 表达式分词（Notion 式公式框数据基础）"
 ```
 
 ---
@@ -1033,8 +1028,7 @@ Expected: PASS + tsc 零错误（既有节点测试若断言纯文本，更新�
 
 ```bash
 git add poiesis/src/components/canvas/code/fields/TokenPreview.tsx poiesis/src/components/canvas/code/fields/TokenPreview.module.css poiesis/src/components/canvas/code/fields/__tests__/TokenPreview.test.tsx poiesis/src/components/canvas/code/nodes/
-git commit -m "feat(codeflow): TokenPreview 只读 token 预览（节点表达式结构可视化）
-```
+git commit -m "feat(codeflow): TokenPreview 只读 token 预览（节点表达式结构可视化）"
 ```
 
 ---
@@ -1394,8 +1388,7 @@ Expected: 全绿 + tsc 零错误（若个别用例语义已变（如"敲 + 不�
 
 ```bash
 git add poiesis/src/components/canvas/code/fields/NodeFormulaField.tsx poiesis/src/components/canvas/code/fields/NodeField.module.css poiesis/src/components/canvas/code/fields/__tests__/
-git commit -m "feat(codeflow): NodeFormulaField 内部替换为 Notion 式（分词胶囊/候选菜单/IME 守卫/整块删除）
-```
+git commit -m "feat(codeflow): NodeFormulaField 内部替换为 Notion 式（分词胶囊/候选菜单/IME 守卫/整块删除）"
 ```
 
 ---
@@ -1723,8 +1716,7 @@ Expected: PASS（若"同层同 y"因 inline 均布断言冲突（单节点时 id
 
 ```bash
 git add poiesis/src/services/codegen/flow-layout.ts poiesis/src/services/codegen/__tests__/flow-layout.test.ts
-git commit -m "feat(codeflow): computeLayeredLayout 分层布局纯函数（主干/分支/子图堆叠）
-```
+git commit -m "feat(codeflow): computeLayeredLayout 分层布局纯函数（主干/分支/子图堆叠）"
 ```
 
 ---
@@ -1871,8 +1863,7 @@ Expected: PASS + tsc 零错误
 
 ```bash
 git add poiesis/src/components/canvas/code/FlowCanvas.tsx poiesis/src/components/canvas/code/__tests__/FlowCanvasLayout.test.tsx
-git commit -m "feat(codeflow): 自动整理布局按钮（computeLayeredLayout → setElementsAndWires 可 undo）
-```
+git commit -m "feat(codeflow): 自动整理布局按钮（computeLayeredLayout → setElementsAndWires 可 undo）"
 ```
 
 ---
