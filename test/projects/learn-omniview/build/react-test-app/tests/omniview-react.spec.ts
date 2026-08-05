@@ -104,7 +104,7 @@ test.describe('OmniView React — 9 标签页验证', () => {
     test('01 - banner + capability grid render', async ({ page }) => {
       await switchToTab(page, 0);
       await visible(page, 'OmniLang Capability Showcase');
-      await visible(page, '93 源文件 · 4 主题 · 10 语义域 · 9 标签页');
+      await visible(page, '96 源文件 · 4 主题 · 10 语义域 · 9 标签页');
       for (const t of ['UI Components', 'Motion & Animation', 'Design & Theme', 'State & Signals', 'Language Features', 'Element Ref', 'Compiler Features', 'Design Tokens']) {
         await visible(page, t);
       }
