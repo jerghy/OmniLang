@@ -352,6 +352,8 @@ function FlowCanvasInner() {
         target: w.toId,
         sourceHandle: w.fromPort,
         targetHandle: w.toPort,
+        // FlowEdge 需要端口信息（v12 不传 sourceHandle 给自定义 edge——见 FlowEdge 注释）
+        data: { fromPort: w.fromPort, toPort: w.toPort },
       })),
     [wires],
   );
