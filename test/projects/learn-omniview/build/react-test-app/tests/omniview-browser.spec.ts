@@ -24,7 +24,9 @@ import { test, expect, Page } from '@playwright/test';
 //      hardcoded loop var — FIXED in task-7.1a; filter removed.)
 // ════════════════════════════════════════════════════════════════
 
-const BASE = 'http://localhost:5174';
+// Same port source as playwright.omniview.config.ts (OMNI_TEST_PORT,
+// default 5174) — the suite and its server must never drift apart.
+const BASE = `http://localhost:${process.env.OMNI_TEST_PORT ?? '5174'}`;
 const TABS = ['📋 Overview', '🎨 UI', '🎬 Motion', '💅 Design', '⚡ State', '🔤 Language', '🔗 Ref', '⚙️ Compiler', '🔮 Tokens'];
 
 const KNOWN_ERRORS = [

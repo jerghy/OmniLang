@@ -12,7 +12,13 @@ import { defineConfig } from '@playwright/test';
 // target output itself is plain static files — no vite involved.
 //
 // Run:  npx playwright test --config=playwright.omniview.config.ts
+// Port: OMNI_TEST_PORT=<port> npx playwright test ... — overrides the
+// default 5174 (CI behavior unchanged). 5174 is the user's Vite dev
+// server port; with reuseExistingServer the suite would attach to it,
+// so local runs MUST use a different port (e.g. OMNI_TEST_PORT=5199).
 // ════════════════════════════════════════════════════════════════
+
+const OMNI_TEST_PORT = process.env.OMNI_TEST_PORT ?? '5174';
 
 export default defineConfig({
   testDir: './tests',
@@ -41,8 +47,8 @@ export default defineConfig({
     // build/react-test-app/, so the omniview output (index.html + index.js)
     // is ONE level up: --directory .. (NOT ../build — that resolves to
     // build/build, which does not exist, and every request 404s).
-    command: 'python -m http.server 5174 --directory ..',
-    port: 5174,
+    command: `python -m http.server ${OMNI_TEST_PORT} --directory ..`,
+    port: Number(OMNI_TEST_PORT),
     timeout: 30000,
     reuseExistingServer: true,
   },
