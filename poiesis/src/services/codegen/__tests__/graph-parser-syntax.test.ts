@@ -208,6 +208,35 @@ describe("graph-parser 循环段", () => {
     expect(r!.props.condition).toBe('label == "a . b"');
   });
 
+  it("let initializer 的 member 引用同样归一化（round-trip 契约全覆盖）", () => {
+    // RED（审查 round 1）：compactSpacedMembers 漏 case "let" 的 value——
+    // `let x = TodoStore . items.length;` 解析后 value 仍带空格（同类 round-trip 退化）。
+    const g = parseCodeFlowGraph(`fn f() {
+  // @pid:l-1
+  let x = TodoStore . items.length;
+}`);
+    const el = g.elements.find((e) => e.id === "l-1");
+    expect(el?.props.value).toBe("TodoStore.items.length");
+  });
+
+  it("let initializer 字符串字面量内的点空格不受归一化影响", () => {
+    const g = parseCodeFlowGraph(`fn f() {
+  // @pid:l-1
+  let s = "a . b";
+}`);
+    const el = g.elements.find((e) => e.id === "l-1");
+    expect(el?.props.value).toBe('"a . b"');
+  });
+
+  it("多级 member 链（TodoStore . items . length）逐层收敛归一化", () => {
+    const g = parseCodeFlowGraph(`fn f() {
+  // @pid:l-1
+  let x = TodoStore . items . length;
+}`);
+    const el = g.elements.find((e) => e.id === "l-1");
+    expect(el?.props.value).toBe("TodoStore.items.length");
+  });
+
   it("C 风格括号循环（`for (…`) 保持 code-block（防御性，非 OmniLang 语法）", () => {
     const g = parseCodeFlowGraph(`fn f() {
   // @pid:c-1

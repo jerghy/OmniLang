@@ -701,7 +701,8 @@ export function normalizeAnnotations(
 
 /** 引号感知的 member 空格还原：tokenizer 空格化的 "TodoStore . items" → "TodoStore.items"
  *  （round-trip 保存不退化——Task 12 E2E 实测：磁盘 `TodoStore.items` 重读后变成带空格
- *  表达式，再保存写回坏代码）。字符串字面量内（"a . b"）原样保留。 */
+ *  表达式，再保存写回坏代码）。字符串字面量内（"a . b"）原样保留。
+ *  多级链（"TodoStore . items . length"）单遍收敛：ident 后贪婪吞并所有 " . ident" 段。 */
 function compactSpacedMembers(s: string): string {
   let out = "";
   let i = 0;
@@ -716,8 +717,13 @@ function compactSpacedMembers(s: string): string {
       continue;
     }
     if (ch === "'" || ch === '"') { quote = ch; out += ch; i++; continue; }
-    const m = s.slice(i).match(/^([A-Za-z_]\w*)\s*\.\s*([A-Za-z_]\w*)/);
-    if (m) { out += m[1]! + "." + m[2]!; i += m[0].length; continue; }
+    // 多级 member 链：ident（. ident）+——吞并所有空格点段
+    const m = s.slice(i).match(/^([A-Za-z_]\w*)(?:\s*\.\s*[A-Za-z_]\w*)+/);
+    if (m) {
+      out += m[1]! + m[0]!.slice(m[1]!.length).replace(/\s*\.\s*/g, ".");
+      i += m[0].length;
+      continue;
+    }
     out += ch;
     i++;
   }
@@ -754,14 +760,14 @@ function parseSyntaxProps(
       // the value is cleared) must still round-trip without losing the name.
       const m = t.match(/^let\s+(mut\s+)?([a-zA-Z_]\w*)(?::\s*([\w<>, ]+?))?\s*(?:=\s*(.*?))?\s*;?\s*$/);
       if (!m) return { name: "x", mutable: false };
-      return { name: m[2], mutable: !!m[1], varType: m[3] || undefined, value: m[4] ?? undefined };
+      return { name: m[2], mutable: !!m[1], varType: m[3] || undefined, value: m[4] === undefined ? undefined : compactSpacedMembers(m[4]) };
     }
     case "assign": {
       // Allow optional whitespace around the "." — source from the omni
       // tokenizer may be spaced ("newSignal2 = newSignal2 + 1 ;").
       const m = t.match(/^([a-zA-Z_]\w*(?:\s*\.\s*[a-zA-Z_]\w*)?)\s*(=|\+=|-=|\*=|\/=|%=)\s*(.*?);?\s*$/);
       if (!m) return {};
-      return { target: m[1].trim(), operator: m[2], value: compactSpacedMembers(m[3].trim()) };
+      return { target: compactSpacedMembers(m[1].trim()), operator: m[2], value: compactSpacedMembers(m[3].trim()) };
     }
     case "store-call": {
       const m = t.match(/^([A-Z]\w*)\s*\.\s*([a-zA-Z_]\w*)\s*\((.*?)\)\s*;?\s*$/);
@@ -771,7 +777,7 @@ function parseSyntaxProps(
     case "call": {
       const m = t.match(/^(emit\s+)?([a-zA-Z_]\w*(?:\s*\.\s*[a-zA-Z_]\w*)?)\s*\((.*?)\)\s*;?\s*$/);
       if (!m) return { fnName: "fn", args: "" };
-      return { emit: !!m[1], fnName: m[2], args: compactSpacedMembers(m[3].trim()) };
+      return { emit: !!m[1], fnName: compactSpacedMembers(m[2]), args: compactSpacedMembers(m[3].trim()) };
     }
     case "while": {
       // 段头形如 `while n < 10 {`（OmniLang 风格，无括号），提取条件表达式。
