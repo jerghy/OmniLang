@@ -855,6 +855,44 @@ Semantics(liveRegion: true, child: Text(status))
 
 ---
 
+## 9. Feature Floor 机器化矩阵（设计 P5——「floor 内行为对等」从声明变断言）
+
+> **制度（v3 修复计划 Phase 7，Task 7.3）**：ADR-052/054 的 24-item feature floor 曾是手写声明表——两轮评审各发现「声称 ✅ 而行为未接通」的条目（上轮主题切换、本轮 multi-theme Flutter 塌缩），「对等」无法证伪。本矩阵把每项 floor 条目硬编码进 `omnilang/tests/floor_matrix.rs` 的 `floor_table()`，覆盖检查 `every_floor_item_has_machine_verification` 强制每项映射 ≥1 编译级测试（参数化 fixture/单元测试）或行为级标注（widget test/Playwright + future 队列）——**新增/删除 floor 条目必须先挂机器验证**。
+> **层级**：编译级（本版本第一版已全量标注——每行 ≥1 个既有/新增测试名）；行为级（widget test/Playwright——3.2 基建扩展队列；已存在的浏览器实证列在「行为级测试」列，未机器化的行为欠账列在「行为级 future」列，不阻塞编译级）。
+> **权威清单**：`omnilang/tests/floor_matrix.rs` `floor_table()`（硬编码，25 行 = 24 规范项 + ADR-052 表列扩展原语 compound assignment——v1 §10.1 floor 未列，本矩阵收录保证零静默丢项）；下表与其逐行一致。运行：`cargo test -p omnilang --test floor_matrix`（Flutter 行需 `--features codegen-flutter`）。
+
+| # | 类别 | floor 条目（ADR-052） | 矩阵 ID（floor_matrix.rs） | 编译级映射（测试名，文件::fn 或 fixture） | 行为级 |
+|---|---|---|---|---|---|
+| 1 | Ref | focus/blur | `ref_focus_blur` | `refs.omni`（parameterized::refs ×3 后端）+ `react::tests::test_react_ref_ops_format_native_dom_calls` | — |
+| 2 | Ref | scrollTo/scrollBy | `ref_scroll_to_by` | `react::tests::test_react_ref_ops_format_native_dom_calls` + `react::tests::test_react_semantic_binding_scroll_x` + `flutter::tests::test_format_ref_op_flutter_variants` | — |
+| 3 | Ref | width/height/position（measure） | `ref_measure` | `react::tests::test_react_ref_ops_format_native_dom_calls` + `flutter::tests::test_task58_measure_emits_wrapper` | — |
+| 4 | Ref | select/setSelection | `ref_select_selection` | `react::tests::test_react_ref_ops_format_native_dom_calls` + `flutter::tests::test_format_ref_op_flutter_variants` | — |
+| 5 | Ref | value/setValue | `ref_value` | `refs.omni`（bind:value 双向）+ `react::tests::test_react_bind_value_emits_onchange_setter` + `flutter::tests::test_bind_value_ref_text_field_two_way` | 已存在：Playwright 输入回写实证（T2.3）；future：widget-test 队列（3.2）双向行为断言 |
+| 6 | Animation | 8 triggers | `anim_triggers` | `react::motion::tests::test_react_motion_enter/hover/inview/scroll/drag` + `focus_trigger_emits_focusin_focusout_listeners` + `flutter::tests::scroll_trigger_passes_typed_start_end_to_widget` 等 8 项 | 已存在：node @scroll 实证 + Playwright @drag 300px（T5.1/T7.1）；future：widget-test 队列触发器执行断言 |
+| 7 | Animation | multi-stop multi-property keyframes | `anim_multi_stop_keyframes` | `flutter::tests::test_build_prop_tween_expr_three_stops_sequence` + `motion_full_pipeline_per_property_and_playback` + `react::motion::tests::semantic_props_convert_to_waapi_keyframes` | — |
+| 8 | Animation | playback（loop/count/direction/delay/fill/duration/easing） | `anim_playback` | `flutter::tests::test_emit_playback_start_loop/direction/fill/delay` + `test_motion_pipeline_warnings_and_playback` + `react::motion::tests::motion_durations_emit_numeric_ms` + `steps_easing_emitted_as_waapi_string` | — |
+| 9 | Animation | inline body lowering | `anim_inline_lowering` | `animation.omni`（内联 tween → __anon_m_N 提升）+ `flutter::tests::test_motion_inline_body_handling` | — |
+| 10 | Design | 13 token types | `design_token_types` | `design_parse_test::parse_all_token_types` + `design_tokens.omni` | — |
+| 11 | Design | static tokens + themes | `design_static_themes` | `design_tokens.omni`（dark 覆盖）+ `tests_regression::main::themes_fixture_wires_theme_signal_through_pipeline` + `react::tests::react_design_theme_signal_wires_subscription` + `theme_initial_consistency::default_theme_mismatch_errors` | 已存在：Playwright theme-wiring spec（T4.2/T7.1）；future：widget-test 队列 ThemeMode 切换断言 |
+| 12 | Design | classes | `design_classes` | `design_tokens.omni`（Card）+ `react::tests::react_design_classes_emit_literal_class_names` + `flutter::tests::test_design_class_resolves_to_factory_decoration` | — |
+| 13 | Design | variants | `design_variants` | `design_tokens.omni`（Button.secondary）+ `flutter::tests::test_design_variant_resolves_to_real_decoration` | — |
+| 14 | Design | dynamic tokens | `design_dynamic_tokens` | `react::tests::react_design_dynamic_tokens_emit_hook` + `design_codegen_test::e2e_dynamic_token_full_pipeline` + `design_codegen_test::emits_js_effect_for_dynamic_token` | — |
+| 15 | Slots | default + named + fallback | `slots` | `slots.omni` + `slots_body.omni` + `slots_three_forms.omni`（parameterized ×3 后端） | — |
+| 16 | Control Flow | @if ternary + transition_mode | `control_if` | `control_flow.omni`（fade）+ `react::tests::conditional_fade_mode_emits_css_fade_transition` + `conditional_wait_mode_degrades_with_stated_comment` + `flutter::tests::page_switcher_uses_indexed_stack` + `omniview::tests::test_html_conditional_wait_mode_is_honest_instant_swap` | 已存在：Playwright 9 标签页条件渲染实测（T7.1） |
+| 17 | Control Flow | @for + key_expr + empty_body + [scroll] | `control_for` | `control_flow.omni` + `parameterized::flutter_control_flow_contract` + `react::tests::react_for_key_expr_emits_expr_key` + `react_for_empty_body_single_eval` + `flutter::tests::flutter_for_scroll_emits_listview_builder_with_value_key` + `flutter_for_non_scroll_emits_column` | 已存在：Playwright keyed 保状态（T7.1，BUG-1/BUG-3 回归闭环）；future：widget-test 队列重排保状态断言 |
+| 18 | Stores | signals, getters, actions, effects | `stores` | `store.omni` + `react::tests::test_zustand_store_with_signals_and_getters` + `flutter::tests::test_store_dart_with_getters` + `test_store_dart_with_action` + `effect_deps.omni`（effect deps 验证） | — |
+| 19 | Lifecycle | mount, unmount, effect with deps | `lifecycle` | `react::tests::test_tsx_component_with_lifecycle_mount` + `effect_cleanup_reads_are_deps` + `flutter::tests::test_component_with_mount/unmount_lifecycle` + `test_effect_emits_real_method_and_lifecycle_wiring` + `omniview::tests::test_component_with_lifecycle_mount` | — |
+| 20 | Expressions | OptionalChain | `expr_optional_chain` | `omnilang-core::codegen::shared::expr::optional_chain_default_preserves_question_dot` + `dart_optional_chain_keeps_question_dot` + `react::tests::react_optional_chain_method_len_translates_to_length` | — |
+| 21 | Expressions | BlockExpr IIFE | `expr_block_expr` | `omnilang-core::codegen::shared::expr::dart_block_expr_emits_iife` + `rust_block_expr_emits_block_expression` + `tests_regression::main::react_block_expr_statements_compile_clean` + `python/vue_block_expr_statements_diagnosed_not_dropped`（floor 外硬诊断） | — |
+| 22 | Expressions | MatchExpr | `expr_match` | `js_runtime_tests::js_runtime_match_literal_arms_pass`（执行级）+ `react::tests::fn_tail_match_emits_return` + `generated_code_validation::match_variant_arms_flutter_compiles`（#30 变体臂） | — |
+| 23 | Expressions | Await | `expr_await` | **新增 fixture** `floor_matrix::await_compile_tier_fixture`（async action + await 三 P0 后端）+ `js_runtime_tests::js_runtime_stdlib_gap_modules_pass`（执行级）+ showcase 门禁（DataFetching/DataSubmit/async_demo 三目标） | future：Playwright DataFetching 成功路径（2.3 un-fixme 候选）+ widget-test 队列（3.2） |
+| 24 | Expressions | Spread | `expr_spread` | `tests_regression::main::react_store_action_consecutive_sets_coalesce_into_one`（`[...items, text]`）+ `flutter::tests::store_action_struct_literal_emits_constructor`（`[...todos]`）+ `omnilang-core::codegen::shared::expr::dart_concat_spreads_typed_array_variable` | — |
+| 25 | Expressions | compound assignment（ADR-052 表列；v1 §10.1 未列——扩展收录） | `expr_compound_assign` | **新增 fixture** `floor_matrix::compound_assign_compile_tier_fixture`（`count += 1` 三 P0 后端）+ `omnilang-core::parser::mod::stmt_compound_assign_add/sub` + `flutter::tests::test_stmt_mutation_increment` + `omniview::tests::test_stmt_mutation_increment` + `react::tests::test_tsx_stmt_mutation_increment_signal` | — |
+
+**行为级 future 队列汇总（3.2 基建 widget test/Playwright 扩展）**：`ref_value`（bind:value 双向行为断言）、`anim_triggers`（触发器执行断言）、`design_static_themes`（ThemeMode 切换）、`control_for`（重排保状态）、`expr_await`（DataFetching 成功路径）。其余 20 行编译级全量覆盖，行为级无欠账。
+
+---
+
 ## References
 
 - `.architecture/reviews/feature-omniview-semantic-syntax-compilability.md`（本设计的评审依据）
