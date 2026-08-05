@@ -22,6 +22,16 @@ three-stage record the minimal machine-checkable contract:
   traceability — every 语料试点 cell must reference ≥1 backticked file
                  path that resolves under the repo (the demo evidence
                  must exist on disk, not just be claimed)
+  move-sync    — moving a learn-omniview source file REQUIRES syncing the
+                 demo path in the lifecycle doc (7.5b-S1 lesson: 11 files
+                 moved components/→lib/, spec paths were manually synced).
+                 The gate checks every pilot path against the LIVE tree
+                 AND, when a path under src/ is missing, searches the live
+                 tree for the same basename and names the new location in
+                 the diagnostic — the gate stays red in the same CI run
+                 as the move until the spec reference is synced. No
+                 hardcoded stale-path table to maintain: the hint is
+                 derived from the live tree at check time.
 
 A syntax added to the BNF without a lifecycle record — or a record whose
 pilot evidence file is missing — fails the gate, so the filter/map/count
@@ -70,6 +80,10 @@ FILE_TOKEN_RE = re.compile(r"`([^`\n]+/[^`\n]+\.(?:omni|rs|md))`")
 # Backfilled legacy rows are exempt from the "≥1 demo" pilot rule only when
 # the cell says so explicitly (documented one-time backfill).
 PILOT_EXEMPT_KEYWORD = "补档豁免"
+# learn-omniview demo tree — the canonical corpus whose file moves must be
+# reflected in spec paths (move-sync rule, see module docstring).
+LEARN_SRC_DIR = os.path.join(REPO_ROOT, "test", "projects", "learn-omniview", "src")
+LEARN_SRC_PREFIX = "test/projects/learn-omniview/src/"
 
 
 def read_file(path):
@@ -108,6 +122,22 @@ def subsection(text, header):
     # Heading may carry a parenthetical suffix ('## 登记册（已批准语法——…）').
     m = re.search(rf'^## {re.escape(header)}[^\n]*\n(.*?)(?=^## |\Z)', text, re.M | re.S)
     return m.group(1) if m else None
+
+
+def find_moved_location(tok):
+    """Move-sync hint: if a learn-omniview pilot path no longer exists but a
+    file with the same basename lives elsewhere under the live src tree,
+    return its repo-relative location. Derives the 'old → new' mapping from
+    the live tree itself — no hardcoded table to go stale."""
+    if not tok.startswith(LEARN_SRC_PREFIX):
+        return None
+    name = os.path.basename(tok)
+    for root, _dirs, files in os.walk(LEARN_SRC_DIR):
+        if name in files:
+            rel = os.path.relpath(os.path.join(root, name), REPO_ROOT).replace("\\", "/")
+            if rel != tok:
+                return rel
+    return None
 
 
 def audit_file(path, problems):
@@ -171,11 +201,18 @@ def audit_file(path, problems):
                 fail(f"approved syntax '{name}': 语料试点 must cite ≥1 existing file path (backticked path ending .omni/.rs/.md)")
             continue
         missing = []
+        hints = []
         for tok in tokens:
             if not os.path.exists(os.path.join(REPO_ROOT, tok)):
                 missing.append(tok)
+                new_loc = find_moved_location(tok)
+                if new_loc:
+                    hints.append(f"{tok} → {new_loc}")
         if missing:
-            fail(f"approved syntax '{name}': 语料试点 cites missing file(s): {sorted(set(missing))}")
+            msg = f"approved syntax '{name}': 语料试点 cites missing file(s): {sorted(set(missing))}"
+            if hints:
+                msg += f" — 文件已移动？请同步 spec 中的 demo 路径: {'; '.join(hints)}"
+            fail(msg)
 
 
 def audit():
@@ -209,7 +246,7 @@ def main():
     for p in problems:
         print(f"FAIL {p}")
     if problems and not args.inspect:
-        print("\nGATE FAILED: an approved syntax lacks its 提案 → 试点 → 批准 record, or the pilot evidence is missing.")
+        print("\nGATE FAILED: an approved syntax lacks its 提案 → 试点 → 批准 record, or the pilot evidence is missing/stale (moved file — sync the spec path).")
         return 1
     return 0
 
