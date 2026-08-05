@@ -287,6 +287,59 @@ pub(crate) fn wrap_multi_widget(children: &[String]) -> String {
     )
 }
 
+/// Compose mixed Text content into a `TextSpan(children: [...])` list for
+/// `Text.rich` (Task C2b #5): text/interpolation nodes become
+/// `TextSpan(text:)` entries; bare Text-mapped elements (no props/events —
+/// inline semantic tags like `span`/`label`) recurse as nested TextSpan
+/// children (preserving the inline flow); everything else embeds as a
+/// `WidgetSpan(child:)`.
+fn format_text_span_children(
+    children: &[ViewTree],
+    motions: &[MotionIntent],
+    ctx: &mut ViewContext,
+) -> String {
+    let spans: Vec<String> = children
+        .iter()
+        .map(|c| format_text_span_fragment(c, motions, ctx))
+        .collect();
+    format!("TextSpan(children: [{}])", spans.join(", "))
+}
+
+/// One TextSpan fragment for [`format_text_span_children`].
+fn format_text_span_fragment(
+    child: &ViewTree,
+    motions: &[MotionIntent],
+    ctx: &mut ViewContext,
+) -> String {
+    match child {
+        ViewTree::Text(t) => format!("TextSpan(text: '{}')", t.replace('\'', "\\'")),
+        ViewTree::Interpolation(e) => format!("TextSpan(text: '${{{}}}')", ctx.format_expr(e)),
+        ViewTree::Element(el) => {
+            let is_bare_text = tag_to_flutter_widget(&el.tag) == "Text"
+                && el.props.is_empty()
+                && el.events.is_empty()
+                && el.bindings.is_empty()
+                && el.inline_style.is_none()
+                && el.a11y.is_none()
+                && !el.children.is_empty();
+            if is_bare_text {
+                format_text_span_children(&el.children, motions, ctx)
+            } else {
+                format!(
+                    "WidgetSpan(child: {})",
+                    format_single_view(child, motions, ctx)
+                )
+            }
+        }
+        // Fragments and other view nodes embed as a single widget
+        // (format_single_view Column-wraps multi-node fragments).
+        _ => format!(
+            "WidgetSpan(child: {})",
+            format_single_view(child, motions, ctx)
+        ),
+    }
+}
+
 /// Format a view tree as a single widget expression — valid anywhere a
 /// Widget expression is required (`return` statements, ternary branches,
 /// `itemBuilder` bodies). Multi-node root fragments are wrapped in a
@@ -1941,16 +1994,21 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
     }
 
     // Children
-    let mut text_column_fallback: Option<Vec<String>> = None;
+    // Task C2b (#5): a Text element with non-text children no longer
+    // degrades to a Column — mixed content composes via
+    // `Text.rich(TextSpan(children: [...]))`: text/interpolation nodes
+    // become TextSpan(text:) entries and child widgets embed as
+    // WidgetSpan(child:) — the inline-flow semantics the DOM gives
+    // `<p>text <strong>bold</strong></p>`.
+    let mut rich_text = false;
     if el.children.is_empty() {
         // No children
     } else if widget == "Text" {
         // Text widgets take their content as the positional `data`
         // argument — `Text(child: ...)` is invalid Dart (Text has no
         // `child` parameter). Text-ish children (plain text nodes /
-        // interpolations) concatenate into the data string; non-text
-        // children degrade to a Column-wrapped expression so the output
-        // still compiles.
+        // interpolations) concatenate into the data string; mixed content
+        // emits Text.rich with the composed TextSpan.
         let mut parts: Vec<String> = Vec::new();
         let mut all_text = true;
         for child in &el.children {
@@ -1968,17 +2026,8 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
         if all_text {
             args.insert(0, format!("'{}'", parts.join("")));
         } else {
-            ctx.warnings.push(format!(
-                "[flutter] element '{}' maps to Text but has non-text children; \
-                 rendering a Column instead (Text cannot host child widgets)",
-                el.tag
-            ));
-            text_column_fallback = Some(
-                el.children
-                    .iter()
-                    .map(|c| format_view_tree(c, motions, ctx))
-                    .collect(),
-            );
+            rich_text = true;
+            args.insert(0, format_text_span_children(&el.children, motions, ctx));
         }
     } else if el.children.len() == 1 {
         let child_str = format_view_tree(&el.children[0], motions, ctx);
@@ -2004,15 +2053,16 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
 
     // Task 3.10: a relative src swaps the emitted constructor to
     // Image.asset (whitelist/event/alt checks keep the Image.network param
-    // set — Image.asset shares every one of them).
+    // set — Image.asset shares every one of them). Task C2b (#5): mixed
+    // content emits `Text.rich` with the composed TextSpan.
     let render_widget = if use_asset_image {
         "Image.asset"
+    } else if rich_text {
+        "Text.rich"
     } else {
         widget
     };
-    let inner = if let Some(children) = text_column_fallback {
-        wrap_multi_widget(&children)
-    } else if args.is_empty() {
+    let inner = if args.is_empty() {
         // Task 5.8: an empty element mapped to Text (`<span/>` with style
         // only) emitted `Text()` — Text requires its positional `data`
         // argument (1 positional expected, 0 found).

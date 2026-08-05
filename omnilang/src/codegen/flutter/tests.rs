@@ -4491,6 +4491,43 @@ component KeyDemo2 {
     );
 }
 
+/// Task C2b (#5): a Text element with non-text children composes via
+/// `Text.rich(TextSpan(children: [...]))` — text nodes become
+/// TextSpan(text:), child widgets embed as WidgetSpan — instead of
+/// degrading to a Column with a warning.
+#[test]
+fn mixed_content_text_composes_text_rich() {
+    let flutter = compile_flutter(
+        r#"
+component RichDemo {
+    signal result: String = "";
+    view {
+        <p>match 结果: <strong>{result}</strong></p>
+    }
+}
+"#,
+    )
+    .expect("compile must succeed");
+    let out: String = flutter
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        out.contains("Text.rich(TextSpan(children: [TextSpan(text: 'match 结果:'), WidgetSpan(child: Container(child: Text('${result}')))]))"),
+        "mixed content must compose Text.rich, got:\n{out}"
+    );
+    assert!(
+        !flutter
+            .warnings
+            .iter()
+            .any(|w| w.message.contains("non-text children")),
+        "the Column degradation warning must be gone: {:?}",
+        flutter.warnings
+    );
+}
+
 /// Task C2b (#4): `<textarea rows=N>` maps to TextField's `maxLines` as
 /// an INT (a raw string would not type-check) and the DOM `max` maps to
 /// `maxLength`.
