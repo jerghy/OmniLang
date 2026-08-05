@@ -86,8 +86,8 @@ describe("computeLayeredLayout", () => {
     expect(pos["after"].x).toBe(pos["loop"].x);
     expect(pos["body"].y).toBeGreaterThan(pos["loop"].y);
   });
-  it("同桶多节点行高预留：2×2 网格合并两两无重叠", () => {
-    // let 双 flow-out → c1/c2 同桶 (2,0)；c1/c2 各 flow-out → p1/p2 同桶 (3,0)
+  it("同桶多节点行高预留：2×2 网格合并两两无重叠（含跨子图边界）", () => {
+    // let 双 flow-out → c1/c2 同桶 (2,0)；c1/c2 各 flow-out → p1/p2 同桶 (3,0)；第二子图 fn2 → ret2
     const grid = [
       el("gfn", "fn", { name: "g", params: "", returnType: "void" }),
       el("glet", "let", { name: "n", value: "0" }),
@@ -95,6 +95,8 @@ describe("computeLayeredLayout", () => {
       el("c2", "assign", { target: "b", operator: "=", value: "2" }),
       el("p1", "assign", { target: "a", operator: "=", value: "3" }),
       el("p2", "assign", { target: "b", operator: "=", value: "4" }),
+      el("gfn2", "fn", { name: "g2", params: "", returnType: "void" }),
+      el("gret2", "return", {}),
     ];
     const gridWires = [
       wire("g1", "gfn", "flow-out", "glet", "flow-in"),
@@ -102,9 +104,10 @@ describe("computeLayeredLayout", () => {
       wire("g3", "glet", "flow-out", "c2", "flow-in"),
       wire("g4", "c1", "flow-out", "p1", "flow-in"),
       wire("g5", "c2", "flow-out", "p2", "flow-in"),
+      wire("g6", "gfn2", "flow-out", "gret2", "flow-in"),
     ];
     const pos = computeLayeredLayout(grid, gridWires, new Map());
-    // 两两矩形不相交（估算尺寸）
+    // 两两矩形不相交（估算尺寸，含跨子图对）
     const gridIds = grid.map((e) => e.id);
     for (let i = 0; i < gridIds.length; i++) {
       for (let j = i + 1; j < gridIds.length; j++) {
@@ -117,5 +120,7 @@ describe("computeLayeredLayout", () => {
     }
     // 关键对：c2（桶 idx=1）底不穿入下一行 p1 顶
     expect(pos["c2"].y + estimateNodeSize("assign", {}).height).toBeLessThanOrEqual(pos["p1"].y);
+    // 关键对：p2（最深行桶 idx=1）底不穿入下一子图首节点 gfn2 顶（间距 ≥ SUBGRAPH_GAP）
+    expect(pos["gfn2"].y - (pos["p2"].y + estimateNodeSize("assign", {}).height)).toBeGreaterThanOrEqual(LAYOUT_CONSTS.SUBGRAPH_GAP);
   });
 });

@@ -186,8 +186,10 @@ export function computeLayeredLayout(
       };
     }
 
+    // 子图高度：中间行累加 + 最深行预留行高（−V_GAP 为行尾冗余间隙）。
+    // 最深行必须含桶内 inline 预留（rowHeight[maxDepth] 已含 (n-1)×(maxH+INLINE_GAP)），否则 idx≥1 节点底穿入下一子图
     const compHeight = (maxDepth === 0 ? 0 : Array.from({ length: maxDepth }, (_, i) => rowHeight.get(i) ?? 0).reduce((a, b) => a + b, 0)) +
-      Math.max(...ids.map((id) => sizeOf(id, elemById.get(id)!.tag, elemById.get(id)!.props).height));
+      (rowHeight.get(maxDepth) ?? 0) - LAYOUT_CONSTS.V_GAP;
     stackedY += compHeight + LAYOUT_CONSTS.SUBGRAPH_GAP;
   }
 
