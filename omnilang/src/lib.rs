@@ -400,19 +400,22 @@ fn compile_multi_internal_post(
     diags.extend(output.errors);
 
     // Forward codegen warnings (e.g. Flutter unmapped-prop diagnostics, C6)
-    // into the structured result as warning diagnostics.
+    // into the structured result as warning diagnostics. The codegen carries
+    // the source location when the emission point has element/declaration
+    // context (C2d span threading) — entries without context stay honest
+    // `-:0:0`.
     let mut warnings = warnings;
     warnings.extend(
         output
             .warnings
             .into_iter()
-            .map(|message| crate::error::Diagnostic {
+            .map(|w| crate::error::Diagnostic {
                 severity: error::Severity::Warning,
                 kind: error::DiagnosticKind::ECodegen,
-                message,
-                file: None,
-                line: 0,
-                col: 0,
+                message: w.message,
+                file: w.file,
+                line: w.line,
+                col: w.col,
                 end_line: None,
                 end_col: None,
                 suggestion: None,

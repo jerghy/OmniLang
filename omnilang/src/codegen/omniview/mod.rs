@@ -174,7 +174,13 @@ impl crate::codegen::Codegen for OmniViewCodegen {
             files,
             errors: vec![],
             source_map: output.source_map,
-            warnings: output.warnings,
+            // OmniView warnings carry no source spans (element context is not
+            // threaded on this backend) — honest -:0:0 entries.
+            warnings: output
+                .warnings
+                .into_iter()
+                .map(crate::codegen::CodegenWarning::new)
+                .collect(),
         }
     }
 }

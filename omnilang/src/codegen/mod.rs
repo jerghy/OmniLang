@@ -52,7 +52,7 @@ use rustc_hash::FxHashMap;
 pub use sanitize::{sanitize_css_value, sanitize_js_ident, sanitize_module_name};
 pub use stdlib::{try_format_stdlib_call, validate_stdlib_imports};
 pub use traits::Codegen;
-pub use writer::{CodeWriter, CompileOutput, CompiledFile};
+pub use writer::{CodeWriter, CodegenWarning, CompileOutput, CompiledFile};
 
 /// Error emitted when design blocks are compiled to a target that does not
 /// support them. Design blocks (semantic DSL) are only compiled by the

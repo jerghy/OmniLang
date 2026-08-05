@@ -524,21 +524,27 @@ fn dummy_comp() -> ComponentIR {
     }
 }
 
-fn fmt_view(node: &ViewTree) -> (String, Vec<String>) {
+fn fmt_view(node: &ViewTree) -> (String, Vec<crate::codegen::CodegenWarning>) {
     fmt_view_with_motions(node, &[])
 }
 
 /// Like [`fmt_view`] but with module-level motions available — needed by the
 /// @drag-* extent derivation (deferral #19), which resolves the motion body
 /// to compute the gesture extent from its keyframe range.
-fn fmt_view_with_motions(node: &ViewTree, motions: &[MotionIntent]) -> (String, Vec<String>) {
+fn fmt_view_with_motions(
+    node: &ViewTree,
+    motions: &[MotionIntent],
+) -> (String, Vec<crate::codegen::CodegenWarning>) {
     let ir = empty_program();
     fmt_view_in(node, motions, &ir)
 }
 
 /// Format a view tree with the given program (design blocks included) —
 /// class:/variant: resolution (Task 4.3) needs the design IR.
-fn fmt_view_with_program(node: &ViewTree, ir: &IRProgram) -> (String, Vec<String>) {
+fn fmt_view_with_program(
+    node: &ViewTree,
+    ir: &IRProgram,
+) -> (String, Vec<crate::codegen::CodegenWarning>) {
     fmt_view_in(node, &[], ir)
 }
 
@@ -548,7 +554,7 @@ fn fmt_view_with_program_and_map<'a>(
     node: &ViewTree,
     ir: &'a IRProgram,
     component_map: &'a FxHashMap<&'a str, &'a ComponentIR>,
-) -> (String, Vec<String>) {
+) -> (String, Vec<crate::codegen::CodegenWarning>) {
     let store_provider_map: FxHashMap<String, String> = FxHashMap::default();
     let mut warnings = Vec::new();
     let ref_usage: FxHashMap<String, RefUsage> = FxHashMap::default();
@@ -565,6 +571,7 @@ fn fmt_view_with_program_and_map<'a>(
         ir,
         design: &design_resolver,
         warnings: &mut warnings,
+        file: None,
         motion_counter: &mut motion_counter,
         widget_names: &FxHashSet::default(),
         fn_renames: &FxHashMap::default(),
@@ -577,7 +584,11 @@ fn fmt_view_with_program_and_map<'a>(
     (result, warnings)
 }
 
-fn fmt_view_in(node: &ViewTree, motions: &[MotionIntent], ir: &IRProgram) -> (String, Vec<String>) {
+fn fmt_view_in(
+    node: &ViewTree,
+    motions: &[MotionIntent],
+    ir: &IRProgram,
+) -> (String, Vec<crate::codegen::CodegenWarning>) {
     let component_map: FxHashMap<&str, &ComponentIR> = FxHashMap::default();
     let store_provider_map: FxHashMap<String, String> = FxHashMap::default();
     let mut warnings = Vec::new();
@@ -595,6 +606,7 @@ fn fmt_view_in(node: &ViewTree, motions: &[MotionIntent], ir: &IRProgram) -> (St
         ir,
         design: &design_resolver,
         warnings: &mut warnings,
+        file: None,
         motion_counter: &mut motion_counter,
         widget_names: &FxHashSet::default(),
         fn_renames: &FxHashMap::default(),
@@ -959,7 +971,7 @@ fn test_drag_widget_without_translate_falls_back_unbounded() {
     assert!(
         warnings
             .iter()
-            .any(|w| w.contains("fadeOnly") && w.contains("literal translateX/Y")),
+            .any(|w| w.message.contains("fadeOnly") && w.message.contains("literal translateX/Y")),
         "fallback must push a compiler warning through the warnings channel, got: {:?}",
         warnings
     );
@@ -1106,7 +1118,8 @@ fn test_format_element_void_callback_fn_ref_warns_on_dropped_event_fields() {
     assert!(
         warnings
             .iter()
-            .any(|w| w.contains("VoidCallback") && w.contains("event field accesses")),
+            .any(|w| w.message.contains("VoidCallback")
+                && w.message.contains("event field accesses")),
         "expected dropped-event-fields warning, got: {:?}",
         warnings
     );
@@ -1389,9 +1402,8 @@ fn test_format_element_with_class_map_bindings_warns_unknown_class() {
         expr
     );
     assert!(
-        warnings
-            .iter()
-            .any(|w| w.contains("class 'active'") && w.contains("not declared by any design block")),
+        warnings.iter().any(|w| w.message.contains("class 'active'")
+            && w.message.contains("not declared by any design block")),
         "unknown dynamic class must warn: {:?}",
         warnings
     );
@@ -1427,7 +1439,9 @@ fn test_format_element_with_class_map_bindings_static_true_warns_unknown_class()
     // class warns and adds no wrapping Container.
     assert_eq!(expr, "Container()");
     assert!(
-        warnings.iter().any(|w| w.contains("class 'active'")),
+        warnings
+            .iter()
+            .any(|w| w.message.contains("class 'active'")),
         "unknown always-on class must warn: {:?}",
         warnings
     );
@@ -1503,7 +1517,9 @@ fn test_format_element_with_class_map_bindings_and_child_warns_unknown_class() {
         expr
     );
     assert!(
-        warnings.iter().any(|w| w.contains("class 'active'")),
+        warnings
+            .iter()
+            .any(|w| w.message.contains("class 'active'")),
         "unknown dynamic class must warn: {:?}",
         warnings
     );
@@ -1717,7 +1733,8 @@ fn test_design_layout_only_class_warns_and_skips() {
     );
     assert!(
         warnings.iter().any(|w| {
-            w.contains("class 'RowLayout'") && w.contains("no decoration-mappable properties")
+            w.message.contains("class 'RowLayout'")
+                && w.message.contains("no decoration-mappable properties")
         }),
         "layout-only class must warn: {:?}",
         warnings
@@ -1745,7 +1762,7 @@ fn test_design_variant_unknown_warns() {
     assert!(
         warnings
             .iter()
-            .any(|w| w.contains("variant 'Nope'") && w.contains("not found")),
+            .any(|w| w.message.contains("variant 'Nope'") && w.message.contains("not found")),
         "unknown variant must warn: {:?}",
         warnings
     );
@@ -4073,7 +4090,9 @@ fn test_motion_pipeline_warnings_and_playback() {
     // Task C2b (#7): steps() easing → the generated _OmniStepsCurve class
     // (no warning anymore), with the class emitted in the component file.
     assert!(
-        !warnings.iter().any(|w| w.contains("steps() easing")),
+        !warnings
+            .iter()
+            .any(|w| w.message.contains("steps() easing")),
         "steps() must no longer warn: {:?}",
         warnings
     );
@@ -4087,7 +4106,7 @@ fn test_motion_pipeline_warnings_and_playback() {
     assert!(
         warnings
             .iter()
-            .any(|w| w.contains("'width'") && w.contains("layout-dependent")),
+            .any(|w| w.message.contains("'width'") && w.message.contains("layout-dependent")),
         "width warning: {:?}",
         warnings
     );
@@ -6948,7 +6967,7 @@ fn test_inline_style_unsupported_color_warns() {
     assert!(
         warnings
             .iter()
-            .any(|w| w.contains("unsupported color value")),
+            .any(|w| w.message.contains("unsupported color value")),
         "unsupported color should warn: {:?}",
         warnings
     );
@@ -6988,9 +7007,8 @@ fn test_unmapped_prop_warns_and_is_skipped() {
         expr
     );
     assert!(
-        warnings
-            .iter()
-            .any(|w| w.contains("ariaLabel") && w.contains("not supported on 'Container'")),
+        warnings.iter().any(|w| w.message.contains("ariaLabel")
+            && w.message.contains("not supported on 'Container'")),
         "unmapped prop should produce a compiler warning: {:?}",
         warnings
     );
@@ -7039,9 +7057,8 @@ fn test_class_prop_unknown_class_warns_and_skips() {
         expr
     );
     assert!(
-        warnings
-            .iter()
-            .any(|w| w.contains("class 'card'") && w.contains("not declared by any design block")),
+        warnings.iter().any(|w| w.message.contains("class 'card'")
+            && w.message.contains("not declared by any design block")),
         "unknown class must warn naming the class: {:?}",
         warnings
     );
@@ -7102,7 +7119,8 @@ fn test_event_not_supported_on_widget_warns() {
     assert!(
         !warnings
             .iter()
-            .any(|w| w.contains("click") && w.contains("not supported on 'Container'")),
+            .any(|w| w.message.contains("click")
+                && w.message.contains("not supported on 'Container'")),
         "the tap-family wrap must not warn: {:?}",
         warnings
     );
@@ -7133,7 +7151,8 @@ fn test_event_not_supported_on_widget_warns() {
     assert!(
         warnings2
             .iter()
-            .any(|w| w.contains("scroll") && w.contains("not supported on 'Container'")),
+            .any(|w| w.message.contains("scroll")
+                && w.message.contains("not supported on 'Container'")),
         "non-tap event on unsupported widget should warn: {:?}",
         warnings2
     );
@@ -7417,7 +7436,7 @@ fn test_img_named_image_prop_warns_and_is_skipped() {
         expr
     );
     assert!(
-        warnings.iter().any(|w| w.contains("'image'")),
+        warnings.iter().any(|w| w.message.contains("'image'")),
         "unmappable image prop must warn: {:?}",
         warnings
     );
@@ -7458,7 +7477,9 @@ fn test_icon_unknown_name_warns_and_falls_back() {
     );
     let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
     assert!(
-        warnings.iter().any(|w| w.contains("definitelyNotAnIcon")),
+        warnings
+            .iter()
+            .any(|w| w.message.contains("definitelyNotAnIcon")),
         "unmappable icon name must produce a diagnostic: {:?}",
         warnings
     );
@@ -7507,7 +7528,7 @@ fn test_inline_style_color_respects_widget_whitelist() {
         expr
     );
     assert!(
-        !warnings.iter().any(|w| w.contains("color")),
+        !warnings.iter().any(|w| w.message.contains("color")),
         "inline-style color on Text must not warn: {:?}",
         warnings
     );
@@ -7692,6 +7713,7 @@ fn test_store_action_in_inline_handler_body() {
         ir: &ir,
         design: &design_resolver,
         warnings: &mut warnings,
+        file: None,
         motion_counter: &mut motion_counter,
         widget_names: &FxHashSet::default(),
         fn_renames: &FxHashMap::default(),
@@ -7799,6 +7821,7 @@ fn test_store_action_method_call_form_in_handler() {
         ir: &ir,
         design: &design_resolver,
         warnings: &mut warnings,
+        file: None,
         motion_counter: &mut motion_counter,
         widget_names: &FxHashSet::default(),
         fn_renames: &FxHashMap::default(),
@@ -8028,6 +8051,7 @@ fn test_ref_key_on_widget_and_controller_attachment() {
         ir: &ir,
         design: &design_resolver,
         warnings: &mut warnings,
+        file: None,
         motion_counter: &mut motion_counter,
         widget_names: &FxHashSet::default(),
         fn_renames: &FxHashMap::default(),
@@ -8071,6 +8095,7 @@ fn test_ref_key_on_widget_and_controller_attachment() {
         ir: &ir,
         design: &design_resolver2,
         warnings: &mut warnings2,
+        file: None,
         motion_counter: &mut motion_counter,
         widget_names: &FxHashSet::default(),
         fn_renames: &FxHashMap::default(),
@@ -8109,6 +8134,7 @@ fn test_ref_key_on_widget_and_controller_attachment() {
         ir: &ir,
         design: &design_resolver3,
         warnings: &mut warnings3,
+        file: None,
         motion_counter: &mut motion_counter,
         widget_names: &FxHashSet::default(),
         fn_renames: &FxHashMap::default(),
@@ -8188,7 +8214,7 @@ fn test_a11y_unmappable_role_warns_and_comments() {
     assert!(
         warnings
             .iter()
-            .any(|w| w.contains("searchbox") && w.contains("Semantics")),
+            .any(|w| w.message.contains("searchbox") && w.message.contains("Semantics")),
         "unmappable role must warn on the T2.4 warnings channel; got: {:?}",
         warnings
     );
@@ -8285,7 +8311,7 @@ fn test_a11y_label_dollar_escaped_and_role_comment_sanitized() {
     assert!(
         warnings
             .iter()
-            .any(|w| w.contains("role") && w.contains("Semantics")),
+            .any(|w| w.message.contains("role") && w.message.contains("Semantics")),
         "unmappable role must warn; got: {:?}",
         warnings
     );
@@ -8356,7 +8382,9 @@ fn test_a11y_label_alt_collision_non_image_dedupes() {
         dart
     );
     assert!(
-        warnings.iter().any(|w| w.contains("alt 仅对 img 元素生效")),
+        warnings
+            .iter()
+            .any(|w| w.message.contains("alt 仅对 img 元素生效")),
         "alt-on-non-image with a label present must warn on the T2.4 \
          warnings channel; got: {:?}",
         warnings
@@ -9092,7 +9120,10 @@ component Badge {
 // ═══════════════════════════════════════════════════════════════
 
 /// Extract a single field with a fresh warnings channel.
-fn extract_with_warnings(kind: &EventDataKind, field: &str) -> (String, Vec<String>) {
+fn extract_with_warnings(
+    kind: &EventDataKind,
+    field: &str,
+) -> (String, Vec<crate::codegen::CodegenWarning>) {
     let mut warnings = Vec::new();
     let expr = field_extract_flutter(kind, field, "e", &mut warnings);
     (expr, warnings)
@@ -9108,7 +9139,7 @@ fn unmapped_event_fields_warn_not_silent() {
     assert!(
         warnings
             .iter()
-            .any(|w| w.contains("text") && w.contains("ClipboardEvent")),
+            .any(|w| w.message.contains("text") && w.message.contains("ClipboardEvent")),
         "clipboard text stub must warn with field + kind, got: {:?}",
         warnings
     );
@@ -9122,7 +9153,7 @@ fn unmapped_event_fields_warn_not_silent() {
     assert!(
         files_warnings
             .iter()
-            .any(|w| w.contains("files") && w.contains("DropEvent")),
+            .any(|w| w.message.contains("files") && w.message.contains("DropEvent")),
         "drop files stub must warn with field + kind, got: {:?}",
         files_warnings
     );
@@ -9134,7 +9165,7 @@ fn unmapped_event_fields_warn_not_silent() {
     assert!(
         text_warnings
             .iter()
-            .any(|w| w.contains("text") && w.contains("DropEvent")),
+            .any(|w| w.message.contains("text") && w.message.contains("DropEvent")),
         "drop text stub must warn with field + kind, got: {:?}",
         text_warnings
     );
@@ -9145,7 +9176,7 @@ fn unmapped_event_fields_warn_not_silent() {
     assert!(
         tilt_warnings
             .iter()
-            .any(|w| w.contains("tiltY") && w.contains("PointerEvent")),
+            .any(|w| w.message.contains("tiltY") && w.message.contains("PointerEvent")),
         "tiltY stub must warn, got: {:?}",
         tilt_warnings
     );
@@ -9154,7 +9185,7 @@ fn unmapped_event_fields_warn_not_silent() {
     assert!(
         touch_warnings
             .iter()
-            .any(|w| w.contains("touches") && w.contains("TouchEvent")),
+            .any(|w| w.message.contains("touches") && w.message.contains("TouchEvent")),
         "touches stub must warn, got: {:?}",
         touch_warnings
     );
@@ -9163,7 +9194,7 @@ fn unmapped_event_fields_warn_not_silent() {
     assert!(
         dm_warnings
             .iter()
-            .any(|w| w.contains("deltaMode") && w.contains("WheelEvent")),
+            .any(|w| w.message.contains("deltaMode") && w.message.contains("WheelEvent")),
         "deltaMode stub must warn, got: {:?}",
         dm_warnings
     );
@@ -9175,7 +9206,7 @@ fn unmapped_event_fields_warn_not_silent() {
     assert!(
         values_warnings
             .iter()
-            .any(|w| w.contains("values") && w.contains("SubmitEvent")),
+            .any(|w| w.message.contains("values") && w.message.contains("SubmitEvent")),
         "submit values stub must warn, got: {:?}",
         values_warnings
     );
@@ -9244,12 +9275,12 @@ fn emit_event_object_flutter_warns_for_dropped_fields() {
     assert!(
         warnings
             .iter()
-            .any(|w| w.contains("files") && w.contains("DropEvent")),
+            .any(|w| w.message.contains("files") && w.message.contains("DropEvent")),
         "dropped 'files' must warn through the map emitter: {:?}",
         warnings
     );
     assert!(
-        !warnings.iter().any(|w| w.contains("field 'x'")),
+        !warnings.iter().any(|w| w.message.contains("field 'x'")),
         "mapped 'x' must not warn: {:?}",
         warnings
     );

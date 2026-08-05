@@ -28,7 +28,9 @@ pub(super) fn lower_motion_def(
     MotionIntent {
         name: def.name.clone(),
         body,
-        source_span: None,
+        // Thread the definition span so motion-level codegen diagnostics
+        // anchor at the `@keyframes`/`motion` declaration (C2d).
+        source_span: Some(def.span),
     }
 }
 

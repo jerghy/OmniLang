@@ -28,7 +28,11 @@ use crate::ir::design::*;
 /// ZIndex tokens are skipped entirely with the spec §10.3 warning — a
 /// `static const int` would be meaningless (Flutter z order is decided by
 /// widget order/Stack, so nothing could consume the constant).
-pub(crate) fn emit_tokens_class(w: &mut CodeWriter, design: &DesignIR, warnings: &mut Vec<String>) {
+pub(crate) fn emit_tokens_class(
+    w: &mut CodeWriter,
+    design: &DesignIR,
+    warnings: &mut Vec<crate::codegen::CodegenWarning>,
+) {
     let class_name = format!("{}Tokens", design.name);
     w.emit_fmt(format_args!(
         "/// Typed design tokens of the `{}` design block.",
@@ -47,11 +51,14 @@ pub(crate) fn emit_tokens_class(w: &mut CodeWriter, design: &DesignIR, warnings:
         // ZIndex (spec §10.3): the token type has no Flutter layout effect —
         // warn once and skip the constant (base + theme overrides alike).
         if token.token_type == TokenTypeIR::ZIndex {
-            warnings.push(format!(
-                "[flutter][design] token '{}'{}: Flutter z 序由 widget 顺序决定 — \
-                 zIndex has no Flutter layout effect; no Dart constant emitted (skipped)",
-                name,
-                design_ctx_suffix(design)
+            warnings.push(super::design::design_block_warning(
+                design,
+                format!(
+                    "[flutter][design] token '{}'{}: Flutter z 序由 widget 顺序决定 — \
+                     zIndex has no Flutter layout effect; no Dart constant emitted (skipped)",
+                    name,
+                    design_ctx_suffix(design)
+                ),
             ));
             continue;
         }
@@ -67,7 +74,10 @@ pub(crate) fn emit_tokens_class(w: &mut CodeWriter, design: &DesignIR, warnings:
                 w.emit(&decl);
                 emitted_any = true;
             } else {
-                warnings.push(token_skip_warning(design, name, None, &token.token_type, v));
+                warnings.push(super::design::design_block_warning(
+                    design,
+                    token_skip_warning(design, name, None, &token.token_type, v),
+                ));
             }
         }
         // Per-theme overrides — one constant per declared theme value.
@@ -85,12 +95,9 @@ pub(crate) fn emit_tokens_class(w: &mut CodeWriter, design: &DesignIR, warnings:
                     w.emit(&decl);
                     emitted_any = true;
                 } else {
-                    warnings.push(token_skip_warning(
+                    warnings.push(super::design::design_block_warning(
                         design,
-                        name,
-                        Some(theme),
-                        &token.token_type,
-                        v,
+                        token_skip_warning(design, name, Some(theme), &token.token_type, v),
                     ));
                 }
             }
@@ -122,17 +129,20 @@ fn font_stack_first_font(
     design: &DesignIR,
     name: &str,
     value: &str,
-    warnings: &mut Vec<String>,
+    warnings: &mut Vec<crate::codegen::CodegenWarning>,
 ) -> String {
     if !value.contains(',') {
         return value.to_string();
     }
     let first = value.split(',').next().unwrap_or("").trim();
-    warnings.push(format!(
-        "[flutter][design] token '{name}'{}: font stack '{value}' has no \
-         single-font equivalent in Flutter — using first font '{first}' \
-         (multi-font CSS stacks are not expressible)",
-        design_ctx_suffix(design)
+    warnings.push(super::design::design_block_warning(
+        design,
+        format!(
+            "[flutter][design] token '{name}'{}: font stack '{value}' has no \
+             single-font equivalent in Flutter — using first font '{first}' \
+             (multi-font CSS stacks are not expressible)",
+            design_ctx_suffix(design)
+        ),
     ));
     first.to_string()
 }

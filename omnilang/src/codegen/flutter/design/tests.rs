@@ -374,8 +374,8 @@ fn emits_tokens_class_with_typed_constants() {
     assert!(
         warnings
             .iter()
-            .any(|w| w.contains("token 'zModal' of design 'App'")
-                && w.contains("Flutter z 序由 widget 顺序决定")),
+            .any(|w| w.message.contains("token 'zModal' of design 'App'")
+                && w.message.contains("Flutter z 序由 widget 顺序决定")),
         "ZIndex must warn with the spec §10.3 message. Got:\n{:#?}",
         warnings
     );
@@ -403,7 +403,7 @@ fn emits_tokens_class_with_typed_constants() {
     assert!(
         warnings
             .iter()
-            .any(|w| w.contains("fontFamily") && w.contains("font stack")),
+            .any(|w| w.message.contains("fontFamily") && w.message.contains("font stack")),
         "font stacks must warn via the design channel. Got:\n{:#?}",
         warnings
     );
@@ -683,7 +683,7 @@ fn emits_theme_data_provider_for_multi_theme() {
     assert!(content.contains("ThemeData buildAppSepiaTheme() {"));
     assert!(content.contains("ThemeData buildAppHighContrastTheme() {"));
     assert!(
-        warnings.iter().any(|w| w.contains("light/dark")),
+        warnings.iter().any(|w| w.message.contains("light/dark")),
         "the >2-theme platform floor must warn, got: {:?}",
         warnings
     );
@@ -753,7 +753,7 @@ fn multi_theme_union_across_designs() {
         content
     );
     assert!(
-        warnings.iter().any(|w| w.contains("light/dark")),
+        warnings.iter().any(|w| w.message.contains("light/dark")),
         "the union of themes must warn, got: {:?}",
         warnings
     );
@@ -913,18 +913,20 @@ fn unmappable_values_are_skipped_not_crashed() {
     // channel, naming the token and the reason.
     assert!(
         warnings.iter().any(|w| {
-            w.contains("[flutter][design]")
-                && w.contains("'badEasing'")
-                && w.contains("cubic-bezier")
-                && w.contains("skipped")
+            w.message.contains("[flutter][design]")
+                && w.message.contains("'badEasing'")
+                && w.message.contains("cubic-bezier")
+                && w.message.contains("skipped")
         }),
         "unmappable easing must warn: {:?}",
         warnings
     );
     assert!(
-        warnings
-            .iter()
-            .any(|w| { w.contains("'badSize'") && w.contains("12.5%") && w.contains("skipped") }),
+        warnings.iter().any(|w| {
+            w.message.contains("'badSize'")
+                && w.message.contains("12.5%")
+                && w.message.contains("skipped")
+        }),
         "unmappable size must warn: {:?}",
         warnings
     );
@@ -964,9 +966,9 @@ fn unmappable_class_property_warns() {
     );
     assert!(
         warnings.iter().any(|w| {
-            w.contains("'WeirdShadow'")
-                && w.contains("box-shadow")
-                && w.contains("inset 0 1px 2px rgba(0,0,0,0.5)")
+            w.message.contains("'WeirdShadow'")
+                && w.message.contains("box-shadow")
+                && w.message.contains("inset 0 1px 2px rgba(0,0,0,0.5)")
         }),
         "unmappable class property must warn: {:?}",
         warnings
@@ -995,7 +997,8 @@ fn layout_only_class_warns_and_skips_factory() {
     );
     assert!(
         warnings.iter().any(|w| {
-            w.contains("'RowLayout'") && w.contains("no decoration-mappable properties")
+            w.message.contains("'RowLayout'")
+                && w.message.contains("no decoration-mappable properties")
         }),
         "layout-only class must warn: {:?}",
         warnings
@@ -1146,9 +1149,9 @@ fn cursor_class_emits_warning() {
     let ir = make_ir(design);
     let (files, warnings, _errors) = gen_design_files(&ir);
     assert!(
-        warnings.iter().any(|w| w.contains("'Clickable'")
-            && w.contains("'cursor'")
-            && w.contains("cursor 在 Flutter 中无效果")),
+        warnings.iter().any(|w| w.message.contains("'Clickable'")
+            && w.message.contains("'cursor'")
+            && w.message.contains("cursor 在 Flutter 中无效果")),
         "cursor must warn with the spec §10.3 message. Got:\n{:#?}",
         warnings
     );
@@ -1173,7 +1176,8 @@ fn variant_layout_diagnostics_cover_base_and_branches() {
     assert!(
         warnings
             .iter()
-            .any(|w| w.contains("variant 'Button'") && w.contains("cursor 在 Flutter 中无效果")),
+            .any(|w| w.message.contains("variant 'Button'")
+                && w.message.contains("cursor 在 Flutter 中无效果")),
         "variant base cursor must warn. Got:\n{:#?}",
         warnings
     );
@@ -1204,7 +1208,8 @@ fn pseudo_state_layout_diagnostics_are_emitted() {
     assert!(
         warnings
             .iter()
-            .any(|w| w.contains("'CardDecoration'") && w.contains("cursor 在 Flutter 中无效果")),
+            .any(|w| w.message.contains("'CardDecoration'")
+                && w.message.contains("cursor 在 Flutter 中无效果")),
         "pseudo-state cursor must warn. Got:\n{:#?}",
         warnings
     );

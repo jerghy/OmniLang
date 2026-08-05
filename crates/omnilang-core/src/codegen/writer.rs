@@ -1,9 +1,64 @@
-//! CodeWriter, CompiledFile, and CompileOutput.
+//! CodeWriter, CompiledFile, CompileOutput, and CodegenWarning.
 
 use std::fmt;
 
+use serde::{Deserialize, Serialize};
+
 use crate::error::{Diagnostic, DiagnosticKind, Severity};
 use crate::sourcemap::SourceMapEntry;
+
+/// A non-fatal codegen warning — message plus optional source location.
+///
+/// The source location is threaded from the emission point when the
+/// element/declaration context exists (task C2d span threading); emission
+/// points without context stay `file: None / line: 0 / col: 0` — honest
+/// `-:0:0`, never a fabricated span.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CodegenWarning {
+    pub message: String,
+    /// Source file the warning points at (`None` when no element/declaration
+    /// context exists at the emission point).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub file: Option<String>,
+    pub line: u32,
+    pub col: u32,
+}
+
+impl CodegenWarning {
+    /// Warning without a source location (honest `-:0:0`).
+    #[must_use]
+    pub fn new(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            file: None,
+            line: 0,
+            col: 0,
+        }
+    }
+
+    /// Warning positioned at a source location (1-based line/col).
+    #[must_use]
+    pub fn at(message: impl Into<String>, file: Option<String>, line: u32, col: u32) -> Self {
+        Self {
+            message: message.into(),
+            file,
+            line,
+            col,
+        }
+    }
+}
+
+impl From<String> for CodegenWarning {
+    fn from(message: String) -> Self {
+        Self::new(message)
+    }
+}
+
+impl From<&str> for CodegenWarning {
+    fn from(message: &str) -> Self {
+        Self::new(message)
+    }
+}
 
 /// CodeWriter: tracks indentation and emits formatted lines.
 #[derive(Debug)]
@@ -104,7 +159,7 @@ pub struct CompileOutput {
     pub source_map: Vec<SourceMapEntry>,
     /// Non-fatal warnings collected during codegen (e.g., unknown variant references).
     /// OmniView populates this; other backends may use it in the future.
-    pub warnings: Vec<String>,
+    pub warnings: Vec<CodegenWarning>,
 }
 
 impl CompileOutput {

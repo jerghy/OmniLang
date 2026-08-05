@@ -620,16 +620,18 @@ pub(crate) fn emit_trigger_helpers_runtime() -> String {
 /// the generated code carries a degradation placeholder (ADR-054 honest
 /// degradation — silent stubs are forbidden).
 fn warn_event_field_stub(
-    warnings: &mut Vec<String>,
+    warnings: &mut Vec<crate::codegen::CodegenWarning>,
     kind: &EventDataKind,
     field: &str,
     reason: &str,
 ) {
-    warnings.push(format!(
+    // No element context reaches this helper (field extraction runs under the
+    // handler formatter) — honest `-:0:0` rather than a fabricated span.
+    warnings.push(crate::codegen::CodegenWarning::new(format!(
         "[flutter] event field '{field}' of {} is not mappable: {reason}; \
          emitting a degradation placeholder",
         event_data_kind_label(kind)
-    ));
+    )));
 }
 
 /// Flutter target field extraction — maps schema fields to Dart expressions.
@@ -643,7 +645,7 @@ pub(crate) fn field_extract_flutter(
     kind: &EventDataKind,
     field: &str,
     raw: &str,
-    warnings: &mut Vec<String>,
+    warnings: &mut Vec<crate::codegen::CodegenWarning>,
 ) -> String {
     match (kind, field) {
         // PointerEvent — from pointer event details (TapDownDetails, etc.)
@@ -948,7 +950,7 @@ pub(crate) fn emit_event_object_flutter(
     event_data: &Option<EventDataKind>,
     used_fields: &Option<Vec<String>>,
     raw_var: &str,
-    warnings: &mut Vec<String>,
+    warnings: &mut Vec<crate::codegen::CodegenWarning>,
 ) -> String {
     let kind = match event_data {
         Some(k) => k,

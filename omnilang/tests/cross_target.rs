@@ -9,7 +9,7 @@ use std::path::PathBuf;
 
 use rustc_hash::FxHashMap;
 
-use omnilang::codegen::{compile, Target};
+use omnilang::codegen::{compile, CodegenWarning, Target};
 use omnilang::ir::lower;
 use omnilang::lexer::tokenize;
 use omnilang::parser;
@@ -89,10 +89,10 @@ fn p0_backends() -> Vec<(Target, &'static str)> {
 
 /// Check whether a compile output contains design block warnings.
 fn has_design_block_warning(output: &omnilang::codegen::CompileOutput) -> bool {
-    output
-        .warnings
-        .iter()
-        .any(|w| w.contains("Design blocks are only supported on the OmniView target"))
+    output.warnings.iter().any(|w| {
+        w.message
+            .contains("Design blocks are only supported on the OmniView target")
+    })
 }
 
 /// Primary cross-target test: every Golden fixture must compile error-free
@@ -261,16 +261,16 @@ component EventFields {
             "{target_name}: fixture must compile without errors: {:?}",
             output.errors.iter().map(|e| &e.message).collect::<Vec<_>>()
         );
-        let event_warnings: Vec<&String> = output
+        let event_warnings: Vec<&CodegenWarning> = output
             .warnings
             .iter()
             .filter(|w| {
-                w.contains("onKeyDown")
-                    || w.contains("onCopy")
-                    || w.contains("onDrop")
-                    || w.contains("KeyEvent")
-                    || w.contains("ClipboardEvent")
-                    || w.contains("DropEvent")
+                w.message.contains("onKeyDown")
+                    || w.message.contains("onCopy")
+                    || w.message.contains("onDrop")
+                    || w.message.contains("KeyEvent")
+                    || w.message.contains("ClipboardEvent")
+                    || w.message.contains("DropEvent")
             })
             .collect();
         match target_name {

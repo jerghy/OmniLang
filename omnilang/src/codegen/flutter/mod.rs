@@ -138,9 +138,9 @@ impl FlutterCodegen {
         ir: &IRProgram,
         component_map: &FxHashMap<&str, &ComponentIR>,
         component_slots: &FxHashMap<String, FxHashSet<String>>,
-    ) -> (String, Vec<String>, Vec<Diagnostic>) {
+    ) -> (String, Vec<crate::codegen::CodegenWarning>, Vec<Diagnostic>) {
         let mut w = CodeWriter::new();
-        let mut warnings = Vec::new();
+        let mut warnings: Vec<crate::codegen::CodegenWarning> = Vec::new();
         // ADR-053 D5: body-level `@slot` declarations surface in the view as
         // `{name}` interpolations — materialize them into `ViewTree::Slot`
         // nodes ONCE so the trigger-helper import decision (below), the
@@ -216,11 +216,12 @@ impl FlutterCodegen {
         let mut warn_out_of_range = |e: &ExprIR| {
             if let ExprIR::LiteralExpr { value } = e {
                 if value.as_u64().is_some_and(|n| n > i64::MAX as u64) {
-                    warnings.push(
+                    // No element context at this scan point (per-expression
+                    // stdlib/import scan) — honest `-:0:0`.
+                    warnings.push(crate::codegen::CodegenWarning::new(
                         "字面量超出 Dart int 范围（64 位有符号）——u64-max 等值在 \
-                         Flutter 目标上无法忠实表示，请改用可表示值或 BigInt"
-                            .to_string(),
-                    );
+                         Flutter 目标上无法忠实表示，请改用可表示值或 BigInt",
+                    ));
                 }
             }
         };
@@ -945,12 +946,34 @@ impl FlutterCodegen {
                     // layout-dependent; skew and unknown properties are
                     // skipped.
                     if diag_seen.insert(motion_name.clone()) {
+                        // C2d span threading: anchor at the motion
+                        // definition's span in its module's source file.
+                        let (motion_file, m_line, m_col) = ir
+                            .modules
+                            .iter()
+                            .find(|(_, m)| m.motions.iter().any(|mm| mm.name == *motion_name))
+                            .and_then(|(f, m)| {
+                                m.motions
+                                    .iter()
+                                    .find(|mm| mm.name == *motion_name)
+                                    .and_then(|mm| mm.source_span)
+                                    .map(|s| (Some(f.clone()), s.line, s.col))
+                            })
+                            .unwrap_or((None, 0, 0));
+                        let anchor = |msg: String| {
+                            crate::codegen::CodegenWarning::at(
+                                msg,
+                                motion_file.clone(),
+                                m_line,
+                                m_col,
+                            )
+                        };
                         if let Some(diag) = easing_flutter_diagnostic(motion_name, &kf.ease) {
-                            warnings.push(diag);
+                            warnings.push(anchor(diag));
                         }
                         for prop in extract_keyframe_properties(kf) {
                             if let Some(diag) = prop_flutter_diagnostic(motion_name, &prop) {
-                                warnings.push(diag);
+                                warnings.push(anchor(diag));
                             }
                         }
                     }
@@ -1270,6 +1293,9 @@ impl FlutterCodegen {
                 ir,
                 design: &design_resolver,
                 warnings: &mut warnings,
+                // C2d span threading: view warnings anchor at the element's
+                // span in the component's source file.
+                file: comp.source_file.clone(),
                 motion_counter: &mut motion_counter,
                 widget_names: &widget_names,
                 fn_renames: &fn_renames,
@@ -1316,8 +1342,11 @@ impl FlutterCodegen {
 
         // Motion diagnostics are module-global and emitted once per
         // component — dedupe so multi-component modules report each once.
+        // Keyed by MESSAGE (not the whole warning): identical messages from
+        // different element spans collapse to the first occurrence, keeping
+        // the pre-C2d per-component semantics unchanged.
         let mut seen: FxHashSet<String> = FxHashSet::default();
-        warnings.retain(|w| seen.insert(w.clone()));
+        warnings.retain(|w| seen.insert(w.message.clone()));
 
         (w.into_string(), warnings, ref_errors)
     }

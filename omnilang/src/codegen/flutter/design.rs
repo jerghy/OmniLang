@@ -43,6 +43,22 @@ use crate::ir::design::*;
 use crate::ir::{ExprIR, IRProgram, StoreIR};
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
+/// Anchor a design-channel warning at the design block's source location
+/// (C2d span threading). The IR carries spans only at the design-block level
+/// — class/token/property spans are not lowered — so the declaring block is
+/// the honest context for definition-point warnings; entries without a span
+/// stay `-:0:0`.
+pub(crate) fn design_block_warning(
+    design: &DesignIR,
+    message: impl Into<String>,
+) -> crate::codegen::CodegenWarning {
+    let (line, col) = design
+        .source_span
+        .map(|s| (s.line, s.col))
+        .unwrap_or((0, 0));
+    crate::codegen::CodegenWarning::at(message, design.source_file.clone(), line, col)
+}
+
 /// Emit `design.dart` — the merged design outputs for every design block in
 /// the program.
 ///
@@ -51,7 +67,13 @@ use rustc_hash::FxHashSet;
 /// be mapped onto Dart plus the spec §10.3 warning rows (ZIndex token, CSS
 /// `cursor`); errors carry the spec §10.3 error rows (CSS `display: grid`,
 /// CSS `float`) — unmappable design values must never be dropped silently.
-pub fn gen_design_files(ir: &IRProgram) -> (Vec<CompiledFile>, Vec<String>, Vec<Diagnostic>) {
+pub fn gen_design_files(
+    ir: &IRProgram,
+) -> (
+    Vec<CompiledFile>,
+    Vec<crate::codegen::CodegenWarning>,
+    Vec<Diagnostic>,
+) {
     let mut designs: Vec<&DesignIR> = ir.modules.values().flat_map(|m| &m.designs).collect();
     if designs.is_empty() {
         return (vec![], vec![], vec![]);
@@ -74,7 +96,7 @@ pub fn gen_design_files(ir: &IRProgram) -> (Vec<CompiledFile>, Vec<String>, Vec<
 fn emit_design_dart(
     designs: &[&DesignIR],
     ir: &IRProgram,
-    warnings: &mut Vec<String>,
+    warnings: &mut Vec<crate::codegen::CodegenWarning>,
     errors: &mut Vec<Diagnostic>,
 ) -> String {
     let mut w = CodeWriter::new();
@@ -173,7 +195,7 @@ fn emit_design_dart(
 /// source file when known.
 fn collect_layout_diagnostics(
     design: &DesignIR,
-    warnings: &mut Vec<String>,
+    warnings: &mut Vec<crate::codegen::CodegenWarning>,
     errors: &mut Vec<Diagnostic>,
 ) {
     let mut check = |context: &str, prop: &str, value: &str| match css_prop_to_camel(prop).as_str()
@@ -200,10 +222,13 @@ fn collect_layout_diagnostics(
             ));
         }
         "cursor" => {
-            warnings.push(format!(
-                "[flutter][design] {context} property 'cursor' value '{}': \
-                     cursor 在 Flutter 中无效果",
-                value.trim()
+            warnings.push(design_block_warning(
+                design,
+                format!(
+                    "[flutter][design] {context} property 'cursor' value '{}': \
+                         cursor 在 Flutter 中无效果",
+                    value.trim()
+                ),
             ));
         }
         _ => {}

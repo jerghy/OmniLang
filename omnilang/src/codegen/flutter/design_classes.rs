@@ -30,7 +30,11 @@ use rustc_hash::FxHashSet;
 /// (display, gap, padding, …) are skipped with a warning naming the class;
 /// decoration properties whose VALUES cannot be mapped (spec §10.3) are
 /// skipped with a warning naming the property and value.
-pub(crate) fn emit_design_class(w: &mut CodeWriter, design: &DesignIR, warnings: &mut Vec<String>) {
+pub(crate) fn emit_design_class(
+    w: &mut CodeWriter,
+    design: &DesignIR,
+    warnings: &mut Vec<crate::codegen::CodegenWarning>,
+) {
     let class_name = format!("{}Design", design.name);
     w.emit_fmt(format_args!(
         "/// BoxDecoration factories for the `{}` design classes.",
@@ -44,18 +48,24 @@ pub(crate) fn emit_design_class(w: &mut CodeWriter, design: &DesignIR, warnings:
     for class in &design.classes {
         let (fields, skipped) = resolve_class_decoration(design, class);
         for (prop, value) in &skipped {
-            warnings.push(format!(
-                "[flutter][design] design class '{}' property '{}' value '{}' is not \
-                 mappable to a BoxDecoration field; skipped",
-                class.name, prop, value
+            warnings.push(super::design::design_block_warning(
+                design,
+                format!(
+                    "[flutter][design] design class '{}' property '{}' value '{}' is not \
+                     mappable to a BoxDecoration field; skipped",
+                    class.name, prop, value
+                ),
             ));
         }
         if fields.is_empty() {
-            warnings.push(format!(
-                "[flutter][design] design class '{}' has no decoration-mappable \
-                 properties; no BoxDecoration factory emitted (layout/text-only \
-                 classes have no Flutter decoration equivalent)",
-                class.name
+            warnings.push(super::design::design_block_warning(
+                design,
+                format!(
+                    "[flutter][design] design class '{}' has no decoration-mappable \
+                     properties; no BoxDecoration factory emitted (layout/text-only \
+                     classes have no Flutter decoration equivalent)",
+                    class.name
+                ),
             ));
             continue;
         }
@@ -633,7 +643,7 @@ fn branch_const_names(design: &DesignIR, fields: &[ThemeField]) -> Vec<(String, 
 pub(crate) fn emit_theme_variant_class(
     w: &mut CodeWriter,
     design: &DesignIR,
-    warnings: &mut Vec<String>,
+    warnings: &mut Vec<crate::codegen::CodegenWarning>,
 ) {
     if design.variants.is_empty() {
         return;
@@ -742,10 +752,13 @@ pub(crate) fn emit_theme_variant_class(
             w.dedent();
             w.emit(");");
             for (prop, value) in &skips {
-                warnings.push(format!(
-                    "[flutter][design] variant '{}' branch '{}' property '{}' value \
-                     '{}' is not mappable to a ThemeExtension field; skipped",
-                    variant.name, branch.value, prop, value
+                warnings.push(super::design::design_block_warning(
+                    design,
+                    format!(
+                        "[flutter][design] variant '{}' branch '{}' property '{}' value \
+                         '{}' is not mappable to a ThemeExtension field; skipped",
+                        variant.name, branch.value, prop, value
+                    ),
                 ));
             }
         }

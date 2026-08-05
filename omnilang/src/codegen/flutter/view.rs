@@ -51,7 +51,10 @@ pub(crate) struct ViewContext<'a> {
     /// Design lookups for `class:`/`variant:` resolution (Task 4.3).
     pub(crate) design: &'a DesignResolver<'a>,
     /// Compiler warnings accumulated during view formatting (C6).
-    pub(crate) warnings: &'a mut Vec<String>,
+    pub(crate) warnings: &'a mut Vec<crate::codegen::CodegenWarning>,
+    /// Source file of the component being generated (`comp.source_file`) —
+    /// anchors warnings at the element's file (C2d span threading).
+    pub(crate) file: Option<String>,
     /// Motion-element ordinal counter (T5.7): assigns each motion element
     /// its DFS pre-order index so its controllers are named per element
     /// instance (`_{motion}Controller_{idx}`). MUST increment with the same
@@ -82,6 +85,20 @@ pub(crate) struct ViewContext<'a> {
 }
 
 impl ViewContext<'_> {
+    /// Push a codegen warning positioned at the element's source span (C2d
+    /// span threading) — file from the component's source file, line/col
+    /// from the element's span. Elements without a span (hand-built IR)
+    /// stay honest `-:0:0` (never a fabricated span).
+    pub(crate) fn warn_at(&mut self, message: impl Into<String>, span: Option<crate::lexer::Span>) {
+        let (line, col) = span.map_or((0, 0), |s| (s.line, s.col));
+        self.warnings.push(crate::codegen::CodegenWarning::at(
+            message,
+            self.file.clone(),
+            line,
+            col,
+        ));
+    }
+
     /// Does the named handler reference a function with NO parameters?
     /// (A 0-arg fn tear-off is not assignable to `ValueChanged<String>` —
     /// the payload-bearing callback types — so those wire through a wrapper
@@ -734,25 +751,33 @@ fn css_prop_to_flutter_param(prop: &str) -> Option<&'static str> {
 /// LearnDesign.Card` becomes the `class` prop "Card"). Returns the resolved
 /// decoration fields plus the `AppDesign.<class>()` factory reference (valid
 /// only when the decoration derives from exactly this one class). Unknown
-/// class names and layout-only classes warn and return `None`.
+/// class names and layout-only classes warn and return `None`. The element's
+/// source span anchors those warnings at the usage point (C2d).
 fn resolve_static_class(
     name: &str,
+    span: Option<crate::lexer::Span>,
     ctx: &mut ViewContext,
 ) -> Option<(DecorationFields, Option<String>)> {
     let Some((design, class)) = ctx.design.class_owner(name) else {
-        ctx.warnings.push(format!(
-            "[flutter] class '{name}' is not declared by any design block; \
-             skipped (no Flutter equivalent)"
-        ));
+        ctx.warn_at(
+            format!(
+                "[flutter] class '{name}' is not declared by any design block; \
+                 skipped (no Flutter equivalent)"
+            ),
+            span,
+        );
         return None;
     };
     let (fields, skipped) = resolve_class_decoration(design, class);
-    warn_design_skipped(ctx, &format!("class '{name}'"), skipped);
+    warn_design_skipped(ctx, &format!("class '{name}'"), skipped, span);
     if fields.is_empty() {
-        ctx.warnings.push(format!(
-            "[flutter] design class '{name}' has no decoration-mappable properties; \
-             skipped (layout/text-only classes have no Flutter decoration equivalent)"
-        ));
+        ctx.warn_at(
+            format!(
+                "[flutter] design class '{name}' has no decoration-mappable properties; \
+                 skipped (layout/text-only classes have no Flutter decoration equivalent)"
+            ),
+            span,
+        );
         None
     } else {
         let factory = class_factory_expr(design, class);
@@ -762,12 +787,20 @@ fn resolve_static_class(
 
 /// Surface unmappable (property, value) pairs on the warnings channel,
 /// naming the resolved thing they belong to (class/variant).
-fn warn_design_skipped(ctx: &mut ViewContext, what: &str, skipped: Vec<(String, String)>) {
+fn warn_design_skipped(
+    ctx: &mut ViewContext,
+    what: &str,
+    skipped: Vec<(String, String)>,
+    span: Option<crate::lexer::Span>,
+) {
     for (prop, value) in skipped {
-        ctx.warnings.push(format!(
-            "[flutter] {what} property '{prop}' value '{value}' is not mappable to a \
-             BoxDecoration field; skipped"
-        ));
+        ctx.warn_at(
+            format!(
+                "[flutter] {what} property '{prop}' value '{value}' is not mappable to a \
+                 BoxDecoration field; skipped"
+            ),
+            span,
+        );
     }
 }
 
@@ -802,10 +835,10 @@ fn wrap_design_decorations(el: &ElementIR, inner: String, ctx: &mut ViewContext)
         if let Some(classes) = value.as_str() {
             class_names.extend(classes.split_whitespace().map(str::to_string));
         } else {
-            ctx.warnings.push(
+            ctx.warn_at(
                 "[flutter] non-literal `class` prop values are not supported; \
-                 class styling skipped"
-                    .to_string(),
+                 class styling skipped",
+                el.source_span,
             );
         }
     }
@@ -820,7 +853,7 @@ fn wrap_design_decorations(el: &ElementIR, inner: String, ctx: &mut ViewContext)
         if !seen.insert(name.clone()) {
             continue; // same class listed twice — resolve once
         }
-        if let Some(resolved) = resolve_static_class(&name, ctx) {
+        if let Some(resolved) = resolve_static_class(&name, el.source_span, ctx) {
             static_entries.push((name, resolved.0, resolved.1));
         }
     }
@@ -852,25 +885,37 @@ fn wrap_design_decorations(el: &ElementIR, inner: String, ctx: &mut ViewContext)
                     Some(variant) => {
                         let (fields, skipped) =
                             resolve_variant_decoration(design, variant, &dim_values);
-                        warn_design_skipped(ctx, &format!("variant '{variant_name}'"), skipped);
+                        warn_design_skipped(
+                            ctx,
+                            &format!("variant '{variant_name}'"),
+                            skipped,
+                            el.source_span,
+                        );
                         if fields.is_empty() {
-                            ctx.warnings.push(format!(
-                                "[flutter] variant '{variant_name}' of design \
-                                 '{design_name}' has no decoration-mappable properties; \
-                                 no visual effect on Flutter"
-                            ));
+                            ctx.warn_at(
+                                format!(
+                                    "[flutter] variant '{variant_name}' of design \
+                                     '{design_name}' has no decoration-mappable properties; \
+                                     no visual effect on Flutter"
+                                ),
+                                el.source_span,
+                            );
                         } else {
                             variant_fields = Some(fields);
                         }
                     }
-                    None => ctx.warnings.push(format!(
-                        "[flutter] variant '{variant_name}' not found in design \
-                         '{design_name}'"
-                    )),
+                    None => ctx.warn_at(
+                        format!(
+                            "[flutter] variant '{variant_name}' not found in design \
+                             '{design_name}'"
+                        ),
+                        el.source_span,
+                    ),
                 },
-                None => ctx.warnings.push(format!(
-                    "[flutter] design '{design_name}' not found for variant binding"
-                )),
+                None => ctx.warn_at(
+                    format!("[flutter] design '{design_name}' not found for variant binding"),
+                    el.source_span,
+                ),
             }
         }
     }
@@ -882,13 +927,13 @@ fn wrap_design_decorations(el: &ElementIR, inner: String, ctx: &mut ViewContext)
     for (name, expr) in &el.class_map_bindings {
         match expr {
             ExprIR::LiteralExpr { value } if value.as_bool() == Some(true) => {
-                if let Some(resolved) = resolve_static_class(name, ctx) {
+                if let Some(resolved) = resolve_static_class(name, el.source_span, ctx) {
                     static_entries.push((name.clone(), resolved.0, resolved.1));
                 }
             }
             ExprIR::LiteralExpr { value } if value.as_bool() == Some(false) => {}
             _ => {
-                if let Some(resolved) = resolve_static_class(name, ctx) {
+                if let Some(resolved) = resolve_static_class(name, el.source_span, ctx) {
                     dynamic.push((ctx.format_expr(expr), resolved.0));
                 }
             }
@@ -1027,12 +1072,15 @@ fn wrap_a11y(el: &ElementIR, inner: String, ctx: &mut ViewContext) -> String {
         match role_to_semantics_flag(role) {
             Some(flag) => semantics_args.push(flag.to_string()),
             None => {
-                ctx.warnings.push(format!(
-                    "[flutter] a11y role '{role}' is not in the Flutter \
-                     Semantics subset (button/textbox/link/checkbox/radio/\
-                     img); degraded — no Semantics flag (the role still \
-                     passes through on the web targets)"
-                ));
+                ctx.warn_at(
+                    format!(
+                        "[flutter] a11y role '{role}' is not in the Flutter \
+                         Semantics subset (button/textbox/link/checkbox/radio/\
+                         img); degraded — no Semantics flag (the role still \
+                         passes through on the web targets)"
+                    ),
+                    el.source_span,
+                );
             }
         }
     }
@@ -1053,10 +1101,10 @@ fn wrap_a11y(el: &ElementIR, inner: String, ctx: &mut ViewContext) -> String {
                 // accessible name); `alt` is image-specific intent on a
                 // non-image element, so it warns and is dropped (honest
                 // degradation — never a silent drop).
-                ctx.warnings.push(
+                ctx.warn_at(
                     "[flutter] a11y alt 仅对 img 元素生效（当前元素非图像）；\
-                     与 a11y label 同时出现，alt 被忽略（label 已提供可访问名称）"
-                        .into(),
+                     与 a11y label 同时出现，alt 被忽略（label 已提供可访问名称）",
+                    el.source_span,
                 );
             } else {
                 semantics_args.push(format!("label: {}", ctx.format_expr(alt)));
@@ -1268,10 +1316,13 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                     child_args.push(format!("{}: {}", name, content));
                 }
                 Some(name) => {
-                    ctx.warnings.push(format!(
-                        "[flutter] component '{}' has no slot '{}'; content emitted as default child",
-                        el.tag, name
-                    ));
+                    ctx.warn_at(
+                        format!(
+                            "[flutter] component '{}' has no slot '{}'; content emitted as default child",
+                            el.tag, name
+                        ),
+                        el.source_span,
+                    );
                     default_children.push(content);
                 }
                 None => default_children.push(content),
@@ -1293,11 +1344,14 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
             };
             format!("{}({}, children: {})", el.tag, args_str, children_arg)
         } else {
-            ctx.warnings.push(format!(
-                "[flutter] component '{}' declares no default slot; {} child node(s) dropped",
-                el.tag,
-                default_children.len()
-            ));
+            ctx.warn_at(
+                format!(
+                    "[flutter] component '{}' declares no default slot; {} child node(s) dropped",
+                    el.tag,
+                    default_children.len()
+                ),
+                el.source_span,
+            );
             format!("{}({})", el.tag, args_str)
         };
         // Design classes/variants resolve to a decoration on a wrapping
@@ -1371,12 +1425,15 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                     ExprIR::LiteralExpr { value } => value.as_str().unwrap_or("?"),
                     _ => "?",
                 };
-                ctx.warnings.push(format!(
-                    "[flutter] img src '{shown}' is not an absolute http(s) URL — \
-                     Image.network throws NetworkImageLoadException at runtime in \
-                     a native app; emitting Image.asset (move the file under \
-                     assets/ and reference it by its asset key)"
-                ));
+                ctx.warn_at(
+                    format!(
+                        "[flutter] img src '{shown}' is not an absolute http(s) URL — \
+                         Image.network throws NetworkImageLoadException at runtime in \
+                         a native app; emitting Image.asset (move the file under \
+                         assets/ and reference it by its asset key)"
+                    ),
+                    el.source_span,
+                );
             }
             args.insert(0, src_expr);
             continue;
@@ -1400,10 +1457,13 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                             .unwrap_or_else(|| "(non-string literal)".into()),
                         _ => "(non-literal)".into(),
                     };
-                    ctx.warnings.push(format!(
-                        "[flutter] icon name {bad} has no Material Icons mapping; \
-                         falling back to Icons.help_outline"
-                    ));
+                    ctx.warn_at(
+                        format!(
+                            "[flutter] icon name {bad} has no Material Icons mapping; \
+                             falling back to Icons.help_outline"
+                        ),
+                        el.source_span,
+                    );
                     args.insert(0, "Icons.help_outline".to_string());
                 }
             }
@@ -1452,10 +1512,13 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
             if let ExprIR::LiteralExpr { value } = value {
                 if let Some(s) = value.as_str() {
                     if el.ref_binding.is_some() {
-                        ctx.warnings.push(format!(
-                            "[flutter] prop 'data-testid' is dropped on '{widget}': \
-                             the element's ref binding occupies the key slot"
-                        ));
+                        ctx.warn_at(
+                            format!(
+                                "[flutter] prop 'data-testid' is dropped on '{widget}': \
+                                 the element's ref binding occupies the key slot"
+                            ),
+                            el.source_span,
+                        );
                         continue;
                     }
                     if !args.iter().any(|a| a.starts_with("key:")) {
@@ -1473,9 +1536,12 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                 wrap_push(&mut wrap_args, "Tooltip", "message", &formatted);
                 continue;
             }
-            ctx.warnings.push(format!(
-                "[flutter] prop '{name}' → param '{param}' is not supported on '{widget}'; skipped"
-            ));
+            ctx.warn_at(
+                format!(
+                    "[flutter] prop '{name}' → param '{param}' is not supported on '{widget}'; skipped"
+                ),
+                el.source_span,
+            );
             continue;
         }
         args.push(format!("{}: {}", param, formatted));
@@ -1540,10 +1606,13 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                     }
                 }
                 if !widget_allows_param(widget, param) {
-                    ctx.warnings.push(format!(
-                        "[flutter] inline style property '{css_prop}' → param '{param}' \
-                         is not supported on '{widget}'; skipped"
-                    ));
+                    ctx.warn_at(
+                        format!(
+                            "[flutter] inline style property '{css_prop}' → param '{param}' \
+                             is not supported on '{widget}'; skipped"
+                        ),
+                        el.source_span,
+                    );
                     continue;
                 }
             }
@@ -1575,9 +1644,12 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                     // C5: CSS colors → Dart Color literals (#ff0000 → Color(0xFFFF0000))
                     match css_color_to_dart(css_val_str) {
                         Some(color_expr) => args.push(format!("color: {}", color_expr)),
-                        None => ctx.warnings.push(format!(
-                            "[flutter] unsupported color value '{css_val_str}' for '{css_prop}'; skipped"
-                        )),
+                        None => ctx.warn_at(
+                            format!(
+                                "[flutter] unsupported color value '{css_val_str}' for '{css_prop}'; skipped"
+                            ),
+                            el.source_span,
+                        ),
                     }
                 }
                 Some(_) => {
@@ -1631,9 +1703,12 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
         if widget == "Image.network" && callback_name == "onError" {
             match format_error_builder_handler(handler, ctx) {
                 Some(builder) => args.push(format!("errorBuilder: {builder}")),
-                None => ctx.warnings.push(format!(
-                    "[flutter] event '{name}' → callback '{callback_name}' is not supported on '{widget}'; skipped"
-                )),
+                None => ctx.warn_at(
+                    format!(
+                        "[flutter] event '{name}' → callback '{callback_name}' is not supported on '{widget}'; skipped"
+                    ),
+                    el.source_span,
+                ),
             }
             continue;
         }
@@ -1643,9 +1718,12 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
             generic_event_wrapper_callback(&callback_name)
         };
         if !direct_ok && wrapper.is_none() {
-            ctx.warnings.push(format!(
-                "[flutter] event '{name}' → callback '{callback_name}' is not supported on '{widget}'; skipped"
-            ));
+            ctx.warn_at(
+                format!(
+                    "[flutter] event '{name}' → callback '{callback_name}' is not supported on '{widget}'; skipped"
+                ),
+                el.source_span,
+            );
             continue;
         }
         // Focus.onKeyEvent takes `KeyEventResult Function(FocusNode,
@@ -1663,12 +1741,15 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
         if key_event {
             if let EventHandlerIR::FnRef { r#ref, .. } = handler {
                 if !ctx.widget_names.contains(r#ref) && ctx.ref_takes_params(r#ref) {
-                    ctx.warnings.push(format!(
-                        "[flutter] event '{name}' → callback '{callback_name}' is a Flutter \
-                         key-event callback (Focus.onKeyEvent takes (FocusNode, KeyEvent) and \
-                         returns KeyEventResult); param-bearing handler '{ref}' — dropped",
-                        ref = r#ref
-                    ));
+                    ctx.warn_at(
+                        format!(
+                            "[flutter] event '{name}' → callback '{callback_name}' is a Flutter \
+                             key-event callback (Focus.onKeyEvent takes (FocusNode, KeyEvent) and \
+                             returns KeyEventResult); param-bearing handler '{ref}' — dropped",
+                            ref = r#ref
+                        ),
+                        el.source_span,
+                    );
                     continue;
                 }
             }
@@ -1677,9 +1758,12 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
         // discriminates focus gain vs loss; a closure body would never run.
         if let Some(EventWrapperKind::FocusChange(which)) = wrapper {
             let Some(stmts) = format_focus_change_body(handler, ctx) else {
-                ctx.warnings.push(format!(
-                    "[flutter] event '{name}' → callback '{callback_name}' is not supported on '{widget}'; skipped"
-                ));
+                ctx.warn_at(
+                    format!(
+                        "[flutter] event '{name}' → callback '{callback_name}' is not supported on '{widget}'; skipped"
+                    ),
+                    el.source_span,
+                );
                 continue;
             };
             focus_change_bodies.push((which, stmts));
@@ -1708,10 +1792,11 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                     .is_some_and(|f| !f.is_empty())
                 {
                     warn_dropped_event_fields(
-                        ctx.warnings,
+                        ctx,
                         name,
                         &callback_name,
                         &format!("'{ref}'"),
+                        el.source_span,
                     );
                 }
                 if ctx.widget_names.contains(r#ref) {
@@ -1741,11 +1826,14 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                         // new tap wrapper) and the payload cannot flow INTO a
                         // void callback either — honest degradation: warn and
                         // drop (mirrors the direct-param path).
-                        ctx.warnings.push(format!(
-                            "[flutter] event '{name}' → callback '{callback_name}' is a \
-                             VoidCallback in Flutter (no event argument); handler \
-                             '{ref}' takes an event parameter — dropped"
-                        ));
+                        ctx.warn_at(
+                            format!(
+                                "[flutter] event '{name}' → callback '{callback_name}' is a \
+                                 VoidCallback in Flutter (no event argument); handler \
+                                 '{ref}' takes an event parameter — dropped"
+                            ),
+                            el.source_span,
+                        );
                         None
                     } else if !is_void && zero_param {
                         // A 0-arg fn tear-off is not assignable to the
@@ -1834,10 +1922,11 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                             .is_some_and(|f| !f.is_empty())
                     {
                         warn_dropped_event_fields(
-                            ctx.warnings,
+                            ctx,
                             name,
                             &callback_name,
                             "the handler",
+                            el.source_span,
                         );
                     }
                     if key_event {
@@ -1872,9 +1961,12 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                     .iter()
                     .any(|(w, ms)| *w == "GestureDetector" && ms.iter().any(|(p, _)| p == cb))
                 {
-                    ctx.warnings.push(format!(
-                        "[flutter] event '{name}' → callback '{callback_name}' collides with the tap wrapper ('{cb}') on '{widget}'; skipped"
-                    ));
+                    ctx.warn_at(
+                        format!(
+                            "[flutter] event '{name}' → callback '{callback_name}' collides with the tap wrapper ('{cb}') on '{widget}'; skipped"
+                        ),
+                        el.source_span,
+                    );
                     continue;
                 }
                 wrap_push(&mut wrap_args, "GestureDetector", cb, &body);
@@ -1888,9 +1980,12 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
             }
             Some(EventWrapperKind::KeyEvent) => {
                 if key_wrap_body.is_some() {
-                    ctx.warnings.push(format!(
-                        "[flutter] event '{name}' → callback '{callback_name}' collides with the key wrapper ('onKeyEvent') on '{widget}'; skipped"
-                    ));
+                    ctx.warn_at(
+                        format!(
+                            "[flutter] event '{name}' → callback '{callback_name}' collides with the key wrapper ('onKeyEvent') on '{widget}'; skipped"
+                        ),
+                        el.source_span,
+                    );
                     continue;
                 }
                 // Review LOW-1: Focus.onKeyEvent fires for BOTH keydown and
@@ -2001,9 +2096,12 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                     args.push(format!("onChanged: {cb}"));
                 }
             } else {
-                ctx.warnings.push(format!(
-                    "[flutter] binding 'bind:{bind_name}' → param '{param}' is not supported on '{widget}'; skipped"
-                ));
+                ctx.warn_at(
+                    format!(
+                        "[flutter] binding 'bind:{bind_name}' → param '{param}' is not supported on '{widget}'; skipped"
+                    ),
+                    el.source_span,
+                );
             }
             continue;
         }
@@ -2049,11 +2147,14 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
         if !args.iter().any(|a| a.starts_with("key:")) {
             args.push(format!("key: {}", ref_key_name(ref_name)));
         } else {
-            ctx.warnings.push(format!(
-                "[flutter] ref binding '{ref_name}' on '{widget}': the element's \
-                 key slot is occupied by a key prop — the ref GlobalKey is dropped \
-                 (ref lookups by key will not work)"
-            ));
+            ctx.warn_at(
+                format!(
+                    "[flutter] ref binding '{ref_name}' on '{widget}': the element's \
+                     key slot is occupied by a key prop — the ref GlobalKey is dropped \
+                     (ref lookups by key will not work)"
+                ),
+                el.source_span,
+            );
         }
         if usage.needs_text && widget == "TextField" {
             args.push(format!("controller: {}", ref_text_name(ref_name)));
@@ -2401,11 +2502,14 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                                         String::new(),
                                     ),
                                     None => {
-                                        ctx.warnings.push(format!(
-                                            "@drag-{} without constraints and motion '{}' has no literal translateX/Y keyframe values — drag is unbounded (no movement); add a literal translate keyframe range to the motion",
-                                            if is_horizontal { "horizontal" } else { "vertical" },
-                                            motion_name
-                                        ));
+                                        ctx.warn_at(
+                                            format!(
+                                                "@drag-{} without constraints and motion '{}' has no literal translateX/Y keyframe values — drag is unbounded (no movement); add a literal translate keyframe range to the motion",
+                                                if is_horizontal { "horizontal" } else { "vertical" },
+                                                motion_name
+                                            ),
+                                            el.source_span,
+                                        );
                                         (
                                             "0.0".to_string(),
                                             format!(
@@ -2955,16 +3059,20 @@ fn format_inline_handler_flutter(body: &BlockIR, ctx: &ViewContext) -> String {
 /// onTap/... receive no event argument — the generated closure is
 /// parameterless, so field extractions cannot be preserved).
 fn warn_dropped_event_fields(
-    warnings: &mut Vec<String>,
+    ctx: &mut ViewContext,
     event_name: &str,
     callback_name: &str,
     handler_label: &str,
+    span: Option<crate::lexer::Span>,
 ) {
-    warnings.push(format!(
-        "[flutter] event '{event_name}' → callback '{callback_name}' is a \
-         VoidCallback in Flutter (no event argument); event field accesses \
-         in {handler_label} were dropped"
-    ));
+    ctx.warn_at(
+        format!(
+            "[flutter] event '{event_name}' → callback '{callback_name}' is a \
+             VoidCallback in Flutter (no event argument); event field accesses \
+             in {handler_label} were dropped"
+        ),
+        span,
+    );
 }
 
 /// Format a StoreAction event handler that calls a store action through its

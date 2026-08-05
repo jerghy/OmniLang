@@ -133,7 +133,7 @@ pub(crate) fn emit_theme_switch(
     w: &mut CodeWriter,
     designs: &[&DesignIR],
     ir: &IRProgram,
-    warnings: &mut Vec<String>,
+    warnings: &mut Vec<crate::codegen::CodegenWarning>,
 ) {
     let Some(first) = designs.iter().find(|d| !d.themes.is_empty()) else {
         return;
@@ -150,13 +150,16 @@ pub(crate) fn emit_theme_switch(
             .filter(|d| !d.themes.is_empty())
             .map(|d| format!("'{}'", d.name))
             .collect();
-        warnings.push(format!(
-            "[flutter][design] design(s) {} declare {} themes ({}): Flutter 原生 \
-             ThemeMode 仅支持 light/dark 两态——其余主题通过 themeDataProvider \
-             的 ThemeData 索引选择接线（不参与系统亮暗跟随）",
-            declaring.join(", "),
-            union.len(),
-            union.join(", ")
+        warnings.push(super::design::design_block_warning(
+            first,
+            format!(
+                "[flutter][design] design(s) {} declare {} themes ({}): Flutter 原生 \
+                 ThemeMode 仅支持 light/dark 两态——其余主题通过 themeDataProvider \
+                 的 ThemeData 索引选择接线（不参与系统亮暗跟随）",
+                declaring.join(", "),
+                union.len(),
+                union.join(", ")
+            ),
         ));
     }
     let mut default_mode = match first.default_theme.as_deref() {
