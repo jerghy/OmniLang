@@ -364,6 +364,12 @@ function FlowCanvasInner() {
   // 注意：必须置于 nodes/edges useMemo 之后——依赖数组在渲染期求值，前置引用 codeElements 会 TDZ。
   const handleAutoLayout = useCallback(() => {
     if (codeElements.length === 0) return;
+    // 防线：view 设计树缺失时禁止布局——setElementsAndWires 全量替换在
+    // elements 异常（仅 codeblock 无 design）状态下会覆盖 view 树（E2E 实测 CRITICAL
+    // 变体：布局后 view 元素丢失、保存 E0006/覆盖 .omni view 块）。正常组件必有
+    // design 元素；缺失即状态异常，宁可不动。
+    const hasDesignElements = allElements.some((e) => e.nodeType !== "codeblock");
+    if (!hasDesignElements) return;
     const nodeById = new Map(nodes.map((nd) => [nd.id, nd]));
     const sizes = new Map<string, { width: number; height: number }>();
     for (const el of codeElements) {
