@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getTriggerContext, operatorCandidates, insertAt, replaceToken, countUnbalancedParens, SINGLE_CHAR_OPERATORS } from "../expression-trigger";
+import { getTriggerContext, operatorCandidates, insertAt, replaceToken, countUnbalancedParens, SINGLE_CHAR_OPERATORS, tokenizeFormula } from "../expression-trigger";
 
 describe("SINGLE_CHAR_OPERATORS", () => {
   it("单字符运算符集合：+ - * / %", () => {
@@ -94,5 +94,39 @@ describe("countUnbalancedParens（轻量括号配对校验，spec §4.5）", () 
   });
   it("空串 → 0", () => {
     expect(countUnbalancedParens("")).toBe(0);
+  });
+});
+
+function kinds(value: string): string[] {
+  return tokenizeFormula(value).map((t) => `${t.kind}:${t.text}`);
+}
+
+describe("tokenizeFormula", () => {
+  it("混合表达式：标识符/运算符/数字/括号", () => {
+    expect(kinds("count + 1")).toEqual(["identifier:count", "operator:+", "number:1"]);
+  });
+  it("多字符运算符最长匹配", () => {
+    expect(kinds("a <= b")).toEqual(["identifier:a", "operator:<=", "identifier:b"]);
+    expect(kinds("a == b && c")).toEqual(["identifier:a", "operator:==", "identifier:b", "operator:&&", "identifier:c"]);
+  });
+  it("member：Store.signal 整体一个 token", () => {
+    expect(kinds("TodoStore.total > 0")).toEqual(["member:TodoStore.total", "operator:>", "number:0"]);
+  });
+  it("字符串字面量（含空格/中文/运算符字符）整体一个 token", () => {
+    expect(kinds(`msg == "a + b 你好"`)).toEqual(["identifier:msg", "operator:==", "string:a + b 你好"]);
+  });
+  it("未知字符收集为 unknown 保留原文", () => {
+    expect(kinds("a @ b")).toEqual(["identifier:a", "unknown:@", "identifier:b"]);
+  });
+  it("括号独立 token", () => {
+    expect(kinds("f(x)")).toEqual(["identifier:f", "paren:(", "identifier:x", "paren:)"]);
+  });
+  it("is 关键字识别为运算符", () => {
+    expect(kinds("x is i32")).toEqual(["identifier:x", "operator:is", "identifier:i32"]);
+  });
+  it("token 偏移可定位（start/end 拼接还原原文）", () => {
+    const toks = tokenizeFormula("a <= 2");
+    expect(toks.map((t) => [t.start, t.end])).toEqual([[0, 1], [2, 4], [5, 6]]);
+    expect(toks.map((t) => "a <= 2".slice(t.start, t.end)).join("")).toBe("a<=2");
   });
 });

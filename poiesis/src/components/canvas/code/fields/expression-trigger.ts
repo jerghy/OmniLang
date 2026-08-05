@@ -94,3 +94,82 @@ export function countUnbalancedParens(value: string): number {
   }
   return depth;
 }
+
+export interface FormulaToken {
+  kind: "identifier" | "operator" | "number" | "string" | "paren" | "member" | "unknown";
+  text: string;
+  start: number;
+  end: number;
+}
+
+const STRING_QUOTE = /['"]/;
+
+/** 表达式分词（Notion 式 token 化编辑的数据基础）。
+ *  运算符以 infix.rs 为权威：两字符（<= >= == != && || ?? ?.）优先，单字符兜底；
+ *  `is` 关键字识别为运算符；`Store.signal` 整体 member token；
+ *  引号字符串跳过内部运算符字符与转义；未知字符逐字符收集。 */
+export function tokenizeFormula(value: string): FormulaToken[] {
+  const tokens: FormulaToken[] = [];
+  let i = 0;
+  while (i < value.length) {
+    const ch = value[i]!;
+    // 空白：跳过
+    if (/\s/.test(ch)) { i++; continue; }
+    // 字符串：引号包裹整段（含转义）
+    if (STRING_QUOTE.test(ch)) {
+      const start = i;
+      i++;
+      while (i < value.length) {
+        if (value[i] === "\\") { i += 2; continue; }
+        if (value[i] === ch) { i++; break; }
+        i++;
+      }
+      // text 不含引号本身（测试契约）；start/end 覆盖整段含引号（替换/定位用）；未闭合时取到末尾
+      const textEnd = i > start + 1 && value[i - 1] === ch ? i - 1 : i;
+      tokens.push({ kind: "string", text: value.slice(start + 1, textEnd), start, end: i });
+      continue;
+    }
+    // 数字
+    if (/[0-9]/.test(ch)) {
+      const start = i;
+      while (i < value.length && /[0-9.]/.test(value[i]!)) i++;
+      tokens.push({ kind: "number", text: value.slice(start, i), start, end: i });
+      continue;
+    }
+    // 标识符 / member（Store.signal） / is 运算符
+    if (/[A-Za-z_]/.test(ch)) {
+      const start = i;
+      while (i < value.length && /[A-Za-z0-9_]/.test(value[i]!)) i++;
+      // member：ident . ident（如 TodoStore.total）
+      if (value[i] === "." && /[A-Za-z_]/.test(value[i + 1] ?? "")) {
+        i++;
+        while (i < value.length && /[A-Za-z0-9_]/.test(value[i]!)) i++;
+        tokens.push({ kind: "member", text: value.slice(start, i), start, end: i });
+      } else if (value.slice(start, i) === "is") {
+        tokens.push({ kind: "operator", text: "is", start, end: i });
+      } else {
+        tokens.push({ kind: "identifier", text: value.slice(start, i), start, end: i });
+      }
+      continue;
+    }
+    // 括号
+    if (ch === "(" || ch === ")") { tokens.push({ kind: "paren", text: ch, start: i, end: i + 1 }); i++; continue; }
+    // 运算符：两字符优先（OPERATOR_PREFIX_CANDIDATES 表内长度 2 项），单字符兜底
+    if (/[+\-*/%<>=!&|?]/.test(ch)) {
+      const two = value.slice(i, i + 2);
+      const start = i;
+      if (two === "<=" || two === ">=" || two === "==" || two === "!=" || two === "&&" || two === "||" || two === "??" || two === "?.") {
+        i += 2;
+      } else {
+        i++;
+      }
+      tokens.push({ kind: "operator", text: value.slice(start, i), start, end: i });
+      continue;
+    }
+    // 未知字符（逐字符收集连续段）
+    const start = i;
+    while (i < value.length && !/[A-Za-z0-9_\s()+\-*/%<>=!&|?.'"]/.test(value[i]!)) i++;
+    tokens.push({ kind: "unknown", text: value.slice(start, i), start, end: i });
+  }
+  return tokens;
+}
