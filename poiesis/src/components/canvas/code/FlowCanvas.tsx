@@ -494,6 +494,10 @@ function FlowCanvasInner() {
         </div>
       ) : (
         <ReactFlow
+          // key 强制重挂载：进入 codeflow / 布局后 ReactFlow 全新挂载，handle 重新测量
+          // handleBounds（CSS 变化如 position:relative 归位不触发重测——edge 的 sourceX 用过期的
+          // handleBounds 偏移 → 正交走廊越过目标列左缘 → 仍穿节点）。
+          key={`flow-${codeFlowElementId ?? "none"}`}
           nodes={allNodes}
           edges={edges}
           nodeTypes={nodeTypes}

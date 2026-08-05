@@ -3,13 +3,8 @@
 // 分支 wire（source 右侧 → target 顶部）的 bezier 圆弧会扫过目标列上方节点
 // 左下角（用户实测 + 画布坐标精确采样：while→body wire 穿过 call）；
 // 正交路径把垂直段放在 source 右侧走廊（列间空隙内），水平段在 target 行——不穿过任何节点。
-//
-// 位置来源：运行时 DOM 测量（useStore transform + handle 元素 rect → 画布坐标）——
-// 不依赖 ReactFlow 的 handleBounds 缓存（mount 时测量一次，CSS/位置变化不触发重测，
-// 实测 handle 归位后 edge 的 sourceX 仍用漂移值 → 走廊越过目标列左缘 → 仍穿节点）。
-// ResizeObserver（节点尺寸）+ MutationObserver（节点 transform）跟随一切变化。
-import { useEffect, useState } from "react";
-import { BaseEdge, Position, useStore, type EdgeProps } from "@xyflow/react";
+// flow-out→flow-in 同列保持垂直直线。
+import { BaseEdge, Position, type EdgeProps } from "@xyflow/react";
 
 /** 走廊偏移：source 右侧水平段距离（列间空隙 H_GAP=60，24px 落在空隙内不穿节点） */
 export const CORRIDOR = 24;
@@ -35,61 +30,13 @@ export function computeFlowEdgePath({ sourceX, sourceY, targetX, targetY, source
   return `M ${sourceX} ${sourceY} H ${corridorX} V ${targetY} H ${targetX}`;
 }
 
-const HANDLE_CENTER = 4; // handle 直径 8px，中心偏移
-
-/** DOM 元素 → 画布坐标（ReactFlow transform [dx, dy, zoom]） */
-function domToCanvas(el: Element, vp: DOMRect, transform: [number, number, number]): { x: number; y: number } {
-  const r = el.getBoundingClientRect();
-  return { x: (r.x - vp.x - transform[0]) / transform[2], y: (r.y - vp.y - transform[1]) / transform[2] };
-}
-
 /** EdgeProps 类型缺 sourceHandle/targetHandle（安装版 v12 类型不含），扩展补上 */
 interface FlowEdgeProps extends EdgeProps {
   sourceHandle?: string | null;
   targetHandle?: string | null;
 }
 
-export function FlowEdge({ id, source, target, sourceHandle, targetHandle, style, markerEnd }: FlowEdgeProps) {
-  const transform = useStore((s) => s.transform);
-  const [pos, setPos] = useState<FlowEdgeInput | null>(null);
-
-  useEffect(() => {
-    let rafId = 0;
-    let ro: ResizeObserver | null = null;
-    let mo: MutationObserver | null = null;
-    const measure = () => {
-      const srcEl = document.querySelector(`[data-nodeid="${source}"][data-handleid="${sourceHandle}"]`);
-      const tgtEl = document.querySelector(`[data-nodeid="${target}"][data-handleid="${targetHandle}"]`);
-      const vp = document.querySelector(".react-flow__viewport")?.getBoundingClientRect();
-      // handle 未就绪（xyflow 渲染顺序：edges 先于 nodes——首次 measure 常早于 handle 挂载）：
-      // rAF 重试直到就绪，否则 pos=null 永久不渲染（实测 edge 全空）。
-      if (!srcEl || !tgtEl || !vp) {
-        rafId = requestAnimationFrame(measure);
-        return;
-      }
-      const s = domToCanvas(srcEl, vp, transform);
-      const t = domToCanvas(tgtEl, vp, transform);
-      setPos({
-        sourceX: s.x + HANDLE_CENTER,
-        sourceY: s.y + HANDLE_CENTER,
-        targetX: t.x + HANDLE_CENTER,
-        targetY: t.y + HANDLE_CENTER,
-        sourcePosition: (srcEl.getAttribute("data-handlepos") as Position) ?? Position.Right,
-        targetPosition: (tgtEl.getAttribute("data-handlepos") as Position) ?? Position.Top,
-      });
-    };
-    measure();
-    // 跟随节点变化：尺寸（ResizeObserver）+ 位置 transform（MutationObserver——CSS 变化/布局按钮后重测）
-    const srcNode = document.querySelector(`[data-id="${source}"]`);
-    const tgtNode = document.querySelector(`[data-id="${target}"]`);
-    ro = new ResizeObserver(measure);
-    mo = new MutationObserver(measure);
-    if (srcNode) { ro.observe(srcNode); mo.observe(srcNode, { attributes: true, attributeFilter: ["style"] }); }
-    if (tgtNode) { ro.observe(tgtNode); mo.observe(tgtNode, { attributes: true, attributeFilter: ["style"] }); }
-    return () => { cancelAnimationFrame(rafId); ro?.disconnect(); mo?.disconnect(); };
-  }, [source, target, sourceHandle, targetHandle, transform]);
-
-  if (!pos) return null; // 测量前不渲染（防闪烁）
-  const d = computeFlowEdgePath(pos);
+export function FlowEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, style, markerEnd }: FlowEdgeProps) {
+  const d = computeFlowEdgePath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition });
   return <BaseEdge id={id} path={d} style={style} markerEnd={markerEnd} />;
 }
