@@ -52,7 +52,7 @@ component CssVarsDemo {
             <div class: demo-card>
                 <h4 class: demo-label>② 内联样式静态 CSS 变量</h4>
                 <p class: demo-desc>
-                    在 <code>style: &#123; --name: "value" &#125;</code> 中直接写 <code>--</code> 属性。
+                    在 <code>style: {"{"} --name: "value" {"}"}</code> 中直接写 <code>--</code> 属性。
                     编译器代码生成将 <code>--</code> 属性用 <code>el.style.setProperty("--name", value)</code>
                     输出，而非普通的 <code>el.style.prop = value</code>。
                 </p>
