@@ -1141,6 +1141,107 @@ fn learn_omniview_flutter_warnings_are_tracked() {
     );
 }
 
+/// C2d review MEDIUM-2: the source-span threading must be regression-tested
+/// at the anchor level, not just the total count — anchor drift (e.g. the
+/// parser placeholder file "input.omni" leaking into motion warnings) would
+/// otherwise pass silently. Each assertion pins an EXACT file:line:col for a
+/// representative anchor:
+///
+/// - class-owner-miss warning → the element's span (usage point)
+/// - design definition-point warning → the design block's span (declaration)
+/// - motion warning → the keyframe span in the motion's REAL source file
+///
+/// These exact values only hold with the C2d threading (pre-fix: all
+/// `-:0:0`, motion file "input.omni") — the test fails on the old behavior.
+#[test]
+fn learn_omniview_flutter_warning_anchors_are_exact() {
+    let scratch = ScratchDir::new("flutter-warning-anchors");
+    let Some(out) = compile_learn_omniview_flutter(&scratch) else {
+        return; // backend not compiled in
+    };
+    let warnings = &out.warnings;
+
+    // Invariant: the parser placeholder module key must never reach a
+    // diagnostic's file field (MEDIUM-1).
+    assert!(
+        !warnings
+            .iter()
+            .any(|w| w.file.as_deref() == Some("input.omni")),
+        "no warning may carry the parser placeholder file \"input.omni\": {:?}",
+        warnings
+            .iter()
+            .filter(|w| w.file.as_deref() == Some("input.omni"))
+            .map(|w| &w.message)
+            .collect::<Vec<_>>()
+    );
+
+    let expect_anchor = |needle: &str, file: &str, line: u32, col: u32| {
+        let hits: Vec<&omnilang::error::Diagnostic> = warnings
+            .iter()
+            .filter(|w| w.message.contains(needle))
+            .collect();
+        assert!(
+            !hits.is_empty(),
+            "expected a warning containing {needle:?} — corpus anchor drift"
+        );
+        // Merged families keep the FIRST occurrence (a7f1a483 semantics), so
+        // a class used in several components yields exactly one entry
+        // anchored at the first usage point.
+        assert_eq!(
+            hits.len(),
+            1,
+            "warning {needle:?} must be merged to one entry"
+        );
+        let w = hits[0];
+        assert_eq!(
+            (w.file.as_deref(), w.line, w.col),
+            (Some(file), line, col),
+            "warning {needle:?} must anchor at {file}:{line}:{col} (C2d span \
+             threading contract), got {:?}:{}:{} — {}\nsee \
+             learn_omniview_flutter_warning_anchors_are_exact for the \
+             anchor contract",
+            w.file,
+            w.line,
+            w.col,
+            w.message
+        );
+    };
+
+    // 1. Class-owner-miss warning — element span at the `<div class:
+    //    var-card alt>` usage point in components/CssVarsDemo.omni (the
+    //    'alt' class is not declared; single usage, so the merged entry's
+    //    anchor is unambiguous).
+    expect_anchor(
+        "class 'alt' is not declared by any design block",
+        "components/CssVarsDemo.omni",
+        45,
+        21,
+    );
+    // 2. Design definition-point warning — the `design LearnDesign {` block
+    //    span (declaration point; per-class spans are not lowered in the IR).
+    expect_anchor(
+        "design class 'Section' has no decoration-mappable properties; no \
+         BoxDecoration factory emitted",
+        "design.omni",
+        22,
+        1,
+    );
+    // 3. Motion warning — keyframe span in the motion's REAL source file
+    //    (pre-MEDIUM-1 fix this carried the placeholder "input.omni").
+    expect_anchor(
+        "motion 'translateZDemo' animates unsupported property 'translateZ'",
+        "pages/AnimPropertiesDemo.omni",
+        95,
+        1,
+    );
+    expect_anchor(
+        "motion 'widthDemo' animates 'width', which is layout-dependent",
+        "pages/AnimPropertiesDemo.omni",
+        127,
+        1,
+    );
+}
+
 // ════════════════════════════════════════════════════════════════
 // Showcase project: FormPage demo a11y migration (design doc 域 10)
 // ════════════════════════════════════════════════════════════════

@@ -321,6 +321,7 @@ fn test_emit_motion_js_keyframe() {
     let mut gen = OmniViewGenerator::default();
     let motion = MotionIntent {
         name: "fadeIn".into(),
+        source_file: None,
         body: KeyframeIR {
             stops: vec![
                 KeyframeStopIR {
@@ -998,6 +999,7 @@ fn test_stagger_children() {
     let mut gen = OmniViewGenerator::default();
     let motion = MotionIntent {
         name: "staggerAnim".into(),
+        source_file: None,
         body: KeyframeIR {
             stops: vec![
                 KeyframeStopIR {

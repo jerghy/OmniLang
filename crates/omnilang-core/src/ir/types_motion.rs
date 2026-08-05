@@ -19,6 +19,12 @@ use serde::{Deserialize, Serialize};
 pub struct MotionIntent {
     pub name: String,
     pub body: MotionBodyIR,
+    /// Source file of the motion definition — patched from the real path at
+    /// multi-file IR merge (analyse.rs `merge_file_ir_into`, the same patch
+    /// pattern as component/store/design `source_file`; the module key is a
+    /// per-file placeholder `"input.omni"` and must not reach diagnostics).
+    #[serde(default)]
+    pub source_file: Option<String>,
     #[serde(default)]
     pub source_span: Option<Span>,
 }

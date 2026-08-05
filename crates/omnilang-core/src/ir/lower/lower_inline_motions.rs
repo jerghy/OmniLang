@@ -53,6 +53,7 @@ fn walk_and_lower_inline_motions(
                         *counter += 1;
                         new_motions.push(MotionIntent {
                             name: name.clone(),
+                            source_file: None,
                             body,
                             source_span: trigger.source_span,
                         });

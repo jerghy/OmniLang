@@ -48,18 +48,6 @@ impl CodegenWarning {
     }
 }
 
-impl From<String> for CodegenWarning {
-    fn from(message: String) -> Self {
-        Self::new(message)
-    }
-}
-
-impl From<&str> for CodegenWarning {
-    fn from(message: &str) -> Self {
-        Self::new(message)
-    }
-}
-
 /// CodeWriter: tracks indentation and emits formatted lines.
 #[derive(Debug)]
 pub struct CodeWriter {

@@ -423,23 +423,42 @@ fn compile_multi_internal_post(
     );
 
     // C2a/C2d (C1 audit P1 + P4): the three class-name-keyed design
-    // decoration families are merged program-wide by message — the class
-    // name IS the message discriminator, so message-keyed dedup collapses
-    // each family to one entry per unique class (the C1 P1 "#2 唯一名合并",
-    // extended to #1/#6 in C2d). Matchers pin each family's distinguishing
-    // text so neighboring families stay untouched (the usage-point
-    // "; skipped" suffix vs the definition-point "no BoxDecoration factory
-    // emitted" vs the variant family "...no visual effect on Flutter");
-    // every other codegen warning stays per-occurrence (spec §10.3
-    // no-silent-drop contract).
-    let mut seen_decoration: FxHashSet<String> = FxHashSet::default();
+    // decoration families are merged program-wide — the class name IS the
+    // message discriminator, so message-keyed dedup collapses each family to
+    // one entry per unique class (the C1 P1 "#2 唯一名合并", extended to
+    // #1/#6 in C2d). Matchers pin each family's distinguishing text so
+    // neighboring families stay untouched (the usage-point "; skipped"
+    // suffix vs the definition-point "no BoxDecoration factory emitted" vs
+    // the variant family "...no visual effect on Flutter"); every other
+    // codegen warning stays per-occurrence (spec §10.3 no-silent-drop
+    // contract).
+    //
+    // #1/#2 are keyed by message alone: the same class USED across many
+    // components (in any file) is one root cause — first occurrence keeps
+    // its anchor (C2d review LOW-1 accepted: measuring a (message, file)
+    // key re-opened 217 cross-file usage duplicates, defeating the merge's
+    // purpose and breaking the monotonic-decrease contract).
+    //
+    // #6 (definition point) is keyed by (message, anchored file): two
+    // designs in DIFFERENT files declaring a same-named class are distinct
+    // entities and keep one entry per file with its own anchor. Same-file
+    // duplicates still collapse to the first occurrence.
+    let mut seen_usage: FxHashSet<String> = FxHashSet::default();
+    let mut seen_def: FxHashSet<(String, Option<String>)> = FxHashSet::default();
     warnings.retain(|d| {
-        !(d.kind == crate::error::DiagnosticKind::ECodegen
-            && (d.message.contains("not declared by any design block")
-                || d.message
-                    .contains("no decoration-mappable properties; skipped")
-                || d.message.contains("no BoxDecoration factory emitted")))
-            || seen_decoration.insert(d.message.clone())
+        if d.kind != crate::error::DiagnosticKind::ECodegen {
+            return true;
+        }
+        if d.message.contains("not declared by any design block")
+            || d.message
+                .contains("no decoration-mappable properties; skipped")
+        {
+            return seen_usage.insert(d.message.clone());
+        }
+        if d.message.contains("no BoxDecoration factory emitted") {
+            return seen_def.insert((d.message.clone(), d.file.clone()));
+        }
+        true
     });
 
     let success = diags.iter().all(|d| d.severity != error::Severity::Error);

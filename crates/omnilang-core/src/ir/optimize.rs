@@ -819,6 +819,7 @@ mod tests {
         // ModuleIR.motions) must survive DCE — deferral #27 IR-side gap.
         let motion = MotionIntent {
             name: "slide".to_string(),
+            source_file: None,
             body: KeyframeIR {
                 stops: vec![KeyframeStopIR {
                     position: 0.0,

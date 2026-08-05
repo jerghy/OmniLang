@@ -317,6 +317,11 @@ fn merge_file_ir_into(
                 design.source_file = Some(path.to_string());
             }
         }
+        for motion in mod_ir.motions.iter_mut() {
+            if motion.source_file.is_none() {
+                motion.source_file = Some(path.to_string());
+            }
+        }
         let existing = merged.modules.entry(mod_name).or_default();
         extend_and_warn(
             &mut existing.components,

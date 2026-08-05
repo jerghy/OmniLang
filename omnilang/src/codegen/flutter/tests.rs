@@ -801,6 +801,7 @@ fn test_drag_widget_derives_extent_from_keyframes() {
     // (deferral #19) instead of dividing by Infinity.
     let motions = vec![MotionIntent {
         name: "slideX".into(),
+        source_file: None,
         body: KeyframeIR {
             stops: vec![
                 KeyframeStopIR {
@@ -886,6 +887,7 @@ fn test_drag_widget_without_translate_falls_back_unbounded() {
     // falls back to the previous unbounded (inert) behavior with a warning.
     let motions = vec![MotionIntent {
         name: "fadeOnly".into(),
+        source_file: None,
         body: KeyframeIR {
             stops: vec![
                 KeyframeStopIR {
@@ -2495,6 +2497,7 @@ fn test_motion_enter_controller_init() {
     // Create a keyframe motion: opacity 0→1 over 300ms
     let motion = MotionIntent {
         name: "fadeIn".into(),
+        source_file: None,
         body: KeyframeIR {
             stops: vec![KeyframeStopIR {
                 position: 0.0,
@@ -2673,6 +2676,7 @@ fn test_motion_hover_mouse_region_wrapping() {
     // Motion with scale animation
     let motions = vec![MotionIntent {
         name: "scaleOnHover".into(),
+        source_file: None,
         body: KeyframeIR {
             stops: vec![KeyframeStopIR {
                 position: 0.0,
@@ -2730,6 +2734,7 @@ fn test_motion_inline_body_handling() {
     // Create a multi-property motion simulating an inline body definition
     let motion = MotionIntent {
         name: "popIn".into(),
+        source_file: None,
         body: KeyframeIR {
             stops: vec![KeyframeStopIR {
                 position: 0.0,
@@ -3769,6 +3774,7 @@ fn test_prop_flutter_diagnostic() {
 fn test_build_animated_builder_body_per_property() {
     let motion = MotionIntent {
         name: "popIn".into(),
+        source_file: None,
         body: test_keyframe(&[
             (
                 0.0,
@@ -3811,6 +3817,7 @@ fn test_build_animated_builder_body_per_property() {
 fn test_build_animated_builder_body_color_and_size() {
     let motion = MotionIntent {
         name: "tint".into(),
+        source_file: None,
         body: test_keyframe(&[
             (
                 0.0,
@@ -3855,6 +3862,7 @@ fn test_build_animated_builder_body_border_radius_and_font_size() {
     // fontSize → DefaultTextStyle (text-style family, same wrapper as color).
     let motion = MotionIntent {
         name: "soften".into(),
+        source_file: None,
         body: test_keyframe(&[
             (
                 0.0,
@@ -3911,6 +3919,7 @@ fn test_build_animated_builder_body_border_radius_and_font_size() {
     // the dart analyze gate catches this in generated output.
     let motion = MotionIntent {
         name: "growText".into(),
+        source_file: None,
         body: test_keyframe(&[
             (0.0, &[("fontSize", serde_json::json!(12))]),
             (1.0, &[("fontSize", serde_json::json!(16))]),
@@ -3932,6 +3941,7 @@ fn test_build_animated_builder_body_no_wrappers() {
     // `Matrix4.identity()..setEntry(0, 1, tan(angle))`.
     let motion = MotionIntent {
         name: "skew".into(),
+        source_file: None,
         body: test_keyframe(&[
             (0.0, &[("skewX", serde_json::json!(0))]),
             (1.0, &[("skewX", serde_json::json!(45))]),
@@ -3948,6 +3958,7 @@ fn test_build_animated_builder_body_no_wrappers() {
     // body — the builder closure's `child` is `Widget?`.
     let none_motion = MotionIntent {
         name: "unsupported".into(),
+        source_file: None,
         body: test_keyframe(&[
             (0.0, &[("blur", serde_json::json!(0))]),
             (1.0, &[("blur", serde_json::json!(10))]),
@@ -3967,6 +3978,7 @@ fn test_motion_pipeline_warnings_and_playback() {
     let codegen = FlutterCodegen;
     let motion = MotionIntent {
         name: "pulse".into(),
+        source_file: None,
         body: KeyframeIR {
             stops: vec![
                 KeyframeStopIR {
@@ -4613,6 +4625,7 @@ component StepsAliasDemo {
 fn scale_x_missing_from_synthesizes_natural_one() {
     let motion = MotionIntent {
         name: "growX".into(),
+        source_file: None,
         body: test_keyframe(&[(1.0, &[("scaleX", serde_json::json!(2.0))])]),
         source_span: None,
     };

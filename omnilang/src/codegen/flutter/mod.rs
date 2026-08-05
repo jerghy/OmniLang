@@ -947,19 +947,22 @@ impl FlutterCodegen {
                     // skipped.
                     if diag_seen.insert(motion_name.clone()) {
                         // C2d span threading: anchor at the motion
-                        // definition's span in its module's source file.
-                        let (motion_file, m_line, m_col) = ir
+                        // definition's span in its REAL source file — the
+                        // module key is a per-file placeholder ("input.omni",
+                        // parser/mod.rs) and must not reach diagnostics;
+                        // `source_file` is patched at IR merge
+                        // (analyse.rs merge_file_ir_into, same pattern as
+                        // component/store/design).
+                        let motion_def = ir
                             .modules
-                            .iter()
-                            .find(|(_, m)| m.motions.iter().any(|mm| mm.name == *motion_name))
-                            .and_then(|(f, m)| {
-                                m.motions
-                                    .iter()
-                                    .find(|mm| mm.name == *motion_name)
-                                    .and_then(|mm| mm.source_span)
-                                    .map(|s| (Some(f.clone()), s.line, s.col))
-                            })
-                            .unwrap_or((None, 0, 0));
+                            .values()
+                            .flat_map(|m| &m.motions)
+                            .find(|mm| mm.name == *motion_name);
+                        let (motion_file, m_line, m_col) = motion_def
+                            .and_then(|mm| mm.source_span.map(|s| (s.line, s.col)))
+                            .map_or((None, 0, 0), |(l, c)| {
+                                (motion_def.and_then(|mm| mm.source_file.clone()), l, c)
+                            });
                         let anchor = |msg: String| {
                             crate::codegen::CodegenWarning::at(
                                 msg,
