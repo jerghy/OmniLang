@@ -5380,6 +5380,89 @@ fn test_effect_emits_real_method_and_lifecycle_wiring() {
     );
 }
 
+// ── C2b: unresolvable effect dep collapses condition and drops dead prev fields ──
+//
+// Regression (7.5b-L3 FilterBar): `@effect (searchText, setFilter)` — the
+// store-action dep `setFilter` is not a component signal/prop, so the
+// didUpdateWidget condition collapses to `if (true)` (Task 5.8a) and the
+// resolvable `searchText` snapshot field would never be read — emitting
+// `late String _prevsearchText;` triggered dart unused_field in the
+// flutter-analyze gate. Both the field and the condition must be skipped.
+
+#[test]
+fn test_effect_unresolvable_dep_skips_dead_prev_fields() {
+    let codegen = FlutterCodegen;
+    let effect = EffectIntent {
+        deps: vec!["searchText".into(), "setFilter".into()],
+        body: BlockIR {
+            statements: vec![StatementIR::ExprStmtIR {
+                expr: ExprIR::IdentifierExpr {
+                    name: "log".into(),
+                    type_ann: None,
+                },
+            }],
+        },
+    };
+    let mut components = FxHashMap::default();
+    components.insert(
+        "App".into(),
+        ComponentIR {
+            name: "App".into(),
+            props: FxHashMap::default(),
+            prop_defaults: FxHashMap::default(),
+            signals: vec![SignalIntent {
+                name: "searchText".into(),
+                r#type: TypeIR {
+                    kind: "string".into(),
+                    type_args: vec![],
+                    is_nullable: false,
+                },
+                initial_value: ExprIR::LiteralExpr {
+                    value: serde_json::json!(""),
+                },
+            }],
+            computeds: vec![],
+            effects: vec![effect],
+            lifecycles: vec![],
+            fns: vec![],
+            store_refs: vec![],
+            refs: vec![],
+            events: vec![],
+            view: None,
+            styles: vec![],
+            ..Default::default()
+        },
+    );
+    let ir = make_ir(components);
+    let comp_ref = ir
+        .modules
+        .get("main")
+        .unwrap()
+        .components
+        .get("App")
+        .unwrap();
+    let component_map = build_component_map(&ir);
+    let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
+    let (dart, _warnings, _errors) =
+        codegen.gen_component_dart("App", comp_ref, &ir, &component_map, &component_slots);
+
+    assert!(
+        !dart.contains("_prevsearchText"),
+        "dead prev field must not be emitted: {}",
+        dart
+    );
+    assert!(
+        dart.contains("if (true) {"),
+        "unresolvable dep collapses condition to if (true): {}",
+        dart
+    );
+    assert!(
+        !dart.contains("_prevsearchText != searchText"),
+        "collapsed condition must not reference the snapshot field: {}",
+        dart
+    );
+}
+
 // ── C3: const CompName({ constructor ──────────────────────
 
 #[test]

@@ -719,6 +719,14 @@ impl FlutterCodegen {
         // deps so didUpdateWidget can detect changes and re-run @effect bodies.
         let mut prev_fields: FxHashSet<String> = FxHashSet::default();
         for effect in &comp.effects {
+            // An unresolvable dep (store action, unknown name) collapses the
+            // didUpdateWidget condition to `if (true)` (Task 5.8a
+            // conservative re-run) — the effect never reads its prev
+            // fields, so emitting them would trigger dart unused_field
+            // (FilterBar: @effect (searchText, setFilter)).
+            if effect_collapses_to_true(comp, effect) {
+                continue;
+            }
             for dep in &effect.deps {
                 if comp.props.contains_key(dep) || !prev_fields.insert(dep.clone()) {
                     continue;
@@ -1145,9 +1153,13 @@ impl FlutterCodegen {
                 generate_statement_flutter(&mut w, stmt);
             }
             // Snapshot non-prop deps for the didUpdateWidget comparison
-            for dep in &effect.deps {
-                if !comp.props.contains_key(dep) && find_dep_type(comp, dep).is_some() {
-                    w.emit_fmt(format_args!("_prev{} = {};", dep, dep));
+            // (skipped entirely when the effect collapses to `if (true)` —
+            // the fields do not exist and the values are never compared).
+            if !effect_collapses_to_true(comp, effect) {
+                for dep in &effect.deps {
+                    if !comp.props.contains_key(dep) && find_dep_type(comp, dep).is_some() {
+                        w.emit_fmt(format_args!("_prev{} = {};", dep, dep));
+                    }
                 }
             }
             w.dedent();
@@ -1542,6 +1554,18 @@ impl FlutterCodegen {
 }
 
 /// Resolve the type of an @effect dependency: a component signal or computed.
+/// True when an @effect's didUpdateWidget condition collapses to `if (true)`
+/// (Task 5.8a): any dep that is neither a prop nor a component signal/computed
+/// (e.g. a store action like `setFilter`) forces the conservative re-run —
+/// and its prev-value snapshot fields are never read, so they must not be
+/// emitted (dart unused_field) nor assigned (undefined name).
+fn effect_collapses_to_true(comp: &ComponentIR, effect: &EffectIntent) -> bool {
+    effect
+        .deps
+        .iter()
+        .any(|d| !comp.props.contains_key(d) && find_dep_type(comp, d).is_none())
+}
+
 fn find_dep_type<'a>(comp: &'a ComponentIR, dep: &str) -> Option<&'a TypeIR> {
     comp.signals
         .iter()
