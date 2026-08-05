@@ -146,6 +146,5 @@ component SlotDefaultDemo {
     
         .subtitle { font-size: 13px; color: #64748b; margin: 0 0 16px 0; }
 
-        .demo-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; margin-bottom: 12px; }
     }
 }
