@@ -111,8 +111,7 @@ Expected: PASS
 
 ```bash
 git add poiesis/src/services/codegen/syntax-nodes.ts poiesis/src/services/codegen/__tests__/syntax-nodes.test.ts
-git commit -m "feat(codeflow): syntax-nodes 支持 while/for-in（formatSyntaxNode 单一来源）
-```
+git commit -m "feat(codeflow): syntax-nodes 支持 while/for-in（formatSyntaxNode 单一来源）"
 ```
 
 ---
