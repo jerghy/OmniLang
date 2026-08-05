@@ -11,11 +11,12 @@
 //!    (acceptance: no flutter-gate regression). Always runs when the SDK
 //!    is found; SKIPs (with a note) otherwise.
 //! 2. `flutter test` — the widget-test smoke suite (app mount / @if /
-//!    @for / TodoStore.add()). Opt-in via `OMNILANG_FLUTTER_TEST=1`:
-//!    `flutter test` adds ~30-60s wall clock, so it stays out of default
-//!    `cargo test` runs. CI wiring is a candidate `flutter-widget-tests`
-//!    job (or an extension of the existing codegen-validate job) — see
-//!    README.md in this directory.
+//!    @for / TodoStore.add() / theme / page switch / motion triggers).
+//!    Opt-in via `OMNILANG_FLUTTER_TEST=1`: `flutter test` adds ~30-60s
+//!    wall clock, so it stays out of default `cargo test` runs. CI wiring
+//!    landed in Task 7.6: the codegen-validate job runs this step with
+//!    `OMNILANG_FLUTTER_TEST=1` (option A — see README.md in this
+//!    directory), so the smoke suite is exercised on every push.
 //!
 //! Run:
 //!   cargo test -p omnilang --features codegen-flutter --test flutter_widget_tests

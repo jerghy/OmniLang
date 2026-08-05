@@ -321,7 +321,15 @@ jobs:
           npm install react@^19 zustand@^5 typescript@5.5.4 @types/react@^19
       # Runs tsc --noEmit over generated React TSX and dart analyze over
       # generated Flutter Dart (graceful SKIPs when a toolchain is missing).
+      # OMNILANG_FLUTTER_TEST=1 (Task 7.6 behavioral-parity baseline) also
+      # runs the widget-test smoke suite (flutter_widget_tests harness —
+      # @if/@for/@enter/theme/page-switch behavior assertions) — the
+      # Flutter half of the "same .omni source → target-consistent
+      # behavior" evidence; the React half is the e2e job's Playwright
+      # suite.
       - name: Test omnilang with codegen-flutter
+        env:
+          OMNILANG_FLUTTER_TEST: '1'
         run: cargo test -p omnilang --features codegen-flutter
       - name: Clean up npm scaffolding
         if: always()
