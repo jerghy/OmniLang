@@ -419,7 +419,10 @@ export function parseViewAttributes(internals: ParserInternals): ViewElementAttr
           const strVal = internals.stream.consume().text.slice(1, -1); // strip quotes
           if (attrName === "id") {
             result.id = strVal;
-          } else if (attrName !== "class") {
+          } else if (attrName === "class") {
+            // D5：class="x" 不再静默丢弃——与 class: 形式统一走 className 管线
+            result.className = strVal.trim();
+          } else {
             result.attrs[attrName] = strVal;
           }
           continue;
@@ -626,6 +629,12 @@ export function parseClassName(internals: ParserInternals): string {
     } else if (t.kind === "TEXT" && t.text === "-") {
       // Stray hyphen — skip
       internals.stream.consume();
+    } else if (t.kind === "STRING") {
+      // D5：class: "a b" 字符串形式——拆空白并入类名列表
+      internals.stream.consume();
+      for (const cls of t.text.slice(1, -1).split(/\s+/)) {
+        if (cls) classes.push(cls);
+      }
     } else {
       // End of class list — stop at end-of-tag tokens
       break;
