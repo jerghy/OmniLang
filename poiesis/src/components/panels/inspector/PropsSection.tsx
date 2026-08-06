@@ -1,6 +1,7 @@
 // components/panels/inspector/PropsSection.tsx
 // Editable form for element properties (id, class binding, label, etc.).
-// The "label" prop renders as a chip-based segment editor instead of a plain input.
+// All relevant props render as chip-based segment editors ({expr} segments
+// become purple chips); the id row keeps a plain PropRow input.
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { usePoiesisStore } from "../../../store";
@@ -11,19 +12,19 @@ import styles from "./PropsSection.module.css";
 
 const KNOWN_PROPS = ["id", "label", "class", "name", "type", "placeholder", "value", "src", "href"];
 
-// Module-level WeakMap: stores label slash-insert callbacks keyed by input element,
-// instead of polluting DOM elements with ad-hoc `__labelSlashInsert` properties.
-const labelSlashCallbacks = new WeakMap<HTMLElement, (signalName: string) => void>();
+// Module-level WeakMap: stores chip slash-insert callbacks keyed by input element,
+// instead of polluting DOM elements with ad-hoc `__chipSlashInsert` properties.
+const chipSlashCallbacks = new WeakMap<HTMLElement, (signalName: string) => void>();
 
-// ── Label segment types & helpers ──────────────────────────────────────────
+// ── Chip segment types & helpers ──────────────────────────────────────────
 
-type LabelSegment =
+type ChipSegment =
   | { type: "text"; value: string }
   | { type: "expr"; value: string }; // value is the name inside { }
 
-function parseLabelSegments(label: string): LabelSegment[] {
+function parseChipSegments(label: string): ChipSegment[] {
   if (!label) return [];
-  const segments: LabelSegment[] = [];
+  const segments: ChipSegment[] = [];
   const regex = /\{([^}]+)\}|([^{]+)/g;
   let match: RegExpExecArray | null;
   while ((match = regex.exec(label)) !== null) {
@@ -36,7 +37,7 @@ function parseLabelSegments(label: string): LabelSegment[] {
   return segments.length > 0 ? segments : [{ type: "text", value: label }];
 }
 
-function serializeSegments(segments: LabelSegment[]): string {
+function serializeSegments(segments: ChipSegment[]): string {
   return segments
     .map((s) => (s.type === "expr" ? `{${s.value}}` : s.value))
     .join("");
@@ -75,13 +76,13 @@ const CHIP_DELETE_BTN: React.CSSProperties = {
   opacity: 0.5,
 };
 
-function buildLocalProps(element: ElementData): Record<string, string> {
-  const initial: Record<string, string> = {};
+function buildLocalProps(element: ElementData): Record<string, string | boolean> {
+  const initial: Record<string, string | boolean> = {};
   if (!("props" in element)) return initial;
   for (const key of KNOWN_PROPS) {
     const val = element.props[key];
     if (val !== undefined) {
-      initial[key] = String(val);
+      initial[key] = typeof val === "boolean" ? val : String(val);
     }
   }
   return initial;
@@ -103,8 +104,8 @@ export function PropsSection({ element, signalItems }: PropsSectionProps) {
   const setProp = usePoiesisStore((s) => s.setProp);
 
   // Local editing state to avoid store writes on every keystroke
-  const [localProps, setLocalProps] = useState<Record<string, string>>(() =>
-    buildLocalProps(element)
+  const [localProps, setLocalProps] = useState<Record<string, string | boolean>>(
+    () => buildLocalProps(element)
   );
   const [slash, setSlash] = useState<SlashState | null>(null);
 
@@ -127,7 +128,7 @@ export function PropsSection({ element, signalItems }: PropsSectionProps) {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const debouncedSetProp = useCallback(
-    (id: string, prop: string, value: string) => {
+    (id: string, prop: string, value: string | boolean) => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
         setProp(id, prop, value);
@@ -143,7 +144,7 @@ export function PropsSection({ element, signalItems }: PropsSectionProps) {
   }, []);
 
   const handleChange = useCallback(
-    (propName: string, value: string) => {
+    (propName: string, value: string | boolean) => {
       setLocalProps((prev) => ({ ...prev, [propName]: value }));
       debouncedSetProp(element.id, propName, value);
     },
@@ -163,9 +164,9 @@ export function PropsSection({ element, signalItems }: PropsSectionProps) {
 
   // Close the picker
   const handleSlashClose = useCallback(() => {
-    // Clean up any label chip editor insert callback
+    // Clean up any chip editor insert callback
     if (slash?.inputEl) {
-      labelSlashCallbacks.delete(slash.inputEl);
+      chipSlashCallbacks.delete(slash.inputEl);
     }
     setSlash(null);
   }, [slash]);
@@ -176,16 +177,16 @@ export function PropsSection({ element, signalItems }: PropsSectionProps) {
       if (!slash) return;
       const { propName, inputEl, slashIndex } = slash;
 
-      // Label chip editor: use the WeakMap-stored insert callback
-      const labelInsert = labelSlashCallbacks.get(inputEl);
-      if (labelInsert) {
-        labelSlashCallbacks.delete(inputEl);
-        labelInsert(item.insertionText);
+      // Chip editor: use the WeakMap-stored insert callback
+      const chipInsert = chipSlashCallbacks.get(inputEl);
+      if (chipInsert) {
+        chipSlashCallbacks.delete(inputEl);
+        chipInsert(item.insertionText);
         setSlash(null);
         return;
       }
 
-      const currentValue = localProps[propName] ?? "";
+      const currentValue = String(localProps[propName] ?? "");
       // Filter text is everything from "/" to end (user may have typed more chars)
       const newValue = currentValue.slice(0, slashIndex) + `{${item.insertionText}}`;
       // Update local and debounced store
@@ -239,34 +240,20 @@ export function PropsSection({ element, signalItems }: PropsSectionProps) {
         {/* Always show id */}
         <PropRow
           label="ID"
-          value={localProps["id"] ?? element.id}
+          value={String(localProps["id"] ?? element.id)}
           onChange={(v) => handleChange("id", v)}
           onSlash={(el) => handleSlash("id", el)}
         />
 
-        {relevantProps.map((prop) => {
-          // Use chip-based LabelEditor for "label" prop
-          if (prop === "label") {
-            return (
-              <LabelPropRow
-                key={prop}
-                label={prop}
-                value={localProps[prop] ?? ""}
-                onChange={(v) => handleChange(prop, v)}
-                onSlash={(el) => handleSlash(prop, el)}
-              />
-            );
-          }
-          return (
-            <PropRow
-              key={prop}
-              label={prop}
-              value={localProps[prop] ?? ""}
-              onChange={(v) => handleChange(prop, v)}
-              onSlash={(el) => handleSlash(prop, el)}
-            />
-          );
-        })}
+        {relevantProps.map((prop) => (
+          <ChipPropRow
+            key={prop}
+            label={prop}
+            value={localProps[prop] ?? ""}
+            onChange={(v) => handleChange(prop, v)}
+            onSlash={(el) => handleSlash(prop, el)}
+          />
+        ))}
       </div>
 
       {/* Signal/Computed/Store slash picker */}
@@ -283,16 +270,16 @@ export function PropsSection({ element, signalItems }: PropsSectionProps) {
   );
 }
 
-// ── LabelEditor: chip-based text segment editor ────────────────────────────
+// ── ChipEditor: chip-based text segment editor ─────────────────────────────
 
-interface LabelEditorProps {
+interface ChipEditorProps {
   value: string;
   onChange: (v: string) => void;
   onSlashRequest?: (inputEl: HTMLInputElement) => void;
 }
 
-function LabelEditor({ value, onChange, onSlashRequest }: LabelEditorProps) {
-  const segments = parseLabelSegments(value);
+function ChipEditor({ value, onChange, onSlashRequest }: ChipEditorProps) {
+  const segments = parseChipSegments(value);
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
   const textInputRefs = useRef<Map<number, HTMLInputElement>>(new Map());
@@ -324,7 +311,7 @@ function LabelEditor({ value, onChange, onSlashRequest }: LabelEditorProps) {
       if (idx === -1) {
         // Ghost trailing input: append if non-empty, else just clear
         if (text.trim()) {
-          const newSegs = parseLabelSegments(text);
+          const newSegs = parseChipSegments(text);
           if (newSegs.length > 0) {
             onChange(serializeSegments([...segments, ...newSegs]));
           }
@@ -333,7 +320,7 @@ function LabelEditor({ value, onChange, onSlashRequest }: LabelEditorProps) {
         return;
       }
       if (!text.trim()) { handleDelete(idx); return; }
-      const newSegs = parseLabelSegments(text);
+      const newSegs = parseChipSegments(text);
       const updated = [...segments];
       updated.splice(idx, 1, ...newSegs);
       onChange(serializeSegments(updated));
@@ -348,7 +335,7 @@ function LabelEditor({ value, onChange, onSlashRequest }: LabelEditorProps) {
       if (!input || editingIdx === null) return;
       const text = input.value;
       if (!text.trim()) { handleDelete(idx); return; }
-      const newSegs = parseLabelSegments(text);
+      const newSegs = parseChipSegments(text);
       const updated = [...segments];
       updated.splice(idx, 1, ...newSegs);
       onChange(serializeSegments(updated));
@@ -364,13 +351,13 @@ function LabelEditor({ value, onChange, onSlashRequest }: LabelEditorProps) {
       else if (e.key === "/" && onSlashRequest) {
         slashPendingRef.current = true;
         const input = e.currentTarget;
-        labelSlashCallbacks.set(input, (signalName: string) => {
+        chipSlashCallbacks.set(input, (signalName: string) => {
           const pos = input.selectionStart ?? input.value.length;
           const slashPos = input.value.lastIndexOf("/", pos);
           const before = slashPos >= 0 ? input.value.slice(0, slashPos) : input.value;
           const after = input.value.slice(pos);
           input.value = before + `{${signalName}}` + after;
-          const newSegs = parseLabelSegments(input.value);
+          const newSegs = parseChipSegments(input.value);
           if (i === -1) {
             // Ghost: append new segments
             if (newSegs.length > 0) onChange(serializeSegments([...segments, ...newSegs]));
@@ -395,7 +382,7 @@ function LabelEditor({ value, onChange, onSlashRequest }: LabelEditorProps) {
       else if (e.key === "/" && onSlashRequest) {
         slashPendingRef.current = true;
         const input = e.currentTarget;
-        labelSlashCallbacks.set(input, (signalName: string) => {
+        chipSlashCallbacks.set(input, (signalName: string) => {
           const pos = input.selectionStart ?? input.value.length;
           const slashPos = input.value.lastIndexOf("/", pos);
           const before = slashPos >= 0 ? input.value.slice(0, slashPos) : input.value;
@@ -469,14 +456,14 @@ function LabelEditor({ value, onChange, onSlashRequest }: LabelEditorProps) {
   );
 }
 
-function LabelPropRow({
+function ChipPropRow({
   label,
   value,
   onChange,
   onSlash,
 }: {
   label: string;
-  value: string;
+  value: string | boolean;
   onChange: (v: string) => void;
   onSlash?: (inputEl: HTMLInputElement) => void;
 }) {
@@ -493,8 +480,8 @@ function LabelPropRow({
       >
         {label}
       </span>
-      <LabelEditor
-        value={value}
+      <ChipEditor
+        value={String(value)}
         onChange={onChange}
         onSlashRequest={onSlash}
       />
