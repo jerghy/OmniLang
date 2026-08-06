@@ -251,3 +251,32 @@ describe("NodeFormulaField 草稿提交与候选菜单", () => {
     expect(screen.queryByRole("listbox")).toBeNull();
   });
 });
+
+describe("NodeFormulaField memo 隔离（React 19 无条件重设 innerHTML 的光标保护）", () => {
+  it("父组件重渲染（数据 props 引用不变）不重设字段 innerHTML", () => {
+    // RED（2026-08-06 真机）：reactflow 节点选中触发父渲染 → React 19 updateProperties
+    // 对 dangerouslySetInnerHTML 无条件重设 → 光标重置到开头。memo + 自定义比较器
+    // （忽略函数 props）应跳过渲染——innerHTML 不变是光标保留的前提。
+    const { container, rerender } = render(
+      <NodeFormulaField value="count + 1" onCommit={vi.fn()} candidates={cands} ariaLabel="初始值" />
+    );
+    const el = container.querySelector("[contenteditable]") as HTMLElement;
+    const htmlBefore = el.innerHTML;
+    // 父渲染：onCommit 换成新函数引用（reactflow 节点渲染常态），数据 props 不变
+    rerender(
+      <NodeFormulaField value="count + 1" onCommit={vi.fn()} candidates={cands} ariaLabel="初始值" />
+    );
+    expect(el.innerHTML).toBe(htmlBefore); // 无 innerHTML 重设 = 无光标重置
+  });
+
+  it("数据 props 变化仍正常重渲染（value 更新）", () => {
+    const { container, rerender } = render(
+      <NodeFormulaField value="count" onCommit={vi.fn()} candidates={cands} ariaLabel="初始值" />
+    );
+    const el = container.querySelector("[contenteditable]") as HTMLElement;
+    rerender(
+      <NodeFormulaField value="count + 2" onCommit={vi.fn()} candidates={cands} ariaLabel="初始值" />
+    );
+    expect(el.textContent).toBe("count + 2");
+  });
+});

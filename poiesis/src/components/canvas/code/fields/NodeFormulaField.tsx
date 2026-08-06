@@ -7,7 +7,7 @@
 // 对账冲突（children 渲染会抛 NotFoundError）；每次渲染后经 rAF restoreCaret 恢复光标。
 // token 间空白以文本段保留（.notionField white-space: pre-wrap 不折叠），draft 与
 // textContent 双向一致，编辑不会吞掉用户输入的空格。
-import { useEffect, useMemo, useRef, useState, type CompositionEvent, type FormEvent, type KeyboardEvent } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type CompositionEvent, type FormEvent, type KeyboardEvent } from "react";
 import { tokenizeFormula, operatorCandidates, replaceToken } from "./expression-trigger";
 import { NodeCandidateMenu, type CandidateItem } from "./NodeCandidateMenu";
 import styles from "./NodeField.module.css";
@@ -48,8 +48,8 @@ function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => HTML_ESCAPES[c]!);
 }
 
-/** 在文本节点间按 offset 恢复光标（Selection API——CodeCard 零宽锚点教训的规避）。 */
-function restoreCaret(el: HTMLElement, offset: number): void {
+/** 在文本节点间按 offset 定位 range（Selection API——CodeCard 零宽锚点教训的规避）。 */
+function rangeAtOffset(el: HTMLElement, offset: number): Range | null {
   const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
   let node: Text | null;
   let remaining = offset;
@@ -60,21 +60,26 @@ function restoreCaret(el: HTMLElement, offset: number): void {
     if (remaining <= len) {
       const range = document.createRange();
       range.setStart(node, remaining);
-      range.collapse(true);
-      const sel = window.getSelection();
-      sel?.removeAllRanges();
-      sel?.addRange(range);
-      return;
+      return range;
     }
     remaining -= len;
   }
   if (last) {
     const range = document.createRange();
     range.setStart(last, last.textContent?.length ?? 0);
-    range.collapse(true);
-    window.getSelection()?.removeAllRanges();
-    window.getSelection()?.addRange(range);
+    return range;
   }
+  return null;
+}
+
+/** 在文本节点间按 offset 恢复光标。 */
+function restoreCaret(el: HTMLElement, offset: number): void {
+  const range = rangeAtOffset(el, offset);
+  if (!range) return;
+  range.collapse(true);
+  const sel = window.getSelection();
+  sel?.removeAllRanges();
+  sel?.addRange(range);
 }
 
 /** 当前光标在 textContent 内的字符偏移（无选区/光标在编辑面外时回退到末尾）。 */
@@ -88,7 +93,11 @@ function caretOffset(el: HTMLElement): number {
   return pre.toString().length;
 }
 
-export function NodeFormulaField({ value, onCommit, candidates, placeholder, ariaLabel, className, invalid, onCancel, onBlur }: Props) {
+/** memo + 自定义比较器：忽略函数 props（onCommit/onBlur/onCancel 由调用点的持久
+ * 数据构造，引用变化不代表语义变化）。父组件渲染（reactflow 节点选中等）不再触发
+ * 本组件重渲染——React 19 updateProperties 对 dangerouslySetInnerHTML 无条件重设
+ * （无值比较），任何重渲染都会把光标重置到开头（真机实测：click #text#6 → DIV#0）。 */
+export const NodeFormulaField = memo(function NodeFormulaField({ value, onCommit, candidates, placeholder, ariaLabel, className, invalid, onCancel, onBlur }: Props) {
   const [draft, setDraft] = useState(value);
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [composing, setComposing] = useState(false);
@@ -301,4 +310,14 @@ export function NodeFormulaField({ value, onCommit, candidates, placeholder, ari
       )}
     </>
   );
-}
+}, (prev, next) => {
+  // 自定义比较：只比较数据 props（函数 props 引用变化不触发重渲染）
+  return (
+    prev.value === next.value &&
+    prev.candidates === next.candidates &&
+    prev.placeholder === next.placeholder &&
+    prev.ariaLabel === next.ariaLabel &&
+    prev.className === next.className &&
+    prev.invalid === next.invalid
+  );
+});
