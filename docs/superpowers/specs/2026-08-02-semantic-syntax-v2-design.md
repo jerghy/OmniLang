@@ -362,7 +362,7 @@ Container(decoration: AppDesign.cardDecoration(), child: ...)
 
 | 输入 | 诊断 |
 |------|------|
-| `theme = "dark"` | 自然解析错误（虚构语法，零用户；T4.4 裁决不设自定义消息——响亮失败即可，见实施注记） |
+| `theme = "dark"` | 普通 prop 赋值——语言层无法区分虚构语法与自定义组件合法 prop；对已知 DOM 标签发 **warning**（v4 修订：原「自然解析错误」裁决基于错误前提，实测为静默惰性属性；警告文本见 validate_props.rs） |
 | `@native(...)` | 自然解析错误（token 已删除；T4.4 裁决同上） |
 | 不可映射 token 值（box-shadow 组合等） | warning + 生成代码降级注释（warnings 通道落地） |
 | display:grid / float | error（spec §10.3 实现） |
@@ -371,7 +371,7 @@ Container(decoration: AppDesign.cardDecoration(), child: ...)
 #### 验证清单
 
 - [x] 浏览器：点主题卡片 → data-theme 属性实际变化 + `[data-theme="dark"]` CSS 覆盖生效（React + OmniView）；Flutter themeMode 切换（widget-test）— Task 4.2：三目标接线 + 浏览器实证（React/OmniView 实测 data-theme 翻转 + CSS 覆盖生效；Flutter ThemeModeNotifier + main.dart shell——widget-test 基建缺位由 shape 断言 + dart analyze 替代，同 T4.5 先例）+ T7.1 theme-wiring.spec 1/1 通过
-- [x] `theme = "dark"` → error + 迁移提示 — Task 4.4：虚构语法自然解析错误（T4.4 裁决：响亮失败即可，不设自定义消息，零用户语法）
+- [x] `theme = "dark"` → warning（已知 DOM 标签）+ 自定义组件豁免 — Task 5.2（v4 修订：原验证声称「error + 迁移提示」不存在，docs-gate 不覆盖设计文档诊断表——已如实修订）
 - [x] class:/variant: 三目标视觉效果对照（Flutter 不再空桩）— Task 4.3：classes/variants 真实装饰（0 桩 0 TODO）+ 编译期变体合并（ThemeExtension 否决理由成立）+ warnings 通道
 - [x] 不可映射值 → warning（快照断言）— Tasks 4.3/4.4：warnings 通道实证（learn-omniview 554 诊断）+ §10.3 四行诊断实现（ZIndex/cursor warning + grid/float error）
 - [x] useThemeStore 无命名冲突 — Tasks 4.2/4.4：`__design/` 命名隔离（守卫移除 YAGNI 正确）+ 碰撞场景实证
