@@ -56,9 +56,9 @@
 
 ### D4：BOOLEAN_ATTRS 共享常量
 
-- 现状：source-emitter.ts:476-481 私有静态集合（19 个：disabled/required/readonly/checked/selected/hidden/multiple/autofocus/novalidate/async/defer/ismap/itemscope/open/loop/muted/controls/autoplay）。
+- 现状：source-emitter.ts:476-481 私有静态集合（实际 18 个：disabled/required/readonly/checked/selected/hidden/multiple/autofocus/novalidate/async/defer/ismap/itemscope/open/loop/muted/controls/autoplay——实现期交叉验证修正，见计划 Task 1 report）。
 - 动作：提升为共享导出常量（如 `codegen/boolean-attrs.ts` 或从 source-emitter 导出），parser-view 与 source-emitter 共用。
-- 按语法文档补全差异：`autocomplete` 等文档 15 个布尔属性中的缺失项（文档 15 ⊂ 集合核对后补齐；以 docs/omniview/06-templates.md「布尔属性」清单为准）。
+- 按语法文档补全差异：`autocomplete` 等文档 15 个布尔属性中的缺失项（文档 15 ⊂ 集合核对后补齐；以 docs/omniview/06-templates.md「布尔属性」清单为准）→ 终态 **19 项**（18 + autocomplete）。
 
 ### D5：class 属性统一走 classRefs 管线
 

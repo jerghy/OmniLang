@@ -12,7 +12,7 @@
 
 （来自 spec，逐条绑定所有任务）
 - **值三态约定**：`props: Record<string, unknown>` 值——静态文本 `"Enter name"`；动态表达式 `"{count}"`（trim 后匹配 `/^\{(.+)\}$/s` 且 `$1` 非空）；`true`=裸布尔属性、`false`=不发射。
-- **BOOLEAN_ATTRS 共享常量**：20 个——disabled, required, readonly, checked, selected, hidden, multiple, autofocus, novalidate, async, defer, ismap, itemscope, open, loop, muted, controls, autoplay, autocomplete（emitter 现有 19 个 + `autocomplete`）。
+- **BOOLEAN_ATTRS 共享常量**：19 个——disabled, required, readonly, checked, selected, hidden, multiple, autofocus, novalidate, async, defer, ismap, itemscope, open, loop, muted, controls, autoplay, autocomplete（emitter 原私有集合实际 18 项 + `autocomplete`；Task 1 实现期经三方交叉验证修正，见 task-1-report.md）。
 - **class 统一走 className→classRefs 管线**（parser-finalize.ts:58 已有转换），输出形态为 `class: a b`（`class="x"` 与 `class: x` 语义等价）。
 - **`id={x}` 动态 id 范围外**（D7）：BRACE 分支对 id 保持旧行为（存裸值，丢花括号）。
 - **只改真实路径**：`applyStyles` 是空函数（collect-styles.ts:15），发射只改 `elNode.props` 路径（source-emitter.ts:620-631），**不动** `style.htmlAttrs` 死分支（611-619）。
