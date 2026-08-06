@@ -8,6 +8,7 @@ import { usePoiesisStore } from "../../../store";
 import type { ElementData } from "../../../core/types/element";
 import type { SignalPickerItem } from "./SignalSlashPicker";
 import { SignalSlashPicker } from "./SignalSlashPicker";
+import { BOOLEAN_ATTRS } from "../../../services/codegen/boolean-attrs";
 import styles from "./PropsSection.module.css";
 
 const KNOWN_PROPS = ["id", "label", "class", "name", "type", "placeholder", "value", "src", "href"];
@@ -79,7 +80,9 @@ const CHIP_DELETE_BTN: React.CSSProperties = {
 function buildLocalProps(element: ElementData): Record<string, string | boolean> {
   const initial: Record<string, string | boolean> = {};
   if (!("props" in element)) return initial;
-  for (const key of KNOWN_PROPS) {
+  // KNOWN_PROPS + BOOLEAN_ATTRS：布尔属性（disabled/checked/...）不在
+  // KNOWN_PROPS 里，但必须在面板可见可编辑（D9）。
+  for (const key of new Set([...KNOWN_PROPS, ...BOOLEAN_ATTRS])) {
     const val = element.props[key];
     if (val !== undefined) {
       initial[key] = typeof val === "boolean" ? val : String(val);
@@ -245,15 +248,25 @@ export function PropsSection({ element, signalItems }: PropsSectionProps) {
           onSlash={(el) => handleSlash("id", el)}
         />
 
-        {relevantProps.map((prop) => (
-          <ChipPropRow
-            key={prop}
-            label={prop}
-            value={localProps[prop] ?? ""}
-            onChange={(v) => handleChange(prop, v)}
-            onSlash={(el) => handleSlash(prop, el)}
-          />
-        ))}
+        {relevantProps.map((prop) =>
+          BOOLEAN_ATTRS.has(prop) ? (
+            <BoolPropRow
+              key={prop}
+              label={prop}
+              value={localProps[prop]}
+              onChange={(v) => handleChange(prop, v)}
+              onSlash={(el) => handleSlash(prop, el)}
+            />
+          ) : (
+            <ChipPropRow
+              key={prop}
+              label={prop}
+              value={localProps[prop] ?? ""}
+              onChange={(v) => handleChange(prop, v)}
+              onSlash={(el) => handleSlash(prop, el)}
+            />
+          )
+        )}
       </div>
 
       {/* Signal/Computed/Store slash picker */}
@@ -456,6 +469,104 @@ function ChipEditor({ value, onChange, onSlashRequest }: ChipEditorProps) {
   );
 }
 
+// ── BoolPropRow: 布尔属性行（开关 ↔ 表达式互斥视图） ────────────────────────
+
+function BoolPropRow({
+  label,
+  value,
+  onChange,
+  onSlash,
+}: {
+  label: string;
+  value: string | boolean | undefined;
+  onChange: (v: boolean | string) => void;
+  onSlash?: (inputEl: HTMLInputElement) => void;
+}) {
+  const isExpr = typeof value === "string";
+  const [editingExpr, setEditingExpr] = useState(false);
+  const [exprText, setExprText] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const commitExpr = useCallback(
+    (textOverride?: string) => {
+      const text = (textOverride ?? exprText).trim();
+      if (text) onChange(text.startsWith("{") ? text : `{${text}}`);
+      else onChange(true); // 空输入 → 回开关态（开）
+      setEditingExpr(false);
+      setExprText("");
+    },
+    [exprText, onChange]
+  );
+
+  if (isExpr) {
+    // 表达式形态：紫色芯片（点击编辑 / × 删除回开关态）。
+    // 点击目标带 data-action="delete-segment"（× 号）→ 删除回开关态，否则进编辑
+    // ——与 ChipEditor 芯片同一模式（键盘 Enter/Space 同判）。
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <span style={{ fontSize: 12, color: "var(--ol-text-secondary)", minWidth: 50, flexShrink: 0 }}>{label}</span>
+        <button type="button"
+          onClick={(e) => {
+            if ((e.target as HTMLElement).getAttribute("data-action") === "delete-segment") onChange(true);
+            else { setExprText(value.slice(1, -1)); setEditingExpr(true); }
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              if ((e.target as HTMLElement).getAttribute("data-action") === "delete-segment") onChange(true);
+              else { setExprText(value.slice(1, -1)); setEditingExpr(true); }
+            }
+          }}
+          style={{ ...EXPR_CHIP_STYLE, cursor: "pointer" }} title="点击编辑">
+          {value}
+          <span data-action="delete-segment" style={CHIP_DELETE_BTN} title="删除">&times;</span>
+        </button>
+      </div>
+    );
+  }
+  if (editingExpr) {
+    return (
+      <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <span style={{ fontSize: 12, color: "var(--ol-text-secondary)", minWidth: 50, flexShrink: 0 }}>{label}</span>
+        <input ref={inputRef} type="text" aria-label={`${label}-expression`} value={exprText}
+          autoFocus
+          onChange={(e) => setExprText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") commitExpr();
+            else if (e.key === "Escape") setEditingExpr(false);
+            else if (e.key === "/" && onSlash) {
+              e.preventDefault();
+              const input = e.currentTarget;
+              // 复用 chipSlashCallbacks WeakMap 机制：picker 选中信号后回调
+              // 把 {sig} 拼进表达式文本并提交（父级 handleSlashSelect 分发）。
+              chipSlashCallbacks.set(input, (signalName: string) => {
+                commitExpr(`${input.value}{${signalName}}`);
+              });
+              requestAnimationFrame(() => onSlash(input));
+            }
+          }}
+          onBlur={() => commitExpr()}
+          style={{ flex: 1, padding: "3px 6px", fontSize: 12, border: "1px solid var(--ol-color-primary)", borderRadius: 4, fontFamily: "var(--dp-font-mono, monospace)" }} />
+      </label>
+    );
+  }
+  // 开关形态：label 只包住开关（一个原生控件），「表达式」按钮在 label 外——
+  // 避免一个 label 关联多个控件（a11y）。
+  const isOn = value === true;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <span style={{ fontSize: 12, color: "var(--ol-text-secondary)", minWidth: 50, flexShrink: 0 }}>{label}</span>
+        <input type="checkbox" aria-label={`${label}-toggle`} checked={isOn}
+          onChange={(e) => onChange(e.target.checked)} />
+      </label>
+      <button type="button" onClick={() => setEditingExpr(true)} style={{ fontSize: 11, color: "var(--ol-text-secondary)", border: "1px solid var(--ol-border)", borderRadius: 4, padding: "1px 6px", background: "transparent", cursor: "pointer" }}>
+        表达式
+      </button>
+    </div>
+  );
+}
+
 function ChipPropRow({
   label,
   value,
@@ -559,17 +670,14 @@ function PropRow({
 
 function getRelevantProps(tag: string): string[] {
   const map: Record<string, string[]> = {
-    input: ["type", "placeholder", "value", "name"],
-    button: ["label", "type", "name"],
+    input: ["type", "placeholder", "value", "name", "checked", "disabled", "required", "readonly"],
+    button: ["label", "type", "name", "disabled"],
     img: ["src", "alt"],
-    a: ["href", "label", "target"],
-    textarea: ["placeholder", "value", "name", "rows"],
-    select: ["name"],
+    a: ["href", "label", "target", "disabled"],
+    textarea: ["placeholder", "value", "name", "rows", "disabled", "readonly", "required"],
+    select: ["name", "disabled", "required"],
     label: ["label"],
-    h1: ["label"],
-    h2: ["label"],
-    h3: ["label"],
-    p: ["label"],
+    h1: ["label"], h2: ["label"], h3: ["label"], p: ["label"],
   };
   return map[tag] ?? ["label"];
 }
