@@ -290,7 +290,7 @@ motion_trigger_attr ::= '@enter' '=' '{' motion_expr '}'
 
 scroll_params ::= 'start:' expr 'end:' expr 'scrub:' bool
 drag_params   ::= 'constraints:' '[' expr ',' expr ']' 'elastic:' expr
-                  'threshold:' expr ('velocity_max:' expr)?
+                  'threshold:' expr
 
 motion_expr ::= <ident>                             // 命名 motion 引用
               | map_literal                         // 内联 map 形式（§3.7）：@enter={{ opacity: 0, scale: 0.8 }}
@@ -306,8 +306,8 @@ motion_expr ::= <ident>                             // 命名 motion 引用
 >   （`@scroll start: 0 end: 1000 scrub: true ={parallaxScroll}`）。未知或
 >   畸形子参数是硬错误（不解析忽略）；其余触发器不接受子参数。语义校验
 >   （validate_motion）：`start`/`end` 必须是数字且成对、`scrub` 必须是布尔、
->   `constraints` 必须是 `[min, max]` 数字且 min < max、`elastic`/`threshold`/
->   `velocity_max` 必须是非负数字（错误信息为中文硬诊断）。
+>   `constraints` 必须是 `[min, max]` 数字且 min < max、`elastic`/`threshold`
+>   必须是非负数字（错误信息为中文硬诊断）。
 > - 内联动画体 map 形式已实现（§3.7：`@enter={{ opacity: 0, scale: 0.8 }}`）；
 >   `@enter = { over: 200ms; from { ... } to { ... } }` 完整体语法**不解析**
 >   ——trigger 值必须是命名 motion 引用或 map 字面量
@@ -356,7 +356,7 @@ component AnimatedCard {
     <div @scroll start: 0 end: 1000 scrub: true ={parallaxScroll} />
 
     <div @drag-horizontal constraints: [-100, 100] elastic: 0.5
-             threshold: 0.3 velocity_max: 500 ={swipeCard} />
+             threshold: 0.3 ={swipeCard} />
   }
 }
 ```
@@ -381,16 +381,14 @@ component AnimatedCard {
 | `@scroll scrub: true` | 平滑系数（布尔 true = 1s） | `scrub > 0` 指数平滑 | `_OmniScrollDrivenWidget(scrub:)` 指数平滑 |
 | `@drag-* constraints: [min, max]` | 拖拽范围限制 + 弹性回弹 | `const constraints = [min, max]`（运行时 clamp + `(1 - elastic)` 回弹） | `_OmniDragWidget(constraintsMin: min, constraintsMax: max)` |
 | `@drag-* elastic:`/`threshold:` | 弹性系数 / 吸附阈值 | 生成数值常量 | 类型化构造参数 |
-| `@drag-* velocity_max:` | 拖拽期间速度跟踪上限（px/s 截断） | 接受但忽略（速度跟踪器已剪除，输出仅诚实降级注释） | `_OmniDragWidget(velocityMax:)` + `clamp(0, velocityMax)` 截断 |
 
 > 缺省行为：`@scroll` 无 `start`/`end` 回落视口相对字符串配置（`"top 80%"` →
 > `"bottom 20%"`）；`@drag-*` 无 `constraints` 回落关键帧范围推导
 > （`maxExtent`），无可用范围时带编译器警告。
 >
 > ⚠️ 诚实降级（ADR-054）：释放后惯性 decay 在三个目标上均**未实现**——
-> `velocity_max` 由 Flutter/OmniView 消费（px/s 截断），React **接受但忽略**
-> （速度跟踪器已剪除，无消费方，仅诚实降级注释——2026-08-03 修正：v1 曾误述
-> 「三目标一致」）；释放行为统一为 threshold 吸附（play/reverse）。
+> 释放行为统一为 threshold 吸附（play/reverse）。`velocity_max` 已于 v4
+> 移除（零消费者——拖拽速度跟踪器无消费方，见 deferral #84）。
 
 ### 3.5 Keyframe 属性 → 平台映射
 

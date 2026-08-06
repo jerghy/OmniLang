@@ -13,7 +13,7 @@
 component MotionDrag {
   view {
     <div>
-      <div @drag-horizontal constraints: [-100, 100] elastic: 0.5 threshold: 0.3 velocity_max: 500 ={swipeX}>
+      <div @drag-horizontal constraints: [-100, 100] elastic: 0.5 threshold: 0.3 ={swipeX}>
         Drag me horizontally
       </div>
       <div @drag-vertical constraints: [0, 150] elastic: 0.2 ={swipeY}>

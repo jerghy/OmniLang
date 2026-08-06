@@ -85,7 +85,7 @@ pub struct TriggerIntent {
 /// ```text
 /// scroll_params ::= 'start:' expr 'end:' expr 'scrub:' bool
 /// drag_params   ::= 'constraints:' '[' expr ',' expr ']' 'elastic:' expr
-///                   'threshold:' expr ('velocity_max:' expr)?
+///                   'threshold:' expr
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[non_exhaustive]
@@ -104,13 +104,11 @@ pub enum TriggerKind {
         constraints: Option<(ExprIR, ExprIR)>,
         elastic: Option<ExprIR>,
         threshold: Option<ExprIR>,
-        velocity_max: Option<ExprIR>,
     },
     DragVertical {
         constraints: Option<(ExprIR, ExprIR)>,
         elastic: Option<ExprIR>,
         threshold: Option<ExprIR>,
-        velocity_max: Option<ExprIR>,
     },
 }
 

@@ -274,25 +274,18 @@ impl OmniViewGenerator {
         let rect_size = if is_horizontal { "width" } else { "height" };
         // v1 control dimensions (Task 5.1): numeric constraints pass straight
         // through; the legacy string config remains as a runtime fallback.
-        let (constraints_pair, elastic_expr, threshold_expr, velocity_expr) = match &trigger.kind {
+        let (constraints_pair, elastic_expr, threshold_expr) = match &trigger.kind {
             TriggerKind::DragHorizontal {
                 constraints,
                 elastic,
                 threshold,
-                velocity_max,
             }
             | TriggerKind::DragVertical {
                 constraints,
                 elastic,
                 threshold,
-                velocity_max,
-            } => (
-                constraints.as_ref(),
-                elastic.as_ref(),
-                threshold.as_ref(),
-                velocity_max.as_ref(),
-            ),
-            _ => (None, None, None, None),
+            } => (constraints.as_ref(), elastic.as_ref(), threshold.as_ref()),
+            _ => (None, None, None),
         };
         let (constraints_min_js, constraints_max_js) = match constraints_pair {
             Some((min, max)) => (Some(self.expr_to_js(min)), Some(self.expr_to_js(max))),
@@ -309,9 +302,6 @@ impl OmniViewGenerator {
         let threshold_val = threshold_expr
             .map(|e| self.expr_to_js(e))
             .unwrap_or_else(|| "0".to_string());
-        let velocity_max_val = velocity_expr
-            .map(|e| self.expr_to_js(e))
-            .unwrap_or_else(|| "2000".to_string());
         // maxExtent emission: constraints win; otherwise derive from the
         // motion's keyframe range; otherwise fall back to the previous
         // unbounded behavior (progress stays 0) with a warning.
@@ -357,12 +347,9 @@ impl OmniViewGenerator {
              \x20 const dur = anim.effect?.getTiming()?.duration || 300;\n\
              \x20 let startPos = 0, currentDelta = 0;\n\
              \x20 let isDragging = false;\n\
-             \x20 let lastMoveTime = 0, lastMovePos = 0;\n\
-             \x20 let velocity = 0;\n\
              \x20 {constraints_decl}\n\
              \x20 const elastic = {elastic};\n\
              \x20 const threshold = {threshold};\n\
-             \x20 const velocityMax = {velocity_max};\n\
              \x20 function parseConstraint(cfg) {{\n\
              \x20\x20 if (!cfg) return {{ min: -Infinity, max: Infinity }};\n\
              \x20\x20 if (Array.isArray(cfg)) return {{ min: cfg[0], max: cfg[1] }};\n\
@@ -400,15 +387,7 @@ impl OmniViewGenerator {
              \x20 }});\n\
              \x20 el.addEventListener('pointermove', (e) => {{\n\
              \x20\x20 if (!isDragging) return;\n\
-             \x20\x20 const now = performance.now();\n\
              \x20\x20 const raw = e.{ptr_axis} - startPos;\n\
-             \x20\x20 if (lastMoveTime > 0) {{\n\
-             \x20\x20\x20 const dt = now - lastMoveTime;\n\
-             \x20\x20\x20 const dp = Math.abs(raw - lastMovePos);\n\
-             \x20\x20\x20 if (dt > 0) velocity = Math.min(velocityMax, dp / dt * 1000);\n\
-             \x20\x20 }}\n\
-             \x20\x20 lastMoveTime = now;\n\
-             \x20\x20 lastMovePos = raw;\n\
              \x20\x20 let constrained = raw;\n\
              \x20\x20 if (raw < constraint.min) {{\n\
              \x20\x20\x20 const overshoot = constraint.min - raw;\n\
@@ -443,7 +422,6 @@ impl OmniViewGenerator {
             edge_min = edge_min,
             edge_max = edge_max,
             size = rect_size,
-            velocity_max = velocity_max_val,
             max_extent = max_extent_expr,
         );
     }

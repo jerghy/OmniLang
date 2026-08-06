@@ -363,11 +363,6 @@ pub(crate) fn emit_drag_widget_class(w: &mut CodeWriter) {
     w.emit("final double? constraintsMax;");
     w.emit("final double elastic;");
     w.emit("final double threshold;");
-    // v1 velocity_max (Task 5.1): cap for the drag-velocity tracker (px/s),
-    // mirroring the OmniView/React semantics. Inertia decay after release is
-    // not implemented on any target (honest degradation, ADR-054) — the
-    // velocity is tracked and clamped during the drag only.
-    w.emit("final double velocityMax;");
     // Max drag distance (px) derived at compile time from the motion's own
     // keyframe range in the drag axis — used when no constraints are given
     // (ADR-053 removed @drag-constraints; deferral #19). 0.0 means unbounded.
@@ -384,7 +379,6 @@ pub(crate) fn emit_drag_widget_class(w: &mut CodeWriter) {
     w.emit("this.constraintsMax,");
     w.emit("this.elastic = 0.0,");
     w.emit("this.threshold = 0.0,");
-    w.emit("this.velocityMax = 2000.0,");
     w.emit("this.dragExtent = 0.0,");
     w.emit("required this.onDragStart,");
     w.emit("required this.onDragProgress,");
@@ -400,14 +394,6 @@ pub(crate) fn emit_drag_widget_class(w: &mut CodeWriter) {
     w.emit("class _OmniDragWidgetState extends State<OmniDragWidget> {");
     w.indent();
     w.emit("double _currentDelta = 0;");
-    w.emit("int _lastMoveTime = 0;");
-    w.emit("double _lastMovePos = 0;");
-    // velocity_max tracker: written and capped during the drag; inertia
-    // decay after release is not implemented on any target (honest
-    // degradation, ADR-054) so the value is not read back yet — the
-    // analyzer ignore documents the intentional write-only field.
-    w.emit("// ignore: unused_field");
-    w.emit("double _velocity = 0;");
     w.emit("");
     w.emit("double _computeProgress(double delta) {");
     w.indent();
@@ -447,9 +433,6 @@ pub(crate) fn emit_drag_widget_class(w: &mut CodeWriter) {
     w.emit("void _onDragStart(DragStartDetails details) {");
     w.indent();
     w.emit("_currentDelta = 0;");
-    w.emit("_lastMoveTime = 0;");
-    w.emit("_lastMovePos = 0;");
-    w.emit("_velocity = 0;");
     w.emit("widget.onDragStart();");
     w.dedent();
     w.emit("}");
@@ -459,23 +442,6 @@ pub(crate) fn emit_drag_widget_class(w: &mut CodeWriter) {
     w.emit("_currentDelta += widget.axis == Axis.horizontal");
     w.emit("    ? details.delta.dx");
     w.emit("    : details.delta.dy;");
-    w.emit("// v1 velocity_max (Task 5.1): track drag velocity (px/s) capped at");
-    w.emit("// velocityMax — mirrors the OmniView/React drag trackers. Inertia");
-    w.emit("// decay after release is not implemented (honest degradation, ADR-054).");
-    w.emit("final now = DateTime.now().millisecondsSinceEpoch;");
-    w.emit("if (_lastMoveTime > 0) {");
-    w.indent();
-    w.emit("final dt = now - _lastMoveTime;");
-    w.emit("final dp = (_currentDelta - _lastMovePos).abs();");
-    w.emit("if (dt > 0) {");
-    w.indent();
-    w.emit("_velocity = (dp / dt * 1000).clamp(0.0, widget.velocityMax);");
-    w.dedent();
-    w.emit("}");
-    w.dedent();
-    w.emit("}");
-    w.emit("_lastMoveTime = now;");
-    w.emit("_lastMovePos = _currentDelta;");
     w.emit("final progress = _computeProgress(_currentDelta);");
     w.emit("widget.onDragProgress(progress);");
     w.dedent();

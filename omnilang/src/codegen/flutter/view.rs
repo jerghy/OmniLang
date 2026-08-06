@@ -2533,19 +2533,12 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                             } else {
                                 ("0.0".to_string(), String::new())
                             };
-                            let (elastic_val, threshold_val, velocity_max_val) = match &trigger.kind
-                            {
+                            let (elastic_val, threshold_val) = match &trigger.kind {
                                 TriggerKind::DragHorizontal {
-                                    elastic,
-                                    threshold,
-                                    velocity_max,
-                                    ..
+                                    elastic, threshold, ..
                                 }
                                 | TriggerKind::DragVertical {
-                                    elastic,
-                                    threshold,
-                                    velocity_max,
-                                    ..
+                                    elastic, threshold, ..
                                 } => (
                                     elastic
                                         .as_ref()
@@ -2555,16 +2548,12 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                                         .as_ref()
                                         .map(|e| ctx.format_expr(e))
                                         .unwrap_or_else(|| "0.0".to_string()),
-                                    velocity_max
-                                        .as_ref()
-                                        .map(|e| ctx.format_expr(e))
-                                        .unwrap_or_else(|| "2000.0".to_string()),
                                 ),
-                                _ => ("0.0".to_string(), "0.0".to_string(), "2000.0".to_string()),
+                                _ => ("0.0".to_string(), "0.0".to_string()),
                             };
                             result = format!(
-                                "{extent_warning}OmniDragWidget(\n  axis: {},\n{}  elastic: {},\n  threshold: {},\n  velocityMax: {},\n  dragExtent: {},\n  onDragStart: () {{ {} = true; }},\n  onDragProgress: (p) {{ {} = true; {}.value = p; }},\n  onDragEnd: (completed) {{ if (completed) {{ {}.forward(); }} else {{ {}.reverse().whenComplete(() {{ if (mounted && {}.value == 0.0) setState(() {{ {} = false; }}); }}); }} }},\n  child: {},\n)",
-                                axis_type, constraints_args, elastic_val, threshold_val, velocity_max_val, extent_dart, active_name, active_name, ctrl_name, ctrl_name, ctrl_name, ctrl_name, active_name, result,
+                                "{extent_warning}OmniDragWidget(\n  axis: {},\n{}  elastic: {},\n  threshold: {},\n  dragExtent: {},\n  onDragStart: () {{ {} = true; }},\n  onDragProgress: (p) {{ {} = true; {}.value = p; }},\n  onDragEnd: (completed) {{ if (completed) {{ {}.forward(); }} else {{ {}.reverse().whenComplete(() {{ if (mounted && {}.value == 0.0) setState(() {{ {} = false; }}); }}); }} }},\n  child: {},\n)",
+                                axis_type, constraints_args, elastic_val, threshold_val, extent_dart, active_name, active_name, ctrl_name, ctrl_name, ctrl_name, ctrl_name, active_name, result,
                                 extent_warning = extent_warning
                             );
                         }

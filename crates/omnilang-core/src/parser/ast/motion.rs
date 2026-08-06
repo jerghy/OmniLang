@@ -101,7 +101,7 @@ pub struct MotionTrigger {
 /// ```text
 /// scroll_params ::= 'start:' expr 'end:' expr 'scrub:' bool
 /// drag_params   ::= 'constraints:' '[' expr ',' expr ']' 'elastic:' expr
-///                   'threshold:' expr ('velocity_max:' expr)?
+///                   'threshold:' expr
 /// ```
 #[derive(Debug, Clone, Serialize)]
 pub enum TriggerKind {
@@ -119,13 +119,11 @@ pub enum TriggerKind {
         constraints: Option<(Expr, Expr)>,
         elastic: Option<Expr>,
         threshold: Option<Expr>,
-        velocity_max: Option<Expr>,
     },
     DragVertical {
         constraints: Option<(Expr, Expr)>,
         elastic: Option<Expr>,
         threshold: Option<Expr>,
-        velocity_max: Option<Expr>,
     },
 }
 

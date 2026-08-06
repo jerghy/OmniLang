@@ -516,13 +516,11 @@ impl OmniViewGenerator {
                     constraints,
                     elastic,
                     threshold,
-                    velocity_max,
                 }
                 | TriggerKind::DragVertical {
                     constraints,
                     elastic,
                     threshold,
-                    velocity_max,
                 } = &trigger.kind
                 {
                     if let Some((min, max)) = constraints {
@@ -542,14 +540,6 @@ impl OmniViewGenerator {
                     if let Some(e) = threshold {
                         let js_val = self.expr_to_js(e);
                         let _ = write!(attrs, " data-drag-threshold=\"{}\"", escape_html(&js_val));
-                    }
-                    if let Some(v) = velocity_max {
-                        let js_val = self.expr_to_js(v);
-                        let _ = write!(
-                            attrs,
-                            " data-drag-velocity-max=\"{}\"",
-                            escape_html(&js_val)
-                        );
                     }
                 }
             }

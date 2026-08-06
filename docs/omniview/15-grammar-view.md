@@ -1092,16 +1092,16 @@ scroll_params ::= ('start:' expr | 'end:' expr | 'scrub:' expr)*
                 // silently overwritten (last wins)
 
 drag_params   ::= ('constraints:' '[' expr ',' expr ']'
-                 | 'elastic:' expr | 'threshold:' expr
-                 | 'velocity_max:' expr)*
-                // drag control dimensions (restored by v2 Task 5.1)
+                 | 'elastic:' expr | 'threshold:' expr)*
+                // drag control dimensions (restored by v2 Task 5.1;
+                // velocity_max removed in v4 — zero consumers, see deferral #84)
 ```
 
 Semantic validation (`validate_motion`): `@scroll` `start`/`end` must be
 numeric, must appear as a pair, and must form a strictly increasing range
 (`start < end`); `scrub` must be boolean. `@drag-*`
 `constraints` must be a numeric `[min, max]` range with `min < max`;
-`elastic`/`threshold`/`velocity_max` must be non-negative numbers. Unknown
+`elastic`/`threshold` must be non-negative numbers. Unknown
 keys and malformed values are hard parse errors (no parse-and-ignore); the
 other five triggers accept no sub-parameters.
 
@@ -1113,7 +1113,7 @@ other five triggers accept no sub-parameters.
 <div @scroll={scrollProgress} />
 <div @scroll start: 0 end: 1000 scrub: true ={scrollProgress} />
 <div @drag-horizontal={dragSlide} @drag-vertical={dragSlideY} />
-<div @drag-horizontal constraints: [-100, 100] elastic: 0.5 threshold: 0.3 velocity_max: 500 ={dragSlide} />
+<div @drag-horizontal constraints: [-100, 100] elastic: 0.5 threshold: 0.3 ={dragSlide} />
 ```
 
 > Removed per ADR-053: `@leave`, `@unhover`, `@animate`, `@timeline` triggers

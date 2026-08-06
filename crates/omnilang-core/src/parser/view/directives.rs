@@ -218,8 +218,7 @@ impl<'a> Parser<'a> {
             return Ok(kind);
         }
         let (mut start, mut end, mut scrub) = (None, None, None);
-        let (mut constraints, mut elastic, mut threshold, mut velocity_max) =
-            (None, None, None, None);
+        let (mut constraints, mut elastic, mut threshold) = (None, None, None);
         let (mut horizontal, mut vertical) = (false, false);
         match kind {
             TriggerKind::Scroll {
@@ -235,24 +234,20 @@ impl<'a> Parser<'a> {
                 constraints: c,
                 elastic: el,
                 threshold: th,
-                velocity_max: v,
             } => {
                 constraints = c;
                 elastic = el;
                 threshold = th;
-                velocity_max = v;
                 horizontal = true;
             }
             TriggerKind::DragVertical {
                 constraints: c,
                 elastic: el,
                 threshold: th,
-                velocity_max: v,
             } => {
                 constraints = c;
                 elastic = el;
                 threshold = th;
-                velocity_max = v;
                 vertical = true;
             }
             _ => return Ok(kind),
@@ -260,7 +255,7 @@ impl<'a> Parser<'a> {
         let allowed: &[&str] = if is_scroll {
             &["start", "end", "scrub"]
         } else {
-            &["constraints", "elastic", "threshold", "velocity_max"]
+            &["constraints", "elastic", "threshold"]
         };
         loop {
             match self.peek_ident_value() {
@@ -299,11 +294,6 @@ impl<'a> Parser<'a> {
                     self.expect_token(TokenKind::Colon, "expected ':' after 'threshold'")?;
                     threshold = Some(self.parse_expr_no_assign()?);
                 }
-                Some(ref s) if is_drag && s == "velocity_max" => {
-                    self.advance();
-                    self.expect_token(TokenKind::Colon, "expected ':' after 'velocity_max'")?;
-                    velocity_max = Some(self.parse_expr_no_assign()?);
-                }
                 Some(other) => {
                     return Err(self.error(format!(
                         "unknown parameter '{}' on @scroll/@drag trigger; expected {}",
@@ -321,7 +311,6 @@ impl<'a> Parser<'a> {
                 constraints,
                 elastic,
                 threshold,
-                velocity_max,
             }
         } else {
             debug_assert!(vertical);
@@ -329,7 +318,6 @@ impl<'a> Parser<'a> {
                 constraints,
                 elastic,
                 threshold,
-                velocity_max,
             }
         })
     }
@@ -436,18 +424,17 @@ component C {
     fn drag_trigger_with_v1_sub_params_parses() {
         // v1 design doc §3.7 syntax, restored by the v2 BNF:
         //   drag_params ::= 'constraints:' '[' expr ',' expr ']' 'elastic:' expr
-        //                   'threshold:' expr ('velocity_max:' expr)?
+        //                   'threshold:' expr
         let triggers = parse_triggers(
             "@motion swipeCard { from { rotate: 0 } to { rotate: 30 } }
 component C {
-  view { <div @drag-horizontal constraints: [-100, 100] elastic: 0.5 threshold: 0.3 velocity_max: 500 ={swipeCard}>x</div> }
+  view { <div @drag-horizontal constraints: [-100, 100] elastic: 0.5 threshold: 0.3 ={swipeCard}>x</div> }
 }",
         );
         let TriggerKind::DragHorizontal {
             constraints,
             elastic,
             threshold,
-            velocity_max,
         } = &triggers[0].trigger
         else {
             panic!("expected DragHorizontal trigger");
@@ -462,10 +449,6 @@ component C {
         assert!(matches!(
             threshold,
             Some(Expr::Literal(Literal::Float(f), _)) if *f == 0.3
-        ));
-        assert!(matches!(
-            velocity_max,
-            Some(Expr::Literal(Literal::Int(500), _))
         ));
     }
 
@@ -497,6 +480,24 @@ component C {
                 .iter()
                 .any(|e| e.message.contains("unknown parameter 'bogus'")),
             "expected unknown-parameter error, got: {:?}",
+            errors.iter().map(|e| e.message.clone()).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn velocity_max_is_removed_syntax() {
+        // v4 pragmatic MEDIUM-1: velocity_max 零消费者全链路实现 + React
+        // slice 特例排除——移除后书写它必须产生「未知 drag 参数」诊断
+        // （迁移提示指向删除事实）。
+        let source = "@motion m { from { opacity: 0 } to { opacity: 1 } }
+component C {
+  view { <div @drag-horizontal velocity_max: 100 ={m}>x</div> }
+}";
+        let tokens = tokenize(source);
+        let (_program, errors) = parse(tokens, source);
+        assert!(
+            errors.iter().any(|e| e.message.contains("velocity_max")),
+            "velocity_max must be a removed-syntax diagnostic (unknown drag parameter), got: {:?}",
             errors.iter().map(|e| e.message.clone()).collect::<Vec<_>>()
         );
     }

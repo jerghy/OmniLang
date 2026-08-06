@@ -535,7 +535,6 @@ impl<'a> Parser<'a> {
                         constraints: None,
                         elastic: None,
                         threshold: None,
-                        velocity_max: None,
                     })?;
                     props.push(ElementProp::MotionTrigger(trigger));
                 }
@@ -544,7 +543,6 @@ impl<'a> Parser<'a> {
                         constraints: None,
                         elastic: None,
                         threshold: None,
-                        velocity_max: None,
                     })?;
                     props.push(ElementProp::MotionTrigger(trigger));
                 }

@@ -226,9 +226,9 @@ impl SemanticAnalyzer {
     /// form a strictly increasing range (`start < end` — an inverted or
     /// zero-width range would divide by zero on React/OmniView and silently
     /// no-op on Flutter); `scrub` must be a bool; `constraints` must be
-    /// `[min, max]` numbers with min < max; `elastic`/`threshold`/
-    /// `velocity_max` must be non-negative numbers. Errors are hard
-    /// diagnostics in Chinese per the v2 policy — never parse-and-ignore.
+    /// `[min, max]` numbers with min < max; `elastic`/`threshold` must be
+    /// non-negative numbers. Errors are hard diagnostics in Chinese per the
+    /// v2 policy — never parse-and-ignore.
     fn validate_trigger_params(&mut self, trigger: &MotionTrigger) {
         let span = trigger_expr_span(&trigger.motion_expr);
         match &trigger.trigger {
@@ -281,13 +281,11 @@ impl SemanticAnalyzer {
                 constraints,
                 elastic,
                 threshold,
-                velocity_max,
             }
             | TriggerKind::DragVertical {
                 constraints,
                 elastic,
                 threshold,
-                velocity_max,
             } => {
                 let label = if matches!(trigger.trigger, TriggerKind::DragHorizontal { .. }) {
                     "@drag-horizontal"
@@ -309,11 +307,7 @@ impl SemanticAnalyzer {
                         ));
                     }
                 }
-                for (name, expr) in [
-                    ("elastic", elastic),
-                    ("threshold", threshold),
-                    ("velocity_max", velocity_max),
-                ] {
+                for (name, expr) in [("elastic", elastic), ("threshold", threshold)] {
                     if let Some(e) = expr {
                         if !is_number_literal_expr(e) {
                             self.diagnostics.push(Diagnostic::error(
@@ -712,7 +706,7 @@ mod trigger_param_validation_tests {
     #[test]
     fn valid_drag_params_produce_no_errors() {
         let d = diags(&wrap(
-            "@drag-horizontal constraints: [-100, 100] elastic: 0.5 threshold: 0.3 velocity_max: 500 ={m}",
+            "@drag-horizontal constraints: [-100, 100] elastic: 0.5 threshold: 0.3 ={m}",
             "from { opacity: 0 } to { opacity: 1 }",
         ));
         assert!(

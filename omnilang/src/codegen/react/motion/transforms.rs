@@ -268,25 +268,18 @@ pub(super) fn emit_drag_effect_tsx(
     // motion's own keyframe range (the distance the animation travels in the
     // drag axis), so the element follows its animation instead of dividing
     // by Infinity (deferral #19).
-    let (constraints_pair, elastic_expr, threshold_expr, velocity_expr) = match &trigger.kind {
+    let (constraints_pair, elastic_expr, threshold_expr) = match &trigger.kind {
         TriggerKind::DragHorizontal {
             constraints,
             elastic,
             threshold,
-            velocity_max,
         }
         | TriggerKind::DragVertical {
             constraints,
             elastic,
             threshold,
-            velocity_max,
-        } => (
-            constraints.as_ref(),
-            elastic.as_ref(),
-            threshold.as_ref(),
-            velocity_max.as_ref(),
-        ),
-        _ => (None, None, None, None), // defensive; find_drag_trigger guarantees drag
+        } => (constraints.as_ref(), elastic.as_ref(), threshold.as_ref()),
+        _ => (None, None, None), // defensive; find_drag_trigger guarantees drag
     };
     let has_constraints = constraints_pair.is_some();
     let derived_extent = if !has_constraints {
@@ -342,16 +335,6 @@ pub(super) fn emit_drag_effect_tsx(
     }
     w.emit_fmt(format_args!("const elastic = {};", elastic_js));
     w.emit_fmt(format_args!("const threshold = {};", threshold_js));
-    // v1 velocity_max (Task 5.1) — accepted but UNUSED on React (task 2.11):
-    // the drag-velocity tracker was removed. Its `velocity` variable was
-    // written every pointermove but never read — inertia decay after release
-    // is not implemented on any target (honest degradation, ADR-054), so the
-    // tracker was dead machinery that linted as an unused variable. A
-    // user-supplied velocity_max is a no-op; the comment below preserves the
-    // honest-degradation note when the source actually set it.
-    if velocity_expr.is_some() {
-        w.emit("// velocity_max is accepted but unused — the drag-velocity tracker was removed (no consumer; inertia decay is not implemented, ADR-054)");
-    }
     w.emit("const parseConstraint = (cfg) => {");
     w.indent();
     w.emit("if (!cfg) return { min: -Infinity, max: Infinity };");

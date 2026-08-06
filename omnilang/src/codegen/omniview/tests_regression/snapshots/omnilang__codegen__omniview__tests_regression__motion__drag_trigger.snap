@@ -1,6 +1,5 @@
 ---
 source: omnilang/src/codegen/omniview/tests_regression/motion.rs
-assertion_line: 617
 expression: "&output"
 ---
 // === mount_js ===
@@ -17,12 +16,9 @@ expression: "&output"
   const dur = anim.effect?.getTiming()?.duration || 300;
   let startPos = 0, currentDelta = 0;
   let isDragging = false;
-  let lastMoveTime = 0, lastMovePos = 0;
-  let velocity = 0;
   const constraints = [0, 300];
   const elastic = 0.1;
   const threshold = 0;
-  const velocityMax = 2000;
   function parseConstraint(cfg) {
    if (!cfg) return { min: -Infinity, max: Infinity };
    if (Array.isArray(cfg)) return { min: cfg[0], max: cfg[1] };
@@ -60,15 +56,7 @@ expression: "&output"
   });
   el.addEventListener('pointermove', (e) => {
    if (!isDragging) return;
-   const now = performance.now();
    const raw = e.clientX - startPos;
-   if (lastMoveTime > 0) {
-    const dt = now - lastMoveTime;
-    const dp = Math.abs(raw - lastMovePos);
-    if (dt > 0) velocity = Math.min(velocityMax, dp / dt * 1000);
-   }
-   lastMoveTime = now;
-   lastMovePos = raw;
    let constrained = raw;
    if (raw < constraint.min) {
     const overshoot = constraint.min - raw;

@@ -853,7 +853,6 @@ fn test_drag_widget_derives_extent_from_keyframes() {
                     constraints: None,
                     elastic: None,
                     threshold: None,
-                    velocity_max: None,
                 },
                 motion_ref: Some("slideX".into()),
                 inline_motion: None,
@@ -939,7 +938,6 @@ fn test_drag_widget_without_translate_falls_back_unbounded() {
                     constraints: None,
                     elastic: None,
                     threshold: None,
-                    velocity_max: None,
                 },
                 motion_ref: Some("fadeOnly".into()),
                 inline_motion: None,
@@ -9500,7 +9498,7 @@ fn drag_trigger_passes_typed_constraints_to_widget() {
         "@motion dragX { from { translateX: 0 } to { translateX: 300 } over: 300ms }
          component Test {
              view {
-                 <div @drag-horizontal constraints: [-100, 100] elastic: 0.5 threshold: 0.3 velocity_max: 500 ={dragX}>drag me</div>
+                 <div @drag-horizontal constraints: [-100, 100] elastic: 0.5 threshold: 0.3 ={dragX}>drag me</div>
              }
          }",
     )
@@ -9519,15 +9517,17 @@ fn drag_trigger_passes_typed_constraints_to_widget() {
         out.contains("final double? constraintsMin;"),
         "widget must accept typed nullable constraintsMin"
     );
+    // v4 5.8: velocity_max removed — the drag-velocity tracker (and its
+    // velocityMax constructor arg) is gone with it.
     assert!(
-        out.contains("velocityMax: 500,"),
-        "velocity_max must flow into the widget constructor, got:
+        !out.contains("velocityMax"),
+        "velocityMax must be removed from the widget, got:
 {}",
         &out[..out.len().min(1200)]
     );
     assert!(
-        out.contains("_velocity = (dp / dt * 1000).clamp(0.0, widget.velocityMax);"),
-        "widget must track drag velocity clamped at velocityMax, got:
+        !out.contains("_velocity"),
+        "the velocity tracker must be pruned, got:
 {}",
         &out[..out.len().min(1200)]
     );

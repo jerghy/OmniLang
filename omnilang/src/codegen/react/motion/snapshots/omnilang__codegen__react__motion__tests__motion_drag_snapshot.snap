@@ -36,7 +36,6 @@ export function MotionDrag() {
         const constraints = [-100, 100];
         const elastic = 0.5;
         const threshold = 0.3;
-        // velocity_max is accepted but unused — the drag-velocity tracker was removed (no consumer; inertia decay is not implemented, ADR-054)
         const parseConstraint = (cfg) => {
             if (!cfg) return { min: -Infinity, max: Infinity };
             if (Array.isArray(cfg)) return { min: cfg[0], max: cfg[1] };

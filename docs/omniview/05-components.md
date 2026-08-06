@@ -233,7 +233,7 @@ component MyComponent {
 
 ### 高频场景：ref + @drag-* 触发器配合
 
-`ref.style.*` 已按 ADR-052 删除（DOM 专属 API，用信号 + style 绑定替代）。拖拽驱动的 60fps 位移由 `@drag-*` 触发器 + `@motion` 关键帧实现，最终值用 signal 保存。`@drag-*` 支持 `constraints:` / `elastic:` / `threshold:` / `velocity_max:` 控制维度（v2 BNF）：
+`ref.style.*` 已按 ADR-052 删除（DOM 专属 API，用信号 + style 绑定替代）。拖拽驱动的 60fps 位移由 `@drag-*` 触发器 + `@motion` 关键帧实现，最终值用 signal 保存。`@drag-*` 支持 `constraints:` / `elastic:` / `threshold:` 控制维度（v2 BNF；`velocity_max` 已移除——零消费者，见 deferral #84）：
 
 ```omni
 @motion dragSlideX {

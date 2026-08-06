@@ -916,7 +916,6 @@ fn lower_trigger_kind(
             constraints,
             elastic,
             threshold,
-            velocity_max,
         } => TriggerKind::DragHorizontal {
             constraints: lower_constraints(constraints, variant_map, semantics),
             elastic: elastic
@@ -925,24 +924,17 @@ fn lower_trigger_kind(
             threshold: threshold
                 .as_ref()
                 .map(|e| lower_expr(e, variant_map, None, semantics)),
-            velocity_max: velocity_max
-                .as_ref()
-                .map(|e| lower_expr(e, variant_map, None, semantics)),
         },
         AstKind::DragVertical {
             constraints,
             elastic,
             threshold,
-            velocity_max,
         } => TriggerKind::DragVertical {
             constraints: lower_constraints(constraints, variant_map, semantics),
             elastic: elastic
                 .as_ref()
                 .map(|e| lower_expr(e, variant_map, None, semantics)),
             threshold: threshold
-                .as_ref()
-                .map(|e| lower_expr(e, variant_map, None, semantics)),
-            velocity_max: velocity_max
                 .as_ref()
                 .map(|e| lower_expr(e, variant_map, None, semantics)),
         },

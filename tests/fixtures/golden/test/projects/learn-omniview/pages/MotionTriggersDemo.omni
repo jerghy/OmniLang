@@ -7,7 +7,7 @@ import { LearnDesign } from "../design";
 // ║  演示 @in-view / @scroll / @focus / @drag 触发器及其参数：      ║
 // ║    · @scroll  start: / end: / scrub:   滚动区间映射           ║
 // ║    · @drag-horizontal constraints: / elastic: / threshold:    ║
-// ║    · @drag-vertical  … velocity_max: 可选                    ║
+// ║    · @drag-vertical  constraints / elastic / threshold     ║
 // ╚══════════════════════════════════════════════════════════════╝
 
 // ═══ 动效定义 ═══

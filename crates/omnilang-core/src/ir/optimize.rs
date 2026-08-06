@@ -147,14 +147,12 @@ fn collect_idents_from_view(view: &ViewTree, used: &mut FxHashSet<String>) {
                         constraints,
                         elastic,
                         threshold,
-                        velocity_max,
                         ..
                     }
                     | TriggerKind::DragVertical {
                         constraints,
                         elastic,
                         threshold,
-                        velocity_max,
                         ..
                     } => {
                         if let Some((ref min, ref max)) = constraints {
@@ -165,9 +163,6 @@ fn collect_idents_from_view(view: &ViewTree, used: &mut FxHashSet<String>) {
                             collect_idents(e, used);
                         }
                         if let Some(ref e) = threshold {
-                            collect_idents(e, used);
-                        }
-                        if let Some(ref e) = velocity_max {
                             collect_idents(e, used);
                         }
                     }

@@ -192,7 +192,7 @@ trigger_attr      ::= '@enter' | '@hover' | '@press' | '@focus' | '@in-view'
                     | '@drag-horizontal' drag_params? | '@drag-vertical' drag_params?
 scroll_params     ::= 'start:' expr 'end:' expr 'scrub:' bool      (* 恢复 *)
 drag_params       ::= 'constraints:' '[' expr ',' expr ']'
-                      'elastic:' expr 'threshold:' expr ('velocity_max:' expr)?   (* 恢复 *)
+                      'elastic:' expr 'threshold:' expr   (* 恢复 *)
 keyframe_body     ::= '{' prop ':' expr (';' prop ':' expr)* '}'   (* map 形式，保留 v1 *)
                     | '{' 'over:' duration 'from' '{...}' 'to' '{...}' '}'  (* 完整体 = 设计记录，未实现 *)
 playback          ::= 'loop:' | 'count:' | 'direction:' | 'delay:' | 'fill:' | 'duration:' | 'easing:' | 'steps:'   (* 保留 v1 *)
@@ -201,7 +201,7 @@ whitelist         ::= 19 项（17 保留 + borderRadius + fontSize）   (* 语�
 
 **删除**：`paused`（属性与播放参数）→ 硬诊断「用条件渲染（@if 信号）替代」
 
-**新增**：`borderRadius`/`fontSize` 入白名单；`@scroll`/`@drag-*` 控制维度恢复（start/end/scrub、constraints/elastic/threshold，velocity_max 可选）
+**新增**：`borderRadius`/`fontSize` 入白名单；`@scroll`/`@drag-*` 控制维度恢复（start/end/scrub、constraints/elastic/threshold；`velocity_max` v2 恢复后于 v4 移除——零消费者，见 deferral #84）
 
 #### 语义集 vs 实现状态（Task 7.2，设计 P3）
 
@@ -279,7 +279,7 @@ TweenAnimationBuilder<double>(
 
 - [x] borderRadius/fontSize 三目标动画运行（浏览器 + 快照）— Task 5.2：白名单 19 + BorderRadiusTween/TextStyle 映射 + React Npx 单位 + 快照/tsc/dart-analyze 验证
 - [x] @scroll start/end/scrub：滚动区间行为（浏览器实测进度 → 动画）— Task 5.1：@scroll/@drag 维度恢复 + node 实证（scrollY=500 → progress 0.5 + clamp；scrub 收敛实测）+ Flutter 数值分支执行级测试
-- [x] @drag constraints/elastic：拖拽范围限制 + 弹性回弹（浏览器手势）— Task 5.1：node 实证（过冲 -150 → -125 → 0.625 弹性回弹；velocity_max Flutter/OmniView 消费、React 接受但忽略）+ 浏览器套件 @drag 300px 实证（T7.1）
+- [x] @drag constraints/elastic：拖拽范围限制 + 弹性回弹（浏览器手势）— Task 5.1：node 实证（过冲 -150 → -125 → 0.625 弹性回弹）+ 浏览器套件 @drag 300px 实证（T7.1）。`velocity_max`（同轮恢复）v4 已移除——零消费者（拖拽速度跟踪器无消费方，Flutter/OmniView 跟踪器随之剪除），见 deferral #84
 - [x] @if mode:"fade" Flutter 视觉淡入（shape 断言 + 真实 dart analyze 替代——仓库无 widget-test 基建，T4.5 a11y 同先例）
 - [x] paused → error + 迁移提示 — Task 5.3：paused 双形式硬诊断（E_PAUSED_REMOVED verbatim）+ PlaybackProp::Paused 死变体删除 + 文档清剿
 - [x] Flutter 共享 runtime 文件生成（多组件不重复）— Task 5.6：`_omniview_runtime.dart` 共享（3/79 按需门控）+ 类型化配置（字符串解析清零）+ scrub Ticker 时间

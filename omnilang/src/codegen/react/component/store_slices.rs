@@ -856,9 +856,7 @@ fn collect_mutation_store_field_refs(
 /// Store → referenced-field map from MOTION contexts: motion value
 /// expressions (keyframe stops, `over`, `delay`) and trigger control
 /// dimensions (`@in-view` thresholds, `@scroll` start/end/scrub,
-/// `@drag-*` constraints/elastic/threshold). `velocity_max` is excluded —
-/// the React drag-velocity tracker was removed (task 2.11), so a
-/// velocity_max store ref would emit an unused slice local.
+/// `@drag-*` constraints/elastic/threshold).
 ///
 /// Before Task 2.10 (perf M1) these references forced the WHOLE-store
 /// subscription: motion value formatting carried no slice renames, so the
@@ -942,13 +940,6 @@ pub(super) fn motion_store_field_refs(
                         if let Some(e) = threshold {
                             collect_expr_store_field_refs(e, &mut acc, &mut bare);
                         }
-                        // velocity_max is deliberately NOT collected
-                        // (task 2.11): the drag-velocity tracker was removed
-                        // from the React drag effect — its value had no
-                        // consumer (inertia decay unimplemented) and the
-                        // tracker linted as an unused variable. A
-                        // velocity_max store ref would otherwise produce an
-                        // unused slice local.
                     }
                     _ => {}
                 }

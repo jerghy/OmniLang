@@ -496,7 +496,7 @@ fn drag_with_constraints_consumes_range_and_elastic() {
 }
 component Test {
     view {
-        <div @drag-horizontal constraints: [-100, 100] elastic: 0.5 threshold: 0.3 velocity_max: 500 ={dragX300}>drag me</div>
+        <div @drag-horizontal constraints: [-100, 100] elastic: 0.5 threshold: 0.3 ={dragX300}>drag me</div>
     }
 }
 "#;
@@ -513,11 +513,11 @@ component Test {
 {}",
         &output[..output.len().min(800)]
     );
-    // Task 2.11: the drag-velocity tracker was REMOVED — its `velocity`
-    // variable was written every pointermove but never read (inertia decay
-    // is unimplemented on every target, ADR-054), so it linted as an unused
-    // variable. velocity_max is accepted but a no-op; an explicit value only
-    // keeps the honest-degradation comment.
+    // Task 2.11 (v4 5.8): the drag-velocity tracker was REMOVED — its
+    // `velocity` variable was written every pointermove but never read
+    // (inertia decay is unimplemented on every target, ADR-054), so it linted
+    // as an unused variable. velocity_max was its only consumer and is now
+    // removed syntax (zero consumers — parser rejects it).
     assert!(
         !output.contains("const velocityMax"),
         "velocity tracker must be pruned (no consumer), got partial:
@@ -531,8 +531,8 @@ component Test {
         &output[..output.len().min(800)]
     );
     assert!(
-        output.contains("velocity_max is accepted but unused"),
-        "an explicit velocity_max must keep the honest-degradation comment, got partial:
+        !output.contains("velocity_max"),
+        "velocity_max must not appear in generated code, got partial:
 {}",
         &output[..output.len().min(800)]
     );
