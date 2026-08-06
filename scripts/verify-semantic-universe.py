@@ -26,7 +26,9 @@ same ground truth verify-vocabulary.py (Task 7.1) consumes:
   array   ↔ ARRAY_METHODS in crates/omnilang-core/src/semantic/validate_array_methods.rs
             (filter/map/count — the implemented language methods)
   events  ↔ canonical names in crates/omnilang-core/src/codegen/shared/event_names.rs
-            (54 canonical event names)
+            (54 canonical event names); 域 3「支持 无（全目标）」行 ⊆ Flutter
+            callback map keys in omnilang/src/codegen/flutter/utils.rs (v4 5.1 —
+            台账「全目标支持」以编译器的 Flutter 映射事实为源，不再自证)
   RefOp   ↔ RefOpIR variants in crates/omnilang-core/src/ir/types.rs
             (RefOp 10 ops)
   token   ↔ token_type production in the BNF spec
@@ -62,6 +64,7 @@ BNF_SPEC_FILE = os.path.join(
     REPO_ROOT, "docs", "superpowers", "specs",
     "2026-07-31-semantic-level-dsl-syntax-spec.md",
 )
+FLUTTER_UTILS_FILE = os.path.join(REPO_ROOT, "omnilang", "src", "codegen", "flutter", "utils.rs")
 
 # ── universe section contract ─────────────────────────────────────────────
 # Domain titles must contain the expected keyword (in order 1..5).
@@ -90,6 +93,18 @@ def event_canonical_names(text):
     """Canonical event names from the shared event table — every
     `... => Some("name")` match arm."""
     return sorted(set(re.findall(r'=>\s*Some\("([^"]+)"\)', text)))
+
+
+def flutter_callback_names(text):
+    """Canonical names the Flutter callback map recognizes — string keys of
+    `flutter_callback_for_canonical` in flutter/utils.rs (v4 5.1: the fact
+    source for universe「支持 无（全目标）」rows — 台账不再自证)."""
+    m = re.search(r'fn flutter_callback_for_canonical\([^)]*\) -> String \{(.*?)\n\}', text, re.S)
+    if not m:
+        return None
+    # All quoted string keys in the match arms are lowercase canonical names;
+    # the callback outputs ("onPressed", …) are capitalized and not matched.
+    return sorted(set(re.findall(r'"([a-z]+)"', m.group(1))))
 
 
 def array_method_words(text):
@@ -176,6 +191,44 @@ def first_column_rows(text):
     if headers is None or rows is None:
         return None
     return [r[0] for r in rows]
+
+
+def event_rows(text):
+    """(canonical, status, diag) tuples of the 域 3 语义集条目 table (or None)."""
+    sections = split_domains(text)
+    if 3 not in sections:
+        return None
+    sub = subsection(sections[3][1], "语义集条目")
+    if sub is None:
+        return None
+    headers, rows = table_rows(sub)
+    if headers is None or rows is None:
+        return None
+    si = column_index(headers, STATUS_COLUMN)
+    di = column_index(headers, DIAG_COLUMN)
+    if si is None or di is None:
+        return None
+    return [(r[0], r[si], r[di]) for r in rows]
+
+
+def check_event_claims(rows, mapped):
+    """域 3「支持 无（全目标）」行必须出现在 Flutter 回调映射中——
+    hover/toggle/longpress 曾宣称全目标支持但 web 两目标静默不触发
+    （v4 review domain HIGH-1）；「同上」行继承上一行诊断（cut/paste 与
+    copy 同一声明）。"""
+    errors = []
+    mapped = set(mapped or [])
+    prev_diag = ""
+    for canonical, status, diag in rows:
+        if diag == "同上":
+            diag = prev_diag
+        if status == "支持" and "全目标" in diag and canonical not in mapped:
+            errors.append(
+                f"域3 {canonical}: 宣称「支持 无（全目标）」但 Flutter 回调映射缺失——"
+                f"须改标「部分」或补映射（flutter/utils.rs callback map）"
+            )
+        prev_diag = diag
+    return errors
 
 
 # ── audit ────────────────────────────────────────────────────────────────
@@ -308,6 +361,17 @@ def audit():
     wl3, en3 = whitelist(3), entries(3)
     assert_set("事件", wl3, event_canonical_names(read_file(EVENT_TABLE_FILE)), "已实现白名单")
     assert_matrix("事件", en3, wl3)
+    # events (域 3): 「支持 无（全目标）」行 ⊆ Flutter 回调映射（v4 5.1 事实断言——
+    # hover/toggle/longpress 曾宣称全目标支持但 web 两目标静默不触发）
+    rows3 = event_rows(universe)
+    if rows3 is None:
+        fail("事件: cannot cross-assert Flutter mapping (domain 3 语义集条目 extraction failed)")
+    else:
+        mapped = flutter_callback_names(read_file(FLUTTER_UTILS_FILE))
+        if mapped is None:
+            fail("事件: cannot cross-assert Flutter mapping (flutter/utils.rs callback map extraction failed)")
+        else:
+            problems.extend(check_event_claims(rows3, mapped))
 
     # RefOp (域 4): whitelist == RefOpIR variants (10, casefolded)
     wl4, en4 = whitelist(4), entries(4)
