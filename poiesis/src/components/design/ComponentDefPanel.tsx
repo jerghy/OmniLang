@@ -434,6 +434,33 @@ function generatePid(): string {
   return `pid-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+// ── 调试值提交/回显统一（fix1 裁决）：DebugValueEntry.text 语义 = 可注入字面量
+//（parseDebugValue 输出，applyDebugOverrides verbatim 替换）；回显时剥 String
+// 引号还原用户文本。非法输入存原文（不参与覆盖，回显原样供继续编辑）。──
+
+/** 回显：字面量 → 用户友好文本（String 剥首尾引号："hello" → hello） */
+function displayDebugText(type: string, literal: string): string {
+  if (type !== "String") return literal;
+  if (literal.length >= 2) {
+    const first = literal[0];
+    const last = literal[literal.length - 1];
+    if ((first === '"' || first === "'") && last === first) return literal.slice(1, -1);
+  }
+  return literal;
+}
+
+/** 提交：合法输入存解析后字面量（String 自动补引号）；非法输入存原文 */
+function commitDebugValue(
+  setDebugValue: (ownerKey: string, name: string, text: string, valid: boolean) => void,
+  ownerKey: string,
+  name: string,
+  type: string,
+  raw: string,
+) {
+  const parsed = parseDebugValue(type, raw);
+  setDebugValue(ownerKey, name, parsed.valid ? parsed.literal : raw, parsed.valid);
+}
+
 // 稳定空数组：避免 def 缺失时每次渲染重建 [] 使 useMemo 依赖失效
 const EMPTY_SIGNALS: DefEntry[] = [];
 
@@ -956,11 +983,11 @@ function SignalDebugRow({ ownerKey, usage }: SignalDebugRowProps) {
   const setDebugValue = usePoiesisStore((s) => s.setDebugValue);
   const debugValues = usePoiesisStore((s) => s.debugValues);
   const entry = debugValues[ownerKey]?.[usage.key];
-  const text = entry?.text ?? "";
+  // fix1：entry.text 是可注入字面量 → 回显剥 String 引号还原用户文本
+  const text = entry ? displayDebugText(usage.declaredType, entry.text) : "";
 
   const handleChange = (value: string) => {
-    const parsed = parseDebugValue(usage.declaredType, value);
-    setDebugValue(ownerKey, usage.key, value, parsed.valid);
+    commitDebugValue(setDebugValue, ownerKey, usage.key, usage.declaredType, value);
   };
 
   const isNumeric = ["i32", "i64", "f64", "f32"].includes(usage.declaredType);
@@ -980,6 +1007,7 @@ function SignalDebugRow({ ownerKey, usage }: SignalDebugRowProps) {
       />
       {isNumeric && (
         <button type="button" style={S.stepBtn} onClick={() => {
+          // 步进基于当前显示值（数字信号显示即字面量）走同一提交路径
           const cur = text === "" ? "0" : text;
           const next = String(Number(cur) + 1);
           handleChange(next);
@@ -1004,13 +1032,13 @@ function InterfaceSignalCard({ ownerKey, usage, fnSources }: InterfaceSignalCard
   const debugValues = usePoiesisStore((s) => s.debugValues);
   const debugOverridesEnabled = usePoiesisStore((s) => s.debugOverridesEnabled);
   const entry = debugValues[ownerKey]?.[usage.key];
-  const text = entry?.text ?? "";
+  // fix1：entry.text 是可注入字面量 → 回显剥 String 引号还原用户文本
+  const text = entry ? displayDebugText(usage.declaredType, entry.text) : "";
   const valid = entry ? entry.valid : true;
 
-  // 输入框：解析后存字面量（String 自动补引号，与 Task 3 的 verbatim 覆盖契约一致）
+  // 输入框：与 SignalDebugRow 同一提交路径（合法存字面量，非法存原文）
   const applyValue = (raw: string) => {
-    const parsed = parseDebugValue(usage.declaredType, raw);
-    setDebugValue(ownerKey, usage.key, parsed.literal, parsed.valid);
+    commitDebugValue(setDebugValue, ownerKey, usage.key, usage.declaredType, raw);
   };
 
   // 分支胶囊：单信号简单比较可合成；复杂（比较不全/含调用）置灰。
@@ -1026,7 +1054,9 @@ function InterfaceSignalCard({ ownerKey, usage, fnSources }: InterfaceSignalCard
         if (!cmp || !debugOverridesEnabled) return;
         const result = synthesizeConditionValue(cmp, "true");
         if (!result.valid) return;
-        setDebugValue(ownerKey, usage.key, result.literal, true);
+        // fix1：合成值按类型补引号（String）→ 存可注入字面量；数字/bool 原样
+        const raw = usage.declaredType === "String" ? `"${result.literal}"` : result.literal;
+        setDebugValue(ownerKey, usage.key, raw, true);
       };
       return (
         <button key={branchIdx} type="button"

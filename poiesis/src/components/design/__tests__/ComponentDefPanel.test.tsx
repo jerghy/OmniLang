@@ -184,6 +184,26 @@ describe("信号调试 Tab（数据信号行）", () => {
     fireEvent.click(screen.getByRole("button", { name: /重置全部/ }));
     expect(mockState.clearDebugValues).toHaveBeenCalled();
   });
+
+  // fix1 裁决：SignalDebugRow（Task 9）一并修复——text 语义 = 可注入字面量
+  // （parseDebugValue 输出），回显剥 String 引号还原用户文本。
+  it("String 信号：输入补引号存字面量 + 回显剥引号（Task 9 fix1 一并修复）", () => {
+    // title 不在 view 的 @if/@for 中 → 数据信号，出现在信号调试 Tab
+    mockState.componentDefs = {
+      Card: {
+        signals: [
+          { pid: "s1", name: "title", type: "String", defaultValue: '"x"' },
+          { pid: "s2", name: "status", type: "String", defaultValue: '"x"' },
+        ],
+        props: [], computeds: [],
+      },
+    };
+    render(<ComponentDefPanel />);
+    fireEvent.click(screen.getByRole("tab", { name: /^信号调试$/ }));
+    fireEvent.change(screen.getByLabelText("title 值"), { target: { value: "loading" } });
+    expect(mockState.setDebugValue).toHaveBeenCalledWith("Card", "title", '"loading"', true);
+    expect((screen.getByLabelText("title 值") as HTMLInputElement).value).toBe("loading");
+  });
 });
 
 // ── 界面信号调试 Tab（Task 10：信号卡 + 分支胶囊 + 列表胶囊）──
@@ -217,7 +237,22 @@ describe("界面信号调试 Tab（信号卡）", () => {
     expect(screen.getByTestId("interface-tab")).toBeTruthy();
     expect(screen.getByText("status")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /loading/ }));
-    expect(mockState.setDebugValue).toHaveBeenCalledWith("Card", "status", "loading", true);
+    // fix1 裁决：text 语义 = 可注入字面量 → String 合成值补引号入库
+    expect(mockState.setDebugValue).toHaveBeenCalledWith("Card", "status", '"loading"', true);
+  });
+
+  it("String 输入：补引号存字面量 + 回显剥引号（fix1）", () => {
+    mockState.componentDefs = {
+      Card: {
+        signals: [{ pid: "s1", name: "status", type: "String", defaultValue: '"x"' }],
+        props: [], computeds: [],
+      },
+    };
+    render(<ComponentDefPanel />);
+    fireEvent.change(screen.getByLabelText("status 值"), { target: { value: "loading" } });
+    expect(mockState.setDebugValue).toHaveBeenCalledWith("Card", "status", '"loading"', true);
+    // 回显：字面量剥首尾引号 → 用户友好文本
+    expect((screen.getByLabelText("status 值") as HTMLInputElement).value).toBe("loading");
   });
 
   it("复杂条件分支胶囊置灰", () => {
