@@ -108,7 +108,8 @@ export interface ParseContext {
 export interface ViewElementAttrs {
   id: string | null;
   className: string;
-  attrs: Record<string, string>;
+  /** 值可为 string（attr="值"/{expr} 保真）或 true（裸布尔属性，D3）——三态约定 */
+  attrs: Record<string, string | boolean>;
   events: Record<string, string>;
   /** Two-way data bindings parsed from bind:xxx={yyy} syntax */
   bindings: Record<string, string>;
