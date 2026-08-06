@@ -201,7 +201,12 @@ export interface PoiesisState {
   removeComponentSignal: (compName: string, pid: string) => void;
   setDebugValue: (ownerKey: string, name: string, text: string, valid: boolean) => void;
   clearDebugValues: () => void;
+  clearDebugValue: (ownerKey: string, name: string) => void;
   setDebugOverridesEnabled: (enabled: boolean) => void;
+  /** 用户添加的数据值候选（字面量数组）——调试辅助状态，不 dirty 项目 */
+  debugValueCandidates: Record<string, Record<string, string[]>>;
+  addDebugValueCandidate: (ownerKey: string, name: string, literal: string) => void;
+  removeDebugValueCandidate: (ownerKey: string, name: string, literal: string) => void;
 
   // ── Component prop CRUD ──
   addComponentProp: (compName: string, prop: { pid: string; name: string; type: string; defaultValue?: unknown }) => void;

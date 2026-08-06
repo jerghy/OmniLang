@@ -99,7 +99,27 @@ export function createComponentLifecycleSlice(set: SetFn, get: GetFn) {
       };
     }),
     clearDebugValues: () => set({ debugValues: {} }),
+    clearDebugValue: (ownerKey: string, name: string) => set((s) => {
+      const ownerValues = { ...(s.debugValues[ownerKey] || {}) };
+      delete ownerValues[name];
+      return { debugValues: { ...s.debugValues, [ownerKey]: ownerValues } };
+    }),
     setDebugOverridesEnabled: (enabled: boolean) => set({ debugOverridesEnabled: enabled }),
+    addDebugValueCandidate: (ownerKey: string, name: string, literal: string) => set((s) => {
+      const ownerCands = { ...(s.debugValueCandidates[ownerKey] || {}) };
+      const list = [...(ownerCands[name] || [])];
+      if (!list.includes(literal)) list.push(literal);
+      return {
+        debugValueCandidates: { ...s.debugValueCandidates, [ownerKey]: { ...ownerCands, [name]: list } },
+      };
+    }),
+    removeDebugValueCandidate: (ownerKey: string, name: string, literal: string) => set((s) => {
+      const ownerCands = { ...(s.debugValueCandidates[ownerKey] || {}) };
+      const list = (ownerCands[name] || []).filter((l) => l !== literal);
+      return {
+        debugValueCandidates: { ...s.debugValueCandidates, [ownerKey]: { ...ownerCands, [name]: list } },
+      };
+    }),
 
     // ── Component signal CRUD ──
     addComponentSignal: (compName: string, signal: DefEntry) => set((s) => {

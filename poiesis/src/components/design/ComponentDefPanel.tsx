@@ -262,6 +262,11 @@ const S = {
     fontSize: "var(--ol-font-size-12)",
   } as React.CSSProperties,
 
+  // 数据信号行：输入行 + 数据胶囊行（2026-08-06 用户建议）
+  debugRowWrap: {
+    borderTop: "1px solid var(--ol-border-subtle)",
+  } as React.CSSProperties,
+
   debugName: {
     fontWeight: "var(--ol-font-weight-600)",
     flexShrink: 0,
@@ -363,6 +368,51 @@ const S = {
     gap: "4px",
     marginTop: "4px",
     flexWrap: "wrap",
+  } as React.CSSProperties,
+
+  addChipBtn: {
+    flexShrink: 0,
+    padding: "1px 6px",
+    fontSize: "var(--ol-font-size-11)",
+    fontWeight: "var(--ol-font-weight-600)",
+    border: "1px solid var(--ol-border)",
+    borderRadius: "var(--ol-radius-sm)",
+    background: "var(--ol-surface)",
+    color: "var(--ol-text-secondary)",
+    cursor: "pointer",
+    lineHeight: "18px",
+  } as React.CSSProperties,
+
+  dataChipWrap: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 2,
+    position: "relative" as const,
+  },
+
+  dataChip: (active: boolean): React.CSSProperties => ({
+    padding: "1px 7px",
+    fontSize: "var(--ol-font-size-11)",
+    fontWeight: "var(--ol-font-weight-600)",
+    border: "1px solid var(--ol-border)",
+    borderRadius: "var(--ol-radius-sm)",
+    background: "var(--ol-surface)",
+    color: "var(--ol-text-secondary)",
+    cursor: "pointer",
+    lineHeight: "18px",
+    ...(active
+      ? { background: "var(--ol-color-primary)", color: "var(--ol-text-inverse)", borderColor: "var(--ol-color-primary)" }
+      : {}),
+  }),
+
+  dataChipRemove: {
+    background: "none",
+    border: "none",
+    color: "var(--ol-text-muted)",
+    cursor: "pointer",
+    fontSize: 11,
+    padding: "0 2px",
+    lineHeight: 1,
   } as React.CSSProperties,
 
   quickChip: {
@@ -1065,7 +1115,11 @@ interface SignalDebugRowProps {
 
 function SignalDebugRow({ ownerKey, usage }: SignalDebugRowProps) {
   const setDebugValue = usePoiesisStore((s) => s.setDebugValue);
+  const clearDebugValue = usePoiesisStore((s) => s.clearDebugValue);
   const debugValues = usePoiesisStore((s) => s.debugValues);
+  const debugValueCandidates = usePoiesisStore((s) => s.debugValueCandidates);
+  const addDebugValueCandidate = usePoiesisStore((s) => s.addDebugValueCandidate);
+  const removeDebugValueCandidate = usePoiesisStore((s) => s.removeDebugValueCandidate);
   // F3 修复：store 信号键拆分 → 覆盖管线消费的 (owner, name)，读写一致
   const { owner, name } = splitOwnerKey(usage.key, ownerKey);
   const entry = debugValues[owner]?.[name];
@@ -1079,27 +1133,70 @@ function SignalDebugRow({ ownerKey, usage }: SignalDebugRowProps) {
   const isNumeric = ["i32", "i64", "f64", "f32"].includes(usage.declaredType);
   const invalid = Boolean(entry && !entry.valid);
 
+  // 数据胶囊（2026-08-06 用户建议：与界面信号卡一致——添加按钮 + 类型默认 + 用户候选）
+  const typeCandidates: string[] = [];
+  if (usage.declaredType === "bool") typeCandidates.push("true", "false");
+  if (isNumeric) typeCandidates.push("0", "1", "-1");
+  const userCandidates = debugValueCandidates[owner]?.[name] || [];
+  // Set 查重（React Doctor js-set-map-lookups）：候选列表小但 map 内每项都查
+  const userSet = new Set(userCandidates);
+  const dataCandidates = [...userCandidates, ...typeCandidates.filter((c) => !userSet.has(c))];
+
   return (
-    <div style={S.debugRow}>
-      <span style={S.debugName}>{usage.key}</span>
-      <span style={S.debugType}>{usage.declaredType}</span>
-      <input
-        aria-label={`${usage.key} 值`}
-        style={{ ...S.debugValueInput, ...(invalid ? S.invalidInput : {}) }}
-        className={invalid ? "invalid" : undefined}
-        value={text}
-        placeholder="默认值"
-        onChange={(e) => handleChange(e.target.value)}
-      />
-      {isNumeric && (
-        <button type="button" style={S.stepBtn} aria-label={`${usage.key} 加一`} onClick={() => {
-          // 步进基于当前显示值（数字信号显示即字面量）走同一提交路径；
-          // 非法文本 Number() → NaN：守卫回退 "0"，不产出 "NaN"
-          const cur = text === "" ? "0" : text;
-          const num = Number(cur);
-          const next = Number.isNaN(num) ? "0" : String(num + 1);
-          handleChange(next);
-        }}>＋</button>
+    <div style={S.debugRowWrap}>
+      <div style={S.debugRow}>
+        <span style={S.debugName}>{usage.key}</span>
+        <span style={S.debugType}>{usage.declaredType}</span>
+        <input
+          aria-label={`${usage.key} 值`}
+          style={{ ...S.debugValueInput, ...(invalid ? S.invalidInput : {}) }}
+          className={invalid ? "invalid" : undefined}
+          value={text}
+          placeholder="默认值"
+          onChange={(e) => handleChange(e.target.value)}
+        />
+        {isNumeric && (
+          <button type="button" style={S.stepBtn} aria-label={`${usage.key} 加一`} onClick={() => {
+            // 步进基于当前显示值（数字信号显示即字面量）走同一提交路径；
+            // 非法文本 Number() → NaN：守卫回退 "0"，不产出 "NaN"
+            const cur = text === "" ? "0" : text;
+            const num = Number(cur);
+            const next = Number.isNaN(num) ? "0" : String(num + 1);
+            handleChange(next);
+          }}>＋</button>
+        )}
+        <button type="button" style={S.addChipBtn}
+          disabled={!entry?.valid}
+          title="把当前输入值添加为可复选的数据胶囊"
+          onClick={() => entry?.valid && addDebugValueCandidate(owner, name, entry.text)}>＋ 添加</button>
+      </div>
+      {dataCandidates.length > 0 && (
+        <div style={S.chipRow} data-testid="data-candidates">
+          {dataCandidates.map((cand) => {
+            const candActive = Boolean(entry?.valid && stripQuotes(cand) === stripQuotes(entry.text));
+            const isUser = userSet.has(cand);
+            return (
+              <span key={cand} style={S.dataChipWrap}>
+                <button type="button" style={S.dataChip(candActive)}
+                  title={candActive ? "当前值 —— 点击取消" : `填入 ${displayDebugText(usage.declaredType, cand)}`}
+                  onClick={() => {
+                    if (candActive) {
+                      clearDebugValue(owner, name);
+                    } else {
+                      setDebugValue(owner, name, cand, true);
+                    }
+                  }}>
+                  {displayDebugText(usage.declaredType, cand)}
+                </button>
+                {isUser && (
+                  <button type="button" style={S.dataChipRemove}
+                    title="删除此数据胶囊"
+                    onClick={() => removeDebugValueCandidate(owner, name, cand)}>×</button>
+                )}
+              </span>
+            );
+          })}
+        </div>
       )}
     </div>
   );
@@ -1117,8 +1214,12 @@ interface InterfaceSignalCardProps {
 
 function InterfaceSignalCard({ ownerKey, usage, fnSources }: InterfaceSignalCardProps) {
   const setDebugValue = usePoiesisStore((s) => s.setDebugValue);
+  const clearDebugValue = usePoiesisStore((s) => s.clearDebugValue);
   const debugValues = usePoiesisStore((s) => s.debugValues);
   const debugOverridesEnabled = usePoiesisStore((s) => s.debugOverridesEnabled);
+  const debugValueCandidates = usePoiesisStore((s) => s.debugValueCandidates);
+  const addDebugValueCandidate = usePoiesisStore((s) => s.addDebugValueCandidate);
+  const removeDebugValueCandidate = usePoiesisStore((s) => s.removeDebugValueCandidate);
   // F3 修复：store 信号键拆分 → 覆盖管线消费的 (owner, name)，读写一致
   const { owner, name } = splitOwnerKey(usage.key, ownerKey);
   const entry = debugValues[owner]?.[name];
@@ -1131,18 +1232,14 @@ function InterfaceSignalCard({ ownerKey, usage, fnSources }: InterfaceSignalCard
     commitDebugValue(setDebugValue, owner, name, usage.declaredType, raw);
   };
 
-  // 分支胶囊（F2/F5 修复）：
-  // - 多分支链：非 else 分支点选驱动成真（语义不变）；else 分支点选驱动成假——
-  //   合成同链首个可合成的非 else 条件之假值，写入该 comparison 的信号
-  //   （spec 4.4 边界「else 分支 → 对每个条件各自取成假值」的链级启发式）。
-  // - 单分支链（D12）：二态开关——点击在成真/成假间 toggle，active 跟随当前态。
-  // - active（F5/D9）：该分支的合成字面量（按类型格式化后剥引号）=== 当前
-  //   entry.text（剥引号）→ 该分支高亮；手改值失配即全部取消。
-  // 用 2D 结构而非 flatMap：brief 的 branchButtons[i*chainLen+j] 在链长不等时
-  // 越位错配（测试契约之外的真实缺陷，见 task-10-report.md）。
+  // 分支胶囊（2026-08-06 用户交互修订：填入 + 可取消）：
+  // - 点击胶囊 = 合成值填入输入框并生效（active 高亮 = 当前调试值匹配合成值）
+  // - 再点同一胶囊 = 取消——清除该信号调试值（回默认渲染），胶囊取消高亮
+  // - 手改输入框 = 写入数据值，胶囊高亮取消（F5）
+  // - 单分支不再二态 toggle（原 D12）；成假通过输入框/数据胶囊
+  // - else 分支：合成同链首个可合成非 else 条件之假值（spec 4.4 链级启发式）
   const branchButtons = usage.conditions.map((chain) => {
     const single = chain.branches.length === 1;
-    // else 分支合成目标：同链首个 goal=false 可合成的非 else comparison（单遍）
     const elseTarget = single
       ? undefined
       : chain.branches
@@ -1152,60 +1249,39 @@ function InterfaceSignalCard({ ownerKey, usage, fnSources }: InterfaceSignalCard
       const cmp = branch.comparisons[0];
       const isElse = branch.isElse;
       const label = isElse ? "else" : branch.exprText || "?";
-
-      if (single) {
-        // D12 二态开关：同一胶囊在成真/成假间 toggle
-        const trueResult = cmp ? synthesizeConditionValue(cmp, "true") : null;
-        const falseResult = cmp ? synthesizeConditionValue(cmp, "false") : null;
-        const trueLit = trueResult?.valid ? stringifyLiteral(usage.declaredType, trueResult.literal) : null;
-        const falseLit = falseResult?.valid ? stringifyLiteral(usage.declaredType, falseResult.literal) : null;
-        const drivenTrue = Boolean(entry?.valid && trueLit !== null && stripQuotes(trueLit) === stripQuotes(entry.text));
-        const drivenFalse = Boolean(entry?.valid && falseLit !== null && stripQuotes(falseLit) === stripQuotes(entry.text));
-        const synthesizable = trueResult?.valid === true;
-        const handleClick = () => {
-          if (!synthesizable || !debugOverridesEnabled) return;
-          // 当前成真 → 切换成假；否则（成假或未驱动）→ 成真
-          const next = drivenTrue && falseResult ? falseResult : trueResult;
-          if (!next) return;
-          setDebugValue(owner, name, stringifyLiteral(usage.declaredType, next.literal), true);
-        };
-        return (
-          <button key={branchIdx} type="button"
-            style={S.branchChip(drivenTrue || drivenFalse)}
-            disabled={!synthesizable || !debugOverridesEnabled}
-            title={!synthesizable ? "复杂条件，请在输入框手动调"
-              : drivenTrue ? "当前：成真 —— 点击切换成假"
-              : drivenFalse ? "当前：成假 —— 点击切换成真"
-              : "二态开关：点击成真，再点击成假"}
-            onClick={handleClick}>
-            {label}
-          </button>
-        );
-      }
-
-      // 多分支链：非 else 成真；else 成假（合成到同链目标 comparison 的信号）
       const target = isElse ? elseTarget : cmp;
       const result = target ? synthesizeConditionValue(target, isElse ? "false" : "true") : null;
       const synthesizable = result !== null && result.valid;
       const formatted = result?.valid ? stringifyLiteral(usage.declaredType, result.literal) : null;
+      // 该胶囊是否「当前驱动」：调试值 === 合成字面量（剥引号比较，F5）
       const active = Boolean(entry?.valid && formatted !== null && stripQuotes(formatted) === stripQuotes(entry.text));
       const handleClick = () => {
         if (!target || !synthesizable || !debugOverridesEnabled) return;
         const r = synthesizeConditionValue(target, isElse ? "false" : "true");
         if (!r.valid) return;
         if (isElse) {
-          // else 分支合成结果写入该 comparison 的信号（F2；同信号链即本卡信号）
-          const t = splitOwnerKey(target.sig, ownerKey);
-          setDebugValue(t.owner, t.name, stringifyLiteral(usage.declaredType, r.literal), true);
+          // else 分支合成结果写入该 comparison 的信号（F2 链级启发式）
+          const tgt = splitOwnerKey(target.sig, ownerKey);
+          if (active) {
+            clearDebugValue(tgt.owner, tgt.name);
+          } else {
+            setDebugValue(tgt.owner, tgt.name, stringifyLiteral(usage.declaredType, r.literal), true);
+          }
         } else {
-          setDebugValue(owner, name, stringifyLiteral(usage.declaredType, r.literal), true);
+          if (active) {
+            clearDebugValue(owner, name);
+          } else {
+            setDebugValue(owner, name, stringifyLiteral(usage.declaredType, r.literal), true);
+          }
         }
       };
       return (
         <button key={branchIdx} type="button"
           style={S.branchChip(active)}
           disabled={!synthesizable || !debugOverridesEnabled}
-          title={!synthesizable ? "复杂条件，请在输入框手动调" : isElse ? "驱动该分支成真（其余条件取假）" : "驱动该分支成真"}
+          title={!synthesizable ? "复杂条件，请在输入框手动调"
+            : active ? "当前驱动此分支 —— 点击取消"
+            : isElse ? "驱动该分支成真（其余条件取假）" : "驱动该分支成真"}
           onClick={handleClick}>
           {label}
         </button>
@@ -1213,6 +1289,24 @@ function InterfaceSignalCard({ ownerKey, usage, fnSources }: InterfaceSignalCard
     });
   });
 
+  // 数据胶囊（2026-08-06 用户建议：「添加」按钮 + 可复选数据选项）：
+  // - 类型默认候选：bool → true/false；数字 → 0/1/-1（不持久化，派生）
+  // - 用户「＋ 添加」：把输入框当前值存为候选（debugValueCandidates，会话内持久）
+  // - 数据胶囊点击 = 填入输入框并生效（active 高亮 = 当前值匹配）；与条件胶囊并列分区
+  const typeCandidates: string[] = [];
+  if (usage.declaredType === "bool") typeCandidates.push("true", "false");
+  if (["i32", "i64", "f64", "f32"].includes(usage.declaredType)) typeCandidates.push("0", "1", "-1");
+  const userCandidates = debugValueCandidates[owner]?.[name] || [];
+  // Set 查重（React Doctor js-set-map-lookups）：候选列表小但 map 内每项都查
+  const userSet = new Set(userCandidates);
+  const dataCandidates = [...userCandidates, ...typeCandidates.filter((c) => !userSet.has(c))];
+
+  const handleAddCandidate = () => {
+    if (!entry?.valid) return; // 非法值不收藏
+    addDebugValueCandidate(owner, name, entry.text);
+  };
+
+  // 列表胶囊：空数组 + 代码样本（struct 数组）+ 手动输入
   // 列表胶囊：空数组 + 代码样本（struct 数组）+ 手动输入
   const samples = usage.loops.length > 0 && /Array</.test(usage.declaredType)
     ? extractAssignSamples(fnSources, usage.key.split(".").pop()!)
@@ -1278,8 +1372,42 @@ function InterfaceSignalCard({ ownerKey, usage, fnSources }: InterfaceSignalCard
           placeholder="默认值"
           onChange={(e) => applyValue(e.target.value)}
         />
+        <button type="button" style={S.addChipBtn}
+          disabled={!entry?.valid || !debugOverridesEnabled}
+          title="把当前输入值添加为可复选的数据胶囊"
+          onClick={handleAddCandidate}>＋ 添加</button>
         {!valid && <span style={S.invalidHint}>⚠ 格式不符</span>}
       </div>
+
+      {dataCandidates.length > 0 && (
+        <div style={S.chipRow} data-testid="data-candidates">
+          {dataCandidates.map((cand) => {
+            const candActive = Boolean(entry?.valid && stripQuotes(cand) === stripQuotes(entry.text));
+            const isUser = userSet.has(cand);
+            return (
+              <span key={cand} style={S.dataChipWrap}>
+                <button type="button" style={S.dataChip(candActive)}
+                  disabled={!debugOverridesEnabled}
+                  title={candActive ? "当前值 —— 点击取消" : `填入 ${displayDebugText(usage.declaredType, cand)}`}
+                  onClick={() => {
+                    if (candActive) {
+                      clearDebugValue(owner, name);
+                    } else {
+                      setDebugValue(owner, name, cand, true);
+                    }
+                  }}>
+                  {displayDebugText(usage.declaredType, cand)}
+                </button>
+                {isUser && (
+                  <button type="button" style={S.dataChipRemove}
+                    title="删除此数据胶囊"
+                    onClick={() => removeDebugValueCandidate(owner, name, cand)}>×</button>
+                )}
+              </span>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

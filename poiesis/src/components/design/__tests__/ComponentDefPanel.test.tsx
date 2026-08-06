@@ -17,7 +17,7 @@
 //    另：brief 的 tab 正则 /信号调试/ 子串匹配到「界面信号调试」，锚定为
 //    /^信号调试$/（getByRole name 正则按子串匹配）。
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import { ComponentDefPanel } from "../ComponentDefPanel";
 import type { DebugValueEntry } from "../../../store/types";
 import type { DefEntry } from "../../../core/types/project-json";
@@ -81,6 +81,28 @@ const { mockState, storeListeners } = vi.hoisted(() => {
       wires: [] as unknown[],
       rootOrder: [] as string[],
       debugValues: {} as Record<string, Record<string, DebugValueEntry>>,
+      debugValueCandidates: {} as Record<string, Record<string, string[]>>,
+      addDebugValueCandidate: vi.fn((ownerKey: string, name: string, literal: string) => {
+        const ownerCands = { ...(mockState.debugValueCandidates[ownerKey] || {}) };
+        const list = [...(ownerCands[name] || [])];
+        if (!list.includes(literal)) list.push(literal);
+        mockState.debugValueCandidates = { ...mockState.debugValueCandidates, [ownerKey]: { ...ownerCands, [name]: list } };
+        notifyStore();
+      }),
+      removeDebugValueCandidate: vi.fn((ownerKey: string, name: string, literal: string) => {
+        const ownerCands = { ...(mockState.debugValueCandidates[ownerKey] || {}) };
+        mockState.debugValueCandidates = {
+          ...mockState.debugValueCandidates,
+          [ownerKey]: { ...ownerCands, [name]: (ownerCands[name] || []).filter((l) => l !== literal) },
+        };
+        notifyStore();
+      }),
+      clearDebugValue: vi.fn((ownerKey: string, name: string) => {
+        const ownerValues = { ...(mockState.debugValues[ownerKey] || {}) };
+        delete ownerValues[name];
+        mockState.debugValues = { ...mockState.debugValues, [ownerKey]: ownerValues };
+        notifyStore();
+      }),
       debugOverridesEnabled: true,
       clearDebugValues: vi.fn(() => {
         mockState.debugValues = {};
@@ -165,6 +187,19 @@ beforeEach(() => {
     "  @if items.len() > 0 { }\n" +
     "  @for item in items { }\n" +
     "}";
+  // 数据胶囊候选跨用例隔离（2026-08-06 数据胶囊用例会写入）
+  mockState.debugValueCandidates = {};
+  mockState.debugValues = {};
+  // store 信号收集源跨用例隔离（F3 store 信号用例会写入）
+  mockState.storeDefs = {};
+  mockState.inlineStoreDefs = {};
+  mockState.componentDefs = {
+    Card: {
+      signals: [{ pid: "s1", name: "count", type: "i32", defaultValue: "0" }],
+      props: [], computeds: [],
+      elements: [{ nodeType: "conditional", tag: "conditional", id: "Card.@if", parentId: null, props: {}, source: "" }],
+    },
+  } as Record<string, { signals: DefEntry[]; props: DefEntry[]; computeds: DefEntry[]; elements: unknown[] }>;
 });
 
 describe("ComponentDefPanel 三 Tab 骨架", () => {
@@ -470,7 +505,7 @@ describe("单分支二态开关（D12）", () => {
     mockViewSource.value = "view {\n  @if badgeVisible {\n    <span>New</span>\n  }\n}";
   });
 
-  it("点击成真 → 再点击成假（toggle）", () => {
+  it("点击成真 → 再点击取消（2026-08-06 用户交互修订：填入+可取消）", () => {
     mockState.componentDefs = {
       Card: { signals: [{ pid: "s1", name: "badgeVisible", type: "bool", defaultValue: "false" }], props: [], computeds: [],
           elements: [{ nodeType: "conditional", tag: "conditional", id: "T.@if", parentId: null, props: {}, source: "" }] },
@@ -478,18 +513,22 @@ describe("单分支二态开关（D12）", () => {
     render(<ComponentDefPanel />);
     fireEvent.click(screen.getByRole("button", { name: /badgeVisible/ }));
     expect(mockState.setDebugValue).toHaveBeenLastCalledWith("Card", "badgeVisible", "true", true);
-    // 回显 true 匹配成真合成 → 再点击切换成假
+    // 当前值匹配成真合成 → 再点击 = 取消（清除调试值，回默认渲染）
     fireEvent.click(screen.getByRole("button", { name: /badgeVisible/ }));
-    expect(mockState.setDebugValue).toHaveBeenLastCalledWith("Card", "badgeVisible", "false", true);
+    expect(mockState.clearDebugValue).toHaveBeenCalledWith("Card", "badgeVisible");
   });
 
-  it("已有成假调试值 → 点击切换回成真", () => {
+  it("已有成真调试值 → 点击取消；成假值不匹配 → 点击填入成真", () => {
     mockState.componentDefs = {
       Card: { signals: [{ pid: "s1", name: "badgeVisible", type: "bool", defaultValue: "false" }], props: [], computeds: [],
           elements: [{ nodeType: "conditional", tag: "conditional", id: "T.@if", parentId: null, props: {}, source: "" }] },
     };
-    mockState.debugValues = { Card: { badgeVisible: { text: "false", valid: true } } };
+    mockState.debugValues = { Card: { badgeVisible: { text: "true", valid: true } } };
     render(<ComponentDefPanel />);
+    fireEvent.click(screen.getByRole("button", { name: /badgeVisible/ }));
+    expect(mockState.clearDebugValue).toHaveBeenCalledWith("Card", "badgeVisible");
+    // 成假值（false）不匹配成真合成（true）→ 填入成真
+    mockState.debugValues = { Card: { badgeVisible: { text: "false", valid: true } } };
     fireEvent.click(screen.getByRole("button", { name: /badgeVisible/ }));
     expect(mockState.setDebugValue).toHaveBeenLastCalledWith("Card", "badgeVisible", "true", true);
   });
@@ -503,6 +542,60 @@ describe("单分支二态开关（D12）", () => {
     render(<ComponentDefPanel />);
     fireEvent.click(screen.getByRole("button", { name: /badgeVisible/ }));
     expect(mockState.setDebugValue).toHaveBeenLastCalledWith("Card", "badgeVisible", "false", true);
+  });
+});
+
+describe("数据胶囊（2026-08-06 用户建议：添加按钮 + 可复选数据选项）", () => {
+  it("「＋ 添加」把输入框合法值存为候选（不 dirty 项目语义）", () => {
+    mockState.componentDefs = {
+      Card: { signals: [{ pid: "s1", name: "status", type: "String", defaultValue: '"x"' }], props: [], computeds: [],
+          elements: [{ nodeType: "conditional", tag: "conditional", id: "T.@if", parentId: null, props: {}, source: "" }] },
+    };
+    render(<ComponentDefPanel />);
+    fireEvent.change(screen.getByLabelText("status 值"), { target: { value: "loading" } });
+    fireEvent.click(screen.getByRole("button", { name: /添加/ }));
+    expect(mockState.addDebugValueCandidate).toHaveBeenCalledWith("Card", "status", '"loading"');
+  });
+
+  it("数据胶囊点击填入生效 + 再点取消", () => {
+    mockState.componentDefs = {
+      Card: { signals: [{ pid: "s1", name: "status", type: "String", defaultValue: '"x"' }], props: [], computeds: [],
+          elements: [{ nodeType: "conditional", tag: "conditional", id: "T.@if", parentId: null, props: {}, source: "" }] },
+    };
+    mockState.debugValueCandidates = { Card: { status: ['"loading"'] } };
+    render(<ComponentDefPanel />);
+    // 数据胶囊区定位（条件胶囊的 label 也含 "loading"，须限定 data-candidates 区）
+    const candArea = screen.getByTestId("data-candidates");
+    const candBtn = within(candArea).getByRole("button", { name: "loading" });
+    fireEvent.click(candBtn);
+    expect(mockState.setDebugValue).toHaveBeenLastCalledWith("Card", "status", '"loading"', true);
+    // 当前值匹配 → 再点取消
+    fireEvent.click(within(candArea).getByRole("button", { name: "loading" }));
+    expect(mockState.clearDebugValue).toHaveBeenCalledWith("Card", "status");
+  });
+
+  it("bool 信号类型默认数据胶囊（true/false）出现", () => {
+    mockState.componentDefs = {
+      Card: { signals: [{ pid: "s1", name: "flag", type: "bool", defaultValue: "false" }], props: [], computeds: [],
+          elements: [{ nodeType: "conditional", tag: "conditional", id: "T.@if", parentId: null, props: {}, source: "" }] },
+    };
+    render(<ComponentDefPanel />);
+    // flag 是数据信号 → 信号调试 Tab
+    fireEvent.click(screen.getByRole("tab", { name: /^信号调试$/ }));
+    const candArea = screen.getByTestId("data-candidates");
+    expect(within(candArea).getByRole("button", { name: "true" })).toBeTruthy();
+    expect(within(candArea).getByRole("button", { name: "false" })).toBeTruthy();
+  });
+
+  it("用户候选可删除（×）", () => {
+    mockState.componentDefs = {
+      Card: { signals: [{ pid: "s1", name: "status", type: "String", defaultValue: '"x"' }], props: [], computeds: [],
+          elements: [{ nodeType: "conditional", tag: "conditional", id: "T.@if", parentId: null, props: {}, source: "" }] },
+    };
+    mockState.debugValueCandidates = { Card: { status: ['"loading"'] } };
+    render(<ComponentDefPanel />);
+    fireEvent.click(screen.getByRole("button", { name: "×" }));
+    expect(mockState.removeDebugValueCandidate).toHaveBeenCalledWith("Card", "status", '"loading"');
   });
 });
 
