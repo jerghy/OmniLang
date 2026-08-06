@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { parseMarkup, CAPSULE_START, CAPSULE_END } from "../expression-trigger";
-import { getTriggerContext, operatorCandidates, insertAt, replaceToken, countUnbalancedParens, SINGLE_CHAR_OPERATORS, tokenizeFormula } from "../expression-trigger";
+import { getTriggerContext, operatorCandidates, insertAt, replaceToken, countUnbalancedParens, SINGLE_CHAR_OPERATORS, tokenizeFormula, toMarkup } from "../expression-trigger";
 import { escapeString, unescapeString, serializeSegments } from "../expression-trigger";
 
 describe("parseMarkup", () => {
@@ -160,14 +160,15 @@ describe("tokenizeFormula", () => {
     expect(toks.map((t) => [t.start, t.end])).toEqual([[0, 1], [2, 4], [5, 6]]);
     expect(toks.map((t) => "a <= 2".slice(t.start, t.end)).join("")).toBe("a<=2");
   });
-  it("独立点不挂死：Store.（成员补全典型中间态）→ identifier + unknown 单字符", () => {
-    // 回归：修复前 "." 不被任何前置分支消费、又落在 unknown 停止字符类内 → 空 token 死循环
-    expect(kinds("Store.")).toEqual(["identifier:Store", "unknown:."]);
+  it("独立点归 paren：Store.（成员补全典型中间态）→ identifier + paren 单字符", () => {
+    // Task 3 契约（brief Step 3）：`.` 从 unknown 归入 paren（结构字符），toMarkup 原样输出。
+    // 回归注记保留：修复前 "." 不被任何前置分支消费、又落在 unknown 停止字符类内 → 空 token 死循环
+    expect(kinds("Store.")).toEqual(["identifier:Store", "paren:."]);
   });
-  it("独立点不挂死：a . b / .5 / a..b（空转防护，逐字符单点 unknown）", () => {
-    expect(kinds("a . b")).toEqual(["identifier:a", "unknown:.", "identifier:b"]);
-    expect(kinds(".5")).toEqual(["unknown:.", "number:5"]);
-    expect(kinds("a..b")).toEqual(["identifier:a", "unknown:.", "unknown:.", "identifier:b"]);
+  it("独立点归 paren：a . b / .5 / a..b（逐字符单点）", () => {
+    expect(kinds("a . b")).toEqual(["identifier:a", "paren:.", "identifier:b"]);
+    expect(kinds(".5")).toEqual(["paren:.", "number:5"]);
+    expect(kinds("a..b")).toEqual(["identifier:a", "paren:.", "paren:.", "identifier:b"]);
   });
   it("未闭合字符串尾部反斜杠：不越界（end 不超 length）", () => {
     // 回归：修复前 `"abc\` 转义分支 i += 2 无边界检查 → end=6 > length=5
@@ -210,5 +211,36 @@ describe("serializeSegments 字面量判定与拼接", () => {
   });
   it("escapeString/unescapeString 互逆", () => {
     expect(unescapeString(escapeString(`a\\b"c`))).toBe(`a\\b"c`);
+  });
+});
+
+describe("toMarkup 反向结构化 + round-trip", () => {
+  const c = (s: string) => `${CAPSULE_START}${s}${CAPSULE_END}`;
+  it("标识符/运算符 → 胶囊；数字/空白原样", () => {
+    // brief 期望含多余裸 `+`（`${c("count")} + ${c("+")} 1`）——与 brief 自身 toMarkup 实现及 round-trip 契约矛盾，已修正（见 task-3-report）
+    expect(toMarkup("count + 1")).toBe(`${c("count")} ${c("+")} 1`);
+  });
+  it("字符串剥引号反转义", () => {
+    expect(toMarkup('"hello"')).toBe("hello");
+    expect(toMarkup('"say \\"hi\\""')).toBe(`say "hi"`);
+  });
+  it("member token 拆分三段（引用胶囊+点+member 段）", () => {
+    expect(toMarkup("mirrorInput.value")).toBe(`${c("mirrorInput")}.value`);
+    expect(toMarkup("Store.signal")).toBe(`${c("Store")}.signal`);
+  });
+  it("方法链：member 拆段、.height 为点+胶囊（height 是独立 identifier token）", () => {
+    expect(toMarkup("sizeBox.measure().height")).toBe(`${c("sizeBox")}.measure().${c("height")}`);
+  });
+  it("结构字符原样（括号/逗号/方括号/花括号/冒号）；结构体 key 是标识符 → 胶囊", () => {
+    expect(toMarkup("foo(a, b)")).toBe(`${c("foo")}(${c("a")}, ${c("b")})`);
+    expect(toMarkup("[10, 20]")).toBe(`[10, 20]`);
+    expect(toMarkup("Point { x: 0 }")).toBe(`${c("Point")} { ${c("x")}: 0 }`);
+  });
+  it("is 运算符成胶囊", () => {
+    expect(toMarkup("x is String")).toBe(`${c("x")} ${c("is")} ${c("String")}`);
+  });
+  it("round-trip 双向一致：serialize(toMarkup(t)) === t", () => {
+    const cases = ["count + 1", "mirrorInput.value", '"hello world"', "user-settings", "items.get(items.len() - 1)", "sizeBox.measure().height", "Store.signal", "total > 0 && total < 10", 'say "hi" + name'];
+    for (const t of cases) expect(serializeSegments(toMarkup(t))).toBe(t);
   });
 });

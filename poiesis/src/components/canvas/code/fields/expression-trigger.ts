@@ -199,8 +199,12 @@ export function tokenizeFormula(value: string): FormulaToken[] {
       }
       continue;
     }
-    // 括号
-    if (ch === "(" || ch === ")") { tokens.push({ kind: "paren", text: ch, start: i, end: i + 1 }); i++; continue; }
+    // 结构字符（括号/逗号/方括号/花括号/冒号/点）：原样保留、不参与字面量判定
+    if (/[()[\],:.{}]/.test(ch)) {
+      tokens.push({ kind: "paren", text: ch, start: i, end: i + 1 });
+      i++;
+      continue;
+    }
     // 运算符：两字符优先（OPERATOR_PREFIX_CANDIDATES 表内长度 2 项），单字符兜底
     if (/[+\-*/%<>=!&|?]/.test(ch)) {
       const two = value.slice(i, i + 2);
@@ -222,6 +226,32 @@ export function tokenizeFormula(value: string): FormulaToken[] {
     tokens.push({ kind: "unknown", text: value.slice(start, i), start, end: i });
   }
   return tokens;
+}
+
+/** omni 表达式 → 标记文本（重开反向结构化）：
+ *  identifier/operator → 胶囊；member token 按 spec D5 拆三段（首段胶囊 + "." + member 段，
+ *  可点击重选 store、逐字编辑 member）；string 剥引号；number/struct/空白原样。 */
+export function toMarkup(omniText: string): string {
+  const tokens = tokenizeFormula(omniText);
+  let out = "";
+  let pos = 0;
+  for (const t of tokens) {
+    if (t.start > pos) out += omniText.slice(pos, t.start);
+    if (t.kind === "member") {
+      const [head, ...rest] = t.text.split(".");
+      out += CAPSULE_START + head + CAPSULE_END;
+      if (rest.length > 0) out += "." + rest.join(".");
+    } else if (t.kind === "identifier" || t.kind === "operator") {
+      out += CAPSULE_START + t.text + CAPSULE_END;
+    } else if (t.kind === "string") {
+      out += unescapeString(t.text);
+    } else {
+      out += t.text;
+    }
+    pos = t.end;
+  }
+  if (pos < omniText.length) out += omniText.slice(pos);
+  return out;
 }
 
 /** 自由文本段提交分类：空白原样 / number / bool / null / member（`.` 后）原样 / string 加引号。 */
@@ -258,7 +288,16 @@ export function serializeSegments(markup: string): string {
     if (cls === "string") {
       // 纯运算符/数字/空白组成的表达式片段（无标识符/引号字符，如 " + 1"）→ 原样保留，不判字符串
       // （brief 参考实现逐字执行会对该类片段加引号产出 `count"+ 1"`，与测试契约矛盾，见 task-2-report）
-      out += /[A-Za-z_"]/.test(s.text) ? `"${escapeString(s.text.trim())}"` : s.text;
+      // 前后空白保留：toMarkup 将 token 间隙空白原样进 markup，提交拼接不得吞掉
+      // （round-trip `say "hi" + name` 契约：` hi ` 需还原为 ` "hi" `，见 task-3-report）
+      if (/[A-Za-z_"]/.test(s.text)) {
+        const trimmed = s.text.trim();
+        out += s.text.slice(0, s.text.length - s.text.trimStart().length)
+          + `"${escapeString(trimmed)}"`
+          + s.text.slice(s.text.trimEnd().length);
+      } else {
+        out += s.text;
+      }
     } else out += s.text;
   }
   return out;
