@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { parseMarkup, CAPSULE_START, CAPSULE_END } from "../expression-trigger";
 import { getTriggerContext, operatorCandidates, insertAt, replaceToken, countUnbalancedParens, SINGLE_CHAR_OPERATORS, tokenizeFormula, toMarkup } from "../expression-trigger";
+import { isBoundary, OPERATOR_PREFIX_CANDIDATES } from "../expression-trigger";
 import { escapeString, unescapeString, serializeSegments } from "../expression-trigger";
 
 describe("parseMarkup", () => {
@@ -242,5 +243,32 @@ describe("toMarkup 反向结构化 + round-trip", () => {
   it("round-trip 双向一致：serialize(toMarkup(t)) === t", () => {
     const cases = ["count + 1", "mirrorInput.value", '"hello world"', "user-settings", "items.get(items.len() - 1)", "sizeBox.measure().height", "Store.signal", "total > 0 && total < 10", 'say "hi" + name'];
     for (const t of cases) expect(serializeSegments(toMarkup(t))).toBe(t);
+  });
+});
+
+describe("isBoundary 边界触发", () => {
+  const c = (s: string) => `${CAPSULE_START}${s}${CAPSULE_END}`;
+  it("开头/空白后/胶囊后/结构字符后 → 边界", () => {
+    expect(isBoundary("", 0)).toBe(true);
+    expect(isBoundary("count ", 6)).toBe(true);
+    expect(isBoundary(`${c("count")}/`, c("count").length)).toBe(true); // slash 前是胶囊标记尾
+    expect(isBoundary("(", 1)).toBe(true);
+  });
+  it("词中间（字母数字后）→ 非边界（字符串内容）", () => {
+    expect(isBoundary("user", 4)).toBe(false);
+    expect(isBoundary("a/b", 2)).toBe(false);
+  });
+});
+describe("OPERATOR_PREFIX_CANDIDATES 增补", () => {
+  it("单字符运算符弹自身", () => {
+    expect(OPERATOR_PREFIX_CANDIDATES["+"]).toEqual(["+"]);
+    expect(OPERATOR_PREFIX_CANDIDATES["-"]).toEqual(["-"]);
+    expect(OPERATOR_PREFIX_CANDIDATES["/"]).toEqual(["/"]);
+    expect(OPERATOR_PREFIX_CANDIDATES["%"]).toEqual(["%"]);
+  });
+  it("多字符前缀不变（infix.rs 权威）", () => {
+    expect(OPERATOR_PREFIX_CANDIDATES["<"]).toEqual(["<", "<="]);
+    expect(OPERATOR_PREFIX_CANDIDATES["="]).toEqual(["=="]);
+    expect(OPERATOR_PREFIX_CANDIDATES["?"]).toEqual(["??", "?."]);
   });
 });

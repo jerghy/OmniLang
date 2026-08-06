@@ -47,6 +47,11 @@ export function parseMarkup(markup: string): Segment[] {
 export const SINGLE_CHAR_OPERATORS = ["+", "-", "*", "/", "%"];
 
 export const OPERATOR_PREFIX_CANDIDATES: Record<string, string[]> = {
+  "+": ["+"],
+  "-": ["-"],
+  "*": ["*"],
+  "/": ["/"],
+  "%": ["%"],
   "<": ["<", "<="],
   ">": [">", ">="],
   "=": ["=="],
@@ -55,6 +60,18 @@ export const OPERATOR_PREFIX_CANDIDATES: Record<string, string[]> = {
   "|": ["||"],
   "?": ["??", "?."],
 };
+
+/** 触发弹框的字符：斜杠（胶囊入口）+ 运算符字符。 */
+export const TRIGGER_CHARS = new Set(["+", "-", "*", "/", "%", "<", "=", "!", "&", "|", "?"]);
+
+/** 边界判定：offset 前字符为空/空白/胶囊标记尾/结构字符 → 触发弹框；词中间不触发。 */
+export function isBoundary(markup: string, offset: number): boolean {
+  const prev = markup[offset - 1];
+  if (prev === undefined || /\s/.test(prev)) return true;
+  if (prev === CAPSULE_END) return true;
+  if (STRUCT_CHARS.has(prev)) return true;
+  return false;
+}
 
 export interface TriggerContext {
   kind: "operand" | "member" | "operator" | "none";

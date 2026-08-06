@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import { NodeFormulaField, type FormulaCandidateSource } from "../NodeFormulaField";
 
 // contenteditable 测试以 jsdom 可实现为准：真实键盘编辑无法模拟，用
@@ -107,11 +107,13 @@ describe("NodeFormulaField 草稿提交与候选菜单", () => {
     expect(onCommit).not.toHaveBeenCalled();
   });
 
-  it("输入单字符运算符（+）→ 直接插入不弹框（无多字符变体）", () => {
+  it("输入单字符运算符（+）→ 弹自身候选（单字符运算符弹自身，Task 4 增补）", () => {
     const { el } = setup();
     fireEvent.input(el, { target: { textContent: "count +" } });
     expect(el.textContent).toBe("count +");
-    expect(screen.queryByRole("listbox")).toBeNull();
+    const listbox = screen.getByRole("listbox");
+    expect(listbox).toBeTruthy();
+    expect(within(listbox).getByText("+")).toBeTruthy();
   });
 
   it("输入运算符前缀（<）→ 弹运算符选择框", () => {
