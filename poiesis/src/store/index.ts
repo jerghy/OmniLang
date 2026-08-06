@@ -34,6 +34,8 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
   tabData: {},
   componentDefs: {},
   debugSignalValues: {},
+  debugValues: {},
+  debugOverridesEnabled: true,
   pidIndex: {},
   projectDir: null,
   projectName: DEFAULT_PROJECT_NAME,

@@ -106,6 +106,18 @@ export function createComponentLifecycleSlice(set: SetFn, get: GetFn) {
       };
     }),
 
+    // ── Debug value overrides（新模型，Task 1+）──
+    setDebugValue: (ownerKey: string, name: string, text: string, valid: boolean) => set((s) => {
+      const ownerValues = { ...(s.debugValues[ownerKey] || {}) };
+      ownerValues[name] = { text, valid };
+      return {
+        debugValues: { ...s.debugValues, [ownerKey]: ownerValues },
+        // Debug values don't dirty the project
+      };
+    }),
+    clearDebugValues: () => set({ debugValues: {} }),
+    setDebugOverridesEnabled: (enabled: boolean) => set({ debugOverridesEnabled: enabled }),
+
     // ── Component signal CRUD ──
     addComponentSignal: (compName: string, signal: DefEntry) => set((s) => {
       const def = s.componentDefs[compName];

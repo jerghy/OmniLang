@@ -17,6 +17,12 @@ import type {
 } from "../core/types/design";
 import type { UndoStack } from "./undo-slice";
 
+/** 调试值条目：text=输入框回显原文，valid=类型校验结果（false 不参与编译） */
+interface DebugValueEntry {
+  text: string;
+  valid: boolean;
+}
+
 export interface PoiesisState {
   // ── Theme ──
   theme: "light" | "dark" | "system";
@@ -73,6 +79,12 @@ export interface PoiesisState {
   // Used by ComponentDefPanel debug mode to preview signal changes
   // on the canvas without modifying the generated .omni source.
   debugSignalValues: Record<string, Record<string, unknown>>;
+
+  // ── 调试值覆盖（新模型，Task 1+；旧 debugSignalValues 保留到 Task 7 删除）──
+  /** 调试值覆盖（ownerKey = 组件名 | store 名 | 内联 "Comp.Store"）——调试专用，不 dirty 项目 */
+  debugValues: Record<string, Record<string, DebugValueEntry>>;
+  /** 调试总开关：off 时调试值不参与编译但输入保留（对比原始渲染） */
+  debugOverridesEnabled: boolean;
 
   // ── PID index ──
   pidIndex: Record<string, PidEntry>;
@@ -187,6 +199,9 @@ export interface PoiesisState {
   updateComponentSignal: (compName: string, pid: string, updates: Partial<{ name: string; type: string; defaultValue: unknown }>) => void;
   removeComponentSignal: (compName: string, pid: string) => void;
   setDebugSignalValue: (componentName: string, signalName: string, value: unknown) => void;
+  setDebugValue: (ownerKey: string, name: string, text: string, valid: boolean) => void;
+  clearDebugValues: () => void;
+  setDebugOverridesEnabled: (enabled: boolean) => void;
 
   // ── Component prop CRUD ──
   addComponentProp: (compName: string, prop: { pid: string; name: string; type: string; defaultValue?: unknown }) => void;
