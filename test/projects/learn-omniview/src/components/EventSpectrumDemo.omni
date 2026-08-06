@@ -1,0 +1,155 @@
+// ╔══════════════════════════════════════════════════════════════════════╗
+// ║  EventSpectrumDemo — 事件语义域补齐：35 个事件分族展示                ║
+// ║                                                                      ║
+// ║  分族：鼠标 8 · 指针 4 · 触摸 4 · 键盘 3 · 拖拽 5 · 其他 4 ·         ║
+// ║        动画过渡 7 = 35 个 canonical 事件（域 3 补齐收口）。          ║
+// ║                                                                      ║
+// ║  灵活运用：事件日志管道（事件 → push 日志数组 → @for 渲染）+         ║
+// ║  transition 状态切换同时触发 transition 四事件。                     ║
+// ║  部分支持标注：hover/longpress（Flutter 交付；web 警告+跳过）、       ║
+// ║  resize（window 级——元素绑定不触发）、animation 族（需宿主动画）。   ║
+// ╚══════════════════════════════════════════════════════════════════════╝
+
+import omniview;
+import { LearnDesign } from "../design";
+
+component EventSpectrumDemo {
+    // 事件日志：事件名 → push → @for 渲染（方法调用层 push 顺带展示）
+    signal log: Array<String> = [];
+    signal seq: Int = 0;
+    fn fire(name: String) {
+        seq = seq + 1;
+        log.push(seq.to_string() + " " + name);
+    }
+
+    // 过渡族触发：切换类名 → transition 运行 → onTransitionEnd 等
+    signal expand: Bool = false;
+    fn toggleExpand() { expand = !expand; }
+
+    view {
+        <section class: LearnDesign.DemoCard>
+            <h3 class: LearnDesign.CardTitle>事件谱：35 个事件分族</h3>
+            <p class: LearnDesign.Hint>
+                每族触发区绑定对应事件；触发写入右侧日志。部分支持事件如实标注目标差异。
+            </p>
+
+            <div class: LearnDesign.Row>
+                <div class: LearnDesign.Col>
+                    <!-- ═══ 鼠标族（8） ═══ -->
+                    <h4 class: LearnDesign.SectionTitle>鼠标族</h4>
+                    <div class: TriggerPad @onMouseEnter={() => { fire("mouseenter"); }}
+                                            @onMouseLeave={() => { fire("mouseleave"); }}
+                                            @onMouseMove={() => { fire("mousemove"); }}
+                                            @onMouseOver={() => { fire("mouseover"); }}
+                                            @onMouseOut={() => { fire("mouseout"); }}
+                                            @onMouseDown={() => { fire("mousedown"); }}
+                                            @onMouseUp={() => { fire("mouseup"); }}>
+                        悬停/移入移出/按下抬起
+                    </div>
+                    <div class: TriggerPad @onClick={() => { fire("click"); }}
+                                            @onDblClick={() => { fire("dblclick"); }}>
+                        单击 / 双击
+                    </div>
+
+                    <!-- ═══ 指针族（4） ═══ -->
+                    <h4 class: LearnDesign.SectionTitle>指针族</h4>
+                    <div class: TriggerPad @onPointerDown={() => { fire("pointerdown"); }}
+                                            @onPointerUp={() => { fire("pointerup"); }}
+                                            @onPointerMove={() => { fire("pointermove"); }}
+                                            @onPointerCancel={() => { fire("pointercancel"); }}>
+                        指针按下/抬起/移动/取消
+                    </div>
+
+                    <!-- ═══ 触摸族（4） ═══ -->
+                    <h4 class: LearnDesign.SectionTitle>触摸族（触屏设备生效）</h4>
+                    <div class: TriggerPad @onTouchStart={() => { fire("touchstart"); }}
+                                            @onTouchEnd={() => { fire("touchend"); }}
+                                            @onTouchMove={() => { fire("touchmove"); }}
+                                            @onTouchCancel={() => { fire("touchcancel"); }}>
+                        触摸开始/结束/移动/取消
+                    </div>
+
+                    <!-- ═══ 键盘族（3） ═══ -->
+                    <h4 class: LearnDesign.SectionTitle>键盘族</h4>
+                    <div class: TriggerPad>
+                        <input class: LearnDesign.Input placeholder="聚焦后按键"
+                               @onKeyDown={() => { fire("keydown"); }}
+                               @onKeyUp={() => { fire("keyup"); }}
+                               @onKeyPress={() => { fire("keypress"); }} />
+                    </div>
+
+                    <!-- ═══ 拖拽族（5） ═══ -->
+                    <h4 class: LearnDesign.SectionTitle>拖拽族（HTML5 drag）</h4>
+                    <div class: TriggerPad @onDragStart={() => { fire("dragstart"); }}
+                                            @onDragEnd={() => { fire("dragend"); }}
+                                            @onDrag={() => { fire("drag"); }}
+                                            @onDragOver={() => { fire("dragover"); }}
+                                            @onDragLeave={() => { fire("dragleave"); }}>
+                        按住拖动（drag 事件 ≠ @drag-horizontal 动画触发器）
+                    </div>
+                </div>
+
+                <div class: LearnDesign.Col>
+                    <!-- ═══ 其他（4） ═══ -->
+                    <h4 class: LearnDesign.SectionTitle>其他</h4>
+                    <div class: TriggerPad @onContextMenu={() => { fire("contextmenu"); }}>
+                        右键菜单（contextmenu）
+                    </div>
+                    <div class: TriggerPad @onHover={() => { fire("hover"); }}
+                                            @onLongpress={() => { fire("longpress"); }}>
+                        hover / longpress —— Flutter 交付；web 端警告+跳过（部分支持）
+                    </div>
+                    <div class: TriggerPad>
+                        resize —— window 级事件，元素绑定不合法（React 无元素 onResize
+                        合成事件）；DSL 当前无 window 级绑定表面（部分支持，无元素展示形态）
+                    </div>
+
+                    <!-- ═══ 过渡族（4，真实触发） ═══ -->
+                    <h4 class: LearnDesign.SectionTitle>过渡族（transition 切换触发）</h4>
+                    <div class: { ExpandPad: true, On: expand, Off: !expand }
+                         @onClick={toggleExpand}
+                         @onTransitionEnd={() => { fire("transitionend"); }}
+                         @onTransitionRun={() => { fire("transitionrun"); }}
+                         @onTransitionStart={() => { fire("transitionstart"); }}
+                         @onTransitionCancel={() => { fire("transitioncancel"); }}>
+                        点击切换宽高（transition 0.5s）
+                    </div>
+
+                    <!-- ═══ 动画族（3，需宿主 CSS animation） ═══ -->
+                    <h4 class: LearnDesign.SectionTitle>动画族（宿主 @keyframes 触发）</h4>
+                    <div class: TriggerPad @onAnimationStart={() => { fire("animationstart"); }}
+                                            @onAnimationEnd={() => { fire("animationend"); }}
+                                            @onAnimationIteration={() => { fire("animationiteration"); }}>
+                        animationstart / animationend / animationiteration —— 绑定可写；
+                        DSL 无 @keyframes，触发需宿主动画（部分支持）
+                    </div>
+
+                    <!-- ═══ 事件日志（灵活运用：push + @for） ═══ -->
+                    <h4 class: LearnDesign.SectionTitle>事件日志（{log.len()} 条）</h4>
+                    <div class: LogBox>
+                        @for entry in log {
+                            <div class: LearnDesign.Tag>{entry}</div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </section>
+    }
+
+    style {
+        .TriggerPad {
+            padding: 10px 14px;
+            border: 1px dashed "#94a3b8";
+            border-radius: 8px;
+            margin: 6px 0;
+            font-size: 13px;
+            background: "#f8fafc";
+            cursor: pointer;
+            user-select: none;
+        }
+        .ExpandPad { width: 160px; padding: 12px; border-radius: 8px; font-size: 13px; transition: all 0.5s ease; }
+        .ExpandPad.Off { width: 160px; background: "#6366f1"; color: white; }
+        .ExpandPad.On { width: 260px; background: "#f97316"; color: white; }
+        .LogBox { max-height: 200px; overflow-y: auto; border: 1px solid "#e2e8f0"; border-radius: 8px; padding: 8px; }
+    }
+}

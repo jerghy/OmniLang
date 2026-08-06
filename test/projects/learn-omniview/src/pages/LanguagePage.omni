@@ -13,6 +13,7 @@ import { StylePseudoDemo } from "../components/StylePseudoDemo";
 import { TernaryExprDemo } from "../components/TernaryExprDemo";
 import { BlockExprDemo } from "../components/BlockExprDemo";
 import { ForDirectiveKeyDemo } from "../components/ForDirectiveKeyDemo";
+import { ArrayChainDemo } from "../components/ArrayChainDemo";
 import { AdvancedPseudoDemo } from "../components/AdvancedPseudoDemo";
 import { AdvancedTypesDemo } from "../components/AdvancedTypesDemo";
 // 事件与异常处理
@@ -39,6 +40,7 @@ component LanguagePage {
                 <div class: LearnDesign.Col><BlockExprDemo /></div>
             </div>
             <div class: LearnDesign.DemoFull><ForDirectiveKeyDemo /></div>
+            <div class: LearnDesign.DemoFull><ArrayChainDemo /></div>
             <div class: LearnDesign.Row>
                 <div class: LearnDesign.Col><StylePseudoDemo /></div>
                 <div class: LearnDesign.Col><AdvancedPseudoDemo /></div>

@@ -1,0 +1,77 @@
+// ╔══════════════════════════════════════════════════════════════════════╗
+// ║  TokenTypeDemo — design token 类型补齐：5 个类型声明展示              ║
+// ║                                                                      ║
+// ║  域 5 类型 13 项收口：color/size/radius/fontFamily/fontSize/          ║
+// ║  fontWeight/shadow/duration（既有）+ lineHeight/letterSpacing/       ║
+// ║  easing/opacity/zIndex（本组件）。                                   ║
+// ║  灵活运用：跨主题覆盖值（dark/sepia/highContrast 各主题不同值）      ║
+// ║  + token() 引用经 design 类属性消费。                                ║
+// ║  zIndex 为部分支持（Flutter warning——z 序由 widget 顺序决定）。      ║
+// ╚══════════════════════════════════════════════════════════════════════╝
+
+import omniview;
+import { LearnDesign } from "../design";
+
+// ── 缓动展示（@hover 触发） ──
+@motion easeMove {
+    to { translateX: 60 }
+    over: 400ms
+    easing: ease-in-out
+}
+
+component TokenTypeDemo {
+    view {
+        <section class: LearnDesign.DemoCard>
+            <h3 class: LearnDesign.CardTitle>设计值类型补齐：5 个 token 类型</h3>
+            <p class: LearnDesign.Hint>
+                lineHeight · letterSpacing · easing · opacity · zIndex 的 token 声明与
+                跨主题覆盖（右上角主题切换器验证 sepia/highContrast 差异）。
+            </p>
+
+            <div class: TypeRow>
+                <span class: TypeLabel>lineHeight（行高）</span>
+                <div class: LearnDesign.Tag>1.5 → dark 1.6 → sepia 1.65</div>
+                <p class: LineHeightSample>两行文本演示行高差异</p>
+            </div>
+
+            <div class: TypeRow>
+                <span class: TypeLabel>letterSpacing（字距）</span>
+                <div class: LearnDesign.Tag>0.5px → sepia 1px</div>
+                <p class: LetterSpacingSample>字距拉开</p>
+            </div>
+
+            <div class: TypeRow>
+                <span class: TypeLabel>easing（缓动）</span>
+                <div class: LearnDesign.Tag>ease-in-out → sepia ease-out</div>
+                <div class: EaseDot @hover={easeMove}>悬停看缓动</div>
+            </div>
+
+            <div class: TypeRow>
+                <span class: TypeLabel>opacity（透明度）</span>
+                <div class: LearnDesign.Tag>1 → dark 0.92</div>
+                <div class: OpacitySample>透明度演示</div>
+            </div>
+
+            <div class: TypeRow>
+                <span class: TypeLabel>zIndex（层级，部分支持）</span>
+                <div class: LearnDesign.Tag>100 → highContrast 200（Flutter warning）</div>
+                <div class: ZStack>
+                    <div class: ZBack>底层</div>
+                    <div class: ZFront>顶层（zIndex）</div>
+                </div>
+            </div>
+        </section>
+    }
+
+    style {
+        .TypeRow { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid "#f1f5f9"; }
+        .TypeLabel { width: 180px; font-size: 13px; font-weight: 600; }
+        .LineHeightSample { line-height: token(lineHeightBody); }
+        .LetterSpacingSample { letter-spacing: token(letterSpacingWide); }
+        .EaseDot { width: 40px; height: 24px; border-radius: 6px; background: "#6366f1"; }
+        .OpacitySample { opacity: token(surfaceOpacity); background: "#f97316"; padding: 6px 12px; border-radius: 6px; color: white; }
+        .ZStack { position: relative; width: 200px; height: 56px; }
+        .ZBack { position: absolute; inset: 0; background: "#e2e8f0"; border-radius: 8px; padding: 8px; }
+        .ZFront { position: absolute; top: 8px; left: 60px; background: "#6366f1"; color: white; padding: 6px 12px; border-radius: 8px; z-index: token(zIndexTop); }
+    }
+}

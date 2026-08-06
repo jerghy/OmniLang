@@ -91,6 +91,13 @@ design LearnDesign {
     // ── 过渡时长 ──
     token durationFast: duration = "150ms";
 
+    // ── 行高 / 字距 / 缓动 / 透明度 / 层级（域 5 类型补齐） ──
+    token lineHeightBody: lineHeight = "1.5" dark "1.6" sepia "1.65" highContrast "1.5";
+    token letterSpacingWide: letterSpacing = "0.5px" sepia "1px" highContrast "0.75px";
+    token easeStandard: easing = "ease-in-out" sepia "ease-out";
+    token surfaceOpacity: opacity = "1" dark "0.92" sepia "0.95";
+    token zIndexTop: zIndex = "100" highContrast "200";
+
     // ── 编译时常量引用（const → token 值） ──
     token constRadius: radius = TOKEN_RADIUS;
     token constShadow: shadow = TOKEN_SHADOW;

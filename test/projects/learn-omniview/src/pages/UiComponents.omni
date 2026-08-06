@@ -2,6 +2,7 @@
 
 import omniview;
 import { LearnDesign } from "../design";
+import { EventSpectrumDemo } from "../components/EventSpectrumDemo";
 import { ValidationInput } from "../components/ValidationInput";
 import { Timer } from "../components/Timer";
 import { Modal } from "../components/Modal";
@@ -48,6 +49,7 @@ component UiComponents {
 
             <div class: LearnDesign.DemoFull><NotificationsPanel /></div>
             <div class: LearnDesign.DemoFull><EventShorthand /></div>
+            <div class: LearnDesign.DemoFull><EventSpectrumDemo /></div>
 
             <!-- 可访问性语义（a11y: label/role/hidden/live/alt）-->
             <h3 class: LearnDesign.SectionTitle>可访问性（a11y）</h3>

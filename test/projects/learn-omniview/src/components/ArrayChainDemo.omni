@@ -1,0 +1,77 @@
+// ╔══════════════════════════════════════════════════════════════════════╗
+// ║  ArrayChainDemo — 数组语言方法补齐：count + 链式管道（灵活运用）       ║
+// ║                                                                      ║
+// ║  语言方法层（跨目标保证）：filter · map · count（ARRAY_METHODS 白名单）║
+// ║  ——本组件补齐 count 展示并演示三方法链式组合：                        ║
+// ║    filter(保留) → map(变换) → count(计数) 一条管道。                 ║
+// ║                                                                      ║
+// ║  方法调用层（对照）：len · get · push · contains 经普通方法调用翻译，  ║
+// ║  不具语言语义（无 floor 门）——语义全集域 2 明确区分。                 ║
+// ╚══════════════════════════════════════════════════════════════════════╝
+
+import omniview;
+import { LearnDesign } from "../design";
+
+component ArrayChainDemo {
+    // 任务样本：名称 + 完成态 + 优先级
+    signal tasks: Array<String> = [
+        "设计评审",
+        "编写代码",
+        "运行测试",
+        "修复缺陷",
+        "部署上线",
+    ];
+    signal doneSet: Array<String> = ["设计评审", "部署上线"];
+
+    // ── 语言方法层：链式管道（灵活运用——filter→map 链 + count 谓词内联） ──
+    // filter：保留未完成任务
+    computed pending: Array<String> = tasks.filter(|t| !doneSet.contains(t));
+    // map：变换为带标记的名称（链式第二段——作用于 filter 结果）
+    computed pendingMarked: Array<String> = pending.map(|t| t + " ⏳");
+    // count：计数（语言方法——谓词内联必填；等价于 filter(...).count() 单段）
+    computed pendingCount: Number = tasks.count(|t| !doneSet.contains(t));
+    // count 另一谓词形态
+    computed doneCount: Number = tasks.count(|t| doneSet.contains(t));
+
+    // ── 方法调用层（对照）：len / get / push / contains ──
+    computed totalLen: Number = tasks.len();
+    computed firstTask: String = tasks.get(0);
+    signal draft: String = "";
+    fn addDraft() {
+        tasks.push(draft);
+        draft = "";
+    }
+
+    view {
+        <section class: LearnDesign.DemoCard>
+            <h3 class: LearnDesign.CardTitle>数组语言方法：count + 链式管道</h3>
+            <p class: LearnDesign.Hint>
+                filter → map → count 一条管道（语言方法层，跨目标保证）；下方对照方法调用层 len/get/push/contains。
+            </p>
+
+            <div class: LearnDesign.Row>
+                <div class: LearnDesign.Badge>待办 {pendingCount} 项</div>
+                <div class: LearnDesign.Badge>已完成 {doneCount} 项</div>
+                <div class: LearnDesign.Badge>共 {totalLen} 项</div>
+                <div class: LearnDesign.Badge>首项：{firstTask}</div>
+            </div>
+
+            <div class: LearnDesign.Row>
+                <div class: LearnDesign.Col>
+                    <h4 class: LearnDesign.SectionTitle>filter → map 管道结果</h4>
+                    @for task in pendingMarked {
+                        <div class: LearnDesign.Tag>{task}</div>
+                    }
+                </div>
+                <div class: LearnDesign.Col>
+                    <h4 class: LearnDesign.SectionTitle>新增任务（push 方法调用层）</h4>
+                    <div class: LearnDesign.Row>
+                        <input class: LearnDesign.Input bind:value={draft} placeholder="任务名称" />
+                        <button class: LearnDesign.Button @onPress={addDraft}>添加</button>
+                    </div>
+                    <p class: LearnDesign.Hint>contains 判定完成态：{doneSet.contains("部署上线") ? "已包含" : "未包含"}</p>
+                </div>
+            </div>
+        </section>
+    }
+}
