@@ -37,11 +37,19 @@
 .text { /* 自由文本段由覆盖层呈现（继承 .wrap 的 var(--ol-text)）；textarea 文字保持透明防 PUA 标记字符方块化（review fix round 2） */ }
 .input {
   position: relative; z-index: 1;
-  width: 100%; min-width: 140px;
+  display: block; /* textarea 默认 inline-block 基线对齐会引入隐性垂直偏移（wrap 高 > 内容高） */
+  /* 宽度 = wrap 内容盒（100%），与 overlay（absolute inset 同盒）恒同宽 → 换行点一致逐行对齐。
+     不设 min-width：grow 类（使用点传入，min-width: 40px）会压窄 wrap，固定 140 反使 textarea
+     溢出 wrap → 文本流宽 ≠ overlay → 长内容换行错位（Task 6 E2E 实测暴露） */
+  width: 100%;
   box-sizing: border-box; /* 宽度含 padding，不溢出 .wrap 内容盒 */
   font: inherit; line-height: 1.6;
   white-space: pre-wrap; word-break: break-all;
   padding: 2px 6px; /* 与 .wrap 一致，覆盖层对齐 */
+  /* 高度随内容增高（多行公式完整可见；旧版 contentEditable 自动增高，textarea 固定 2 行
+     会裁剪——Task 6 E2E 实测暴露）。min-height 保持空态/单行时的 2 行视觉（42px = 2×19.2+4）。
+     overflow: hidden 时 field-sizing 生效（auto/scroll 会禁用它） */
+  field-sizing: content; min-height: 42px;
   color: transparent;            /* 文字透明，覆盖层呈现 */
   caret-color: #334155;          /* 光标可见 */
   background: transparent; border: none; outline: none;
