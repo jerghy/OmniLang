@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 #
+# v4 基线（2026-08-06 实测）：tsc 87 errors（TS7006×44/TS2345×11/TS2339×10/
+# TS2554×6/TS2353×6/TS18048×4/TS2322×3/TS2304×2/TS2367×1）+ eslint 4。
+# 修复轮每删除一类豁免须同步此注释；任何类别计数上升 = 门禁失败。
+# 目标：Phase 2/3 修复后 tsc ≤ 33（类型发射 + H2/H3/M3 删除 TS2304×2/TS2345×2/TS2554×6）。
+#
 # Real React gate for generated OmniLang output.
 #
 # Runs, over the committed harness test/projects/learn-omniview/build/react-test-app:
