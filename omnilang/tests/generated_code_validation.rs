@@ -1368,3 +1368,83 @@ fn learn_omniview_formpage_a11y_migration_across_targets() {
         }
     }
 }
+
+// ════════════════════════════════════════════════════════════════
+// 组合 fixture 矩阵（Task 0.3）: ref-op × 数组方法 / scrollTo 双轴
+// ════════════════════════════════════════════════════════════════
+//
+// v4 修复计划的 exit-0 族 RED 测试: 编译 exit 0 但生成物含缺陷——全量
+// dart analyze 门（parameterized/ 枚举）对「编译成功但输出错误」无能为力，
+// 因此这两个组合 fixture 放在枚举目录之外（tests/fixtures/combinations/、
+// tests/fixtures/refs/），由本节的字符串断言直接锁死生成物形态：
+// 当前为预期终态 RED，修复在 Task 3.1（ref-op 参数内数组方法重写）与
+// Task 3.2（scrollTo 双轴 [flutter] warning）。
+
+/// Compile a fixture (path relative to `tests/fixtures/`) to Flutter
+/// through the public compiler API, returning the generated `.dart`
+/// sources (concatenated, sorted) and the compile warnings. Returns None
+/// when the Flutter backend is not compiled into this build (SKIP,
+/// mirroring `compile_learn_omniview_flutter`).
+fn compile_fixture_to_flutter(fixture: &str) -> Option<(String, Vec<omnilang::error::Diagnostic>)> {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests")
+        .join("fixtures")
+        .join(fixture);
+    let result = compile_fixture(&path, Target::Flutter);
+    if backend_not_enabled(&result) {
+        eprintln!(
+            "SKIP: backend for Flutter not compiled into this build \
+             (run with `--features codegen-flutter`); cannot validate {fixture}"
+        );
+        return None;
+    }
+    assert!(
+        result.success,
+        "compilation to Flutter failed for {fixture}: {:?}",
+        result.errors
+    );
+    let mut dart_srcs: Vec<&str> = result
+        .files
+        .iter()
+        .filter(|(path, _)| path.ends_with(".dart"))
+        .map(|(_, content)| content.as_str())
+        .collect();
+    assert!(
+        !dart_srcs.is_empty(),
+        "no .dart files generated for {fixture:?}"
+    );
+    dart_srcs.sort();
+    Some((dart_srcs.join("\n"), result.warnings))
+}
+
+#[test]
+fn combinations_refop_array_flutter_compiles() {
+    // v4 compiler HIGH-1: 数组方法在 ref-op 参数内必须被重写
+    // （.filter → .where(...).toList()）——生成 Dart 不得含 verbatim `.filter(`
+    let Some((dart, _)) = compile_fixture_to_flutter("combinations/refop_array.omni") else {
+        return; // backend not compiled in
+    };
+    assert!(
+        !dart.contains(".filter("),
+        "ref-op 参数内数组方法逃逸重写：\n{}",
+        dart
+    );
+    assert!(dart.contains(".where(("));
+}
+
+#[test]
+fn ref_scrollto_dual_axis_warns() {
+    // v4 compiler HIGH-2: scrollTo(x, y) 双轴必须产生 [flutter] warning
+    // （Flutter codegen 的 warnings 通道已存在——warn_at → CompileOutput）
+    let Some((dart, warnings)) = compile_fixture_to_flutter("refs/scrollto_dual.omni") else {
+        return; // backend not compiled in
+    };
+    assert!(
+        warnings
+            .iter()
+            .any(|w| w.message.contains("scrollTo") && w.message.contains("忽略")),
+        "双轴 scrollTo 无警告：{:?}",
+        warnings.iter().map(|w| &w.message).collect::<Vec<_>>()
+    );
+    assert!(dart.contains("jumpTo(200)"), "y 轴仍应生效");
+}

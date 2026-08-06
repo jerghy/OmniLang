@@ -1,0 +1,24 @@
+// refs/scrollto_dual.omni — scrollTo 双轴（v4 compiler HIGH-2）：
+// `box.scrollTo(100, 200)` 的 x 轴在 Flutter 上被静默丢弃（垂直轴优先：
+// 只发射 `if (_boxScroll.hasClients) { _boxScroll.jumpTo(200); }`）——必须产生
+// [flutter] warning（消息含 "scrollTo" 与 "忽略"，Task 3.2 修复）。
+//
+// 注：本 fixture 不在 parameterized/ 枚举内（不会被全量 dart analyze 门自动拾取），
+// 只被 generated_code_validation.rs::ref_scrollto_dual_axis_warns 编译。
+
+import omniview;
+
+component ScrollBox {
+    ref box: Element;
+
+    action scrollBoth() {
+        box.scrollTo(100, 200);
+    }
+
+    view {
+        <div @ref={box}>
+            <p>scroll target</p>
+        </div>
+        <button @onPress={scrollBoth}>Scroll</button>
+    }
+}
