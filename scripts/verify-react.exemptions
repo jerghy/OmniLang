@@ -91,11 +91,12 @@ components/Modal.tsx	TS2322	[T1.6] Option-value mismatch (string vs number)	1	#7
 #           onAnimationend/onTransitionend props — codegen now maps to
 #           React's synthetic set (react/utils.rs), so the props type-check.
 components/EmitEventDemo.tsx	TS2322	[T1.6] event-handler nullability (emit param typed string|undefined)	1	#73
-# TS2345 — SetStateAction mismatches: Option/void/unknown values + bind:value
-#           string→number coercion + Record param literals
+# TS2345 — SetStateAction mismatches: Option/void/unknown values + Record
+#           param literals. The bind:value string→number coercion class is
+#           GONE (v4 Task 2.3, deferral #64): numeric signals now emit
+#           `setX(Number(e.target.value))` — FormControlsDemo deleted below.
 pages/ElementRefDemo.tsx	TS2345	[T1.6] SetStateAction mismatch (Option value)	3	#64
 components/ErrorHandlingDemo.tsx	TS2345	[T1.6] Record param literal mismatch	3	#64
-components/FormControlsDemo.tsx	TS2345	[T1.6] bind:value string→number coercion	2	#64
 pages/SlotBox.tsx	TS2345	[T1.6] SetStateAction mismatch (Option value)	1	#64
 components/StdLibShowcase.tsx	TS2345	[T1.6] SetStateAction mismatch (unknown value)	1	#64
 components/OptionalChainDemo.tsx	TS2345	[T1.6] SetStateAction mismatch (null value)	1	#64

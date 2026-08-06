@@ -22,6 +22,7 @@ impl ReactCodegen {
         &self,
         w: &mut CodeWriter,
         view: Option<&ViewTree>,
+        comp: &ComponentIR,
         component_map: &FxHashMap<&str, &ComponentIR>,
         design_ctx: &crate::codegen::react::design::DesignCtx,
         signal_names: &FxHashSet<String>,
@@ -49,6 +50,7 @@ impl ReactCodegen {
             view::gen_branch_body_tsx(
                 w,
                 view,
+                comp,
                 component_map,
                 design_ctx,
                 signal_names,

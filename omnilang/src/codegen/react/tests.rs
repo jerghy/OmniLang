@@ -2927,6 +2927,18 @@ fn compile_react(source: &str) -> Option<crate::InternalCompileResult> {
     }
 }
 
+/// Compile a single .omni source string to React and join all emitted file
+/// contents — the shape-assertion shorthand for single-component sources.
+fn compile_react_src(source: &str) -> String {
+    compile_react(source)
+        .expect("compile should succeed")
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 // ── Class-name injection defense (security regression, Task 3.1) ───
 
 /// Compile helper returning the full result (success + errors) so tests can
@@ -4332,6 +4344,32 @@ component SearchBox {
         "bind:value must not need a ref or a DOM-syncing effect. Got:\n{}",
         content
     );
+}
+
+/// Test: numeric signals' bind:value must coerce the raw string
+/// (`e.target.value`) through `Number(...)` — feeding the string directly
+/// into a `useState<number>` setter is a type lie with runtime consequences
+/// (`age + 1` → `"301"` concatenation, v4 H3).
+#[test]
+fn numeric_bind_value_emits_number_coercion() {
+    // v4 H3: age: i32 的 bind:value 必须 Number(e.target.value)——裸
+    // e.target.value 把字符串喂进 number 状态（age+1 → "301"）。
+    let tsx = compile_react_src(
+        "component App { signal age: i32 = 0; \
+         view { <input type=\"number\" bind:value={age} /> } }",
+    );
+    assert!(
+        tsx.contains("setAge(Number(e.target.value))")
+            || tsx.contains("setAge(e.target.valueAsNumber)"),
+        "数字 bind:value 无强制转换：\n{}",
+        tsx
+    );
+    // 字符串 signal 保持原样（不破坏既有形状）
+    let tsx_str = compile_react_src(
+        "component App { signal q: String = \"\"; \
+         view { <input bind:value={q} /> } }",
+    );
+    assert!(tsx_str.contains("setQ(e.target.value)"));
 }
 
 /// Test: `bind:value={Store.sig}` writes back through the Zustand mutation

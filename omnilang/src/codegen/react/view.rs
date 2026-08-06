@@ -35,10 +35,52 @@ fn split_qualified_signal<'a>(
     }
 }
 
+/// v4 H3: 组件信号是否为数字类型（i8-u64/f32/f64/isize/usize）。
+/// Optional 已在 lowering 折叠为 `TypeIR::is_nullable`（kind 判定天然覆盖
+/// `i32?`）；Union 折叠为 `a | b` 型 Named 名（`lower_type` 按 kind 串拼接）——
+/// 任一成员数字即视为数字（`i32 | String` 的写回仍需强转：对数字分支是类型
+/// 诚实，对字符串分支仅损失类型精确度，value 仍可读）。
+fn signal_is_numeric(comp: &ComponentIR, name: &str) -> bool {
+    comp.signals
+        .iter()
+        .any(|s| s.name == name && type_ir_is_numeric(&s.r#type))
+}
+
+/// Whether a TypeIR denotes a numeric type: the canonical Int/Float kinds
+/// (i32/i64/f32/f64 — `TypeKind::from` folds them) or a numeric name from
+/// the narrow-int set (i8/u8/u16/u32/u64/isize/usize stay `Named`; unions
+/// join member kind strings with " | ", so each member is checked).
+fn type_ir_is_numeric(ty: &TypeIR) -> bool {
+    match &ty.kind {
+        TypeKind::Int | TypeKind::Float => true,
+        TypeKind::Named { name } => name.split(" | ").any(|member| {
+            matches!(
+                member,
+                "int"
+                    | "float"
+                    | "i8"
+                    | "i16"
+                    | "i32"
+                    | "i64"
+                    | "u8"
+                    | "u16"
+                    | "u32"
+                    | "u64"
+                    | "f32"
+                    | "f64"
+                    | "isize"
+                    | "usize"
+            )
+        }),
+        _ => false,
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn gen_view_node_tsx(
     w: &mut CodeWriter,
     node: &ViewTree,
+    comp: &ComponentIR,
     component_map: &FxHashMap<&str, &ComponentIR>,
     design_ctx: &DesignCtx,
     signal_names: &FxHashSet<String>,
@@ -72,6 +114,7 @@ pub(super) fn gen_view_node_tsx(
                     gen_view_node_tsx(
                         w,
                         child,
+                        comp,
                         component_map,
                         design_ctx,
                         signal_names,
@@ -187,6 +230,7 @@ pub(super) fn gen_view_node_tsx(
                     gen_consumer_child_tsx(
                         &mut child_w,
                         child,
+                        comp,
                         component_map,
                         design_ctx,
                         signal_names,
@@ -218,6 +262,7 @@ pub(super) fn gen_view_node_tsx(
                         gen_consumer_child_tsx(
                             w,
                             child,
+                            comp,
                             component_map,
                             design_ctx,
                             signal_names,
@@ -340,10 +385,15 @@ pub(super) fn gen_view_node_tsx(
                         // updates via `useStore.setState({ field: value })`,
                         // a component signal via its `setX` setter. The
                         // element value shape differs (input vs checkbox).
+                        // v4 H3: 数字类型 signal 的写回必须强制转换——裸
+                        // e.target.value 是字符串，会污染 number 状态
+                        // （类型谎言有运行时后果：age+1 → "301"）。
                         let event_value = if bind_name == "checked" {
-                            "e.target.checked"
+                            "e.target.checked".to_string()
+                        } else if signal_is_numeric(comp, &signal_ref.name) {
+                            "Number(e.target.value)".to_string()
                         } else {
-                            "e.target.value"
+                            "e.target.value".to_string()
                         };
                         let setter = if let Some((owner, field)) =
                             split_qualified_signal(&signal_ref.name, store_signal_owners)
@@ -774,6 +824,7 @@ pub(super) fn gen_view_node_tsx(
                 gen_view_node_tsx(
                     w,
                     child,
+                    comp,
                     component_map,
                     design_ctx,
                     signal_names,
@@ -826,6 +877,7 @@ pub(super) fn gen_view_node_tsx(
                     gen_branch_body_tsx(
                         w,
                         fb,
+                        comp,
                         component_map,
                         design_ctx,
                         signal_names,
@@ -865,6 +917,7 @@ pub(super) fn gen_view_node_tsx(
                     gen_branch_body_tsx(
                         w,
                         body,
+                        comp,
                         component_map,
                         design_ctx,
                         signal_names,
@@ -915,6 +968,7 @@ pub(super) fn gen_view_node_tsx(
                 gen_branch_body_tsx(
                     w,
                     body,
+                    comp,
                     component_map,
                     design_ctx,
                     signal_names,
@@ -945,6 +999,7 @@ pub(super) fn gen_view_node_tsx(
                     gen_branch_body_tsx(
                         w,
                         body,
+                        comp,
                         component_map,
                         design_ctx,
                         signal_names,
@@ -971,6 +1026,7 @@ pub(super) fn gen_view_node_tsx(
                 gen_branch_body_tsx(
                     w,
                     fb,
+                    comp,
                     component_map,
                     design_ctx,
                     signal_names,
@@ -1038,6 +1094,7 @@ pub(super) fn gen_view_node_tsx(
                     gen_branch_body_tsx(
                         w,
                         empty_body,
+                        comp,
                         component_map,
                         design_ctx,
                         signal_names,
@@ -1076,6 +1133,7 @@ pub(super) fn gen_view_node_tsx(
                 gen_view_node_tsx(
                     w,
                     body,
+                    comp,
                     component_map,
                     design_ctx,
                     signal_names,
@@ -1163,6 +1221,7 @@ pub(super) fn gen_view_node_tsx(
                 gen_view_node_tsx(
                     w,
                     child,
+                    comp,
                     component_map,
                     design_ctx,
                     signal_names,
@@ -1194,6 +1253,7 @@ pub(super) fn gen_view_node_tsx(
                 gen_branch_body_tsx(
                     w,
                     &ViewTree::Fragment(fallback.clone()),
+                    comp,
                     component_map,
                     design_ctx,
                     signal_names,
@@ -1231,6 +1291,7 @@ pub(super) fn gen_view_node_tsx(
 pub(super) fn gen_branch_body_tsx(
     w: &mut CodeWriter,
     body: &ViewTree,
+    comp: &ComponentIR,
     component_map: &FxHashMap<&str, &ComponentIR>,
     design_ctx: &DesignCtx,
     signal_names: &FxHashSet<String>,
@@ -1262,6 +1323,7 @@ pub(super) fn gen_branch_body_tsx(
     gen_view_node_tsx(
         w,
         body,
+        comp,
         component_map,
         design_ctx,
         signal_names,
@@ -1460,6 +1522,7 @@ pub(super) fn partition_component_children<'a>(
 fn gen_consumer_child_tsx(
     w: &mut CodeWriter,
     child: &ViewTree,
+    comp: &ComponentIR,
     component_map: &FxHashMap<&str, &ComponentIR>,
     design_ctx: &DesignCtx,
     signal_names: &FxHashSet<String>,
@@ -1483,6 +1546,7 @@ fn gen_consumer_child_tsx(
             gen_branch_body_tsx(
                 w,
                 &ViewTree::Fragment(fallback.clone()),
+                comp,
                 component_map,
                 design_ctx,
                 signal_names,
@@ -1501,6 +1565,7 @@ fn gen_consumer_child_tsx(
             gen_view_node_tsx(
                 w,
                 &strip_slot_prop(child),
+                comp,
                 component_map,
                 design_ctx,
                 signal_names,

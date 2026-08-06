@@ -963,6 +963,7 @@ impl ReactCodegen {
         self.gen_jsx_return(
             &mut w,
             view,
+            comp,
             component_map,
             &design_ctx,
             &signal_names,
