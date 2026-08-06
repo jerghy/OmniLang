@@ -66,6 +66,13 @@ describe("applyDebugOverrides", () => {
     expect(out["src/stores/TodoStore.omni"]).toContain('signal items: Array<String> = ["a"];');
   });
 
+  it("带空格泛型类型（Map<String, String>）不产生双等号", () => {
+    const src = { "src/components/Card.omni": "component Card {\n  signal map: Map<String, String> = {};\n}" };
+    const out = applyDebugOverrides(src, { Card: { map: { text: '{ "a": 1 }', valid: true } } }, C);
+    expect(out["src/components/Card.omni"]).toContain('signal map: Map<String, String> = { "a": 1 };');
+    expect(out["src/components/Card.omni"]).not.toContain("= {} =");
+  });
+
   it("覆盖目标不存在 → 该文件原样返回", () => {
     const out = applyDebugOverrides(sources, { Card: { ghost: { text: '"x"', valid: true } } }, C);
     expect(out["src/components/Card.omni"]).toBe(sources["src/components/Card.omni"]);

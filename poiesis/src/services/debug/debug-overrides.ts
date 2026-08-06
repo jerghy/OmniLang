@@ -43,9 +43,11 @@ function escapeReplaceLiteral(str: string): string {
 
 function replaceDecl(source: string, name: string, literal: string): string {
   const kw = "(signal|prop)";
-  // 有默认值：捕获类型组 $2 保留原样，只换 = 后的值段
+  // 有默认值：捕获类型组 $2 保留原样，只换 = 后的值段。
+  // 类型组用惰性 [^=;\n]+?：可跨空格捕获泛型（Map<String, String>），
+  // 且停在首个 = 前、由 \s*=\s* 吞掉等号前空格（贪婪版会吞尾空格产生双空格）。
   const withDefault = new RegExp(
-    `${kw}\\s+${escapeRegex(name)}\\s*:\\s*(\\S+)\\s*=\\s*[^;\\n]+;`,
+    `${kw}\\s+${escapeRegex(name)}\\s*:\\s*([^=;\\n]+?)\\s*=\\s*[^;\\n]+;`,
     "g",
   );
   if (withDefault.test(source)) {
