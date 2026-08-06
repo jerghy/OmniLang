@@ -33,9 +33,8 @@ component ArrayChainDemo {
     // count 另一谓词形态
     computed doneCount: Number = tasks.count(|t| doneSet.contains(t));
 
-    // ── 方法调用层（对照）：len / get / push / contains ──
+    // ── 方法调用层（对照）：len / push / contains ──
     computed totalLen: Number = tasks.len();
-    computed firstTask: String = tasks.get(0);
     signal draft: String = "";
     fn addDraft() {
         tasks.push(draft);
@@ -53,7 +52,6 @@ component ArrayChainDemo {
                 <div class: LearnDesign.Badge>待办 {pendingCount} 项</div>
                 <div class: LearnDesign.Badge>已完成 {doneCount} 项</div>
                 <div class: LearnDesign.Badge>共 {totalLen} 项</div>
-                <div class: LearnDesign.Badge>首项：{firstTask}</div>
             </div>
 
             <div class: LearnDesign.Row>
