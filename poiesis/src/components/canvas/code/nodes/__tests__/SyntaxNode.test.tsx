@@ -67,9 +67,18 @@ describe("SyntaxNode 内联编辑", () => {
     renderNode("store-call", { storeName: "TodoStore", action: "add", args: "" }, onEditProp);
     expect(screen.queryByLabelText("新参数")).toBeFalsy();
     fireEvent.click(screen.getByRole("button", { name: "+ 添加参数" }));
-    const input = screen.getByLabelText("新参数"); // store-call 传 candidates → 公式框（contenteditable）
-    fireEvent.input(input, { target: { textContent: "text" } });
-    fireEvent.blur(input);
+    const input = screen.getByLabelText("新参数"); // store-call 传 candidates → 公式框（textarea 编辑层）
+    const ta = input.querySelector("textarea") as HTMLTextAreaElement;
+    // 新契约：标识符经斜杠逃生口（候选空 Enter → 引用胶囊），blur 提交
+    ta.value = "/";
+    ta.setSelectionRange(1, 1); // 触发字符落点必须在 fireEvent 前设（onInput 同步读 selectionStart）
+    fireEvent.input(ta, { target: { value: "/" } }); // 第一步：斜杠触发菜单
+    ta.value = "/text";
+    ta.setSelectionRange(5, 5);
+    fireEvent.input(ta, { target: { value: "/text" } }); // 第二步：菜单重过滤（候选空 → 仅运算符组）
+    fireEvent.keyDown(ta, { key: "Enter" }); // 逃生口：引用胶囊
+    expect(ta.value).toBe("\uE000text\uE001");
+    fireEvent.blur(ta);
     expect(onEditProp).toHaveBeenCalledWith("l1", "args", "text");
   });
 
@@ -95,13 +104,16 @@ describe("SyntaxNode 内联编辑", () => {
     expect(screen.getByText("let mut x = 0;")).toBeTruthy();
   });
 
-  it("let 值字段公式框内嵌 token 渲染（Task 9 替换 TokenPreview 预览行）", () => {
+  it("let 值字段公式框内嵌胶囊渲染（新契约：data-seg-kind 覆盖层分段）", () => {
     const { container } = renderNode("let", { name: "x", mutable: false, value: "count + 1" });
-    // NodeFormulaField 内部分词渲染：identifier 胶囊 / operator 符号；空白段保留（textContent 双向一致）
+    // NodeFormulaField 覆盖层分段渲染：identifier/operator 成胶囊；结构字符独立段；自由文本透明
     expect(container.querySelector('[data-testid="token-preview"]')).toBeNull(); // 预览行已删除
-    expect(container.querySelector('[data-token-kind="identifier"]')?.textContent).toBe("count");
-    expect(container.querySelector('[data-token-kind="operator"]')?.textContent).toBe("+");
-    expect(container.querySelector('[data-field-kind="formula"]')?.textContent).toBe("count + 1");
+    expect(container.querySelectorAll('[data-seg-kind="capsule"]')).toHaveLength(2);
+    expect(container.querySelector('[data-seg-kind="capsule"]')?.textContent).toBe("count");
+    expect(container.querySelectorAll('[data-seg-kind="struct"]')).toHaveLength(0);
+    // 覆盖层分段 join = 原始表达式（textarea 值=结构化 markup，jsdom textContent 含之，故限定覆盖层）
+    const segText = [...container.querySelectorAll('[data-field-kind="formula"] [data-seg-kind]')].map((s) => s.textContent).join("");
+    expect(segText).toBe("count + 1");
   });
 
   it("store 名 datalist 提供候选", () => {
@@ -136,12 +148,14 @@ describe("SyntaxNode 公式框集成", () => {
     expect(container.querySelector('[data-field-kind="formula"]')).toBeTruthy();
   });
 
-  it("assign value 输入字母弹候选（scope 信号/变量）", () => {
+  it("assign value 斜杠键入弹候选（新契约：触发字符 / 弹全量候选）", () => {
     const { container } = render(
       <SyntaxNode data={{ id: "n1", label: "赋值", tag: "assign", props: { target: "count", operator: "=", value: "" }, scope, letVars: [{ name: "total" }], onEditProp: vi.fn() }} />,
     );
-    const input = container.querySelector('[data-field-kind="formula"]') as HTMLElement;
-    fireEvent.input(input, { target: { textContent: "tot" } });
+    const input = container.querySelector('[data-field-kind="formula"] textarea') as HTMLTextAreaElement;
+    input.value = "/";
+    input.setSelectionRange(1, 1); // 必须在 fireEvent 前设（onInput 同步读 selectionStart）
+    fireEvent.input(input, { target: { value: "/" } });
     // 候选菜单（role=listbox）内应出现 total；target 下拉也有同名 option（letVars 目标），故限定菜单作用域
     expect(container.querySelector('[role="listbox"]')?.textContent).toContain("total");
   });
@@ -160,8 +174,11 @@ describe("SyntaxNode 公式框集成", () => {
     const { container } = render(
       <SyntaxNode data={{ id: "n1", label: "变量声明", tag: "let", props: { name: "x", mutable: false, value: "0" }, scope, onEditProp }} />,
     );
-    const input = container.querySelector('[data-field-kind="formula"]') as HTMLElement;
-    fireEvent.input(input, { target: { textContent: "count + 1" } });
+    const input = container.querySelector('[data-field-kind="formula"] textarea') as HTMLTextAreaElement;
+    // 新契约：表达式以胶囊标记段输入（raw 自由文本会按字符串字面量加引号提交）
+    input.value = "\uE000count\uE001 \uE000+\uE001 1";
+    input.setSelectionRange(13, 13); // 必须在 fireEvent 前设（onInput 同步读 selectionStart）
+    fireEvent.input(input, { target: { value: "\uE000count\uE001 \uE000+\uE001 1" } });
     fireEvent.blur(input);
     expect(onEditProp).toHaveBeenCalledWith("n1", "value", "count + 1");
   });

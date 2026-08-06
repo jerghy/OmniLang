@@ -18,8 +18,12 @@ describe("ConditionNode 内联编辑", () => {
     render(<ConditionNode data={{ label: "判断", branches: [{ id: "br0", type: "if", condition: "" }], onEditCondition }} />);
     fireEvent.click(screen.getByText("..."));
     const input = screen.getByLabelText("编辑条件表达式");
-    fireEvent.input(input, { target: { textContent: "count > 0" } });
-    fireEvent.blur(input);
+    const ta = input.querySelector("textarea") as HTMLTextAreaElement;
+    // 新契约：表达式以胶囊标记段输入（raw 自由文本会按字符串字面量加引号提交）
+    ta.value = "\uE000count\uE001 \uE000>\uE001 0";
+    ta.setSelectionRange(13, 13); // 必须在 fireEvent 前设（onInput 同步读 selectionStart）
+    fireEvent.input(ta, { target: { value: "\uE000count\uE001 \uE000>\uE001 0" } });
+    fireEvent.blur(ta);
     expect(onEditCondition).toHaveBeenCalledWith("br0", "count > 0");
   });
 
@@ -42,7 +46,7 @@ describe("ConditionNode 内联编辑", () => {
   it("Esc 取消退出编辑态恢复显示", () => {
     const { container } = render(<ConditionNode data={{ label: "判断", branches: [{ id: "br0", type: "if", condition: "x == 1" }], onEditCondition: vi.fn() }} />);
     fireEvent.click(screen.getByTestId("token-preview"));
-    const input = screen.getByLabelText("编辑条件表达式");
+    const input = screen.getByLabelText("编辑条件表达式").querySelector("textarea") as HTMLTextAreaElement;
     fireEvent.keyDown(input, { key: "Escape" });
     expect(screen.queryByLabelText("编辑条件表达式")).toBeFalsy();
     expect(container.querySelector('[data-testid="token-preview"]')?.textContent).toBe("x==1");
@@ -62,8 +66,12 @@ describe("ReturnNode 内联编辑", () => {
     const { container } = render(<ReturnNode data={{ label: "返回", returnExpr: "x", onCommitReturn: onCommit }} />);
     fireEvent.click(container.querySelector('[data-testid="token-preview"]')!);
     const input = screen.getByLabelText("return 表达式");
-    fireEvent.input(input, { target: { textContent: "y" } });
-    fireEvent.keyDown(input, { key: "Enter" });
+    const ta = input.querySelector("textarea") as HTMLTextAreaElement;
+    // 新契约：标识符以胶囊标记段输入（raw "y" 会按字符串字面量提交为 \"y\"）
+    ta.value = "\uE000y\uE001";
+    ta.setSelectionRange(3, 3); // 必须在 fireEvent 前设（onInput 同步读 selectionStart）
+    fireEvent.input(ta, { target: { value: "\uE000y\uE001" } });
+    fireEvent.keyDown(ta, { key: "Enter" });
     expect(onCommit).toHaveBeenCalledWith("y");
   });
 
@@ -71,7 +79,7 @@ describe("ReturnNode 内联编辑", () => {
     const { container } = render(<ReturnNode data={{ label: "返回", returnExpr: "x", onCommitReturn: vi.fn() }} />);
     fireEvent.click(container.querySelector('[data-testid="token-preview"]')!);
     expect(screen.getByLabelText("return 表达式")).toBeTruthy();
-    fireEvent.keyDown(screen.getByLabelText("return 表达式"), { key: "Escape" });
+    fireEvent.keyDown(screen.getByLabelText("return 表达式").querySelector("textarea") as HTMLTextAreaElement, { key: "Escape" });
     expect(screen.queryByLabelText("return 表达式")).toBeFalsy();
     expect(container.querySelector('[data-testid="token-preview"]')?.textContent).toBe("x");
   });
@@ -92,11 +100,13 @@ describe("ConditionNode 公式框", () => {
     expect(container.querySelector('[data-field-kind="formula"]')).toBeTruthy();
   });
 
-  it("条件输入字母弹候选（scope 信号）", () => {
+  it("条件斜杠键入弹候选（新契约：触发字符 / 弹全量候选）", () => {
     const { container } = render(<ConditionNode data={data} />);
     fireEvent.click(screen.getByTestId("token-preview"));
-    const input = container.querySelector('[data-field-kind="formula"]') as HTMLElement;
-    fireEvent.input(input, { target: { textContent: "cou" } });
+    const input = container.querySelector('[data-field-kind="formula"] textarea') as HTMLTextAreaElement;
+    input.value = "/";
+    input.setSelectionRange(1, 1); // 必须在 fireEvent 前设（onInput 同步读 selectionStart）
+    fireEvent.input(input, { target: { value: "/" } });
     expect(screen.getByRole("listbox")).toBeTruthy();
     // 信号候选 label 为 "count: i32"，限定菜单作用域断言包含 count
     expect(container.querySelector('[role="listbox"]')?.textContent).toContain("count");
@@ -106,8 +116,11 @@ describe("ConditionNode 公式框", () => {
     const onEditCondition = vi.fn();
     const { container } = render(<ConditionNode data={{ ...data, onEditCondition }} />);
     fireEvent.click(screen.getByTestId("token-preview"));
-    const input = container.querySelector('[data-field-kind="formula"]') as HTMLElement;
-    fireEvent.input(input, { target: { textContent: "count > 0" } });
+    const input = container.querySelector('[data-field-kind="formula"] textarea') as HTMLTextAreaElement;
+    // 新契约：表达式以胶囊标记段输入（raw 自由文本会按字符串字面量加引号提交）
+    input.value = "\uE000count\uE001 \uE000>\uE001 0";
+    input.setSelectionRange(13, 13); // 必须在 fireEvent 前设（onInput 同步读 selectionStart）
+    fireEvent.input(input, { target: { value: "\uE000count\uE001 \uE000>\uE001 0" } });
     fireEvent.blur(input);
     expect(onEditCondition).toHaveBeenCalledWith("br0", "count > 0");
   });
@@ -115,8 +128,10 @@ describe("ConditionNode 公式框", () => {
   it("无 scope → 退化纯文本不弹层", () => {
     const { container } = render(<ConditionNode data={{ ...data, scope: undefined }} />);
     fireEvent.click(screen.getByTestId("token-preview"));
-    const input = container.querySelector('[data-field-kind="formula"]') as HTMLElement;
-    fireEvent.input(input, { target: { textContent: "cou" } });
+    const input = container.querySelector('[data-field-kind="formula"] textarea') as HTMLTextAreaElement;
+    input.value = "/";
+    input.setSelectionRange(1, 1); // 必须在 fireEvent 前设（onInput 同步读 selectionStart）
+    fireEvent.input(input, { target: { value: "/" } });
     expect(screen.queryByRole("listbox")).toBeNull();
   });
 });
@@ -128,8 +143,11 @@ describe("ReturnNode 公式框", () => {
       <ReturnNode data={{ label: "返回", returnExpr: "", scope: formulaScope, letVars: [], onCommitReturn }} />,
     );
     fireEvent.click(screen.getByText("return")); // 点击进入编辑态才挂载公式框
-    const input = container.querySelector('[data-field-kind="formula"]') as HTMLElement;
-    fireEvent.input(input, { target: { textContent: "count + 1" } });
+    const input = container.querySelector('[data-field-kind="formula"] textarea') as HTMLTextAreaElement;
+    // 新契约：表达式以胶囊标记段输入（raw 自由文本会按字符串字面量加引号提交）
+    input.value = "\uE000count\uE001 \uE000+\uE001 1";
+    input.setSelectionRange(13, 13); // 必须在 fireEvent 前设（onInput 同步读 selectionStart）
+    fireEvent.input(input, { target: { value: "\uE000count\uE001 \uE000+\uE001 1" } });
     fireEvent.blur(input);
     expect(onCommitReturn).toHaveBeenCalledWith("count + 1");
   });

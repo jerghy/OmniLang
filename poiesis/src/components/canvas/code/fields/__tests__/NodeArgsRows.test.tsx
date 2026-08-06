@@ -110,7 +110,8 @@ describe("NodeArgsRows", () => {
 
 describe("NodeArgsRows candidates", () => {
   const cands: FormulaCandidateSource = {
-    filter: (q) => (q === "" ? [] : [{ value: "count", label: "count" }].filter((c) => c.value.startsWith(q))),
+    // 新契约：斜杠触发 → filter("") 全量候选（对齐 buildFormulaSource 空 query 语义）
+    filter: (q) => (q === "" || q.startsWith("count") ? [{ value: "count", label: "count" }] : []),
     storeSignals: () => [],
   };
 
@@ -124,10 +125,13 @@ describe("NodeArgsRows candidates", () => {
     expect(container.querySelector('[data-field-kind="text"]')).toBeTruthy();
   });
 
-  it("行内输入弹候选", () => {
+  it("行内斜杠键入弹候选（新契约：触发字符 / 弹全量候选）", () => {
     render(<NodeArgsRows values={[""]} onChange={vi.fn()} candidates={cands} />);
     const input = screen.getByRole("combobox") as HTMLElement;
-    fireEvent.input(input, { target: { textContent: "cou" } });
+    const ta = input.querySelector("textarea") as HTMLTextAreaElement;
+    ta.value = "/";
+    ta.setSelectionRange(1, 1); // 必须在 fireEvent 前设（onInput 同步读 selectionStart）
+    fireEvent.input(ta, { target: { value: "/" } });
     expect(screen.getByRole("listbox")).toBeTruthy();
     expect(screen.getByText("count")).toBeTruthy();
   });
