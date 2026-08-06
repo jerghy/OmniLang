@@ -1,5 +1,35 @@
 import { describe, it, expect } from "vitest";
+import { parseMarkup, CAPSULE_START, CAPSULE_END } from "../expression-trigger";
 import { getTriggerContext, operatorCandidates, insertAt, replaceToken, countUnbalancedParens, SINGLE_CHAR_OPERATORS, tokenizeFormula } from "../expression-trigger";
+
+describe("parseMarkup", () => {
+  it("解析胶囊标记段", () => {
+    const segs = parseMarkup(`${CAPSULE_START}count${CAPSULE_END} + 1`);
+    expect(segs).toEqual([
+      { kind: "capsule", text: "count", start: 0, end: CAPSULE_START.length + 5 + CAPSULE_END.length },
+      { kind: "text", text: " + 1", start: segs[0]!.end, end: segs[0]!.end + 4 },
+    ]);
+  });
+  it("结构字符独立成段（连续合并）", () => {
+    const segs = parseMarkup(`a(1, 2)`);
+    expect(segs.map((s) => [s.kind, s.text])).toEqual([
+      ["text", "a"],
+      ["struct", "("],
+      ["text", "1"],
+      ["struct", ","],
+      ["text", " 2"],
+      ["struct", ")"],
+    ]);
+  });
+  it("结构字符集覆盖 ()[]{}.,:", () => {
+    const segs = parseMarkup(`[10].{x:2}`);
+    expect(segs.filter((s) => s.kind === "struct").map((s) => s.text).join("")).toBe("[].{:}");
+  });
+  it("未闭合标记容错：截断到末尾", () => {
+    const segs = parseMarkup(`${CAPSULE_START}abc`);
+    expect(segs[0]).toEqual({ kind: "capsule", text: "abc", start: 0, end: 3 + CAPSULE_START.length });
+  });
+});
 
 describe("SINGLE_CHAR_OPERATORS", () => {
   it("单字符运算符集合：+ - * / %", () => {

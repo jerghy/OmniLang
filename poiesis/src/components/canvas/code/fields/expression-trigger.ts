@@ -1,3 +1,46 @@
+/** 胶囊标记：textarea 中胶囊段用私有区字符包裹（React Mentions 同款）。 */
+export const CAPSULE_START = "\uE000";
+export const CAPSULE_END = "\uE001";
+
+/** 结构字符：非胶囊的表达式标点，着色渲染、提交原样。 */
+export const STRUCT_CHARS = new Set(["(", ")", "[", "]", "{", "}", ",", ":", "."]);
+
+export interface Segment {
+  kind: "capsule" | "struct" | "text";
+  /** 段内容（capsule 不含标记字符） */
+  text: string;
+  /** 在 markup 中的起止偏移（覆盖层定位/光标定位用） */
+  start: number;
+  end: number;
+}
+
+/** 标记文本 → 段序列：胶囊标记段 / 连续结构字符段 / 连续普通文本段。 */
+export function parseMarkup(markup: string): Segment[] {
+  const segments: Segment[] = [];
+  let i = 0;
+  while (i < markup.length) {
+    if (markup[i] === CAPSULE_START) {
+      const end = markup.indexOf(CAPSULE_END, i + 1);
+      const endPos = end === -1 ? markup.length : end + 1;
+      segments.push({ kind: "capsule", text: markup.slice(i + 1, end === -1 ? endPos : end), start: i, end: endPos });
+      i = endPos;
+      continue;
+    }
+    if (STRUCT_CHARS.has(markup[i]!)) {
+      let j = i;
+      while (j < markup.length && STRUCT_CHARS.has(markup[j]!)) j++;
+      segments.push({ kind: "struct", text: markup.slice(i, j), start: i, end: j });
+      i = j;
+      continue;
+    }
+    let j = i;
+    while (j < markup.length && markup[j] !== CAPSULE_START && !STRUCT_CHARS.has(markup[j]!)) j++;
+    segments.push({ kind: "text", text: markup.slice(i, j), start: i, end: j });
+    i = j;
+  }
+  return segments;
+}
+
 // 表达式公式框的触发规则纯函数（表驱动，可单测）。
 // 运算符集合以编译器 infix.rs 为权威：+ - * / % == != < > <= >= && || ?? is ?. 与一元 !。
 
