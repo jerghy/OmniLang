@@ -2,9 +2,13 @@ import React, { useState, useCallback, useRef, useEffect, useMemo } from "react"
 import { usePoiesisStore } from "../../store";
 import { useCanvasStore } from "../canvas/canvas-store";
 import type { DefEntry, ComputedEntry } from "../../core/types/project-json";
+import type { StoreDefinition } from "../../core/types/store";
 import { parseDebugValue } from "../../services/debug/parse-debug-value";
 import { analyzeSignalUsage } from "../../services/debug/signal-analysis";
 import type { SignalUsage } from "../../services/debug/signal-analysis";
+import { synthesizeConditionValue } from "../../services/debug/synthesize-condition";
+import { extractAssignSamples } from "../../services/debug/sample-extractor";
+import { generateOmniFragment } from "../../services/codegen/pipeline";
 
 // ── OmniLang common types for dropdown ──
 const OMNI_TYPES = [
@@ -290,6 +294,139 @@ const S = {
   } as React.CSSProperties,
 
   stepBtn: { ...ADD_BTN_BASE, padding: "0 6px" } as React.CSSProperties,
+
+  // ── 界面信号卡（Task 10）──
+  signalCard: {
+    border: "1px solid var(--ol-border)",
+    borderRadius: "var(--ol-radius-sm)",
+    padding: "6px 10px",
+    background: "var(--ol-gray-50)",
+    margin: "0 8px 8px",
+  } as React.CSSProperties,
+
+  signalCardHeader: {
+    display: "flex",
+    alignItems: "center",
+    gap: "var(--ol-space-1p5)",
+  } as React.CSSProperties,
+
+  badgeText: {
+    color: "var(--ol-text-muted)",
+    fontSize: "var(--ol-font-size-10)",
+    flexShrink: 0,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap" as const,
+  } as React.CSSProperties,
+
+  branchGroup: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "3px",
+    marginTop: "6px",
+  } as React.CSSProperties,
+
+  branchRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: "4px",
+    flexWrap: "wrap",
+  } as React.CSSProperties,
+
+  chainPrefix: {
+    fontFamily: "var(--ol-font-family-mono)",
+    color: "var(--ol-text-muted)",
+    fontSize: "var(--ol-font-size-11)",
+    flexShrink: 0,
+  } as React.CSSProperties,
+
+  branchChipWrap: {} as React.CSSProperties,
+
+  branchChip: (active: boolean): React.CSSProperties => ({
+    border: "1px solid var(--ol-border)",
+    borderRadius: "999px",
+    padding: "1px 8px",
+    fontSize: "var(--ol-font-size-11)",
+    fontFamily: "var(--ol-font-family-mono)",
+    background: active ? "var(--ol-color-primary)" : "var(--ol-surface)",
+    color: active ? "var(--ol-text-inverse)" : "var(--ol-text-secondary)",
+    cursor: "pointer",
+    lineHeight: "16px",
+    maxWidth: 150,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap" as const,
+  }),
+
+  chipRow: {
+    display: "flex",
+    gap: "4px",
+    marginTop: "4px",
+    flexWrap: "wrap",
+  } as React.CSSProperties,
+
+  quickChip: {
+    border: "1px solid var(--ol-border)",
+    borderRadius: "999px",
+    padding: "0 8px",
+    fontSize: "var(--ol-font-size-11)",
+    background: "var(--ol-surface)",
+    color: "var(--ol-text-secondary)",
+    cursor: "pointer",
+    lineHeight: "16px",
+  } as React.CSSProperties,
+
+  loopGroup: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "3px",
+    marginTop: "6px",
+  } as React.CSSProperties,
+
+  loopRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+  } as React.CSSProperties,
+
+  loopText: {
+    fontFamily: "var(--ol-font-family-mono)",
+    fontSize: "var(--ol-font-size-11)",
+    color: "var(--ol-text-secondary)",
+  } as React.CSSProperties,
+
+  loopEmptyTag: {
+    fontSize: "var(--ol-font-size-10)",
+    color: "var(--ol-text-inverse)",
+    background: "var(--ol-color-primary)",
+    borderRadius: "4px",
+    padding: "0 4px",
+    lineHeight: "14px",
+    flexShrink: 0,
+  } as React.CSSProperties,
+
+  loopTransformTag: {
+    fontSize: "var(--ol-font-size-10)",
+    color: "var(--ol-text-secondary)",
+    border: "1px solid var(--ol-border)",
+    borderRadius: "4px",
+    padding: "0 4px",
+    lineHeight: "14px",
+    flexShrink: 0,
+  } as React.CSSProperties,
+
+  valueLabel: {
+    color: "var(--ol-text-muted)",
+    fontSize: "var(--ol-font-size-11)",
+    flexShrink: 0,
+    width: 16,
+  } as React.CSSProperties,
+
+  invalidHint: {
+    color: "var(--ol-color-danger)",
+    fontSize: "var(--ol-font-size-10)",
+    flexShrink: 0,
+  } as React.CSSProperties,
 };
 
 /** Generate a simple PID (unique within component) */
@@ -304,6 +441,8 @@ export function ComponentDefPanel() {
   const activeTabId = usePoiesisStore((s) => s.designPage.activeTabId);
   const openTabs = usePoiesisStore((s) => s.designPage.openTabs);
   const componentDefs = usePoiesisStore((s) => s.componentDefs);
+  const storeDefs = usePoiesisStore((s) => s.storeDefs);
+  const inlineStoreDefs = usePoiesisStore((s) => s.inlineStoreDefs);
   const addComponentSignal = usePoiesisStore((s) => s.addComponentSignal);
   const removeComponentSignal = usePoiesisStore((s) => s.removeComponentSignal);
   const updateComponentSignal = usePoiesisStore((s) => s.updateComponentSignal);
@@ -339,14 +478,64 @@ export function ComponentDefPanel() {
   const props = def?.props || [];
   const computeds = def?.computeds || [];
 
-  // 数据信号列表：分析组件 view 源码（本任务只取 dataSignals；源码为空时
-  // analyzeSignalUsage 本身已把全部信号归入 dataSignals）
-  const { dataSignals } = useMemo(() => {
+  // 面板内惰性生成组件源码（Task 10）：componentDefs 保存后带 elements/wires
+  //（useSaveProject 第 5 步写入）；无 def 或生成失败 → 空串（analyzeSignalUsage
+  // 兜底把全部信号归入 dataSignals）。generateOmniFragment 对空元素集短路返回空。
+  const getComponentSource = useCallback(() => {
+    const compDef = componentDefs[componentName];
+    if (!compDef) return "";
+    // 单趟收集本组件的内联 store（"Comp.Store" 前缀）
+    const inlineStores: StoreDefinition[] = [];
+    for (const [key, def] of Object.entries(inlineStoreDefs)) {
+      if (key.startsWith(`${componentName}.`)) inlineStores.push(def);
+    }
+    const result = generateOmniFragment({
+      componentName,
+      designElements: compDef.elements || [],
+      designWires: compDef.wires || [],
+      codeTabs: [{ id: "fragment", type: "logic", label: "Fragment", icon: "📄",
+        graph: { elements: compDef.elements || [], wires: compDef.wires || [] }, variables: [] }],
+      rootOrder: compDef.rootOrder,
+      fromDefinition: true,
+      inlineStores,
+    });
+    return result.value ?? "";
+  }, [componentDefs, componentName, inlineStoreDefs]);
+
+  // fn 节点源码（列表样本提取用）：fn 是 codeblock + tag==="fn"（ElementData 无
+  // "fn" nodeType，brief 的 nodeType === "fn" 恒不命中，见 task-10-report.md）
+  const fnSources = useMemo(() => {
+    const compDef = componentDefs[componentName];
+    const sources: string[] = [];
+    for (const el of compDef?.elements || []) {
+      if (el.nodeType === "codeblock" && el.tag === "fn") sources.push(el.source);
+    }
+    return sources;
+  }, [componentDefs, componentName]);
+
+  // 信号分析：组件源码 → interfaceSignals（@if/@for 驱动）+ dataSignals。
+  // 惰性：仅 Tab 需要分析时生成源码（definitions 跳过）；
+  // store 信号收集内联 store（"Comp.Store"）+ 独立 store（ownerKey 限定）。
+  const { interfaceSignals, dataSignals } = useMemo((): {
+    interfaceSignals: SignalUsage[];
+    dataSignals: SignalUsage[];
+  } => {
+    if (tab === "definitions") return { interfaceSignals: [], dataSignals: [] };
     const signalDecls = signals.map((s) => ({ key: s.name, type: s.type }));
-    const storeDecls: Array<{ key: string; type: string }> = [];
-    // 组件 store 引用的 store 信号（Task 10 完善 store 信号收集，本任务先空）
-    return analyzeSignalUsage("", signalDecls, storeDecls);
-  }, [signals]);
+    const storeRefs: Array<{ key: string; type: string }> = [];
+    for (const [storeKey, storeDef] of Object.entries(inlineStoreDefs)) {
+      for (const sig of storeDef.signals || []) {
+        storeRefs.push({ key: `${storeKey}.${sig.name}`, type: sig.type });
+      }
+    }
+    for (const [storeName, storeDef] of Object.entries(storeDefs)) {
+      for (const sig of storeDef.signals || []) {
+        storeRefs.push({ key: `${storeName}.${sig.name}`, type: sig.type });
+      }
+    }
+    const src = getComponentSource();
+    return analyzeSignalUsage(src, signalDecls, storeRefs);
+  }, [signals, inlineStoreDefs, storeDefs, getComponentSource, tab]);
 
   // Drag handling
   const handlePointerDown = useCallback(
@@ -542,7 +731,14 @@ export function ComponentDefPanel() {
             </div>
           ) : (
             <div style={S.panelBody} data-testid="interface-tab">
-              <p style={S.placeholder}>界面信号调试（Task 10 实现）</p>
+              <div style={S.tabHeaderRow}>
+                <span style={S.tabHeaderTitle}>🎛 界面信号调试</span>
+                <button type="button" style={S.resetBtn} onClick={clearDebugValues}>↺ 重置全部</button>
+              </div>
+              {interfaceSignals.map((u) => (
+                <InterfaceSignalCard key={u.key} ownerKey={componentName} usage={u} fnSources={fnSources} />
+              ))}
+              {interfaceSignals.length === 0 && <p style={S.placeholder}>无界面驱动信号（@if/@for 未用信号）</p>}
             </div>
           )}
         </>
@@ -789,6 +985,128 @@ function SignalDebugRow({ ownerKey, usage }: SignalDebugRowProps) {
           handleChange(next);
         }}>＋</button>
       )}
+    </div>
+  );
+}
+
+// ── 界面信号卡（Task 10：按信号聚合 @if 分支胶囊 + @for 列表胶囊 + 值输入）──
+
+interface InterfaceSignalCardProps {
+  /** 调试值 ownerKey = 组件名（Task 9 语义；applyDebugOverrides 按此消费） */
+  ownerKey: string;
+  usage: SignalUsage;
+  /** 组件 fn 节点源码（样本提取用；面板从 componentDefs.elements 收集） */
+  fnSources: string[];
+}
+
+function InterfaceSignalCard({ ownerKey, usage, fnSources }: InterfaceSignalCardProps) {
+  const setDebugValue = usePoiesisStore((s) => s.setDebugValue);
+  const debugValues = usePoiesisStore((s) => s.debugValues);
+  const debugOverridesEnabled = usePoiesisStore((s) => s.debugOverridesEnabled);
+  const entry = debugValues[ownerKey]?.[usage.key];
+  const text = entry?.text ?? "";
+  const valid = entry ? entry.valid : true;
+
+  // 输入框：解析后存字面量（String 自动补引号，与 Task 3 的 verbatim 覆盖契约一致）
+  const applyValue = (raw: string) => {
+    const parsed = parseDebugValue(usage.declaredType, raw);
+    setDebugValue(ownerKey, usage.key, parsed.literal, parsed.valid);
+  };
+
+  // 分支胶囊：单信号简单比较可合成；复杂（比较不全/含调用）置灰。
+  // 用 2D 结构而非 flatMap：brief 的 branchButtons[i*chainLen+j] 在链长不等时
+  // 越位错配（测试契约之外的真实缺陷，见 task-10-report.md）。
+  // 点选 → 合成字面量原样入 store（测试契约：String 不补引号，输入框回显原文）。
+  const branchButtons = usage.conditions.map((chain) =>
+    chain.branches.map((branch, branchIdx) => {
+      const cmp = branch.comparisons[0];
+      const synthesizable = cmp !== undefined && synthesizeConditionValue(cmp, "true").valid;
+      const label = branch.isElse ? "else" : branch.exprText || "?";
+      const handleClick = () => {
+        if (!cmp || !debugOverridesEnabled) return;
+        const result = synthesizeConditionValue(cmp, "true");
+        if (!result.valid) return;
+        setDebugValue(ownerKey, usage.key, result.literal, true);
+      };
+      return (
+        <button key={branchIdx} type="button"
+          style={S.branchChip(valid && entry !== undefined)}
+          disabled={!synthesizable || !debugOverridesEnabled}
+          title={!synthesizable ? "复杂条件，请在输入框手动调" : `驱动该分支成真`}
+          onClick={handleClick}>
+          {label}
+        </button>
+      );
+    }),
+  );
+
+  // 列表胶囊：空数组 + 代码样本（struct 数组）+ 手动输入
+  const samples = usage.loops.length > 0 && /Array</.test(usage.declaredType)
+    ? extractAssignSamples(fnSources, usage.key.split(".").pop()!)
+    : [];
+
+  const badges = [
+    usage.conditions.length > 0 ? `条件 ${usage.conditions.length}` : "",
+    usage.loops.length > 0 ? `列表 ${usage.loops.length}` : "",
+    usage.uses.interpolations > 0 ? `插值 ${usage.uses.interpolations}` : "",
+    usage.uses.computedDeps > 0 ? `computed ${usage.uses.computedDeps}` : "",
+  ].filter(Boolean).join(" · ");
+
+  return (
+    <div style={S.signalCard}>
+      <div style={S.signalCardHeader}>
+        <span style={S.debugName}>{usage.key}</span>
+        <span style={S.debugType}>{usage.declaredType}</span>
+        {badges && <span style={S.badgeText}>{badges}</span>}
+      </div>
+
+      {usage.conditions.length > 0 && (
+        <div style={S.branchGroup}>
+          {branchButtons.map((row, i) => (
+            <div key={i} style={S.branchRow}>
+              <span style={S.chainPrefix}>@if</span>
+              {row.map((btn, j) => (
+                <span key={j} style={S.branchChipWrap}>{btn}</span>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {usage.loops.length > 0 && (
+        <div style={S.loopGroup}>
+          {usage.loops.map((loop, i) => (
+            <div key={i} style={S.loopRow}>
+              <span style={S.loopText}>@for in {loop.collectionText}</span>
+              {loop.hasEmpty && <span style={S.loopEmptyTag}>@empty</span>}
+              {loop.viaTransform && <span style={S.loopTransformTag}>经转换</span>}
+            </div>
+          ))}
+          <div style={S.chipRow}>
+            <button type="button" style={S.quickChip} disabled={!debugOverridesEnabled}
+              onClick={() => applyValue("[]")}>空</button>
+            {samples.map((s) => (
+              <button key={s.label} type="button" style={S.quickChip} disabled={!debugOverridesEnabled}
+                onClick={() => setDebugValue(ownerKey, usage.key, s.literal, true)}>
+                {s.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div style={S.debugRow}>
+        <span style={S.valueLabel}>值</span>
+        <input
+          aria-label={`${usage.key} 值`}
+          style={{ ...S.debugValueInput, ...(entry && !entry.valid ? S.invalidInput : {}) }}
+          className={entry && !entry.valid ? "invalid" : undefined}
+          value={text}
+          placeholder="默认值"
+          onChange={(e) => applyValue(e.target.value)}
+        />
+        {!valid && <span style={S.invalidHint}>⚠ 格式不符</span>}
+      </div>
     </div>
   );
 }

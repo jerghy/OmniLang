@@ -63,6 +63,9 @@ const { mockState, storeListeners } = vi.hoisted(() => {
         openTabs: [{ id: "t1", componentName: "Card", filePath: "Card.omni", tabType: "component" }],
       },
       componentDefs: { Card: { signals: [{ pid: "s1", name: "count", type: "i32", defaultValue: "0" }], props: [], computeds: [] } },
+      // Task 10：面板读 storeDefs/inlineStoreDefs 收集 store 信号（界面卡 ownerKey 限定）
+      storeDefs: {},
+      inlineStoreDefs: {},
       debugValues: {} as Record<string, Record<string, DebugValueEntry>>,
       debugOverridesEnabled: true,
       clearDebugValues: vi.fn(() => {
@@ -96,9 +99,26 @@ vi.mock("../../../store", async () => {
   };
 });
 
+// (Task 10) 组件源码经 generateOmniFragment 面板内惰性生成（ComponentDefPanel
+// 从 componentDefs[componentName].elements 生成），测试环境 mock pipeline 返回
+// 固定 fixture view（含 @if status == "loading" / @else / 复杂条件 / @for），
+// 使 analyzeSignalUsage 产出 interfaceSignals（brief Step 1 注记的默认路径）。
+const { mockFragmentSource } = vi.hoisted(() => ({
+  mockFragmentSource:
+    "view {\n" +
+    '  @if status == "loading" { } @else { }\n' +
+    "  @if items.len() > 0 { }\n" +
+    "  @for item in items { }\n" +
+    "}",
+}));
+
+vi.mock("../../../services/codegen/pipeline", () => ({
+  generateOmniFragment: vi.fn(() => ({ value: mockFragmentSource, errors: [] })),
+}));
+
 vi.mock("../../canvas/canvas-store", () => ({
   useCanvasStore: (sel: (s: unknown) => unknown) =>
-    sel({ panelPosition: { x: 400, y: 20 }, isPanelCollapsed: false, toggleCollapsed: vi.fn(), setPanelPosition: vi.fn() }),
+    sel({ panelPosition: { x: 400, y: 20 }, isPanelCollapsed: false, togglePanelCollapsed: vi.fn(), setPanelPosition: vi.fn() }),
 }));
 
 beforeEach(() => {
@@ -163,5 +183,68 @@ describe("信号调试 Tab（数据信号行）", () => {
     fireEvent.click(screen.getByRole("tab", { name: /^信号调试$/ }));
     fireEvent.click(screen.getByRole("button", { name: /重置全部/ }));
     expect(mockState.clearDebugValues).toHaveBeenCalled();
+  });
+});
+
+// ── 界面信号调试 Tab（Task 10：信号卡 + 分支胶囊 + 列表胶囊）──
+// 相对 brief 的修正（详见 task-10-report.md）：
+// 1) ownerKey 为组件名（Task 9 已确认语义 + applyDebugOverrides 按
+//    resolveOwnerFile 消费），brief 用例原写信号名（"status"/"items"）会落
+//    入永远不生效的 ownerKey；
+// 2) brief 断言 setDebugValue(..., "loading", true) 无引号——测试为契约，
+//    实现按原样存合成字面量（String 不补引号，输入框回显原文）；
+// 3) brief 用例 3 依赖前例遗留 componentDefs，补显式 mock（状态卫生
+//    beforeEach 重置 debugOverridesEnabled/debugValues）；
+// 4) brief 的 getByText(/status/) 会命中分支胶囊文本（status == "loading"），
+//    改为精确匹配卡片名；
+// 5) 组件源码经 generateOmniFragment mock（fixture view，见文件头）喂分析器。
+describe("界面信号调试 Tab（信号卡）", () => {
+  beforeEach(() => {
+    mockState.debugOverridesEnabled = true;
+    mockState.debugValues = {};
+  });
+
+  it("界面信号卡：@if 分支胶囊 + 条件文本 + 点选驱动合成值", () => {
+    // mock 组件 view 有 @if status == "loading" / @else → analyzeSignalUsage 产出分支
+    mockState.componentDefs = {
+      Card: {
+        signals: [{ pid: "s1", name: "status", type: "String", defaultValue: '"x"' }],
+        props: [], computeds: [],
+      },
+    };
+    render(<ComponentDefPanel />);
+    // 默认即界面信号调试 Tab
+    expect(screen.getByTestId("interface-tab")).toBeTruthy();
+    expect(screen.getByText("status")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /loading/ }));
+    expect(mockState.setDebugValue).toHaveBeenCalledWith("Card", "status", "loading", true);
+  });
+
+  it("复杂条件分支胶囊置灰", () => {
+    mockState.componentDefs = {
+      Card: { signals: [{ pid: "s1", name: "items", type: "Array<String>", defaultValue: "[]" }], props: [], computeds: [] },
+    };
+    render(<ComponentDefPanel />);
+    const btn = screen.getByRole("button", { name: /len\(\)/i });
+    expect((btn as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("总开关 off → 分支胶囊禁用", () => {
+    mockState.componentDefs = {
+      Card: { signals: [{ pid: "s1", name: "status", type: "String", defaultValue: '"x"' }], props: [], computeds: [] },
+    };
+    mockState.debugOverridesEnabled = false;
+    render(<ComponentDefPanel />);
+    expect((screen.getByRole("button", { name: /loading/ }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("列表卡：@for 信号 + 空数组候选 + 手动输入", () => {
+    mockState.componentDefs = {
+      Card: { signals: [{ pid: "s1", name: "items", type: "Array<String>", defaultValue: "[]" }], props: [], computeds: [] },
+    };
+    render(<ComponentDefPanel />);
+    expect(screen.getByText(/@for/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /空/ }));
+    expect(mockState.setDebugValue).toHaveBeenCalledWith("Card", "items", "[]", true);
   });
 });
