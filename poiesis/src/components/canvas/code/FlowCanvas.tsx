@@ -277,17 +277,14 @@ function FlowCanvasInner() {
   // `hasDefaultNodes` 门控丢弃，仅 onNodesChange 会收到变更——不接线则节点拖拽冻结、
   // 松开后瞬移。这里把 position 变更实时回写 store（setElementPosition 无 undo 条目，
   // 每帧提交不污染撤销栈；末帧 dragging:false 的变更即最终落点）。
+  // 注意：预览节点（design-preview）不在本处理器路径——它 draggable:false，
+  // 拖拽由 DesignPreviewNode 自管（ref + transform 直改，松手经 onPreviewMove 提交），
+  // ReactFlow 不会为它发出 position 变更（曾走这里回写导致真机拖拽闪烁，2026-08-06）。
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {
       for (const change of changes) {
         if (change.type === "position" && change.position) {
-          if (change.id === DESIGN_PREVIEW_ID) {
-            // 预览组件是伪节点（不在 store elements）：位置写回本地 state，
-            // 否则 setElementPosition 无操作 → 节点瞬移回 previewPos（用户实测拖不动）
-            setPreviewPos(change.position);
-          } else {
-            setElementPosition(change.id, change.position);
-          }
+          setElementPosition(change.id, change.position);
         }
       }
     },
@@ -437,8 +434,13 @@ function FlowCanvasInner() {
     setPreviewPos({ x: maxX + 40, y: maxY + 40 });
   }, [codeElements, allElements, wires, nodes, setElementsAndWires]);
 
-  // Preview node — shows the design canvas inside the flow when in codeflow mode
-  // （previewPos 声明在上方，handleNodesChange 拖拽回写需在闭包中引用）
+  // Preview node — shows the design canvas inside the flow when in codeflow mode.
+  // draggable:false——拖拽由 DesignPreviewNode 自管（ref + transform 直改，无 state 往返，
+  // 松手经 data.onPreviewMove 提交一次）。曾用 ReactFlow 原生拖拽 + 回写 previewPos 导致
+  // 真机拖拽闪烁（每帧 state 更新 → StoreUpdater 调和与 transform 直改打架，2026-08-06）。
+  // className:"nopan" 必须保留：draggable:false 会让 ReactFlow 不给 wrapper 加 nopan 类，
+  // 而 pane 的 pan filter（isWrappedWithClass 'nopan'）放行后 d3-zoom 会 stopImmediatePropagation
+  // 切断冒泡 → React 合成 mousedown 永不触发 → 节点拖不动（2026-08-06 实测复现）。
   const previewNode: RFNode | null = useMemo(() => {
     if (!codeFlowElementId) return null;
     return {
@@ -446,8 +448,9 @@ function FlowCanvasInner() {
       type: "design-preview",
       position: previewPos,
       selectable: false,
-      draggable: true,
-      data: { output: previewOutput },
+      draggable: false,
+      className: "nopan",
+      data: { output: previewOutput, position: previewPos, onPreviewMove: setPreviewPos },
     };
   }, [codeFlowElementId, previewOutput, previewPos]);
 

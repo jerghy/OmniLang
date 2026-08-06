@@ -86,21 +86,37 @@ describe("FlowCanvas 拖拽位置回写（onNodesChange 接线）", () => {
     expect(mockSetElementPosition).not.toHaveBeenCalled();
   });
 
-  // design-preview 是伪节点（不在 store elements）：拖拽 position 变更必须回写本地
-  // previewPos state（写 store 是无操作 → 节点瞬移回原位，用户实测拖不动）。
-  it("design-preview 位置变更写回本地 state（不落 store）", () => {
+  // design-preview 是伪节点（不在 store elements）+ draggable:false——拖拽由节点组件自管
+  // （ref + transform 直改，松手经 data.onPreviewMove 提交一次，2026-08-06 闪烁修复轮）。
+  // className:"nopan" 是硬约束：draggable:false 时 ReactFlow 不再给 wrapper 加 nopan 类，
+  // pane 的 pan filter 放行后 d3-zoom stopImmediatePropagation 切断冒泡 → React 合成
+  // mousedown 永不触发（实测复现）；nopan 类让 pan filter 拒绝 → 合成事件正常分发。
+  it("design-preview 节点 draggable:false + className nopan（不经 ReactFlow 拖拽体系）", () => {
     render(<FlowCanvas />);
-    const nodesBefore = mockRfProps.current?.nodes as Array<{ id: string; position: { x: number; y: number } }>;
-    expect(nodesBefore.find((n) => n.id === "design-preview")?.position).toEqual({ x: 50, y: 50 });
+    const nodes = mockRfProps.current?.nodes as Array<{ id: string; draggable?: boolean; className?: string }>;
+    const preview = nodes.find((n) => n.id === "design-preview");
+    expect(preview?.draggable).toBe(false);
+    expect(preview?.className).toContain("nopan");
+  });
 
-    const onNodesChange = mockRfProps.current?.onNodesChange as (changes: NodeChange[]) => void;
+  it("design-preview 松手经 onPreviewMove 提交位置（不落 store）", () => {
+    render(<FlowCanvas />);
+    const nodesBefore = mockRfProps.current?.nodes as Array<{
+      id: string;
+      position: { x: number; y: number };
+      data: { onPreviewMove: (pos: { x: number; y: number }) => void };
+    }>;
+    const previewBefore = nodesBefore.find((n) => n.id === "design-preview");
+    expect(previewBefore?.position).toEqual({ x: 50, y: 50 });
+    expect(previewBefore?.data.onPreviewMove).toBeTypeOf("function");
+
     act(() => {
-      onNodesChange([{ type: "position", id: "design-preview", position: { x: 150, y: 180 }, dragging: true }]);
+      previewBefore!.data.onPreviewMove({ x: 150, y: 180 });
     });
 
     // 预览节点不在 store → 不得调用 setElementPosition
     expect(mockSetElementPosition).not.toHaveBeenCalled();
-    // 位置已回写本地 state → ReactFlow 收到新 nodes prop（拖拽后不瞬移）
+    // 位置提交到本地 state → ReactFlow 收到新 nodes prop（落点持久）
     const nodesAfter = mockRfProps.current?.nodes as Array<{ id: string; position: { x: number; y: number } }>;
     expect(nodesAfter.find((n) => n.id === "design-preview")?.position).toEqual({ x: 150, y: 180 });
   });
