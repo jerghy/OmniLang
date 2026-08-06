@@ -36,6 +36,10 @@ import type { DependencyInfo } from "../../../core/types/dependency-info";
 import { FlowInspector } from "./FlowInspector";
 import styles from "./FlowCanvas.module.css";
 
+/** 预览伪节点 id：必须与 handleNodesChange 回写分支、previewNode id 一致（拖拽写回依赖此键），
+ *  单点定义防漂移（曾因两处字面量 + 无回写导致拖不动回归）。 */
+const DESIGN_PREVIEW_ID = "design-preview";
+
 const nodeTypes = {
   "fn": FnNode,
   "code-block": CodeBlockNode,
@@ -195,6 +199,12 @@ function FlowCanvasInner() {
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
 
+  // Preview node — shows the design canvas inside the flow when in codeflow mode.
+  // position 为 state（非 store elements——它是伪节点）：布局按钮点击时把预览组件归位到
+  // 布局包围盒右下角外（不参与布局；否则固定 (50,50) 会盖住布局后的左上角节点，E2E 用户实测），
+  // 拖拽回写也走这里（handleNodesChange 分流，见下——写 store 是无操作，节点会瞬移回原位）。
+  const [previewPos, setPreviewPos] = useState({ x: 50, y: 50 });
+
   // ── Node context menu (right-click on a node) ──
   const [nodeMenu, setNodeMenu] = useState<{ x: number; y: number; nodeId: string } | null>(null);
   const nodeMenuRef = useRef<HTMLDivElement>(null);
@@ -271,7 +281,13 @@ function FlowCanvasInner() {
     (changes: NodeChange[]) => {
       for (const change of changes) {
         if (change.type === "position" && change.position) {
-          setElementPosition(change.id, change.position);
+          if (change.id === DESIGN_PREVIEW_ID) {
+            // 预览组件是伪节点（不在 store elements）：位置写回本地 state，
+            // 否则 setElementPosition 无操作 → 节点瞬移回 previewPos（用户实测拖不动）
+            setPreviewPos(change.position);
+          } else {
+            setElementPosition(change.id, change.position);
+          }
         }
       }
     },
@@ -422,13 +438,11 @@ function FlowCanvasInner() {
   }, [codeElements, allElements, wires, nodes, setElementsAndWires]);
 
   // Preview node — shows the design canvas inside the flow when in codeflow mode
-  // position 为 state：布局按钮点击时把预览组件归位到布局包围盒右下角外（不参与布局——
-  // 它不在 store elements 里；否则固定 (50,50) 会盖住布局后的左上角节点，E2E 用户实测）。
-  const [previewPos, setPreviewPos] = useState({ x: 50, y: 50 });
+  // （previewPos 声明在上方，handleNodesChange 拖拽回写需在闭包中引用）
   const previewNode: RFNode | null = useMemo(() => {
     if (!codeFlowElementId) return null;
     return {
-      id: "design-preview",
+      id: DESIGN_PREVIEW_ID,
       type: "design-preview",
       position: previewPos,
       selectable: false,

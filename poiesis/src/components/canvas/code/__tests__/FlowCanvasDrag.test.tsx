@@ -3,7 +3,7 @@
 // 位置更新被内部 `hasDefaultNodes` 门控丢弃，必须由应用经 onNodesChange 回写 store，
 // 否则节点拖拽冻结、仅 onNodeDragStop 提交导致松开后瞬移。
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render } from "@testing-library/react";
+import { render, act } from "@testing-library/react";
 import type { NodeChange } from "@xyflow/react";
 import { FlowCanvas } from "../FlowCanvas";
 
@@ -84,5 +84,24 @@ describe("FlowCanvas 拖拽位置回写（onNodesChange 接线）", () => {
     const onNodesChange = mockRfProps.current?.onNodesChange as (changes: NodeChange[]) => void;
     onNodesChange([{ type: "select", id: "l1", selected: true }]);
     expect(mockSetElementPosition).not.toHaveBeenCalled();
+  });
+
+  // design-preview 是伪节点（不在 store elements）：拖拽 position 变更必须回写本地
+  // previewPos state（写 store 是无操作 → 节点瞬移回原位，用户实测拖不动）。
+  it("design-preview 位置变更写回本地 state（不落 store）", () => {
+    render(<FlowCanvas />);
+    const nodesBefore = mockRfProps.current?.nodes as Array<{ id: string; position: { x: number; y: number } }>;
+    expect(nodesBefore.find((n) => n.id === "design-preview")?.position).toEqual({ x: 50, y: 50 });
+
+    const onNodesChange = mockRfProps.current?.onNodesChange as (changes: NodeChange[]) => void;
+    act(() => {
+      onNodesChange([{ type: "position", id: "design-preview", position: { x: 150, y: 180 }, dragging: true }]);
+    });
+
+    // 预览节点不在 store → 不得调用 setElementPosition
+    expect(mockSetElementPosition).not.toHaveBeenCalled();
+    // 位置已回写本地 state → ReactFlow 收到新 nodes prop（拖拽后不瞬移）
+    const nodesAfter = mockRfProps.current?.nodes as Array<{ id: string; position: { x: number; y: number } }>;
+    expect(nodesAfter.find((n) => n.id === "design-preview")?.position).toEqual({ x: 150, y: 180 });
   });
 });
