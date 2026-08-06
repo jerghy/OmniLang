@@ -438,13 +438,35 @@ function generatePid(): string {
 //（parseDebugValue 输出，applyDebugOverrides verbatim 替换）；回显时剥 String
 // 引号还原用户文本。非法输入存原文（不参与覆盖，回显原样供继续编辑）。──
 
-/** 回显：字面量 → 用户友好文本（String 剥首尾引号："hello" → hello） */
+/** 回显：字面量 → 用户友好文本（String 剥首尾引号："hello" → hello；数组字面量还原逗号分隔） */
 function displayDebugText(type: string, literal: string): string {
-  if (type !== "String") return literal;
-  if (literal.length >= 2) {
-    const first = literal[0];
-    const last = literal[literal.length - 1];
-    if ((first === '"' || first === "'") && last === first) return literal.slice(1, -1);
+  if (type === "String") {
+    if (literal.length >= 2) {
+      const first = literal[0];
+      const last = literal[literal.length - 1];
+      if ((first === '"' || first === "'") && last === first) return literal.slice(1, -1);
+    }
+    return literal;
+  }
+  // Array<X> / X[]：字面量 ["a", "b"] → 还原 a, b（用户输入形态；再编辑提交经
+  // parseDebugValue 重新解析回字面量，往返自洽——与 String 剥引号同款模式）
+  if ((type.startsWith("Array<") && type.endsWith(">")) || type.endsWith("[]")) {
+    const t = literal.trim();
+    if (t.startsWith("[") && t.endsWith("]")) {
+      const restored = t
+        .slice(1, -1)
+        .split(",")
+        .map((item) => {
+          const i = item.trim();
+          if (i.length >= 2) {
+            const f = i[0];
+            const l = i[i.length - 1];
+            if ((f === '"' || f === "'") && l === f) return i.slice(1, -1);
+          }
+          return i;
+        });
+      return restored.join(", ");
+    }
   }
   return literal;
 }

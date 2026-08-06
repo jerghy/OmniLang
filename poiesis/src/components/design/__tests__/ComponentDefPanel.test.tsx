@@ -266,6 +266,25 @@ describe("信号调试 Tab（数据信号行）", () => {
     expect(mockState.setDebugValue).toHaveBeenCalledWith("Card", "title", '"loading"', true);
     expect((screen.getByLabelText("title 值") as HTMLInputElement).value).toBe("loading");
   });
+
+  // 2026-08-06 真机实测发现：数组输入 a, b → 存字面量 ["a","b"] 但回显也显示
+  // 字面量（与 String 剥引号还原不一致）——displayDebugText 补数组还原。
+  // 注意信号名用 tags（fixture 的 items 被 @for 引用 → 归界面信号，不在本 Tab）。
+  it("数组信号：输入逗号分隔存字面量 + 回显还原用户文本", () => {
+    mockState.componentDefs = {
+      Card: {
+        signals: [{ pid: "s1", name: "tags", type: "Array<String>", defaultValue: "[]" }],
+        props: [], computeds: [],
+        elements: [{ nodeType: "conditional", tag: "conditional", id: "T.@if", parentId: null, props: {}, source: "" }],
+      },
+    };
+    render(<ComponentDefPanel />);
+    fireEvent.click(screen.getByRole("tab", { name: /^信号调试$/ }));
+    fireEvent.change(screen.getByLabelText("tags 值"), { target: { value: "a, b" } });
+    expect(mockState.setDebugValue).toHaveBeenCalledWith("Card", "tags", '["a", "b"]', true);
+    // 回显还原逗号分隔（用户输入形态，可再编辑）
+    expect((screen.getByLabelText("tags 值") as HTMLInputElement).value).toBe("a, b");
+  });
 });
 
 // ── 界面信号调试 Tab（Task 10：信号卡 + 分支胶囊 + 列表胶囊）──
