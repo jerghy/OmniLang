@@ -334,7 +334,7 @@
 | 78 | **[LOW]** OmniView `stmt_to_js_inline` 缺 `EventEmitStmtIR` 臂——`emit` 出现在 BlockExpr 表达式内（如 computed fn 体 block）退化为 `/* unhandled stmt */` + warnings 条目（K1 修复轮观察 1；**pre-existing**——降级臂自 `09c18415`（2026-08-01）即有，非 K1 引入；K1 的组件化事件解析只覆盖 fn 体语句路径与 CallExpr 形式） | BlockExpr 内使用 `emit` 的语料/demo 出现（现语料零触发）；或 stmt_to_js_inline 发射逻辑改写时 | 生成 JS 注释占位而非事件发射——静默不可用输出（有 warning 无硬诊断）；修复方向：加 EventEmitStmtIR 臂复用 `resolve_event_emit` |
 | 79 | **[LOW]** `test-results-omniview.json` 未入 .gitignore（playwright json reporter 产物；相邻 `test-results.json` 已覆盖——K1 修复轮观察 2，每次跑 omniview 套件留下 untracked 文件） | 下次触碰 .gitignore 或 CI e2e 产物清理任务 | untracked 噪音文件；无功能影响 |
 | 80 | **[LOW]** golden 镜像 8 份陈旧拷贝（`tests/fixtures/golden/test/`——纯文档快照，无测试读取：golden_parse/cross_target 只读 MANIFEST.md，路径解析到 live 树）。7.5b-S1 后实测：11 个 moved 文件仍滞留镜像 `components/`（10 个字节一致但路径形态错误 + array_ext 字节陈旧），镜像 `lib/` 缺 11 文件；7.5b-LS 报告时点计数 8 份 | 镜像维护任务（`diff -rq` 重同步）或镜像删除/改造 | 文档快照失真（MANIFEST 已声明 live 树为权威）；无测试影响 |
-| 81 | **[MEDIUM]** Flutter warnings 874 → 目标 <300 未达（8.1a G8：cap 879 断言内 PASS 但计划目标未兑现）。构成演变：1004（0.5 基线）→ 997（3.3）→ 879（cap）→ 874（C1 审计）→ **700（C2b 语义/映射，d915377a）→ 671（C2d 按唯一名合并，span 线程化 671/671）**——C2d 实测分解：#1 46（唯一名）/ #2 204（唯一使用类）/ #6 225（定义点 1/类）/ #3 30 / #4 23 / #12 cursor 39 / OTHER 值跳过 86 / 其余 18。**按唯一名合并已到诚实下限——<300 仅剩语义燃尽路径（#2+#6 TextStyle/layout 映射，−429 → 242）** | 编排层裁决：继续燃尽任务（#2+#6 语义）or 更新目标/触发条件（维持单调下降纪律下按合并目标不可达） | 计划 M3 部分——门禁绿、目标未达 |
+| 81 | **[MEDIUM]** Flutter warnings 874 → 目标 <300 未达（8.1a G8：cap 879 断言内 PASS 但计划目标未兑现）。构成演变：1004（0.5 基线）→ 997（3.3）→ 879（cap）→ 874（C1 审计）→ **700（C2b 语义/映射，d915377a）→ 671（C2d 按唯一名合并，span 线程化 671/671）**——C2d 实测分解：#1 46（唯一名）/ #2 204（唯一使用类）/ #6 225（定义点 1/类）/ #3 30 / #4 23 / #12 cursor 39 / OTHER 值跳过 86 / 其余 18。**按唯一名合并已到诚实下限——<300 仅剩语义燃尽路径（#2+#6 TextStyle/layout 映射，−429 → 242）** | **已裁决（ADR-066 D4，defer-with-trigger）**：671 为诚实下限（诊断合并后残余均真实降级/语义缺口）；<300 唯一路径 #2+#6 TextStyle/layout 语义实现（−429 → 242）defer（Pragmatic Necessity 4/Complexity 7/Ratio 1.75）——触发条件 = Flutter 产物文字样式成为实际使用场景，或 motion 域重设计任务 | 目标更新 1004→671（−33%）为燃尽期正式记录值（门禁 cap 879→700→671 单调下降）；计划 M3 部分——门禁绿、目标按裁决更新 |
 | 82 | **[MEDIUM]** 设计层（M7 部分项）剩余机制缺口：生命周期文档语料路径与文件移动的同步机制（D1 暴露：7.5b-S1 移动 11 文件后 spec 路径人工同步漏掉——`verify-syntax-lifecycle.py` 只验路径存在性，文件移动与 spec 更新之间无强制绑定；8.1b 已修路径本身，机制缺口保留） | 下次 learn-omniview/src 结构移动/重构任务；或 lifecycle 门禁脚本升级（路径映射表/自动解析） | 文件移动后 spec 漂移到下一次门禁运行才暴露（CI 级红，非静默） |
 | 83 | **[LOW]** motion-in-@for 逐项实例化实现（D-H 长期项）——4.9 `491857d6` 已落编译诊断（WMotion warning，双目标诚实降级）；「@for 内 motion 逐项实例化」（React 共享 ref 只动最后项 / Flutter 全项同播的语义修复）为长期实现项 | 用户对 @for 内 motion 的逐项实例化语义的实际需求（现语料零命中）；或 motion 域重设计任务 | 诊断已消除静默分叉；逐项实现前 @for 内 motion 保持 warning 降级 |
 
@@ -343,3 +343,26 @@
 - **#76**（React stdlib 方法翻译缺口 `to_uppercase`/`to_lowercase`/`is_empty`/`abs`）：**保持 open 不动**。台账描述复核一致——同族 `splice` 缺口已随 `35dc15ef`（fix(codegen): translate splice on shared table）修复，台账「splice 同族缺口已随 I-1 修复」与事实吻合；#76 本体 4 方法仍落默认臂，defer-with-trigger 不变。
 
 **验证**：本更新仅记录 8.1a 实测事实 + 8.1b 治理收口；零代码变更（D1/D2 修复见终验 commit）。
+
+---
+
+## 2026-08-06 遗留清理轮处置（Task A/B/C——#78/#79/#80/#82 关闭 + #81 裁决登记）
+
+**来源**：遗留轮任务简报/报告（`.superpowers/sdd/2026-08-03-semantic-syntax-v3-fixes/task-leA/leB/leC*`）+ ADR-066（c4baa7cf）。
+
+### 关闭确认（计划承诺逐条核对）
+
+| # | 台账行 | 关闭证据（实测/commit） | 计划承诺核对 |
+|---|--------|----------------------|-------------|
+| 78 | OmniView `stmt_to_js_inline` 缺 `EventEmitStmtIR` 臂 | **已关闭**——`e0e7df16`（emit 在 BlockExpr 全链路合法调查（parser/semantic/lower 六处证据）；stmt_to_js_inline 加 EventEmitStmtIR 臂复用 `resolve_event_emit`，与 emit_statement 字节同形；2 回归测试断言真实发射串；review Approved） | Task B ✅ |
+| 79 | `test-results-omniview.json` 未入 .gitignore | **已关闭**——`3ac45290`（gitignore 追加 omniview json reporter 产物 + flutter 验证残留目录） | Task A G2 ✅ |
+| 80 | golden 镜像陈旧拷贝 | **已关闭**——`42d304b0`（`diff -rq` 重同步：11 个 moved 文件 components→lib + 2 新增组件 + 19 份字节漂移修正；96=96 零漂移） | Task A G3 ✅ |
+| 82 | lifecycle 文档语料路径与文件移动同步机制缺口 | **已关闭**——`ccd901ed`（方案 a：live 树 canonical 校验 + 移动文件定位提示；`verify-syntax-lifecycle.py` 同批接线，含负向测试） | Task A G4 ✅（机制缺口关闭；触发即重评估） |
+
+### #81 目标裁决登记（ADR-066 D4，行状态已同步）
+
+- **#81**（Flutter warnings <300 未达）：**裁决 = defer-with-trigger**——671 为诚实下限（诊断合并后残余均真实降级/语义缺口；671/671 真实 file:line、0 占位文件）；<300 唯一可达路径 = #2/#6 TextStyle/layout 语义实现（−429 → 242），**defer**（Pragmatic Necessity 4/Complexity 7/Ratio 1.75）；**触发条件 = Flutter 产物文字样式成为实际使用场景，或 motion 域重设计任务**；目标更新 1004→671（−33%）为燃尽期正式记录值（门禁 cap 879→700→671 单调下降，deferrals.md:337 行已同步）。**C2d scoped re-review（c9163084..9391fa13）4/4 ADDRESSED → MERGE-READY**（独立验证：MEDIUM-1 `MotionIntent.source_file` + `merge_file_ir_into` 同款补丁 + flutter 锚点改读真实文件；MEDIUM-2 锚点测试逐条断言与语料行号核对一致且旧行为必失败；LOW-1 #6 族 (message,file) 键（lib.rs:461-465）+ #1/#2 族 message 键（lib.rs:457-460，accepted 裁决记录于 lib.rs:435-439）；LOW-2 死 From impls 零残留——全量 cargo test exit 0）。
+
+### #83 状态复核（保持 open）
+
+- **#83**（motion-in-@for 逐项实例化）：**保持 open 不动**——遗留轮评估维持建议 defer（现语料零命中 + 双目标大实现）；触发条件已记录，最终裁决随汇报给用户。
