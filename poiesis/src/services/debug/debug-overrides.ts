@@ -2,14 +2,7 @@
 // 正则替换 (signal|prop) <name>: Type = 值 → 调试字面量；无默认值补 = 值。
 // 文件级键控修复旧 flatDebug 拍平导致的跨组件同名信号冲突。
 
-/**
- * DebugValueEntry 同构本地定义：store/types.ts 的同名 interface 未 export
- * （Task 1 遗留），此处本地定义避免触碰既有文件；字段与 store 模型一致。
- */
-interface DebugValueEntry {
-  text: string;
-  valid: boolean;
-}
+import type { DebugValueEntry } from "../../store/types";
 
 export interface OverrideCtx {
   componentName: string;

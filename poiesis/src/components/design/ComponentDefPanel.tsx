@@ -230,8 +230,8 @@ export function ComponentDefPanel() {
 
   // Debug mode
   const [debugMode, setDebugMode] = useState(false);
-  const debugSignalValues = usePoiesisStore((s) => s.debugSignalValues);
-  const setDebugSignalValue = usePoiesisStore((s) => s.setDebugSignalValue);
+  const debugValues = usePoiesisStore((s) => s.debugValues);
+  const setDebugValue = usePoiesisStore((s) => s.setDebugValue);
 
   const panelPosition = useCanvasStore((s) => s.panelPosition);
   const isCollapsed = useCanvasStore((s) => s.isPanelCollapsed);
@@ -337,7 +337,8 @@ export function ComponentDefPanel() {
 
   const renderSignalsRow = useCallback((entry: DefEntry | ComputedEntry) => {
     const s = entry as DefEntry;
-    const debugVal = debugSignalValues[componentName]?.[s.name];
+    // 新模型桥接（Task 7）：旧字段已删；空输入 → valid=false 不参与编译
+    const debugVal = debugValues[componentName]?.[s.name]?.text;
     return (
       <DefEntryRow key={s.pid} entry={s} kind="signal"
         isEditing={editingPid === s.pid}
@@ -345,11 +346,11 @@ export function ComponentDefPanel() {
         onEditSave={(f, v) => handleEditSave("signal", s.pid, f, v)}
         onDelete={() => handleDelete("signal", s.pid)}
         debugMode={debugMode}
-        debugValue={debugVal as string | undefined}
-        onDebugValueChange={(v) => setDebugSignalValue(componentName, s.name, v || undefined)}
+        debugValue={debugVal}
+        onDebugValueChange={(v) => setDebugValue(componentName, s.name, v, Boolean(v))}
       />
     );
-  }, [editingPid, handleDoubleClick, handleEditSave, handleDelete, debugMode, debugSignalValues, componentName, setDebugSignalValue]);
+  }, [editingPid, handleDoubleClick, handleEditSave, handleDelete, debugMode, debugValues, componentName, setDebugValue]);
 
   const renderComputedsRow = useCallback((entry: DefEntry | ComputedEntry) => {
     const c = entry as ComputedEntry;
@@ -383,7 +384,7 @@ export function ComponentDefPanel() {
           onClick={() => {
             if (debugMode) {
               for (const sig of signals) {
-                setDebugSignalValue(componentName, sig.name, undefined);
+                setDebugValue(componentName, sig.name, "", false);
               }
             }
             setDebugMode((v) => !v);

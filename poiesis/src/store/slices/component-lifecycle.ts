@@ -89,24 +89,7 @@ export function createComponentLifecycleSlice(set: SetFn, get: GetFn) {
       }
     },
 
-    // ── Debug signal value overrides ──
-    setDebugSignalValue: (componentName: string, signalName: string, value: unknown) => set((s) => {
-      const compValues = { ...(s.debugSignalValues[componentName] || {}) };
-      if (value === undefined || value === null || value === "") {
-        delete compValues[signalName];
-      } else {
-        compValues[signalName] = value;
-      }
-      return {
-        debugSignalValues: {
-          ...s.debugSignalValues,
-          [componentName]: compValues,
-        },
-        // Debug values don't dirty the project
-      };
-    }),
-
-    // ── Debug value overrides（新模型，Task 1+）──
+    // ── Debug value overrides（Task 1+ 新模型；旧模型已于 Task 7 删除）──
     setDebugValue: (ownerKey: string, name: string, text: string, valid: boolean) => set((s) => {
       const ownerValues = { ...(s.debugValues[ownerKey] || {}) };
       ownerValues[name] = { text, valid };

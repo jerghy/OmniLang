@@ -9,6 +9,7 @@ import { rustCompiler } from "../../commands/rustCompiler";
 import type { StyleResolveResult } from "../../commands/rustCompiler";
 import { generateOmniFiles, generateOmniFragment } from "../../services/codegen/pipeline";
 import { emitDesignSource } from "../../services/codegen/design-emitter";
+import { applyDebugOverrides } from "../../services/debug/debug-overrides";
 import type { CodeTab } from "../../core/types/codegraph";
 
 export interface OmniViewOutput {
@@ -41,7 +42,8 @@ function useWasmCompile(): {
   const activeDesign = usePoiesisStore((s) => s.activeDesign);
   const componentDefs = useComponentDefs();
   const codeFlowVisible = usePoiesisStore((s) => s.designPage.codeFlowVisible);
-  const debugSignalValues = usePoiesisStore((s) => s.debugSignalValues);
+  const debugValues = usePoiesisStore((s) => s.debugValues);
+  const debugOverridesEnabled = usePoiesisStore((s) => s.debugOverridesEnabled);
 
   const [output, setOutput] = useState<OmniViewOutput | null>(null);
   const [isCompiling, setIsCompiling] = useState(false);
@@ -113,11 +115,15 @@ function useWasmCompile(): {
           : null;
         if (designSrc) sources["src/design.omni"] = designSrc;
 
-        // Apply debug signal value overrides before WASM compilation.
+        // Apply debug value overrides before WASM compilation (new pipeline):
+        // debugValues → 文件级覆盖 → 编译输入。总开关 off 时跳过（对比原始渲染）。
         // Returns a new object — the store's original defaults are untouched.
         const effectiveSources =
-          Object.keys(debugSignalValues).length > 0
-            ? applyDebugSignalOverrides(sources, debugSignalValues)
+          debugOverridesEnabled && Object.keys(debugValues).length > 0
+            ? applyDebugOverrides(sources, debugValues, {
+                componentName: "main",
+                storePaths: buildStorePaths(sources),
+              })
             : sources;
 
         // Path mapping is auto-derived by WASM from source keys
@@ -195,68 +201,19 @@ function useWasmCompile(): {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [elements, wires, rootOrder, activeDesign, componentDefs, codeFlowVisible, debugSignalValues]);
+  }, [elements, wires, rootOrder, activeDesign, componentDefs, codeFlowVisible, debugValues, debugOverridesEnabled]);
 
   return { output, isCompiling, errors };
 }
 
-/**
- * Apply debug signal value overrides to generated .omni source strings.
- * Uses regex to replace signal default values so the WASM compiler
- * resolves them with debug values instead of stored defaults.
- * Original sources are mutated in-place.
- */
-function applyDebugSignalOverrides(
-  sources: Readonly<Record<string, string>>,
-  debugValues: Record<string, Record<string, unknown>>,
-): Record<string, string> {
-  // Collect all debug signals into a flat map for efficient lookup
-  const flatDebug: Record<string, unknown> = {};
-  for (const signals of Object.values(debugValues)) {
-    Object.assign(flatDebug, signals);
-  }
-  if (Object.keys(flatDebug).length === 0) return { ...sources };
-
-  const result: Record<string, string> = {};
+/** 独立 store 名 → 文件路径（从 sources key 反推 src/stores/<Name>.omni） */
+function buildStorePaths(sources: Record<string, string>): Record<string, string> {
+  const paths: Record<string, string> = {};
   for (const path of Object.keys(sources)) {
-    let text = sources[path];
-    for (const [sigName, sigValue] of Object.entries(flatDebug)) {
-      if (sigValue === undefined || sigValue === null) continue;
-      const formatted = formatDebugValue(sigValue);
-      // Match: signal name: Type = "old_default"; or signal name: Type = old_default;
-      const re = new RegExp(
-        `(signal\\s+${escapeRegex(sigName)}\\s*:\\s*\\S+\\s*=\\s*)([^;\\n]+)(;)`,
-        'g',
-      );
-      if (re.test(text)) {
-        // Reset lastIndex after test()
-        re.lastIndex = 0;
-        text = text.replace(re, `$1${formatted}$3`);
-      } else {
-        // Signal has no default value: signal name: Type;
-        const noDefaultRe = new RegExp(
-          `(signal\\s+${escapeRegex(sigName)}\\s*:\\s*\\S+)(\\s*;)`,
-          'g',
-        );
-        text = text.replace(noDefaultRe, `$1 = ${formatted}$2`);
-      }
-    }
-    result[path] = text;
+    const m = path.match(/^src\/stores\/(.+)\.omni$/);
+    if (m) paths[m[1]] = path;
   }
-  return result;
-}
-
-function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function formatDebugValue(value: unknown): string {
-  if (typeof value === 'string') {
-    // Escape quotes inside the string value
-    const escaped = value.replace(/"/g, '\\"');
-    return `"${escaped}"`;
-  }
-  return String(value);
+  return paths;
 }
 
 export { useWasmCompile };
