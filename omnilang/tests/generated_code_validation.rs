@@ -1111,7 +1111,17 @@ design LearnDesign {
 /// `scrollArea.scrollTo(0, 0)` / `scrollArea.scrollTo(0, 200)` (2 call sites,
 /// 1 component). Each converts a silently-dropped x axis into a compile-time
 /// warning; the demo code is left untouched so the warning stays live.
-const FLUTTER_WARNINGS_BASELINE: usize = 673;
+///
+/// 2026-08-06 展示项目完整化 (D3 EventSpectrumDemo + D4 TokenTypeDemo)
+/// raised it to 717 — the third sanctioned honest-degradation exception:
+/// the showcase now demonstrates the 35-event spectrum (域 3 补齐) and the
+/// 5 design-token types (域 5 补齐). Flutter-unmapped events (mouse 族/
+/// pointer/touch/keyboard/drag/animation-transition 族, ~28 个) each emit
+/// the honest "[flutter] event ... not supported; skipped" warning, and the
+/// zIndex token emits its Flutter z-order warning. Each warning converts a
+/// previously-unshown feature into a live honest-degradation teaching
+/// signal; demo sources are left untouched so the warnings stay live.
+const FLUTTER_WARNINGS_BASELINE: usize = 717;
 
 #[test]
 fn learn_omniview_flutter_warnings_are_tracked() {

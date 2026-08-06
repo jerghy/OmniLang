@@ -155,3 +155,6 @@ components/StdLibShowcase.tsx	no-control-regex	[T1.6] generated regex with contr
 #     produces them — the compiler never cleans the output dir)
 #   - useDesignTokens.ts: the React copy of the shared sanitizer is now
 #     emitted with `let` (the shared ES5 source stays ES5 for OmniView)
+# v4 展示项目完整化（2026-08-06）：TokenTypeDemo 生成代码 useEffect import 未使用
+# — codegen 对含 @motion 组件统一发射 useEffect（@hover 触发无需 effect）——deferral #88
+components/TokenTypeDemo.tsx	@typescript-eslint/no-unused-vars	[#88] codegen import 发射过宽（@hover motion 无 effect）	1	#88
