@@ -19,6 +19,12 @@ use rustc_hash::FxHashMap;
 /// The design doc 域 6 诊断表 message, verbatim.
 const FOR_KEY_WARNING: &str = "对象项列表建议提供 key=；未提供时使用索引，重排将丢失状态";
 
+/// v4 perf HIGH: key 表达式是对象本身（裸循环变量）——OmniView keyFn 的
+/// String() 会把全部项塌缩为同一 key（"[object Object]"），键控复用/FLIP
+/// 形同虚设。必须用字段访问（item.id）或原始类型。
+const FOR_KEY_OBJECT_WARNING: &str =
+    "key 表达式是循环对象本身——全部项塌缩为同一 key；请用 item.id 等字段访问（如 key={item.id}）";
+
 pub struct ForKey;
 
 impl LintRule for ForKey {
@@ -102,6 +108,26 @@ fn check_view_nodes(
                         line: for_dir.span.line,
                         col: for_dir.span.col,
                     });
+                }
+                // v4 perf HIGH: key 表达式存在但为对象本身（裸循环变量）——
+                // OmniView keyFn 的 String() 会把全部项塌缩为
+                // "[object Object]"（键控复用/FLIP 形同虚设）。要求字段
+                // 访问（item.id）或原始类型。
+                if let Some(key_expr) = &for_dir.key_expr {
+                    if let Expr::VarRef(name, _) = key_expr {
+                        if name == &for_dir.item_name
+                            && infer_item_kind(&for_dir.iterable, typed, consts) == ItemKind::Object
+                        {
+                            diags.push(LintDiagnostic {
+                                rule: "for-key".into(),
+                                severity: LintSeverity::Warning,
+                                message: FOR_KEY_OBJECT_WARNING.into(),
+                                file: file_path.to_string(),
+                                line: for_dir.span.line,
+                                col: for_dir.span.col,
+                            });
+                        }
+                    }
                 }
                 // Thread the loop binding's element type into the body so a
                 // nested `@for cell in row` over a typed outer item is
@@ -472,7 +498,9 @@ struct Row { id: i32 }
 component App {
     signal matrix: Array<Array<Row>> = [];
     view {
-        @for row in matrix key={row} {
+        // v4 4.2: 裸循环变量 key={row} 本身是对象 → 现在也警告（塌缩），
+        // 改用字段访问 key={row[0].id} 以保持本测试原意（外层有合法 key）。
+        @for row in matrix key={row[0].id} {
             <div>@for cell in row { <span>{cell.id}</span> }</div>
         }
     }
@@ -480,5 +508,65 @@ component App {
 "#,
         );
         assert_eq!(warn_count(&program, "test.omni"), 1);
+    }
+
+    #[test]
+    fn object_key_expr_warns_with_field_hint() {
+        // v4 perf HIGH: `@for item in items` + `key={item}`（对象项）——
+        // 用户按既有 lint 建议补 key 恰好踩中 keyFn 的 String() 塌缩
+        // （全部项 → "[object Object]"）。新增警告：key 表达式是对象
+        // 本身时必须用字段访问（item.id）。
+        let program = parse(
+            r#"
+struct Todo { id: i32, title: String }
+component App {
+    signal todos: Array<Todo> = [];
+    view {
+        @for t in todos key={t} { <div>{t.title}</div> }
+    }
+}
+"#,
+        );
+        let diags = ForKey.check_ast(&program, "test.omni");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.message.contains("对象") && d.message.contains("字段")),
+            "缺对象 key 警告：{:?}",
+            diags
+        );
+    }
+
+    #[test]
+    fn primitive_items_with_bare_key_expr_do_not_warn() {
+        // 原始类型项的 key={item} 不塌缩（String() 有区分度）——零警告。
+        let program = parse(
+            r#"
+component App {
+    signal items: Array<String> = [];
+    view {
+        @for item in items key={item} { <div>{item}</div> }
+    }
+}
+"#,
+        );
+        assert_eq!(warn_count(&program, "test.omni"), 0);
+    }
+
+    #[test]
+    fn unknown_iterable_with_bare_key_expr_does_not_warn() {
+        // 未知迭代类型保持保守——即使 key 是裸循环变量也不警告。
+        let program = parse(
+            r#"
+fn getItems() -> Array<String> { return []; }
+
+component App {
+    view {
+        @for item in getItems() key={item} { <div>{item}</div> }
+    }
+}
+"#,
+        );
+        assert_eq!(warn_count(&program, "test.omni"), 0);
     }
 }
