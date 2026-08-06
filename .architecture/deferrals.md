@@ -378,3 +378,21 @@
 ### #62 关闭登记（v4 Task 2.4——bind:value 回调 arity 空事件特判）
 
 - **#62**（bind:value 回调 arity 不匹配——TS2554×6 / FormPage+FormControlsDemo：bind:value 与 @onChange 共存时 setter 分支把空事件对象 `{}` 硬塞给 0 参 handler（`handleSelect({})`），TS 严格模式报「0 参函数被传 1 参」）：**已关闭**——v4 Task 2.4 commit「fix(codegen-react): bind:value setter 分支空事件特判——TS2554×6 删除（v4 2.4, TS/React M3）」：`view.rs` FnRef setter 分支应用与无 setter 分支相同的 `event_obj == "{}"` 特判——事件对象为空时直调 `call()`（零参；`call` 已含 `?.` 可选调用，Task 5.6/#61），非空仍 `call(obj)`，无事件数据仍 `call(e)`（setter 与 handler 共用 e）；InlineFn setter 分支实测已对齐（`Object.assign(e, {})` 空事件特判 v3 期即有），补形状守卫测试锁定。**验证**：单元 `bind_value_handler_with_zero_arity_fn_skips_empty_obj`（RED 先红——`handleChange({})` 形状）+ InlineFn 守卫 `bind_value_inline_handler_skips_empty_event_assign` 双绿；`cargo test -p omnilang --features codegen-react` 382/382（lib）+ cross_target 7/7；tsc 83→77、TS2554×6 归零、无新增；verify-react.sh GATE PASSED（豁免条目删除）。
+
+---
+
+## 2026-08-06（v4 修复轮收口）
+
+- **#43 unused-import 假阳性 123 条**：已修复（e454f907，08-04——123→6 全真实）——台账补关（此前缺关闭注记，v4 review implementation-strategist MEDIUM）
+- **#61 TS2722 可选调用**：已修复（Task 5.6/deferral #61——`?.` 可选调用发射，react view.rs，d88161de）——豁免清单 REMOVED 注记已删
+- **#69 ES5-var**：已修复（2.11 var→let 批次）——豁免 REMOVED 注记已删
+- **#70 unused-identifiers**：已修复（2.11 标识符清理批次）——豁免 REMOVED 注记已删
+- **#62 TS2554**：已关闭（v4 Task 2.4——bind:value setter 分支空事件特判，e34f010a）
+- **#64 TS2345**：已关闭（v4 Task 2.3——数字 bind:value Number() 强制转换，c5a41da1）
+- **#72 TS2304**：已关闭（v4 Task 2.2——只写信号保留 useState，ba0d2474）
+- **#42 parser 分歧**：触发重写（原「任一分歧致用户困惑」不可证伪）→「任一分歧被用户或评审报告」；7 项分歧批次折叠为单一对齐任务（对齐排期随 v4 台账节）
+- **新增 deferral**：
+  - **#84 velocity_max**（v4 Task 5.8 移除）——触发：「demo 或用户需要 fling 速度物理」；git 历史保留完整实现；syntax-lifecycle 门禁为自然重入路径
+  - **#85 a11y 动态可访问名称**（domain MEDIUM-1）——label/role 当前限字符串字面量；触发：「真实应用需要 i18n 动态 label」
+  - **#86 React 动态 URL 运行时消毒**（security HIGH-1，用户 2026-08-06 范围裁定 defer）——React 原生阻断 javascript:/vbscript:（ReactDOM isJavaScriptProtocol），主向量已关闭；残余面 = data: URL + 非 React 目标。**触发：「真实用户输入流进 URL 绑定」或「Vue/Dioxus 生产使用」（届时按 Task 1.1/1.3 正文执行，含 sanitizeUrl helper + node 行为 harness）**。ADR-056 语料计数更新仍按 Task 0.1 执行
+  - **#87 Vue/Dioxus 语义 floor 诊断**（systems HIGH-1，用户范围裁定 defer）——非目标后端；ADR-052:94 契约违约已记录（本行）。**触发：「vue/dioxus 真实生产使用」**——届时按 Task 4.1 正文执行（E_CODEGEN 门 + floor_matrix 行）；触发前不投资
