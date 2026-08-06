@@ -34,7 +34,7 @@
 }
 .capsule:hover { background: rgba(168, 85, 247, 0.22); }
 .struct { color: #94a3b8; }   /* 结构字符：中性灰 */
-.text { color: transparent; } /* 自由文本由 textarea 呈现（同字形），本层透明占位 */
+.text { /* 自由文本段由覆盖层呈现（继承 .wrap 的 var(--ol-text)）；textarea 文字保持透明防 PUA 标记字符方块化（review fix round 2） */ }
 .input {
   position: relative; z-index: 1;
   width: 100%; min-width: 140px;
