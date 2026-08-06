@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { parseMarkup, CAPSULE_START, CAPSULE_END } from "../expression-trigger";
 import { getTriggerContext, operatorCandidates, insertAt, replaceToken, countUnbalancedParens, SINGLE_CHAR_OPERATORS, tokenizeFormula } from "../expression-trigger";
+import { escapeString, unescapeString, serializeSegments } from "../expression-trigger";
 
 describe("parseMarkup", () => {
   it("解析胶囊标记段", () => {
@@ -171,5 +172,43 @@ describe("tokenizeFormula", () => {
   it("未闭合字符串尾部反斜杠：不越界（end 不超 length）", () => {
     // 回归：修复前 `"abc\` 转义分支 i += 2 无边界检查 → end=6 > length=5
     expect(tokenizeFormula('"abc\\')).toEqual([{ kind: "string", text: "abc\\", start: 0, end: 5 }]);
+  });
+});
+
+describe("serializeSegments 字面量判定与拼接", () => {
+  const c = (s: string) => `${CAPSULE_START}${s}${CAPSULE_END}`;
+  it("纯数字 → number 原样", () => {
+    expect(serializeSegments(`${c("count")} + 1`)).toBe("count + 1");
+  });
+  it("带小数点数字原样（点属结构字符，拼接一致）", () => {
+    expect(serializeSegments(`1.5`)).toBe("1.5");
+  });
+  it("true/false/null 原样", () => {
+    expect(serializeSegments(`true`)).toBe("true");
+    expect(serializeSegments(`false`)).toBe("false");
+    expect(serializeSegments(`null`)).toBe("null");
+  });
+  it("普通文本 → 字符串加双引号（trim + 转义）", () => {
+    expect(serializeSegments(`hello world`)).toBe('"hello world"');
+    expect(serializeSegments(`user-settings`)).toBe('"user-settings"');
+  });
+  it("字符串内嵌引号转义", () => {
+    expect(serializeSegments(`say "hi"`)).toBe('"say \\"hi\\""');
+  });
+  it("空白段原样保留（胶囊间距不变）", () => {
+    expect(serializeSegments(`${c("count")} + ${c("count")}`)).toBe("count + count");
+  });
+  it("点号后的自由文本段 → member 原样（不判字符串）", () => {
+    expect(serializeSegments(`${c("sizeBox")}.measure()`)).toBe("sizeBox.measure()");
+    expect(serializeSegments(`${c("mirrorInput")}.value`)).toBe("mirrorInput.value");
+  });
+  it("member 链含参数与数字", () => {
+    expect(serializeSegments(`${c("items")}.get(${c("items")}.len() - 1)`)).toBe("items.get(items.len() - 1)");
+  });
+  it("胶囊原样、结构字符原样", () => {
+    expect(serializeSegments(`${c("+")}${c("count")}`)).toBe("+count");
+  });
+  it("escapeString/unescapeString 互逆", () => {
+    expect(unescapeString(escapeString(`a\\b"c`))).toBe(`a\\b"c`);
   });
 });

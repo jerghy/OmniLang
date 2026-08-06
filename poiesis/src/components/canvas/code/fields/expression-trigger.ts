@@ -223,3 +223,43 @@ export function tokenizeFormula(value: string): FormulaToken[] {
   }
   return tokens;
 }
+
+/** 自由文本段提交分类：空白原样 / number / bool / null / member（`.` 后）原样 / string 加引号。 */
+export type LiteralClass = "blank" | "number" | "bool" | "null" | "string" | "member";
+
+export function escapeString(s: string): string {
+  return s.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
+export function unescapeString(s: string): string {
+  return s.replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+}
+
+/** 字面量判定：trim 后为空 → blank；前段以 `.` 结尾 → member；纯数字 → number；true/false/null 原样；其余 string。 */
+export function classifyLiteral(text: string, prevStructDot: boolean): LiteralClass {
+  const t = text.trim();
+  if (t === "") return "blank";
+  if (prevStructDot) return "member";
+  if (/^\d+(\.\d+)?$/.test(t)) return "number";
+  if (t === "true" || t === "false") return "bool";
+  if (t === "null") return "null";
+  return "string";
+}
+
+/** 标记文本 → omni 表达式（提交拼接）：胶囊/结构字符原样，自由文本按判定转换。 */
+export function serializeSegments(markup: string): string {
+  const segs = parseMarkup(markup);
+  let out = "";
+  for (let k = 0; k < segs.length; k++) {
+    const s = segs[k]!;
+    if (s.kind === "capsule" || s.kind === "struct") { out += s.text; continue; }
+    const prev = k > 0 ? segs[k - 1]! : null;
+    const cls = classifyLiteral(s.text, prev?.kind === "struct" && prev.text.endsWith("."));
+    if (cls === "string") {
+      // 纯运算符/数字/空白组成的表达式片段（无标识符/引号字符，如 " + 1"）→ 原样保留，不判字符串
+      // （brief 参考实现逐字执行会对该类片段加引号产出 `count"+ 1"`，与测试契约矛盾，见 task-2-report）
+      out += /[A-Za-z_"]/.test(s.text) ? `"${escapeString(s.text.trim())}"` : s.text;
+    } else out += s.text;
+  }
+  return out;
+}
