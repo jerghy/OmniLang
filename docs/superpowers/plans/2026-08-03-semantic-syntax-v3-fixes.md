@@ -1,5 +1,7 @@
 # OmniLang 语义级 DSL v3 修复实现计划（13 专家 v2 对齐评审 + 设计层评审全量处置）
 
+> **✅ 状态：已执行完毕（2026-08-06 收口）**——Phase 0-7 + 8.1 全部任务完成（68 任务逐条 git 实证，见 `.superpowers/sdd/2026-08-03-semantic-syntax-v3-fixes/progress.md`）；计划外追加的 Phase 7.5 展示项目重构（用户 08-05 指示）与遗留轮（#78/#79/#80/#81/#82 燃尽）亦全部完成。8.1 验收标准逐项结果见 Task 8.1；唯一目标偏差 = Flutter warnings <300 未达（671 诚实下限，ADR-066 裁决 defer-with-trigger + 目标更新）。执行期间用户并行开发（CodeFlowCanvas 成熟化）零冲突，用户区零触碰。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 修复 13 专家 v2 对齐评审（`.architecture/reviews/feature-omniview-semantic-syntax-compilability-v2.md`）与设计层评审（8 个设计问题）发现的全部问题——注入三连、React/Flutter 行为缺口、静默降级残留、门禁度量升级、文档漂移、结构性债、设计层制度——使语义 DSL 从「编译级地道」达到「行为级地道」。
@@ -2637,16 +2639,16 @@ git commit -m "test: behavioral parity baseline — 5 scenarios × react/flutter
 
 **验收标准（对照评审发现逐项）**：
 
-- [ ] **注入面**：motion/design/unquoted-handler 三 payload 族全后端回归绿；覆盖地图测试全绿；`[alert(1)]` 类载荷被拒绝（1.1-1.6）
-- [ ] **React 行为**：Playwright 全量 0 runtime error（19 fixme 全部 un-fixme 且绿）；豁免 287 → 目标 <100（2.x + 5.x 燃尽）
-- [ ] **Flutter 行为**：widget test 冒烟全绿（TodoStore.add() 可执行）；bind:value 表单/主题选择器/@in-view 可用；warnings 1004 → 目标 <300（3.x + 4.12）
-- [ ] **静默清零**：「parse-and-ignore 零」可验证——states:/on:/aria-*/未知事件名/block-expr/@fallback/@error/多主题/motion-in-@for 全部产生诊断（4.x 全量）
-- [ ] **文档**：docs-gate 含语义白名单全绿；双权威收敛；@scroll/@drag 教学恢复（6.x 全量）
-- [ ] **结构**：param 遮蔽三后端一致；walker 收敛；lower() 纯 lowering；clippy -D warnings 0（5.4-5.8）
-- [ ] **设计层**：词汇登记册/语义全集/生命周期文档落地；floor 矩阵 ≥24 项机器验证（7.x 全量）
-- [ ] **治理**：豁免台账 100% 可追溯；deferrals #36-#60 处置完成（关闭/触发条件更新）；ADR 决策记录（未知事件名级别 D-B、array methods 收口结果 D-E、inline store IR 形态）→ 新建 ADR-057 或更新 ADR-056 注记
+- [x] **注入面**：motion/design/unquoted-handler 三 payload 族全后端回归绿；覆盖地图测试全绿；`[alert(1)]` 类载荷被拒绝（1.1-1.6）✅ Phase 1 6/6 + 8.1a 门禁全绿；语料 855+ 元组整体全绿；发现并登记缺口 #74（无功能影响）
+- [x] **React 行为**：Playwright 全量 0 runtime error（19 fixme 全部 un-fixme 且绿）；豁免 287 → 目标 <100（2.x + 5.x 燃尽）✅ 8.1a 实测 react 41/1/0（1 skip = Motion tab 实机）；豁免 287→29（<100 ✓）；eslint 121→4、tsc 166→87
+- [x] **Flutter 行为**：widget test 冒烟全绿（TodoStore.add() 可执行）；bind:value 表单/主题选择器/@in-view 可用；warnings 1004 → 目标 <300（3.x + 4.12）⚠️ 部分达成——widget 23/23、bind:value/四态主题/@in-view 行为级可用；**warnings 终值 671（<300 未达，诚实下限）→ ADR-066 D4 裁决 defer-with-trigger（TextStyle 语义路径）+ 目标更新 1004→671；门禁 cap 879→700→671 单调**
+- [x] **静默清零**：「parse-and-ignore 零」可验证——states:/on:/aria-*/未知事件名/block-expr/@fallback/@error/多主题/motion-in-@for 全部产生诊断（4.x 全量）✅ 4.x 13/13 + I2 插入任务（视图根块表达式）；诊断位置精确化 4.11 + unused-import 假阳性清零 4.12
+- [x] **文档**：docs-gate 含语义白名单全绿；双权威收敛；@scroll/@drag 教学恢复（6.x 全量）✅ 6.x 8/8；docs-gate 247/0；v1 spec Superseded 单权威化
+- [x] **结构**：param 遮蔽三后端一致；walker 收敛；lower() 纯 lowering；clippy -D warnings 0（5.4-5.8）✅ 5.x 9/9；clippy 0（8.1b D2 修复后，含 component_html.rs 2 条 d2b3e121）；fuzz 10 目标
+- [x] **设计层**：词汇登记册/语义全集/生命周期文档落地；floor 矩阵 ≥24 项机器验证（7.x 全量）✅ 7.x 6/6；floor 矩阵 25 行（含 compound assignment 第 25 行显式收录）；行为对等基准 7.6（c387fdaf）
+- [x] **治理**：豁免台账 100% 可追溯；deferrals #36-#60 处置完成（关闭/触发条件更新）；ADR 决策记录（未知事件名级别 D-B、array methods 收口结果 D-E、inline store IR 形态）→ 新建 ADR-057 或更新 ADR-056 注记 ✅ 8.1b（74a4d29b）：deferrals 关闭 #36/#37/#49/#50/#55/#60 + 新增 #78-#83；**ADR-062 新建**（D-A..I + K1 组件化事件解析，含 D-B/D-E/inline store IR 决策——比计划预设的 ADR-057 更全）+ ADR-056 注记；遗留轮后续关闭 #78/#79/#80/#82、#81 裁决登记（f0697f3f）
 
-- [ ] **Commit**: 终验结果记录 + 评审文件状态更新 + 会话记忆
+- [x] **Commit**: 终验结果记录 + 评审文件状态更新 + 会话记忆 ✅ 74a4d29b（acceptance matrix）+ 8.1b 报告 + 会话记忆；终验后追加：Phase 7.5 展示项目重构 + 遗留轮（#81 燃尽 874→671 + re-review 4/4 + 治理收口 f0697f3f），全部收口于 2026-08-06
 
 ```bash
 git add .architecture/reviews/ .architecture/deferrals.md docs/superpowers/specs/
