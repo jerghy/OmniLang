@@ -503,7 +503,24 @@ impl FlutterCodegen {
 
         // Ref usage analysis (Task 5.2) — computed BEFORE the top-level
         // emission below so the measure wrapper helper can be gated on it.
-        let (ref_usage, ref_errors) = collect_ref_usage(comp);
+        let (ref_usage, ref_errors, dual_axis_warnings) = collect_ref_usage(comp);
+
+        // v4 compiler HIGH-2: dual-axis scrollTo(x, y) silently drops x on
+        // Flutter (single-axis scroll, vertical wins) — surface the
+        // design-contract warning (设计文档 域 1 映射表) on the codegen
+        // warnings channel, anchored at the component's span. Same
+        // CodegenWarning::at conversion as `ViewContext::warn_at` (view.rs);
+        // pushed here because ref analysis precedes view formatting (the
+        // ViewContext does not exist yet at this point).
+        for (msg, span) in &dual_axis_warnings {
+            let (line, col) = span.map_or((0, 0), |s| (s.line, s.col));
+            warnings.push(crate::codegen::CodegenWarning::at(
+                msg.clone(),
+                comp.source_file.clone(),
+                line,
+                col,
+            ));
+        }
 
         // Cross-file library functions inlined at top level (Task 5.8) —
         // pure-logic fns from other .omni files, emitted with Dart-typed

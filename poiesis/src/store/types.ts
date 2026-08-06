@@ -180,6 +180,12 @@ export interface PoiesisState {
   removeChildFromBranch: (blockId: string, branchIndex: number, childId: string) => void;
   removeConditionalBranch: (blockId: string, branchIndex: number) => void;
 
+  // For block CRUD (view @for, 2026-08-06)
+  addForBlock: (parentId: string) => void;
+  updateForBlock: (blockId: string, updates: { itemName?: string; collection?: string; keyExpr?: string }) => void;
+  addChildToEmpty: (blockId: string, childId: string) => void;
+  removeChildFromEmpty: (blockId: string, childId: string) => void;
+
   // Undo/redo
   undo: () => void;
   redo: () => void;

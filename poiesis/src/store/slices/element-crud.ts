@@ -1,7 +1,7 @@
 // ── Element/Wire CRUD slice for Poiesis store ──
 
 import type { PoiesisState } from "../types";
-import type { ElementData, ConditionalBlockData, CodeblockElementData } from "../../core/types/element";
+import type { ElementData, ConditionalBlockData, ForBlockData, CodeblockElementData } from "../../core/types/element";
 import type { WireData } from "../../core/types/wire";
 import type { StyleProperty } from "../../core/types/style";
 import { buildUndoUpdate } from "../undo-slice";
@@ -602,6 +602,78 @@ export function createElementCrudSlice(set: SetFn, get: GetFn) {
           };
         });
         return { ...s, ...undoUpdate, elements, isDirty: true };
+      });
+    },
+
+    // ── For block CRUD（view @for，2026-08-06）──
+
+    addForBlock: (parentId: string) => {
+      set((s) => {
+        const forId = `for.${Date.now()}`;
+        const forBlock: ForBlockData = {
+          id: forId,
+          nodeType: "for",
+          parentId,
+          itemName: "item",
+          collection: "items",
+          children: [],
+          emptyChildren: [],
+          isFolded: false,
+        };
+        const elements = [
+          ...s.elements,
+          forBlock,
+        ].map((e) =>
+          e.id === parentId && "children" in e
+            ? { ...e, children: [...e.children, forId] }
+            : e
+        );
+        const undoUpdate = buildUndoUpdate(
+          s.undoStacks,
+          s.designPage.activeTabId,
+          { type: "addElement", element: forBlock },
+        );
+        return { ...undoUpdate, elements, isDirty: true };
+      });
+    },
+
+    updateForBlock: (blockId: string, updates: { itemName?: string; collection?: string; keyExpr?: string }) => {
+      set((s) => {
+        const block = s.elements.find(e => e.id === blockId && e.nodeType === "for") as ForBlockData | undefined;
+        if (!block) return {};
+        const elements = s.elements.map((e) =>
+          e.id === blockId && e.nodeType === "for"
+            ? { ...e, ...updates }
+            : e
+        );
+        const undoUpdate = buildUndoUpdate(
+          s.undoStacks,
+          s.designPage.activeTabId,
+          { type: "updateForBlock", blockId, prev: { itemName: block.itemName, collection: block.collection, keyExpr: block.keyExpr }, next: { ...updates } },
+        );
+        return { ...undoUpdate, elements, isDirty: true };
+      });
+    },
+
+    addChildToEmpty: (blockId: string, childId: string) => {
+      set((s) => {
+        const elements = s.elements.map((e) =>
+          e.id === blockId && e.nodeType === "for"
+            ? { ...e, emptyChildren: [...e.emptyChildren, childId] }
+            : e
+        );
+        return { elements, isDirty: true };
+      });
+    },
+
+    removeChildFromEmpty: (blockId: string, childId: string) => {
+      set((s) => {
+        const elements = s.elements.map((e) =>
+          e.id === blockId && e.nodeType === "for"
+            ? { ...e, emptyChildren: e.emptyChildren.filter((c) => c !== childId) }
+            : e
+        );
+        return { elements, isDirty: true };
       });
     },
   };

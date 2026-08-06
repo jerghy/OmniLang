@@ -613,6 +613,12 @@ export function parseViewDirective(internals: ParserInternals): void {
   const directiveTok = internals.stream.expect("IDENTIFIER");
   if (directiveTok.kind === "EOF") return;
 
+  // @for 解析（2026-08-06：view 级 @for 支持，闭环调试列表卡）
+  if (directiveTok.text === "for") {
+    parseForDirective(internals);
+    return;
+  }
+
   // Currently only @if is handled; @for and @slot will follow
   if (directiveTok.text !== "if") {
     // Skip unknown directives by consuming until end of block
@@ -634,9 +640,9 @@ export function parseViewDirective(internals: ParserInternals): void {
   }> = [];
 
   // Push condition block ID to parent stack so children get correct parentId
-  if (internals.ctx.viewParentStack.length > 0) {
-    internals.ctx.viewParentStack.push(condBlockId);
-  }
+  // （无条件：顶层 @if 的子元素 parentId 也必须是条件块——2026-08-06 与
+  // @for 统一；此前顶层指令子元素 parentId 恒 null，删除/undo 连带丢失）
+  internals.ctx.viewParentStack.push(condBlockId);
 
   let currentBranchType: "if" | "elif" | "else" = "if";
 
@@ -716,6 +722,9 @@ export function parseViewDirective(internals: ParserInternals): void {
         tok.kind === "STRING"
       ) {
         parseViewTextContent(internals);
+      } else if (tok.kind === "AT") {
+        // @if 分支体内可嵌套指令（@for/@if）——2026-08-06 补全
+        parseViewDirective(internals);
       } else {
         internals.stream.consume();
       }
@@ -765,9 +774,7 @@ export function parseViewDirective(internals: ParserInternals): void {
   // Pop condition block from parent stack FIRST so parentId resolves
   // to the actual parent element, not the condBlock itself or any bogus
   // elements that may have been pushed during branch body parsing.
-  if (internals.ctx.viewParentStack.length > 0) {
-    internals.ctx.viewParentStack.pop();
-  }
+  internals.ctx.viewParentStack.pop();
 
   // Now compute parentId from the actual parent (top of remaining stack)
   const parentId =
@@ -792,6 +799,173 @@ export function parseViewDirective(internals: ParserInternals): void {
     const parent = internals.ctx.elements.find((e) => e.id === parentId);
     if (parent && "children" in parent && Array.isArray(parent.children)) {
       (parent as { children: string[] }).children.push(condBlockId);
+    }
+  }
+}
+
+/**
+ * Parse @for directive: `@for <item> in <collection> key={expr}? { body } @empty? { body }`
+ * Produces a ForBlockData element (2026-08-06 —— 与 @if 同构：设计树节点 + 发射已支持）。
+ */
+function parseForDirective(internals: ParserInternals): void {
+  const forId = `${internals.ctx.currentComponent}.@for.${internals.ctx.elements.length}`;
+
+  // itemName: @for <ident> in ...
+  const itemTok = internals.stream.expect("IDENTIFIER");
+  const itemName = itemTok.kind === "EOF" ? "item" : itemTok.text;
+  const inTok = internals.stream.peek();
+  if (inTok.kind === "IDENTIFIER" && inTok.text === "in") {
+    internals.stream.consume();
+  }
+
+  // collection: 收集 token 直到 key= 或块花括号（列距空格插入，同 @if condition 处理）
+  let collection = "";
+  let lastEndCol = -1;
+  while (!internals.stream.isEof()) {
+    const t = internals.stream.peek();
+    if (t.kind === "BRACE_OPEN") break;
+    if (t.kind === "IDENTIFIER" && t.text === "key" && internals.stream.peek(1)?.kind === "EQUALS") break;
+    if (t.kind === "NEWLINE") break;
+    if (lastEndCol >= 0 && t.col > lastEndCol) {
+      collection += " ".repeat(t.col - lastEndCol);
+    }
+    internals.stream.consume();
+    collection += t.text;
+    lastEndCol = t.col + t.text.length;
+  }
+  collection = collection.trim();
+
+  // 可选 key={expr}（表达式花括号，配平收集）
+  let keyExpr: string | undefined;
+  const afterCol = internals.stream.peek();
+  if (afterCol.kind === "IDENTIFIER" && afterCol.text === "key") {
+    internals.stream.consume(); // key
+    const eq = internals.stream.peek();
+    if (eq.kind === "EQUALS") internals.stream.consume();
+    const open = internals.stream.peek();
+    if (open.kind === "BRACE_OPEN") {
+      internals.stream.consume();
+      keyExpr = "";
+      let depth = 1;
+      while (depth > 0 && !internals.stream.isEof()) {
+        const t = internals.stream.peek();
+        if (t.kind === "BRACE_OPEN") depth++;
+        else if (t.kind === "BRACE_CLOSE") { depth--; if (depth === 0) { internals.stream.consume(); break; } }
+        internals.stream.consume();
+        keyExpr += t.text;
+      }
+      keyExpr = keyExpr.trim();
+    }
+  }
+
+  // 推入父栈（children 的 parentId 解析）——无条件：顶层 @for（栈空）时
+  // 子元素 parentId 也必须是 for 块（2026-08-06 实测：conditional 的
+  // `if (length > 0)` 保护导致顶层指令子元素 parentId null，@for 不沿用）
+  internals.ctx.viewParentStack.push(forId);
+
+  // 循环体：braceDepth 扫描 + 递归 view 元素（同 @if 分支体逻辑）
+  internals.stream.skipNewlines();
+  internals.stream.expect("BRACE_OPEN");
+  const bodyBefore = internals.ctx.elements.length;
+  let braceDepth = 1;
+  while (braceDepth > 0 && !internals.stream.isEof()) {
+    const tok = internals.stream.peek();
+    if (tok.kind === "BRACE_CLOSE") {
+      braceDepth--;
+      if (braceDepth === 0) { internals.stream.consume(); break; }
+      internals.stream.consume();
+      continue;
+    }
+    if (tok.kind === "BRACE_OPEN") { braceDepth++; internals.stream.consume(); continue; }
+    if (tok.kind === "ANGLE_OPEN") {
+      if (internals.stream.peek(1)?.kind === "SLASH") {
+        internals.stream.consume(); // ANGLE_OPEN
+        internals.stream.consume(); // SLASH
+        internals.stream.consume(); // IDENTIFIER
+        if (internals.stream.peek().kind === "ANGLE_CLOSE") internals.stream.consume();
+        if (internals.ctx.viewParentStack.length > 0) internals.ctx.viewParentStack.pop();
+      } else {
+        parseViewElement(internals);
+      }
+    } else if (tok.kind === "COMMENT_LINE") {
+      parseViewComment(internals);
+    } else if (tok.kind === "IDENTIFIER" || tok.kind === "TEXT" || tok.kind === "STRING") {
+      parseViewTextContent(internals);
+    } else {
+      internals.stream.consume();
+    }
+    internals.stream.skipNewlines();
+  }
+  const bodyAfter = internals.ctx.elements.length;
+  const children: string[] = [];
+  for (let i = bodyBefore; i < bodyAfter; i++) children.push(internals.ctx.elements[i].id);
+
+  // 可选 @empty { body }
+  let emptyChildren: string[] = [];
+  internals.stream.skipNewlines();
+  const nextTok = internals.stream.peek();
+  if (nextTok.kind === "AT" && internals.stream.peek(1)?.kind === "IDENTIFIER" && internals.stream.peek(1)?.text === "empty") {
+    internals.stream.consume(); // AT
+    internals.stream.consume(); // empty
+    internals.stream.skipNewlines();
+    internals.stream.expect("BRACE_OPEN");
+    const emptyBefore = internals.ctx.elements.length;
+    let emptyDepth = 1;
+    while (emptyDepth > 0 && !internals.stream.isEof()) {
+      const tok = internals.stream.peek();
+      if (tok.kind === "BRACE_CLOSE") {
+        emptyDepth--;
+        if (emptyDepth === 0) { internals.stream.consume(); break; }
+        internals.stream.consume();
+        continue;
+      }
+      if (tok.kind === "BRACE_OPEN") { emptyDepth++; internals.stream.consume(); continue; }
+      if (tok.kind === "ANGLE_OPEN") {
+        if (internals.stream.peek(1)?.kind === "SLASH") {
+          internals.stream.consume(); // ANGLE_OPEN
+          internals.stream.consume(); // SLASH
+          internals.stream.consume(); // IDENTIFIER
+          if (internals.stream.peek().kind === "ANGLE_CLOSE") internals.stream.consume();
+          if (internals.ctx.viewParentStack.length > 0) internals.ctx.viewParentStack.pop();
+        } else {
+          parseViewElement(internals);
+        }
+      } else if (tok.kind === "COMMENT_LINE") {
+        parseViewComment(internals);
+      } else if (tok.kind === "IDENTIFIER" || tok.kind === "TEXT" || tok.kind === "STRING") {
+        parseViewTextContent(internals);
+      } else {
+        internals.stream.consume();
+      }
+      internals.stream.skipNewlines();
+    }
+    const emptyAfter = internals.ctx.elements.length;
+    for (let i = emptyBefore; i < emptyAfter; i++) emptyChildren.push(internals.ctx.elements[i].id);
+  }
+
+  // 弹栈后计算真实 parentId
+  internals.ctx.viewParentStack.pop();
+  const parentId =
+    internals.ctx.viewParentStack.length > 0
+      ? internals.ctx.viewParentStack[internals.ctx.viewParentStack.length - 1]
+      : null;
+
+  const forBlock: import("../../core/types/element").ForBlockData = {
+    id: forId,
+    nodeType: "for",
+    parentId,
+    itemName,
+    collection,
+    ...(keyExpr ? { keyExpr } : {}),
+    children,
+    emptyChildren,
+  };
+  internals.ctx.elements.push(forBlock);
+
+  if (parentId) {
+    const parent = internals.ctx.elements.find((e) => e.id === parentId);
+    if (parent && "children" in parent && Array.isArray(parent.children)) {
+      (parent as { children: string[] }).children.push(forId);
     }
   }
 }

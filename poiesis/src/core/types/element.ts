@@ -84,4 +84,21 @@ export interface ConditionalBlockData extends ElementDataBase {
   position?: { x: number; y: number };
 }
 
-export type ElementData = ViewElementData | CodeblockElementData | GroupElementData | ConditionalBlockData;
+/** view 级 @for 循环块（2026-08-06：parser-view 补 @for 解析，闭环调试列表卡） */
+export interface ForBlockData extends ElementDataBase {
+  nodeType: "for";
+  /** 循环项绑定名：`@for item in items` 的 item */
+  itemName: string;
+  /** 遍历集合表达式：`items` / `TodoStore.items` / `items.filter(...)` */
+  collection: string;
+  /** key 表达式（`key={item.id}`），可选 */
+  keyExpr?: string;
+  /** 循环体子元素 ID */
+  children: string[];
+  /** @empty 分支子元素 ID（可选） */
+  emptyChildren: string[];
+  isFolded?: boolean;
+  position?: { x: number; y: number };
+}
+
+export type ElementData = ViewElementData | CodeblockElementData | GroupElementData | ConditionalBlockData | ForBlockData;

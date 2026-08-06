@@ -35,6 +35,15 @@ use rustc_hash::FxHashSet;
 /// failure is loud even if the diagnostic is bypassed.
 const FLUTTER_POINTER_CAPTURE_ERROR: &str = "Flutter 不支持指针捕获，用 GestureDetector";
 
+/// v4 compiler HIGH-2: dual-axis `scrollTo(x, y)` is silently narrowed to
+/// the y axis on Flutter — `format_ref_op_flutter` scrolls a single axis
+/// (vertical wins, x is dropped). The design contract promises a dual-axis
+/// difference warning (设计文档 域 1 映射表) — this message surfaces on the
+/// codegen warnings channel. No value evaluation is needed: x is ALWAYS
+/// ignored on Flutter, whatever the expression.
+const DUAL_AXIS_SCROLL_TO_WARNING: &str =
+    "[flutter] scrollTo(x, y)：Flutter 单轴滚动——x 被忽略（垂直优先，设计契约双轴差异警告）";
+
 use super::capitalize_first;
 use super::expr::rewrite_store_accesses;
 use super::format_expr_ir_flutter;
@@ -64,6 +73,11 @@ pub(crate) struct RefUsage {
     /// `ref.capturePointer()`/`ref.releasePointer()` present — unsupported on
     /// Flutter: drives the hard compile error (design D3 / spec §10.3).
     pub needs_pointer_capture: bool,
+    /// `ref.scrollTo(x, y)` with BOTH axes given — Flutter scrolls a single
+    /// axis (vertical wins) and silently drops x; drives the v4 HIGH-2
+    /// design-contract warning (one per component, see
+    /// `collect_ref_usage`).
+    pub dual_axis_scroll_to: bool,
 }
 
 impl RefUsage {
@@ -83,9 +97,17 @@ impl RefUsage {
 /// The second return value carries hard compile errors for ops the Flutter
 /// target does not support (`capturePointer()`/`releasePointer()`, design
 /// D3 / spec §10.3) — one error per ref that uses them.
+///
+/// The third return value carries v4 HIGH-2 warnings for dual-axis
+/// `scrollTo(x, y)` calls — one `(message, span)` per component (span = the
+/// component's source span; `RefOpIR`/`ExprIR` carry no finer span).
 pub(crate) fn collect_ref_usage(
     comp: &ComponentIR,
-) -> (FxHashMap<String, RefUsage>, Vec<Diagnostic>) {
+) -> (
+    FxHashMap<String, RefUsage>,
+    Vec<Diagnostic>,
+    Vec<(String, Option<crate::lexer::Span>)>,
+) {
     let mut usage: FxHashMap<String, RefUsage> = FxHashMap::default();
     for r in &comp.refs {
         usage.entry(r.name.clone()).or_default();
@@ -127,7 +149,18 @@ pub(crate) fn collect_ref_usage(
             suggestion: None,
         })
         .collect();
-    (usage, errors)
+    // v4 compiler HIGH-2: dual-axis scrollTo(x, y) — one [flutter] warning
+    // per component. `RefOpIR` carries no source span (ExprIR spans exist
+    // only on view elements, and the call is usually in a fn body), so the
+    // anchor is the component's span — the same anchor the pointer-capture
+    // errors above use.
+    let dual_axis_warnings: Vec<(String, Option<crate::lexer::Span>)> =
+        if usage.values().any(|u| u.dual_axis_scroll_to) {
+            vec![(DUAL_AXIS_SCROLL_TO_WARNING.to_string(), comp.source_span)]
+        } else {
+            Vec::new()
+        };
+    (usage, errors, dual_axis_warnings)
 }
 
 /// Record a `RefOpExpr`'s capability flags.
@@ -135,7 +168,19 @@ fn record_ref_op(ref_name: &str, op: &RefOpIR, usage: &mut FxHashMap<String, Ref
     let u = usage.entry(ref_name.to_string()).or_default();
     match op {
         RefOpIR::Focus | RefOpIR::Blur => u.needs_focus = true,
-        RefOpIR::ScrollTo { .. } | RefOpIR::ScrollBy { .. } => u.needs_scroll = true,
+        RefOpIR::ScrollTo { x, y } => {
+            u.needs_scroll = true;
+            // v4 compiler HIGH-2: dual-axis scrollTo(x, y) — Flutter scrolls
+            // a single axis (vertical wins, `format_ref_op_flutter` drops x),
+            // so the x argument is silently discarded. Record the flag here
+            // (record_ref_op runs once per RefOpExpr node inside the existing
+            // usage traversal) — collect_ref_usage surfaces one warning per
+            // component at the end.
+            if x.is_some() && y.is_some() {
+                u.dual_axis_scroll_to = true;
+            }
+        }
+        RefOpIR::ScrollBy { .. } => u.needs_scroll = true,
         RefOpIR::Value | RefOpIR::Select | RefOpIR::SetSelection { .. } => u.needs_text = true,
         RefOpIR::Measure { .. } => u.needs_measure = true,
         RefOpIR::CapturePointer | RefOpIR::ReleasePointer => {

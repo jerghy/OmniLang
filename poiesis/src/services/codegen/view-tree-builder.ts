@@ -1,6 +1,6 @@
 // poiesis/src/services/codegen/view-tree-builder.ts
-import type { ElementData, ViewElementData, ConditionalBlockData } from "../../core/types";
-import type { ViewNode, ElementViewNode, IfViewNode } from "./types";
+import type { ElementData, ViewElementData, ConditionalBlockData, ForBlockData } from "../../core/types";
+import type { ViewNode, ElementViewNode, IfViewNode, ForViewNode } from "./types";
 
 /** Look up any element by ID — view elements from byId cache, others from flat array. */
 function findElement(
@@ -15,6 +15,7 @@ function findElement(
 function pathTag(el: ElementData): string {
   if (el.nodeType === "view") return (el as ViewElementData).tag.toLowerCase();
   if (el.nodeType === "conditional") return "if";
+  if (el.nodeType === "for") return "for";
   return el.nodeType;
 }
 
@@ -82,6 +83,29 @@ export function buildViewTree(
         fallback,
         children: condBranches.flatMap((b) => b.body),
       } as IfViewNode;
+    }
+
+    // ── For block → ForViewNode（@for / @empty）──
+    if (el.nodeType === "for") {
+      const loop = el as ForBlockData;
+      const children = (loop.children || [])
+        .map((cid) => findElement(cid, byId, elements))
+        .filter((c): c is ElementData => c !== undefined)
+        .map((c) => buildNode(c, `${loop.id}.${pathTag(c)}`));
+      const emptyBody = (loop.emptyChildren || [])
+        .map((cid) => findElement(cid, byId, elements))
+        .filter((c): c is ElementData => c !== undefined)
+        .map((c) => buildNode(c, `${loop.id}.empty.${pathTag(c)}`));
+      return {
+        kind: "for",
+        id: loop.id,
+        path: currentPath,
+        iterable: loop.collection,
+        itemBinding: loop.itemName,
+        keyExpr: loop.keyExpr,
+        children,
+        ...(emptyBody.length > 0 ? { emptyBody } : {}),
+      } as ForViewNode;
     }
 
     // ── View element ──

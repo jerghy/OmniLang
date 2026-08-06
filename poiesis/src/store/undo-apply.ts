@@ -317,6 +317,22 @@ export function computeInverse(
       };
     }
 
+    case "updateForBlock": {
+      return {
+        elements: state.elements.map((e): ElementData =>
+          e.id === action.blockId && e.nodeType === "for"
+            ? {
+                ...e,
+                itemName: isRedo ? action.next.itemName ?? e.itemName : action.prev.itemName ?? e.itemName,
+                collection: isRedo ? action.next.collection ?? e.collection : action.prev.collection ?? e.collection,
+                keyExpr: isRedo ? action.next.keyExpr ?? e.keyExpr : action.prev.keyExpr ?? e.keyExpr,
+              }
+            : e
+        ),
+        isDirty: true,
+      };
+    }
+
     default:
       return null;
   }
