@@ -1,0 +1,14 @@
+// events/longpress.omni — v4 3.3 (compiler HIGH-3): @onLongpress 是
+// Flutter 便捷事件混入 canonical 表（onLongPress 映射正确）——React 无
+// onLongpress 合成事件。目标映射诚实：React 编译须 warning + 跳过死
+// 处理器（此前发射 `onLongpress` prop 被 React 静默丢弃 + tsc 不识别）。
+
+import omniview;
+
+component LongPressDemo {
+    fn handleLongPress() {}
+
+    view {
+        <button @onLongpress={handleLongPress}>Hold</button>
+    }
+}

@@ -68,7 +68,10 @@ mod tests {
 
             #[cfg(feature = "codegen-react")]
             {
-                let outputs: std::collections::BTreeSet<String> =
+                // Option<String> — None-ness is part of the resolution
+                // (unmapped canonicals, v4 3.3) and must also be identical
+                // across aliases.
+                let outputs: std::collections::BTreeSet<Option<String>> =
                     spellings.iter().map(|s| to_react_event(s)).collect();
                 assert_eq!(
                     outputs.len(),

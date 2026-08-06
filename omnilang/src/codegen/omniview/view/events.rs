@@ -8,7 +8,7 @@
 
 use std::fmt::Write;
 
-use super::super::utils::{escape_html, map_event};
+use super::super::utils::{escape_html, event_missing_js_mapping, map_event};
 use super::super::OmniViewGenerator;
 use crate::codegen::emit_event_object;
 use crate::ir::*;
@@ -30,6 +30,13 @@ impl OmniViewGenerator {
     pub(super) fn emit_element_events(&mut self, el: &ElementIR, nid: &str, attrs: &mut String) {
         self.assert_can_emit_js();
         for (event_name, handler) in &el.events {
+            // v4 domain HIGH-1: hover/toggle/longpress 无 DOM 事件——
+            // map_event 直通发射产生永不被触发的死监听器。warning + 跳过
+            // （Flutter 正确映射 onLongPress/onHover/onChanged）。
+            if let Some(w) = event_missing_js_mapping(event_name) {
+                self.warnings.push(w);
+                continue;
+            }
             let js_event = map_event(event_name);
             if self.scope.in_for_template {
                 // Inside @for template: emit data-event-* attributes for delegation.

@@ -1,6 +1,7 @@
 //! Regression tests for OmniView codegen modules.
 //! Tests focus on motion/animation codegen output correctness.
 
+mod dead_events;
 mod design;
 mod events;
 mod list;

@@ -43,6 +43,21 @@ pub(crate) fn map_event(name: &str) -> String {
     }
 }
 
+/// v4 3.3 (domain HIGH-1): canonical 事件名在 DOM 无对应事件
+/// （hover/toggle/longpress 为 Flutter 便捷形状混入 canonical 表——
+/// 登记册域 1 借词纪律的变体）。map_event 对它们直通发射，产生永不被
+/// 触发的死监听器。返回警告文本；其余 canonical 返回 None（map_event
+/// 正常处理）。
+pub(crate) fn event_missing_js_mapping(event_name: &str) -> Option<String> {
+    let canonical = crate::codegen::shared::event::canonical_event_name(event_name)?;
+    match canonical {
+        "hover" | "toggle" | "longpress" => Some(format!(
+            "事件 '@on{canonical}' 在 OmniView/DOM 无对应事件——处理器已跳过（Flutter 提供 onLongPress/onHover/onChanged 映射）"
+        )),
+        _ => None,
+    }
+}
+
 /// Map omni binary operators to JS operators.
 pub(super) fn map_binary_op(op: &BinaryOpIR) -> &str {
     use BinaryOpIR::*;

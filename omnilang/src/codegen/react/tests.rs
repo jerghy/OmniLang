@@ -80,13 +80,30 @@ fn test_to_jsx_attr() {
 
 #[test]
 fn test_to_react_event() {
-    assert_eq!(to_react_event("click"), "onClick");
-    assert_eq!(to_react_event("change"), "onChange");
-    assert_eq!(to_react_event("submit"), "onSubmit");
-    assert_eq!(to_react_event("focus"), "onFocus");
-    assert_eq!(to_react_event("dblclick"), "onDoubleClick");
-    assert_eq!(to_react_event("keydown"), "onKeyDown");
-    assert_eq!(to_react_event("customEvent"), "onCustomEvent");
+    assert_eq!(to_react_event("click"), Some("onClick".into()));
+    assert_eq!(to_react_event("change"), Some("onChange".into()));
+    assert_eq!(to_react_event("submit"), Some("onSubmit".into()));
+    assert_eq!(to_react_event("focus"), Some("onFocus".into()));
+    assert_eq!(to_react_event("dblclick"), Some("onDoubleClick".into()));
+    assert_eq!(to_react_event("keydown"), Some("onKeyDown".into()));
+    assert_eq!(to_react_event("customEvent"), Some("onCustomEvent".into()));
+    // v4 3.3 (compiler HIGH-3): Flutter-only conveniences have no React
+    // synthetic event — None triggers warn + skip (never emit the dropped
+    // onLongpress prop). Any spelling canonicalizes to the same None.
+    assert_eq!(to_react_event("longpress"), None);
+    assert_eq!(to_react_event("onLongpress"), None);
+    assert_eq!(to_react_event("hover"), None);
+    assert_eq!(to_react_event("toggle"), None);
+    // Real React synthetic events the old fallback arm served by accident
+    // stay mapped (explicit arms, v4 3.3).
+    assert_eq!(to_react_event("copy"), Some("onCopy".into()));
+    assert_eq!(to_react_event("select"), Some("onSelect".into()));
+    assert_eq!(to_react_event("load"), Some("onLoad".into()));
+    assert_eq!(to_react_event("resize"), Some("onResize".into()));
+    // Component-instance events keep the legacy spelling (declared event
+    // props still wire).
+    assert_eq!(to_react_event_or_legacy("onLongpress"), "onLongpress");
+    assert_eq!(to_react_event_or_legacy("customEvent"), "onCustomEvent");
 }
 
 #[test]
@@ -932,7 +949,7 @@ fn test_tsx_stmt_if() {
 
 #[test]
 fn test_css_empty_component() {
-    let codegen = ReactCodegen;
+    let codegen = ReactCodegen::default();
     let comp = ComponentIR {
         name: "App".into(),
         props: FxHashMap::default(),
@@ -956,7 +973,7 @@ fn test_css_empty_component() {
 
 #[test]
 fn test_css_with_styles() {
-    let codegen = ReactCodegen;
+    let codegen = ReactCodegen::default();
     let mut props = FxHashMap::default();
     props.insert(
         "backgroundColor".into(),
@@ -1042,7 +1059,7 @@ fn make_ir(components: FxHashMap<String, ComponentIR>) -> IRProgram {
 
 #[test]
 fn test_tsx_interpolation_renders_expr() {
-    let _codegen = ReactCodegen;
+    let _codegen = ReactCodegen::default();
     let comp = make_test_component(
         "Test",
         ViewTree::Element(Box::new(ElementIR {
@@ -1078,7 +1095,7 @@ fn test_tsx_interpolation_renders_expr() {
         .get("Test")
         .unwrap();
     let component_map = build_component_map(&ir);
-    let tsx = ReactCodegen.gen_component_tsx("Test", comp_ref, &ir, &component_map);
+    let tsx = ReactCodegen::default().gen_component_tsx("Test", comp_ref, &ir, &component_map);
     assert!(
         !tsx.contains("/* interpolation */"),
         "Interpolation must NOT be a comment placeholder. Got: {}",
@@ -1093,7 +1110,7 @@ fn test_tsx_interpolation_renders_expr() {
 
 #[test]
 fn test_tsx_empty_component() {
-    let codegen = ReactCodegen;
+    let codegen = ReactCodegen::default();
     let mut components = FxHashMap::default();
     components.insert(
         "App".into(),
@@ -1128,7 +1145,7 @@ fn test_tsx_empty_component() {
 
 #[test]
 fn test_tsx_component_with_state() {
-    let codegen = ReactCodegen;
+    let codegen = ReactCodegen::default();
     let state = SignalIntent {
         name: "count".into(),
         r#type: TypeIR {
@@ -1174,7 +1191,7 @@ fn test_tsx_component_with_state() {
 
 #[test]
 fn test_tsx_component_with_props() {
-    let codegen = ReactCodegen;
+    let codegen = ReactCodegen::default();
     let mut props = FxHashMap::default();
     props.insert(
         "name".into(),
@@ -1230,7 +1247,7 @@ fn test_tsx_component_with_props() {
 
 #[test]
 fn test_tsx_component_with_effect() {
-    let codegen = ReactCodegen;
+    let codegen = ReactCodegen::default();
     let effect = EffectIntent {
         deps: vec!["count".into()],
         body: BlockIR {
@@ -1277,7 +1294,7 @@ fn test_tsx_component_with_effect() {
 
 #[test]
 fn test_tsx_component_with_lifecycle_mount() {
-    let codegen = ReactCodegen;
+    let codegen = ReactCodegen::default();
     let lc = LifecycleIntent {
         kind: LifecycleKind::Mount,
         body: BlockIR { statements: vec![] },
@@ -1943,7 +1960,7 @@ fn literal_never_mutated_signal_hoisted() {
 
 #[test]
 fn test_zustand_store_empty() {
-    let codegen = ReactCodegen;
+    let codegen = ReactCodegen::default();
     let store = StoreIR {
         name: "AppStore".into(),
         signals: FxHashMap::default(),
@@ -1960,7 +1977,7 @@ fn test_zustand_store_empty() {
 
 #[test]
 fn test_zustand_store_with_signals_and_getters() {
-    let codegen = ReactCodegen;
+    let codegen = ReactCodegen::default();
     let mut signals = FxHashMap::default();
     signals.insert(
         "count".into(),
@@ -2075,7 +2092,7 @@ fn test_zustand_store_with_signals_and_getters() {
 
 #[test]
 fn test_zustand_store_mutation_multiply_in_action() {
-    let codegen = ReactCodegen;
+    let codegen = ReactCodegen::default();
     let mut signals = FxHashMap::default();
     signals.insert(
         "count".into(),
@@ -2151,7 +2168,7 @@ fn test_zustand_store_mutation_multiply_in_action() {
 /// The prologue walker must recurse into list/object literals.
 #[test]
 fn test_zustand_store_array_literal_mutation_emits_prologue() {
-    let codegen = ReactCodegen;
+    let codegen = ReactCodegen::default();
     let mut signals = FxHashMap::default();
     signals.insert(
         "items".into(),
@@ -2256,7 +2273,7 @@ fn test_zustand_store_array_literal_mutation_emits_prologue() {
 /// update (review M4).
 #[test]
 fn test_zustand_store_consecutive_mutations_coalesce_into_single_set() {
-    let codegen = ReactCodegen;
+    let codegen = ReactCodegen::default();
     let mut signals = FxHashMap::default();
     signals.insert(
         "items".into(),
@@ -2368,7 +2385,7 @@ fn test_zustand_store_consecutive_mutations_coalesce_into_single_set() {
 /// name in one object literal would silently drop the earlier write.
 #[test]
 fn test_zustand_store_duplicate_target_mutations_not_coalesced() {
-    let codegen = ReactCodegen;
+    let codegen = ReactCodegen::default();
     let mut signals = FxHashMap::default();
     signals.insert(
         "items".into(),
@@ -2444,7 +2461,7 @@ fn test_zustand_store_duplicate_target_mutations_not_coalesced() {
 /// renamed to `state.<getter>` and trigger the prologue.
 #[test]
 fn test_zustand_store_getter_ref_renamed_in_action() {
-    let codegen = ReactCodegen;
+    let codegen = ReactCodegen::default();
     let mut signals = FxHashMap::default();
     signals.insert(
         "notifications".into(),
@@ -2531,7 +2548,7 @@ fn test_zustand_store_getter_ref_renamed_in_action() {
 /// renamed — the rename happens at the AST identifier level only.
 #[test]
 fn test_zustand_store_string_literal_not_renamed() {
-    let codegen = ReactCodegen;
+    let codegen = ReactCodegen::default();
     let mut signals = FxHashMap::default();
     signals.insert(
         "items".into(),
@@ -2682,7 +2699,7 @@ store S {
 
 #[test]
 fn test_full_pipeline_empty() {
-    let codegen = ReactCodegen;
+    let codegen = ReactCodegen::default();
     let ir = IRProgram {
         version: "0.1".into(),
         modules: vec![(
@@ -2711,7 +2728,7 @@ fn test_full_pipeline_empty() {
 
 #[test]
 fn test_full_pipeline_component() {
-    let codegen = ReactCodegen;
+    let codegen = ReactCodegen::default();
     let comp = ComponentIR {
         name: "App".into(),
         props: FxHashMap::default(),
@@ -2778,7 +2795,7 @@ fn test_full_pipeline_component() {
 
 #[test]
 fn test_full_pipeline_with_store() {
-    let codegen = ReactCodegen;
+    let codegen = ReactCodegen::default();
     let store = StoreIR {
         name: "AppStore".into(),
         signals: vec![(
@@ -2833,7 +2850,7 @@ fn test_full_pipeline_with_store() {
 
 #[test]
 fn test_full_pipeline_component_with_store_ref() {
-    let codegen = ReactCodegen;
+    let codegen = ReactCodegen::default();
     let store = StoreIR {
         name: "AppStore".into(),
         signals: vec![(
@@ -6256,7 +6273,7 @@ component CartView {
 /// (the semantic-normalized forms) must also emit slice selectors.
 #[test]
 fn react_store_field_access_expr_uses_slice_selectors() {
-    let codegen = ReactCodegen;
+    let codegen = ReactCodegen::default();
     let store = StoreIR {
         name: "AppStore".into(),
         signals: vec![(

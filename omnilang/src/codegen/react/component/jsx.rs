@@ -62,6 +62,7 @@ impl ReactCodegen {
                 possibly_undefined,
                 motion_counter,
                 prop_fn_ctx,
+                &self.warnings,
                 // the view root sits directly inside `return ( ... )` — a
                 // parenthesized expression, NOT JSX children: expression
                 // nodes must not be wrapped in `{...}` containers (view-

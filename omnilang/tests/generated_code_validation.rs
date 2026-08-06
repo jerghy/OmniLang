@@ -1470,3 +1470,67 @@ fn ref_scrollto_dual_axis_warns() {
     );
     assert!(dart.contains("jumpTo(200)"), "y 轴仍应生效");
 }
+
+// ════════════════════════════════════════════════════════════════
+// 目标映射诚实（Task 3.3）: canonical 事件在无目标映射时必须 warning +
+// 跳过死处理器（D-V4-1）。此前 React 发射 `onLongpress` prop 被 React
+// 合成事件集静默丢弃（+ tsc 不识别 prop），OmniView 发射
+// `addEventListener("toggle")` 永不触发——两者都是零诊断静默退化。
+// Flutter 侧正确映射（onLongPress/MouseRegion.onHover/onChanged），
+// 不受影响。
+// ════════════════════════════════════════════════════════════════
+
+/// Compile a fixture (path relative to `tests/fixtures/`) to React through
+/// the public compiler API, returning the generated `.tsx` sources
+/// (concatenated, sorted) and the compile warnings. Returns None when the
+/// React backend is not compiled into this build (SKIP, mirroring
+/// `compile_fixture_to_flutter`).
+fn compile_fixture_to_tsx_with_warnings(
+    fixture: &str,
+) -> Option<(String, Vec<omnilang::error::Diagnostic>)> {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests")
+        .join("fixtures")
+        .join(fixture);
+    let result = compile_fixture(&path, Target::React);
+    if backend_not_enabled(&result) {
+        eprintln!(
+            "SKIP: backend for React not compiled into this build \
+             (run with `--features codegen-react`); cannot validate {fixture}"
+        );
+        return None;
+    }
+    assert!(
+        result.success,
+        "compilation to React failed for {fixture}: {:?}",
+        result.errors
+    );
+    let mut tsx_srcs: Vec<&str> = result
+        .files
+        .iter()
+        .filter(|(path, _)| path.ends_with(".tsx"))
+        .map(|(_, content)| content.as_str())
+        .collect();
+    assert!(
+        !tsx_srcs.is_empty(),
+        "no .tsx files generated for {fixture:?}"
+    );
+    tsx_srcs.sort();
+    Some((tsx_srcs.join("\n"), result.warnings))
+}
+
+#[test]
+fn event_longpress_warns_on_react() {
+    // v4 compiler HIGH-3: longpress 在 React 目标必须 warning
+    // （Flutter 正确映射 onLongPress）——死处理器应被跳过而非发射。
+    let Some((tsx, warnings)) = compile_fixture_to_tsx_with_warnings("events/longpress.omni")
+    else {
+        return; // backend not compiled in
+    };
+    assert!(
+        warnings.iter().any(|w| w.message.contains("longpress")),
+        "React longpress 无警告：{:?}",
+        warnings.iter().map(|w| &w.message).collect::<Vec<_>>()
+    );
+    assert!(!tsx.contains("onLongpress"), "死处理器应被跳过而非发射");
+}

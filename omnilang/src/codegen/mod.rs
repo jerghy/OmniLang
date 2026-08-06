@@ -157,7 +157,7 @@ pub fn compile(
             dart::DartCodegen.generate(ir, source_files)
         }
         #[cfg(feature = "codegen-react")]
-        Target::React => react::ReactCodegen.generate(ir, source_files),
+        Target::React => react::ReactCodegen::default().generate(ir, source_files),
         #[cfg(feature = "codegen-vue")]
         Target::Vue => {
             if has_design_blocks(ir) {

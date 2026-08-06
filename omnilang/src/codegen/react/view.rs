@@ -14,9 +14,12 @@ use super::super::capitalize_first;
 use super::component::jsx::component_declared_slots;
 use super::design::DesignCtx;
 use super::expr::{format_expr_ir_tsx_renamed, generate_statement_tsx};
-use super::utils::{emit_event_object_react, to_jsx_attr, to_react_event, to_react_tag};
+use super::utils::{
+    emit_event_object_react, to_jsx_attr, to_react_event, to_react_event_or_legacy, to_react_tag,
+};
 use crate::codegen::sanitize::is_dangerous_url;
 use std::fmt::Write;
+use std::sync::Mutex;
 
 /// Split a qualified binding target (`Store.field`) and verify it against
 /// the store-owner map — the same `bare-field → store-ref` map the mutation
@@ -92,6 +95,7 @@ pub(super) fn gen_view_node_tsx(
     possibly_undefined: &FxHashSet<String>,
     motion_counter: &mut usize,
     prop_fn_ctx: &PropFnMemoCtx,
+    warnings: &Mutex<Vec<String>>,
     // Whether this node sits directly in JSX-children position (between
     // element/fragment tags). Expression nodes (conditional, list
     // rendering) must then be wrapped in a JSX expression container
@@ -126,6 +130,7 @@ pub(super) fn gen_view_node_tsx(
                         possibly_undefined,
                         motion_counter,
                         prop_fn_ctx,
+                        warnings,
                         in_jsx_children,
                     );
                 }
@@ -183,7 +188,14 @@ pub(super) fn gen_view_node_tsx(
                 // silent drop).
                 comp_attrs.extend(a11y_react_attrs(el, ref_names, store_field_renames));
                 for (event_name, handler) in &el.events {
-                    let jsx_event = to_react_event(event_name);
+                    // Component-instance events are callback PROPS of the
+                    // child (declared `event onX` become optional props,
+                    // component/mod.rs) — NOT DOM listeners. An unmapped
+                    // canonical (longpress/hover/toggle) keeps the legacy
+                    // `onX` spelling so a child-declared event prop of the
+                    // same name still wires (v4 3.3; DOM elements warn +
+                    // skip instead — see gen_view_node_tsx).
+                    let jsx_event = to_react_event_or_legacy(event_name);
                     match handler {
                         EventHandlerIR::FnRef { r#ref, .. } => {
                             // Bare fn-ref events on a component instance use
@@ -242,6 +254,7 @@ pub(super) fn gen_view_node_tsx(
                         possibly_undefined,
                         motion_counter,
                         prop_fn_ctx,
+                        warnings,
                         // the content lands inside `slotName={...}` — an
                         // attribute expression, not JSX children
                         false,
@@ -274,6 +287,7 @@ pub(super) fn gen_view_node_tsx(
                             possibly_undefined,
                             motion_counter,
                             prop_fn_ctx,
+                            warnings,
                             // default children render between the tags —
                             // JSX-children position
                             true,
@@ -439,7 +453,19 @@ pub(super) fn gen_view_node_tsx(
 
             // Events — with dedup for binding conflicts and motion name filtering
             for (event_name, handler) in &el.events {
-                let react_event = to_react_event(event_name);
+                let Some(react_event) = to_react_event(event_name) else {
+                    // v4 3.3 (compiler HIGH-3): canonical 事件无 React 合成
+                    // 事件对应（longpress/hover/toggle——Flutter 便捷形状混入
+                    // canonical 表）——发射 `onLongpress` 是 React 丢弃的静默
+                    // 死事件 + tsc 不识别 prop。warning + 跳过死处理器
+                    // （Flutter 侧正确映射 onLongPress/onHover/onChanged）。
+                    let canonical = crate::codegen::shared::event::canonical_event_name(event_name)
+                        .unwrap_or(event_name);
+                    warnings.lock().unwrap().push(format!(
+                        "事件 '{canonical}' 在 React 目标无对应合成事件——处理器已跳过（Flutter 提供 onLongPress/onHover/onChanged 映射）"
+                    ));
+                    continue;
+                };
                 match handler {
                     EventHandlerIR::FnRef {
                         r#ref,
@@ -843,6 +869,7 @@ pub(super) fn gen_view_node_tsx(
                     possibly_undefined,
                     motion_counter,
                     prop_fn_ctx,
+                    warnings,
                     // element children are JSX children — expression nodes
                     // need `{...}` containers
                     true,
@@ -896,6 +923,7 @@ pub(super) fn gen_view_node_tsx(
                         possibly_undefined,
                         motion_counter,
                         prop_fn_ctx,
+                        warnings,
                         // fallback sits directly in the conditional's own
                         // position — a fade wrapper div puts it in JSX
                         // children, otherwise the position is inherited
@@ -936,6 +964,7 @@ pub(super) fn gen_view_node_tsx(
                         possibly_undefined,
                         motion_counter,
                         prop_fn_ctx,
+                        warnings,
                         // the branch body sits inside `( ... )` — or inside
                         // the fade wrapper div, which is JSX children
                         is_fade,
@@ -987,6 +1016,7 @@ pub(super) fn gen_view_node_tsx(
                     possibly_undefined,
                     motion_counter,
                     prop_fn_ctx,
+                    warnings,
                     is_fade,
                 );
             }
@@ -1018,6 +1048,7 @@ pub(super) fn gen_view_node_tsx(
                         possibly_undefined,
                         motion_counter,
                         prop_fn_ctx,
+                        warnings,
                         is_fade,
                     );
                 }
@@ -1045,6 +1076,7 @@ pub(super) fn gen_view_node_tsx(
                     possibly_undefined,
                     motion_counter,
                     prop_fn_ctx,
+                    warnings,
                     is_fade,
                 );
                 emit_fade_branch_close(w, is_fade);
@@ -1113,6 +1145,7 @@ pub(super) fn gen_view_node_tsx(
                         possibly_undefined,
                         motion_counter,
                         prop_fn_ctx,
+                        warnings,
                         // the empty body sits inside the IIFE's return
                         // parens — never a JSX-children position
                         false,
@@ -1152,6 +1185,7 @@ pub(super) fn gen_view_node_tsx(
                     possibly_undefined,
                     motion_counter,
                     prop_fn_ctx,
+                    warnings,
                     // the map callback parens wrap the whole
                     // `<React.Fragment>...</React.Fragment>` element — the
                     // body renders BETWEEN the fragment tags, which is
@@ -1240,6 +1274,7 @@ pub(super) fn gen_view_node_tsx(
                     possibly_undefined,
                     motion_counter,
                     prop_fn_ctx,
+                    warnings,
                     in_jsx_children,
                 );
             }
@@ -1272,6 +1307,7 @@ pub(super) fn gen_view_node_tsx(
                     possibly_undefined,
                     motion_counter,
                     prop_fn_ctx,
+                    warnings,
                     // the fallback sits inside the `( ... )` of
                     // `{name ?? ( ... )}` — never a JSX-children position
                     false,
@@ -1310,6 +1346,7 @@ pub(super) fn gen_branch_body_tsx(
     possibly_undefined: &FxHashSet<String>,
     motion_counter: &mut usize,
     prop_fn_ctx: &PropFnMemoCtx,
+    warnings: &Mutex<Vec<String>>,
     // Whether this body sits in JSX-children position (see
     // `gen_view_node_tsx`). A multi-node body is wrapped in a `<>...</>`
     // fragment, which puts its children in JSX-children position
@@ -1342,6 +1379,7 @@ pub(super) fn gen_branch_body_tsx(
         possibly_undefined,
         motion_counter,
         prop_fn_ctx,
+        warnings,
         is_multi || in_jsx_children,
     );
     if is_multi {
@@ -1541,6 +1579,7 @@ fn gen_consumer_child_tsx(
     possibly_undefined: &FxHashSet<String>,
     motion_counter: &mut usize,
     prop_fn_ctx: &PropFnMemoCtx,
+    warnings: &Mutex<Vec<String>>,
     // Whether this projected content sits in JSX-children position:
     // default children render between `<Comp>`/`</Comp>` (true), named
     // slot projections render inside an attribute expression
@@ -1565,6 +1604,7 @@ fn gen_consumer_child_tsx(
                 possibly_undefined,
                 motion_counter,
                 prop_fn_ctx,
+                warnings,
                 in_jsx_children,
             );
         }
@@ -1584,6 +1624,7 @@ fn gen_consumer_child_tsx(
                 possibly_undefined,
                 motion_counter,
                 prop_fn_ctx,
+                warnings,
                 in_jsx_children,
             );
         }

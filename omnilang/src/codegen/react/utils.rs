@@ -217,55 +217,93 @@ pub(super) fn to_react_tag(tag: &str) -> String {
 /// React handler-name convention (onXxx) on top of the canonical DOM name.
 /// A misspelled alias (dblclick/doubleclick/onDblClick/...) can therefore
 /// never wire a different React prop.
-pub(crate) fn to_react_event(event_name: &str) -> String {
+///
+/// Returns `None` for canonical events with no React synthetic-event
+/// counterpart (longpress/hover/toggle — Flutter-only conveniences in the
+/// canonical table); callers warn + skip the dead handler (v4 3.3,
+/// compiler HIGH-3). Unknown/custom events keep the legacy `onXxx`
+/// fallback (Some).
+pub(crate) fn to_react_event(event_name: &str) -> Option<String> {
     match crate::codegen::shared::event::canonical_event_name(event_name) {
         Some(canonical) => react_prop_for_canonical(canonical),
-        None => {
-            // Unknown / custom event — legacy fallback convention
-            // (capitalize the first letter only: "customEvent" → "onCustomEvent").
-            let stem = event_name.strip_prefix("on").unwrap_or(event_name);
-            format!("on{}", capitalize_first(stem))
-        }
+        None => Some(legacy_event_prop(event_name)),
     }
 }
 
+/// Component-instance events are callback PROPS of the child component
+/// (declared `event onX` become optional props, component/mod.rs), NOT DOM
+/// listeners — an unmapped canonical keeps the legacy `onX` spelling so a
+/// child-declared event prop of the same name still wires. DOM elements use
+/// `to_react_event` (None → warn + skip, v4 3.3).
+pub(crate) fn to_react_event_or_legacy(event_name: &str) -> String {
+    to_react_event(event_name).unwrap_or_else(|| legacy_event_prop(event_name))
+}
+
+/// Legacy fallback convention for unknown / custom event names — capitalize
+/// the first letter only: "customEvent" → "onCustomEvent".
+fn legacy_event_prop(event_name: &str) -> String {
+    let stem = event_name.strip_prefix("on").unwrap_or(event_name);
+    format!("on{}", capitalize_first(stem))
+}
+
 /// React handler prop name for a canonical DOM event name.
-fn react_prop_for_canonical(canonical: &str) -> String {
+///
+/// `None` when the canonical has no React synthetic-event counterpart
+/// (longpress/hover/toggle — Flutter convenience shapes mixed into the
+/// canonical table): emitting `onLongpress` is a prop React drops — a
+/// silent dead handler + "React does not recognize" console error + tsc
+/// prop error (v4 compiler HIGH-3 / domain HIGH-1). The explicit list is
+/// the full React synthetic event set (incl. the clipboard/media/select
+/// canonicals the old fallback arm used to serve by accident).
+fn react_prop_for_canonical(canonical: &str) -> Option<String> {
     match canonical {
-        "click" => "onClick".into(),
-        "change" => "onChange".into(),
-        "input" => "onInput".into(),
-        "submit" => "onSubmit".into(),
-        "focus" => "onFocus".into(),
-        "blur" => "onBlur".into(),
-        "keydown" => "onKeyDown".into(),
-        "keyup" => "onKeyUp".into(),
-        "keypress" => "onKeyPress".into(),
-        "mouseenter" => "onMouseEnter".into(),
-        "mouseleave" => "onMouseLeave".into(),
-        "mousedown" => "onMouseDown".into(),
-        "mouseup" => "onMouseUp".into(),
-        "mousemove" => "onMouseMove".into(),
-        "mouseover" => "onMouseOver".into(),
-        "mouseout" => "onMouseOut".into(),
-        "pointerdown" => "onPointerDown".into(),
-        "pointerup" => "onPointerUp".into(),
-        "pointermove" => "onPointerMove".into(),
-        "pointercancel" => "onPointerCancel".into(),
-        "dblclick" => "onDoubleClick".into(),
-        "scroll" => "onScroll".into(),
-        "wheel" => "onWheel".into(),
-        "touchstart" => "onTouchStart".into(),
-        "touchend" => "onTouchEnd".into(),
-        "touchmove" => "onTouchMove".into(),
-        "touchcancel" => "onTouchCancel".into(),
-        "contextmenu" => "onContextMenu".into(),
-        "drag" => "onDrag".into(),
-        "dragstart" => "onDragStart".into(),
-        "dragend" => "onDragEnd".into(),
-        "dragover" => "onDragOver".into(),
-        "dragleave" => "onDragLeave".into(),
-        "drop" => "onDrop".into(),
+        "click" => Some("onClick".into()),
+        "change" => Some("onChange".into()),
+        "input" => Some("onInput".into()),
+        "submit" => Some("onSubmit".into()),
+        "focus" => Some("onFocus".into()),
+        "blur" => Some("onBlur".into()),
+        "keydown" => Some("onKeyDown".into()),
+        "keyup" => Some("onKeyUp".into()),
+        "keypress" => Some("onKeyPress".into()),
+        "mouseenter" => Some("onMouseEnter".into()),
+        "mouseleave" => Some("onMouseLeave".into()),
+        "mousedown" => Some("onMouseDown".into()),
+        "mouseup" => Some("onMouseUp".into()),
+        "mousemove" => Some("onMouseMove".into()),
+        "mouseover" => Some("onMouseOver".into()),
+        "mouseout" => Some("onMouseOut".into()),
+        "pointerdown" => Some("onPointerDown".into()),
+        "pointerup" => Some("onPointerUp".into()),
+        "pointermove" => Some("onPointerMove".into()),
+        "pointercancel" => Some("onPointerCancel".into()),
+        "dblclick" => Some("onDoubleClick".into()),
+        "scroll" => Some("onScroll".into()),
+        "wheel" => Some("onWheel".into()),
+        "touchstart" => Some("onTouchStart".into()),
+        "touchend" => Some("onTouchEnd".into()),
+        "touchmove" => Some("onTouchMove".into()),
+        "touchcancel" => Some("onTouchCancel".into()),
+        "contextmenu" => Some("onContextMenu".into()),
+        "drag" => Some("onDrag".into()),
+        "dragstart" => Some("onDragStart".into()),
+        "dragend" => Some("onDragEnd".into()),
+        "dragover" => Some("onDragOver".into()),
+        "dragleave" => Some("onDragLeave".into()),
+        "drop" => Some("onDrop".into()),
+        // Clipboard / form-select / media — real React synthetic events the
+        // old `on{} + capitalize_first` fallback arm served by accident;
+        // explicit arms keep them mapping after the fallback became None.
+        "copy" => Some("onCopy".into()),
+        "cut" => Some("onCut".into()),
+        "paste" => Some("onPaste".into()),
+        "select" => Some("onSelect".into()),
+        "play" => Some("onPlay".into()),
+        "pause" => Some("onPause".into()),
+        "ended" => Some("onEnded".into()),
+        "load" => Some("onLoad".into()),
+        "error" => Some("onError".into()),
+        "resize" => Some("onResize".into()),
         // Animation/transition — React's synthetic event set. The generic
         // `on{} + capitalize_first` fallback mangles compound canonical
         // names ("animationend" → "onAnimationend"), and a non-synthetic
@@ -275,14 +313,16 @@ fn react_prop_for_canonical(canonical: &str) -> String {
         // onAnimationEnd / onAnimationIteration / onAnimationStart /
         // onTransitionEnd / onTransitionRun / onTransitionStart /
         // onTransitionCancel.
-        "animationstart" => "onAnimationStart".into(),
-        "animationend" => "onAnimationEnd".into(),
-        "animationiteration" => "onAnimationIteration".into(),
-        "transitionend" => "onTransitionEnd".into(),
-        "transitionrun" => "onTransitionRun".into(),
-        "transitionstart" => "onTransitionStart".into(),
-        "transitioncancel" => "onTransitionCancel".into(),
-        other => format!("on{}", capitalize_first(other)),
+        "animationstart" => Some("onAnimationStart".into()),
+        "animationend" => Some("onAnimationEnd".into()),
+        "animationiteration" => Some("onAnimationIteration".into()),
+        "transitionend" => Some("onTransitionEnd".into()),
+        "transitionrun" => Some("onTransitionRun".into()),
+        "transitionstart" => Some("onTransitionStart".into()),
+        "transitioncancel" => Some("onTransitionCancel".into()),
+        // v4 3.3: no React synthetic-event counterpart — caller warns +
+        // skips the dead handler (Flutter maps onLongPress/onHover/onChanged).
+        _ => None,
     }
 }
 

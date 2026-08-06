@@ -4,13 +4,15 @@
 //! and a `.module.css` CSS module file. Each store generates a `useXxx.ts`
 //! custom hook file.
 
-use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
+use super::{CodeWriter, Codegen, CodegenWarning, CompileOutput, CompiledFile};
 use crate::codegen::shared::build_component_map;
 use crate::codegen::shared::types::{FormatType, JsTypeFormatter};
 use crate::codegen::{format_json_value, JSON_REACT};
 use crate::ir::*;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
+use std::mem;
+use std::sync::Mutex;
 
 pub(super) mod component;
 pub(super) mod design;
@@ -24,7 +26,14 @@ pub(crate) mod view;
 
 /// React codegen — stores are always generated as Zustand v5 stores.
 #[derive(Debug, Default)]
-pub struct ReactCodegen;
+pub struct ReactCodegen {
+    /// v4 3.3: codegen 期诊断警告（无映射事件等）——经 CompileOutput
+    /// warnings 通道透出（react 此前无此通道，对照 omniview/mod.rs）。
+    /// `Codegen::generate(&self)` 的发射点（view.rs 自由函数）经 Mutex
+    /// 收集（trait 要求 Sync）；generate() 返回处 mem::take 排空并入
+    /// CompileOutput——同一实例的多次 generate 互不污染。
+    pub warnings: Mutex<Vec<String>>,
+}
 
 impl Codegen for ReactCodegen {
     fn generate(&self, ir: &IRProgram, _source_files: &FxHashMap<String, String>) -> CompileOutput {
@@ -53,6 +62,14 @@ impl Codegen for ReactCodegen {
         // (DesignIR.source_file), so multiple design blocks in one .omni
         // file share a single set of outputs.
         output.files.extend(design::gen_design_files(ir));
+        // v4 3.3: drain the warnings collected by the emission points into
+        // CompileOutput's warnings channel (CodegenWarning — no source
+        // context at the emission point, honest `-:0:0`).
+        output.warnings.extend(
+            mem::take(&mut *self.warnings.lock().unwrap())
+                .into_iter()
+                .map(CodegenWarning::new),
+        );
         output
     }
 
