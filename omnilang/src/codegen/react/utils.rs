@@ -219,10 +219,11 @@ pub(super) fn to_react_tag(tag: &str) -> String {
 /// never wire a different React prop.
 ///
 /// Returns `None` for canonical events with no React synthetic-event
-/// counterpart (longpress/hover/toggle — Flutter-only conveniences in the
-/// canonical table); callers warn + skip the dead handler (v4 3.3,
-/// compiler HIGH-3). Unknown/custom events keep the legacy `onXxx`
-/// fallback (Some).
+/// counterpart (longpress/hover — Flutter-only conveniences in the
+/// canonical table; toggle maps to onToggle and the DOM-element call site
+/// applies the `<details>`-only element condition, task 6.1b); callers
+/// warn + skip the dead handler (v4 3.3, compiler HIGH-3). Unknown/custom
+/// events keep the legacy `onXxx` fallback (Some).
 pub(crate) fn to_react_event(event_name: &str) -> Option<String> {
     match crate::codegen::shared::event::canonical_event_name(event_name) {
         Some(canonical) => react_prop_for_canonical(canonical),
@@ -249,10 +250,13 @@ fn legacy_event_prop(event_name: &str) -> String {
 /// React handler prop name for a canonical DOM event name.
 ///
 /// `None` when the canonical has no React synthetic-event counterpart
-/// (longpress/hover/toggle — Flutter convenience shapes mixed into the
+/// (longpress/hover — Flutter convenience shapes mixed into the
 /// canonical table): emitting `onLongpress` is a prop React drops — a
 /// silent dead handler + "React does not recognize" console error + tsc
-/// prop error (v4 compiler HIGH-3 / domain HIGH-1). The explicit list is
+/// prop error (v4 compiler HIGH-3 / domain HIGH-1). `toggle` maps to
+/// `onToggle` (a real React synthetic event for `<details>`, task 6.1b);
+/// the DOM-element call site in view.rs applies the `<details>`-only
+/// element condition (other elements warn + skip). The explicit list is
 /// the full React synthetic event set (incl. the clipboard/media/select
 /// canonicals the old fallback arm used to serve by accident).
 fn react_prop_for_canonical(canonical: &str) -> Option<String> {
@@ -260,6 +264,11 @@ fn react_prop_for_canonical(canonical: &str) -> Option<String> {
         "click" => Some("onClick".into()),
         "change" => Some("onChange".into()),
         "input" => Some("onInput".into()),
+        // Task 6.1b (gate FAIL-2): toggle is a real DOM event on `<details>`
+        // (React synthetic onToggle exists for details) — maps here; the
+        // DOM-element call site in view.rs gates it to `<details>` and
+        // warns + skips on any other element.
+        "toggle" => Some("onToggle".into()),
         "submit" => Some("onSubmit".into()),
         "focus" => Some("onFocus".into()),
         "blur" => Some("onBlur".into()),

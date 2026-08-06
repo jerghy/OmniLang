@@ -93,7 +93,11 @@ fn test_to_react_event() {
     assert_eq!(to_react_event("longpress"), None);
     assert_eq!(to_react_event("onLongpress"), None);
     assert_eq!(to_react_event("hover"), None);
-    assert_eq!(to_react_event("toggle"), None);
+    // Task 6.1b (gate FAIL-2): toggle IS a React synthetic event — but the
+    // DOM-element call site gates it to `<details>` (other elements warn +
+    // skip, see view.rs). Any spelling canonicalizes to the same Some.
+    assert_eq!(to_react_event("toggle"), Some("onToggle".into()));
+    assert_eq!(to_react_event("onToggle"), Some("onToggle".into()));
     // Real React synthetic events the old fallback arm served by accident
     // stay mapped (explicit arms, v4 3.3).
     assert_eq!(to_react_event("copy"), Some("onCopy".into()));
@@ -6834,6 +6838,94 @@ component V {
     assert!(
         out.contains("onAnimationEnd"),
         "expected onAnimationEnd: {}",
+        out
+    );
+}
+
+// ── Task 6.1b (gate FAIL-2): toggle — <details>-only element condition ──
+
+/// toggle is a real DOM event on `<details>` (React synthetic onToggle) —
+/// the handler must emit with zero warnings.
+#[test]
+fn toggle_on_details_emits_on_react() {
+    let result = compile_react_full(
+        r#"
+import omniview;
+component V {
+    fn f() {}
+    view { <details @onToggle={f}><summary>S</summary></details> }
+}
+"#,
+    );
+    assert!(
+        result.success,
+        "details+toggle must compile: {:?}",
+        result.errors
+    );
+    assert!(
+        result
+            .warnings
+            .iter()
+            .all(|w| !w.message.contains("toggle")),
+        "details+toggle 不应产生 toggle 警告：{:?}",
+        result
+            .warnings
+            .iter()
+            .map(|w| &w.message)
+            .collect::<Vec<_>>()
+    );
+    let out: String = result
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        out.contains("onToggle="),
+        "expected onToggle handler on details: {}",
+        out
+    );
+}
+
+/// toggle on any element other than `<details>` keeps the v4 3.3 family
+/// behavior — warn + skip (never emit the dropped onToggle prop).
+#[test]
+fn toggle_on_non_details_warns_and_skips_on_react() {
+    let result = compile_react_full(
+        r#"
+import omniview;
+component V {
+    fn f() {}
+    view { <div @onToggle={f}/> }
+}
+"#,
+    );
+    assert!(
+        result.success,
+        "div+toggle must compile: {:?}",
+        result.errors
+    );
+    assert!(
+        result
+            .warnings
+            .iter()
+            .any(|w| w.message.contains("toggle")),
+        "缺 toggle 警告：{:?}",
+        result
+            .warnings
+            .iter()
+            .map(|w| &w.message)
+            .collect::<Vec<_>>()
+    );
+    let out: String = result
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        !out.contains("onToggle"),
+        "非 details 元素上不得发射 onToggle：{}",
         out
     );
 }

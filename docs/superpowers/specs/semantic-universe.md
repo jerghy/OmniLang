@@ -154,7 +154,7 @@ CSS 动画语义域——**属性值从 A 到 B 平滑过渡**（CSS Transitions
 | hover | 悬停 | 部分 | **Flutter MouseRegion.onHover 交付；React/OmniView 无 DOM 对应——处理器名透传不触发（v4：编译 warning + 跳过死处理器，见代码生成诚实降级）** |
 | change | 值变化提交 | 支持 | 无（全目标） |
 | input | 输入中 | 支持 | 无（全目标；Flutter onChanged） |
-| toggle | 切换 | 部分 | **Flutter onChanged 交付（checkbox 便捷形状）；React/OmniView 无 DOM 对应——处理器名透传不触发（v4：编译 warning + 跳过死处理器）** |
+| toggle | 切换 | 部分 | **Flutter onChanged 交付（checkbox 便捷形状）；React/OmniView 在 `<details>` 上交付（React onToggle 合成事件 / OmniView addEventListener("toggle")——details 条件性，Task 6.1b）；其他元素 v4：编译 warning + 跳过死处理器** |
 | submit | 表单提交 | 支持 | 无（全目标） |
 | focus | 获得焦点 | 支持 | 无（全目标） |
 | blur | 失去焦点 | 支持 | 无（全目标） |

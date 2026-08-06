@@ -44,15 +44,24 @@ pub(crate) fn map_event(name: &str) -> String {
 }
 
 /// v4 3.3 (domain HIGH-1): canonical 事件名在 DOM 无对应事件
-/// （hover/toggle/longpress 为 Flutter 便捷形状混入 canonical 表——
+/// （hover/longpress 为 Flutter 便捷形状混入 canonical 表——
 /// 登记册域 1 借词纪律的变体）。map_event 对它们直通发射，产生永不被
 /// 触发的死监听器。返回警告文本；其余 canonical 返回 None（map_event
 /// 正常处理）。
-pub(crate) fn event_missing_js_mapping(event_name: &str) -> Option<String> {
+///
+/// Task 6.1b (gate FAIL-2): toggle 是 `<details>` 的真实 DOM 事件——
+/// details 上 `addEventListener("toggle")` 会触发，不跳过（map_event
+/// 正常处理）；其他元素（tag != "details"，tag 为归一化后 HTML 标签）
+/// 与 hover/longpress 同族跳过。
+pub(crate) fn event_missing_js_mapping(event_name: &str, tag: &str) -> Option<String> {
     let canonical = crate::codegen::shared::event::canonical_event_name(event_name)?;
     match canonical {
-        "hover" | "toggle" | "longpress" => Some(format!(
+        "hover" | "longpress" => Some(format!(
             "事件 '@on{canonical}' 在 OmniView/DOM 无对应事件——处理器已跳过（Flutter 提供 onLongPress/onHover/onChanged 映射）"
+        )),
+        // toggle: 真实 DOM 事件仅 <details> 元素存在。
+        "toggle" if tag != "details" => Some(format!(
+            "事件 '@on{canonical}' 在 OmniView/DOM 仅 <details> 元素有对应事件——其他元素上处理器已跳过（Flutter 提供 onChanged 映射）"
         )),
         _ => None,
     }

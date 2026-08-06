@@ -191,10 +191,11 @@ pub(super) fn gen_view_node_tsx(
                     // Component-instance events are callback PROPS of the
                     // child (declared `event onX` become optional props,
                     // component/mod.rs) — NOT DOM listeners. An unmapped
-                    // canonical (longpress/hover/toggle) keeps the legacy
-                    // `onX` spelling so a child-declared event prop of the
-                    // same name still wires (v4 3.3; DOM elements warn +
-                    // skip instead — see gen_view_node_tsx).
+                    // canonical (longpress/hover) keeps the legacy `onX`
+                    // spelling so a child-declared event prop of the same
+                    // name still wires (v4 3.3; DOM elements warn + skip
+                    // instead — see gen_view_node_tsx; toggle maps to
+                    // onToggle, task 6.1b — same spelling either way).
                     let jsx_event = to_react_event_or_legacy(event_name);
                     match handler {
                         EventHandlerIR::FnRef { r#ref, .. } => {
@@ -455,7 +456,7 @@ pub(super) fn gen_view_node_tsx(
             for (event_name, handler) in &el.events {
                 let Some(react_event) = to_react_event(event_name) else {
                     // v4 3.3 (compiler HIGH-3): canonical 事件无 React 合成
-                    // 事件对应（longpress/hover/toggle——Flutter 便捷形状混入
+                    // 事件对应（longpress/hover——Flutter 便捷形状混入
                     // canonical 表）——发射 `onLongpress` 是 React 丢弃的静默
                     // 死事件 + tsc 不识别 prop。warning + 跳过死处理器
                     // （Flutter 侧正确映射 onLongPress/onHover/onChanged）。
@@ -466,6 +467,19 @@ pub(super) fn gen_view_node_tsx(
                     ));
                     continue;
                 };
+                // Task 6.1b (gate FAIL-2): toggle 是 <details> 的真实 DOM 事件
+                // （React 合成 onToggle 仅 details 元素存在）。details 上正常
+                // 发射；其他元素与 hover/longpress 同族 warn + 跳过（html_tag
+                // 为归一化后的 JSX 标签，见 to_react_tag）。
+                if crate::codegen::shared::event::canonical_event_name(event_name)
+                    == Some("toggle")
+                    && html_tag != "details"
+                {
+                    warnings.lock().unwrap().push(format!(
+                        "事件 'toggle' 在 React 目标仅 <details> 元素有合成事件（onToggle）——其他元素上处理器已跳过"
+                    ));
+                    continue;
+                }
                 match handler {
                     EventHandlerIR::FnRef {
                         r#ref,

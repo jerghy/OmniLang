@@ -8,7 +8,7 @@
 
 use std::fmt::Write;
 
-use super::super::utils::{escape_html, event_missing_js_mapping, map_event};
+use super::super::utils::{escape_html, event_missing_js_mapping, map_event, map_tag};
 use super::super::OmniViewGenerator;
 use crate::codegen::emit_event_object;
 use crate::ir::*;
@@ -29,11 +29,15 @@ impl OmniViewGenerator {
     /// for normal mode, generate addEventListener JS calls.
     pub(super) fn emit_element_events(&mut self, el: &ElementIR, nid: &str, attrs: &mut String) {
         self.assert_can_emit_js();
+        // 归一化后的 HTML 标签（map_tag），供 toggle 的 details 元素条件使用
+        // （task 6.1b）。
+        let html_tag = map_tag(&el.tag);
         for (event_name, handler) in &el.events {
             // v4 domain HIGH-1: hover/toggle/longpress 无 DOM 事件——
             // map_event 直通发射产生永不被触发的死监听器。warning + 跳过
-            // （Flutter 正确映射 onLongPress/onHover/onChanged）。
-            if let Some(w) = event_missing_js_mapping(event_name) {
+            // （Flutter 正确映射 onLongPress/onHover/onChanged）。toggle 例外：
+            // `<details>` 上是真实 DOM 事件（task 6.1b），details 不跳过。
+            if let Some(w) = event_missing_js_mapping(event_name, &html_tag) {
                 self.warnings.push(w);
                 continue;
             }
