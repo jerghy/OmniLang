@@ -45,6 +45,16 @@ describe("analyzeSignalUsage", () => {
     expect(badge?.conditions[0].branches).toHaveLength(1);
   });
 
+  it("!sig 取反：comparisons 带 negated 标志（F1 修复）", () => {
+    const src = `component C {\n signal badgeVisible: bool = false;\n view {\n  @if !badgeVisible {\n   <span>New</span>\n  }\n }\n}`;
+    const { interfaceSignals } = analyzeSignalUsage(src, [{ key: "badgeVisible", type: "bool" }], []);
+    const sig = interfaceSignals.find((s) => s.key === "badgeVisible");
+    expect(sig?.conditions[0].branches[0].exprText).toBe("!badgeVisible");
+    expect(sig?.conditions[0].branches[0].comparisons).toEqual([
+      { sig: "badgeVisible", op: null, negated: true },
+    ]);
+  });
+
   it("store qualified 信号：== 比较 + 多分支链 + 插值计数", () => {
     const { interfaceSignals } = analyzeSignalUsage(SRC, SIGNALS, STORE_SIGNALS);
     const unread = interfaceSignals.find((s) => s.key === "NotificationStore.unreadCount");

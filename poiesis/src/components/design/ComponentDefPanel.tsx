@@ -461,8 +461,45 @@ function commitDebugValue(
   setDebugValue(ownerKey, name, parsed.valid ? parsed.literal : raw, parsed.valid);
 }
 
+// ── F3 修复：调试值 ownerKey/name 拆分 ──
+// store 信号的 usage.key 是限定名（NotificationStore.unreadCount），直接当 name 写入
+// debugValues 会让覆盖管线（resolveOwnerFile 按 ownerKey 找文件、replaceDecl 按名字
+// 替换）找不到目标——store 信号行必须拆成 (owner=store 名, name=裸名)。
+// 规则：无点 → 组件信号（owner=组件名）；前缀是当前组件名 → 内联 store
+//（owner=完整 qualified "Comp.Store"）；前缀不是组件名 → 独立 store（owner=前缀）。
+
+/** 拆分调试值写入/读取键：usage.key → 覆盖管线消费的 (ownerKey, 裸名) */
+function splitOwnerKey(key: string, componentName: string): { owner: string; name: string } {
+  const firstDot = key.indexOf(".");
+  if (firstDot < 0) return { owner: componentName, name: key };
+  const prefix = key.slice(0, firstDot);
+  if (prefix === componentName) {
+    // 内联 store："Comp.Store.sig" → owner=完整 qualified、name=末段
+    const lastDot = key.lastIndexOf(".");
+    return { owner: key.slice(0, lastDot), name: key.slice(lastDot + 1) };
+  }
+  // 独立 store："Store.sig" → owner=store 名、name=裸名
+  return { owner: prefix, name: key.slice(firstDot + 1) };
+}
+
+/** 剥首尾成对引号（F5 胶囊高亮比较用：'"loading"' → loading） */
+function stripQuotes(s: string): string {
+  if (s.length >= 2) {
+    const first = s[0];
+    const last = s[s.length - 1];
+    if ((first === '"' || first === "'") && last === first) return s.slice(1, -1);
+  }
+  return s;
+}
+
+/** 合成字面量 → 可注入字面量（String 补引号，与 commitDebugValue/parseDebugValue 对齐） */
+function stringifyLiteral(type: string, literal: string): string {
+  return type === "String" ? `"${literal}"` : literal;
+}
+
 // 稳定空数组：避免 def 缺失时每次渲染重建 [] 使 useMemo 依赖失效
 const EMPTY_SIGNALS: DefEntry[] = [];
+const EMPTY_PROPS: DefEntry[] = [];
 
 export function ComponentDefPanel() {
   const activeTabId = usePoiesisStore((s) => s.designPage.activeTabId);
@@ -502,7 +539,7 @@ export function ComponentDefPanel() {
   const componentName = activeTab?.componentName || "main";
   const def = componentDefs[componentName];
   const signals = def?.signals ?? EMPTY_SIGNALS;
-  const props = def?.props || [];
+  const props = def?.props ?? EMPTY_PROPS;
   const computeds = def?.computeds || [];
 
   // 面板内惰性生成组件源码（Task 10）：componentDefs 保存后带 elements/wires
@@ -548,7 +585,11 @@ export function ComponentDefPanel() {
     dataSignals: SignalUsage[];
   } => {
     if (tab === "definitions") return { interfaceSignals: [], dataSignals: [] };
-    const signalDecls = signals.map((s) => ({ key: s.name, type: s.type }));
+    // F4 修复：prop 与 signal 一并参与分析（D1 全覆盖；prop 无 store 形态，只组件级）
+    const signalDecls = [
+      ...signals.map((s) => ({ key: s.name, type: s.type })),
+      ...props.map((p) => ({ key: p.name, type: p.type })),
+    ];
     const storeRefs: Array<{ key: string; type: string }> = [];
     for (const [storeKey, storeDef] of Object.entries(inlineStoreDefs)) {
       for (const sig of storeDef.signals || []) {
@@ -562,7 +603,7 @@ export function ComponentDefPanel() {
     }
     const src = getComponentSource();
     return analyzeSignalUsage(src, signalDecls, storeRefs);
-  }, [signals, inlineStoreDefs, storeDefs, getComponentSource, tab]);
+  }, [signals, props, inlineStoreDefs, storeDefs, getComponentSource, tab]);
 
   // Drag handling
   const handlePointerDown = useCallback(
@@ -982,12 +1023,14 @@ interface SignalDebugRowProps {
 function SignalDebugRow({ ownerKey, usage }: SignalDebugRowProps) {
   const setDebugValue = usePoiesisStore((s) => s.setDebugValue);
   const debugValues = usePoiesisStore((s) => s.debugValues);
-  const entry = debugValues[ownerKey]?.[usage.key];
+  // F3 修复：store 信号键拆分 → 覆盖管线消费的 (owner, name)，读写一致
+  const { owner, name } = splitOwnerKey(usage.key, ownerKey);
+  const entry = debugValues[owner]?.[name];
   // fix1：entry.text 是可注入字面量 → 回显剥 String 引号还原用户文本
   const text = entry ? displayDebugText(usage.declaredType, entry.text) : "";
 
   const handleChange = (value: string) => {
-    commitDebugValue(setDebugValue, ownerKey, usage.key, usage.declaredType, value);
+    commitDebugValue(setDebugValue, owner, name, usage.declaredType, value);
   };
 
   const isNumeric = ["i32", "i64", "f64", "f32"].includes(usage.declaredType);
@@ -1033,44 +1076,99 @@ function InterfaceSignalCard({ ownerKey, usage, fnSources }: InterfaceSignalCard
   const setDebugValue = usePoiesisStore((s) => s.setDebugValue);
   const debugValues = usePoiesisStore((s) => s.debugValues);
   const debugOverridesEnabled = usePoiesisStore((s) => s.debugOverridesEnabled);
-  const entry = debugValues[ownerKey]?.[usage.key];
+  // F3 修复：store 信号键拆分 → 覆盖管线消费的 (owner, name)，读写一致
+  const { owner, name } = splitOwnerKey(usage.key, ownerKey);
+  const entry = debugValues[owner]?.[name];
   // fix1：entry.text 是可注入字面量 → 回显剥 String 引号还原用户文本
   const text = entry ? displayDebugText(usage.declaredType, entry.text) : "";
   const valid = entry ? entry.valid : true;
 
   // 输入框：与 SignalDebugRow 同一提交路径（合法存字面量，非法存原文）
   const applyValue = (raw: string) => {
-    commitDebugValue(setDebugValue, ownerKey, usage.key, usage.declaredType, raw);
+    commitDebugValue(setDebugValue, owner, name, usage.declaredType, raw);
   };
 
-  // 分支胶囊：单信号简单比较可合成；复杂（比较不全/含调用）置灰。
+  // 分支胶囊（F2/F5 修复）：
+  // - 多分支链：非 else 分支点选驱动成真（语义不变）；else 分支点选驱动成假——
+  //   合成同链首个可合成的非 else 条件之假值，写入该 comparison 的信号
+  //   （spec 4.4 边界「else 分支 → 对每个条件各自取成假值」的链级启发式）。
+  // - 单分支链（D12）：二态开关——点击在成真/成假间 toggle，active 跟随当前态。
+  // - active（F5/D9）：该分支的合成字面量（按类型格式化后剥引号）=== 当前
+  //   entry.text（剥引号）→ 该分支高亮；手改值失配即全部取消。
   // 用 2D 结构而非 flatMap：brief 的 branchButtons[i*chainLen+j] 在链长不等时
   // 越位错配（测试契约之外的真实缺陷，见 task-10-report.md）。
-  // 点选 → 合成字面量原样入 store（测试契约：String 不补引号，输入框回显原文）。
-  const branchButtons = usage.conditions.map((chain) =>
-    chain.branches.map((branch, branchIdx) => {
+  const branchButtons = usage.conditions.map((chain) => {
+    const single = chain.branches.length === 1;
+    // else 分支合成目标：同链首个 goal=false 可合成的非 else comparison（单遍）
+    const elseTarget = single
+      ? undefined
+      : chain.branches
+          .flatMap((b) => (b.isElse ? [] : b.comparisons))
+          .find((c) => synthesizeConditionValue(c, "false").valid);
+    return chain.branches.map((branch, branchIdx) => {
       const cmp = branch.comparisons[0];
-      const synthesizable = cmp !== undefined && synthesizeConditionValue(cmp, "true").valid;
-      const label = branch.isElse ? "else" : branch.exprText || "?";
+      const isElse = branch.isElse;
+      const label = isElse ? "else" : branch.exprText || "?";
+
+      if (single) {
+        // D12 二态开关：同一胶囊在成真/成假间 toggle
+        const trueResult = cmp ? synthesizeConditionValue(cmp, "true") : null;
+        const falseResult = cmp ? synthesizeConditionValue(cmp, "false") : null;
+        const trueLit = trueResult?.valid ? stringifyLiteral(usage.declaredType, trueResult.literal) : null;
+        const falseLit = falseResult?.valid ? stringifyLiteral(usage.declaredType, falseResult.literal) : null;
+        const drivenTrue = Boolean(entry?.valid && trueLit !== null && stripQuotes(trueLit) === stripQuotes(entry.text));
+        const drivenFalse = Boolean(entry?.valid && falseLit !== null && stripQuotes(falseLit) === stripQuotes(entry.text));
+        const synthesizable = trueResult?.valid === true;
+        const handleClick = () => {
+          if (!synthesizable || !debugOverridesEnabled) return;
+          // 当前成真 → 切换成假；否则（成假或未驱动）→ 成真
+          const next = drivenTrue && falseResult ? falseResult : trueResult;
+          if (!next) return;
+          setDebugValue(owner, name, stringifyLiteral(usage.declaredType, next.literal), true);
+        };
+        return (
+          <button key={branchIdx} type="button"
+            style={S.branchChip(drivenTrue || drivenFalse)}
+            disabled={!synthesizable || !debugOverridesEnabled}
+            title={!synthesizable ? "复杂条件，请在输入框手动调"
+              : drivenTrue ? "当前：成真 —— 点击切换成假"
+              : drivenFalse ? "当前：成假 —— 点击切换成真"
+              : "二态开关：点击成真，再点击成假"}
+            onClick={handleClick}>
+            {label}
+          </button>
+        );
+      }
+
+      // 多分支链：非 else 成真；else 成假（合成到同链目标 comparison 的信号）
+      const target = isElse ? elseTarget : cmp;
+      const result = target ? synthesizeConditionValue(target, isElse ? "false" : "true") : null;
+      const synthesizable = result !== null && result.valid;
+      const formatted = result?.valid ? stringifyLiteral(usage.declaredType, result.literal) : null;
+      const active = Boolean(entry?.valid && formatted !== null && stripQuotes(formatted) === stripQuotes(entry.text));
       const handleClick = () => {
-        if (!cmp || !debugOverridesEnabled) return;
-        const result = synthesizeConditionValue(cmp, "true");
-        if (!result.valid) return;
-        // fix1：合成值按类型补引号（String）→ 存可注入字面量；数字/bool 原样
-        const raw = usage.declaredType === "String" ? `"${result.literal}"` : result.literal;
-        setDebugValue(ownerKey, usage.key, raw, true);
+        if (!target || !synthesizable || !debugOverridesEnabled) return;
+        const r = synthesizeConditionValue(target, isElse ? "false" : "true");
+        if (!r.valid) return;
+        if (isElse) {
+          // else 分支合成结果写入该 comparison 的信号（F2；同信号链即本卡信号）
+          const t = splitOwnerKey(target.sig, ownerKey);
+          setDebugValue(t.owner, t.name, stringifyLiteral(usage.declaredType, r.literal), true);
+        } else {
+          setDebugValue(owner, name, stringifyLiteral(usage.declaredType, r.literal), true);
+        }
       };
       return (
         <button key={branchIdx} type="button"
-          style={S.branchChip(valid && entry !== undefined)}
+          style={S.branchChip(active)}
           disabled={!synthesizable || !debugOverridesEnabled}
-          title={!synthesizable ? "复杂条件，请在输入框手动调" : `驱动该分支成真`}
+          title={!synthesizable ? "复杂条件，请在输入框手动调" : isElse ? "驱动该分支成真（其余条件取假）" : "驱动该分支成真"}
           onClick={handleClick}>
           {label}
         </button>
       );
-    }),
-  );
+    });
+  });
 
   // 列表胶囊：空数组 + 代码样本（struct 数组）+ 手动输入
   const samples = usage.loops.length > 0 && /Array</.test(usage.declaredType)

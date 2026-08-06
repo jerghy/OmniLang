@@ -9,6 +9,8 @@ export interface ConditionComparison {
   op: ComparisonOp;
   /** 比较字面量（原始文本，不带引号）："loading" / 0 / false */
   literal?: string;
+  /** 裸信号取反（!sig，spec 4.4 表第 2 行：成真 false / 成假 true）。仅 op===null 有意义 */
+  negated?: boolean;
 }
 
 export type TruthGoal = "true" | "false";
@@ -28,9 +30,11 @@ export function synthesizeConditionValue(
   cmp: ConditionComparison,
   goal: TruthGoal,
 ): { literal: string; valid: boolean } {
-  const { op, literal } = cmp;
+  const { op, literal, negated } = cmp;
   if (op === null) {
-    return { literal: goal === "true" ? "true" : "false", valid: true };
+    // !sig：goal 求反（spec 4.4 表第 2 行）。比较型 !(a == b) 不入此路（解析器不识别 → 置灰）
+    const wants = (goal === "true") !== Boolean(negated);
+    return { literal: wants ? "true" : "false", valid: true };
   }
   if (literal === undefined) {
     // 无字面量：无法合成，一律视为复杂，交由 UI 置灰。

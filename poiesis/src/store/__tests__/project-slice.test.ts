@@ -19,4 +19,16 @@ describe("project slice（重置语义）", () => {
     expect(usePoiesisStore.getState().projectName).toBe("未命名项目");
     expect(usePoiesisStore.getState().projectDir).toBeNull();
   });
+
+  it("resetEditorState 清空 debugValues（M5：调试值不跨项目残留）", () => {
+    usePoiesisStore.setState({ debugValues: { Card: { count: { text: "5", valid: true } } } });
+    usePoiesisStore.getState().resetEditorState();
+    expect(usePoiesisStore.getState().debugValues).toEqual({});
+  });
+
+  it("newProject 清空 debugValues（M5）", () => {
+    usePoiesisStore.setState({ debugValues: { Card: { count: { text: "5", valid: true } } } });
+    usePoiesisStore.getState().newProject();
+    expect(usePoiesisStore.getState().debugValues).toEqual({});
+  });
 });

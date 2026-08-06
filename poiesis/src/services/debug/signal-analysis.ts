@@ -37,12 +37,12 @@ function mentionsKey(expr: string | null, key: string): boolean {
 /** 把条件表达式拆成「参与信号 + 比较形式」；只认单信号简单比较 */
 function parseComparisons(expr: string, signalKeys: string[]): ConditionComparison[] {
   const trimmed = expr.trim();
-  // 裸信号（bool）或 !sig
-  const bare = trimmed.match(/^!?\s*([A-Za-z_][\w.]*)$/);
+  // 裸信号（bool）或 !sig（F1 修复：捕获取反前缀，置 negated，避免胶囊点选写入相反值）
+  const bare = trimmed.match(/^(!)?\s*([A-Za-z_][\w.]*)$/);
   if (bare) {
-    const sig = bare[1];
-    if (signalKeys.includes(sig)) return [{ sig, op: null }];
-    return [];
+    const sig = bare[2];
+    if (!signalKeys.includes(sig)) return [];
+    return bare[1] ? [{ sig, op: null, negated: true }] : [{ sig, op: null }];
   }
   const m = trimmed.match(COMPARISON_RE);
   if (!m) return [];

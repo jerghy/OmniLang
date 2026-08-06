@@ -8,6 +8,13 @@ describe("synthesizeConditionValue", () => {
     expect(synthesizeConditionValue({ sig: "isActive", op: null }, "false")).toEqual({ literal: "false", valid: true });
   });
 
+  it("!sig 取反：成真 false / 成假 true（F1 修复）", () => {
+    expect(synthesizeConditionValue({ sig: "badgeVisible", op: null, negated: true }, "true"))
+      .toEqual({ literal: "false", valid: true });
+    expect(synthesizeConditionValue({ sig: "badgeVisible", op: null, negated: true }, "false"))
+      .toEqual({ literal: "true", valid: true });
+  });
+
   it("==：成真取字面量", () => {
     expect(synthesizeConditionValue({ sig: "status", op: "==", literal: "loading" }, "true"))
       .toEqual({ literal: "loading", valid: true });

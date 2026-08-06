@@ -20,6 +20,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { ComponentDefPanel } from "../ComponentDefPanel";
 import type { DebugValueEntry } from "../../../store/types";
+import type { DefEntry } from "../../../core/types/project-json";
 
 declare module "vitest" {
   // 泛型默认值必须与 vitest 官方 Assertion<T = any> 声明同形（否则 tsc 报
@@ -62,7 +63,8 @@ const { mockState, storeListeners } = vi.hoisted(() => {
         activeTabId: "t1",
         openTabs: [{ id: "t1", componentName: "Card", filePath: "Card.omni", tabType: "component" }],
       },
-      componentDefs: { Card: { signals: [{ pid: "s1", name: "count", type: "i32", defaultValue: "0" }], props: [], computeds: [] } },
+      // 类型注解：props/computeds 空数组字面量否则推断为 never[]，后续测试赋值真实对象报 TS2322
+      componentDefs: { Card: { signals: [{ pid: "s1", name: "count", type: "i32", defaultValue: "0" }], props: [], computeds: [] } } as Record<string, { signals: DefEntry[]; props: DefEntry[]; computeds: DefEntry[] }>,
       // Task 10：面板读 storeDefs/inlineStoreDefs 收集 store 信号（界面卡 ownerKey 限定）
       storeDefs: {},
       inlineStoreDefs: {},
@@ -101,19 +103,23 @@ vi.mock("../../../store", async () => {
 
 // (Task 10) 组件源码经 generateOmniFragment 面板内惰性生成（ComponentDefPanel
 // 从 componentDefs[componentName].elements 生成），测试环境 mock pipeline 返回
-// 固定 fixture view（含 @if status == "loading" / @else / 复杂条件 / @for），
+// fixture view（默认含 @if status == "loading" / @else / 复杂条件 / @for），
 // 使 analyzeSignalUsage 产出 interfaceSignals（brief Step 1 注记的默认路径）。
-const { mockFragmentSource } = vi.hoisted(() => ({
-  mockFragmentSource:
-    "view {\n" +
-    '  @if status == "loading" { } @else { }\n' +
-    "  @if items.len() > 0 { }\n" +
-    "  @for item in items { }\n" +
-    "}",
+// (F2/D12) fixture 可变：单分支二态开关用例替换为 `@if badgeVisible` 单一分支
+//（组件 useMemo 依赖不含 fixture 文本，mount 前替换即可生效；顶层 beforeEach 恢复默认）。
+const { mockViewSource } = vi.hoisted(() => ({
+  mockViewSource: {
+    value:
+      "view {\n" +
+      '  @if status == "loading" { } @else { }\n' +
+      "  @if items.len() > 0 { }\n" +
+      "  @for item in items { }\n" +
+      "}",
+  },
 }));
 
 vi.mock("../../../services/codegen/pipeline", () => ({
-  generateOmniFragment: vi.fn(() => ({ value: mockFragmentSource, errors: [] })),
+  generateOmniFragment: vi.fn(() => ({ value: mockViewSource.value, errors: [] })),
 }));
 
 vi.mock("../../canvas/canvas-store", () => ({
@@ -123,6 +129,13 @@ vi.mock("../../canvas/canvas-store", () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // 恢复默认 fixture（单分支二态用例会替换）
+  mockViewSource.value =
+    "view {\n" +
+    '  @if status == "loading" { } @else { }\n' +
+    "  @if items.len() > 0 { }\n" +
+    "  @for item in items { }\n" +
+    "}";
 });
 
 describe("ComponentDefPanel 三 Tab 骨架", () => {
@@ -300,5 +313,133 @@ describe("界面信号调试 Tab（信号卡）", () => {
     expect(screen.getByText(/@for/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /空/ }));
     expect(mockState.setDebugValue).toHaveBeenCalledWith("Card", "items", "[]", true);
+  });
+
+  it("else 分支胶囊可点：驱动成假（同链首可合成条件取假值）（F2）", () => {
+    mockState.componentDefs = {
+      Card: { signals: [{ pid: "s1", name: "status", type: "String", defaultValue: '"x"' }], props: [], computeds: [] },
+    };
+    render(<ComponentDefPanel />);
+    const elseChip = screen.getByRole("button", { name: /^else$/ });
+    expect((elseChip as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(elseChip);
+    // status == "loading" 成假 → 字符串非空取 "" → String 补引号入库
+    expect(mockState.setDebugValue).toHaveBeenCalledWith("Card", "status", '""', true);
+  });
+
+  it("胶囊点选后该分支高亮（F5）", () => {
+    mockState.componentDefs = {
+      Card: { signals: [{ pid: "s1", name: "status", type: "String", defaultValue: '"x"' }], props: [], computeds: [] },
+    };
+    render(<ComponentDefPanel />);
+    fireEvent.click(screen.getByRole("button", { name: /loading/ }));
+    expect((screen.getByRole("button", { name: /loading/ }) as HTMLButtonElement).style.background)
+      .toBe("var(--ol-color-primary)");
+  });
+
+  it("输入框手改值失配 → 胶囊高亮取消（F5）", () => {
+    mockState.componentDefs = {
+      Card: { signals: [{ pid: "s1", name: "status", type: "String", defaultValue: '"x"' }], props: [], computeds: [] },
+    };
+    mockState.debugValues = { Card: { status: { text: '"loading"', valid: true } } };
+    render(<ComponentDefPanel />);
+    // 初始：调试值 == 分支合成字面量 → 高亮
+    expect((screen.getByRole("button", { name: /loading/ }) as HTMLButtonElement).style.background)
+      .toBe("var(--ol-color-primary)");
+    fireEvent.change(screen.getByLabelText("status 值"), { target: { value: "other" } });
+    // 手改失配 → 全部取消
+    expect((screen.getByRole("button", { name: /loading/ }) as HTMLButtonElement).style.background)
+      .toBe("var(--ol-surface)");
+  });
+
+  it("store 信号行：写入 owner=store 名、name=裸名（F3）", () => {
+    mockState.storeDefs = {
+      NotificationStore: { signals: [{ pid: "s1", name: "unreadCount", type: "i32", defaultValue: "0" }] },
+    };
+    render(<ComponentDefPanel />);
+    fireEvent.click(screen.getByRole("tab", { name: /^信号调试$/ }));
+    fireEvent.change(screen.getByLabelText("NotificationStore.unreadCount 值"), { target: { value: "5" } });
+    expect(mockState.setDebugValue).toHaveBeenCalledWith("NotificationStore", "unreadCount", "5", true);
+  });
+
+  it("内联 store 信号行：owner=Comp.Store、name=裸名（F3）", () => {
+    mockState.inlineStoreDefs = {
+      "Card.CartStore": { signals: [{ pid: "s1", name: "items", type: "i32", defaultValue: "0" }] },
+    };
+    render(<ComponentDefPanel />);
+    fireEvent.click(screen.getByRole("tab", { name: /^信号调试$/ }));
+    fireEvent.change(screen.getByLabelText("Card.CartStore.items 值"), { target: { value: "3" } });
+    expect(mockState.setDebugValue).toHaveBeenCalledWith("Card.CartStore", "items", "3", true);
+  });
+
+  it("prop 参与信号分析：出现在信号调试列表（F4）", () => {
+    mockState.componentDefs = {
+      Card: {
+        signals: [{ pid: "s1", name: "count", type: "i32", defaultValue: "0" }],
+        props: [{ pid: "p1", name: "title", type: "String", defaultValue: '"x"' }],
+        computeds: [],
+      },
+    };
+    render(<ComponentDefPanel />);
+    fireEvent.click(screen.getByRole("tab", { name: /^信号调试$/ }));
+    const input = screen.getByLabelText("title 值");
+    fireEvent.change(input, { target: { value: "hello" } });
+    expect(mockState.setDebugValue).toHaveBeenCalledWith("Card", "title", '"hello"', true);
+  });
+
+  it("prop 参与信号分析：界面信号卡同样可点（F4）", () => {
+    // fixture view 的 @if status == "loading" 由 prop 驱动 → 界面信号卡
+    mockState.componentDefs = {
+      Card: {
+        signals: [],
+        props: [{ pid: "p1", name: "status", type: "String", defaultValue: '"x"' }],
+        computeds: [],
+      },
+    };
+    render(<ComponentDefPanel />);
+    expect(screen.getByText("status")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /loading/ }));
+    expect(mockState.setDebugValue).toHaveBeenCalledWith("Card", "status", '"loading"', true);
+  });
+});
+
+// ── 单分支二态开关（D12 / F2b）──
+describe("单分支二态开关（D12）", () => {
+  beforeEach(() => {
+    mockState.debugOverridesEnabled = true;
+    mockState.debugValues = {};
+    mockViewSource.value = "view {\n  @if badgeVisible {\n    <span>New</span>\n  }\n}";
+  });
+
+  it("点击成真 → 再点击成假（toggle）", () => {
+    mockState.componentDefs = {
+      Card: { signals: [{ pid: "s1", name: "badgeVisible", type: "bool", defaultValue: "false" }], props: [], computeds: [] },
+    };
+    render(<ComponentDefPanel />);
+    fireEvent.click(screen.getByRole("button", { name: /badgeVisible/ }));
+    expect(mockState.setDebugValue).toHaveBeenLastCalledWith("Card", "badgeVisible", "true", true);
+    // 回显 true 匹配成真合成 → 再点击切换成假
+    fireEvent.click(screen.getByRole("button", { name: /badgeVisible/ }));
+    expect(mockState.setDebugValue).toHaveBeenLastCalledWith("Card", "badgeVisible", "false", true);
+  });
+
+  it("已有成假调试值 → 点击切换回成真", () => {
+    mockState.componentDefs = {
+      Card: { signals: [{ pid: "s1", name: "badgeVisible", type: "bool", defaultValue: "false" }], props: [], computeds: [] },
+    };
+    mockState.debugValues = { Card: { badgeVisible: { text: "false", valid: true } } };
+    render(<ComponentDefPanel />);
+    fireEvent.click(screen.getByRole("button", { name: /badgeVisible/ }));
+    expect(mockState.setDebugValue).toHaveBeenLastCalledWith("Card", "badgeVisible", "true", true);
+  });
+
+  it("!sig 单分支：成真合成 false（F1 端到端）", () => {
+    mockViewSource.value = "view {\n  @if !badgeVisible {\n    <span>New</span>\n  }\n}";
+    mockState.componentDefs = {
+      Card: { signals: [{ pid: "s1", name: "badgeVisible", type: "bool", defaultValue: "false" }], props: [], computeds: [] },
+    };
+    render(<ComponentDefPanel />);
+    fireEvent.click(screen.getByRole("button", { name: /badgeVisible/ }));
+    expect(mockState.setDebugValue).toHaveBeenLastCalledWith("Card", "badgeVisible", "false", true);
   });
 });
