@@ -54,13 +54,13 @@ components/DataTable.tsx	TS7006	[T1.6] implicit-any fn/closure params	1	#67
 #           references the top-level CartStore (slice selectors) and the
 #           implicit any[] vars are gone.
 # TS2304 — undefined names: inline store ACTIONS have no emission path (T3.3
-#           slice selectors need a module store) and the mutated-unread signal
-#           setter. The struct/union type-name class is GONE (task 5.3, #49):
-#           Todo/ApiResult/Rating now emit TS declarations inline.
+#           slice selectors need a module store). The struct/union type-name
+#           class is GONE (task 5.3, #49): Todo/ApiResult/Rating now emit TS
+#           declarations inline. The mutated-unread setter class is GONE
+#           (v4 Task 2.2, #72): write-only signals keep their useState hook.
 #           REMOVED (task 2.2): the CartStore entry (deferral #37) is gone —
 #           inline stores now hard-diagnose E_CODEGEN on React (BUG-C interim)
 #           and InlineStoreDemo was migrated to a top-level store.
-components/AdvancedPseudoDemo.tsx	TS2304	[T1.6] mutated-unread signal setter (setVariant)	2	#72
 # TS2722 — REMOVED (task 5.6, deferral #61): invoke of possibly-undefined
 #           event-handler props. Event-handler call sites now emit the
 #           optional-call form `onX?.(...)` — event props are emitted as

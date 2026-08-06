@@ -150,6 +150,8 @@ impl ReactCodegen {
         // (generate_statement_tsx, review I1).
         let value_consumed = collect_value_consumed_signals(comp);
         let mutation_call_targets = collect_call_mutation_targets(comp);
+        // v4 H2: pruned 集合必须排除「有 mutation 但无读」的信号——它现在
+        // 保留 useState（D-V4-6），mutation 不得被发射侧剪枝。
         let pruned_signals: FxHashSet<String> = read_signals
             .iter()
             .filter(|s| {
@@ -158,14 +160,19 @@ impl ReactCodegen {
                     && !mutation_call_targets.contains(*s)
             })
             .filter(|s| comp.signals.iter().any(|sig| &sig.name == *s))
+            // 修正：写专用信号不在 read_signals 中，天然不在此集合——
+            // 无需额外排除。此注释记录决策。
             .cloned()
             .collect();
 
         // Determine if any state actually needs useState (has active setter)
+        // v4 H2: 计入写专用信号（现会发射 useState）；排除 pruned 信号
+        // （mutation 被剪枝、无 setter 引用——hook 不发射，import 也不得
+        // 触发，否则 unused import）。
         let has_mutable_states = comp
             .signals
             .iter()
-            .any(|s| value_consumed.contains(&s.name) && mutated_signals.contains(&s.name));
+            .any(|s| mutated_signals.contains(&s.name) && !pruned_signals.contains(&s.name));
         // Component-local fn names — used by the task 2.8 prop-fn analysis
         // (fns passed by value to child components) and by the fn emission
         // and state hooks below.
@@ -786,6 +793,7 @@ impl ReactCodegen {
             comp,
             &value_consumed,
             &mutated_signals,
+            &pruned_signals,
             &hoisted_signals,
             &fn_names,
             &store_field_renames,

@@ -366,3 +366,7 @@
 ### #83 状态复核（保持 open）
 
 - **#83**（motion-in-@for 逐项实例化）：**保持 open 不动**——遗留轮评估维持建议 defer（现语料零命中 + 双目标大实现）；触发条件已记录，最终裁决随汇报给用户。
+
+### #72 关闭登记（v4 Task 2.2——只写信号保留 useState）
+
+- **#72**（mutated-unread 信号 setter 未发射——TS2304×2 / AdvancedPseudoDemo setVariant：信号被 mutate 但从未被 read 时，gen_state_hooks 的「不在 consumed 集即跳过」误杀 hook，mutation 发射引用未声明名，点击即 ReferenceError）：**已关闭**——v4 Task 2.2 commit「fix(codegen-react): 只写信号保留 useState——悬空 setter 崩溃修复 + TS2304 豁免删除」：`gen_state_hooks` skip 条件改为「读与写皆缺失才跳过」+ 写专用形状 `const [, setVariant] = useState(...)`（省略值名无 unused 变量）；pruned 信号（Task 2.11 DCE 契约——值未消费且 mutation 被剪枝）仍跳过，`has_mutable_states` 计入写专用排除 pruned（import 与 hook 发射严格一致）。**验证**：单元 `write_only_signal_keeps_state_hook` + DCE 回归 `test_write_only_signal_is_pruned` 双绿；浏览器 H2「只写信号点击不崩溃」转绿（5/5 全量，H1 四断言回归绿）；tsc 87→85、TS2304×2 归零；豁免条目删除。

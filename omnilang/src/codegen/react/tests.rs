@@ -4646,6 +4646,42 @@ component ToggleDemo {
     );
 }
 
+/// v4 H2 — a signal that is never READ but mutated inside a called fn keeps
+/// its useState hook: the emitted `setVariant(...)` must have a setter to
+/// reference, or the click crashes with `setVariant is not defined`
+/// (ReferenceError, AdvancedPseudoDemo「Dark Variant」button). The value
+/// name is dropped — `const [, setVariant] = useState(...)` — so no unused
+/// variable lint fires either.
+#[test]
+fn write_only_signal_keeps_state_hook() {
+    let source = r#"
+component App {
+    signal variant: String = "light";
+    fn setDark() { variant = "dark"; }
+    view {
+        <button @onClick={setDark}>Dark</button>
+    }
+}
+"#;
+    let output = compile_react(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        content.contains("const [, setVariant] = useState"),
+        "write-only signal must keep a setter-only hook. Got:\n{}",
+        content
+    );
+    assert!(
+        !content.contains("setVariant is not defined"),
+        "no dangling setter. Got:\n{}",
+        content
+    );
+}
+
 /// Task 2.11 — write-only signal DCE keeps VALUE-CONSUMED mutations intact:
 /// `x = playAll + 1` (target x, value reads playAll) emits the direct setter
 /// form and DOES read playAll — the state must be emitted and the mutation

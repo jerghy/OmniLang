@@ -32,13 +32,23 @@ impl ReactCodegen {
         comp: &ComponentIR,
         consumed_signals: &FxHashSet<String>,
         mutated_signals: &FxHashSet<String>,
+        pruned_signals: &FxHashSet<String>,
         hoisted_signals: &FxHashSet<String>,
         fn_names: &FxHashSet<String>,
         store_field_renames: &FxHashMap<String, String>,
         user_types: &FxHashSet<String>,
     ) {
         for state in &comp.signals {
-            if !consumed_signals.contains(&state.name) {
+            // v4 H2: 有可达 mutation 的信号必须保留 state hook——
+            // mutation 发射（含 fn 体）引用 setter。仅当读与写都缺失才跳过。
+            let mutated = mutated_signals.contains(&state.name);
+            // 修正（brief 偏差）：pruned 信号（值未被消费且 mutation 被
+            // 发射侧剪枝——Task 2.11 DCE 契约）没有存活的 setter 引用，
+            // 必须仍被跳过，否则发射悬空的 `const [, setX]`（unused 变量 +
+            // 无意义 hook）。写专用但未 pruned 的信号（variant）命中
+            // `mutated && !pruned`，保留 hook。
+            let pruned = pruned_signals.contains(&state.name);
+            if !consumed_signals.contains(&state.name) && (!mutated || pruned) {
                 continue;
             }
             // Hoisted to module scope (perf M3) — in-function references
@@ -70,16 +80,32 @@ impl ReactCodegen {
                 // resolves; `any` would defeat a literal initializer's
                 // better inference.
                 let type_ann = typed_state_annotation(&state.r#type, user_types);
-                if type_ann.is_empty() {
-                    w.emit_fmt(format_args!(
-                        "const [{}, {}] = useState({});",
-                        state.name, setter, init_val
-                    ));
+                // v4 H2: 写专用信号（值从未被消费）——省略值名（无
+                // unused 变量），`const [, setX] = useState(...)`。
+                if consumed_signals.contains(&state.name) {
+                    if type_ann.is_empty() {
+                        w.emit_fmt(format_args!(
+                            "const [{}, {}] = useState({});",
+                            state.name, setter, init_val
+                        ));
+                    } else {
+                        w.emit_fmt(format_args!(
+                            "const [{}, {}] = useState<{}>({});",
+                            state.name, setter, type_ann, init_val
+                        ));
+                    }
                 } else {
-                    w.emit_fmt(format_args!(
-                        "const [{}, {}] = useState<{}>({});",
-                        state.name, setter, type_ann, init_val
-                    ));
+                    if type_ann.is_empty() {
+                        w.emit_fmt(format_args!(
+                            "const [, {}] = useState({});",
+                            setter, init_val
+                        ));
+                    } else {
+                        w.emit_fmt(format_args!(
+                            "const [, {}] = useState<{}>({});",
+                            setter, type_ann, init_val
+                        ));
+                    }
                 }
             } else {
                 w.emit_fmt(format_args!("const {} = {};", state.name, init_val));
