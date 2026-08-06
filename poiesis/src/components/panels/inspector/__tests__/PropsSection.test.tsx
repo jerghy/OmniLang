@@ -214,4 +214,25 @@ describe("布尔属性行（D9）", () => {
       vi.useRealTimers();
     }
   });
+
+  it("芯片点击进入编辑态（D9 表达式态可编辑——真机 bug 回归）", () => {
+    vi.useFakeTimers();
+    try {
+      render(<PropsSection element={el({ disabled: "{busy}" })} signalItems={[signalItem]} />);
+      // 表达式态显示芯片、无开关
+      const chip = screen.getByText("{busy}");
+      expect(screen.queryByRole("checkbox", { name: /disabled/ })).toBeNull();
+      // 点击芯片 → 编辑态输入框出现，预填剥花括号
+      fireEvent.click(chip);
+      const input = screen.getByLabelText("disabled-expression") as HTMLInputElement;
+      expect(input.value).toBe("busy");
+      // 修改表达式 → Enter → 提交新值
+      fireEvent.change(input, { target: { value: "busy2" } });
+      fireEvent.keyDown(input, { key: "Enter" });
+      vi.advanceTimersByTime(200);
+      expect(mockSetProp).toHaveBeenCalledWith("el-1", "disabled", "{busy2}");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

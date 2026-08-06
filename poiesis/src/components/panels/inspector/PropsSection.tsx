@@ -499,10 +499,12 @@ function BoolPropRow({
     setExprText("");
   }, [exprText, onChange]);
 
-  if (isExpr) {
+  if (isExpr && !editingExpr) {
     // 表达式形态：紫色芯片（点击编辑 / × 删除回开关态）。
     // 点击目标带 data-action="delete-segment"（× 号）→ 删除回开关态，否则进编辑
     // ——与 ChipEditor 芯片同一模式（键盘 Enter/Space 同判）。
+    // 注意：必须 !editingExpr——否则表达式态下编辑分支不可达（真机测试抓到：
+    // 2026-08-06 芯片点击编辑路径曾被 isExpr 分支屏蔽，编辑态成死代码）。
     return (
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
         <span style={{ fontSize: 12, color: "var(--ol-text-secondary)", minWidth: 50, flexShrink: 0 }}>{label}</span>
