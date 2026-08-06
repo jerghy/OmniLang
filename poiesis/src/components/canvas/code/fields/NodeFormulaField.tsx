@@ -1,28 +1,21 @@
 // poiesis/src/components/canvas/code/fields/NodeFormulaField.tsx
-// 表达式公式框（Notion 式）：输入即分词 → token 胶囊渲染；候选菜单选择插入；
-// 运算符直插成符号 token 且弹多字符变体；Backspace 整块删除；IME 组合守卫。
-// 提交仍是字符串（onCommit），持久化/编译器零改动。光标用 Selection API（不造零宽锚点）。
-// 渲染用 dangerouslySetInnerHTML（react-contenteditable 同款受控模式）：React 不管理
-// contenteditable 子节点，浏览器对整树文本的整体替换（全选输入/IME 提交）不会与 React
-// 对账冲突（children 渲染会抛 NotFoundError）；每次渲染后经 rAF restoreCaret 恢复光标。
-// token 间空白以文本段保留（.notionField white-space: pre-wrap 不折叠），draft 与
-// textContent 双向一致，编辑不会吞掉用户输入的空格。
-import { memo, useEffect, useMemo, useRef, useState, type CompositionEvent, type FormEvent, type KeyboardEvent } from "react";
-import { tokenizeFormula, operatorCandidates, replaceToken } from "./expression-trigger";
+// 表达式公式框（重新设计）：textarea 编辑层 + 覆盖层胶囊渲染。
+// 光标/IME/选区浏览器原生；胶囊=私有区标记段 \uE000..\uE001，覆盖层渲染高亮块；
+// 结构字符着色；自由文本为普通文本。提交=serializeSegments(markup)（字符串，编译器零改动）。
+import { memo, useEffect, useMemo, useRef, useState, type KeyboardEvent, type CompositionEvent, type FormEvent, type MouseEvent as ReactMouseEvent } from "react";
+import { parseMarkup, serializeSegments, toMarkup, isBoundary, TRIGGER_CHARS, operatorCandidates, tokenizeFormula, CAPSULE_START, CAPSULE_END } from "./expression-trigger";
 import { NodeCandidateMenu, type CandidateItem } from "./NodeCandidateMenu";
-import styles from "./NodeField.module.css";
+import styles from "./NodeFormulaField.module.css";
 
 export interface FormulaCandidateSource {
-  /** operand 上下文候选（query 前缀过滤，空 query 返回全量） */
   filter(query: string): CandidateItem[];
-  /** member 上下文候选（storeName 点后） */
   storeSignals(storeName: string): CandidateItem[];
 }
 
 interface Props {
   value: string;
   onCommit: (v: string) => void;
-  candidates?: FormulaCandidateSource; // 缺省退化纯文本输入（无分词无弹层）
+  candidates?: FormulaCandidateSource;
   placeholder?: string;
   ariaLabel?: string;
   className?: string;
@@ -36,103 +29,35 @@ interface MenuState {
   y: number;
   groups: Array<{ label: string; items: CandidateItem[] }>;
   activeIdx: number;
-  /** 选中候选的替换区间（token 起止）；null = 光标处插入（兜底） */
+  /** 触发字符区间（Escape 落点取触发字符用；选中替换用 triggerOffset..当前光标 动态区间） */
   replace: { start: number; end: number } | null;
+  /** 逃生口：菜单打开时触发字符（如 "/"）在 markup 中的偏移 */
+  triggerOffset: number;
 }
 
-const BLOCK_DELETE_KINDS = new Set(["identifier", "member", "operator", "paren"]);
-const HTML_ESCAPES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
-
-/** HTML 转义（dangerouslySetInnerHTML 渲染用户输入——防注入；token 文本/空白段均转义）。 */
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => HTML_ESCAPES[c]!);
-}
-
-/** 在文本节点间按 offset 定位 range（Selection API——CodeCard 零宽锚点教训的规避）。 */
-function rangeAtOffset(el: HTMLElement, offset: number): Range | null {
-  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-  let node: Text | null;
-  let remaining = offset;
-  let last: Text | null = null;
-  while ((node = walker.nextNode() as Text | null)) {
-    last = node;
-    const len = node.textContent?.length ?? 0;
-    if (remaining <= len) {
-      const range = document.createRange();
-      range.setStart(node, remaining);
-      return range;
-    }
-    remaining -= len;
-  }
-  if (last) {
-    const range = document.createRange();
-    range.setStart(last, last.textContent?.length ?? 0);
-    return range;
-  }
-  return null;
-}
-
-/** 在文本节点间按 offset 恢复光标。 */
-function restoreCaret(el: HTMLElement, offset: number): void {
-  const range = rangeAtOffset(el, offset);
-  if (!range) return;
-  range.collapse(true);
-  const sel = window.getSelection();
-  sel?.removeAllRanges();
-  sel?.addRange(range);
-}
-
-/** 当前光标在 textContent 内的字符偏移（无选区/光标在编辑面外时回退到末尾）。 */
-function caretOffset(el: HTMLElement): number {
-  const sel = window.getSelection();
-  if (!sel || sel.rangeCount === 0 || !el.contains(sel.anchorNode)) return el.textContent?.length ?? 0;
-  const range = sel.getRangeAt(0);
-  const pre = range.cloneRange();
-  pre.selectNodeContents(el);
-  pre.setEnd(range.startContainer, range.startOffset);
-  return pre.toString().length;
-}
-
-/** memo + 自定义比较器：忽略函数 props（onCommit/onBlur/onCancel 由调用点的持久
- * 数据构造，引用变化不代表语义变化）。父组件渲染（reactflow 节点选中等）不再触发
- * 本组件重渲染——React 19 updateProperties 对 dangerouslySetInnerHTML 无条件重设
- * （无值比较），任何重渲染都会把光标重置到开头（真机实测：click #text#6 → DIV#0）。 */
+/** memo 自定义比较：函数 props 引用变化不触发重渲染（父节点选中等不重置光标）。 */
 export const NodeFormulaField = memo(function NodeFormulaField({ value, onCommit, candidates, placeholder, ariaLabel, className, invalid, onCancel, onBlur }: Props) {
-  const [draft, setDraft] = useState(value);
+  const [draft, setDraft] = useState(() => toMarkup(value));
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [composing, setComposing] = useState(false);
   const focusedRef = useRef(false);
   const dirtyRef = useRef(false);
   const composingRef = useRef(false);
-  const editRef = useRef<HTMLDivElement>(null);
+  const taRef = useRef<HTMLTextAreaElement>(null);
+  const menuRef = useRef<MenuState | null>(null);
+  // 渲染期写 ref 会被 React 回放/丢弃泄漏——改为 effect 同步（React 保证离散事件的被动
+  // effect 在下个输入事件前已 flush，onInput 读到的 menuRef 恒为最新提交的菜单状态）
+  useEffect(() => { menuRef.current = menu; });
 
-  const tokens = useMemo(() => tokenizeFormula(draft), [draft]);
-
-  // 渲染 HTML：IME 组合期/退化模式为原样文本（防 React 重渲染覆盖组合输入）；
-  // 其余按 token 段 + token 间空白文本段拼接（textContent 与 draft 双向一致）。
-  const html = useMemo(() => {
-    if (composing || !candidates || tokens.length === 0) return escapeHtml(draft);
-    let out = "";
-    let pos = 0;
-    for (const t of tokens) {
-      if (t.start > pos) out += escapeHtml(draft.slice(pos, t.start));
-      // 渲染取 draft.slice(t.start, t.end) 原文（与 TokenPreview 同契约）：string token 的
-      // text 不含引号，若渲染 t.text 则 DOM textContent 与 draft 不一致，后续编辑读
-      // textContent 会丢引号（Task 12 E2E 实测：`"你好" +` 变 `你好+`）。
-      out += `<span data-token-kind="${t.kind}" class="${BLOCK_DELETE_KINDS.has(t.kind) ? styles.tokenCapsule : styles.tokenPlain}">${escapeHtml(draft.slice(t.start, t.end))}</span>`;
-      pos = t.end;
-    }
-    if (pos < draft.length) out += escapeHtml(draft.slice(pos));
-    return out;
-  }, [composing, candidates, draft, tokens]);
-
-  // 外部 value 变化（提交成功/重渲染）时同步草稿，但聚焦输入中不打断
+  // 外部 value 变化（提交成功）时同步草稿；聚焦输入中不打断
   useEffect(() => {
-    if (!focusedRef.current) setDraft(value);
+    if (!focusedRef.current) setDraft(toMarkup(value));
   }, [value]);
 
+  const segments = useMemo(() => parseMarkup(draft), [draft]);
+
   const commit = () => {
-    if (dirtyRef.current && draft !== value) onCommit(draft);
+    if (dirtyRef.current) onCommit(serializeSegments(draft));
     dirtyRef.current = false;
     setMenu(null);
   };
@@ -140,163 +65,204 @@ export const NodeFormulaField = memo(function NodeFormulaField({ value, onCommit
     focusedRef.current = false;
     dirtyRef.current = false;
     setMenu(null);
-    setDraft(value);
+    setDraft(toMarkup(value));
     onCancel?.();
   };
 
-  /** 候选上下文：光标所在 token → 候选源（语义与旧 getTriggerContext 对齐：member/operator/operand）。
-   *  member 判定优先按字符（光标在 "." 后）：trailing dot 时 "." 常被 tokenizer 归入 unknown 段。 */
-  const candidatesFor = (text: string, offset: number): { groups: MenuState["groups"]; replace: MenuState["replace"] } | null => {
-    if (composingRef.current || !candidates) return null;
-    const toks = tokenizeFormula(text);
-    const at = toks.find((t) => offset >= t.start && offset <= t.end);
-    // member 上下文：光标在 "." 之后（Store. 前缀或 Store.signal 中途）。store 名取 "." 前最长标识符；
-    // 前缀不匹配时（如 "a.b" 光标在 member 末尾）兜底取 member token 的 store 段。
-    if (text[offset - 1] === ".") {
-      const prefix = text.slice(0, offset - 1);
-      const storeMatch = prefix.match(/[A-Za-z_]\w*$/);
-      let storeName = storeMatch?.[0] ?? "";
-      let start = storeName ? offset - 1 - storeName.length : offset;
-      if (!storeName && at?.kind === "member") {
-        storeName = at.text.slice(0, at.text.indexOf("."));
-        start = at.start;
-      }
-      if (!storeName) return null;
-      const items = candidates.storeSignals(storeName);
-      if (items.length === 0) return null;
-      return { groups: [{ label: `${storeName} 信号`, items }], replace: { start, end: offset } };
+  const caret = (): number => taRef.current?.selectionStart ?? draft.length;
+
+  /** 弹框上下文：光标处最后输入的触发字符 → 候选分组与替换区间。 */
+  const openMenu = (markup: string) => {
+    const el = taRef.current;
+    if (!el || !candidates) return;
+    const offset = caret();
+    const ch = markup[offset - 1];
+    if (!ch || !TRIGGER_CHARS.has(ch) || !isBoundary(markup, offset - 1)) return;
+    const rect = el.getBoundingClientRect();
+    if (ch === "/") {
+      const all = candidates.filter("");
+      if (all.length === 0) return;
+      const groups: Array<{ label: string; items: CandidateItem[] }> = [];
+      if (all.length > 0) groups.push({ label: "候选", items: all });
+      const ops = operatorCandidates("/");
+      if (ops.length > 0) groups.push({ label: "运算符", items: ops });
+      setMenu({ x: rect.left, y: rect.bottom + 4, groups, activeIdx: 0, replace: { start: offset - 1, end: offset }, triggerOffset: offset - 1 });
+    } else {
+      const items = operatorCandidates(ch);
+      if (items.length === 0) return;
+      setMenu({ x: rect.left, y: rect.bottom + 4, groups: [{ label: "运算符", items }], activeIdx: 0, replace: { start: offset - 1, end: offset }, triggerOffset: offset - 1 });
     }
-    if (at?.kind === "member") {
-      // 光标在 member token 内（非点后）：最后一个 "." 之后的段当操作数过滤（如 "a.b" → filter("b")）
-      const tailAt = at.text.lastIndexOf(".");
-      const token = tailAt >= 0 ? at.text.slice(tailAt + 1) : at.text;
-      const items = candidates.filter(token);
-      if (items.length === 0) return null;
-      return { groups: [{ label: "候选", items }], replace: { start: at.start + tailAt + 1, end: at.end } };
-    }
-    if (at?.kind === "operator") {
-      const items = operatorCandidates(at.text);
-      if (items.length === 0) return null;
-      return { groups: [{ label: "运算符", items }], replace: { start: at.start, end: at.end } };
-    }
-    // operand：标识符前缀过滤；数字/字符串字面量内不弹（字面量无补全语义——Enter 提交契约的基础）
-    if (at?.kind === "identifier") {
-      const items = candidates.filter(at.text);
-      if (items.length === 0) return null;
-      return { groups: [{ label: "候选", items }], replace: { start: at.start, end: at.end } };
-    }
-    if (at && (at.kind === "number" || at.kind === "string")) return null;
-    // 表达式边界（空 token 全量）：括号/空白后/任意符号处
-    const items = candidates.filter("");
-    if (items.length === 0) return null;
-    return { groups: [{ label: "候选", items }], replace: { start: offset, end: offset } };
   };
 
-  /** 输入 → 更新草稿 + token 渲染 + 候选弹层 */
-  const onInput = (e?: FormEvent<HTMLDivElement>) => {
-    const el = editRef.current;
+  /** 输入（textarea 原生）→ 更新草稿；非组合期判定弹框。 */
+  const onInput = (e: FormEvent<HTMLTextAreaElement>) => {
+    const el = taRef.current;
     if (!el) return;
-    // IME 状态以事件为准：明确非组合的 input（isComposing === false）即复位
-    // composingRef——React 委托可能丢失 compositionend（compositionstart 已触发、
-    // end 未达 root），ref 一旦卡 true，所有输入都会跳过光标恢复与候选弹层
-    // （光标跳回开头）。isComposing 直读原生事件；undefined（jsdom 模拟）不改变状态。
     const native = (e as unknown as { nativeEvent?: InputEvent })?.nativeEvent;
     if (native && native.isComposing === false) composingRef.current = false;
-    const next = el.textContent ?? "";
-    const offset = caretOffset(el);
+    const next = el.value;
     setDraft(next);
     dirtyRef.current = true;
-    if (composingRef.current) return; // IME 组合期不弹层
-    // 渲染替换 innerHTML 会丢选区：重渲染后恢复光标（textContent 双向一致）。
-    // 用 microtask 而非 rAF——离散 input 事件下 React 同步渲染，onInput 返回时 DOM 已更新，
-    // microtask 立即恢复；rAF 要等下一帧（≤16ms），快速连续输入（字符间隔 < 一帧）时
-    // 下一字符落在光标未恢复的窗口期会插到开头（真机实测）。
-    queueMicrotask(() => { if (editRef.current) restoreCaret(editRef.current, offset); });
-    const ctx = candidatesFor(next, offset);
-    if (!ctx) { setMenu(null); return; }
-    const rect = el.getBoundingClientRect();
-    setMenu({ x: rect.left, y: rect.bottom + 4, groups: ctx.groups, activeIdx: 0, replace: ctx.replace });
-  };
-
-  /** 选中候选：替换光标所在 token 区间；关闭弹层；光标移到替换后 */
-  const selectItem = (item: CandidateItem) => {
-    if (!menu) return;
-    const el = editRef.current;
-    const offset = el ? caretOffset(el) : draft.length;
-    const r = menu.replace;
-    const { value: v, cursor } = r
-      ? replaceToken(draft, r.start, r.end, item.value)
-      : { value: draft.slice(0, offset) + item.value + draft.slice(offset), cursor: offset + item.value.length };
-    setDraft(v);
-    setMenu(null);
-    requestAnimationFrame(() => {
-      if (editRef.current) { restoreCaret(editRef.current, cursor); editRef.current.focus(); }
-    });
-  };
-
-  /** Backspace 整块删除：光标在胶囊 token 边界时删整个 token（文本类逐字符）；菜单打开时走导航 */
-  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (!menu) {
-      if (e.key === "Enter") { e.preventDefault(); commit(); return; }
-      if (e.key === "Escape") { e.preventDefault(); cancel(); return; }
-      if (e.key === "Backspace" && !composingRef.current) {
-        const el = editRef.current;
-        if (!el) return;
-        const offset = caretOffset(el);
-        const toks = tokenizeFormula(draft);
-        const at = toks.find((t) => offset === t.end && BLOCK_DELETE_KINDS.has(t.kind));
-        if (at) {
-          e.preventDefault();
-          const v = draft.slice(0, at.start) + draft.slice(at.end);
-          setDraft(v);
-          requestAnimationFrame(() => { if (editRef.current) restoreCaret(editRef.current, at.start); });
-        }
+    if (composingRef.current) return;
+    if (menuRef.current) {
+      // 菜单打开：斜杠触发 → 按触发后文本重新过滤（逃生口依赖候选组空）；运算符触发 → 字符已变则关框
+      const m = menuRef.current;
+      const offset = caret();
+      if (next[m.triggerOffset] === "/") {
+        const query = next.slice(m.triggerOffset + 1, offset);
+        const items = candidates?.filter(query) ?? [];
+        const groups: Array<{ label: string; items: CandidateItem[] }> = [];
+        if (items.length > 0) groups.push({ label: "候选", items });
+        const ops = operatorCandidates("/");
+        if (ops.length > 0) groups.push({ label: "运算符", items: ops });
+        if (groups.length === 0) setMenu(null);
+        else setMenu({ ...m, groups, activeIdx: 0 });
+      } else {
+        setMenu(null);
       }
       return;
     }
-    const flat = menu.groups.flatMap((g) => g.items);
-    if (e.key === "ArrowDown") { e.preventDefault(); setMenu((m) => (m ? { ...m, activeIdx: Math.min(m.activeIdx + 1, flat.length - 1) } : m)); }
-    else if (e.key === "ArrowUp") { e.preventDefault(); setMenu((m) => (m ? { ...m, activeIdx: Math.max(m.activeIdx - 1, 0) } : m)); }
-    else if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); selectItem(flat[menu.activeIdx] ?? { value: "", label: "" }); }
-    else if (e.key === "Escape") { e.preventDefault(); setMenu(null); } // 只关弹层，草稿保留
+    const prevCaret = caret();
+    if (next[prevCaret - 1] && TRIGGER_CHARS.has(next[prevCaret - 1]!)) openMenu(next);
+  };
+
+  /** 逃生口：斜杠菜单、候选组空时 Enter → 触发字符+输入文本 → 引用胶囊（候选外标识符出路）。 */
+  const escapeHatch = () => {
+    if (!menu) return false;
+    const cands: CandidateItem[] = [];
+    for (const g of menu.groups) if (g.label === "候选") cands.push(...g.items);
+    if (cands.length > 0) return false; // 候选组非空 → 正常选中
+    if (draft[menu.triggerOffset] !== "/") return false; // 仅斜杠菜单有逃生口（运算符菜单无）
+    const el = taRef.current;
+    if (!el) return false;
+    const offset = caret();
+    const raw = draft.slice(menu.triggerOffset + 1, offset).trim();
+    if (!raw) return false;
+    const next = draft.slice(0, menu.triggerOffset) + CAPSULE_START + raw + CAPSULE_END + draft.slice(offset);
+    setDraft(next);
+    setMenu(null);
+    const cursor = menu.triggerOffset + CAPSULE_START.length + raw.length + CAPSULE_END.length;
+    requestAnimationFrame(() => { if (taRef.current) taRef.current.setSelectionRange(cursor, cursor); });
+    return true;
+  };
+
+  /** 选中候选：替换 triggerOffset..光标 区间为胶囊（斜杠后已输入文本一并替换；运算符/点击胶囊场景区间即触发字符）。 */
+  const selectItem = (item: CandidateItem) => {
+    if (!menu) return;
+    const el = taRef.current;
+    const offset = el ? el.selectionStart ?? draft.length : draft.length;
+    const start = menu.triggerOffset;
+    const v = draft.slice(0, start) + CAPSULE_START + item.value + CAPSULE_END + draft.slice(offset);
+    setDraft(v);
+    setMenu(null);
+    const cursor = start + CAPSULE_START.length + item.value.length + CAPSULE_END.length;
+    requestAnimationFrame(() => { if (taRef.current) { taRef.current.setSelectionRange(cursor, cursor); taRef.current.focus(); } });
+  };
+
+  const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    const m = menu;
+    if (m) {
+      const flat = m.groups.flatMap((g) => g.items);
+      if (e.key === "ArrowDown") { e.preventDefault(); setMenu((s) => (s ? { ...s, activeIdx: Math.min(s.activeIdx + 1, flat.length - 1) } : s)); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); setMenu((s) => (s ? { ...s, activeIdx: Math.max(s.activeIdx - 1, 0) } : s)); }
+      else if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        if (escapeHatch()) return; // 候选空且斜杠菜单 → 引用胶囊
+        if (flat.length === 0) return;
+        selectItem(flat[m.activeIdx]!);
+      }
+      else if (e.key === "Escape") {
+        e.preventDefault();
+        // Esc 关框：触发字符落点为运算符胶囊（原样提交，/ 除法语义由编译器解释）
+        const r = m.replace;
+        if (r) {
+          const ch = draft.slice(r.start, r.end);
+          if (TRIGGER_CHARS.has(ch) && !ch.includes(CAPSULE_START)) {
+            setDraft(draft.slice(0, r.start) + CAPSULE_START + ch + CAPSULE_END + draft.slice(r.end));
+          }
+        }
+        setMenu(null);
+      }
+      return;
+    }
+    if (e.key === "Enter") { e.preventDefault(); commit(); return; }
+    if (e.key === "Escape") { e.preventDefault(); cancel(); return; }
+    if (e.key === "Backspace" && !composingRef.current) {
+      const el = taRef.current;
+      if (!el) return;
+      const offset = el.selectionStart ?? draft.length;
+      if (el.selectionEnd !== offset) return; // 有选区走原生删除
+      const seg = segments.find((s) => s.kind === "capsule" && offset >= s.start && offset <= s.end);
+      if (seg && offset > seg.start) {
+        // 光标在胶囊标记段内或末尾 → 整块删除
+        e.preventDefault();
+        const v = draft.slice(0, seg.start) + draft.slice(seg.end);
+        setDraft(v);
+        requestAnimationFrame(() => { if (taRef.current) taRef.current.setSelectionRange(seg.start, seg.start); });
+      }
+    }
+  };
+
+  /** 点击胶囊 → 定位光标 + 弹该类型候选（引用→全量过滤，运算符→运算符候选）。 */
+  const onCapsuleMouseDown = (seg: (typeof segments)[number], e: ReactMouseEvent) => {
+    e.preventDefault();
+    const el = taRef.current;
+    if (!el) return;
+    el.focus();
+    el.setSelectionRange(seg.end, seg.end);
+    if (!candidates) return;
+    const rect = el.getBoundingClientRect();
+    // 胶囊类型以 tokenizer 为单一来源：operator token → 运算符候选；其余 → 引用候选
+    const tok = tokenizeFormula(seg.text)[0];
+    const ops = tok?.kind === "operator" ? operatorCandidates(tok.text) : [];
+    if (ops.length > 0) {
+      setMenu({ x: rect.left, y: rect.bottom + 4, groups: [{ label: "运算符", items: ops }], activeIdx: 0, replace: { start: seg.start, end: seg.end }, triggerOffset: seg.start });
+      return;
+    }
+    const items = candidates.filter(seg.text);
+    if (items.length === 0) return;
+    setMenu({ x: rect.left, y: rect.bottom + 4, groups: [{ label: "候选", items }], activeIdx: 0, replace: { start: seg.start, end: seg.end }, triggerOffset: seg.start });
   };
 
   return (
     <>
-      <div
-        ref={editRef}
-        contentEditable
-        suppressContentEditableWarning
-        data-field-kind="formula"
-        role="combobox"
-        aria-label={ariaLabel}
-        aria-expanded={menu ? true : undefined}
-        aria-controls={menu ? "node-candidate-results" : undefined}
-        aria-invalid={invalid || undefined}
-        className={`nodrag ${styles.field} ${styles.notionField} ${invalid ? styles.invalid : ""} ${className ?? ""}`}
-        data-placeholder={placeholder}
-        dangerouslySetInnerHTML={{ __html: html }}
-        onFocus={() => { focusedRef.current = true; }}
-        onBlur={() => {
-          const wasDirty = dirtyRef.current;
-          commit();
-          focusedRef.current = false;
-          if (!wasDirty) setDraft(value);
-          onBlur?.();
-        }}
-        onCompositionStart={() => { composingRef.current = true; setComposing(true); }}
-        onCompositionEnd={(e: CompositionEvent<HTMLDivElement>) => {
-          composingRef.current = false;
-          setComposing(false);
-          // 组合结束：不整树覆盖 textContent（真实浏览器 compositionend 时 DOM 已上屏
-          // 组合结果，前置字符保留；手动 `textContent = e.data` 会吞掉组合文本外的
-          // 既有字符，如字符串左引号——Task 12 E2E 实测缺陷）。
-          // jsdom 无真实上屏，但测试经 fireEvent 设置 target.textContent 模拟 DOM 已更新。
-          onInput();
-        }}
-        onInput={onInput}
-        onKeyDown={onKeyDown}
-      />
+      <div className={`nodrag ${styles.wrap} ${className ?? ""}`} data-field-kind="formula" role="combobox" aria-expanded={menu ? true : undefined} aria-controls={menu ? "node-candidate-results" : undefined} aria-invalid={invalid || undefined} aria-label={ariaLabel}>
+        {/* 覆盖层：胶囊块 + 结构字符着色 + 自由文本透明（textarea 文字透明，内容由覆盖层呈现） */}
+        <div className={styles.overlay} aria-hidden>
+          {segments.map((s, i) =>
+            s.kind === "capsule" ? (
+              <span key={i} data-seg-kind="capsule" className={styles.capsule} onMouseDown={(e) => onCapsuleMouseDown(s, e)}>{s.text}</span>
+            ) : s.kind === "struct" ? (
+              <span key={i} data-seg-kind="struct" className={styles.struct}>{s.text}</span>
+            ) : (
+              <span key={i} data-seg-kind="text" className={styles.text}>{s.text}</span>
+            )
+          )}
+        </div>
+        <textarea
+          ref={taRef}
+          className={composing ? styles.inputComposing : styles.input}
+          value={draft}
+          placeholder={placeholder}
+          data-placeholder={placeholder}
+          onFocus={() => { focusedRef.current = true; }}
+          onBlur={() => {
+            const wasDirty = dirtyRef.current;
+            commit();
+            focusedRef.current = false;
+            if (!wasDirty) setDraft(toMarkup(value));
+            onBlur?.();
+          }}
+          onCompositionStart={() => { composingRef.current = true; setComposing(true); }}
+          onCompositionEnd={(e: CompositionEvent<HTMLTextAreaElement>) => {
+            composingRef.current = false;
+            setComposing(false);
+            onInput(e);
+          }}
+          onInput={onInput}
+          onKeyDown={onKeyDown}
+        />
+      </div>
       {menu && (
         <NodeCandidateMenu
           x={menu.x}
@@ -311,7 +277,6 @@ export const NodeFormulaField = memo(function NodeFormulaField({ value, onCommit
     </>
   );
 }, (prev, next) => {
-  // 自定义比较：只比较数据 props（函数 props 引用变化不触发重渲染）
   return (
     prev.value === next.value &&
     prev.candidates === next.candidates &&

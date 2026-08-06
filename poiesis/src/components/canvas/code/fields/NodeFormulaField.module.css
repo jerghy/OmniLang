@@ -1,1 +1,48 @@
-/* NodeFormulaField.module.css —— 无额外样式，复用 NodeField.module.css 的 .field */
+/* NodeFormulaField.module.css —— textarea + 覆盖层胶囊渲染。
+   .wrap 自带字段外观（对齐 NodeField.module.css .field：三个使用点只传 .grow/无 className，
+   不提供边框/背景/内边距/等宽字体——brief 注记「padding 来自上层 .field」在实际使用点不成立，
+   故在 .wrap 上补齐，见 task-5-report deviation）。.input/.overlay 以显式 padding 与 .wrap 对齐
+   （absolute inset 基于 padding box，padding: inherit 会被自身 border 抵消，须显式声明）。 */
+.wrap {
+  position: relative;
+  min-width: 140px;
+  line-height: 1.6;
+  border: 1px solid var(--ol-border);
+  border-radius: var(--ol-radius-sm);
+  padding: 2px 6px;
+  background: var(--ol-surface);
+  color: var(--ol-text);
+  font-size: var(--ol-font-size-12);
+  font-family: var(--ol-font-family-mono);
+}
+.wrap:focus-within { outline: 2px solid var(--ol-color-primary, #4f46e5); border-color: transparent; }
+.overlay {
+  position: absolute; inset: 2px 6px; /* = .wrap 的 padding 偏移（padding-box → content-box 对齐 textarea） */
+  display: flex; flex-wrap: wrap; align-content: flex-start;
+  white-space: pre-wrap; word-break: break-all;
+  pointer-events: none; overflow: hidden;
+  font: inherit; padding: 2px 6px; border: none;
+}
+.overlay > span { white-space: pre-wrap; word-break: break-all; }
+.capsule {
+  pointer-events: auto;
+  background: rgba(168, 85, 247, 0.12); border-radius: 3px; padding: 0 2px; margin: 0 -1px;
+  color: #7c3aed; cursor: pointer; user-select: none;
+}
+.capsule:hover { background: rgba(168, 85, 247, 0.22); }
+.struct { color: #94a3b8; }   /* 结构字符：中性灰 */
+.text { color: transparent; } /* 自由文本由 textarea 呈现（同字形），本层透明占位 */
+.input {
+  position: relative; z-index: 1;
+  width: 100%; min-width: 140px;
+  box-sizing: border-box; /* 宽度含 padding，不溢出 .wrap 内容盒 */
+  font: inherit; line-height: 1.6;
+  white-space: pre-wrap; word-break: break-all;
+  padding: 2px 6px; /* 与 .wrap 一致，覆盖层对齐 */
+  color: transparent;            /* 文字透明，覆盖层呈现 */
+  caret-color: #334155;          /* 光标可见 */
+  background: transparent; border: none; outline: none;
+  resize: none; overflow: hidden;
+}
+.input::placeholder { color: #94a3b8; }
+.inputComposing { color: #334155; caret-color: #334155; } /* 组合期文字可见（拼音未上屏时覆盖层无对应内容，默认透明会看不到） */
