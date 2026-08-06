@@ -7,7 +7,7 @@
 // 对账冲突（children 渲染会抛 NotFoundError）；每次渲染后经 rAF restoreCaret 恢复光标。
 // token 间空白以文本段保留（.notionField white-space: pre-wrap 不折叠），draft 与
 // textContent 双向一致，编辑不会吞掉用户输入的空格。
-import { useEffect, useMemo, useRef, useState, type CompositionEvent, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type CompositionEvent, type FormEvent, type KeyboardEvent } from "react";
 import { tokenizeFormula, operatorCandidates, replaceToken } from "./expression-trigger";
 import { NodeCandidateMenu, type CandidateItem } from "./NodeCandidateMenu";
 import styles from "./NodeField.module.css";
@@ -184,16 +184,25 @@ export function NodeFormulaField({ value, onCommit, candidates, placeholder, ari
   };
 
   /** 输入 → 更新草稿 + token 渲染 + 候选弹层 */
-  const onInput = () => {
+  const onInput = (e?: FormEvent<HTMLDivElement>) => {
     const el = editRef.current;
     if (!el) return;
+    // IME 状态以事件为准：明确非组合的 input（isComposing === false）即复位
+    // composingRef——React 委托可能丢失 compositionend（compositionstart 已触发、
+    // end 未达 root），ref 一旦卡 true，所有输入都会跳过光标恢复与候选弹层
+    // （光标跳回开头）。isComposing 直读原生事件；undefined（jsdom 模拟）不改变状态。
+    const native = (e as unknown as { nativeEvent?: InputEvent })?.nativeEvent;
+    if (native && native.isComposing === false) composingRef.current = false;
     const next = el.textContent ?? "";
     const offset = caretOffset(el);
     setDraft(next);
     dirtyRef.current = true;
     if (composingRef.current) return; // IME 组合期不弹层
-    // 渲染替换 innerHTML 会丢选区：重渲染后经 rAF 按原 offset 恢复光标（textContent 双向一致）
-    requestAnimationFrame(() => { if (editRef.current) restoreCaret(editRef.current, offset); });
+    // 渲染替换 innerHTML 会丢选区：重渲染后恢复光标（textContent 双向一致）。
+    // 用 microtask 而非 rAF——离散 input 事件下 React 同步渲染，onInput 返回时 DOM 已更新，
+    // microtask 立即恢复；rAF 要等下一帧（≤16ms），快速连续输入（字符间隔 < 一帧）时
+    // 下一字符落在光标未恢复的窗口期会插到开头（真机实测）。
+    queueMicrotask(() => { if (editRef.current) restoreCaret(editRef.current, offset); });
     const ctx = candidatesFor(next, offset);
     if (!ctx) { setMenu(null); return; }
     const rect = el.getBoundingClientRect();

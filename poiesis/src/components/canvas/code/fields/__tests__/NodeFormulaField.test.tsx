@@ -182,9 +182,23 @@ describe("NodeFormulaField 草稿提交与候选菜单", () => {
   it("IME 组合输入期间不弹候选", () => {
     const { el } = setup();
     fireEvent.compositionStart(el);
-    fireEvent.input(el, { target: { textContent: "中" } });
+    // 组合期间 input 的 isComposing 为 true（真实浏览器语义；jsdom 默认 false 需显式给）
+    fireEvent.input(el, { target: { textContent: "中" }, isComposing: true });
     expect(screen.queryByRole("listbox")).toBeNull();
     fireEvent.compositionEnd(el, { target: { textContent: "中" } });
+  });
+
+  it("compositionend 丢失后非组合 input 复位 IME 状态——候选弹层恢复（卡死兜底）", () => {
+    // RED（2026-08-06 真机）：React 委托可能收到 compositionstart 却丢失
+    // compositionend → composingRef 卡 true → 所有输入跳过光标恢复与候选弹层
+    // （光标每次输入跳回开头）。修复：非组合 input（isComposing === false）即复位。
+    const { el } = setup();
+    fireEvent.compositionStart(el);
+    fireEvent.input(el, { target: { textContent: "中" }, isComposing: true });
+    expect(screen.queryByRole("listbox")).toBeNull(); // 组合中不弹
+    // 组合结束后的提交 input：真实浏览器 isComposing=false → 复位 composingRef
+    fireEvent.input(el, { target: { textContent: "变量" }, isComposing: false });
+    expect(screen.getByRole("listbox")).toBeTruthy(); // 弹层恢复
   });
 
   it("IME 组合结束保留组合文本外的既有字符（真实浏览器 DOM 已上屏，不整树覆盖）", () => {
