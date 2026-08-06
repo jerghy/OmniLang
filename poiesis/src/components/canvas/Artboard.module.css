@@ -3,7 +3,9 @@
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  background: var(--ol-surface);
+  /* 预览兜底背景：固定中性白，独立于 poiesis 主题 token；
+     omniview 代码（组件 style/class）显式设置的背景会覆盖此兜底 */
+  background: #fff;
   box-shadow: 0 0 0 1px var(--ol-border), 0 4px 24px rgba(0, 0, 0, 0.08);
   border-radius: var(--ol-radius-sm);
   display: flex;
