@@ -21,8 +21,11 @@ map to an implementation status — the brief's 语义集条目 → 实现状态
 Cross-assertions pin the universe to the compiler's actual whitelists — the
 same ground truth verify-vocabulary.py (Task 7.1) consumes:
 
-  motion  ↔ semantic_anim_prop production in the BNF spec
-            (19 属性白名单 — the implemented subset of the animatable set)
+  motion  ↔ SEMANTIC_ANIM_PROPS in
+            crates/omnilang-core/src/parser/top_level/motion.rs
+            (19 属性白名单 — the implemented subset of the animatable set;
+            v4 D-V4-9: parser 常量是事实源，原 BNF semantic_anim_prop
+            production 降级为「文档 ⊆ 代码」单向检查)
   array   ↔ ARRAY_METHODS in crates/omnilang-core/src/semantic/validate_array_methods.rs
             (filter/map/count — the implemented language methods)
   events  ↔ canonical names in crates/omnilang-core/src/codegen/shared/event_names.rs
@@ -31,8 +34,9 @@ same ground truth verify-vocabulary.py (Task 7.1) consumes:
             台账「全目标支持」以编译器的 Flutter 映射事实为源，不再自证)
   RefOp   ↔ RefOpIR variants in crates/omnilang-core/src/ir/types.rs
             (RefOp 10 ops)
-  token   ↔ token_type production in the BNF spec
-            (13 types)
+  token   ↔ parse_token_type match arms in
+            crates/omnilang-core/src/parser/design.rs
+            (13 types — parser-accepted lowercase names; v4 同重指向)
 
 A whitelist word missing from the universe — or a universe entry without a
 status, or an entry claiming 支持/部分 while outside the whitelist — fails
@@ -60,6 +64,12 @@ ARRAY_VALIDATE_FILE = os.path.join(
     REPO_ROOT, "crates", "omnilang-core", "src", "semantic", "validate_array_methods.rs"
 )
 REFOP_IR_FILE = os.path.join(REPO_ROOT, "crates", "omnilang-core", "src", "ir", "types.rs")
+MOTION_ANIM_FILE = os.path.join(
+    REPO_ROOT, "crates", "omnilang-core", "src", "parser", "top_level", "motion.rs"
+)
+DESIGN_PARSER_FILE = os.path.join(
+    REPO_ROOT, "crates", "omnilang-core", "src", "parser", "design.rs"
+)
 BNF_SPEC_FILE = os.path.join(
     REPO_ROOT, "docs", "superpowers", "specs",
     "2026-07-31-semantic-level-dsl-syntax-spec.md",
@@ -74,6 +84,7 @@ DOMAIN_TITLES = {
     3: "事件",
     4: "RefOp",
     5: "design token",
+    6: "值绑定",  # v4 5.3 (domain HIGH-3): bind 域——无编译器白名单常量，无交叉断言
 }
 # Required sub-section headers per domain.
 REQUIRED_SUBSECTIONS = ("语义域定义", "语义集条目", "已实现白名单")
@@ -113,12 +124,32 @@ def array_method_words(text):
     return sorted(set(re.findall(r'"([^"]+)"', m.group(1)))) if m else None
 
 
+def rust_str_array(text, const_name):
+    """Words of a `const NAME: &[&str] = &["a", "b", ...];` array literal."""
+    m = re.search(rf'{re.escape(const_name)}[^=]*=\s*&\[(.*?)\]', text, re.S)
+    return sorted(set(re.findall(r'"([^"]+)"', m.group(1)))) if m else None
+
+
 def refop_variants(text):
     """RefOpIR enum variant names (RefOp 10 ops)."""
     m = re.search(r'pub enum RefOpIR \{(.*?)\n\}', text, re.S)
     if not m:
         return None
     return sorted({v for v in re.findall(r'^    ([A-Z][A-Za-z]+)\b', m.group(1), re.M)})
+
+
+def anim_props_from_parser(text):
+    """SEMANTIC_ANIM_PROPS（parser/top_level/motion.rs:14）——motion 白名单
+    的编译器事实源（v4 D-V4-9：原从 Superseded BNF production 提取，三文档
+    可自洽同步漂移——systems MEDIUM-3）。"""
+    return rust_str_array(text, "SEMANTIC_ANIM_PROPS")
+
+
+def token_types_from_parser(text):
+    """parse_token_type 的 match 臂引号名（parser/design.rs:251）——token
+    类型白名单的编译器事实源（v4 同重指向；13 类型，parser 接受的 lowercase
+    名——`"color" => Ok((TokenType::Color, ...))` 形状）。"""
+    return sorted(set(re.findall(r'"([A-Za-z]+)"\s*=>\s*Ok\(\(TokenType::', text)))
 
 
 def bnf_production_words(text, lhs):
@@ -245,7 +276,7 @@ def audit():
 
     universe = read_file(UNIVERSE_FILE)
     sections = split_domains(universe)
-    for n in range(1, 6):
+    for n in range(1, 7):  # v4: 含域 6（值绑定，5.3 新建）——此前 range(1,6) 对域 6 空转
         if n not in sections:
             fail(f"domain {n} missing (expected '## 域 {n}: …{DOMAIN_TITLES[n]}…')")
             continue
@@ -347,10 +378,25 @@ def audit():
 
     bnf = read_file(BNF_SPEC_FILE)
 
-    # motion (域 1): whitelist == BNF semantic_anim_prop (19)
+    def bnf_doc_subset(label, lhs, code_words):
+        """「文档 ⊆ 代码」单向检查（v4 D-V4-9）——Superseded BNF production
+        仍被机器引用但不再作事实源：其词汇必须是 parser 白名单的子集（文档
+        不得宣称代码没有的词汇）；反向（代码 ⊆ 文档）由 whitelist 断言承担。"""
+        bnf_words = bnf_production_words(bnf, lhs)
+        if bnf_words is None:
+            fail(f"domain {label}: cannot check BNF production '{lhs}' (extraction failed)")
+            return
+        extra = sorted(set(bnf_words) - set(code_words))
+        if extra:
+            fail(f"domain {label}: BNF '{lhs}' claims words absent from the parser whitelist (文档 ⊆ 代码 violated): {extra}")
+
+    # motion (域 1): whitelist == parser SEMANTIC_ANIM_PROPS (19);
+    # v4: BNF semantic_anim_prop production 降级为「文档 ⊆ 代码」单向检查
     wl1, en1 = whitelist(1), entries(1)
-    assert_set("motion", wl1, bnf_production_words(bnf, "semantic_anim_prop"), "已实现白名单")
+    motion_props = anim_props_from_parser(read_file(MOTION_ANIM_FILE))
+    assert_set("motion", wl1, motion_props, "已实现白名单")
     assert_matrix("motion", en1, wl1)
+    bnf_doc_subset("motion", "semantic_anim_prop", motion_props)
 
     # array (域 2): whitelist == ARRAY_METHODS (filter/map/count)
     wl2, en2 = whitelist(2), entries(2)
@@ -378,10 +424,13 @@ def audit():
     assert_set("RefOp", wl4, refop_variants(read_file(REFOP_IR_FILE)), "已实现白名单", casefold=True)
     assert_matrix("RefOp", en4, wl4, casefold=True)
 
-    # design token (域 5): whitelist == BNF token_type (13)
+    # design token (域 5): whitelist == parser token type match arms (13);
+    # v4: BNF token_type production 降级为「文档 ⊆ 代码」单向检查
     wl5, en5 = whitelist(5), entries(5)
-    assert_set("design token", wl5, bnf_production_words(bnf, "token_type"), "已实现白名单")
+    token_types = token_types_from_parser(read_file(DESIGN_PARSER_FILE))
+    assert_set("design token", wl5, token_types, "已实现白名单")
     assert_matrix("design token", en5, wl5)
+    bnf_doc_subset("design token", "token_type", token_types)
 
     return problems
 

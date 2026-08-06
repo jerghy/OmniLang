@@ -20,12 +20,15 @@ the same ground truth the codegen and semantic passes consume:
   a11y role   ↔ FLUTTER_ROLE_SUBSET / LEGACY_FLAG_ROLES / LIVE_VALUES in
                 crates/omnilang-core/src/semantic/validate_a11y.rs
                 (4.3 a11y 词汇 — WAI-ARIA-canonical roles)
-  motion      ↔ semantic_anim_prop production in the BNF spec
-                (19 属性白名单, ADR-053 D3)
+  motion      ↔ SEMANTIC_ANIM_PROPS in
+                crates/omnilang-core/src/parser/top_level/motion.rs
+                (19 属性白名单 — v4 D-V4-9: parser 常量是事实源；原 BNF
+                semantic_anim_prop production 降级为「文档 ⊆ 代码」单向检查)
   RefOp       ↔ RefOpIR variants in crates/omnilang-core/src/ir/types.rs
                 (RefOp 10 ops)
-  token type  ↔ token_type production in the BNF spec
-                (13 类型 — parser-accepted lowercase names)
+  token type  ↔ parse_token_type match arms in
+                crates/omnilang-core/src/parser/design.rs
+                (13 类型 — parser-accepted lowercase names; v4 同重指向)
 
 A word added to any compiler whitelist forces the registry to learn it and
 vice versa — the registry can never drift from the whitelists, and a platform
@@ -53,6 +56,12 @@ A11Y_VALIDATE_FILE = os.path.join(
     REPO_ROOT, "crates", "omnilang-core", "src", "semantic", "validate_a11y.rs"
 )
 REFOP_IR_FILE = os.path.join(REPO_ROOT, "crates", "omnilang-core", "src", "ir", "types.rs")
+MOTION_ANIM_FILE = os.path.join(
+    REPO_ROOT, "crates", "omnilang-core", "src", "parser", "top_level", "motion.rs"
+)
+DESIGN_PARSER_FILE = os.path.join(
+    REPO_ROOT, "crates", "omnilang-core", "src", "parser", "design.rs"
+)
 BNF_SPEC_FILE = os.path.join(
     REPO_ROOT, "docs", "superpowers", "specs",
     "2026-07-31-semantic-level-dsl-syntax-spec.md",
@@ -107,6 +116,20 @@ def refop_variants(text):
     if not m:
         return None
     return sorted({v for v in re.findall(r'^    ([A-Z][A-Za-z]+)\b', m.group(1), re.M)})
+
+
+def anim_props_from_parser(text):
+    """SEMANTIC_ANIM_PROPS（parser/top_level/motion.rs:14）——motion 白名单
+    的编译器事实源（v4 D-V4-9：原从 Superseded BNF production 提取，三文档
+    可自洽同步漂移——systems MEDIUM-3）。"""
+    return rust_str_array(text, "SEMANTIC_ANIM_PROPS")
+
+
+def token_types_from_parser(text):
+    """parse_token_type 的 match 臂引号名（parser/design.rs:251）——token
+    类型白名单的编译器事实源（v4 同重指向；13 类型，parser 接受的 lowercase
+    名——`"color" => Ok((TokenType::Color, ...))` 形状）。"""
+    return sorted(set(re.findall(r'"([A-Za-z]+)"\s*=>\s*Ok\(\(TokenType::', text)))
 
 
 def bnf_production_words(text, lhs):
@@ -243,12 +266,26 @@ def audit():
         if overlap:
             fail(f"domain 事件: 排除词汇 overlaps 语义词汇 (借词违规): {overlap}")
 
+    def bnf_doc_subset(label, lhs, code_words):
+        """「文档 ⊆ 代码」单向检查（v4 D-V4-9）——Superseded BNF production
+        仍被机器引用但不再作事实源：其词汇必须是 parser 白名单的子集（文档
+        不得宣称代码没有的词汇）；反向（代码 ⊆ 文档）由 registry 断言承担。"""
+        bnf_words = bnf_production_words(bnf, lhs)
+        if bnf_words is None:
+            fail(f"domain {label}: cannot check BNF production '{lhs}' (extraction failed)")
+            return
+        extra = sorted(set(bnf_words) - set(code_words))
+        if extra:
+            fail(f"domain {label}: BNF '{lhs}' claims words absent from the parser whitelist (文档 ⊆ 代码 violated): {extra}")
+
+    bnf = read_file(BNF_SPEC_FILE)
+
     # a11y (4.3): primitives == a11y_entry BNF; role 子集 == FLUTTER_ROLE_SUBSET;
     # live 值域 == LIVE_VALUES; 排除词汇 == legacy flag names
     if 2 in sections:
         title, body = sections[2]
         a11y_src = read_file(A11Y_VALIDATE_FILE)
-        assert_set("a11y", vocab(2), bnf_production_words(read_file(BNF_SPEC_FILE), "a11y_entry"), "语义词汇")
+        assert_set("a11y", vocab(2), bnf_production_words(bnf, "a11y_entry"), "语义词汇")
         for header, const_name in A11Y_EXTRA_SUBSECTIONS.items():
             sub = first_column_rows(subsection(body, header))
             if sub is None:
@@ -263,8 +300,11 @@ def audit():
             else:
                 assert_set("a11y", ex_a11y, [name for name, _ in legacy], "排除词汇")
 
-    # motion: registry vocabulary == BNF semantic_anim_prop (19 属性白名单)
-    assert_set("motion", vocab(3), bnf_production_words(read_file(BNF_SPEC_FILE), "semantic_anim_prop"), "语义词汇")
+    # motion: registry vocabulary == parser SEMANTIC_ANIM_PROPS (19 属性白名单);
+    # v4: BNF semantic_anim_prop production 降级为「文档 ⊆ 代码」单向检查
+    motion_props = anim_props_from_parser(read_file(MOTION_ANIM_FILE))
+    assert_set("motion", vocab(3), motion_props, "语义词汇")
+    bnf_doc_subset("motion", "semantic_anim_prop", motion_props)
 
     # RefOp: registry vocabulary (casefolded) == RefOpIR variants (10 ops)
     refop = vocab(4)
@@ -275,8 +315,11 @@ def audit():
         else:
             assert_set("RefOp", [w.casefold() for w in refop], [v.casefold() for v in variants], "语义词汇")
 
-    # design token: registry vocabulary == BNF token_type (13 类型)
-    assert_set("design token", vocab(5), bnf_production_words(read_file(BNF_SPEC_FILE), "token_type"), "语义词汇")
+    # design token: registry vocabulary == parser token type match arms (13 类型);
+    # v4: BNF token_type production 降级为「文档 ⊆ 代码」单向检查
+    token_types = token_types_from_parser(read_file(DESIGN_PARSER_FILE))
+    assert_set("design token", vocab(5), token_types, "语义词汇")
+    bnf_doc_subset("design token", "token_type", token_types)
 
     # borrow-word rule across all domains: 排除词汇 must be disjoint from 语义词汇
     for n, label in ((1, "事件"), (2, "a11y"), (3, "motion"), (4, "RefOp"), (5, "design token")):

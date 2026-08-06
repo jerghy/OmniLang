@@ -6,6 +6,12 @@
 **关联设计文档**: `docs/superpowers/plans/2026-07-31-semantic-level-dsl-design.md`
 **当前生效设计**: `docs/superpowers/specs/2026-08-02-semantic-syntax-v2-design.md`（唯一权威——状态 Implemented；BNF 与行为事实均以 v2 设计文档 + parser 为准。本 v1 规范为 Superseded 历史基线，事实断言不再单独维护；2026-08-03 修正了本文件中已证伪的断言，见 §3.4/§3.6/§12/§13）
 
+> **⚠️ machine-pinned（v4 注记）**：本文件仍被 verify-vocabulary.py /
+> verify-semantic-universe.py 的「文档 ⊆ 代码」单向检查引用——**不得删除**。
+> 事实断言已重指向 parser 常量（SEMANTIC_ANIM_PROPS / event_names.rs /
+> RefOpIR——见 scripts/verify-vocabulary.py 与 verify-semantic-universe.py）；
+> 本文件仅作 BNF 教学参考。
+
 ---
 
 ## 1. 设计哲学
