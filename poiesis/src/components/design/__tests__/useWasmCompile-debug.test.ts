@@ -31,7 +31,10 @@ vi.mock("../../../services/codegen/pipeline", () => ({
     },
     errors: [],
   }),
-  generateOmniFragment: () => ({ value: null, errors: [] }),
+  generateOmniFragment: (args: { componentName: string }) => ({
+    value: `signal status: String = "loading";\ncomponent ${args.componentName} {\n  signal status: String = "loading";\n  view { <p>{status}</p> }\n}`,
+    errors: [],
+  }),
 }));
 
 vi.mock("../../../services/codegen/design-emitter", () => ({ emitDesignSource: () => null }));
@@ -53,7 +56,12 @@ function baseline() {
     wires: [],
     rootOrder: ["e1"],
     componentDefs: {},
-    designPage: { ...usePoiesisStore.getState().designPage, codeFlowVisible: false },
+    designPage: {
+      ...usePoiesisStore.getState().designPage,
+      codeFlowVisible: false,
+      activeTabId: null,
+      openTabs: [],
+    },
     debugValues: {
       main: { status: { text: '"error"', valid: true } },
     },
@@ -73,6 +81,46 @@ describe("useWasmCompile 调试覆盖接线", () => {
     await act(async () => { await new Promise((r) => setTimeout(r, 200)); });
     const sources = mockResolve.mock.calls[0]?.[0] as Record<string, string>;
     expect(sources["src/main.omni"]).toContain('signal status: String = "error";');
+  });
+
+  it("组件 tab 活动时：组件 ownerKey 调试值覆盖生效（Card → done）", async () => {
+    usePoiesisStore.setState({
+      componentDefs: {
+        Card: {
+          name: "Card",
+          filePath: "src/components/Card.omni",
+          signals: [],
+          props: [],
+          computeds: [],
+          events: [],
+          fns: [],
+          elements: [ELEMENT],
+          wires: [],
+          rootOrder: ["e1"],
+        },
+      },
+      designPage: {
+        ...usePoiesisStore.getState().designPage,
+        activeTabId: "t-card",
+        openTabs: [
+          {
+            id: "t-card",
+            filePath: "src/components/Card.omni",
+            componentName: "Card",
+            isDirty: false,
+            pidMap: { status: "ok", entries: {}, lineToPid: {} },
+            tabType: "component",
+          },
+        ],
+      },
+      debugValues: {
+        Card: { status: { text: '"done"', valid: true } },
+      },
+    });
+    renderHook(() => useWasmCompile());
+    await act(async () => { await new Promise((r) => setTimeout(r, 200)); });
+    const sources = mockResolve.mock.calls[0]?.[0] as Record<string, string>;
+    expect(sources["src/components/Card.omni"]).toContain('signal status: String = "done";');
   });
 
   it("总开关 off → 调试值不参与覆盖", async () => {
