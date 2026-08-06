@@ -274,8 +274,23 @@ impl OmniViewGenerator {
                 };
                 match method.as_str() {
                     "to_string" => format!("String({})", obj),
-                    "len" => format!("({} || []).length", obj),
-                    "is_empty" => format!("({} || []).length === 0", obj),
+                    "len" => {
+                        // Map literals compile to plain JS objects (no native
+                        // Map) — `({} || []).length` is undefined on objects.
+                        // Arrays/strings keep `.length`; objects fall back to
+                        // own-key count; null/undefined → 0 (mirrors the
+                        // `|| []` null-safety of the previous shape).
+                        format!(
+                            "((_c) => Array.isArray(_c) || typeof _c === \"string\" ? _c.length : (_c ? Object.keys(_c).length : 0))({obj})"
+                        )
+                    }
+                    "is_empty" => {
+                        // Same dispatch as `len` — an object's size is its
+                        // own-key count, not `undefined === 0`.
+                        format!(
+                            "((_c) => Array.isArray(_c) || typeof _c === \"string\" ? _c.length : (_c ? Object.keys(_c).length : 0))({obj}) === 0"
+                        )
+                    }
                     "get" => {
                         let idx = args.first().map(|a| self.expr_to_js(a)).unwrap_or_default();
                         format!("({} || [])[{}]", obj, idx)

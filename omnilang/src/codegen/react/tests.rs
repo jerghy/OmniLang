@@ -606,6 +606,58 @@ fn test_tsx_stmt_mutation_assign_signal_external_value_keeps_direct() {
     assert_eq!(w.into_string(), "setCount(step);\n");
 }
 
+/// M2 struct-literal regression: `stats = Stats { name: stats.name, ... }`
+/// (self-read through a struct literal) must wrap the object so TS does not
+/// parse it as an arrow block body — `setStats((s) => ({ ... }))`, not
+/// `setStats((s) => { ... })` (TS1005).
+#[test]
+fn test_tsx_stmt_mutation_assign_signal_self_read_struct_literal_wrapped() {
+    let mut w = CodeWriter::new();
+    let stmt = StatementIR::MutationStmt {
+        intent: Some(MutationIntent::DirectAssign {
+            target: SignalRefIR {
+                name: "stats".into(),
+            },
+            value: Some(Box::new(ExprIR::StructExpr {
+                type_name: "StatisticsData".into(),
+                fields: vec![
+                    ("name".into(), ExprIR::FieldAccessExpr {
+                        object: Box::new(ExprIR::ident("stats")),
+                        field: "name".into(),
+                    }),
+                    ("count".into(), ExprIR::BinaryOpExpr {
+                        op: BinaryOpIR::Add,
+                        left: Box::new(ExprIR::FieldAccessExpr {
+                            object: Box::new(ExprIR::ident("stats")),
+                            field: "count".into(),
+                        }),
+                        right: Box::new(ExprIR::LiteralExpr {
+                            value: serde_json::json!(1),
+                        }),
+                    }),
+                ],
+            })),
+            field_object: None,
+        }),
+    };
+    let mut sig_names = FxHashSet::default();
+    sig_names.insert("stats".to_string());
+    generate_statement_tsx(
+        &mut w,
+        &stmt,
+        &sig_names,
+        &FxHashMap::default(),
+        &FxHashSet::default(),
+        &FxHashMap::default(),
+        &FxHashSet::default(),
+        &FxHashSet::default(),
+    );
+    assert_eq!(
+        w.into_string(),
+        "setStats((s) => ({ \"name\": s.name, \"count\": s.count + 1 }));\n"
+    );
+}
+
 /// `AppStore.count = AppStore.count + 1` on a store signal must emit the
 /// functional `useAppStore.setState((s) => ({ count: s.count + 1 }))` —
 /// the object form `setState({ count: AppStore.count + 1 })` reads a stale
@@ -1956,6 +2008,89 @@ fn literal_never_mutated_signal_hoisted() {
     assert!(
         decl < fn_start,
         "literal signal must be module-scoped: {}",
+        tsx
+    );
+}
+
+/// MapOperationsDemo gate regression: a hoisted Map literal const must carry
+/// its `Record<K,V>` annotation — a bare object literal infers a narrow type
+/// whose keys cannot be indexed by `string` (TS7053). Scalars keep their
+/// literal inference (no annotation).
+#[test]
+fn hoisted_map_signal_const_annotated_scalar_untouched() {
+    let out = compile_react(
+        r#"
+        component V {
+            signal endpoints: Map<String, String> = { "dev": "http://localhost:3000", "prod": "https://api.example.com" };
+            signal env: String = "staging";
+            view {
+                <div>{endpoints.get(env)}</div>
+            }
+        }
+        "#,
+    )
+    .expect("compile must succeed");
+    let tsx = out.files.get("V.tsx").expect("V.tsx emitted");
+    assert!(
+        tsx.contains("const endpoints: Record<string, string> = {"),
+        "hoisted Map const must be annotated with Record: {}",
+        tsx
+    );
+    assert!(
+        !tsx.contains("const env: string"),
+        "scalar hoisted const keeps literal inference (no annotation): {}",
+        tsx
+    );
+}
+
+/// `.len()` on component-signal receivers currently emits the RUNTIME
+/// dispatch form (`Array.isArray(...) ? .length : Object.keys(...).length`)
+/// — semantically identical for arrays/strings/objects, just noisier.
+/// The typed static form (`items.length`, `Object.keys(counts).length`) is
+/// the design target (see the typed arms in `translate_method_call` and
+/// `format_method_call_with_ir`) but is DEAD CODE today: `lower_expr` reads
+/// `IdentifierExpr.type_ann` from the semantic symbol table, and lowering
+/// runs against FRESH scopes (`ir/lower/mod.rs` pushes new `component:` /
+/// `fn:` scopes) whose chain never reaches the scopes where `collect.rs`
+/// declared the component symbols — so `type_ann` is always `None` on
+/// identifier IR (verified experimentally, 2026-08-06). Deferred: attach
+/// `type_ann` in lowering (core fix; would activate typed dispatch on
+/// React/Dart/Flutter simultaneously — needs a cross-target regression
+/// pass before landing).
+#[test]
+fn react_len_runtime_dispatch_until_type_ann_lands() {
+    let out = compile_react(
+        r#"
+        component V {
+            signal items: Array<String> = ["a", "b"];
+            signal label: String = "hi";
+            signal counts: Map<String, i32> = { "a": 1 };
+            computed n: i32 = items.len() + label.len() + counts.len();
+            view {
+                <div>{n}</div>
+            }
+        }
+        "#,
+    )
+    .expect("compile must succeed");
+    let tsx = out.files.get("V.tsx").expect("V.tsx emitted");
+    assert!(
+        tsx.contains("((_c) => Array.isArray(_c)"),
+        "component-signal .len() keeps the runtime dispatch until type_ann \
+         attachment lands (never a crash — semantically identical): {}",
+        tsx
+    );
+    assert!(
+        !tsx.contains("items.length + label.length"),
+        "no stale typed-form assertion: {}",
+        tsx
+    );
+    // The three receivers must ALL dispatch — nothing is statically typed
+    // through the IR today.
+    assert_eq!(
+        tsx.matches("Array.isArray(_c)").count(),
+        3,
+        "one dispatch per .len() receiver: {}",
         tsx
     );
 }
@@ -4622,13 +4757,13 @@ component RefOps {
         "boxRef.current?.blur();",
         "boxRef.current?.scrollTo({ left: x, top: y });",
         "boxRef.current?.scrollBy({ left: 1, top: 2 });",
-        "boxRef.current?.getBoundingClientRect();",
-        "boxRef.current?.getBoundingClientRect().width;",
-        "boxRef.current?.getBoundingClientRect().height;",
-        "boxRef.current?.getBoundingClientRect();",
+        "boxRef.current?.getBoundingClientRect() ?? { left: 0, top: 0, right: 0, bottom: 0, x: 0, y: 0, width: 0, height: 0 };",
+        "boxRef.current?.getBoundingClientRect().width ?? 0;",
+        "boxRef.current?.getBoundingClientRect().height ?? 0;",
+        "boxRef.current?.getBoundingClientRect() ?? { left: 0, top: 0, right: 0, bottom: 0, x: 0, y: 0, width: 0, height: 0 };",
         "boxRef.current?.select();",
         "boxRef.current?.setSelectionRange(0, 3);",
-        "boxRef.current?.value;",
+        "boxRef.current?.value ?? '';",
         // Design D3: parameterless ops capture the ACTIVE pointer via the
         // module-scope tracker (no event object is in scope inside fns).
         "boxRef.current?.setPointerCapture(__omni_activePointerId!);",
@@ -4664,6 +4799,73 @@ component RefOps {
     assert!(
         !content.contains("if (typeof window !== \"undefined\")"),
         "the module-level guarded addEventListener must be gone. Got:\n{}",
+        content
+    );
+}
+
+/// Test: FIELD ACCESS on a ref-op RESULT (`ref.measure().y`) parenthesizes
+/// the coalesced output — `A ?? {...}.y` would bind the field to the
+/// zero-rect FALLBACK literal (member access binds tighter than `??`), so
+/// the result is `(A ?? {...}).y`. Covers both the fn-body path (shared
+/// FormatExpr::format_ref_op_field_access hook) and the renamed-locals path
+/// (computed/state-init expressions).
+#[test]
+fn test_react_ref_op_field_access_parenthesizes_coalesced_result() {
+    let source = r#"
+component RefFieldAccess {
+  signal info: String = ""
+  ref rectBox: Element
+  ref scrollArea: Element
+  fn query() {
+    let pos = rectBox.measure().y
+    scrollArea.scrollTo(0, rectBox.measure().y)
+    let w = rectBox.measure().width
+    info = w
+  }
+  view {
+    <div ref:rectBox @onClick={query}>box</div>
+    <div ref:scrollArea>scroll</div>
+  }
+}
+"#;
+    let output = compile_react(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    let zero_rect =
+        "{ left: 0, top: 0, right: 0, bottom: 0, x: 0, y: 0, width: 0, height: 0 }";
+    // Field access must land on the PARENTHESIZED coalesced result, not on
+    // the fallback literal (`.y` on the fresh zero-rect is always undefined).
+    assert!(
+        content.contains(&format!(
+            "const pos = (rectBoxRef.current?.getBoundingClientRect() ?? {zero_rect}).y;"
+        )),
+        "let-bound measure().y must parenthesize. Got:\n{}",
+        content
+    );
+    assert!(
+        content.contains(&format!(
+            "scrollAreaRef.current?.scrollTo({{ left: 0, top: (rectBoxRef.current?.getBoundingClientRect() ?? {zero_rect}).y }});"
+        )),
+        "nested measure().y inside scrollTo args must parenthesize. Got:\n{}",
+        content
+    );
+    assert!(
+        content.contains(&format!(
+            "const w = (rectBoxRef.current?.getBoundingClientRect() ?? {zero_rect}).width;"
+        )),
+        "measure().width field access must parenthesize. Got:\n{}",
+        content
+    );
+    // The fallback literal must never sit bare next to the field (`?? {...}.y`).
+    assert!(
+        !content.contains(&format!(
+            "getBoundingClientRect() ?? {zero_rect}.y"
+        )),
+        "bare `?? {{...}}.y` must never be emitted (binds to the fallback). Got:\n{}",
         content
     );
 }
@@ -6145,10 +6347,14 @@ fn react_store_reads_use_slice_selectors() {
         "no whole-store subscription may be emitted. Got:\n{}",
         content
     );
-    // Read sites are rewritten to the slice locals.
+    // Read sites are rewritten to the slice locals. Store fields carry no
+    // static type through the IR, so `.len()` on one falls back to the
+    // runtime dispatch (`Array.isArray(...) ? .length : Object.keys(...)`)
+    // — semantically identical for arrays, zero static-noise for the
+    // typed-local path (see react_typed_len_uses_static_length).
     assert!(
-        content.contains("{items.length}"),
-        "view read must use the slice local. Got:\n{}",
+        content.contains("))(items)}"),
+        "view read must use the slice local via runtime len dispatch. Got:\n{}",
         content
     );
     assert!(
@@ -6262,8 +6468,8 @@ component CartView {
         content
     );
     assert!(
-        content.contains("{CartStore.items.length}"),
-        "qualified read preserved on collision. Got:\n{}",
+        content.contains("))(CartStore.items)}"),
+        "qualified read preserved on collision (runtime len dispatch). Got:\n{}",
         content
     );
     assert!(
@@ -6536,8 +6742,8 @@ component AliasView {
         content
     );
     assert!(
-        content.contains("{AliasStore.items.length}"),
-        "qualified reads preserved with the whole-store object. Got:\n{}",
+        content.contains("))(AliasStore.items)}"),
+        "qualified reads preserved with the whole-store object (runtime len dispatch). Got:\n{}",
         content
     );
 }

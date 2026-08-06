@@ -697,7 +697,7 @@ impl ReactCodegen {
             &mutated_signals,
             &module_reserved_names,
         );
-        state::gen_hoisted_signal_consts(&mut w, comp, &hoisted_signals, &store_field_renames);
+        state::gen_hoisted_signal_consts(&mut w, comp, &hoisted_signals, &store_field_renames, &user_types);
 
         // Component function signature
         if !has_props {

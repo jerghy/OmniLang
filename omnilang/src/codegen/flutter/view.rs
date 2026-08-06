@@ -83,6 +83,14 @@ pub(crate) struct ViewContext<'a> {
     /// the entire expression executes at LAYOUT time, so EVERY store read is
     /// hoisted, not just closure-internal ones.
     pub(crate) lazy_context: bool,
+    /// Component-level static-type scope (signals + computeds) — the shared
+    /// Dart method table (get/contains/concat shaping) reads
+    /// `IdentifierExpr.type_ann`, which the IR never populates (lower
+    /// resolves against fresh scopes); this scope re-annotates view-tree
+    /// expressions the same way fn/effect bodies are annotated in mod.rs
+    /// (Task 5.8a). Without it a typed Map signal's `contains` fell to the
+    /// runtime `is Map` dispatch — unnecessary_type_check under dart analyze.
+    pub(crate) comp_type_scope: &'a FxHashMap<String, String>,
 }
 
 impl ViewContext<'_> {
@@ -178,6 +186,12 @@ impl ViewContext<'_> {
     /// In `lazy_context` (ListView itemBuilder) every read is hoisted, since
     /// the whole expression executes at layout time.
     fn format_expr(&mut self, expr: &ExprIR) -> String {
+        // Task 5.8a: re-annotate IdentifierExpr type_ann from the
+        // component's signals/computeds (see comp_type_scope doc) BEFORE the
+        // rewrites — the shared method table shapes get/contains/concat from
+        // the static types. Unannotated identifiers (loop vars, props) keep
+        // the runtime dispatch, unchanged.
+        let expr = super::type_annotate::annotate_expr_types(expr, self.comp_type_scope);
         // Task 3.7: hoist FIRST — the closure walk must see the ORIGINAL
         // store-access nodes (`S.filter`), before rewrite_store_accesses
         // turns them into `ref.watch(...)` method calls. The hoisted locals
@@ -188,7 +202,7 @@ impl ViewContext<'_> {
             self.lazy_context,
             self.hoist_next,
         );
-        let (expr, locals) = hoister.hoist(expr);
+        let (expr, locals) = hoister.hoist(&expr);
         for (name, read) in &locals {
             self.hoisted
                 .push((name.clone(), format_expr_ir_flutter(read)));
@@ -1510,18 +1524,23 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
         }
         // Task C2b (#4): `data-testid` maps to `key: ValueKey('...')` —
         // the Flutter testing hook (widget tests find elements by key).
+        // Also accepts the untranslated source name `testId` — the Web
+        // backends translate it to `data-testid` at codegen, but Flutter
+        // consumes the raw IR attribute, so without this the documented
+        // `testId → ValueKey` mapping (learn-omniview showcase) degraded
+        // to a "param not supported" warning on every widget.
         // Skipped when a `key` prop already emitted the arg, or when the
         // element's ref binding occupies the slot (the ref's GlobalKey is
         // pushed LATER in the ref section — two `key:` args would not
         // compile; the GlobalKey must win, and the drop is an honest
         // warning, never silent — review MEDIUM-2).
-        if name == "data-testid" {
+        if name == "data-testid" || name == "testId" {
             if let ExprIR::LiteralExpr { value } = value {
                 if let Some(s) = value.as_str() {
                     if el.ref_binding.is_some() {
                         ctx.warn_at(
                             format!(
-                                "[flutter] prop 'data-testid' is dropped on '{widget}': \
+                                "[flutter] prop '{name}' is dropped on '{widget}': \
                                  the element's ref binding occupies the key slot"
                             ),
                             el.source_span,

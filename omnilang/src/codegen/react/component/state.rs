@@ -175,6 +175,7 @@ pub(super) fn gen_hoisted_signal_consts(
     comp: &ComponentIR,
     hoisted_signals: &FxHashSet<String>,
     store_field_renames: &FxHashMap<String, String>,
+    user_types: &FxHashSet<String>,
 ) {
     let mut emitted = false;
     for state in &comp.signals {
@@ -189,11 +190,35 @@ pub(super) fn gen_hoisted_signal_consts(
             &FxHashSet::default(),
             store_field_renames,
         );
-        w.emit_fmt(format_args!("const {} = {};", state.name, init_val));
+        w.emit_fmt(format_args!(
+            "const {}{} = {};",
+            state.name,
+            hoisted_const_annotation(&state.r#type, user_types),
+            init_val
+        ));
         emitted = true;
     }
     if emitted {
         w.emit("");
+    }
+}
+
+/// TS annotation for a hoisted const (perf M3). Only Map-family containers
+/// get one: a bare object literal infers a narrow type whose keys cannot be
+/// indexed by `string` (TS7053 — MapOperationsDemo's `endpoints[env]`),
+/// while scalars keep their literal inference (`const orderStatus =
+/// "shipped"` stays `"shipped"`, not `string`). Mirrors the useState generic
+/// gate: types must resolve in the generated file.
+fn hoisted_const_annotation(ty: &TypeIR, user_types: &FxHashSet<String>) -> String {
+    let is_map = matches!(
+        &ty.kind,
+        TypeKind::Named { name }
+            if matches!(name.as_str(), "Map" | "HashMap" | "FxHashMap" | "Dict" | "Record")
+    );
+    if is_map && js_type_resolves(ty, user_types) {
+        format!(": {}", JsTypeFormatter.format_type(ty.kind.as_str(), &ty.type_args))
+    } else {
+        String::new()
     }
 }
 

@@ -2,7 +2,9 @@
 // Statement generation (TSX)
 // ═══════════════════════════════════════════════════════════
 
-use crate::codegen::shared::expr::FormatExpr;
+use crate::codegen::shared::expr::{
+    expr_is_typed_array, expr_is_typed_map, expr_is_typed_string, FormatExpr,
+};
 use crate::codegen::shared::stmt::FormatStmt;
 use crate::codegen::shared::types::{FormatType, JsTypeFormatter};
 use crate::codegen::CodeWriter;
@@ -162,7 +164,38 @@ impl FormatExpr for ReactFormatExpr {
         if let Some(local) = store_field_rename(&self.renames, obj, method) {
             return format!("{}({})", local, args.join(", "));
         }
-        translate_method_call(obj, method, args)
+        translate_method_call(obj, method, args, None)
+    }
+
+    /// IR-aware method table (shared trait hook, same shape as the Dart
+    /// override): the semantic symbol table's static type annotation on the
+    /// receiver decides `.len()` emission — typed Array/String → direct
+    /// `.length`; typed Map → `Object.keys(...).length` (`.length` is
+    /// undefined on a plain object AND fails tsc on a typed Record receiver).
+    /// Receivers without a static type fall through to the string-level
+    /// table, which keeps the runtime dispatch (semantically identical).
+    fn format_method_call_with_ir(
+        &self,
+        object: &ExprIR,
+        method: &str,
+        args: &[ExprIR],
+        is_optional: bool,
+        obj_str: &str,
+        arg_strs: &[String],
+    ) -> String {
+        if method == "len" && !is_optional {
+            if expr_is_typed_array(object) || expr_is_typed_string(object) {
+                return format!("{obj_str}.length");
+            }
+            if expr_is_typed_map(object) {
+                return format!("Object.keys({obj_str}).length");
+            }
+        }
+        if is_optional {
+            self.format_optional_method_call(obj_str, method, arg_strs)
+        } else {
+            self.format_method_call(obj_str, method, arg_strs)
+        }
     }
 
     /// Optional-chain method call (`obj?.method(args)`) — translate known
@@ -220,6 +253,22 @@ impl FormatExpr for ReactFormatExpr {
         format!("{object}?.{field}")
     }
 
+    /// Field access on a REF-OP RESULT (`rectBox.measure().y`, `sizeBox
+    /// .measure().width`) — ref-op outputs carry a `?? fallback` (zero-rect
+    /// literal, `0`, `''`), and member access binds TIGHTER than `??`, so a
+    /// bare concat (`A ?? {...}.y`) would read the fallback literal's field
+    /// (always `undefined`) instead of the measured result. Parenthesize the
+    /// coalesced result before appending the field — same shape rewrite as
+    /// Flutter's `format_ref_op_field_access` (Offset `dx`/`dy` parity),
+    /// here for JS precedence parity.
+    fn format_ref_op_field_access(&self, object: &ExprIR, field: &str) -> Option<String> {
+        if let ExprIR::RefOpExpr { ref_name, op } = object {
+            Some(format!("({}).{}", self.format_ref_op(ref_name, op), field))
+        } else {
+            None
+        }
+    }
+
     /// Semantic ref ops map to native DOM APIs on `nameRef.current`
     /// (ADR-036 Phase 2). All calls use optional chaining so a not-yet-mounted
     /// ref degrades to a no-op instead of throwing.
@@ -235,9 +284,16 @@ impl FormatExpr for ReactFormatExpr {
                 format_ref_scroll_by(&base, self, dx.as_deref(), dy.as_deref())
             }
             RefOpIR::Measure { what } => match what {
-                MeasureWhat::Position => format!("{base}?.getBoundingClientRect()"),
-                MeasureWhat::Width => format!("{base}?.getBoundingClientRect().width"),
-                MeasureWhat::Height => format!("{base}?.getBoundingClientRect().height"),
+                // Field-reads (`ref.width`) and nested ref-ops
+                // (`scrollTo(0, rect.measure().y)`) flow straight into signal
+                // setters / scroll args — the `?? 0` / zero-rect fallbacks
+                // keep the result's type non-null so TS stays clean (same
+                // `?? 0` semantics as the Flutter `_omni_measure` wrapper).
+                MeasureWhat::Position => format!(
+                    "{base}?.getBoundingClientRect() ?? {{ left: 0, top: 0, right: 0, bottom: 0, x: 0, y: 0, width: 0, height: 0 }}"
+                ),
+                MeasureWhat::Width => format!("{base}?.getBoundingClientRect().width ?? 0"),
+                MeasureWhat::Height => format!("{base}?.getBoundingClientRect().height ?? 0"),
             },
             RefOpIR::Select => format!("{base}?.select()"),
             RefOpIR::SetSelection { start, end } => format!(
@@ -245,7 +301,7 @@ impl FormatExpr for ReactFormatExpr {
                 self.format_expr(start),
                 self.format_expr(end)
             ),
-            RefOpIR::Value => format!("{base}?.value"),
+            RefOpIR::Value => format!("{base}?.value ?? ''"),
             RefOpIR::CapturePointer => {
                 // Parameterless DSL form (design D3) — capture the ACTIVE
                 // pointer. Ref ops can be called from fns/effects/lifecycles
@@ -546,6 +602,15 @@ impl FormatStmt for ReactStmtFormatter {
                             let mut fmt = self.expr.clone();
                             fmt.renames.insert(target_str.clone(), param.clone());
                             let val = fmt.format_expr(v);
+                            // M2 (struct/map value): an object literal after
+                            // `=>` would parse as an arrow block body — wrap
+                            // it, mirroring the store path's `({{ ... }})`
+                            // above (StructExpr emits `{ "k": v, ... }`).
+                            let val = if val.starts_with('{') {
+                                format!("({val})")
+                            } else {
+                                val
+                            };
                             w.emit_fmt(format_args!("{}(({}) => {});", setter, param, val));
                             return;
                         }
@@ -2159,8 +2224,15 @@ pub(super) fn format_expr_ir_tsx_renamed_locals(
                     return local;
                 }
             }
-            let obj_str =
+            let mut obj_str =
                 format_expr_ir_tsx_renamed_locals(object, ref_names, renames, param_names);
+            // Ref-op result field access (`ref.measure().y`): ref-op outputs
+            // carry `?? fallback` and member access binds tighter than `??` —
+            // parenthesize or the field reads the fallback literal (same
+            // precedence parity as format_ref_op_field_access above).
+            if matches!(object.as_ref(), ExprIR::RefOpExpr { .. }) {
+                obj_str = format!("({obj_str})");
+            }
             format!("{}.{}", obj_str, field)
         }
         ExprIR::OptionalChainExpr { object, field } => {
@@ -2204,7 +2276,7 @@ pub(super) fn format_expr_ir_tsx_renamed_locals(
                 .iter()
                 .map(|a| format_expr_ir_tsx_renamed_locals(a, ref_names, renames, param_names))
                 .collect();
-            translate_method_call(&obj_str, method, &args_str)
+            translate_method_call(&obj_str, method, &args_str, Some(object.as_ref()))
         }
         ExprIR::ArrayMethod {
             method,
@@ -2344,7 +2416,7 @@ fn translate_builtin_call(name: &str, args: &[String]) -> String {
     }
 }
 
-fn translate_method_call(obj: &str, method: &str, args: &[String]) -> String {
+fn translate_method_call(obj: &str, method: &str, args: &[String], object: Option<&ExprIR>) -> String {
     match method {
         // Array element access: arr.get(i) → arr[i]
         "get" => {
@@ -2354,7 +2426,27 @@ fn translate_method_call(obj: &str, method: &str, args: &[String]) -> String {
         // Rust-style conversions → JS
         "to_string" => format!("{}.toString({})", obj, args.join(", ")),
         "to_float" => format!("parseFloat({})", obj),
-        "len" => format!("{}.length", obj),
+        "len" => {
+            // IR-aware static path: the semantic symbol table's type
+            // annotation on an IdentifierExpr receiver decides statically —
+            // typed Array/String → direct `.length` (zero noise);
+            // typed Map → own-key count (`.length` is undefined on a plain
+            // object AND fails tsc on a typed Record receiver — TS2339).
+            // Receivers without a static type (store fields, arbitrary
+            // expressions) fall back to the runtime dispatch, which is
+            // semantically identical for arrays/strings.
+            if let Some(obj_ir) = object {
+                if expr_is_typed_array(obj_ir) || expr_is_typed_string(obj_ir) {
+                    return format!("{obj}.length");
+                }
+                if expr_is_typed_map(obj_ir) {
+                    return format!("Object.keys({obj}).length");
+                }
+            }
+            format!(
+                "((_c) => Array.isArray(_c) || typeof _c === \"string\" ? _c.length : (_c ? Object.keys(_c).length : 0))({obj})"
+            )
+        }
         // String methods
         "starts_with" => format!("{}.startsWith({})", obj, args.join(", ")),
         "ends_with" => format!("{}.endsWith({})", obj, args.join(", ")),

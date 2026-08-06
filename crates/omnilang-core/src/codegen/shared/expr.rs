@@ -1189,7 +1189,7 @@ impl FormatExpr for RustFormatExpr {
 // dispatch or an analyzer warning.
 
 /// Whether the expression's static type is a NON-NULLABLE array.
-fn expr_is_typed_array(e: &ExprIR) -> bool {
+pub fn expr_is_typed_array(e: &ExprIR) -> bool {
     match e {
         ExprIR::IdentifierExpr {
             type_ann: Some(t), ..
@@ -1199,7 +1199,7 @@ fn expr_is_typed_array(e: &ExprIR) -> bool {
 }
 
 /// Whether the expression's static type is a non-nullable Map.
-fn expr_is_typed_map(e: &ExprIR) -> bool {
+pub fn expr_is_typed_map(e: &ExprIR) -> bool {
     match e {
         ExprIR::IdentifierExpr {
             type_ann: Some(t), ..
@@ -1209,7 +1209,7 @@ fn expr_is_typed_map(e: &ExprIR) -> bool {
 }
 
 /// Whether the expression's static type is the non-nullable String.
-fn expr_is_typed_string(e: &ExprIR) -> bool {
+pub fn expr_is_typed_string(e: &ExprIR) -> bool {
     matches!(
         e,
         ExprIR::IdentifierExpr {

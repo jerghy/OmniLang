@@ -865,6 +865,13 @@ impl FlutterCodegen {
             w.emit("");
         }
 
+        // Component-level type scope (signals + computeds) — Task 5.8a
+        // static-type re-annotation. Built before the computed loop so
+        // computed expressions (which reference signals/computeds) are
+        // annotated too; also used by effect/lifecycle bodies below and
+        // threaded into ViewContext for view-tree expressions.
+        let comp_type_scope = type_annotate::build_comp_type_scope(comp);
+
         // Computed properties as getters (or methods for the function-form
         // `computed name() -> Type { ... }` — Task 5.8: the old emission put
         // the statement block into a getter body where the block-expression
@@ -888,7 +895,13 @@ impl FlutterCodegen {
             // `ref.watch` that could fire outside the build phase.
             let mut hoist_next = 0usize;
             let mut hoister = ClosureHoister::new(&store_provider_map, ir, false, &mut hoist_next);
-            let (computed_body, hoisted_locals) = hoister.hoist(&computed.body);
+            // Task 5.8a: re-annotate the computed expression from the
+            // component's signals/computeds (same rationale as fn bodies —
+            // the IR's type_ann is never populated). A typed Map signal's
+            // `contains` would otherwise fall to the runtime `is Map`
+            // dispatch — unnecessary_type_check under dart analyze.
+            let computed_body = type_annotate::annotate_expr_types(&computed.body, &comp_type_scope);
+            let (computed_body, hoisted_locals) = hoister.hoist(&computed_body);
             let rewritten = rewrite_store_accesses(&computed_body, &store_provider_map, ir);
             let rewritten = rewrite_widget_refs(&rewritten, &widget_names, &fn_renames);
             if is_fn_form {
@@ -927,10 +940,6 @@ impl FlutterCodegen {
             }
             w.emit("");
         }
-
-        // Component-level type scope (signals + computeds) for effect and
-        // lifecycle bodies — Task 5.8a static-type re-annotation.
-        let comp_type_scope = type_annotate::build_comp_type_scope(comp);
 
         // initState (for mount lifecycle, effects, and motion animations)
         let has_mount = comp
@@ -1323,6 +1332,7 @@ impl FlutterCodegen {
                 hoisted: &mut hoisted,
                 hoist_next: &mut hoist_next,
                 lazy_context: false,
+                comp_type_scope: &comp_type_scope,
             };
             // Multi-node root fragments are wrapped in a Column —
             // `return Text('a'), Text('b');` would be invalid Dart

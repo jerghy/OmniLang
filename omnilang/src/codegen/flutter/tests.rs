@@ -579,6 +579,7 @@ fn fmt_view_with_program_and_map<'a>(
         hoisted: &mut hoisted,
         hoist_next: &mut hoist_next,
         lazy_context: false,
+        comp_type_scope: &FxHashMap::default(),
     };
     let result = format_view_tree(node, &[], &mut ctx);
     (result, warnings)
@@ -614,6 +615,7 @@ fn fmt_view_in(
         hoisted: &mut hoisted,
         hoist_next: &mut hoist_next,
         lazy_context: false,
+        comp_type_scope: &FxHashMap::default(),
     };
     let result = format_view_tree(node, motions, &mut ctx);
     (result, warnings)
@@ -7766,6 +7768,7 @@ fn test_store_action_in_inline_handler_body() {
         hoisted: &mut hoisted,
         hoist_next: &mut hoist_next,
         lazy_context: false,
+        comp_type_scope: &FxHashMap::default(),
     };
     let expr = format_view_tree(&view, &[], &mut ctx);
     assert!(
@@ -7874,6 +7877,7 @@ fn test_store_action_method_call_form_in_handler() {
         hoisted: &mut hoisted,
         hoist_next: &mut hoist_next,
         lazy_context: false,
+        comp_type_scope: &FxHashMap::default(),
     };
     let expr = format_view_tree(&view, &[], &mut ctx);
     assert!(
@@ -8104,6 +8108,7 @@ fn test_ref_key_on_widget_and_controller_attachment() {
         hoisted: &mut hoisted,
         hoist_next: &mut hoist_next,
         lazy_context: false,
+        comp_type_scope: &FxHashMap::default(),
     };
     let view = ViewTree::Element(Box::new(el));
     let expr = format_view_tree(&view, &[], &mut ctx);
@@ -8148,6 +8153,7 @@ fn test_ref_key_on_widget_and_controller_attachment() {
         hoisted: &mut hoisted,
         hoist_next: &mut hoist_next,
         lazy_context: false,
+        comp_type_scope: &FxHashMap::default(),
     };
     let view2 = ViewTree::Element(Box::new(el2));
     let expr2 = format_view_tree(&view2, &[], &mut ctx2);
@@ -8187,6 +8193,7 @@ fn test_ref_key_on_widget_and_controller_attachment() {
         hoisted: &mut hoisted,
         hoist_next: &mut hoist_next,
         lazy_context: false,
+        comp_type_scope: &FxHashMap::default(),
     };
     let view3 = ViewTree::Element(Box::new(el3));
     let expr3 = format_view_tree(&view3, &[], &mut ctx3);
