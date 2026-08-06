@@ -417,6 +417,47 @@ describe("界面信号调试 Tab（信号卡）", () => {
     expect(mockState.setDebugValue).toHaveBeenCalledWith("Card", "status", '""', true);
   });
 
+  // parked finding 修复（2026-08-06）：else 目标收敛到本卡信号——混合多信号链
+  // （@if count > 0 / @else if status == "idle" / @else）中 status 卡的 else 只驱动
+  // status 的条件成假，不再跨信号取同链首个条件（旧实现注入 i32 = "0" 畸形字面量）。
+  it("混合多信号链：else 只驱动本卡信号条件成假（parked 修复）", () => {
+    mockViewSource.value = "view {\n  @if count > 0 { }\n  @else if status == \"idle\" { }\n  @else { }\n}";
+    mockState.componentDefs = {
+      Card: { signals: [
+        { pid: "s1", name: "count", type: "i32", defaultValue: "0" },
+        { pid: "s2", name: "status", type: "String", defaultValue: '"x"' },
+      ], props: [], computeds: [],
+          elements: [{ nodeType: "conditional", tag: "conditional", id: "T.@if", parentId: null, props: {}, source: "" }] },
+    };
+    render(<ComponentDefPanel />);
+    // 同一条链在 count 卡与 status 卡各渲染一个 else 胶囊（DOM 顺序不保证）
+    const elseChips = screen.getAllByRole("button", { name: /^else$/ });
+    expect(elseChips.length).toBe(2);
+    for (const chip of elseChips) {
+      expect((chip as HTMLButtonElement).disabled).toBe(false);
+      fireEvent.click(chip);
+    }
+    // 每张卡的 else 只驱动本卡信号的条件成假（parked 修复核心语义）：
+    // status 卡 → status == "idle" 成假（字符串非空取 ""）String 补引号；
+    // count 卡 → count > 0 成假 → 0。无跨信号调用。
+    const calls = mockState.setDebugValue.mock.calls;
+    expect(calls).toContainEqual(["Card", "status", '""', true]);
+    expect(calls).toContainEqual(["Card", "count", "0", true]);
+    expect(calls.length).toBe(2);
+  });
+
+  it("本卡无可合成条件 → else 置灰 + 提示文案（parked 修复）", () => {
+    mockViewSource.value = "view {\n  @if items.len() > 0 { }\n  @else { }\n}";
+    mockState.componentDefs = {
+      Card: { signals: [{ pid: "s1", name: "items", type: "Array<String>", defaultValue: "[]" }], props: [], computeds: [],
+          elements: [{ nodeType: "conditional", tag: "conditional", id: "T.@if", parentId: null, props: {}, source: "" }] },
+    };
+    render(<ComponentDefPanel />);
+    const elseChip = screen.getByRole("button", { name: /^else$/ });
+    expect((elseChip as HTMLButtonElement).disabled).toBe(true);
+    expect(elseChip.getAttribute("title")).toContain("请在对应信号卡调整");
+  });
+
   it("胶囊点选后该分支高亮（F5）", () => {
     mockState.componentDefs = {
       Card: { signals: [{ pid: "s1", name: "status", type: "String", defaultValue: '"x"' }], props: [], computeds: [],

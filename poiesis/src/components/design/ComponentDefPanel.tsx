@@ -1240,11 +1240,16 @@ function InterfaceSignalCard({ ownerKey, usage, fnSources }: InterfaceSignalCard
   // - else 分支：合成同链首个可合成非 else 条件之假值（spec 4.4 链级启发式）
   const branchButtons = usage.conditions.map((chain) => {
     const single = chain.branches.length === 1;
+    // elseTarget 收敛到**本卡信号**的条件（parked finding 修复 2026-08-06）：
+    // 跨信号链（@if a > 0 / @else if b == "idle" / @else）的 else 合成目标若取
+    // 同链首个条件（可能属别的信号），用本卡 declaredType 格式化会注入畸形字面量
+    // （i32 = "0"）。收敛后：else 只驱动本卡信号的条件成假；本卡无参与条件 →
+    // 无目标 → 胶囊置灰（title 提示到对应信号卡调整）。
     const elseTarget = single
       ? undefined
       : chain.branches
           .flatMap((b) => (b.isElse ? [] : b.comparisons))
-          .find((c) => synthesizeConditionValue(c, "false").valid);
+          .find((c) => c.sig === usage.key && synthesizeConditionValue(c, "false").valid);
     return chain.branches.map((branch, branchIdx) => {
       const cmp = branch.comparisons[0];
       const isElse = branch.isElse;
@@ -1259,27 +1264,22 @@ function InterfaceSignalCard({ ownerKey, usage, fnSources }: InterfaceSignalCard
         if (!target || !synthesizable || !debugOverridesEnabled) return;
         const r = synthesizeConditionValue(target, isElse ? "false" : "true");
         if (!r.valid) return;
-        if (isElse) {
-          // else 分支合成结果写入该 comparison 的信号（F2 链级启发式）
-          const tgt = splitOwnerKey(target.sig, ownerKey);
-          if (active) {
-            clearDebugValue(tgt.owner, tgt.name);
-          } else {
-            setDebugValue(tgt.owner, tgt.name, stringifyLiteral(usage.declaredType, r.literal), true);
-          }
+        // else 目标已收敛到本卡信号（parked finding 修复）→ owner/name 与本卡一致，
+        // 不再 splitOwnerKey（原跨信号路径注入畸形字面量：i32 = "0"）
+        if (active) {
+          clearDebugValue(owner, name);
         } else {
-          if (active) {
-            clearDebugValue(owner, name);
-          } else {
-            setDebugValue(owner, name, stringifyLiteral(usage.declaredType, r.literal), true);
-          }
+          setDebugValue(owner, name, stringifyLiteral(usage.declaredType, r.literal), true);
         }
       };
       return (
         <button key={branchIdx} type="button"
           style={S.branchChip(active)}
           disabled={!synthesizable || !debugOverridesEnabled}
-          title={!synthesizable ? "复杂条件，请在输入框手动调"
+          title={!synthesizable
+            ? isElse && !elseTarget
+              ? "该 else 分支由其他信号的条件驱动——请在对应信号卡调整"
+              : "复杂条件，请在输入框手动调"
             : active ? "当前驱动此分支 —— 点击取消"
             : isElse ? "驱动该分支成真（其余条件取假）" : "驱动该分支成真"}
           onClick={handleClick}>

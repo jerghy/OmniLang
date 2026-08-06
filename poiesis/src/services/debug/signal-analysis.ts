@@ -94,23 +94,26 @@ function scanView(view: string, signalKeys: string[], storeSignalKeys: string[])
 
   // 简化策略：按位置切分指令段（顺序扫描，分别处理 if 链、for、插值计数）
   // ── 1) 提取 @if 链 ──
-  const ifSegments: Array<{ expr: string; isElse: boolean }> = [];
+  const ifSegments: Array<{ expr: string; isElse: boolean; isIf: boolean }> = [];
   const segmentRe = /@(?:if|else(?:\s*@?if)?)\s*([^{]*?)\s*\{/g;
   let m: RegExpExecArray | null;
   while ((m = segmentRe.exec(view)) !== null) {
-    // isElse 判定：前缀精确匹配（m[0] 以 @if 或 @else 开头）。
-    // 不能用 includes("else")：信号名含 else 子串（如 elsesEnabled）会被误判为
-    // else 分支，且因孤立 @else 防御被整段丢弃（@if 直接不生效）。
-    ifSegments.push({ expr: m[1].trim(), isElse: m[0].startsWith("@else") });
+    const expr = m[1].trim();
+    // isElse 判定：纯 @else（无表达式）才是 else；@else if <expr> 是 elif。
+    // 不能用 includes("else")（信号名含 else 子串误判）也不能只 startsWith("@else")
+    //（@else if 段同样以 @else 开头——2026-08-06 混合链用例实测：elif 被误标
+    // else 后 label/合成语义全错）。
+    ifSegments.push({ expr, isElse: m[0].startsWith("@else") && expr === "", isIf: m[0].startsWith("@if") });
   }
-  // 组装链：连续 if/else 段归一条链（段间无其他指令）
+  // 组装链：仅 @if 段开始新链；elif/else 延续当前链（2026-08-06 修复：
+  // elif 曾因 !isElse 被误判为新链起点，链被拆断 → 每卡只剩 if 分支）
   let chain: IfChain | null = null;
   for (const seg of ifSegments) {
-    if (!seg.isElse) {
+    if (seg.isIf) {
       if (chain) ifChains.push(chain);
       chain = { branches: [] };
     }
-    if (!chain) continue;  // 防御：孤立 @else（不应出现）
+    if (!chain) continue;  // 防御：孤立 else/elif（不应出现）
     const comparisons = parseComparisons(seg.expr, allKeys);
     chain.branches.push({ exprText: seg.expr || null, isElse: seg.isElse, comparisons });
   }
