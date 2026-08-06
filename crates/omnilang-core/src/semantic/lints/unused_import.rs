@@ -157,7 +157,7 @@ impl LintRule for UnusedImport {
 mod tests {
     use crate::lexer::Span;
     use crate::parser::ast::{
-        Block, Expr, FunctionDef, Module, NamedImport, Program, Stmt, Visibility,
+        Block, Expr, FunctionDef, Literal, Module, NamedImport, Program, Stmt, Visibility,
     };
     use rustc_hash::FxHashMap;
 
@@ -200,6 +200,38 @@ mod tests {
             diags[0].message.contains("unusedSymbol"),
             "message should mention the unused symbol: {}",
             diags[0].message
+        );
+    }
+
+    #[test]
+    fn test_struct_literal_construction_counts_as_usage() {
+        let mut used: FxHashSet<&str> = FxHashSet::default();
+        let st = Expr::StructLiteral {
+            type_name: "Settings".into(),
+            fields: vec![(
+                "name".into(),
+                Expr::Literal(
+                    Literal::String("x".into()),
+                    Span {
+                        start: 20,
+                        end: 25,
+                        line: 2,
+                        col: 21,
+                    },
+                ),
+            )],
+            span: Span {
+                start: 10,
+                end: 30,
+                line: 2,
+                col: 11,
+            },
+        };
+        collect_used_names_in_expr(&st, &mut used);
+        assert!(
+            used.contains("Settings"),
+            "struct name at a construction site must count as usage \
+             (else imported structs are falsely flagged unused-import)"
         );
     }
 

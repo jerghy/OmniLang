@@ -454,4 +454,44 @@ mod tests {
             errors.iter().map(|e| &e.message).collect::<Vec<_>>()
         );
     }
+
+    #[test]
+    fn struct_literal_on_assignment_rhs_parses() {
+        // Regression: the assignment RHS went through raw Pratt
+        // (parse_expr_bp) which dropped the struct-literal suffix, so
+        // `s = S { f: v }` — the full-reconstruction update idiom — was
+        // parsed as a call with a block argument and failed with
+        // "Unexpected token in expression: Colon" per field.
+        let ast = parse_expr(r#"stats = StatisticsData { name: "x", count: 1 }"#)
+            .expect("struct literal on assignment RHS must parse");
+        match ast {
+            Expr::BinaryOp {
+                op: BinaryOpKind::Assign,
+                right,
+                ..
+            } => assert!(
+                matches!(right.as_ref(), Expr::StructLiteral { .. }),
+                "RHS must be a struct literal, got: {:?}",
+                right
+            ),
+            other => panic!("expected assignment, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn struct_literal_in_ternary_branches_parses() {
+        // Regression: the ternary else-branch also skipped the suffix —
+        // `c ? A { x: 1 } : B { y: 2 }` must parse both branches.
+        let ast = parse_expr(r#"flag ? A { x: 1 } : B { y: 2 }"#)
+            .expect("struct literals in ternary branches must parse");
+        match ast {
+            Expr::TernaryExpr {
+                then_expr, else_expr, ..
+            } => {
+                assert!(matches!(then_expr.as_ref(), Expr::StructLiteral { .. }));
+                assert!(matches!(else_expr.as_ref(), Expr::StructLiteral { .. }));
+            }
+            other => panic!("expected ternary, got: {:?}", other),
+        }
+    }
 }

@@ -34,10 +34,21 @@ impl<'a> Parser<'a> {
 
         // After Pratt: check for struct literal suffix — TypeName { field: val, ... }
         // NOT handled as infix to avoid stealing `{` from statement blocks (if/while/etc.)
+        expr = self.maybe_struct_literal_suffix(expr)?;
+        Ok(expr)
+    }
+
+    /// Apply the struct literal suffix — `TypeName { field: val, ... }` —
+    /// to an expression that ended on a bare VarRef of an uppercase name.
+    /// Called at every expression tail where a struct literal may appear:
+    /// top-level `parse_expr`, `parse_expr_no_assign`, assignment RHS and
+    /// ternary else-branch (all of which previously dropped the suffix and
+    /// mis-parsed `s = S { f: v }` as a call of `s` with a block argument).
+    fn maybe_struct_literal_suffix(&mut self, expr: Expr) -> Result<Expr, ParseError> {
         if self.at(&TokenKind::LBrace) {
             if let Expr::VarRef(ref name, _) = expr {
                 if name.chars().next().is_some_and(|c| c.is_uppercase()) {
-                    expr = self.parse_struct_literal_suffix(name.clone())?;
+                    return self.parse_struct_literal_suffix(name.clone());
                 }
             }
         }
@@ -54,13 +65,7 @@ impl<'a> Parser<'a> {
 
         // Struct literal suffix — mirror parse_expr's tail so `Type { ... }`
         // values keep working (assignment is the only thing excluded).
-        if self.at(&TokenKind::LBrace) {
-            if let Expr::VarRef(ref name, _) = expr {
-                if name.chars().next().is_some_and(|c| c.is_uppercase()) {
-                    expr = self.parse_struct_literal_suffix(name.clone())?;
-                }
-            }
-        }
+        expr = self.maybe_struct_literal_suffix(expr)?;
         Ok(expr)
     }
 

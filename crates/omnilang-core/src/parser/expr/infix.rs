@@ -75,7 +75,10 @@ impl<'a> Parser<'a> {
                 // Ternary expression: condition ? then_expr : else_expr
                 let then_expr = self.parse_expr()?;
                 self.expect_token(TokenKind::Colon, "expected ':' in ternary expression")?;
-                let else_expr = self.parse_expr_bp(bp.1)?;
+                // else-branch: apply the struct-literal suffix too, so
+                // `c ? S { a: 1 } : S { a: 2 }` parses (both branches).
+                let mut else_expr = self.parse_expr_bp(bp.1)?;
+                else_expr = self.maybe_struct_literal_suffix(else_expr)?;
                 let end = span_of(&else_expr).end;
                 Ok(Expr::TernaryExpr {
                     condition: Box::new(left),
@@ -215,7 +218,11 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_assign(&mut self, left: Expr, eq_span: Span) -> Result<Expr, ParseError> {
-        let right = self.parse_expr_bp(1)?;
+        // Struct-literal RHS (`s = S { f: v }` — the "full reconstruction"
+        // update idiom) needs the suffix parse_expr's tail applies, which
+        // the raw Pratt entry drops.
+        let mut right = self.parse_expr_bp(1)?;
+        right = self.maybe_struct_literal_suffix(right)?;
         // Assignment is treated as binary with Assign op
         let span = Span {
             start: span_of(&left).start,
@@ -237,7 +244,8 @@ impl<'a> Parser<'a> {
         op: BinaryOpKind,
         op_span: Span,
     ) -> Result<Expr, ParseError> {
-        let right = self.parse_expr_bp(1)?;
+        let mut right = self.parse_expr_bp(1)?;
+        right = self.maybe_struct_literal_suffix(right)?;
         let span = Span {
             start: span_of(&left).start,
             end: span_of(&right).end,

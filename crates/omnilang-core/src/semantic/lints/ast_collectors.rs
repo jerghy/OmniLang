@@ -152,7 +152,10 @@ pub(super) fn collect_used_names_in_expr<'a>(expr: &'a Expr, used: &mut FxHashSe
                 }
             }
         }
-        Expr::StructLiteral { fields, .. } => {
+        Expr::StructLiteral { type_name, fields, .. } => {
+            // The struct type name itself is a real reference — an imported
+            // struct constructed here must not be flagged unused-import.
+            used.insert(type_name.as_str());
             for (_, val) in fields {
                 collect_used_names_in_expr(val, used);
             }
