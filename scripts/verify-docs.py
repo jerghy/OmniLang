@@ -47,6 +47,7 @@ import re
 import subprocess
 import sys
 import tempfile
+from pathlib import Path
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DOCS_DIR = os.path.join(REPO_ROOT, "docs", "omniview")
@@ -298,6 +299,30 @@ def check_block(omnic, tmpdir, content, fragment=False):
     return not hard, hard, notes
 
 
+def check_index_links() -> list[str]:
+    """v4 documentation HIGH-1: docs/README.md 引用的相对路径必须存在、
+    章节表与目录文件数匹配——入口页纳入强制力体系（此前入口每处陈旧
+    均不被门禁捕获）。"""
+    errors = []
+    readme = (Path(DOCS_DIR).parent / "README.md").read_text(encoding="utf-8")
+    for m in re.finditer(r"\]\(([^)#]+)(?:#[^)]*)?\)", readme):
+        target = m.group(1)
+        if target.startswith(("http", "mailto", "#")):
+            continue
+        p = Path(DOCS_DIR).parent / target
+        if not p.exists():
+            errors.append(f"docs/README.md 链接目标不存在: {target}")
+    # 章节表文件数 vs 目录实际文件数
+    chapter_files = set(
+        re.findall(r"omniview/([0-9]{2}-[a-z0-9-]+\.md)", readme)
+    )
+    actual = {f.name for f in (Path(DOCS_DIR)).glob("[0-9][0-9]-*.md")}
+    missing = actual - chapter_files
+    if missing:
+        errors.append(f"README 章节表缺条目: {sorted(missing)}")
+    return errors
+
+
 def audit(omnic, paths, verbose):
     failures = []
     notes = []
@@ -392,9 +417,12 @@ def main():
             paths.append(extra)
 
     checked, failures, notes = audit(args.omnic, paths, args.verbose)
+    index_errors = check_index_links()
 
     print(f"\n=== doc-compile gate: {checked} omni blocks checked "
           f"({len(failures)} failed, {len(notes)} semantic notes) ===")
+    for err in index_errors:
+        print(f"INDEX: {err}")
     for rel, lineno, kind, errs in failures:
         print(f"FAIL [{rel}:{lineno} {kind}]")
         for e in errs:
@@ -404,10 +432,11 @@ def main():
     # count line alone left them invisible to CI logs.
     for rel, lineno, kind, d in notes:
         print(f"NOTE [{rel}:{lineno} {kind}] {d.get('message')} ({d.get('code','')})")
-    # Gate mode is the default: failures exit nonzero unless --inspect
-    # (audit mode) explicitly opts out.
-    if failures and not args.inspect:
-        print("\nGATE FAILED: fix the DOC blocks above (compiler is ground truth).")
+    # Gate mode is the default: failures/index errors exit nonzero unless
+    # --inspect (audit mode) explicitly opts out.
+    if (failures or index_errors) and not args.inspect:
+        print("\nGATE FAILED: fix the DOC blocks / README links above "
+              "(compiler is ground truth).")
         return 1
     return 0
 

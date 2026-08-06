@@ -1,8 +1,10 @@
 # OmniLang Standard Library
 
+> **⚠️ 已废弃（v4，2026-08-06）**：本文档教授 `omni/*` 导入路径——编译器事实为 `std/<module>`（crates/omnilang-core/src/stdlib/mod.rs）。正确文档：`docs/omniview/12-standard-library.md`（`std/math`、`std/string`、`std/async`、`std/http` 等）。本文件保留至迁移完成。
+
 The OmniLang standard library provides cross-platform modules that work across all compilation targets. Each module is documented with available functions, types, and usage examples.
 
-## Module: `omni/math`
+## Module: `std/math`
 
 Mathematical operations and constants.
 
@@ -24,7 +26,7 @@ Mathematical operations and constants.
 Returns the absolute value.
 
 ```omnilang
-import { abs } from "omni/math";
+import { abs } from "std/math";
 let n: i32 = abs(-5);          // 5
 let f: f64 = abs(-3.14);       // 3.14
 ```
@@ -34,7 +36,7 @@ let f: f64 = abs(-3.14);       // 3.14
 Returns the largest integer less than or equal to `x`.
 
 ```omnilang
-import { floor } from "omni/math";
+import { floor } from "std/math";
 let n: i32 = floor(3.7);       // 3
 let n2: i32 = floor(-1.2);     // -2
 ```
@@ -44,7 +46,7 @@ let n2: i32 = floor(-1.2);     // -2
 Returns the smallest integer greater than or equal to `x`.
 
 ```omnilang
-import { ceil } from "omni/math";
+import { ceil } from "std/math";
 let n: i32 = ceil(3.2);        // 4
 ```
 
@@ -53,7 +55,7 @@ let n: i32 = ceil(3.2);        // 4
 Rounds to the nearest integer (ties round away from zero).
 
 ```omnilang
-import { round } from "omni/math";
+import { round } from "std/math";
 let n: i32 = round(3.5);       // 4
 ```
 
@@ -62,7 +64,7 @@ let n: i32 = round(3.5);       // 4
 Returns the square root.
 
 ```omnilang
-import { sqrt } from "omni/math";
+import { sqrt } from "std/math";
 let s: f64 = sqrt(16.0);       // 4.0
 ```
 
@@ -71,7 +73,7 @@ let s: f64 = sqrt(16.0);       // 4.0
 Raises `base` to the power of `exp`.
 
 ```omnilang
-import { pow } from "omni/math";
+import { pow } from "std/math";
 let p: f64 = pow(2.0, 8.0);    // 256.0
 ```
 
@@ -80,7 +82,7 @@ let p: f64 = pow(2.0, 8.0);    // 256.0
 Trigonometric functions (radians).
 
 ```omnilang
-import { sin, cos, PI } from "omni/math";
+import { sin, cos, PI } from "std/math";
 let s: f64 = sin(PI / 2.0);    // 1.0
 ```
 
@@ -97,7 +99,7 @@ Returns the angle from the positive x-axis to the point `(x, y)`.
 Logarithm with specified base.
 
 ```omnilang
-import { log } from "omni/math";
+import { log } from "std/math";
 let l: f64 = log(100.0, 10.0); // 2.0
 ```
 
@@ -106,7 +108,7 @@ let l: f64 = log(100.0, 10.0); // 2.0
 Natural logarithm.
 
 ```omnilang
-import { ln } from "omni/math";
+import { ln } from "std/math";
 let l: f64 = ln(2.71828);      // ~1.0
 ```
 
@@ -127,7 +129,7 @@ Returns the larger of two values.
 Clamps a value within a range.
 
 ```omnilang
-import { clamp } from "omni/math";
+import { clamp } from "std/math";
 let n: i32 = clamp(15, 0, 10); // 10
 ```
 
@@ -136,7 +138,7 @@ let n: i32 = clamp(15, 0, 10); // 10
 Returns a pseudo-random number in `[0.0, 1.0)`.
 
 ```omnilang
-import { random, floor } from "omni/math";
+import { random, floor } from "std/math";
 let dice: i32 = floor(random() * 6.0) + 1;
 ```
 
@@ -158,7 +160,7 @@ Returns true if the value is finite.
 
 ---
 
-## Module: `omni/async`
+## Module: `std/async`
 
 Async runtime and utilities.
 
@@ -169,7 +171,7 @@ Async runtime and utilities.
 Pauses execution for the given number of milliseconds.
 
 ```omnilang
-import { sleep } from "omni/async";
+import { sleep } from "std/async";
 
 async fn delayed_greeting() {
     await sleep(1000);
@@ -182,7 +184,7 @@ async fn delayed_greeting() {
 Spawns a task for concurrent execution.
 
 ```omnilang
-import { spawn } from "omni/async";
+import { spawn } from "std/async";
 
 async fn task(id: i32) -> i32 {
     await sleep(100);
@@ -202,7 +204,7 @@ async fn main() {
 Waits for all futures to complete, returning their results.
 
 ```omnilang
-import { all } from "omni/async";
+import { all } from "std/async";
 
 async fn main() {
     let futures: Array<Future<i32>> = [fetch(1), fetch(2), fetch(3)];
@@ -216,7 +218,7 @@ async fn main() {
 Returns the result of the first future to complete.
 
 ```omnilang
-import { race, sleep } from "omni/async";
+import { race, sleep } from "std/async";
 
 async fn fast() -> String {
     await sleep(100);
@@ -239,7 +241,7 @@ async fn main() {
 Returns `null` if the future doesn't complete within the timeout.
 
 ```omnilang
-import { timeout, sleep } from "omni/async";
+import { timeout, sleep } from "std/async";
 
 async fn slow_op() -> String {
     await sleep(2000);
@@ -259,7 +261,7 @@ async fn main() {
 Yields execution to allow other tasks to run.
 
 ```omnilang
-import { yield_now } from "omni/async";
+import { yield_now } from "std/async";
 
 async fn cooperative() {
     let mut i: i32 = 0;
@@ -281,7 +283,7 @@ Represents an asynchronous computation. Created by calling `async fn` or `spawn`
 
 ---
 
-## Module: `omni/string`
+## Module: `std/string`
 
 String manipulation utilities.
 
@@ -292,7 +294,7 @@ String manipulation utilities.
 Returns the length of the string in bytes.
 
 ```omnilang
-import { len } from "omni/string";
+import { len } from "std/string";
 let n: i32 = len("Hello");    // 5
 ```
 
@@ -305,7 +307,7 @@ Returns true if the string is empty.
 Converts to uppercase.
 
 ```omnilang
-import { to_upper } from "omni/string";
+import { to_upper } from "std/string";
 let s: String = to_upper("hello");  // "HELLO"
 ```
 
@@ -314,7 +316,7 @@ let s: String = to_upper("hello");  // "HELLO"
 Converts to lowercase.
 
 ```omnilang
-import { to_lower } from "omni/string";
+import { to_lower } from "std/string";
 let s: String = to_lower("HELLO");  // "hello"
 ```
 
@@ -323,7 +325,7 @@ let s: String = to_lower("HELLO");  // "hello"
 Removes leading and trailing whitespace.
 
 ```omnilang
-import { trim } from "omni/string";
+import { trim } from "std/string";
 let s: String = trim("  hello  ");  // "hello"
 ```
 
@@ -332,7 +334,7 @@ let s: String = trim("  hello  ");  // "hello"
 Returns a substring from `start` (inclusive) to `end` (exclusive).
 
 ```omnilang
-import { substring } from "omni/string";
+import { substring } from "std/string";
 let s: String = substring("hello", 1, 4);  // "ell"
 ```
 
@@ -353,7 +355,7 @@ Returns true if the string ends with the given suffix.
 Returns the index of the first occurrence, or `-1` if not found.
 
 ```omnilang
-import { index_of } from "omni/string";
+import { index_of } from "std/string";
 let idx: i32 = index_of("hello", "ll");  // 2
 ```
 
@@ -362,7 +364,7 @@ let idx: i32 = index_of("hello", "ll");  // 2
 Splits the string by a delimiter.
 
 ```omnilang
-import { split } from "omni/string";
+import { split } from "std/string";
 let parts: Array<String> = split("a,b,c", ",");
 // ["a", "b", "c"]
 ```
@@ -372,7 +374,7 @@ let parts: Array<String> = split("a,b,c", ",");
 Replaces all occurrences of a substring.
 
 ```omnilang
-import { replace } from "omni/string";
+import { replace } from "std/string";
 let s: String = replace("hello world", "world", "there");
 // "hello there"
 ```
@@ -382,7 +384,7 @@ let s: String = replace("hello world", "world", "there");
 Joins an array of strings with a separator.
 
 ```omnilang
-import { join } from "omni/string";
+import { join } from "std/string";
 let parts: Array<String> = ["a", "b", "c"];
 let s: String = join(parts, ", ");
 // "a, b, c"

@@ -289,7 +289,7 @@
 | [README.md](../../README.md) | 项目概述 | 项目简介、10 编译目标成熟度矩阵、目录结构 |
 | [QUICKSTART.md](../../QUICKSTART.md) | 快速入门 | 3 命令上手 |
 | [docs/README.md](../../README.md) | 文档索引 | 5 轨道教程结构（部分章节标为"待补充"） |
-| [docs/stdlib.md](../../stdlib.md) | API 参考 | ⚠️ 不完整：仅覆盖 math/async/string，缺少 array/console/http/json/storage |
+| [docs/stdlib.md](../../stdlib.md) | API 参考 | ⚠️ 已废弃（v4，2026-08-06）：教授已不存在的 `omni/*` 路径——正确文档：[docs/omniview/12-standard-library.md](../omniview/12-standard-library.md)（`std/math`、`std/string`、`std/async`、`std/http` 等） |
 
 ### 5.2 AI 技能参考
 
