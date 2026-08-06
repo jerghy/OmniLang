@@ -8330,6 +8330,63 @@ fn test_a11y_label_dollar_escaped_and_role_comment_sanitized() {
     );
 }
 
+/// v4 rust HIGH regression: `$` in raw text must be escaped in BOTH Flutter
+/// text paths — the all-text concat (`Text('a$b')` construction,
+/// view.rs:2193) and the rich-text TextSpan(text:) emission (view.rs:332)
+/// were hand-written `'`-only replaces that skipped Dart `$`-escaping, so
+/// `$total` / `${expr}` became Dart interpolation (silent wrong value /
+/// executable expression; corpus point rawtext-multi). The `$total` shape
+/// pins the `$ident` literal form the corpus is blind to (payloads only
+/// break `${`, EXEC_PATTERNS only scans `alert(`-class code).
+#[test]
+fn text_dollar_escaped_in_concat_and_span() {
+    // 拼接路径（all-text concat）：`价格 $total 元` 不得产生 Dart 插值。
+    let flutter = compile_flutter(
+        r#"
+component App {
+    view {
+        <p>价格 $total 元</p>
+    }
+}
+"#,
+    )
+    .expect("compile must succeed");
+    let dart: String = flutter
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        dart.contains("价格 \\$total 元"),
+        "拼接路径未转义 $，got:\n{dart}"
+    );
+    assert!(
+        !dart.contains("价格 $total"),
+        "拼接路径不得发射裸 $total（Dart 插值），got:\n{dart}"
+    );
+    // TextSpan 路径（rich text）：混合内容段落走 Text.rich/TextSpan。
+    let rich = compile_flutter(
+        r#"
+component App {
+    view {
+        <p>价格 $total <b>x</b></p>
+    }
+}
+"#,
+    )
+    .expect("compile must succeed");
+    let rich_dart: String = rich.files.values().cloned().collect::<Vec<_>>().join("\n");
+    assert!(
+        rich_dart.contains("价格 \\$total"),
+        "TextSpan 路径未转义 $，got:\n{rich_dart}"
+    );
+    assert!(
+        !rich_dart.contains("价格 $total"),
+        "TextSpan 路径不得发射裸 $total（Dart 插值），got:\n{rich_dart}"
+    );
+}
+
 /// a11y block (design doc 域 10): `label` + `alt` on a NON-image element
 /// used to emit TWO `label:` args into one `Semantics(...)` call —
 /// duplicate named argument, invalid Dart. `label` wins (it IS the

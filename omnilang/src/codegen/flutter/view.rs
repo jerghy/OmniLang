@@ -329,7 +329,13 @@ fn format_text_span_fragment(
     ctx: &mut ViewContext,
 ) -> String {
     match child {
-        ViewTree::Text(t) => format!("TextSpan(text: '{}')", t.replace('\'', "\\'")),
+        ViewTree::Text(t) => {
+            // v4 rust HIGH: `$` 必须转义——Dart 字符串插值（与文本路径
+            // :222-227 同模式；此处原为手写 replace 漏掉 `$`，注入语料
+            // rawtext-multi 点捕获）。
+            let escaped = escape_literal_str(t, '\'');
+            format!("TextSpan(text: '{}')", escaped.replace('$', "\\$"))
+        }
         ViewTree::Interpolation(e) => format!("TextSpan(text: '${{{}}}')", ctx.format_expr(e)),
         ViewTree::Element(el) => {
             let is_bare_text = tag_to_flutter_widget(&el.tag) == "Text"
@@ -2190,7 +2196,11 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
         let mut all_text = true;
         for child in &el.children {
             match child {
-                ViewTree::Text(t) => parts.push(t.replace('\'', "\\'")),
+                ViewTree::Text(t) => {
+                    // v4 rust HIGH: 与 TextSpan 路径同修复——共享转义模式。
+                    let escaped = escape_literal_str(t, '\'');
+                    parts.push(escaped.replace('$', "\\$"));
+                }
                 ViewTree::Interpolation(e) => {
                     parts.push(format!("${{{}}}", ctx.format_expr(e)));
                 }

@@ -14,11 +14,12 @@
 //! corpus point) and an orphan corpus point (no surface claims it)
 //! both fail.
 //!
-//! Corpus insertion points (the 11 points of `injection.rs` `POINTS`):
+//! Corpus insertion points (the 12 points of `injection.rs` `POINTS`):
 //! `class`, `style`, `text`, `attr`, `a11y`, `event`, `rawtext`,
-//! `fallback`, `fallback_str`, `motion-transform`, `design-token`.
+//! `rawtext-multi`, `fallback`, `fallback_str`, `motion-transform`,
+//! `design-token`.
 
-/// The 11 corpus insertion points — must stay in lockstep with
+/// The 12 corpus insertion points — must stay in lockstep with
 /// `tests_regression/injection.rs` `POINTS` (the `every point claimed`
 /// assertion fails when a point is added to one and not the other).
 const INSERTION_POINTS: &[&str] = &[
@@ -29,6 +30,7 @@ const INSERTION_POINTS: &[&str] = &[
     "a11y",
     "event",
     "rawtext",
+    "rawtext-multi",
     "fallback",
     "fallback_str",
     "motion-transform",
@@ -165,6 +167,23 @@ const SURFACES: &[Surface] = &[
         cover: Cover::Corpus("rawtext"),
         defense_test: "",
         note: "same escape path as `text`",
+    },
+    // ── rawtext-multi: raw text co-located with interpolation children ──
+    // v4 1.2: raw text beside interpolation children reaches TWO Flutter
+    // paths the single `rawtext` point misses — the all-text concat
+    // (`Text('a${b}')` construction, view.rs:2196-2202) and the rich-text
+    // TextSpan(text:) emission (view.rs:332-337). Both were hand-written
+    // `'`-only replaces that skipped Dart `$`-escaping (v4 rust HIGH —
+    // corpus point added by task 0.1); both now share the text path's
+    // escape_literal_str + `$` → `\$`.
+    Surface {
+        backend: "flutter",
+        surface: "rawtext-multi",
+        location: "flutter/view.rs:2196-2202 (all-text concat), 332-337 (TextSpan)",
+        corpus: "rawtext-multi",
+        cover: Cover::Corpus("rawtext-multi"),
+        defense_test: "",
+        note: "escape_literal_str + $ → \\$ (Dart interpolation); both sites fixed in v4 1.2",
     },
     // ── fallback / fallback_str: malformed-interpolation text ────────
     // `{`-leading and StringLiteral-shaped Text nodes from the parser's
