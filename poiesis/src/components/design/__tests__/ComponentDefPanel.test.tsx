@@ -64,10 +64,22 @@ const { mockState, storeListeners } = vi.hoisted(() => {
         openTabs: [{ id: "t1", componentName: "Card", filePath: "Card.omni", tabType: "component" }],
       },
       // 类型注解：props/computeds 空数组字面量否则推断为 never[]，后续测试赋值真实对象报 TS2322
-      componentDefs: { Card: { signals: [{ pid: "s1", name: "count", type: "i32", defaultValue: "0" }], props: [], computeds: [] } } as Record<string, { signals: DefEntry[]; props: DefEntry[]; computeds: DefEntry[] }>,
+      // (M8 修复 2026-08-06) Card 带 elements——generateOmniFragment mock 镜像真实短路
+      // （空 elements → ""），Card 用例需非空才能走 fixture 分支
+      componentDefs: {
+        Card: {
+          signals: [{ pid: "s1", name: "count", type: "i32", defaultValue: "0" }],
+          props: [], computeds: [],
+          elements: [{ nodeType: "conditional", tag: "conditional", id: "Card.@if", parentId: null, props: {}, source: "" }],
+        },
+      } as Record<string, { signals: DefEntry[]; props: DefEntry[]; computeds: DefEntry[]; elements: unknown[] }>,
       // Task 10：面板读 storeDefs/inlineStoreDefs 收集 store 信号（界面卡 ownerKey 限定）
       storeDefs: {},
       inlineStoreDefs: {},
+      // (M8) main 组件的设计树在 store.elements（画布实时状态）
+      elements: [] as unknown[],
+      wires: [] as unknown[],
+      rootOrder: [] as string[],
       debugValues: {} as Record<string, Record<string, DebugValueEntry>>,
       debugOverridesEnabled: true,
       clearDebugValues: vi.fn(() => {
@@ -107,7 +119,7 @@ vi.mock("../../../store", async () => {
 // 使 analyzeSignalUsage 产出 interfaceSignals（brief Step 1 注记的默认路径）。
 // (F2/D12) fixture 可变：单分支二态开关用例替换为 `@if badgeVisible` 单一分支
 //（组件 useMemo 依赖不含 fixture 文本，mount 前替换即可生效；顶层 beforeEach 恢复默认）。
-const { mockViewSource } = vi.hoisted(() => ({
+const { mockViewSource, mockMainSource } = vi.hoisted(() => ({
   mockViewSource: {
     value:
       "view {\n" +
@@ -116,10 +128,27 @@ const { mockViewSource } = vi.hoisted(() => ({
       "  @for item in items { }\n" +
       "}",
   },
+  // main 组件的 fixture（M8 实锤修复 2026-08-06）：main 设计树在 store.elements，
+  // componentDefs.main.elements 恒空。mock 镜像真实 generateOmniFragment 的空元素
+  // 短路（pipeline.ts:441 `if (componentElements.length === 0) return { value: "" }`），
+  // 否则修复前 main 分支也会返回 fixture、RED 无效。
+  mockMainSource: {
+    value:
+      "component main {\n" +
+      '  signal newSignal: String = "";\n' +
+      "  view {\n" +
+      '    @if newSignal == "demo" { }\n' +
+      "  }\n" +
+      "}",
+  },
 }));
 
 vi.mock("../../../services/codegen/pipeline", () => ({
-  generateOmniFragment: vi.fn(() => ({ value: mockViewSource.value, errors: [] })),
+  generateOmniFragment: vi.fn((opts: { componentName: string; designElements?: unknown[] }) => {
+    const els = opts.designElements || [];
+    if (els.length === 0) return { value: "", errors: [] };
+    return { value: opts.componentName === "main" ? mockMainSource.value : mockViewSource.value, errors: [] };
+  }),
 }));
 
 vi.mock("../../canvas/canvas-store", () => ({
@@ -228,7 +257,8 @@ describe("信号调试 Tab（数据信号行）", () => {
           { pid: "s2", name: "status", type: "String", defaultValue: '"x"' },
         ],
         props: [], computeds: [],
-      },
+        elements: [{ nodeType: "conditional", tag: "conditional", id: "T.@if", parentId: null, props: {}, source: "" }],
+},
     };
     render(<ComponentDefPanel />);
     fireEvent.click(screen.getByRole("tab", { name: /^信号调试$/ }));
@@ -262,7 +292,8 @@ describe("界面信号调试 Tab（信号卡）", () => {
       Card: {
         signals: [{ pid: "s1", name: "status", type: "String", defaultValue: '"x"' }],
         props: [], computeds: [],
-      },
+        elements: [{ nodeType: "conditional", tag: "conditional", id: "T.@if", parentId: null, props: {}, source: "" }],
+},
     };
     render(<ComponentDefPanel />);
     // 默认即界面信号调试 Tab
@@ -278,7 +309,8 @@ describe("界面信号调试 Tab（信号卡）", () => {
       Card: {
         signals: [{ pid: "s1", name: "status", type: "String", defaultValue: '"x"' }],
         props: [], computeds: [],
-      },
+        elements: [{ nodeType: "conditional", tag: "conditional", id: "T.@if", parentId: null, props: {}, source: "" }],
+},
     };
     render(<ComponentDefPanel />);
     fireEvent.change(screen.getByLabelText("status 值"), { target: { value: "loading" } });
@@ -289,7 +321,8 @@ describe("界面信号调试 Tab（信号卡）", () => {
 
   it("复杂条件分支胶囊置灰", () => {
     mockState.componentDefs = {
-      Card: { signals: [{ pid: "s1", name: "items", type: "Array<String>", defaultValue: "[]" }], props: [], computeds: [] },
+      Card: { signals: [{ pid: "s1", name: "items", type: "Array<String>", defaultValue: "[]" }], props: [], computeds: [],
+          elements: [{ nodeType: "conditional", tag: "conditional", id: "T.@if", parentId: null, props: {}, source: "" }] },
     };
     render(<ComponentDefPanel />);
     const btn = screen.getByRole("button", { name: /len\(\)/i });
@@ -298,7 +331,8 @@ describe("界面信号调试 Tab（信号卡）", () => {
 
   it("总开关 off → 分支胶囊禁用", () => {
     mockState.componentDefs = {
-      Card: { signals: [{ pid: "s1", name: "status", type: "String", defaultValue: '"x"' }], props: [], computeds: [] },
+      Card: { signals: [{ pid: "s1", name: "status", type: "String", defaultValue: '"x"' }], props: [], computeds: [],
+          elements: [{ nodeType: "conditional", tag: "conditional", id: "T.@if", parentId: null, props: {}, source: "" }] },
     };
     mockState.debugOverridesEnabled = false;
     render(<ComponentDefPanel />);
@@ -307,7 +341,8 @@ describe("界面信号调试 Tab（信号卡）", () => {
 
   it("列表卡：@for 信号 + 空数组候选 + 手动输入", () => {
     mockState.componentDefs = {
-      Card: { signals: [{ pid: "s1", name: "items", type: "Array<String>", defaultValue: "[]" }], props: [], computeds: [] },
+      Card: { signals: [{ pid: "s1", name: "items", type: "Array<String>", defaultValue: "[]" }], props: [], computeds: [],
+          elements: [{ nodeType: "conditional", tag: "conditional", id: "T.@if", parentId: null, props: {}, source: "" }] },
     };
     render(<ComponentDefPanel />);
     expect(screen.getByText(/@for/)).toBeTruthy();
@@ -317,7 +352,8 @@ describe("界面信号调试 Tab（信号卡）", () => {
 
   it("else 分支胶囊可点：驱动成假（同链首可合成条件取假值）（F2）", () => {
     mockState.componentDefs = {
-      Card: { signals: [{ pid: "s1", name: "status", type: "String", defaultValue: '"x"' }], props: [], computeds: [] },
+      Card: { signals: [{ pid: "s1", name: "status", type: "String", defaultValue: '"x"' }], props: [], computeds: [],
+          elements: [{ nodeType: "conditional", tag: "conditional", id: "T.@if", parentId: null, props: {}, source: "" }] },
     };
     render(<ComponentDefPanel />);
     const elseChip = screen.getByRole("button", { name: /^else$/ });
@@ -329,7 +365,8 @@ describe("界面信号调试 Tab（信号卡）", () => {
 
   it("胶囊点选后该分支高亮（F5）", () => {
     mockState.componentDefs = {
-      Card: { signals: [{ pid: "s1", name: "status", type: "String", defaultValue: '"x"' }], props: [], computeds: [] },
+      Card: { signals: [{ pid: "s1", name: "status", type: "String", defaultValue: '"x"' }], props: [], computeds: [],
+          elements: [{ nodeType: "conditional", tag: "conditional", id: "T.@if", parentId: null, props: {}, source: "" }] },
     };
     render(<ComponentDefPanel />);
     fireEvent.click(screen.getByRole("button", { name: /loading/ }));
@@ -339,7 +376,8 @@ describe("界面信号调试 Tab（信号卡）", () => {
 
   it("输入框手改值失配 → 胶囊高亮取消（F5）", () => {
     mockState.componentDefs = {
-      Card: { signals: [{ pid: "s1", name: "status", type: "String", defaultValue: '"x"' }], props: [], computeds: [] },
+      Card: { signals: [{ pid: "s1", name: "status", type: "String", defaultValue: '"x"' }], props: [], computeds: [],
+          elements: [{ nodeType: "conditional", tag: "conditional", id: "T.@if", parentId: null, props: {}, source: "" }] },
     };
     mockState.debugValues = { Card: { status: { text: '"loading"', valid: true } } };
     render(<ComponentDefPanel />);
@@ -378,7 +416,8 @@ describe("界面信号调试 Tab（信号卡）", () => {
         signals: [{ pid: "s1", name: "count", type: "i32", defaultValue: "0" }],
         props: [{ pid: "p1", name: "title", type: "String", defaultValue: '"x"' }],
         computeds: [],
-      },
+        elements: [{ nodeType: "conditional", tag: "conditional", id: "T.@if", parentId: null, props: {}, source: "" }],
+},
     };
     render(<ComponentDefPanel />);
     fireEvent.click(screen.getByRole("tab", { name: /^信号调试$/ }));
@@ -394,7 +433,8 @@ describe("界面信号调试 Tab（信号卡）", () => {
         signals: [],
         props: [{ pid: "p1", name: "status", type: "String", defaultValue: '"x"' }],
         computeds: [],
-      },
+        elements: [{ nodeType: "conditional", tag: "conditional", id: "T.@if", parentId: null, props: {}, source: "" }],
+},
     };
     render(<ComponentDefPanel />);
     expect(screen.getByText("status")).toBeTruthy();
@@ -413,7 +453,8 @@ describe("单分支二态开关（D12）", () => {
 
   it("点击成真 → 再点击成假（toggle）", () => {
     mockState.componentDefs = {
-      Card: { signals: [{ pid: "s1", name: "badgeVisible", type: "bool", defaultValue: "false" }], props: [], computeds: [] },
+      Card: { signals: [{ pid: "s1", name: "badgeVisible", type: "bool", defaultValue: "false" }], props: [], computeds: [],
+          elements: [{ nodeType: "conditional", tag: "conditional", id: "T.@if", parentId: null, props: {}, source: "" }] },
     };
     render(<ComponentDefPanel />);
     fireEvent.click(screen.getByRole("button", { name: /badgeVisible/ }));
@@ -425,7 +466,8 @@ describe("单分支二态开关（D12）", () => {
 
   it("已有成假调试值 → 点击切换回成真", () => {
     mockState.componentDefs = {
-      Card: { signals: [{ pid: "s1", name: "badgeVisible", type: "bool", defaultValue: "false" }], props: [], computeds: [] },
+      Card: { signals: [{ pid: "s1", name: "badgeVisible", type: "bool", defaultValue: "false" }], props: [], computeds: [],
+          elements: [{ nodeType: "conditional", tag: "conditional", id: "T.@if", parentId: null, props: {}, source: "" }] },
     };
     mockState.debugValues = { Card: { badgeVisible: { text: "false", valid: true } } };
     render(<ComponentDefPanel />);
@@ -436,10 +478,31 @@ describe("单分支二态开关（D12）", () => {
   it("!sig 单分支：成真合成 false（F1 端到端）", () => {
     mockViewSource.value = "view {\n  @if !badgeVisible {\n    <span>New</span>\n  }\n}";
     mockState.componentDefs = {
-      Card: { signals: [{ pid: "s1", name: "badgeVisible", type: "bool", defaultValue: "false" }], props: [], computeds: [] },
+      Card: { signals: [{ pid: "s1", name: "badgeVisible", type: "bool", defaultValue: "false" }], props: [], computeds: [],
+          elements: [{ nodeType: "conditional", tag: "conditional", id: "T.@if", parentId: null, props: {}, source: "" }] },
     };
     render(<ComponentDefPanel />);
     fireEvent.click(screen.getByRole("button", { name: /badgeVisible/ }));
     expect(mockState.setDebugValue).toHaveBeenLastCalledWith("Card", "badgeVisible", "false", true);
+  });
+});
+
+describe("main 组件界面信号（M8 实锤修复）", () => {
+  it("main 从 store.elements 生成源码——conditional 节点驱动信号卡显示", () => {
+    // main 的设计树在 store.elements（componentDefs.main.elements 恒空）——
+    // 修复前 getComponentSource 走 componentDefs 路径返回空源码 → 无界面信号
+    mockState.designPage.activeTabId = "t-main";
+    mockState.designPage.openTabs = [{ id: "t-main", componentName: "main", filePath: "src/main.omni", tabType: "component" }];
+    mockState.componentDefs = {
+      main: { signals: [{ pid: "s1", name: "newSignal", type: "String", defaultValue: '""' }], props: [], computeds: [],
+          elements: [{ nodeType: "conditional", tag: "conditional", id: "T.@if", parentId: null, props: {}, source: "" }] },
+    };
+    mockState.elements = [{ nodeType: "conditional", tag: "conditional", id: "Main.@if", parentId: null, props: {}, source: "" }];
+    mockState.wires = [];
+    mockState.rootOrder = ["Main.@if"];
+    render(<ComponentDefPanel />);
+    // mock 对 main 返回含 `@if newSignal == "demo"` 的 fixture → newSignal 卡 + 分支胶囊
+    expect(screen.getByRole("button", { name: /newSignal == "demo"/ })).toBeTruthy();
+    expect(screen.queryByText("无界面驱动信号（@if/@for 未用信号）")).toBeNull();
   });
 });

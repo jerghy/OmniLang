@@ -505,6 +505,12 @@ export function ComponentDefPanel() {
   const activeTabId = usePoiesisStore((s) => s.designPage.activeTabId);
   const openTabs = usePoiesisStore((s) => s.designPage.openTabs);
   const componentDefs = usePoiesisStore((s) => s.componentDefs);
+  // (M8 实锤 2026-08-06) main 组件的设计树在 store.elements（画布实时状态）——
+  // componentDefs.main.elements 恒空（useSaveProject 只快照自定义组件），
+  // 分析输入须从 store.elements 取，否则 main 的界面信号 Tab 恒「无界面驱动信号」
+  const elements = usePoiesisStore((s) => s.elements);
+  const wires = usePoiesisStore((s) => s.wires);
+  const rootOrder = usePoiesisStore((s) => s.rootOrder);
   const storeDefs = usePoiesisStore((s) => s.storeDefs);
   const inlineStoreDefs = usePoiesisStore((s) => s.inlineStoreDefs);
   const addComponentSignal = usePoiesisStore((s) => s.addComponentSignal);
@@ -545,14 +551,28 @@ export function ComponentDefPanel() {
   // 面板内惰性生成组件源码（Task 10）：componentDefs 保存后带 elements/wires
   //（useSaveProject 第 5 步写入）；无 def 或生成失败 → 空串（analyzeSignalUsage
   // 兜底把全部信号归入 dataSignals）。generateOmniFragment 对空元素集短路返回空。
+  // (M8 实锤 2026-08-06) main 组件例外：设计树在 store.elements（画布实时状态，
+  // componentDefs.main.elements 恒空）——main 从 store 读，自定义组件从 def 读。
   const getComponentSource = useCallback(() => {
-    const compDef = componentDefs[componentName];
-    if (!compDef) return "";
-    // 单趟收集本组件的内联 store（"Comp.Store" 前缀）
+    // 单趟收集本组件的内联 store（"Comp.Store" 前缀）——main 分支同样需要，置于开头防 TDZ
     const inlineStores: StoreDefinition[] = [];
     for (const [key, def] of Object.entries(inlineStoreDefs)) {
       if (key.startsWith(`${componentName}.`)) inlineStores.push(def);
     }
+    if (componentName === "main") {
+      const result = generateOmniFragment({
+        componentName: "main",
+        designElements: elements,
+        designWires: wires,
+        codeTabs: [{ id: "main", type: "logic", label: "Main", icon: "📄",
+          graph: { elements, wires }, variables: [] }],
+        rootOrder,
+        inlineStores,
+      });
+      return result.value ?? "";
+    }
+    const compDef = componentDefs[componentName];
+    if (!compDef) return "";
     const result = generateOmniFragment({
       componentName,
       designElements: compDef.elements || [],
@@ -564,18 +584,19 @@ export function ComponentDefPanel() {
       inlineStores,
     });
     return result.value ?? "";
-  }, [componentDefs, componentName, inlineStoreDefs]);
+  }, [componentDefs, componentName, inlineStoreDefs, elements, wires, rootOrder]);
 
   // fn 节点源码（列表样本提取用）：fn 是 codeblock + tag==="fn"（ElementData 无
-  // "fn" nodeType，brief 的 nodeType === "fn" 恒不命中，见 task-10-report.md）
+  // "fn" nodeType，brief 的 nodeType === "fn" 恒不命中，见 task-10-report.md）。
+  // (M8) main 组件的元素同样从 store.elements 取（componentDefs.main.elements 恒空）。
   const fnSources = useMemo(() => {
-    const compDef = componentDefs[componentName];
+    const srcElements = componentName === "main" ? elements : componentDefs[componentName]?.elements || [];
     const sources: string[] = [];
-    for (const el of compDef?.elements || []) {
+    for (const el of srcElements) {
       if (el.nodeType === "codeblock" && el.tag === "fn") sources.push(el.source);
     }
     return sources;
-  }, [componentDefs, componentName]);
+  }, [componentDefs, componentName, elements]);
 
   // 信号分析：组件源码 → interfaceSignals（@if/@for 驱动）+ dataSignals。
   // 惰性：仅 Tab 需要分析时生成源码（definitions 跳过）；
