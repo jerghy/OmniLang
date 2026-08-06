@@ -79,9 +79,8 @@ components/DataTable.tsx	TS7006	[T1.6] implicit-any fn/closure params	1	#67
 #           in Phase 5.1.
 # TS18048 — possibly-undefined ref access (ElementRefDemo)
 pages/ElementRefDemo.tsx	TS18048	[T1.6] possibly-undefined ref access	4	#63
-# TS2554 — wrong callback arity (bind:value callbacks)
-components/FormPage.tsx	TS2554	[T1.6] wrong callback arity (bind:value)	3	#62
-components/FormControlsDemo.tsx	TS2554	[T1.6] wrong callback arity (bind:value)	3	#62
+# REMOVED (task 2.4): the TS2554 class — bind:value setter 分支 0 参 handler
+# 不再被调 `handleX({})`（空事件特判对齐无 setter 分支，#62 已关闭）。
 # TS2322 — state-value mismatches: event-handler nullability and Option-value
 #           mismatches. The DataTable never[] class is GONE (task 5.3, #49):
 #           struct-typed signals emit typed useState generics.

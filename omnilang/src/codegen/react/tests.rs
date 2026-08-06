@@ -4372,6 +4372,38 @@ fn numeric_bind_value_emits_number_coercion() {
     assert!(tsx_str.contains("setQ(e.target.value)"));
 }
 
+/// Test: `bind:value` + `@onChange={handleChange}`（0 参 fn）时 setter 分支
+/// 不得调 `handleChange({})`——与无 setter 分支的空事件特判一致（TS2554）。
+#[test]
+fn bind_value_handler_with_zero_arity_fn_skips_empty_obj() {
+    // v4 M3 (task 2.4): 空事件对象仍被构造 → 0 参 fn 被传 1 参（TS2554）。
+    let tsx = compile_react_src(
+        "component App { signal q: String = \"\"; fn handleChange() {} \
+         view { <input bind:value={q} @onChange={handleChange} /> } }",
+    );
+    assert!(
+        !tsx.contains("handleChange({})") && tsx.contains("onChange={(e) => {"),
+        "空事件对象仍被构造：\n{}",
+        tsx
+    );
+}
+
+/// Test: `bind:value` + 内联 0 参 handler 的 setter 分支同样不构造空事件
+/// 对象（InlineFn 分支对齐——`Object.assign(e, {})` 是纯噪音；setter
+/// 仍经 `e` 写回，形状保持 `(e) => { setQ(e.target.value); ... }`）。
+#[test]
+fn bind_value_inline_handler_skips_empty_event_assign() {
+    let tsx = compile_react_src(
+        "component App { signal q: String = \"\"; signal n: i32 = 0; \
+         view { <input bind:value={q} @onChange={() => { n = n + 1; }} /> } }",
+    );
+    assert!(
+        !tsx.contains("Object.assign(e, {})") && tsx.contains("setQ(e.target.value)"),
+        "InlineFn setter 分支仍构造空事件对象：\n{}",
+        tsx
+    );
+}
+
 /// Test: `bind:value={Store.sig}` writes back through the Zustand mutation
 /// machinery (`useStore.setState`) — not an invalid `setStore.sig(...)` call.
 #[test]

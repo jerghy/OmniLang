@@ -463,19 +463,26 @@ pub(super) fn gen_view_node_tsx(
                             r#ref.clone()
                         };
                         if let Some(setter_call) = binding_events_map.remove(&react_event) {
-                            if event_data.is_some() {
-                                let event_obj =
-                                    emit_event_object_react(event_data, used_fields, "e");
-                                attrs.push(format!(
-                                    "{}={{(e) => {{ {}; {}({}); }}}}",
-                                    react_event, setter_call, call, event_obj
-                                ));
+                            // v4 M3 (task 2.4): 与无 setter 分支的空事件特判
+                            // 对齐——事件对象为空（0 参 fn 无消费字段）时不
+                            // 构造 `{}` 实参（TS2554）；`call` 已含 `?.`
+                            // 可选调用（Task 5.6/#61），零参直调 `f?.();`
+                            // 保持合法；无事件数据时按事件参数传递
+                            // （setter 与 handler 共用 e）。
+                            let handler_call = if event_data.is_some() {
+                                let obj = emit_event_object_react(event_data, used_fields, "e");
+                                if obj == "{}" {
+                                    format!("{call}();")
+                                } else {
+                                    format!("{call}({obj});")
+                                }
                             } else {
-                                attrs.push(format!(
-                                    "{}={{(e) => {{ {}; {}(e); }}}}",
-                                    react_event, setter_call, call
-                                ));
-                            }
+                                format!("{call}(e);")
+                            };
+                            attrs.push(format!(
+                                "{}={{(e) => {{ {}; {} }}}}",
+                                react_event, setter_call, handler_call
+                            ));
                         } else if event_data.is_some() {
                             let event_obj = emit_event_object_react(event_data, used_fields, "e");
                             // When no event fields are actually needed (empty object),

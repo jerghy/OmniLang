@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 #
-# v4 基线（2026-08-06 实测）：tsc 83 errors（TS7006×44/TS2345×9/TS2339×10/
-# TS2554×6/TS2353×6/TS18048×4/TS2322×3/TS2367×1）+ eslint 4。
+# v4 基线（2026-08-06 实测）：tsc 77 errors（TS7006×44/TS2345×9/TS2339×10/
+# TS2353×6/TS18048×4/TS2322×3/TS2367×1）+ eslint 4。
 # 修复轮每删除一类豁免须同步此注释；任何类别计数上升 = 门禁失败。
 # 目标：Phase 2/3 修复后 tsc ≤ 33（类型发射 + H2/H3/M3 已删除 TS2304×2（v4 2.2）/
-# TS2345×2（v4 2.3，Number() 强制转换）；剩余缺口 TS2554×6 等）。
+# TS2345×2（v4 2.3，Number() 强制转换）/TS2554×6（v4 2.4，setter 分支空事件特判）；
+# 剩余缺口 TS2353×6/TS2339×10 等）。
 #
 # Real React gate for generated OmniLang output.
 #
