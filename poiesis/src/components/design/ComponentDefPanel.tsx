@@ -10,6 +10,9 @@ const OMNI_TYPES = [
   "Map<String, String>",
 ];
 
+// ── Panel tabs ──
+type PanelTab = "interface" | "signals" | "definitions";
+
 // ── Styles using --ol-* tokens to match Poiesis visual language ──
 //     Matches StoreMembersPanel for visual consistency.
 
@@ -156,7 +159,7 @@ const S = {
     fontStyle: "italic",
   } as React.CSSProperties,
 
-  // Debug mode
+  // Debug 总开关（🔧）
   debugToggle: (active: boolean): React.CSSProperties => ({
     background: active ? "var(--ol-color-primary)" : "none",
     color: active ? "var(--ol-text-inverse)" : "var(--ol-text-secondary)",
@@ -168,17 +171,31 @@ const S = {
     lineHeight: 1.4,
   }),
 
-  debugValueInput: {
-    width: 70,
-    fontSize: "var(--ol-font-size-11)",
-    border: "1px solid var(--ol-color-primary)",
-    borderRadius: "var(--ol-radius-sm)",
-    padding: "1px 4px",
-    outline: "none",
-    background: "var(--ol-color-primary-subtle)",
-    color: "var(--ol-color-primary-active)",
+  // Tab 栏
+  tabBar: {
+    display: "flex",
+    borderBottom: "1px solid var(--ol-border)",
+    background: "var(--ol-gray-50)",
+  } as React.CSSProperties,
+
+  tabButton: (active: boolean): React.CSSProperties => ({
     flex: 1,
-    minWidth: 0,
+    padding: "6px 4px",
+    fontSize: "var(--ol-font-size-11)",
+    fontWeight: "var(--ol-font-weight-600)",
+    border: "none",
+    borderBottom: active ? "2px solid var(--ol-color-primary)" : "2px solid transparent",
+    background: "none",
+    color: active ? "var(--ol-color-primary)" : "var(--ol-text-secondary)",
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  }),
+
+  placeholder: {
+    padding: "16px 12px",
+    color: "var(--ol-text-muted)",
+    fontSize: "var(--ol-font-size-11)",
+    fontStyle: "italic",
   } as React.CSSProperties,
 
   // Add form
@@ -228,10 +245,9 @@ export function ComponentDefPanel() {
   const removeComponentComputed = usePoiesisStore((s) => s.removeComponentComputed);
   const updateComponentComputed = usePoiesisStore((s) => s.updateComponentComputed);
 
-  // Debug mode
-  const [debugMode, setDebugMode] = useState(false);
-  const debugValues = usePoiesisStore((s) => s.debugValues);
-  const setDebugValue = usePoiesisStore((s) => s.setDebugValue);
+  // Debug 总开关：on → 调试值生效；off → 暂停（调试值保留在 store 中）
+  const debugOverridesEnabled = usePoiesisStore((s) => s.debugOverridesEnabled);
+  const setDebugOverridesEnabled = usePoiesisStore((s) => s.setDebugOverridesEnabled);
 
   const panelPosition = useCanvasStore((s) => s.panelPosition);
   const isCollapsed = useCanvasStore((s) => s.isPanelCollapsed);
@@ -242,6 +258,8 @@ export function ComponentDefPanel() {
   const dragRef = useRef<{ startX: number; startY: number; posX: number; posY: number } | null>(null);
   const [isAdding, setIsAdding] = useState<"prop" | "signal" | "computed" | null>(null);
   const [editingPid, setEditingPid] = useState<string | null>(null);
+  // 面板 Tab：默认界面信号调试
+  const [tab, setTab] = useState<PanelTab>("interface");
 
   // Get current component name
   const activeTab = openTabs.find((t) => t.id === activeTabId);
@@ -337,20 +355,15 @@ export function ComponentDefPanel() {
 
   const renderSignalsRow = useCallback((entry: DefEntry | ComputedEntry) => {
     const s = entry as DefEntry;
-    // 新模型桥接（Task 7）：旧字段已删；空输入 → valid=false 不参与编译
-    const debugVal = debugValues[componentName]?.[s.name]?.text;
     return (
       <DefEntryRow key={s.pid} entry={s} kind="signal"
         isEditing={editingPid === s.pid}
         onDoubleClick={() => handleDoubleClick(s.pid)}
         onEditSave={(f, v) => handleEditSave("signal", s.pid, f, v)}
         onDelete={() => handleDelete("signal", s.pid)}
-        debugMode={debugMode}
-        debugValue={debugVal}
-        onDebugValueChange={(v) => setDebugValue(componentName, s.name, v, Boolean(v))}
       />
     );
-  }, [editingPid, handleDoubleClick, handleEditSave, handleDelete, debugMode, debugValues, componentName, setDebugValue]);
+  }, [editingPid, handleDoubleClick, handleEditSave, handleDelete]);
 
   const renderComputedsRow = useCallback((entry: DefEntry | ComputedEntry) => {
     const c = entry as ComputedEntry;
@@ -380,18 +393,11 @@ export function ComponentDefPanel() {
       >
         <span style={S.panelHeaderTitle}>{componentName}</span>
         <button type="button"
-          style={S.debugToggle(debugMode)}
-          onClick={() => {
-            if (debugMode) {
-              for (const sig of signals) {
-                setDebugValue(componentName, sig.name, "", false);
-              }
-            }
-            setDebugMode((v) => !v);
-          }}
-          title={debugMode ? "Debug mode ON — signal edits are preview-only" : "Enable debug mode to preview signal changes"}
+          style={S.debugToggle(debugOverridesEnabled)}
+          onClick={() => setDebugOverridesEnabled(!debugOverridesEnabled)}
+          title="调试总开关：off 时调试值不参与编译（对比原始渲染）"
         >
-          {debugMode ? "🔧 ON" : "🔧"}
+          {debugOverridesEnabled ? "🔧 ON" : "🔧 OFF"}
         </button>
         <button type="button" style={S.collapseBtn} onClick={toggleCollapsed}>
           {isCollapsed ? "□" : "－"}
@@ -399,34 +405,61 @@ export function ComponentDefPanel() {
       </div>
 
       {!isCollapsed && (
-        <div style={S.panelBody}>
-          <DefSection
-            title="Props" sectionKind="prop"
-            entries={props} isAdding={isAdding === "prop"}
-            onAddToggle={() => setIsAdding(isAdding === "prop" ? null : "prop")}
-            onAdd={handleAdd} onCancelAdd={() => setIsAdding(null)}
-            renderRow={renderPropsRow}
-            emptyText="No props defined"
-          />
+        <>
+          {/* Tab 栏 */}
+          <div style={S.tabBar} role="tablist">
+            {([
+              ["interface", "界面信号调试"],
+              ["signals", "信号调试"],
+              ["definitions", "定义"],
+            ] as Array<[PanelTab, string]>).map(([id, label]) => (
+              <button key={id} type="button" role="tab" aria-selected={tab === id}
+                style={S.tabButton(tab === id)} onClick={() => setTab(id)}>
+                {label}
+              </button>
+            ))}
+          </div>
 
-          <DefSection
-            title="Signals" sectionKind="signal"
-            entries={signals} isAdding={isAdding === "signal"}
-            onAddToggle={() => setIsAdding(isAdding === "signal" ? null : "signal")}
-            onAdd={handleAdd} onCancelAdd={() => setIsAdding(null)}
-            renderRow={renderSignalsRow}
-            emptyText="No signals defined"
-          />
+          {/* Tab 内容 */}
+          {tab === "definitions" ? (
+            <div style={S.panelBody}>
+              <DefSection
+                title="Props" sectionKind="prop"
+                entries={props} isAdding={isAdding === "prop"}
+                onAddToggle={() => setIsAdding(isAdding === "prop" ? null : "prop")}
+                onAdd={handleAdd} onCancelAdd={() => setIsAdding(null)}
+                renderRow={renderPropsRow}
+                emptyText="No props defined"
+              />
 
-          <DefSection
-            title="Computed" sectionKind="computed"
-            entries={computeds} isAdding={isAdding === "computed"}
-            onAddToggle={() => setIsAdding(isAdding === "computed" ? null : "computed")}
-            onAdd={handleAdd} onCancelAdd={() => setIsAdding(null)}
-            renderRow={renderComputedsRow}
-            emptyText="No computeds defined"
-          />
-        </div>
+              <DefSection
+                title="Signals" sectionKind="signal"
+                entries={signals} isAdding={isAdding === "signal"}
+                onAddToggle={() => setIsAdding(isAdding === "signal" ? null : "signal")}
+                onAdd={handleAdd} onCancelAdd={() => setIsAdding(null)}
+                renderRow={renderSignalsRow}
+                emptyText="No signals defined"
+              />
+
+              <DefSection
+                title="Computed" sectionKind="computed"
+                entries={computeds} isAdding={isAdding === "computed"}
+                onAddToggle={() => setIsAdding(isAdding === "computed" ? null : "computed")}
+                onAdd={handleAdd} onCancelAdd={() => setIsAdding(null)}
+                renderRow={renderComputedsRow}
+                emptyText="No computeds defined"
+              />
+            </div>
+          ) : tab === "signals" ? (
+            <div style={S.panelBody} data-testid="signals-tab">
+              <p style={S.placeholder}>信号调试（Task 9 实现）</p>
+            </div>
+          ) : (
+            <div style={S.panelBody} data-testid="interface-tab">
+              <p style={S.placeholder}>界面信号调试（Task 10 实现）</p>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -441,14 +474,9 @@ interface DefEntryRowProps {
   onDoubleClick: () => void;
   onEditSave: (field: string, value: string) => void;
   onDelete: () => void;
-  debugMode?: boolean;
-  debugValue?: string;
-  onDebugValueChange?: (value: string) => void;
 }
 
-function DefEntryRow({ entry, kind, isEditing, onDoubleClick, onEditSave, onDelete, debugMode, debugValue, onDebugValueChange }: DefEntryRowProps) {
-  const showDebugInput = kind === "signal" && debugMode;
-
+function DefEntryRow({ entry, kind, isEditing, onDoubleClick, onEditSave, onDelete }: DefEntryRowProps) {
   if (isEditing) {
     return (
       <div style={S.entryRow}>
@@ -494,17 +522,7 @@ function DefEntryRow({ entry, kind, isEditing, onDoubleClick, onEditSave, onDele
       <span style={S.entrySep}>:</span>
       <span style={S.entryType}>{entry.type}</span>
       <span style={S.entrySep}>=</span>
-      {showDebugInput ? (
-        <input
-          style={S.debugValueInput}
-          value={debugValue ?? ""}
-          placeholder={String(entry.defaultValue ?? "")}
-          onChange={(e) => onDebugValueChange?.(e.target.value)}
-          onClick={(e) => e.stopPropagation()}
-        />
-      ) : (
-        <span style={S.entryDefault}>{String(entry.defaultValue ?? "")}</span>
-      )}
+      <span style={S.entryDefault}>{String(entry.defaultValue ?? "")}</span>
       <button type="button" style={S.deleteBtn} onClick={onDelete}>×</button>
     </div>
   );
