@@ -181,7 +181,7 @@ export function ContextInspector() {
   }
 
   return (
-    <div className="context-inspector" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+    <div className="context-inspector" style={{ display: "flex", flexDirection: "column", height: "100%", minWidth: 0 }}>
       {/* Title bar */}
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",

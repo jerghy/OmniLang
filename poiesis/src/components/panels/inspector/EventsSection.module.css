@@ -47,8 +47,9 @@
   text-align: left;
   min-height: 24px;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: pre-wrap; /* 代码预览允许换行（窄面板下不再单行 ellipsis 截断） */
+  word-break: break-word;
+  line-height: 1.4;
 }
 
 .removeBtn {
