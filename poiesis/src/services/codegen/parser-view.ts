@@ -8,6 +8,7 @@ import type { ViewElementAttrs } from "./parser-types";
 import { isAttrBound } from "./parser-types";
 import { createElement } from "./parser-helpers";
 import { parsePidAnnotation } from "./annotation-registry";
+import { BOOLEAN_ATTRS } from "./boolean-attrs";
 
 // ── View entry ──
 
@@ -357,6 +358,18 @@ export function parseViewAttributes(internals: ParserInternals): ViewElementAttr
 
       // There must be EQUALS or COLON after the attribute name
       const next = internals.stream.peek();
+
+      // 裸布尔属性（D3）：<input disabled> → attrs.disabled = true。
+      // 必须 continue——现状 break 会终止整个属性循环，后续属性全部丢失。
+      if (next.kind !== "EQUALS" && next.kind !== "COLON") {
+        if (BOOLEAN_ATTRS.has(attrName)) {
+          result.attrs[attrName] = true;
+          continue;
+        }
+        // 未知裸属性：维持旧容错（break）
+        break;
+      }
+
       if (next.kind === "EQUALS") {
         internals.stream.consume();
 
@@ -369,14 +382,35 @@ export function parseViewAttributes(internals: ParserInternals): ViewElementAttr
         }
 
         if (valTok.kind === "BRACE_OPEN") {
-          // {value} binding syntax
-          internals.stream.consume();
-          const v = internals.stream.expect("IDENTIFIER").text;
-          internals.stream.expect("BRACE_CLOSE");
+          // {expr} 动态属性值（D2）：配平花括号收集任意表达式，存 "{expr}"。
+          // 与事件 handler（315-329）同一收集模式；id 特例保持旧行为（D7）。
+          internals.stream.consume(); // {
+          let depth = 1;
+          let expr = "";
+          let lastEndCol = -1;
+          while (depth > 0 && !internals.stream.isEof()) {
+            const t = internals.stream.peek();
+            if (t.kind === "BRACE_OPEN") depth++;
+            else if (t.kind === "BRACE_CLOSE") depth--;
+            if (depth === 0) {
+              internals.stream.consume(); // }
+              break;
+            }
+            // 行内空格被 tokenizer 丢弃——按列距插回（同 @if condition 收集模式）
+            if (lastEndCol >= 0 && t.col > lastEndCol) {
+              expr += " ".repeat(t.col - lastEndCol);
+            }
+            internals.stream.consume();
+            expr += t.text;
+            lastEndCol = t.col + t.text.length;
+          }
+          expr = expr.trim();
           if (attrName === "id") {
-            result.id = v;
-          } else if (attrName !== "class") {
-            result.attrs[attrName] = v;
+            result.id = expr;
+          } else if (attrName === "class") {
+            // 动态 class={expr} 不在本次范围（class 走 className 管线）——跳过
+          } else {
+            result.attrs[attrName] = expr.length > 0 ? `{${expr}}` : "";
           }
           continue;
         }
