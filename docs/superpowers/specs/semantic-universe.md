@@ -7,8 +7,8 @@
 
 > 本全集回答两个问题：**前端功能全集是什么**（语义集——与实现无关）；**每项当前支持哪些**（实现状态——支持/部分/未支持 + 诊断行为）。
 > **P3 机制**：语法表面（BNF 白名单）只随语义集变化——「这是不是前端功能」由语义域决定；实现进度单独在状态列跟踪。白名单不再随实现修正而变动，语法表面不再漂移。
-> 5 个语义域：可动画属性 / 数组操作 / 事件 / RefOp / design token 类型。
-> **与登记册（`vocabulary-registry.md`，Task 7.1）互补**：登记册管词汇来源（语义词汇 ↔ 来源域 ↔ 排除词汇——「词从哪来」）；本全集管功能全集（条目 ↔ 实现状态 ↔ 诊断行为——「功能有哪些、支持哪些」）。交集域（motion/事件/RefOp/token）双载：登记册定词汇与借词黑名单，本全集定全集边界与实现状态；登记册独有 a11y role（封闭全集 = 已实现集，无漂移可能）；本全集独有数组操作（语言方法域，登记册未载）。
+> 6 个语义域：可动画属性 / 数组操作 / 事件 / RefOp / design token 类型 / 值绑定（bind）。
+> **与登记册（`vocabulary-registry.md`，Task 7.1）互补**：登记册管词汇来源（语义词汇 ↔ 来源域 ↔ 排除词汇——「词从哪来」）；本全集管功能全集（条目 ↔ 实现状态 ↔ 诊断行为——「功能有哪些、支持哪些」）。交集域（motion/事件/RefOp/token）双载：登记册定词汇与借词黑名单，本全集定全集边界与实现状态；登记册独有 a11y role（封闭全集 = 已实现集，无漂移可能）；本全集独有数组操作（语言方法域）与值绑定（bind，域 6，v4 起）——登记册未载。
 
 ## 维护约定
 
@@ -349,3 +349,25 @@ CSS 动画语义域——**属性值从 A 到 B 平滑过渡**（CSS Transitions
 | zIndex | 同上 |
 
 > 不可映射设计值（box-shadow 组合等）→ warning + 生成代码降级注释（warnings 通道，Task 4.3/4.4）——值级诊断，类型语义集不动。
+
+---
+
+## 域 6: 值绑定（bind）
+
+### 语义域定义
+
+声明式双向绑定语义域——**控件状态 ↔ 信号双向一致**（`bind:checked` 选中态；`bind:value` 文本值沿 v2 值绑定收敛登记于设计文档 域 1 BNF `value_binding` 产生式 + 映射表）。语义词汇 = 绑定名本体（`bind:checked` 等——非平台事件形状；登记册 域 4 借词判定注记承载）。v4 正式化（domain HIGH-3）：此前实现存在（React/OmniView 双向、Flutter warning + 跳过）但权威文档宣称「bind:value 唯一双向绑定」——本域收敛该漂移。
+
+### 语义集条目
+
+| 语义集条目 | 语义 | 实现状态 | 诊断行为 |
+|-----------|------|---------|---------|
+| bind:checked | 选中态双向绑定 | 部分 | **React/OmniView 双向（onChange/change 回写）；Flutter warning + 跳过（TextField 无 checked 概念）——v4 正式化（此前实现存在但文档宣称「bind:value 唯一双向绑定」）** |
+
+### 已实现白名单
+
+| 条目 | 编译器事实源 |
+|------|-------------|
+| bind:checked | 设计文档 域 1 BNF `value_binding` 产生式；React `"value" \| "checked"` onChange 回写 `e.target.checked`（`omnilang/src/codegen/react/view.rs` ~:396）；OmniView two-way bindings（`omniview/view/element.rs` ~:351）；Flutter `write_back_eligible = bind_name == "value"`——checked warning + 跳过（`flutter/view.rs` ~:2084；warning 文本 ~:2107） |
+
+> 域 6 为 v4 新增（domain HIGH-3）——本全集此前无 bind 语义域；bind 无编译器白名单常量，事实源以代码锚点记录（既有 5 域交叉断言不含本域）。

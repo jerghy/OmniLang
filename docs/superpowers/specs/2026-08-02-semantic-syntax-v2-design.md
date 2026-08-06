@@ -100,6 +100,7 @@ ref_method        ::= 'focus' | 'blur'
 ref_binding       ::= 'focus' '=' expr            (* 声明式焦点绑定，保留 *)
                     | 'scroll-x' '=' expr | 'scroll-y' '=' expr   (* 保留 *)
 value_binding     ::= 'bind:value' '=' expr       (* 唯一双向绑定，保留 v1 *)
+                    | 'bind:checked' '=' expr     (* 选中态双向绑定——checkbox/radio；v4 正式化：React/OmniView 双向、Flutter warning+跳过 *)
 value_prop        ::= 'value' '=' expr            (* 普通单向 prop，无魔法 *)
 ```
 
@@ -144,6 +145,7 @@ _scrollController.animateTo(y, duration: 300ms, curve: Curves.easeInOut)
 | 语义 | React | Flutter | OmniView |
 |------|-------|---------|----------|
 | bind:value | `value` + `onChange` setter（双向） | `TextEditingController` + `onChanged` 回写 | runtime 双向同步 |
+| `bind:checked` | 控件选中态与信号双向一致 | React `checked` + `onChange` 回写 `e.target.checked`；OmniView 双向（change 事件 + 守卫）；**Flutter warning「bind:checked → param 'value' not supported on 'TextField'; skipped」** | 部分 |
 | value={expr}（单向） | 普通 `value={expr}` prop | 普通 `controller:`/`initialValue`（无 listener） | 普通属性 |
 | focus={sig} | `useEffect([sig]) → ref.current?.focus()` | `Focus` + `didUpdateWidget` 快照比较 | 既有 |
 | scroll-y={pos} | `useEffect([pos]) → scrollTo` | `ScrollController.animateTo` 快照比较 | 既有 |

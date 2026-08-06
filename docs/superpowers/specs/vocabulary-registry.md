@@ -274,6 +274,8 @@ DOM 命令式元素 API 的语义意图——**焦点 / 滚动 / 测量 / 选择
 | ref.setValue(x) / ref.value = x | 命令式写 | 已删除（用 bind:value 双向绑定） | bind:value |
 | capturePointer(id) | DOM | 已删除参数形式（D3：无参数） | capturePointer |
 
+- `bind:checked`：v4 正式化（domain HIGH-3 三方漂移修复）——语义 = 「选中态双向绑定」；Flutter 为部分支持（warning + skip），非便捷形状借词（checked 是 DOM 属性名，非平台形状）
+
 ---
 
 ## 域 5: design token 类型（设计值）
