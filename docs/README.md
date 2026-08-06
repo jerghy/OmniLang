@@ -38,7 +38,7 @@
 |------|------|------|
 | [标准库 API](omniview/12-standard-library.md) | 所有用户 | `std/math`、`std/string`、`std/async`、`std/http` API 参考（[stdlib.md](stdlib.md) ⚠️ 已废弃——见 12-standard-library.md） |
 | [语法规范·核心语言](omniview/14-grammar-lang.md) / [语法规范·UI 框架](omniview/15-grammar-view.md) | 语言设计者、工具开发者 | 形式化语法（BNF）——已发布，源自 Rust 编译器实现 |
-| [v1 → v2 迁移指南](omniview/migration-v1-to-v2.md) | 升级用户 | 破坏性变更与迁移步骤（16 项删除语法对照表） |
+| [v1 → v2 迁移指南](omniview/migration-v1-to-v2.md) | 升级用户 | 破坏性变更与迁移步骤（17 项删除语法对照表） |
 
 ## 内部文档
 
