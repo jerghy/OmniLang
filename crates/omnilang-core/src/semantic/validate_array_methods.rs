@@ -31,7 +31,9 @@
 //!   fallback).
 
 use crate::error::{Diagnostic, DiagnosticKind, Severity};
-use crate::ir::{ArrayMethodIR, BlockIR, EventHandlerIR, ExprIR, ModuleIR, StatementIR, ViewTree};
+use crate::ir::{
+    ArrayMethodIR, BlockIR, EventHandlerIR, ExprIR, ModuleIR, RefOpIR, StatementIR, ViewTree,
+};
 
 /// The three reserved array language method names.
 const ARRAY_METHODS: [&str; 3] = ["filter", "map", "count"];
@@ -305,6 +307,9 @@ fn check_expr(expr: &mut ExprIR, ctx: &mut ArrayMethodCtx) {
     }
 }
 
+// v4 纪律：本 walker 必须与 ir/walk.rs 的共享 walk 保持同构——
+// 新增 ExprIR 变体或 RefOpIR 参数时两处同步（HIGH-1 教训：
+// 私有 walker 与共享 walk 分歧产生组合盲区）。
 /// Recursively walk an expression tree, checking each node for array
 /// methods. Called after `check_expr` so a rewritten `ArrayMethod` has its
 /// subject/predicate expressions walked (nested array methods are legal).
@@ -390,7 +395,42 @@ fn walk_expr_mut(expr: &mut ExprIR, ctx: &mut ArrayMethodCtx) {
                 walk_expr_mut(value, ctx);
             }
         }
-        ExprIR::RefOpExpr { .. } => {}
+        ExprIR::RefOpExpr { op, .. } => {
+            // v4 compiler HIGH-1: 下钻 RefOp 参数——数组方法在 ref-op 参数
+            // 内必须被重写（此前空臂使 `box.setSelection(list.filter(...).len(), 5)`
+            // 逃逸重写，生成非编译 Dart 且 exit 0）。变体镜像
+            // ir/walk.rs::walk_ref_op（validate_ref_ops.rs 的
+            // walk_ref_op_children_mut 同构）。
+            match op {
+                RefOpIR::ScrollTo { x, y } => {
+                    if let Some(x) = x {
+                        walk_expr_mut(x, ctx);
+                    }
+                    if let Some(y) = y {
+                        walk_expr_mut(y, ctx);
+                    }
+                }
+                RefOpIR::ScrollBy { dx, dy } => {
+                    if let Some(dx) = dx {
+                        walk_expr_mut(dx, ctx);
+                    }
+                    if let Some(dy) = dy {
+                        walk_expr_mut(dy, ctx);
+                    }
+                }
+                RefOpIR::SetSelection { start, end } => {
+                    walk_expr_mut(start, ctx);
+                    walk_expr_mut(end, ctx);
+                }
+                RefOpIR::Focus
+                | RefOpIR::Blur
+                | RefOpIR::Measure { .. }
+                | RefOpIR::Select
+                | RefOpIR::Value
+                | RefOpIR::CapturePointer
+                | RefOpIR::ReleasePointer => {}
+            }
+        }
     }
 }
 

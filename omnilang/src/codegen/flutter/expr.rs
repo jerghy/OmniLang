@@ -225,7 +225,58 @@ pub(crate) fn rewrite_store_accesses(
             subject: Box::new(rw(subject)),
             predicate: Box::new(rw(predicate)),
         },
+        // v4 compiler HIGH-1: ref-op 参数内的 store 访问必须同样重写——
+        // 此前落入 `leaf =>` 跳过臂，`box.setSelection(DataStore.items.filter(...)
+        // .len(), 5)` 生成 verbatim `DataStore.items`（无 store import，dart
+        // analyze 首错 `Undefined name 'DataStore'`）。镜像
+        // ir/walk.rs::walk_ref_op 的下钻（validate_ref_ops.rs 同构先例）。
+        ExprIR::RefOpExpr { ref_name, op } => ExprIR::RefOpExpr {
+            ref_name: ref_name.clone(),
+            op: map_ref_op_args(op, &mut rw.clone()),
+        },
         leaf => leaf.clone(),
+    }
+}
+
+/// Map a ref-op's expression arguments through `f` (mirror of
+/// `ir/walk.rs::walk_ref_op`'s descent). Parameterless variants are cloned
+/// untouched.
+///
+/// v4 纪律：omnilang crate 的所有手写递归 walker 都经此唯一入口下钻
+/// RefOp 参数——rewrite_store_accesses、StoreAccessHoister::rewrite、
+/// watch_to_read、rewrite_widget_refs（expr.rs）、
+/// collect_expr_store_aliases（mod.rs，store import 发射）、
+/// scan_expr_structs / scan_expr_unions（types.rs，types.dart import 发射）。
+/// 必须与 ir/walk.rs::walk_ref_op 保持同构（HIGH-1 教训：手写 walker 与
+/// 共享 walk 分歧产生组合盲区，ref-op 参数内表达式逃逸重写——数组方法、
+/// store 访问、widget 引用、watch→read 转换、store/types import 扫描全部
+/// 中过招）。`RefOpIR` 是 `#[non_exhaustive]`（跨 crate），新增变体由
+/// `_ =>` 兜底但不静默：若新变体带表达式参数，必须在此显式下钻。
+pub(crate) fn map_ref_op_args(op: &RefOpIR, f: &mut impl FnMut(&ExprIR) -> ExprIR) -> RefOpIR {
+    match op {
+        RefOpIR::ScrollTo { x, y } => RefOpIR::ScrollTo {
+            x: x.as_ref().map(|x| Box::new(f(x))),
+            y: y.as_ref().map(|y| Box::new(f(y))),
+        },
+        RefOpIR::ScrollBy { dx, dy } => RefOpIR::ScrollBy {
+            dx: dx.as_ref().map(|dx| Box::new(f(dx))),
+            dy: dy.as_ref().map(|dy| Box::new(f(dy))),
+        },
+        RefOpIR::SetSelection { start, end } => RefOpIR::SetSelection {
+            start: Box::new(f(start)),
+            end: Box::new(f(end)),
+        },
+        // Parameterless variants — no expression children.
+        RefOpIR::Focus
+        | RefOpIR::Blur
+        | RefOpIR::Measure { .. }
+        | RefOpIR::Select
+        | RefOpIR::Value
+        | RefOpIR::CapturePointer
+        | RefOpIR::ReleasePointer => op.clone(),
+        // Future variants (non_exhaustive catch-all) — descend here if the
+        // new variant carries expression arguments.
+        _ => op.clone(),
     }
 }
 
@@ -639,6 +690,15 @@ impl<'a> ClosureHoister<'a> {
                 // treat them as closures.
                 predicate: Box::new(rw(self, predicate, true, seen, locals)),
             },
+            // v4 compiler HIGH-1: ref-op 参数内的 store 访问在视图/闭包
+            // 上下文的提升重写同样必须下钻（此前落入 `leaf =>` 跳过臂）。
+            ExprIR::RefOpExpr { ref_name, op } => ExprIR::RefOpExpr {
+                ref_name: ref_name.clone(),
+                op: {
+                    let mut f = |e: &ExprIR| rw(self, e, in_closure, seen, locals);
+                    map_ref_op_args(op, &mut f)
+                },
+            },
             leaf => leaf.clone(),
         }
     }
@@ -724,6 +784,14 @@ pub(crate) fn watch_to_read(expr: &ExprIR) -> ExprIR {
             method: *method,
             subject: Box::new(watch_to_read(subject)),
             predicate: Box::new(watch_to_read(predicate)),
+        },
+        // v4 compiler HIGH-1: ref-op 参数内由 store 重写产生的 `ref.watch(...)`
+        // 在回调上下文（事件处理器/@effect）必须一并转为 `ref.read(...)`——
+        // 此前落入 `leaf =>` 跳过臂，`ref.watch` 会留在 build 期外的回调里
+        // （Riverpod 3.0 运行时报错）。
+        ExprIR::RefOpExpr { ref_name, op } => ExprIR::RefOpExpr {
+            ref_name: ref_name.clone(),
+            op: map_ref_op_args(op, &mut watch_to_read),
         },
         ExprIR::SpreadExpr { operand } => ExprIR::SpreadExpr {
             operand: Box::new(watch_to_read(operand)),
@@ -1001,6 +1069,12 @@ pub(crate) fn rewrite_widget_refs(
             method: *method,
             subject: Box::new(rw(subject)),
             predicate: Box::new(rw(predicate)),
+        },
+        // v4 compiler HIGH-1: ref-op 参数内的 widget 引用/函数重命名同样
+        // 必须下钻（此前落入 `leaf =>` 跳过臂——镜像 walk_ref_op 同构纪律）。
+        ExprIR::RefOpExpr { ref_name, op } => ExprIR::RefOpExpr {
+            ref_name: ref_name.clone(),
+            op: map_ref_op_args(op, &mut rw.clone()),
         },
         leaf => leaf.clone(),
     }

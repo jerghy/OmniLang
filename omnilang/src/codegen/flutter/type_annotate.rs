@@ -204,7 +204,15 @@ pub(crate) fn annotate_expr_types(e: &ExprIR, scope: &FxHashMap<String, String>)
             subject: Box::new(ann(subject)),
             predicate: Box::new(ann(predicate)),
         },
-        ExprIR::LiteralExpr { .. } | ExprIR::RefOpExpr { .. } => e.clone(),
+        // v4 compiler HIGH-1: ref-op 参数内的标识符也必须注解类型——否则
+        // Dart 方法表（get/contains/concat/len 形状）对 ref-op 参数内
+        // 方法调用失明（此前空臂逃逸——同构纪律，经 expr::map_ref_op_args
+        // 统一下钻）。
+        ExprIR::RefOpExpr { ref_name, op } => ExprIR::RefOpExpr {
+            ref_name: ref_name.clone(),
+            op: super::expr::map_ref_op_args(op, &mut |x: &ExprIR| annotate_expr_types(x, scope)),
+        },
+        ExprIR::LiteralExpr { .. } => e.clone(),
         // ExprIR is #[non_exhaustive] — cross-crate matches need a wildcard.
         #[allow(unreachable_patterns)]
         _ => e.clone(),

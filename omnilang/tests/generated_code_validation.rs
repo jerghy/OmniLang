@@ -1377,8 +1377,9 @@ fn learn_omniview_formpage_a11y_migration_across_targets() {
 // dart analyze 门（parameterized/ 枚举）对「编译成功但输出错误」无能为力，
 // 因此这两个组合 fixture 放在枚举目录之外（tests/fixtures/combinations/、
 // tests/fixtures/refs/），由本节的字符串断言直接锁死生成物形态：
-// 当前为预期终态 RED，修复在 Task 3.1（ref-op 参数内数组方法重写）与
-// Task 3.2（scrollTo 双轴 [flutter] warning）。
+// Task 3.1 已修复组合盲区（ref-op 参数内数组方法与 store 访问均被重写，
+// 见 combinations_refop_array_flutter_compiles）；Task 3.2 仍为 RED
+// （scrollTo 双轴 [flutter] warning，见 ref_scrollto_dual_axis_warns）。
 
 /// Compile a fixture (path relative to `tests/fixtures/`) to Flutter
 /// through the public compiler API, returning the generated `.dart`
@@ -1419,8 +1420,11 @@ fn compile_fixture_to_flutter(fixture: &str) -> Option<(String, Vec<omnilang::er
 
 #[test]
 fn combinations_refop_array_flutter_compiles() {
-    // v4 compiler HIGH-1: 数组方法在 ref-op 参数内必须被重写
-    // （.filter → .where(...).toList()）——生成 Dart 不得含 verbatim `.filter(`
+    // v4 compiler HIGH-1 终态契约: ref-op 参数内的数组方法与 store 访问
+    // 均须被重写——① `.filter(` 不得 verbatim（List 没有 filter，Dart 不编译）
+    // ② `DataStore.` 限定访问不得残留（否则首错是 `Undefined name
+    // 'DataStore'` 且无 store import——两个断言共同防「数组方法修复后
+    // 测试绿但 store 未重写仍不编译」）。
     let Some((dart, _)) = compile_fixture_to_flutter("combinations/refop_array.omni") else {
         return; // backend not compiled in
     };
@@ -1430,6 +1434,15 @@ fn combinations_refop_array_flutter_compiles() {
         dart
     );
     assert!(dart.contains(".where(("));
+    // 限定字段读 `DataStore.items` 必须被重写为 Riverpod 访问——注意断言
+    // 匹配 `.items` 限定读而非裸 `DataStore.`：store 声明本身的
+    // `DataStore.new`（provider tearoff）与 `NotifierProvider<DataStore, ...>`
+    // 是合法产物，不得误报。
+    assert!(
+        !dart.contains("DataStore.items"),
+        "ref-op 参数内 store 限定访问逃逸重写（应为 Riverpod 访问）：\n{}",
+        dart
+    );
 }
 
 #[test]

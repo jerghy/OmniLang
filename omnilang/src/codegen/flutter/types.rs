@@ -14,6 +14,7 @@
 //! need the `import './types.dart';` line. Only unions actually referenced
 //! are emitted, so the merged file never carries dangling declarations.
 
+use crate::codegen::flutter::expr::map_ref_op_args;
 use crate::codegen::{CodeWriter, CompiledFile};
 use crate::ir::*;
 use rustc_hash::FxHashSet;
@@ -134,6 +135,16 @@ fn scan_expr_structs(expr: &ExprIR, names: &FxHashSet<&str>, out: &mut FxHashSet
         } => {
             scan_expr_structs(subject, names, out);
             scan_expr_structs(predicate, names, out);
+        }
+        // v4 compiler HIGH-1: ref-op 参数内的 struct 字面量也必须计入
+        // types.dart import 扫描（此前空臂逃逸——同构纪律，经
+        // expr::map_ref_op_args 统一下钻）。
+        ExprIR::RefOpExpr { op, .. } => {
+            let mut f = |e: &ExprIR| {
+                scan_expr_structs(e, names, out);
+                e.clone()
+            };
+            map_ref_op_args(op, &mut f);
         }
         _ => {}
     }
@@ -465,7 +476,17 @@ fn scan_expr_unions(expr: &ExprIR, names: &FxHashSet<&str>, out: &mut FxHashSet<
             scan_expr_unions(subject, names, out);
             scan_expr_unions(predicate, names, out);
         }
-        ExprIR::RefOpExpr { .. } | ExprIR::IdentifierExpr { .. } | ExprIR::LiteralExpr { .. } => {}
+        // v4 compiler HIGH-1: ref-op 参数内的 variant 字面量也必须计入
+        // types.dart import 扫描（此前空臂逃逸——同构纪律，经
+        // expr::map_ref_op_args 统一下钻）。
+        ExprIR::RefOpExpr { op, .. } => {
+            let mut f = |e: &ExprIR| {
+                scan_expr_unions(e, names, out);
+                e.clone()
+            };
+            map_ref_op_args(op, &mut f);
+        }
+        ExprIR::IdentifierExpr { .. } | ExprIR::LiteralExpr { .. } => {}
         #[allow(unreachable_patterns)]
         _ => {}
     }

@@ -2050,8 +2050,16 @@ fn collect_expr_identifiers(expr: &ExprIR, acc: &mut FxHashSet<String>) {
             collect_expr_identifiers(subject, acc);
             collect_expr_identifiers(predicate, acc);
         }
-        ExprIR::RefOpExpr { ref_name, op: _ } => {
+        ExprIR::RefOpExpr { ref_name, op } => {
+            // v4 compiler HIGH-1: 记录 ref_name（本意），同时下钻 op 参数
+            // ——参数内调用的库函数/标识符此前逃逸收集（lib-fn 不内联 →
+            // 生成 Dart 未定义名）。经 expr::map_ref_op_args 统一下钻。
             acc.insert(ref_name.clone());
+            let mut f = |e: &ExprIR| {
+                collect_expr_identifiers(e, acc);
+                e.clone()
+            };
+            map_ref_op_args(op, &mut f);
         }
         ExprIR::LiteralExpr { .. } => {}
         #[allow(unreachable_patterns)]
@@ -2403,6 +2411,17 @@ fn collect_expr_store_aliases(expr: &ExprIR, out: &mut FxHashSet<String>) {
         } => {
             collect_expr_store_aliases(subject, out);
             collect_expr_store_aliases(predicate, out);
+        }
+        // v4 compiler HIGH-1: ref-op 参数内的 store 访问也必须计入 alias
+        // 收集——否则 store import 不发射，重写后的 `ref.read(dataStoreProvider
+        // ...)` 在 App.dart 里 `Undefined name 'dataStoreProvider'`（dart
+        // analyze 实证）。经 expr::map_ref_op_args 统一下钻（同构纪律）。
+        ExprIR::RefOpExpr { op, .. } => {
+            let mut f = |e: &ExprIR| {
+                collect_expr_store_aliases(e, out);
+                e.clone()
+            };
+            map_ref_op_args(op, &mut f);
         }
         _ => {}
     }

@@ -1,7 +1,12 @@
-// combinations/refop_array.omni — ref-op 参数内数组方法（v4 compiler HIGH-1）：
-// `box.setSelection(DataStore.items.filter(|i| i > 1).len(), 5)` 的 .filter 必须
-// 被重写为 Dart 的 .where(...).toList()——verbatim `.filter(` 生成不存在的方法
-// （Dart List 没有 filter，dart analyze 报 `List.filter` 不存在）。
+// combinations/refop_array.omni — ref-op 参数内数组方法 + store 访问（v4
+// compiler HIGH-1）：`box.setSelection(DataStore.items.filter(|i| i > 1).len(), 5)`
+// 的 .filter 必须被重写为 Dart 的 .where(...)（List 没有 filter），且
+// DataStore.items 必须被重写为 Riverpod 访问（ref.read(...)，带 provider
+// import）——否则生成 Dart 的首错是 `Undefined name 'DataStore'`（而非
+// 预测的 `List.filter` 不存在），且 exit 0 零诊断。
+//
+// 终态契约（修复后）：ref-op 参数内的数组方法与 store 访问均被重写——
+// 生成 `.where((...)).length` 且无 verbatim `DataStore.` 限定访问。
 //
 // 注：本 fixture 不在 parameterized/ 枚举内（不会被全量 dart analyze 门自动拾取），
 // 只被 generated_code_validation.rs::combinations_refop_array_flutter_compiles 编译。
