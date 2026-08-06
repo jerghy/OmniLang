@@ -6,6 +6,7 @@ import type { ViewNode, ElementViewNode } from "./types";
 import type { StoreDefinition } from "../../core/types/store";
 import { compileCodeFlowGraph } from "./graph-compiler";
 import { emitPidAnnotation } from "./annotation-registry";
+import { BOOLEAN_ATTRS } from "./boolean-attrs";
 
 // ── Value formatting ────────────────────────────────────────────────────────
 
@@ -473,12 +474,7 @@ export class SourceEmitter {
   ]);
 
   /** HTML boolean attributes — emitted as bare attribute name. */
-  private static readonly BOOLEAN_ATTRS = new Set([
-    "disabled", "required", "readonly", "checked", "selected",
-    "hidden", "multiple", "autofocus", "novalidate",
-    "async", "defer", "ismap", "itemscope", "open",
-    "loop", "muted", "controls", "autoplay",
-  ]);
+  // (共享常量：boolean-attrs.ts，parser-view 同源)
 
   private emitViewNode(node: ViewNode, w: CodeWriter, depth: number): void {
     // PID annotation (skip for text/interpolation which are inline)
@@ -611,7 +607,7 @@ export class SourceEmitter {
     if (style?.htmlAttrs) {
       for (const [attr, val] of Object.entries(style.htmlAttrs)) {
         if (attr === "className" || attr === "style") continue;
-        if (SourceEmitter.BOOLEAN_ATTRS.has(attr)) {
+        if (BOOLEAN_ATTRS.has(attr)) {
           parts.push(` ${attr}`);
         } else {
           parts.push(` ${attr}="${escapeAttr(String(val))}"`);
