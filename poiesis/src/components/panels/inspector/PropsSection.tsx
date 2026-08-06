@@ -485,7 +485,11 @@ function BoolPropRow({
   const isExpr = typeof value === "string";
   const [editingExpr, setEditingExpr] = useState(false);
   const [exprText, setExprText] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
+  // "/" 按下置 true 的闩锁（镜像 ChipEditor slashPendingRef）：picker 交互期间
+  // （mousedown 移焦 → blur）的 onBlur 不得提交插入前文本——否则行先以中间值
+  // 提交并退回芯片态、输入框卸载，随后的选中插入落在已卸载组件上被丢弃。
+  // 闩锁由 blur 守卫或插入回调两者先到者消费。
+  const slashPendingRef = useRef(false);
 
   const commitExpr = useCallback(() => {
     const text = exprText.trim();
@@ -525,7 +529,7 @@ function BoolPropRow({
     return (
       <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
         <span style={{ fontSize: 12, color: "var(--ol-text-secondary)", minWidth: 50, flexShrink: 0 }}>{label}</span>
-        <input ref={inputRef} type="text" aria-label={`${label}-expression`} value={exprText}
+        <input type="text" aria-label={`${label}-expression`} value={exprText}
           autoFocus
           onChange={(e) => setExprText(e.target.value)}
           onKeyDown={(e) => {
@@ -533,6 +537,7 @@ function BoolPropRow({
             else if (e.key === "Escape") setEditingExpr(false);
             else if (e.key === "/" && onSlash) {
               e.preventDefault();
+              slashPendingRef.current = true;
               const input = e.currentTarget;
               // 复用 chipSlashCallbacks WeakMap 机制（父级 handleSlashSelect 分发）。
               // "/" 不进值域（受控输入）：记录按下时光标位置，picker 选中后按
@@ -541,6 +546,7 @@ function BoolPropRow({
               // 避免整段包花括号产生 {前缀{sig}} 非法源码（I1）。
               const slashIndex = input.selectionStart ?? input.value.length;
               chipSlashCallbacks.set(input, (signalName: string) => {
+                slashPendingRef.current = false; // 插入成功 → 消费闩锁，Enter/blur 正常提交
                 const current = input.value;
                 setExprText(current.slice(0, slashIndex) + signalName + current.slice(slashIndex));
                 requestAnimationFrame(() => input.focus());
@@ -548,7 +554,12 @@ function BoolPropRow({
               requestAnimationFrame(() => onSlash(input));
             }
           }}
-          onBlur={commitExpr}
+          onBlur={() => {
+            // blur 竞态守卫（镜像 ChipEditor slashPendingRef）：picker 交互期间
+            // 的 blur 不提交中间文本、不退出编辑态——等选中回调消费闩锁。
+            if (slashPendingRef.current) { slashPendingRef.current = false; return; }
+            commitExpr();
+          }}
           style={{ flex: 1, padding: "3px 6px", fontSize: 12, border: "1px solid var(--ol-color-primary)", borderRadius: 4, fontFamily: "var(--dp-font-mono, monospace)" }} />
       </label>
     );

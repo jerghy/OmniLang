@@ -10,7 +10,9 @@
 //    （实测：默认选项下 "Hello"/regex 命中、"Hello " 不命中）；
 // 4) I1 修复用例（/ 选信号）：signalItems 必须传（picker 无 items 不渲染）；
 //    rAF 回调（onSlash → setSlash）在 act 外触发 React 延迟刷新，picker 不渲染——
-//    advanceTimersByTime(20) 需包 act() 同步冲刷（实测必要）。
+//    advanceTimersByTime(20) 需包 act() 同步冲刷（实测必要）；
+// 5) blur 竞态守卫用例：显式 fireEvent.blur 模拟生产 mousedown 移焦时序——
+//    picker 交互期 blur 不得提交中间值、不得退出编辑态（slashPendingRef 闩锁）。
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, within, act } from "@testing-library/react";
 import { PropsSection } from "../PropsSection";
@@ -175,6 +177,35 @@ describe("布尔属性行（D9）", () => {
       fireEvent.click(screen.getByRole("button", { name: /isLoading/ }));
       const after = screen.getByLabelText("disabled-expression") as HTMLInputElement;
       // 光标插入语义：前缀保留 + 裸信号名插入（不整体包花括号，避免 {isLo{isLoading}}）
+      expect(after.value).toBe("isLoisLoading");
+      fireEvent.keyDown(after, { key: "Enter" });
+      vi.advanceTimersByTime(200);
+      expect(mockSetProp).toHaveBeenCalledWith("el-1", "disabled", "{isLoisLoading}");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("blur 竞态守卫：picker 打开期间 blur 不提交中间值，选中后插入生效", () => {
+    vi.useFakeTimers();
+    try {
+      render(<PropsSection element={el({ disabled: true })} signalItems={[signalItem]} />);
+      const row = screen.getByRole("checkbox", { name: /disabled/ }).closest("div")!;
+      fireEvent.click(within(row).getByRole("button", { name: /表达式/ }));
+      const input = screen.getByLabelText("disabled-expression");
+      fireEvent.change(input, { target: { value: "isLo" } });
+      fireEvent.keyDown(input, { key: "/" });
+      act(() => { vi.advanceTimersByTime(20); }); // picker 渲染
+      // 生产时序：mousedown picker 项 → 输入框 blur（尚未选中）→
+      // 不得提交中间值（"{isLo}"）、不得退出编辑态
+      fireEvent.blur(input);
+      vi.advanceTimersByTime(200);
+      expect(mockSetProp).not.toHaveBeenCalled();
+      const still = screen.getByLabelText("disabled-expression") as HTMLInputElement;
+      expect(still.value).toBe("isLo");
+      // 随后完成选中 → 插入不被丢弃
+      fireEvent.click(screen.getByRole("button", { name: /isLoading/ }));
+      const after = screen.getByLabelText("disabled-expression") as HTMLInputElement;
       expect(after.value).toBe("isLoisLoading");
       fireEvent.keyDown(after, { key: "Enter" });
       vi.advanceTimersByTime(200);
