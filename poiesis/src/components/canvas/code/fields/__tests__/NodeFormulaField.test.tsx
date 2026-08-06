@@ -48,9 +48,15 @@ describe("NodeFormulaField", () => {
   it("词中间运算符不弹框（字符串内容）", async () => {
     const { container } = render(<NodeFormulaField value="" onCommit={() => {}} candidates={source} />);
     const ta = el(container);
-    ta.value = "user-s";
-    ta.setSelectionRange(6, 6);
-    fireEvent.input(ta, { target: { value: "user-s" } });
+    // 逐字符键入 "user" 再键入 "-"：末字符为触发字符 → 走 isBoundary 判定（prev 'r' → 非边界 → 不弹框）。
+    // 修复前末字符 s 非触发字符，直接走触发字符门而不经过 isBoundary，测试平凡通过
+    ta.value = "user";
+    ta.setSelectionRange(4, 4);
+    fireEvent.input(ta, { target: { value: "user" } });
+    expect(screen.queryByRole("listbox")).toBeNull();
+    ta.value = "user-";
+    ta.setSelectionRange(5, 5);
+    fireEvent.input(ta, { target: { value: "user-" } });
     expect(screen.queryByRole("listbox")).toBeNull();
   });
 
@@ -68,6 +74,19 @@ describe("NodeFormulaField", () => {
     expect(ta.value).toBe("\uE000s\uE001");
   });
 
+  it("Esc 关闭菜单：触发字符落点为胶囊（D4 契约）", async () => {
+    const { container } = render(<NodeFormulaField value="" onCommit={() => {}} candidates={source} />);
+    const ta = el(container);
+    ta.value = "/";
+    ta.setSelectionRange(1, 1);
+    fireEvent.input(ta, { target: { value: "/" } });
+    expect(await screen.findByRole("listbox")).toBeTruthy();
+    fireEvent.keyDown(ta, { key: "Escape" });
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(ta.value).toBe("\uE000/\uE001");
+    expect(container.querySelector("[data-seg-kind='capsule']")?.textContent).toBe("/");
+  });
+
   it("点击胶囊 → 重新弹候选；Enter 替换", async () => {
     const { container } = render(<NodeFormulaField value="count + 1" onCommit={() => {}} candidates={source} />);
     const cap = container.querySelector("[data-seg-kind='capsule']") as HTMLElement;
@@ -83,6 +102,14 @@ describe("NodeFormulaField", () => {
     const ta = el(container);
     ta.setSelectionRange(1, 1); // 光标在胶囊内
     fireEvent.keyDown(ta, { key: "Backspace" });
+    expect(ta.value).toBe(" \uE000+\uE001 1");
+  });
+
+  it("Delete 在胶囊标记起点 → 整块删除（与 Backspace 对称）", () => {
+    const { container } = render(<NodeFormulaField value="count + 1" onCommit={() => {}} candidates={source} />);
+    const ta = el(container);
+    ta.setSelectionRange(0, 0); // 光标在 CAPSULE_START 标记上：原生 Delete 删标记 → 游离 CAPSULE_END 进文本段（.omni 隐形 PUA）
+    fireEvent.keyDown(ta, { key: "Delete" });
     expect(ta.value).toBe(" \uE000+\uE001 1");
   });
 

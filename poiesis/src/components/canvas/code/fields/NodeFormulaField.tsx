@@ -165,7 +165,10 @@ export const NodeFormulaField = memo(function NodeFormulaField({ value, onCommit
       const flat = m.groups.flatMap((g) => g.items);
       if (e.key === "ArrowDown") { e.preventDefault(); setMenu((s) => (s ? { ...s, activeIdx: Math.min(s.activeIdx + 1, flat.length - 1) } : s)); }
       else if (e.key === "ArrowUp") { e.preventDefault(); setMenu((s) => (s ? { ...s, activeIdx: Math.max(s.activeIdx - 1, 0) } : s)); }
-      else if (e.key === "Enter" || e.key === "Tab") {
+      // IME 组合期守卫（与无菜单 Enter 分支同款）：Windows 拼音用 Enter 确认候选，
+      // 组合期按 Enter 不得拦截（否则替换掉未定稿拼音文本）。用逐事件 nativeEvent.isComposing，
+      // 不用自管 composingRef（本项目该模式出过组合复位丢失的卡死 bug，逐事件判定免疫粘滞态）
+      else if ((e.key === "Enter" && !e.nativeEvent.isComposing) || e.key === "Tab") {
         e.preventDefault();
         if (escapeHatch()) return; // 候选空且斜杠菜单 → 引用胶囊
         if (flat.length === 0) return;
@@ -185,7 +188,9 @@ export const NodeFormulaField = memo(function NodeFormulaField({ value, onCommit
       }
       return;
     }
-    if (e.key === "Enter") { e.preventDefault(); commit(); return; }
+    // IME 组合期守卫：Windows 拼音用 Enter 确认候选，nativeEvent.isComposing 为 true 时放行
+    // （否则截获 Enter 提交未定稿 draft）。用逐事件判定，不用自管 composingRef（出过复位丢失卡死 bug）
+    if (e.key === "Enter" && !e.nativeEvent.isComposing) { e.preventDefault(); commit(); return; }
     if (e.key === "Escape") { e.preventDefault(); cancel(); return; }
     if (e.key === "Backspace" && !composingRef.current) {
       const el = taRef.current;
@@ -200,6 +205,20 @@ export const NodeFormulaField = memo(function NodeFormulaField({ value, onCommit
         setDraft(v);
         requestAnimationFrame(() => { if (taRef.current) taRef.current.setSelectionRange(seg.start, seg.start); });
       }
+    }
+    if (e.key === "Delete" && !composingRef.current) {
+      const el = taRef.current;
+      if (!el) return;
+      const offset = el.selectionStart ?? draft.length;
+      if (el.selectionEnd !== offset) return; // 有选区走原生删除
+      // 与 Backspace 对称：光标在胶囊标记区内（含 CAPSULE_START/END 标记上）按 Delete
+      // 会删掉标记字符、使另一端游离（\uE001 落进文本段 → 提交 .omni 写入隐形 PUA）→ 整块删除
+      const seg = segments.find((s) => s.kind === "capsule" && offset >= s.start && offset < s.end);
+      if (!seg) return;
+      e.preventDefault();
+      const v = draft.slice(0, seg.start) + draft.slice(seg.end);
+      setDraft(v);
+      requestAnimationFrame(() => { if (taRef.current) taRef.current.setSelectionRange(seg.start, seg.start); });
     }
   };
 

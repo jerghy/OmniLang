@@ -307,7 +307,11 @@ export function serializeSegments(markup: string): string {
       // （brief 参考实现逐字执行会对该类片段加引号产出 `count"+ 1"`，与测试契约矛盾，见 task-2-report）
       // 前后空白保留：toMarkup 将 token 间隙空白原样进 markup，提交拼接不得吞掉
       // （round-trip `say "hi" + name` 契约：` hi ` 需还原为 ` "hi" `，见 task-3-report）
-      if (/[A-Za-z_"]/.test(s.text)) {
+      // 白名单判定（守卫反转）：段整体由「表达式片段字符」（空白/数字/运算符）组成才原样；
+      // 否则统一引号化（spec D3「其余→string」）。修复前仅查 ASCII 字母/下划线/引号——
+      // 纯 CJK 文本（你好）无 ASCII 字符 → 误判原样 → 裸中文提交（.omni 保存门禁拦截），
+      // 与英文行为不一致（hello → "hello"）。parseMarkup 保证 text 段非空，空串不进此分支。
+      if (!/^[\s\d+\-*/%<>=!&|?]+$/.test(s.text)) {
         const trimmed = s.text.trim();
         out += s.text.slice(0, s.text.length - s.text.trimStart().length)
           + `"${escapeString(trimmed)}"`

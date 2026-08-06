@@ -194,6 +194,15 @@ describe("serializeSegments 字面量判定与拼接", () => {
     expect(serializeSegments(`hello world`)).toBe('"hello world"');
     expect(serializeSegments(`user-settings`)).toBe('"user-settings"');
   });
+  it("纯中文文本 → 字符串加双引号（守卫反转：非 ASCII 不再裸提交）", () => {
+    // 修复前 ASCII 守卫盲区：无字母/下划线/引号 → 原样 passthrough → 裸中文 .omni 门禁拦截
+    expect(serializeSegments(`你好`)).toBe('"你好"');
+    expect(serializeSegments(`user-你好`)).toBe('"user-你好"');
+  });
+  it("空输入/纯空白 → 原样空输出（不产生空字符串字面量）", () => {
+    expect(serializeSegments("")).toBe("");
+    expect(serializeSegments("  ")).toBe("  ");
+  });
   it("字符串内嵌引号转义", () => {
     expect(serializeSegments(`say "hi"`)).toBe('"say \\"hi\\""');
   });
@@ -241,7 +250,7 @@ describe("toMarkup 反向结构化 + round-trip", () => {
     expect(toMarkup("x is String")).toBe(`${c("x")} ${c("is")} ${c("String")}`);
   });
   it("round-trip 双向一致：serialize(toMarkup(t)) === t", () => {
-    const cases = ["count + 1", "mirrorInput.value", '"hello world"', "user-settings", "items.get(items.len() - 1)", "sizeBox.measure().height", "Store.signal", "total > 0 && total < 10", 'say "hi" + name'];
+    const cases = ["count + 1", "mirrorInput.value", '"hello world"', "user-settings", "items.get(items.len() - 1)", "sizeBox.measure().height", "Store.signal", "total > 0 && total < 10", 'say "hi" + name', '"你好"', '"标签 is 文本"'];
     for (const t of cases) expect(serializeSegments(toMarkup(t))).toBe(t);
   });
 });
