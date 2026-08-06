@@ -1770,6 +1770,75 @@ fn fn_handler_write_then_read_threads_next_value() {
     );
 }
 
+/// v4 评审 Important 1: `count += 1; count += 1; use(count)` 必须逐次
+/// 线程化——Increment 的隐式 target 读（下值 = target + amount）不能漏判。
+/// 漏判则第一轮保持 functional updater、第二轮分裂读陈旧闭包值，
+/// React 队列终态 old+1 而非 old+2（状态值回归）。
+#[test]
+fn increment_chain_write_then_read_threads_in_order() {
+    let out = compile_react(
+        "component App { signal count: i32 = 0; signal text: String = \"\"; \
+         fn bump() { count += 1; count += 1; text = \"n=\" + count; } \
+         view { <button @onPress={bump}>bump</button> } }",
+    )
+    .expect("compile must succeed");
+    let tsx = out.files.get("App.tsx").expect("App.tsx emitted");
+    assert!(
+        tsx.contains("setCount(nextCount)") && tsx.contains("setCount(nextCount1)"),
+        "+= 链未逐次线程化（隐式 target 读漏判）：\n{}",
+        tsx
+    );
+    assert!(
+        tsx.contains("setText(\"n=\" + nextCount1)"),
+        "+= 链尾读取未指向两轮后的值：\n{}",
+        tsx
+    );
+}
+
+/// v4 评审 Important 2: 区间内出现同信号「嵌套」写（if 体内）时区间模型
+/// 失效——保守放弃线程化：不引入 local、不 rename 后续读取（保持既有
+/// 发射路径形状）。
+#[test]
+fn nested_block_write_skips_threading() {
+    let out = compile_react(
+        "component App { signal x: i32 = 0; signal c: Bool = false; signal text: String = \"\"; \
+         fn go() { x = 1; if (c) { x = 5; } text = \"v=\" + x; } \
+         view { <button @onPress={go}>go</button> } }",
+    )
+    .expect("compile must succeed");
+    let tsx = out.files.get("App.tsx").expect("App.tsx emitted");
+    assert!(!tsx.contains("nextX"), "嵌套写存在时不应线程化：\n{}", tsx);
+    assert!(
+        tsx.contains("setText(\"v=\" + x)"),
+        "嵌套写存在时后续读取不应 rename 到 local：\n{}",
+        tsx
+    );
+}
+
+/// v4 评审 Important 2 传播: 嵌套写使前一写放弃线程化——其后的自读写
+/// （count = count + 1）也必须放弃（否则 RHS 读陈旧闭包值），保持
+/// functional updater 形状（React 队列链安全）。
+#[test]
+fn nested_block_write_keeps_chain_functional_updater() {
+    let out = compile_react(
+        "component App { signal count: i32 = 0; signal c: Bool = false; signal text: String = \"\"; \
+         fn go() { count = 1; if (c) { count = 5; } count = count + 1; text = \"v=\" + count; } \
+         view { <button @onPress={go}>go</button> } }",
+    )
+    .expect("compile must succeed");
+    let tsx = out.files.get("App.tsx").expect("App.tsx emitted");
+    assert!(
+        !tsx.contains("nextCount"),
+        "嵌套写后的自读写不应线程化：\n{}",
+        tsx
+    );
+    assert!(
+        tsx.contains("setCount((c) => c + 1)"),
+        "嵌套写后的自读写应保持 functional updater（链安全）：\n{}",
+        tsx
+    );
+}
+
 /// v4 H1: 链式写（同信号多次写）按 DSL 顺序语义逐次线程化——每次「下值」
 /// 读当前可见值（前一 local），读取重写指向最后一次写的 local。
 #[test]

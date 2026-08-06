@@ -1129,18 +1129,33 @@ pub(super) fn rewrite_write_through(statements: &[StatementIR]) -> Vec<Statement
     // (m_k, m_{k+1}] 区间内（下一个同信号 mutation 的 RHS 含在内，自身
     // RHS 不含）存在对信号的读取。区间内的读取归 m_k 的 local，之后的
     // 归 m_{k+1} 的 local——顺序语义逐段成立。
+    //
+    // 保守放弃（v4 评审 Important 2）：区间内出现同信号「嵌套」写
+    // （if/while/闭包体内）时区间模型失效——rename 会跳过嵌套写，读取
+    // 被改写为过期 local。放弃传播：前一写已放弃且本写 RHS 读 target 时
+    // 本写也无法读「当前可见值」（分裂会读陈旧闭包值，React 队列终态
+    // 错误）——保持 functional updater（链安全）。
     let mut split_flags: FxHashMap<String, Vec<bool>> = FxHashMap::default();
     for (target, indices) in &targets {
         let mut flags = Vec::with_capacity(indices.len());
+        let mut prev_bailed = false;
         for (j, &i) in indices.iter().enumerate() {
             let last = statements.len() - 1;
             let end = indices.get(j + 1).copied().unwrap_or(last);
-            let threaded = statements
+            let interval: Vec<&StatementIR> = statements.iter().skip(i + 1).take(end - i).collect();
+            let has_read = interval.iter().any(|s| stmt_reads_identifier(s, target));
+            let nested = interval
                 .iter()
-                .skip(i + 1)
-                .take(end - i)
-                .any(|s| stmt_reads_identifier(s, target));
-            flags.push(threaded);
+                .any(|s| stmt_contains_nested_target_mutation(s, target));
+            let self_read = match &statements[i] {
+                StatementIR::MutationStmt {
+                    intent: Some(intent),
+                } => mutation_reads_target(intent, target),
+                _ => false,
+            };
+            let bailed = nested || (prev_bailed && self_read);
+            flags.push(has_read && !bailed);
+            prev_bailed = bailed;
         }
         split_flags.insert(target.clone(), flags);
     }
@@ -1191,6 +1206,11 @@ pub(super) fn rewrite_write_through(statements: &[StatementIR]) -> Vec<Statement
             // 若存在；DirectAssign 的值 / Increment 的 amount 已被更早的
             // 线程化 rename 改写为前一 local 的引用）。
             let next_expr = mutation_next_expr(&intent, &target, prev.as_deref());
+            // 合成 setter 的 field_object 恒为 None（v4 评审 Minor ①）：
+            // 原 intent 若带 field_object（`Store.field = v` 类 owner 写），
+            // 线程化后发射路径不读 field_object（仅写穿 DCE 守卫读它——
+            // 而能线程化的 target 必有后续读取，绝不入 pruned 集），
+            // 语义等价，None 不可达造成行为差异。
             let setter_stmt = StatementIR::MutationStmt {
                 intent: Some(MutationIntent::DirectAssign {
                     target: SignalRefIR {
@@ -1259,6 +1279,185 @@ fn mutation_next_expr(intent: &MutationIntent, target: &str, prev_local: Option<
     }
 }
 
+/// 该 mutation 的「下值」表达式是否读取 target——DirectAssign 看值表达式
+/// 是否含 target；Increment/Decrement 恒为真（下值 = target ± amount，
+/// 隐式读 target，与 mutation_next_expr 的 RHS 构造一致）。
+fn mutation_reads_target(intent: &MutationIntent, target: &str) -> bool {
+    matches!(
+        intent,
+        MutationIntent::Increment { .. } | MutationIntent::Decrement { .. }
+    ) || mutation_value_expr(intent).is_some_and(|v| expr_reads_identifier(v, target))
+}
+
+/// 语句子树是否含「嵌套」的同信号写——出现在 if/while/for/块语句/块
+/// 表达式/闭包体内的 MutationStmt（顶层 mutation 不算——它是区间边界）。
+/// 嵌套写破坏区间模型：rename 会跳过它，区间内读取被改写为过期 local
+/// （v4 评审 Important 2）——出现时保守放弃线程化。
+fn stmt_contains_nested_target_mutation(stmt: &StatementIR, target: &str) -> bool {
+    match stmt {
+        StatementIR::ExprStmtIR { expr } | StatementIR::ThrowStmtIR { expr } => {
+            expr_contains_nested_target_mutation(expr, target)
+        }
+        StatementIR::LetStmtIR { value, .. } | StatementIR::ReturnStmtIR { value } => value
+            .as_ref()
+            .is_some_and(|v| expr_contains_nested_target_mutation(v, target)),
+        StatementIR::IfStmtIR {
+            then_body,
+            else_ifs,
+            else_body,
+            ..
+        } => {
+            stmts_contains_nested_target_mutation(&then_body.statements, target)
+                || else_ifs
+                    .iter()
+                    .any(|(_, b)| stmts_contains_nested_target_mutation(&b.statements, target))
+                || else_body
+                    .as_ref()
+                    .is_some_and(|b| stmts_contains_nested_target_mutation(&b.statements, target))
+        }
+        StatementIR::WhileStmtIR { body, .. } | StatementIR::ForInStmtIR { body, .. } => {
+            stmts_contains_nested_target_mutation(&body.statements, target)
+        }
+        StatementIR::BlockStmtIR { body } => {
+            stmts_contains_nested_target_mutation(&body.statements, target)
+        }
+        StatementIR::TryCatchStmtIR {
+            try_body,
+            catch_body,
+            finally_body,
+            ..
+        } => {
+            stmts_contains_nested_target_mutation(&try_body.statements, target)
+                || catch_body
+                    .as_ref()
+                    .is_some_and(|b| stmts_contains_nested_target_mutation(&b.statements, target))
+                || finally_body
+                    .as_ref()
+                    .is_some_and(|b| stmts_contains_nested_target_mutation(&b.statements, target))
+        }
+        StatementIR::MutationStmt { intent } => intent.as_ref().is_some_and(|i| {
+            // 顶层 mutation 自身不算嵌套——但其值表达式（块表达式）可含嵌套写。
+            mutation_value_expr(i).is_some_and(|v| expr_contains_nested_target_mutation(v, target))
+        }),
+        StatementIR::EventEmitStmtIR { args, .. } => args
+            .iter()
+            .any(|a| expr_contains_nested_target_mutation(a, target)),
+        StatementIR::BreakStmtIR | StatementIR::ContinueStmtIR => false,
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown StatementIR variant — update codegen for new variant"),
+    }
+}
+
+/// 语句列表内是否含「嵌套」同信号写——列表内的顶层 MutationStmt 在
+/// 调用语境中即为嵌套上下文中的写（相对处理器顶层而言）。
+fn stmts_contains_nested_target_mutation(stmts: &[StatementIR], target: &str) -> bool {
+    stmts.iter().any(|s| {
+        matches!(
+            s,
+            StatementIR::MutationStmt { intent: Some(i) } if mutation_target_name(i) == Some(target)
+        ) || stmt_contains_nested_target_mutation(s, target)
+    })
+}
+
+/// 表达式子树是否含「嵌套」同信号写（块表达式语句 / match 臂体 / 闭包体）。
+fn expr_contains_nested_target_mutation(expr: &ExprIR, target: &str) -> bool {
+    match expr {
+        ExprIR::BlockExpr { statements, tail } => {
+            stmts_contains_nested_target_mutation(statements, target)
+                || expr_contains_nested_target_mutation(tail, target)
+        }
+        ExprIR::MatchExpr { matched, arms } => {
+            expr_contains_nested_target_mutation(matched, target)
+                || arms
+                    .iter()
+                    .any(|arm| stmts_contains_nested_target_mutation(&arm.body.statements, target))
+        }
+        ExprIR::ClosureExpr { body, .. } => expr_contains_nested_target_mutation(body, target),
+        ExprIR::FieldAccessExpr { object, .. } | ExprIR::OptionalChainExpr { object, .. } => {
+            expr_contains_nested_target_mutation(object, target)
+        }
+        ExprIR::BinaryOpExpr { left, right, .. } => {
+            expr_contains_nested_target_mutation(left, target)
+                || expr_contains_nested_target_mutation(right, target)
+        }
+        ExprIR::UnaryOpExpr { operand, .. } => {
+            expr_contains_nested_target_mutation(operand, target)
+        }
+        ExprIR::CallExpr { args, .. } => args
+            .iter()
+            .any(|a| expr_contains_nested_target_mutation(a, target)),
+        ExprIR::MethodCallExpr { object, args, .. } => {
+            expr_contains_nested_target_mutation(object, target)
+                || args
+                    .iter()
+                    .any(|a| expr_contains_nested_target_mutation(a, target))
+        }
+        ExprIR::TernaryIR {
+            cond,
+            then_expr,
+            else_expr,
+        } => {
+            expr_contains_nested_target_mutation(cond, target)
+                || expr_contains_nested_target_mutation(then_expr, target)
+                || expr_contains_nested_target_mutation(else_expr, target)
+        }
+        ExprIR::IndexExpr { object, index } => {
+            expr_contains_nested_target_mutation(object, target)
+                || expr_contains_nested_target_mutation(index, target)
+        }
+        ExprIR::ArrayExpr { elements } => elements
+            .iter()
+            .any(|e| expr_contains_nested_target_mutation(e, target)),
+        ExprIR::SpreadExpr { operand } => expr_contains_nested_target_mutation(operand, target),
+        ExprIR::StructExpr { fields, .. } | ExprIR::VariantLiteral { fields, .. } => fields
+            .iter()
+            .any(|(_, v)| expr_contains_nested_target_mutation(v, target)),
+        ExprIR::StoreFieldAccessExpr { call_args, .. } => call_args
+            .iter()
+            .any(|a| expr_contains_nested_target_mutation(a, target)),
+        ExprIR::AwaitExpr { operand } => expr_contains_nested_target_mutation(operand, target),
+        ExprIR::MapExpr { entries } => entries.iter().any(|(k, v)| {
+            expr_contains_nested_target_mutation(k, target)
+                || expr_contains_nested_target_mutation(v, target)
+        }),
+        ExprIR::ArrayMethod {
+            subject, predicate, ..
+        } => {
+            expr_contains_nested_target_mutation(subject, target)
+                || expr_contains_nested_target_mutation(predicate, target)
+        }
+        ExprIR::RefOpExpr { op, .. } => ref_op_contains_nested_target_mutation(op, target),
+        ExprIR::IdentifierExpr { .. } | ExprIR::LiteralExpr { .. } => false,
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown ExprIR variant — update codegen for new variant"),
+    }
+}
+
+/// `RefOpIR` 操作数子树是否含「嵌套」同信号写。
+fn ref_op_contains_nested_target_mutation(op: &RefOpIR, target: &str) -> bool {
+    match op {
+        RefOpIR::ScrollTo { x, y } => {
+            x.as_ref()
+                .is_some_and(|e| expr_contains_nested_target_mutation(e, target))
+                || y.as_ref()
+                    .is_some_and(|e| expr_contains_nested_target_mutation(e, target))
+        }
+        RefOpIR::ScrollBy { dx, dy } => {
+            dx.as_ref()
+                .is_some_and(|e| expr_contains_nested_target_mutation(e, target))
+                || dy
+                    .as_ref()
+                    .is_some_and(|e| expr_contains_nested_target_mutation(e, target))
+        }
+        RefOpIR::SetSelection { start, end } => {
+            expr_contains_nested_target_mutation(start, target)
+                || expr_contains_nested_target_mutation(end, target)
+        }
+        #[allow(unreachable_patterns)]
+        _ => false,
+    }
+}
+
 /// Whether a statement subtree reads the identifier (recursive over nested
 /// statements and expressions — mirrors `walk::walk_stmt`'s traversal).
 fn stmt_reads_identifier(stmt: &StatementIR, target: &str) -> bool {
@@ -1309,7 +1508,15 @@ fn stmt_reads_identifier(stmt: &StatementIR, target: &str) -> bool {
             .iter()
             .any(|s| stmt_reads_identifier(s, target)),
         StatementIR::MutationStmt { intent } => intent.as_ref().is_some_and(|i| {
-            mutation_value_expr(i).is_some_and(|v| expr_reads_identifier(v, target))
+            // Increment/Decrement 隐式读 target 自身（下值 = target ± amount，
+            // 与 mutation_next_expr 的 RHS 构造一致）——mutation_value_expr
+            // 只返回 amount，漏判会使 `+=` 链的上一写不线程化、下一写分裂
+            // 读陈旧闭包值（v4 评审 Important 1）。
+            (matches!(
+                i,
+                MutationIntent::Increment { .. } | MutationIntent::Decrement { .. }
+            ) && mutation_target_name(i) == Some(target))
+                || mutation_value_expr(i).is_some_and(|v| expr_reads_identifier(v, target))
         }),
         StatementIR::TryCatchStmtIR {
             try_body,
