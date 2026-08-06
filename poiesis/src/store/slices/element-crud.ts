@@ -414,7 +414,9 @@ export function createElementCrudSlice(set: SetFn, get: GetFn) {
           s.designPage.activeTabId,
           { type: "addElement", element: condBlock },
         );
-        return { ...undoUpdate, elements, isDirty: true };
+        // 顶层条件块同需 rootOrder 登记（与 addForBlock 同类，2026-08-06）
+        const newRootOrder = parentId ? s.rootOrder : [...s.rootOrder, condId];
+        return { ...undoUpdate, elements, rootOrder: newRootOrder, isDirty: true };
       });
     },
 
@@ -633,7 +635,10 @@ export function createElementCrudSlice(set: SetFn, get: GetFn) {
           s.designPage.activeTabId,
           { type: "addElement", element: forBlock },
         );
-        return { ...undoUpdate, elements, isDirty: true };
+        // 顶层 for 块（无 parentId）必须登记 rootOrder——否则 buildViewTree 按
+        // rootOrder 过滤根元素时被丢弃，生成源码无 @for（2026-08-06 真机实测）
+        const newRootOrder = parentId ? s.rootOrder : [...s.rootOrder, forId];
+        return { ...undoUpdate, elements, rootOrder: newRootOrder, isDirty: true };
       });
     },
 
