@@ -9,16 +9,19 @@
 // ║    · focus={sig}         — 语义化焦点绑定（信号驱动 focus/blur）║
 // ║    · .select() / .setSelection(s, e) — 文本全选 / 选区控制    ║
 // ║    · scroll-y={sig}      — 响应式滚动绑定                    ║
-// ║    · .scrollTo() / .scrollBy() — 命令式滚动控制              ║
+// ║    · .scrollTo() / .scrollBy() — 命令式滚动控制（可单参）      ║
 // ║    · .measure()          — 位置/尺寸查询                      ║
+// ║    · .width/.height/.position — 字段读取形式（measure 简写）    ║
+// ║    · scrollTo(0, ref.measure().y) — 嵌套 ref 操作组合          ║
 // ║    · .capturePointer() / .releasePointer() — 指针捕获         ║
-// ║    · @drag-horizontal / @drag-vertical — 拖拽触发器 + motion 接线 ║
+// ║    · @ref + @onPointerMove + style 绑定 — 高频拖拽原语（零中间层）║
+// ║    · @drag-horizontal / @drag-vertical — scrubbing 语法糖     ║
 // ╚══════════════════════════════════════════════════════════════╝
 
 import omniview;
 import { LearnDesign } from "../design";
 
-// ── 拖拽动画：translateX/Y 映射到拖拽范围，元素跟随拖拽进度 ──
+// ── Scrubbing 动画（@drag-* 语法糖）：手势进度映射到 keyframe 范围 ──
 @motion dragX300 {
     from { translateX: 0 }
     to   { translateX: 300 }
@@ -49,6 +52,7 @@ component ElementRefDemo {
     ref rangeInput: Element;
     ref focusSigInput: Element;
     ref pointerBox: Element;
+    ref dragBox: Element;
 
     // ── 本地信号 ──
     signal focusStatus: String = "not focused";
@@ -57,8 +61,9 @@ component ElementRefDemo {
     signal rectInfo: String = "—";
     signal boxWidth: f64 = 200;             // measure() 查询结果（仅查询写入）
     signal boxHeight: f64 = 80;             // measure() 高度查询结果（仅查询写入）
-    signal boxWidthPx: String = "200px";    // style 绑定值（含单位）
-    signal boxHeightPx: String = "80px";
+    signal boxWidthNum: f64 = 200;          // 滑块/按钮驱动（高频连续变更 → 绑定）
+    signal boxHeightPx: String = "80px";    // 按钮驱动的 style 值（含单位）
+    computed boxWidthPx: String = boxWidthNum.to_string() + "px";  // 派生 style 值
     signal mirrorText: String = "";
     signal selectText: String = "0123456789 全选演示文本";
     signal selectStatus: String = "—";
@@ -68,6 +73,11 @@ component ElementRefDemo {
     signal sigFocusStatus: String = "focus=false";
     signal pointerActive: Bool = false;     // 指针捕获中的视觉状态
     signal pointerStatus: String = "free";
+    signal dragging: Bool = false;          // 拖拽中（视觉状态 → class 绑定）
+    signal dragX: f64 = 0;                  // 拖拽位移（→ style transform 绑定）
+    signal dragY: f64 = 0;
+    signal dragOriginX: f64 = 0;            // pointerdown 起点（本次拖拽原点）
+    signal dragOriginY: f64 = 0;
 
     // ── @mount：挂载后置 shouldFocus = true → focus={shouldFocus} 绑定自动聚焦 ──
     @mount {
@@ -110,6 +120,15 @@ component ElementRefDemo {
         scrollPos = "scrollTo(0, 200)";
     }
 
+    // ── 嵌套 ref 操作组合：测量结果直接作滚动参数 ──
+    // scrollTo(0, rectBox.measure().y)：先测量目标盒当前位置，再滚动
+    // 滚动区到该 y —— 一次调用完成「测量 + 定位」，参数可以是任意
+    // 表达式（信号、字段读取、甚至另一个 ref 操作）。
+    fn scrollToMeasuredRect() {
+        scrollArea.scrollTo(0, rectBox.measure().y);
+        scrollPos = "scrolled to rectBox 顶部（嵌套 ref 操作）";
+    }
+
     // ── 位置查询（ref.measure()） ──
     fn queryRect() {
         let rect = rectBox.measure();
@@ -125,13 +144,25 @@ component ElementRefDemo {
         boxHeight = h;
     }
 
+    // ── 字段读取形式（ref.width / ref.height / ref.position） ──
+    // 字段读取 = measure() 的简写：ref.width → getBoundingClientRect().width，
+    // ref.position → getBoundingClientRect()（DOMRect，可继续 .x/.y 访问）。
+    fn querySizeFields() {
+        boxWidth = sizeBox.width;
+        boxHeight = sizeBox.height;
+    }
+    fn queryPositionField() {
+        let pos = rectBox.position;
+        rectInfo = "x:" + pos.x.to_string() + " y:" + pos.y.to_string() + "（字段读取 ref.position）";
+    }
+
     // ── 信号驱动样式（style: { width: sig } 绑定，替代 ref.style 直接操作） ──
     fn expandBox() {
-        boxWidthPx = "300px";
+        boxWidthNum = 300;
         boxHeightPx = "120px";
     }
     fn resetBox() {
-        boxWidthPx = "200px";
+        boxWidthNum = 200;
         boxHeightPx = "80px";
     }
 
@@ -185,14 +216,32 @@ component ElementRefDemo {
         pointerStatus = "released";
     }
 
-    // ── 高频拖拽 ──
-    // 拖拽由 @drag-horizontal / @drag-vertical 触发器 + @motion 驱动
-    // （声明式，无手动 DOM 写入）。
+    // ── 高频拖拽（@ref + @onPointerMove 原语） ──
+    // 移动元素 = 指针事件原语直接驱动 style 绑定，零中间层：pointerdown
+    // 捕获指针并记录起点，pointermove 把位移写入 dragX/dragY 信号，
+    // transform 绑定即时跟随。无 duration/easing/keyframes —— 高频操作
+    // 就是要简单直接（@drag-* 仅作 scrubbing 语法糖，见下方 section）。
+    fn onDragDown(e) {
+        dragging = true;
+        dragOriginX = e.x;
+        dragOriginY = e.y;
+        dragBox.capturePointer();
+    }
+    fn onDragMove(e) {
+        if dragging {
+            dragX = e.x - dragOriginX;
+            dragY = e.y - dragOriginY;
+        }
+    }
+    fn onDragEnd() {
+        dragging = false;
+        dragBox.releasePointer();
+    }
 
     view {
         <div class: LearnDesign.Container>
             <h3 class: LearnDesign.CardTitle>Element Reference System</h3>
-            <p class: LearnDesign.Subtitle>ref · @ref · .focus() · .select() · .setSelection() · focus={"{sig}"} · scroll-y · .scrollTo() · .capturePointer()</p>
+            <p class: LearnDesign.Subtitle>ref · @ref · .focus() · .select() · .setSelection() · .width/.height/.position 字段读取 · 嵌套组合 scrollTo(0, ref.measure().y) · @onPointerMove</p>
 
             <!-- ═══ 焦点管理 ═══ -->
             <h4 class: LearnDesign.SectionTitle>焦点管理 (.focus / .blur)</h4>
@@ -268,7 +317,7 @@ component ElementRefDemo {
             </div>
 
             <!-- ═══ 滚动控制 ═══ -->
-            <h4 class: LearnDesign.SectionTitle>滚动控制 (scroll-y 绑定 + .scrollBy + .scrollTo)</h4>
+            <h4 class: LearnDesign.SectionTitle>滚动控制 (scroll-y 绑定 + .scrollBy + .scrollTo + 嵌套组合)</h4>
             <div scroll-y={scrollTarget} @ref={scrollArea} class: ScrollBox>
                 <p class: ScrollItem>Item 1 — 滚动演示区域</p>
                 <p class: ScrollItem>Item 2 — 使用 scroll-y 绑定跳转</p>
@@ -293,30 +342,46 @@ component ElementRefDemo {
                 <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={scrollTo200}>
                     scrollTo(0, 200)
                 </button>
+                <button variant: LearnDesign.Button(color=accent, size=sm) @onPress={scrollToMeasuredRect}>
+                    scrollTo(0, rectBox.measure().y)
+                </button>
                 <span class: StatusText>Pos: {scrollPos}</span>
             </div>
 
             <!-- ═══ 位置查询 ═══ -->
-            <h4 class: LearnDesign.SectionTitle>位置查询 (.measure)</h4>
+            <h4 class: LearnDesign.SectionTitle>位置查询 (.measure / .position 字段读取)</h4>
             <div @ref={rectBox} class: RectBox>
                 <p>Query Box — click "Query Rect" to read position</p>
             </div>
             <div class: LearnDesign.Row>
                 <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={queryRect}>
-                    Query Rect
+                    Query Rect (.measure)
+                </button>
+                <button variant: LearnDesign.Button(color=accent, size=sm) @onPress={queryPositionField}>
+                    Query Position (字段读取)
                 </button>
                 <span class: StatusText>{rectInfo}</span>
             </div>
 
             <!-- ═══ 尺寸查询 + 样式绑定 ═══ -->
             <h4 class: LearnDesign.SectionTitle>尺寸查询 + 样式绑定 (.measure / style 绑定)</h4>
+            <p class: LearnDesign.Hint>
+                连续属性变更 = 信号 + 声明式绑定：拖动滑块连续更新 boxWidthNum，
+                computed boxWidthPx 派生样式值，绑定实时生效 —— 无命令式 DOM 写入。
+                尺寸查询有方法形式（.measure().width）与字段读取形式（.width）两种写法，
+                字段读取是 measure 的简写，同样返回响应式数值。
+            </p>
             <div class: DemoRow>
                 <div @ref={sizeBox} class: SizeBox
                     style: { width: boxWidthPx, height: boxHeightPx }>
                     <p>resize via style binding</p>
                 </div>
+                <input type="range" min="120" max="400" bind:value={boxWidthNum} class: DemoRange />
                 <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={querySize}>
                     Query Size
+                </button>
+                <button variant: LearnDesign.Button(color=accent, size=sm) @onPress={querySizeFields}>
+                    Query Size (字段读取)
                 </button>
                 <button variant: LearnDesign.Button(color=accent, size=sm) @onPress={expandBox}>
                     Expand
@@ -360,25 +425,38 @@ component ElementRefDemo {
                 <span class: StatusText>Pointer: {pointerStatus}</span>
             </div>
 
-            <!-- ═══ 高频拖拽（@drag-horizontal 触发器） ═══ -->
-            <h4 class: LearnDesign.SectionTitle>高频拖拽 (@drag-horizontal)</h4>
+            <!-- ═══ 高频拖拽（@ref + @onPointerMove 原语） ═══ -->
+            <h4 class: LearnDesign.SectionTitle>高频拖拽 (@ref + @onPointerMove)</h4>
             <p class: LearnDesign.Hint>
-                无约束时拖拽范围由 motion 自身 keyframe 范围决定（dragX300 → 拖动 300px 走完动画）
+                拖拽移动元素用底层原语而非动画：pointerdown 捕获指针并记录起点，
+                pointermove 把指针位移写入 dragX/dragY 信号，style 的 transform
+                绑定即时跟随 —— 无 duration/easing/keyframes，高频操作就是简单直接。
             </p>
             <div class: LearnDesign.Row>
                 <div
-                    @drag-horizontal={dragX300}
-                    class: DragBox>
-                    <p>↔ Drag me</p>
+                    @ref={dragBox}
+                    @onPointerDown={onDragDown}
+                    @onPointerMove={onDragMove}
+                    @onPointerUp={onDragEnd}
+                    @onPointerCancel={onDragEnd}
+                    style: { transform: "translate(" + dragX + "px, " + dragY + "px)" }
+                    class: { DragBox: true, DragBoxActive: dragging }
+                >
+                    <p>↔ Drag me（直接跟随指针）</p>
                 </div>
             </div>
 
-            <h4 class: LearnDesign.SectionTitle>拖拽方向与范围变体（constraints 约束）</h4>
+            <h4 class: LearnDesign.SectionTitle>手势 Scrubbing (@drag-horizontal / @drag-vertical)</h4>
             <p class: LearnDesign.Hint>
-                constraints: [min, max] 限定拖拽范围（超出部分由 elastic 回弹）；
-                拖拽进度映射到 motion 自身的 keyframe 范围（水平用 translateX、垂直用 translateY）。
+                @drag-* 是 scrubbing 语法糖：手势进度映射到 motion 自身的 keyframe 范围
+                （水平 translateX / 垂直 translateY），由 WAAPI 动画引擎驱动 —— 适合
+                「滑动解锁」式进度控制；移动元素用上方 @ref + @onPointerMove 原语。
+                constraints: [min, max] 限定手势范围（超出部分由 elastic 回弹）。
             </p>
             <div class: ConstraintsRow>
+                <div @drag-horizontal={dragX300} class: DragDemoBox>
+                    <p>↔ 无约束（keyframe 300px）</p>
+                </div>
                 <div @drag-horizontal constraints: [-150, 150] elastic: 0.4={dragX150} class: DragDemoBox>
                     <p>↔ 约束 ±150px</p>
                 </div>
@@ -393,6 +471,9 @@ component ElementRefDemo {
         .SizeBox p { font-size: var(--fontSizeXs); color: white; margin: 0; }
         .Pointerbox p { font-size: var(--fontSizeXs); color: var(--textSecondary); margin: 0; }
         .PointerCaptured p { color: white; }
+        .DragBox p { font-size: var(--fontSizeXs); color: var(--textSecondary); margin: 0; }
+        .DragBoxActive p { color: white; }
+        .DragBoxActive { cursor: grabbing; }
         .DragDemoBox p { font-size: var(--fontSizeXs); margin: 0; }
     }
 }

@@ -191,7 +191,7 @@ component ElementRefDemo {
 
 约束：值必须是**裸 signal**（或 `Store.sig`）；元素必须同时带 `@ref={name}`，否则语义检查报错（E0006）；非裸 signal 表达式回退为普通属性。
 
-### 2.4 真实用例全景（ElementRefDemo.omni，399 行全主题文件）
+### 2.4 真实用例全景（ElementRefDemo.omni，445 行全主题文件）
 
 | ref | 绑定位置 | 用途 |
 |-----|---------|------|
@@ -204,8 +204,20 @@ component ElementRefDemo {
 | `sizeBox` | `<div @ref={sizeBox} style: {width, height}>` | .measure() 尺寸查询 + 信号驱动样式绑定 |
 | `mirrorInput` | `<input @ref={mirrorInput}>` | .value 读值 → 镜像文本 |
 | `pointerBox` | `<div @ref={pointerBox} @onPointerDown/@onPointerUp>` | .capturePointer/.releasePointer 指针捕获 |
+| `dragBox` | `<div @ref={dragBox} @onPointerDown/@onPointerMove/@onPointerUp/@onPointerCancel style: {transform}>` | 高频拖拽原语（无 @motion 壳） |
 
-**高频组合模式**：`@ref` + `@drag-horizontal` 触发器（ElementRefDemo:370-388）——拖拽由触发器 + @motion 声明式驱动，最终值用 signal 保存；`ref.style.*` 已删除，改用 `style: { width: sig }` 绑定。
+### 2.4.1 高频操作设计原则（信号 + 声明式绑定，零中间层）
+
+「直接改组件属性」的高频操作（移动/缩放/变色/滚动）一律用 **signal + 声明式绑定** 原语，不套动画/命令式壳——高频操作就是高性能，高性能就是要简单直接：
+
+| 高频场景 | 原语组合（ElementRefDemo 实证） | 无 duration/easing/keyframes |
+|----------|-------------------------------|------------------------------|
+| 拖拽移动元素 | `@onPointerDown/@onPointerMove` 写位移信号 + `style: { transform: "translate(" + dragX + "px, " + dragY + "px)" }` 绑定 | ✓（直接跟随指针） |
+| 连续属性变更（尺寸等） | `bind:value={sig}`（range 滑块连续触发）+ `computed` 派生样式值 + `style: { width: ... }` 绑定 | ✓（拖动即实时生效） |
+| 滚动跟随 | `scroll-y={sig}` 响应式绑定（数值信号 → `el.scrollTop`） | ✓ |
+| 指针锁定 | `.capturePointer()/.releasePointer()` 无参原语（pointerdown 捕获，之后事件全定向本元素） | ✓ |
+
+`@drag-horizontal/@drag-vertical` 只保留一种定位：**手势 Scrubbing 语法糖**（手势进度映射到 @motion keyframe 范围，WAAPI 驱动）——适合「滑动解锁」式进度控制，**不用于**移动元素（设计 D5，见 element-ref-system.md:375）。`ref.style.*` 已删除，统一走 `style: { k: v }` 绑定。
 
 ### 2.5 边界情况（文档明示）
 

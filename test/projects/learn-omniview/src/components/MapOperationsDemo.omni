@@ -1,0 +1,94 @@
+// ╔══════════════════════════════════════════════════════════════════════╗
+// ║  MapOperationsDemo — Map 数据操作展示 + 灵活运用                        ║
+// ║                                                                      ║
+// ║  可用操作（跨目标保证）：Map 字面量 · get · contains · len               ║
+// ║  ——灵活运用：                                                         ║
+// ║    · 配置查询：@if contains 守卫 + get 取值（缺失键不落空）             ║
+// ║    · 状态 → 标签映射：get 将枚举状态翻译为用户可读文案                  ║
+// ║    · Map 更新惯用法：完整字面量重新赋值（insert/spread 尚未实现——       ║
+// ║      语义全集记录在案，更新 Map 请整体重赋值）                         ║
+// ║                                                                      ║
+// ║  testId 属性：静态字符串 → data-testid（Web）/ ValueKey（Flutter）。    ║
+// ╚══════════════════════════════════════════════════════════════════════╝
+
+import omniview;
+import { LearnDesign } from "../design";
+
+component MapOperationsDemo {
+    // ── 配置查询：环境 → API 端点 ──
+    signal endpoints: Map<String, String> = { "dev": "http://localhost:3000", "staging": "https://staging.example.com", "prod": "https://api.example.com" };
+    signal env: String = "staging";
+
+    // ── 状态 → 标签映射：枚举状态 → 用户可读文案 ──
+    signal statusLabels: Map<String, String> = { "pending": "处理中", "shipped": "已发货", "delivered": "已送达" };
+    signal orderStatus: String = "shipped";
+
+    // ── 购物车：Map 更新 = 完整字面量重新赋值 ──
+    signal cart: Map<String, i32> = { "苹果": 3, "香蕉": 2 };
+
+    computed endpointCount: Number = endpoints.len();
+    computed cartCount: Number = cart.len();
+    computed cartHasApples: bool = cart.contains("苹果");
+
+    fn switchEnv() {
+        if env == "staging" { env = "prod"; } else { env = "dev"; }
+    }
+
+    fn restock() {
+        cart = { "苹果": 5, "香蕉": 4, "橘子": 2 };
+    }
+
+    fn clearCart() {
+        cart = {};
+    }
+
+    view {
+        <section class: LearnDesign.DemoCard>
+            <h3 class: LearnDesign.CardTitle>Map 数据操作与灵活运用</h3>
+            <p class: LearnDesign.Hint>
+                Map 操作：字面量 · get · contains · len · 完整字面量重新赋值。testId="..." → data-testid（Web）/ ValueKey（Flutter）。
+            </p>
+
+            <div class: LearnDesign.Row>
+                <div class: LearnDesign.Col>
+                    <h4 class: LearnDesign.SectionTitle>配置查询（contains 守卫 + get）</h4>
+                    <p class: LearnDesign.Hint>当前环境 {env}（{endpointCount} 个可用环境）</p>
+                    @if endpoints.contains(env) {
+                        <div class: LearnDesign.Tag testId="map-endpoint">
+                            API 端点：{endpoints.get(env)}
+                        </div>
+                    } @else {
+                        <div class: LearnDesign.Tag>未知环境：{env}（无端点配置）</div>
+                    }
+                    <button class: LearnDesign.Button testId="map-switch-env" @onPress={switchEnv}>切换环境</button>
+                </div>
+
+                <div class: LearnDesign.Col>
+                    <h4 class: LearnDesign.SectionTitle>状态 → 标签映射（get 翻译）</h4>
+                    <p class: LearnDesign.Hint>
+                        订单状态 {orderStatus} → 「{statusLabels.get(orderStatus)}」
+                    </p>
+                    <p class: LearnDesign.Hint>
+                        contains 判定：{statusLabels.contains("delivered") ? "delivered 已注册" : "delivered 未注册"}（{statusLabels.len()} 种状态）
+                    </p>
+                </div>
+            </div>
+
+            <div class: LearnDesign.Row>
+                <div class: LearnDesign.Col>
+                    <h4 class: LearnDesign.SectionTitle>购物车（Map 更新 = 完整字面量重新赋值）</h4>
+                    <p class: LearnDesign.Hint>
+                        苹果 × {cart.contains("苹果") ? cart.get("苹果") : 0} · 香蕉 × {cart.contains("香蕉") ? cart.get("香蕉") : 0} · 共 {cartCount} 种
+                    </p>
+                    <div class: LearnDesign.Row>
+                        <button class: LearnDesign.Button testId="map-restock" @onPress={restock}>补货（重赋值）</button>
+                        <button class: LearnDesign.Button testId="map-clear" @onPress={clearCart}>清空</button>
+                    </div>
+                    <p class: LearnDesign.Hint>
+                        contains 判定：{cartHasApples ? "购物车还有苹果" : "购物车没有苹果"}
+                    </p>
+                </div>
+            </div>
+        </section>
+    }
+}
