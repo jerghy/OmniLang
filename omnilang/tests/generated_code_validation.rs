@@ -1102,7 +1102,16 @@ design LearnDesign {
 /// 416 类 corpus 的 layout/text-only 类; 合并无可再消减), 其余族不变。
 /// 671 为按唯一名合并的诚实下限——<300 需语义燃尽（#2+#6 TextStyle/
 /// layout 映射，-429 可达 242），编排层裁决（deferral #81 记录）。
-const FLUTTER_WARNINGS_BASELINE: usize = 671;
+///
+/// v4 Task 3.2 (compiler HIGH-2) raised it to 673 — the second sanctioned
+/// honest-degradation exception (same category as Task 3.10's +5): dual-axis
+/// `scrollTo(x, y)` must emit the design-contract [flutter] warning (设计文档
+/// 域 1 映射表), and the corpus genuinely calls it twice — NotificationsPanel
+/// `scrollContainer.scrollTo(0, 9999)` + ElementRefDemo
+/// `scrollArea.scrollTo(0, 0)` / `scrollArea.scrollTo(0, 200)` (2 call sites,
+/// 1 component). Each converts a silently-dropped x axis into a compile-time
+/// warning; the demo code is left untouched so the warning stays live.
+const FLUTTER_WARNINGS_BASELINE: usize = 673;
 
 #[test]
 fn learn_omniview_flutter_warnings_are_tracked() {
