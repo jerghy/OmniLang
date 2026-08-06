@@ -1795,6 +1795,50 @@ fn increment_chain_write_then_read_threads_in_order() {
     );
 }
 
+/// v4 评审修复轮（新 Important）：读在嵌套写「之前」时线程化精确正确——
+/// `x = 1; use(x); if (c) { x = 5; }` 的 use(nextX) 读 1（写→读→条件重置
+/// 形态）；位置不敏感的放弃会把读取打回陈旧闭包初值（静默值回归）。
+#[test]
+fn read_before_nested_write_still_threads() {
+    let out = compile_react(
+        "component App { signal x: i32 = 0; signal c: Bool = false; signal text: String = \"\"; \
+         fn go() { x = 1; text = \"v=\" + x; if (c) { x = 5; } } \
+         view { <button @onPress={go}>go</button> } }",
+    )
+    .expect("compile must succeed");
+    let tsx = out.files.get("App.tsx").expect("App.tsx emitted");
+    assert!(
+        tsx.contains("setText(\"v=\" + nextX)"),
+        "读在嵌套写前应线程化（use(nextX) 读 1）：\n{}",
+        tsx
+    );
+    assert!(
+        !tsx.contains("setText(\"v=\" + x)"),
+        "读在嵌套写前不应回退到陈旧闭包初值：\n{}",
+        tsx
+    );
+}
+
+/// v4 评审修复轮：顶层非三变体写（`x *= 2` 类）不可线程化——它的值无法
+/// 局部化，与嵌套写同级切断 local 链；断点之后的读取保持原状（不 rename
+/// 到过期 local，functional updater 链安全）。
+#[test]
+fn unthreadable_write_breaks_chain() {
+    let out = compile_react(
+        "component App { signal x: i32 = 2; signal text: String = \"\"; \
+         fn go() { x = 1; x *= 2; text = \"v=\" + x; } \
+         view { <button @onPress={go}>go</button> } }",
+    )
+    .expect("compile must succeed");
+    let tsx = out.files.get("App.tsx").expect("App.tsx emitted");
+    assert!(!tsx.contains("nextX"), "非三变体写后不应线程化：\n{}", tsx);
+    assert!(
+        tsx.contains("setText(\"v=\" + x)"),
+        "链断点后的读取应保持原状：\n{}",
+        tsx
+    );
+}
+
 /// v4 评审 Important 2: 区间内出现同信号「嵌套」写（if 体内）时区间模型
 /// 失效——保守放弃线程化：不引入 local、不 rename 后续读取（保持既有
 /// 发射路径形状）。

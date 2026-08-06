@@ -1130,11 +1130,16 @@ pub(super) fn rewrite_write_through(statements: &[StatementIR]) -> Vec<Statement
     // RHS 不含）存在对信号的读取。区间内的读取归 m_k 的 local，之后的
     // 归 m_{k+1} 的 local——顺序语义逐段成立。
     //
-    // 保守放弃（v4 评审 Important 2）：区间内出现同信号「嵌套」写
-    // （if/while/闭包体内）时区间模型失效——rename 会跳过嵌套写，读取
-    // 被改写为过期 local。放弃传播：前一写已放弃且本写 RHS 读 target 时
-    // 本写也无法读「当前可见值」（分裂会读陈旧闭包值，React 队列终态
-    // 错误）——保持 functional updater（链安全）。
+    // 位置敏感放弃（v4 评审修复轮）：rename 递归入块，会把「链断点之后」
+    // 的读取也改写为 m_k 的 local——陈旧值；「断点之前」的读取 rename 到
+    // local 在该程序点精确正确（写→读→条件重置形态常见，读在前必须保留
+    // 线程化）。链断点 = 同信号嵌套写（if/while/闭包体内）或顶层非三变体
+    // 写（Multiply/Push 等——其值不可局部化）。按语句序扫描区间：断点
+    // 置位后再出现读取 → 放弃；同一语句同时含读与断点（块内次序不明）→
+    // 保守放弃。放弃传播：前一写已放弃且本写 RHS 读 target 时，本写也读
+    // 不到「当前可见值」（分裂会读陈旧闭包值，React 队列终态错误）——
+    // 保持 functional updater（链安全）。首个写的 RHS 自读还要求「写前无
+    // 同信号写」（断点在 m_0 之前执行后 closure 值陈旧，RHS 无值可读）。
     let mut split_flags: FxHashMap<String, Vec<bool>> = FxHashMap::default();
     for (target, indices) in &targets {
         let mut flags = Vec::with_capacity(indices.len());
@@ -1144,16 +1149,38 @@ pub(super) fn rewrite_write_through(statements: &[StatementIR]) -> Vec<Statement
             let end = indices.get(j + 1).copied().unwrap_or(last);
             let interval: Vec<&StatementIR> = statements.iter().skip(i + 1).take(end - i).collect();
             let has_read = interval.iter().any(|s| stmt_reads_identifier(s, target));
-            let nested = interval
-                .iter()
-                .any(|s| stmt_contains_nested_target_mutation(s, target));
+            // 读在链断点之后 → 区间模型失效（读在断点之前 → 精确正确）。
+            let mut read_after_breaker = false;
+            let mut seen_breaker = false;
+            for s in &interval {
+                let reads = stmt_reads_identifier(s, target);
+                let breaker = stmt_contains_nested_target_mutation(s, target)
+                    || stmt_is_unthreadable_target_write(s, target);
+                if reads && (seen_breaker || breaker) {
+                    read_after_breaker = true;
+                    break;
+                }
+                if breaker {
+                    seen_breaker = true;
+                }
+            }
             let self_read = match &statements[i] {
                 StatementIR::MutationStmt {
                     intent: Some(intent),
                 } => mutation_reads_target(intent, target),
                 _ => false,
             };
-            let bailed = nested || (prev_bailed && self_read);
+            // 首个写之前已有同信号写（嵌套或非三变体顶层）——closure 值
+            // 陈旧，自读 RHS 无法线程化（j > 0 时由 m_{k-1} 的区间扫描 +
+            // 传播覆盖：m_k 的 RHS 在 m_{k-1} 的区间内，断点先行置位）。
+            let breaker_before_first = j == 0
+                && statements[..i].iter().any(|s| {
+                    stmt_contains_nested_target_mutation(s, target)
+                        || stmt_is_unthreadable_target_write(s, target)
+                });
+            let bailed = read_after_breaker
+                || (prev_bailed && self_read)
+                || (breaker_before_first && self_read);
             flags.push(has_read && !bailed);
             prev_bailed = bailed;
         }
@@ -1165,6 +1192,8 @@ pub(super) fn rewrite_write_through(statements: &[StatementIR]) -> Vec<Statement
     let mut last_local: FxHashMap<String, String> = FxHashMap::default();
     let mut local_counts: FxHashMap<String, usize> = FxHashMap::default();
     let mut i = 0;
+    // 已插入的 setter 数——原索引 → 当前索引的位移（每个 split 插入 1 条）。
+    let mut s = 0usize;
     while i < rewritten.len() {
         let mut plan: Option<(String, MutationIntent)> = None;
         if let StatementIR::MutationStmt {
@@ -1194,6 +1223,16 @@ pub(super) fn rewrite_write_through(statements: &[StatementIR]) -> Vec<Statement
             }
         }
         if let Some((target, intent)) = plan {
+            let orig_i = i - s;
+            // rename 范围 = (m_k, m_{k+1}]——本写之后、下一个同信号顶层
+            // mutation（含其 RHS，链消费）为止；之后的读取归 m_{k+1} 的
+            // rename（m_{k+1} 放弃时保持原状读旧值——无回归，v4 评审修复
+            // 轮：full-suffix rename 会把 m_{k+1} 放弃后的读取改写为陈旧
+            // local）。
+            let next_orig = targets
+                .get(&target)
+                .and_then(|v| v.iter().find(|&&o| o > orig_i))
+                .copied();
             let nth = local_counts.entry(target.clone()).or_insert(0);
             let local = if *nth == 0 {
                 format!("next{}", capitalize_first(&target))
@@ -1230,9 +1269,13 @@ pub(super) fn rewrite_write_through(statements: &[StatementIR]) -> Vec<Statement
                 is_mut: false,
             };
             rewritten.insert(i + 1, setter_stmt);
+            // 插入后 m_{k+1} 的当前索引 = orig + s + 1（s 个先前插入 + 本次
+            // 插入均在它之前）；无后继 → 表尾。
+            let end_current = next_orig.map(|o| o + s + 1).unwrap_or(rewritten.len() - 1);
+            let rename_count = end_current.saturating_sub(i + 1);
             // 后续语句读取重写：跳过本 mutation 自身 RHS（读旧值——正确）。
-            // 除目标名外还重写前一 local——更早的 rename 已把它写入后缀。
-            for later in rewritten.iter_mut().skip(i + 2) {
+            // 除目标名外还重写前一 local（防御——区间内由构造不含 prev）。
+            for later in rewritten.iter_mut().skip(i + 2).take(rename_count) {
                 rename_stmt_identifiers(later, &target, &local);
                 if let Some(ref prev_name) = prev {
                     rename_stmt_identifiers(later, prev_name, &local);
@@ -1240,6 +1283,7 @@ pub(super) fn rewrite_write_through(statements: &[StatementIR]) -> Vec<Statement
             }
             last_local.insert(target, local);
             i += 2;
+            s += 1;
         } else {
             i += 1;
         }
@@ -1289,10 +1333,29 @@ fn mutation_reads_target(intent: &MutationIntent, target: &str) -> bool {
     ) || mutation_value_expr(intent).is_some_and(|v| expr_reads_identifier(v, target))
 }
 
+/// 语句是否为「不可线程化」的顶层同信号写——非三变体 intent
+/// （Multiply/Divide/Modulo/Push/Pop）的值无法局部化（mutation_next_expr
+/// 契约只覆盖三变体），与嵌套写同级切断 local 链：其后的读取与自读写
+/// 都读不到可局部化的当前值。
+fn stmt_is_unthreadable_target_write(stmt: &StatementIR, target: &str) -> bool {
+    matches!(
+        stmt,
+        StatementIR::MutationStmt { intent: Some(i) }
+            if !matches!(
+                i,
+                MutationIntent::DirectAssign { .. }
+                    | MutationIntent::Increment { .. }
+                    | MutationIntent::Decrement { .. }
+            ) && mutation_target_name(i) == Some(target)
+    )
+}
+
 /// 语句子树是否含「嵌套」的同信号写——出现在 if/while/for/块语句/块
 /// 表达式/闭包体内的 MutationStmt（顶层 mutation 不算——它是区间边界）。
-/// 嵌套写破坏区间模型：rename 会跳过它，区间内读取被改写为过期 local
-/// （v4 评审 Important 2）——出现时保守放弃线程化。
+/// 嵌套写切断 local 链：rename 递归入块，「嵌套写之后」的读取会被改写为
+/// m_k 的 local（陈旧值）；「嵌套写之前」的读取 rename 到 local 精确正确。
+/// 位置敏感判定见 rewrite_write_through 的 read_after_breaker 扫描
+/// （v4 评审修复轮）。
 fn stmt_contains_nested_target_mutation(stmt: &StatementIR, target: &str) -> bool {
     match stmt {
         StatementIR::ExprStmtIR { expr } | StatementIR::ThrowStmtIR { expr } => {
