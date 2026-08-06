@@ -86,7 +86,7 @@ describe("parseMarkup", () => {
   });
   it("结构字符集覆盖 ()[]{}.,:", () => {
     const segs = parseMarkup(`[10].{x:2}`);
-    expect(segs.filter((s) => s.kind === "struct").map((s) => s.text).join("")).toBe("[].{x:2}");
+    expect(segs.filter((s) => s.kind === "struct").map((s) => s.text).join("")).toBe("[].{:}");
   });
   it("未闭合标记容错：截断到末尾", () => {
     const segs = parseMarkup(`${CAPSULE_START}abc`);
@@ -254,7 +254,20 @@ export function serializeSegments(markup: string): string {
     if (s.kind === "capsule" || s.kind === "struct") { out += s.text; continue; }
     const prev = k > 0 ? segs[k - 1]! : null;
     const cls = classifyLiteral(s.text, prev?.kind === "struct" && prev.text.endsWith("."));
-    if (cls === "string") out += `"${escapeString(s.text.trim())}"`;
+    if (cls === "string") {
+      // [实现注记] 段内无标识符/引号字符（`/[A-Za-z_"]/` 不匹配）→ 原样保留，不判字符串。
+      // 原因：运算符/数字/空白文本段（如 ` + 1`）被 string 化会产生 `count"+ 1"`——
+      // 非法 omni 表达式。brief 参考实现此分支与自身测试矛盾（3 条失败），
+      // 修正已实现于 4b65551e 并经 task review 独立验证批准。
+      // [实现注记 2] 前后空白原样带回（D7 用户空格保留）：` hi ` → ` "hi" `——
+      // parseMarkup 合并胶囊间相邻文本段，round-trip 语料 'say "hi" + name' 依赖此行为（05023260 实现）。
+      if (!/[A-Za-z_"]/.test(s.text)) out += s.text;
+      else {
+        const lead = s.text.length - s.text.trimStart().length;
+        const trail = s.text.length - s.text.trimEnd().length;
+        out += s.text.slice(0, lead) + `"${escapeString(s.text.trim())}"` + s.text.slice(s.text.length - trail);
+      }
+    }
     else out += s.text;
   }
   return out;
@@ -291,7 +304,7 @@ git commit -m "feat(codeflow): 公式框字面量判定 + 提交拼接（member 
 describe("toMarkup 反向结构化 + round-trip", () => {
   const c = (s: string) => `${CAPSULE_START}${s}${CAPSULE_END}`;
   it("标识符/运算符 → 胶囊；数字/空白原样", () => {
-    expect(toMarkup("count + 1")).toBe(`${c("count")} + ${c("+")} 1`);
+    expect(toMarkup("count + 1")).toBe(`${c("count")} ${c("+")} 1`); // [实现注记] brief 初稿此处含裸 `+`（`} + ${c("+")}`）为笔误：markup 真含裸 + 时提交产出 `count + + 1`，与 round-trip 契约矛盾（05023260 修正）
   });
   it("字符串剥引号反转义", () => {
     expect(toMarkup('"hello"')).toBe("hello");
@@ -337,7 +350,7 @@ Expected: FAIL（`toMarkup` 未定义）
     }
 ```
 
-**注意**：删除原分支 `if (ch === "(" || ch === ")")`。这样 `[` `]` `{` `}` `,` `:` 与独立 `.` 从 unknown 归入 paren，`toMarkup` 原样输出；`1.5` 中 `.` 变 paren 段——`tokenizeFormula("1.5")` 产出 number(`1`)+paren(`.`)+number(`5`)，`toMarkup` 拼接 `1.5` 原样一致（验证 round-trip 语料含 `1.5` 时成立）。
+**注意**：删除原分支 `if (ch === "(" || ch === ")")`。这样 `[` `]` `{` `}` `,` `:` 与独立 `.` 从 unknown 归入 paren，`toMarkup` 原样输出。（[实现注记] 原注记称 `1.5` 拆为 number(`1`)+paren(`.`)+number(`5`)；真实 number 分支消费 `[0-9.]`，产出单一 `number:1.5`——结构分支在其后，`1.5` 不受影响，round-trip 原样一致，无需改动 tokenizer。）
 
 - [ ] **Step 4: 实现 toMarkup**
 
