@@ -1,7 +1,10 @@
-import React, { useState, useCallback, useRef, useEffect } from "react";
+import React, { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { usePoiesisStore } from "../../store";
 import { useCanvasStore } from "../canvas/canvas-store";
 import type { DefEntry, ComputedEntry } from "../../core/types/project-json";
+import { parseDebugValue } from "../../services/debug/parse-debug-value";
+import { analyzeSignalUsage } from "../../services/debug/signal-analysis";
+import type { SignalUsage } from "../../services/debug/signal-analysis";
 
 // ── OmniLang common types for dropdown ──
 const OMNI_TYPES = [
@@ -15,6 +18,19 @@ type PanelTab = "interface" | "signals" | "definitions";
 
 // ── Styles using --ol-* tokens to match Poiesis visual language ──
 //     Matches StoreMembersPanel for visual consistency.
+
+// addBtn 基础样式独立常量：resetBtn/stepBtn 复用（S 字面量内不能自引用）
+const ADD_BTN_BASE: React.CSSProperties = {
+  padding: "1px 7px",
+  fontSize: "var(--ol-font-size-11)",
+  fontWeight: "var(--ol-font-weight-600)",
+  border: "1px solid var(--ol-border)",
+  borderRadius: "var(--ol-radius-sm)",
+  background: "var(--ol-surface)",
+  color: "var(--ol-text-secondary)",
+  cursor: "pointer",
+  lineHeight: "18px",
+};
 
 const S = {
   panel: {
@@ -81,17 +97,7 @@ const S = {
     letterSpacing: "0.05em",
   } as React.CSSProperties,
 
-  addBtn: {
-    padding: "1px 7px",
-    fontSize: "var(--ol-font-size-11)",
-    fontWeight: "var(--ol-font-weight-600)",
-    border: "1px solid var(--ol-border)",
-    borderRadius: "var(--ol-radius-sm)",
-    background: "var(--ol-surface)",
-    color: "var(--ol-text-secondary)",
-    cursor: "pointer",
-    lineHeight: "18px",
-  } as React.CSSProperties,
+  addBtn: { ...ADD_BTN_BASE } as React.CSSProperties,
 
   entryRow: {
     display: "flex",
@@ -224,12 +230,75 @@ const S = {
     fontSize: "var(--ol-font-size-11)",
     cursor: "pointer",
   } as React.CSSProperties,
+
+  // 信号调试 Tab
+  tabHeaderRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: "8px 12px",
+  } as React.CSSProperties,
+
+  tabHeaderTitle: {
+    fontSize: "var(--ol-font-size-11)",
+    fontWeight: "var(--ol-font-weight-600)",
+    color: "var(--ol-text-secondary)",
+    textTransform: "uppercase",
+    letterSpacing: "0.05em",
+  } as React.CSSProperties,
+
+  resetBtn: { ...ADD_BTN_BASE } as React.CSSProperties,
+
+  debugRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: "var(--ol-space-1p5)",
+    padding: "5px 12px",
+    borderTop: "1px solid var(--ol-border-subtle)",
+    fontSize: "var(--ol-font-size-12)",
+  } as React.CSSProperties,
+
+  debugName: {
+    fontWeight: "var(--ol-font-weight-600)",
+    flexShrink: 0,
+    maxWidth: 96,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  } as React.CSSProperties,
+
+  debugType: {
+    color: "var(--ol-text-secondary)",
+    fontSize: "var(--ol-font-size-11)",
+    flexShrink: 0,
+  } as React.CSSProperties,
+
+  debugValueInput: {
+    flex: 1,
+    minWidth: 0,
+    border: "1px solid var(--ol-border)",
+    borderRadius: "var(--ol-radius-sm)",
+    padding: "2px 6px",
+    fontSize: "var(--ol-font-size-12)",
+    fontFamily: "var(--ol-font-family-mono)",
+    background: "var(--ol-surface)",
+    color: "var(--ol-text)",
+  } as React.CSSProperties,
+
+  invalidInput: {
+    borderColor: "var(--ol-color-danger)",
+    background: "var(--ol-color-danger-subtle)",
+  } as React.CSSProperties,
+
+  stepBtn: { ...ADD_BTN_BASE, padding: "0 6px" } as React.CSSProperties,
 };
 
 /** Generate a simple PID (unique within component) */
 function generatePid(): string {
   return `pid-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
+
+// 稳定空数组：避免 def 缺失时每次渲染重建 [] 使 useMemo 依赖失效
+const EMPTY_SIGNALS: DefEntry[] = [];
 
 export function ComponentDefPanel() {
   const activeTabId = usePoiesisStore((s) => s.designPage.activeTabId);
@@ -248,6 +317,7 @@ export function ComponentDefPanel() {
   // Debug 总开关：on → 调试值生效；off → 暂停（调试值保留在 store 中）
   const debugOverridesEnabled = usePoiesisStore((s) => s.debugOverridesEnabled);
   const setDebugOverridesEnabled = usePoiesisStore((s) => s.setDebugOverridesEnabled);
+  const clearDebugValues = usePoiesisStore((s) => s.clearDebugValues);
 
   const panelPosition = useCanvasStore((s) => s.panelPosition);
   const isCollapsed = useCanvasStore((s) => s.isPanelCollapsed);
@@ -265,9 +335,18 @@ export function ComponentDefPanel() {
   const activeTab = openTabs.find((t) => t.id === activeTabId);
   const componentName = activeTab?.componentName || "main";
   const def = componentDefs[componentName];
-  const signals = def?.signals || [];
+  const signals = def?.signals ?? EMPTY_SIGNALS;
   const props = def?.props || [];
   const computeds = def?.computeds || [];
+
+  // 数据信号列表：分析组件 view 源码（本任务只取 dataSignals；源码为空时
+  // analyzeSignalUsage 本身已把全部信号归入 dataSignals）
+  const { dataSignals } = useMemo(() => {
+    const signalDecls = signals.map((s) => ({ key: s.name, type: s.type }));
+    const storeDecls: Array<{ key: string; type: string }> = [];
+    // 组件 store 引用的 store 信号（Task 10 完善 store 信号收集，本任务先空）
+    return analyzeSignalUsage("", signalDecls, storeDecls);
+  }, [signals]);
 
   // Drag handling
   const handlePointerDown = useCallback(
@@ -452,7 +531,14 @@ export function ComponentDefPanel() {
             </div>
           ) : tab === "signals" ? (
             <div style={S.panelBody} data-testid="signals-tab">
-              <p style={S.placeholder}>信号调试（Task 9 实现）</p>
+              <div style={S.tabHeaderRow}>
+                <span style={S.tabHeaderTitle}>🎛 信号调试</span>
+                <button type="button" style={S.resetBtn} onClick={clearDebugValues}>↺ 重置全部</button>
+              </div>
+              {dataSignals.map((u) => (
+                <SignalDebugRow key={u.key} ownerKey={componentName} usage={u} />
+              ))}
+              {dataSignals.length === 0 && <p style={S.placeholder}>无数据信号</p>}
             </div>
           ) : (
             <div style={S.panelBody} data-testid="interface-tab">
@@ -659,6 +745,50 @@ function AddForm({ kind, onAdd, onCancel }: AddFormProps) {
       )}
       <button type="button" style={S.addFormConfirm} onClick={handleConfirm}>✓</button>
       <button type="button" style={S.addFormCancel} onClick={onCancel}>✕</button>
+    </div>
+  );
+}
+
+// ── 信号调试行（Task 9：数据信号）──
+
+interface SignalDebugRowProps {
+  ownerKey: string;
+  usage: SignalUsage;
+}
+
+function SignalDebugRow({ ownerKey, usage }: SignalDebugRowProps) {
+  const setDebugValue = usePoiesisStore((s) => s.setDebugValue);
+  const debugValues = usePoiesisStore((s) => s.debugValues);
+  const entry = debugValues[ownerKey]?.[usage.key];
+  const text = entry?.text ?? "";
+
+  const handleChange = (value: string) => {
+    const parsed = parseDebugValue(usage.declaredType, value);
+    setDebugValue(ownerKey, usage.key, value, parsed.valid);
+  };
+
+  const isNumeric = ["i32", "i64", "f64", "f32"].includes(usage.declaredType);
+  const invalid = Boolean(entry && !entry.valid);
+
+  return (
+    <div style={S.debugRow}>
+      <span style={S.debugName}>{usage.key}</span>
+      <span style={S.debugType}>{usage.declaredType}</span>
+      <input
+        aria-label={`${usage.key} 值`}
+        style={{ ...S.debugValueInput, ...(invalid ? S.invalidInput : {}) }}
+        className={invalid ? "invalid" : undefined}
+        value={text}
+        placeholder="默认值"
+        onChange={(e) => handleChange(e.target.value)}
+      />
+      {isNumeric && (
+        <button type="button" style={S.stepBtn} onClick={() => {
+          const cur = text === "" ? "0" : text;
+          const next = String(Number(cur) + 1);
+          handleChange(next);
+        }}>＋</button>
+      )}
     </div>
   );
 }

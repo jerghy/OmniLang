@@ -9,9 +9,17 @@
 //    store/index.ts designPage: createInitialDesignPageState()）；
 // 3) 项目未装 @testing-library/jest-dom，本地注册等价 toHaveAttribute
 //    （NodeCandidateMenu.test.tsx 同款先例），使 brief 用例可原样运行。
+// 4) (Task 9) 静态 (sel) => sel(mockState) 无法在 change 后重渲染——「非法输入
+//    标红」用例需要 store 变更 → 重渲染 → className 更新。mock 升级为
+//    useSyncExternalStore 订阅（zustand 自身同款机制；见 useWasmCompile-debug
+//    先例），setDebugValue/clearDebugValues 忠实镜像真实 store 行为（回写
+//    mockState.debugValues 后 notify，见 store/slices/component-lifecycle.ts）。
+//    另：brief 的 tab 正则 /信号调试/ 子串匹配到「界面信号调试」，锚定为
+//    /^信号调试$/（getByRole name 正则按子串匹配）。
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { ComponentDefPanel } from "../ComponentDefPanel";
+import type { DebugValueEntry } from "../../../store/types";
 
 declare module "vitest" {
   // 泛型默认值必须与 vitest 官方 Assertion<T = any> 声明同形（否则 tsc 报
@@ -39,24 +47,54 @@ expect.extend({
   },
 });
 
-// mock store：最小形态
-const { mockState } = vi.hoisted(() => ({
-  mockState: {
-    designPage: {
-      activeTabId: "t1",
-      openTabs: [{ id: "t1", componentName: "Card", filePath: "Card.omni", tabType: "component" }],
+// mock store：最小形态 + 可订阅（useSyncExternalStore）。setDebugValue/
+// clearDebugValues 忠实镜像真实 store：不可变回写 mockState.debugValues 后
+// notify，订阅者重渲染（真实实现见 store/slices/component-lifecycle.ts）。
+const { mockState, storeListeners } = vi.hoisted(() => {
+  const storeListeners = new Set<() => void>();
+  const notifyStore = () => {
+    storeListeners.forEach((l) => l());
+  };
+  return {
+    storeListeners,
+    mockState: {
+      designPage: {
+        activeTabId: "t1",
+        openTabs: [{ id: "t1", componentName: "Card", filePath: "Card.omni", tabType: "component" }],
+      },
+      componentDefs: { Card: { signals: [{ pid: "s1", name: "count", type: "i32", defaultValue: "0" }], props: [], computeds: [] } },
+      debugValues: {} as Record<string, Record<string, DebugValueEntry>>,
+      debugOverridesEnabled: true,
+      clearDebugValues: vi.fn(() => {
+        mockState.debugValues = {};
+        notifyStore();
+      }),
+      setDebugOverridesEnabled: vi.fn(),
+      setDebugValue: vi.fn((ownerKey: string, name: string, text: string, valid: boolean) => {
+        const ownerValues = { ...(mockState.debugValues[ownerKey] || {}) };
+        ownerValues[name] = { text, valid };
+        mockState.debugValues = { ...mockState.debugValues, [ownerKey]: ownerValues };
+        notifyStore();
+      }),
     },
-    componentDefs: { Card: { signals: [{ pid: "s1", name: "count", type: "i32", defaultValue: "0" }], props: [], computeds: [] } },
-    debugValues: {},
-    debugOverridesEnabled: true,
-    clearDebugValues: vi.fn(),
-    setDebugOverridesEnabled: vi.fn(),
-  },
-}));
+  };
+});
 
-vi.mock("../../../store", () => ({
-  usePoiesisStore: (sel: (s: unknown) => unknown) => sel(mockState),
-}));
+vi.mock("../../../store", async () => {
+  const { useSyncExternalStore } = await import("react");
+  return {
+    usePoiesisStore: (sel: (s: unknown) => unknown) =>
+      useSyncExternalStore(
+        (cb) => {
+          storeListeners.add(cb);
+          return () => {
+            storeListeners.delete(cb);
+          };
+        },
+        () => sel(mockState),
+      ),
+  };
+});
 
 vi.mock("../../canvas/canvas-store", () => ({
   useCanvasStore: (sel: (s: unknown) => unknown) =>
@@ -89,5 +127,41 @@ describe("ComponentDefPanel 三 Tab 骨架", () => {
     render(<ComponentDefPanel />);
     fireEvent.click(screen.getByTitle(/调试/));
     expect(mockState.setDebugOverridesEnabled).toHaveBeenCalledWith(false);
+  });
+});
+
+describe("信号调试 Tab（数据信号行）", () => {
+  it("列出数据信号：名称/类型/输入框；输入 → setDebugValue", () => {
+    mockState.debugValues = {};
+    render(<ComponentDefPanel />);
+    fireEvent.click(screen.getByRole("tab", { name: /^信号调试$/ }));
+    // mock 组件只有 count（i32，纯数据）
+    const input = screen.getByLabelText("count 值");
+    fireEvent.change(input, { target: { value: "5" } });
+    expect(mockState.setDebugValue).toHaveBeenCalledWith("Card", "count", "5", true);
+  });
+
+  it("非法输入 → 标红且 valid=false 传给 store", () => {
+    mockState.debugValues = {};
+    render(<ComponentDefPanel />);
+    fireEvent.click(screen.getByRole("tab", { name: /^信号调试$/ }));
+    fireEvent.change(screen.getByLabelText("count 值"), { target: { value: "abc" } });
+    expect(mockState.setDebugValue).toHaveBeenCalledWith("Card", "count", "abc", false);
+    expect(screen.getByLabelText("count 值").className).toContain("invalid");
+  });
+
+  it("回显已有调试值", () => {
+    mockState.debugValues = { Card: { count: { text: "7", valid: true } } };
+    render(<ComponentDefPanel />);
+    fireEvent.click(screen.getByRole("tab", { name: /^信号调试$/ }));
+    expect((screen.getByLabelText("count 值") as HTMLInputElement).value).toBe("7");
+  });
+
+  it("重置全部按钮 → clearDebugValues", () => {
+    mockState.debugValues = { Card: { count: { text: "7", valid: true } } };
+    render(<ComponentDefPanel />);
+    fireEvent.click(screen.getByRole("tab", { name: /^信号调试$/ }));
+    fireEvent.click(screen.getByRole("button", { name: /重置全部/ }));
+    expect(mockState.clearDebugValues).toHaveBeenCalled();
   });
 });
