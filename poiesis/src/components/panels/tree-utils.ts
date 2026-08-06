@@ -1,6 +1,6 @@
 // Tree utilities for ComponentTree.
 
-import type { ElementData, ConditionalBlockData } from "../../core/types/element";
+import type { ElementData, ConditionalBlockData, ForBlockData } from "../../core/types/element";
 
 export interface TreeNode {
   id: string;
@@ -9,8 +9,8 @@ export interface TreeNode {
   displayLabel: string;
   componentRef?: string;
   children: TreeNode[];
-  // Conditional rendering support
-  nodeType?: "view" | "conditional" | "conditional-branch";
+  // Conditional / loop rendering support
+  nodeType?: "view" | "conditional" | "conditional-branch" | "for" | "for-empty";
   condition?: string;           // only for conditional-branch nodes
   branchType?: "if" | "elif" | "else";  // only for conditional-branch nodes
   branchIndex?: number;         // branch index in the branches array
@@ -58,6 +58,32 @@ export function buildTreeNode(
           .filter((e): e is ElementData => e != null)
           .map((c) => buildTreeNode(c, elMap)),
       })),
+    };
+  }
+
+  // ── For block（view @for，2026-08-06）──
+  if (el.nodeType === "for") {
+    const loop = el as ForBlockData;
+    const loopChildren = (loop.children || [])
+      .map((cid) => elMap.get(cid))
+      .filter((e): e is ElementData => e != null)
+      .map((c) => buildTreeNode(c, elMap));
+    const emptyChildren = (loop.emptyChildren || [])
+      .map((cid) => elMap.get(cid))
+      .filter((e): e is ElementData => e != null)
+      .map((c) => buildTreeNode(c, elMap));
+    return {
+      id: loop.id,
+      tag: "循环",
+      htmlTag: "for",
+      displayLabel: "",
+      nodeType: "for" as const,
+      children: [
+        ...loopChildren,
+        ...(emptyChildren.length > 0
+          ? [{ id: `${loop.id}.empty`, tag: "@empty", htmlTag: "for-empty", displayLabel: "", nodeType: "for-empty" as const, children: emptyChildren }]
+          : []),
+      ],
     };
   }
 

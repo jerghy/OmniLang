@@ -14,6 +14,7 @@ import { ClassesSection } from "./inspector/ClassesSection";
 import { VariantBindingSection } from "./inspector/VariantBindingSection";
 import { BranchConditionEditor } from "./inspector/BranchConditionEditor";
 import { ConditionalBlockEditor } from "./inspector/ConditionalBlockEditor";
+import { ForBlockEditor } from "./inspector/ForBlockEditor";
 import { usePoiesisStore } from "../../store";
 import type { SignalPickerItem } from "./inspector/SignalSlashPicker";
 
@@ -173,6 +174,8 @@ export function ContextInspector() {
     }
   } else if (el && el.nodeType === "conditional") {
     titleText = "🔀 条件渲染";
+  } else if (el && el.nodeType === "for") {
+    titleText = "🔁 循环";
   } else if (el && "tag" in el) {
     titleText = `属性 · <${el.tag}>`;
   }
@@ -202,8 +205,10 @@ export function ContextInspector() {
         </button>
       </div>
 
-      {/* Body — conditional block editor when block itself is selected */}
-      {el && el.nodeType === "conditional" ? (
+      {/* Body — for block editor（view @for，2026-08-06） */}
+      {el && el.nodeType === "for" ? (
+        <ForBlockEditor blockId={el.id} />
+      ) : el && el.nodeType === "conditional" ? (
         <div className="context-inspector" data-section="conditional-editor" style={{
           padding: 12, overflow: "auto", height: "100%", boxSizing: "border-box",
         }}>
@@ -221,7 +226,7 @@ export function ContextInspector() {
         </div>
       ) : null}
 
-      {el && !isBranchSelected && el.nodeType !== "conditional" && (() => {
+      {el && !isBranchSelected && el.nodeType !== "conditional" && el.nodeType !== "for" && (() => {
 
         const isBasic = "tag" in el && BASIC_TAGS.has(el.tag);
         const tag = "tag" in el ? el.tag : "unknown";

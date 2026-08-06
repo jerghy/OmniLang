@@ -365,6 +365,23 @@ function ContextMenu({
                 条件块
               </span>
             </button>
+            {/* 循环块 — 特殊子组件类型（view @for，2026-08-06） */}
+            <button
+              type="button"
+              tabIndex={0}
+              className={styles.subMenuItem}
+              style={{ ...ST.itemBase, whiteSpace: "nowrap", background: "none", border: "none", width: "100%", textAlign: "left", fontFamily: "inherit", fontSize: "inherit" }}
+              onClick={() => {
+                usePoiesisStore.getState().addForBlock(elementId);
+                onClose();
+              }}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); usePoiesisStore.getState().addForBlock(elementId); onClose(); } }}
+            >
+              <span>
+                <span style={{ marginRight: 4, fontSize: 12 }}>🔁</span>
+                循环块
+              </span>
+            </button>
             <div style={{ height: 1, background: "var(--ol-border)", margin: "3px 8px" }} />
 
             {Array.from(groupedComponents.entries()).map(([cat, items]) => (
