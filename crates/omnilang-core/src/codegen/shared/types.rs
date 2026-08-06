@@ -91,6 +91,10 @@ impl FormatType for DartTypeFormatter {
         match kind {
             "int" | "i32" | "i64" | "u32" | "u64" => "int".into(),
             "float" | "f64" | "f32" => "double".into(),
+            // DSL 语义类型 Number = int|double 均可承载 → Dart num
+            // （double 太窄——.length 等 int 值不可赋，return_of_invalid_type；
+            //  2026-08-06 ArrayChainDemo computed 计数暴露）
+            "Number" => "num".into(),
             "bool" => "bool".into(),
             "string" | "String" | "str" => "String".into(),
             "void" | "()" => "void".into(),

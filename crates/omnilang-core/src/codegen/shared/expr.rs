@@ -700,7 +700,7 @@ impl FormatExpr for DartFormatExpr {
                     format!("({obj_str}).contains({arg})")
                 } else {
                     format!(
-                        "({obj_str} is Map ? ({obj_str}).containsKey({arg}) : ({obj_str} as dynamic).contains({arg}))"
+                        "({obj_str} is Map ? ({obj_str} as Map).containsKey({arg}) : ({obj_str} as dynamic).contains({arg}))"
                     )
                 }
             }
@@ -822,7 +822,7 @@ impl FormatExpr for DartFormatExpr {
                 // undefined_method on Map).
                 let arg = args.first().map(|s| s.as_str()).unwrap_or("null");
                 format!(
-                    "({obj} is Map ? ({obj}).containsKey({arg}) : ({obj} as dynamic).contains({arg}))"
+                    "({obj} is Map ? ({obj} as Map).containsKey({arg}) : ({obj} as dynamic).contains({arg}))"
                 )
             }
             "substring" => format!("{}.substring({})", obj, args.join(", ")),
@@ -866,7 +866,7 @@ impl FormatExpr for DartFormatExpr {
             "contains" => {
                 let arg = args.first().map(|s| s.as_str()).unwrap_or("null");
                 format!(
-                    "({obj} is Map ? ({obj})?.containsKey({arg}) : ({obj} as dynamic)?.contains({arg}))"
+                    "({obj} is Map ? ({obj} as Map)?.containsKey({arg}) : ({obj} as dynamic)?.contains({arg}))"
                 )
             }
             "substring" => format!("{}?.substring({})", obj, args.join(", ")),
@@ -2034,7 +2034,7 @@ mod tests {
         let expr = method_call(ident("x", None), "contains", vec![ident("y", None)]);
         assert_eq!(
             dart_fmt().format_expr(&expr),
-            "(x is Map ? (x).containsKey(y) : (x as dynamic).contains(y))"
+            "(x is Map ? (x as Map).containsKey(y) : (x as dynamic).contains(y))"
         );
     }
 

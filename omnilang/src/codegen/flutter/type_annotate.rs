@@ -25,7 +25,13 @@ fn type_ir_to_lang_string(t: &TypeIR) -> String {
         TypeKind::Any => "any".to_string(),
         TypeKind::Named { name } => {
             if t.type_args.is_empty() {
-                name.clone()
+                // DSL 语义类型 Number → Dart num（int/float 均可承载；2026-08-06
+                // 展示项目 ArrayChainDemo 暴露——此前兜底字面 "Number" 生成非编译 Dart）
+                if name == "Number" {
+                    "num".to_string()
+                } else {
+                    name.clone()
+                }
             } else {
                 let args: Vec<String> = t.type_args.iter().map(type_ir_to_lang_string).collect();
                 format!("{}<{}>", name, args.join(", "))
