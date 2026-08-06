@@ -386,9 +386,12 @@ fn scan_lang_for(path: &str) -> ScanLang {
 /// comments/strings (e.g. the OmniView sanitizer notes
 /// `"java\nscript:alert(1)"`), which is why comments are stripped too.
 ///
-/// `${…}` interpolation is CODE, not string content — the stripper breaks
-/// out of the string at it (per [`ScanLang`] rules) so executable patterns
-/// inside interpolations are still caught.
+/// `${…}` interpolation is CODE, not string content — the stripper leaves
+/// the expression in the residual so executable patterns inside
+/// interpolations are still caught: Dart strings push the expression and
+/// RESUME the string (the closing quote still closes it); JS template
+/// literals break out at `${` (the break-out IS the closing semantic for
+/// `` ` ``). Rust strings have no interpolation — consumed wholesale.
 fn strip_strings_and_comments(input: &str, lang: ScanLang) -> String {
     let chars: Vec<char> = input.chars().collect();
     let mut out = String::with_capacity(input.len());
@@ -433,7 +436,9 @@ fn strip_strings_and_comments(input: &str, lang: ScanLang) -> String {
         }
         // String literal. Interpolation (`${…}`) is CODE, not string content
         // — leave it in the residual so executable patterns inside it are
-        // still caught.
+        // still caught. In Dart, `'…'`/`"…"` strings interpolate too (unlike
+        // Rust, where `${` is inert, and unlike JS single/double quotes,
+        // where only backticks interpolate).
         let is_string_delim = match lang {
             ScanLang::Js => c == '\'' || c == '"' || c == '`',
             ScanLang::Rust | ScanLang::Dart => c == '\'' || c == '"',
@@ -460,6 +465,67 @@ fn strip_strings_and_comments(input: &str, lang: ScanLang) -> String {
                     continue;
                 }
                 if interp_breaks && c2 == '$' && i + 1 < chars.len() && chars[i + 1] == '{' {
+                    if lang == ScanLang::Dart {
+                        // Dart interpolation (`${expr}`): the expression is
+                        // CODE position — push it to the residual (scanning
+                        // nested string literals as inert content, brace-depth
+                        // for the expression), then RESUME the string scan
+                        // after the matching `}` — the string's real closing
+                        // quote still closes it. The old break-out model
+                        // re-scanned the string tail as code, so the closing
+                        // quote was mistaken for a NEW string opener: quote
+                        // pairing misaligned and later string CONTENT leaked
+                        // into the residual as code — a corpus false positive
+                        // on the correct `\$`-escaped output (v4 1.2
+                        // rawtext-multi point, Flutter `$`-escape fix).
+                        out.push('$');
+                        out.push('{');
+                        i += 2;
+                        let mut depth = 1u32;
+                        while i < chars.len() {
+                            let c3 = chars[i];
+                            if c3 == '{' {
+                                depth += 1;
+                                out.push(c3);
+                                i += 1;
+                            } else if c3 == '}' {
+                                depth -= 1;
+                                out.push(c3);
+                                i += 1;
+                                if depth == 0 {
+                                    break;
+                                }
+                            } else if c3 == '\'' || c3 == '"' {
+                                // String literal inside the expression — inert
+                                // content, skipped like any string (escape-aware).
+                                let inner_quote = c3;
+                                i += 1;
+                                let mut inner_escaped = false;
+                                while i < chars.len() {
+                                    let c4 = chars[i];
+                                    if inner_escaped {
+                                        inner_escaped = false;
+                                        i += 1;
+                                    } else if c4 == '\\' {
+                                        inner_escaped = true;
+                                        i += 1;
+                                    } else {
+                                        i += 1;
+                                        if c4 == inner_quote {
+                                            break;
+                                        }
+                                    }
+                                }
+                            } else {
+                                out.push(c3);
+                                i += 1;
+                            }
+                        }
+                        continue;
+                    }
+                    // JS template literals: break out at `${` — the rest of
+                    // the backtick string is scanned as code position (the
+                    // break-out IS the closing semantic for `` ` ``).
                     break;
                 }
                 i += 1;
