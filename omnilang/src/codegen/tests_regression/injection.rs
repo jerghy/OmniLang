@@ -694,6 +694,22 @@ fn rawtext_src(payload: &str) -> String {
     format!("component App {{\n    view {{\n        <div>x{payload}</div>\n    }}\n}}\n")
 }
 
+/// RAW text followed by an interpolation child — the mixed-content
+/// paragraph shape (`<p>价格 $total 元</p>`). Two sites so the payload text
+/// actually flows through BOTH Flutter text paths the v4 review flagged
+/// (rust HIGH — `$`-escaping regression): the all-text-concat
+/// (flutter/view.rs:2193) via `<span>x{payload}{1}</span>` and the TextSpan
+/// rich path (flutter/view.rs:332) via `<p>{payload}<b>{2}</b></p>`. The
+/// payload must sit in a Text-MAPPED element: placed in the wrapper `<div>`
+/// (→ Container) it routes through the main escaped Text emission
+/// (view.rs:225, `$` → `\$`) and the regression is not observable — the
+/// single-child rawtext point does not reach these sites either.
+fn rawtext_multi_src(payload: &str) -> String {
+    format!(
+        "component App {{\n    view {{\n        <div><span>x{payload}{{1}}</span><p>{payload}<b>{{2}}</b></p></div>\n    }}\n}}\n"
+    )
+}
+
 /// Malformed-interpolation fallback, LBrace shape (review CRITICAL round 2):
 /// the parser emits `{`-leading TEXT nodes when interpolation parsing fails
 /// (parser/view/mod.rs:111-194) — the payload lands UNQUOTED in the token
@@ -808,6 +824,10 @@ const POINTS: &[Point] = &[
     Point {
         name: "rawtext",
         make_src: rawtext_src,
+    },
+    Point {
+        name: "rawtext-multi",
+        make_src: rawtext_multi_src,
     },
     Point {
         name: "fallback",
