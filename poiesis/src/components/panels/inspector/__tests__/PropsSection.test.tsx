@@ -7,11 +7,15 @@
 //    setTimeout 回调执行前同步运行而失败；
 // 3) getByDisplayValue("Hello ") 的字符串匹配器按原样比较、值被 trim，
 //    尾随空格的 "Hello " 永远不命中——加 normalizer: s => s 保留断言意图
-//    （实测：默认选项下 "Hello"/regex 命中、"Hello " 不命中）。
+//    （实测：默认选项下 "Hello"/regex 命中、"Hello " 不命中）；
+// 4) I1 修复用例（/ 选信号）：signalItems 必须传（picker 无 items 不渲染）；
+//    rAF 回调（onSlash → setSlash）在 act 外触发 React 延迟刷新，picker 不渲染——
+//    advanceTimersByTime(20) 需包 act() 同步冲刷（实测必要）。
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, within } from "@testing-library/react";
+import { render, screen, fireEvent, within, act } from "@testing-library/react";
 import { PropsSection } from "../PropsSection";
 import type { ViewElementData } from "../../../../core/types/element";
+import type { SignalPickerItem } from "../SignalSlashPicker";
 
 const { mockSetProp } = vi.hoisted(() => ({ mockSetProp: vi.fn() }));
 
@@ -22,6 +26,16 @@ vi.mock("../../../../store", () => ({
 const el = (props: Record<string, unknown>, tag = "input"): ViewElementData => ({
   id: "el-1", nodeType: "view", tag, props, children: [], parentId: null,
 });
+
+// / 插入用例的 picker fixture：insertionText 为裸信号名（ContextInspector
+// useSignalItems 实际传 s.name / c.name，无花括号——花括号由目标编辑器包裹）。
+const signalItem: SignalPickerItem = {
+  pid: "isLoading",
+  name: "isLoading",
+  insertionText: "isLoading",
+  type: "bool",
+  category: "signals",
+};
 
 beforeEach(() => mockSetProp.mockClear());
 
@@ -121,6 +135,50 @@ describe("布尔属性行（D9）", () => {
       fireEvent.click(screen.getByTitle("删除"));
       vi.advanceTimersByTime(200);
       expect(mockSetProp).toHaveBeenCalledWith("el-1", "disabled", true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("空前缀：/ 选信号 → Enter 提交 → setProp 收到 {isLoading}（I1 主流程）", () => {
+    vi.useFakeTimers();
+    try {
+      render(<PropsSection element={el({ disabled: true })} signalItems={[signalItem]} />);
+      const row = screen.getByRole("checkbox", { name: /disabled/ }).closest("div")!;
+      fireEvent.click(within(row).getByRole("button", { name: /表达式/ }));
+      const input = screen.getByLabelText("disabled-expression");
+      fireEvent.keyDown(input, { key: "/" });
+      // rAF 回调（onSlash → setSlash）在 act 外触发 React 延迟刷新，picker 不渲染——
+      // advanceTimersByTime 需包在 act 里同步冲刷
+      act(() => { vi.advanceTimersByTime(20); });
+      fireEvent.click(screen.getByRole("button", { name: /isLoading/ }));
+      const after = screen.getByLabelText("disabled-expression") as HTMLInputElement;
+      expect(after.value).toBe("isLoading");
+      fireEvent.keyDown(after, { key: "Enter" });
+      vi.advanceTimersByTime(200);
+      expect(mockSetProp).toHaveBeenCalledWith("el-1", "disabled", "{isLoading}");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("前缀 isLo + / 选信号 → 光标插入 isLoisLoading → 提交收到 {isLoisLoading}（I1）", () => {
+    vi.useFakeTimers();
+    try {
+      render(<PropsSection element={el({ disabled: true })} signalItems={[signalItem]} />);
+      const row = screen.getByRole("checkbox", { name: /disabled/ }).closest("div")!;
+      fireEvent.click(within(row).getByRole("button", { name: /表达式/ }));
+      const input = screen.getByLabelText("disabled-expression");
+      fireEvent.change(input, { target: { value: "isLo" } });
+      fireEvent.keyDown(input, { key: "/" });
+      act(() => { vi.advanceTimersByTime(20); });
+      fireEvent.click(screen.getByRole("button", { name: /isLoading/ }));
+      const after = screen.getByLabelText("disabled-expression") as HTMLInputElement;
+      // 光标插入语义：前缀保留 + 裸信号名插入（不整体包花括号，避免 {isLo{isLoading}}）
+      expect(after.value).toBe("isLoisLoading");
+      fireEvent.keyDown(after, { key: "Enter" });
+      vi.advanceTimersByTime(200);
+      expect(mockSetProp).toHaveBeenCalledWith("el-1", "disabled", "{isLoisLoading}");
     } finally {
       vi.useRealTimers();
     }

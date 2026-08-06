@@ -487,16 +487,13 @@ function BoolPropRow({
   const [exprText, setExprText] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const commitExpr = useCallback(
-    (textOverride?: string) => {
-      const text = (textOverride ?? exprText).trim();
-      if (text) onChange(text.startsWith("{") ? text : `{${text}}`);
-      else onChange(true); // 空输入 → 回开关态（开）
-      setEditingExpr(false);
-      setExprText("");
-    },
-    [exprText, onChange]
-  );
+  const commitExpr = useCallback(() => {
+    const text = exprText.trim();
+    if (text) onChange(text.startsWith("{") ? text : `{${text}}`);
+    else onChange(true); // 空输入 → 回开关态（开）
+    setEditingExpr(false);
+    setExprText("");
+  }, [exprText, onChange]);
 
   if (isExpr) {
     // 表达式形态：紫色芯片（点击编辑 / × 删除回开关态）。
@@ -537,15 +534,21 @@ function BoolPropRow({
             else if (e.key === "/" && onSlash) {
               e.preventDefault();
               const input = e.currentTarget;
-              // 复用 chipSlashCallbacks WeakMap 机制：picker 选中信号后回调
-              // 把 {sig} 拼进表达式文本并提交（父级 handleSlashSelect 分发）。
+              // 复用 chipSlashCallbacks WeakMap 机制（父级 handleSlashSelect 分发）。
+              // "/" 不进值域（受控输入）：记录按下时光标位置，picker 选中后按
+              // 「前缀 + 裸信号名 + 后缀」光标插入——与 ChipEditor 文本段
+              // （onEditKeyDown）语义一致；花括号由 commitExpr 提交时统一包裹，
+              // 避免整段包花括号产生 {前缀{sig}} 非法源码（I1）。
+              const slashIndex = input.selectionStart ?? input.value.length;
               chipSlashCallbacks.set(input, (signalName: string) => {
-                commitExpr(`${input.value}{${signalName}}`);
+                const current = input.value;
+                setExprText(current.slice(0, slashIndex) + signalName + current.slice(slashIndex));
+                requestAnimationFrame(() => input.focus());
               });
               requestAnimationFrame(() => onSlash(input));
             }
           }}
-          onBlur={() => commitExpr()}
+          onBlur={commitExpr}
           style={{ flex: 1, padding: "3px 6px", fontSize: 12, border: "1px solid var(--ol-color-primary)", borderRadius: 4, fontFamily: "var(--dp-font-mono, monospace)" }} />
       </label>
     );
