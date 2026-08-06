@@ -1006,10 +1006,12 @@ function SignalDebugRow({ ownerKey, usage }: SignalDebugRowProps) {
         onChange={(e) => handleChange(e.target.value)}
       />
       {isNumeric && (
-        <button type="button" style={S.stepBtn} onClick={() => {
-          // 步进基于当前显示值（数字信号显示即字面量）走同一提交路径
+        <button type="button" style={S.stepBtn} aria-label={`${usage.key} 加一`} onClick={() => {
+          // 步进基于当前显示值（数字信号显示即字面量）走同一提交路径；
+          // 非法文本 Number() → NaN：守卫回退 "0"，不产出 "NaN"
           const cur = text === "" ? "0" : text;
-          const next = String(Number(cur) + 1);
+          const num = Number(cur);
+          const next = Number.isNaN(num) ? "0" : String(num + 1);
           handleChange(next);
         }}>＋</button>
       )}

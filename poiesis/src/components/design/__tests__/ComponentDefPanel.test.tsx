@@ -138,7 +138,9 @@ describe("ComponentDefPanel 三 Tab 骨架", () => {
     expect(screen.getByText("count")).toBeTruthy();
   });
 
-  it("Header 显示组件名与用途徽章", () => {
+  it("Header 显示组件名", () => {
+    // 注：旧名「…与用途徽章」未断言徽章（徽章在界面信号卡的信号行内，不在 Header），
+    // 改为准确名称。
     render(<ComponentDefPanel />);
     expect(screen.getByText("Card")).toBeTruthy();
   });
@@ -175,6 +177,23 @@ describe("信号调试 Tab（数据信号行）", () => {
     render(<ComponentDefPanel />);
     fireEvent.click(screen.getByRole("tab", { name: /^信号调试$/ }));
     expect((screen.getByLabelText("count 值") as HTMLInputElement).value).toBe("7");
+  });
+
+  it("步进按钮：空值步进产出 1（合法路径）", () => {
+    mockState.debugValues = {};
+    render(<ComponentDefPanel />);
+    fireEvent.click(screen.getByRole("tab", { name: /^信号调试$/ }));
+    fireEvent.click(screen.getByRole("button", { name: "count 加一" }));
+    expect(mockState.setDebugValue).toHaveBeenCalledWith("Card", "count", "1", true);
+  });
+
+  it("步进按钮：非法文本不产出 NaN（守卫回退 0）", () => {
+    // 旧实现 Number("abc") + 1 = NaN → 产出 "NaN"；守卫回退 "0"
+    mockState.debugValues = { Card: { count: { text: "abc", valid: false } } };
+    render(<ComponentDefPanel />);
+    fireEvent.click(screen.getByRole("tab", { name: /^信号调试$/ }));
+    fireEvent.click(screen.getByRole("button", { name: "count 加一" }));
+    expect(mockState.setDebugValue).toHaveBeenCalledWith("Card", "count", "0", true);
   });
 
   it("重置全部按钮 → clearDebugValues", () => {

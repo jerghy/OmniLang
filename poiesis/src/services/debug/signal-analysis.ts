@@ -98,7 +98,10 @@ function scanView(view: string, signalKeys: string[], storeSignalKeys: string[])
   const segmentRe = /@(?:if|else(?:\s*@?if)?)\s*([^{]*?)\s*\{/g;
   let m: RegExpExecArray | null;
   while ((m = segmentRe.exec(view)) !== null) {
-    ifSegments.push({ expr: m[1].trim(), isElse: view.slice(segmentRe.lastIndex - m[0].length, segmentRe.lastIndex).includes("else") });
+    // isElse 判定：前缀精确匹配（m[0] 以 @if 或 @else 开头）。
+    // 不能用 includes("else")：信号名含 else 子串（如 elsesEnabled）会被误判为
+    // else 分支，且因孤立 @else 防御被整段丢弃（@if 直接不生效）。
+    ifSegments.push({ expr: m[1].trim(), isElse: m[0].startsWith("@else") });
   }
   // 组装链：连续 if/else 段归一条链（段间无其他指令）
   let chain: IfChain | null = null;

@@ -90,4 +90,16 @@ describe("analyzeSignalUsage", () => {
     const { dataSignals } = analyzeSignalUsage(src, [{ key: "count", type: "i32" }], []);
     expect(dataSignals[0]?.uses.computedDeps).toBe(1);
   });
+
+  it("回归：信号名含 else 子串（elsesEnabled）不误判为 else 分支", () => {
+    // 旧实现 view.slice(...).includes("else") 把 @if elsesEnabled 判成 else，
+    // 触发孤立 @else 防御整段丢弃 → @if 不生效（信号落 dataSignals）。
+    const src = `component C {\n signal elsesEnabled: bool = false;\n view {\n  @if elsesEnabled {\n   <p>new</p>\n  }\n }\n}`;
+    const { interfaceSignals, dataSignals } = analyzeSignalUsage(src, [{ key: "elsesEnabled", type: "bool" }], []);
+    const sig = interfaceSignals.find((s) => s.key === "elsesEnabled");
+    expect(sig?.conditions[0].branches).toHaveLength(1);
+    expect(sig?.conditions[0].branches[0].isElse).toBe(false);
+    expect(sig?.conditions[0].branches[0].exprText).toBe("elsesEnabled");
+    expect(dataSignals.find((s) => s.key === "elsesEnabled")).toBeUndefined();
+  });
 });
