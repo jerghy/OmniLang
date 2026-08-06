@@ -18,7 +18,8 @@
   border: 1px solid var(--ol-border);
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
-  max-height: 280px;
+  height: min(280px, 60vh);
+  min-height: 240px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
