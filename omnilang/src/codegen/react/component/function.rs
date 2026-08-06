@@ -53,10 +53,13 @@ impl ReactCodegen {
             ));
             w.indent();
             // Emit body into temp writer for post-processing
+            // (v4 H1, task 2.1: 写后读线程化——`x = v; use(x)` → const nextX
+            // 线程化，无写后读时原样返回。)
+            let body_statements = expr::rewrite_write_through(&fun.body.statements);
             let mut body_w = crate::codegen::CodeWriter::new();
             body_w.indent();
-            let tail_idx = fun.body.statements.len().saturating_sub(1);
-            for (i, stmt) in fun.body.statements.iter().enumerate() {
+            let tail_idx = body_statements.len().saturating_sub(1);
+            for (i, stmt) in body_statements.iter().enumerate() {
                 if i == tail_idx {
                     if let StatementIR::ExprStmtIR { .. } = stmt {
                         // H1: the fn's trailing expression IS its return

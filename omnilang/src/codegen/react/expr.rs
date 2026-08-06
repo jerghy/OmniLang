@@ -1086,6 +1086,595 @@ fn stmt_contains_call(stmt: &StatementIR) -> bool {
     }
 }
 
+// ═══════════════════════════════════════════════════════════
+// v4 H1 (task 2.1) — write-then-read threading
+// ═══════════════════════════════════════════════════════════
+
+/// v4 H1: 处理器体内「写后读」链线程化。React 的 `setX` 是异步的——同一
+/// 处理器内 `x = v; use(x)` 直接读 `x` 拿到的是陈旧闭包值。本重写把被写后
+/// 又被读的信号的值线程化到局部：`const nextX = <下值>; setX(nextX);`，并把
+/// 后续语句中对 x 的读取重写为 `nextX`（顺序语义）。
+///
+/// 仅当信号的「下值」真的被消费时才改发射形状——无后续读取的信号保持既有
+/// 发射路径（functional updater 形态不变）。链式写（同信号多次写）按 DSL
+/// 顺序语义逐次线程化，每次的「下值」读当前可见值（前一 local 若存在）：
+/// `x = 1; x = x + 1; use(x)` →
+/// `const nextX = 1; setX(nextX); const nextX1 = nextX + 1; setX(nextX1);
+/// use(nextX1);`。mutation 自身 RHS 不重写（读旧值——正确）。
+pub(super) fn rewrite_write_through(statements: &[StatementIR]) -> Vec<StatementIR> {
+    // 收集「可表达下值」intent（DirectAssign/Increment/Decrement，与
+    // mutation_next_expr 的匹配一致）的 mutation 语句位置，按目标分组。
+    let mut targets: FxHashMap<String, Vec<usize>> = FxHashMap::default();
+    for (i, stmt) in statements.iter().enumerate() {
+        if let StatementIR::MutationStmt {
+            intent: Some(intent),
+        } = stmt
+        {
+            if matches!(
+                intent,
+                MutationIntent::DirectAssign { .. }
+                    | MutationIntent::Increment { .. }
+                    | MutationIntent::Decrement { .. }
+            ) {
+                if let Some(target) = mutation_target_name(intent) {
+                    targets.entry(target.to_string()).or_default().push(i);
+                }
+            }
+        }
+    }
+    if targets.is_empty() {
+        return statements.to_vec();
+    }
+    // 分裂判定（基于原始语句序）：m_k 线程化 iff 其「下值」被消费——在
+    // (m_k, m_{k+1}] 区间内（下一个同信号 mutation 的 RHS 含在内，自身
+    // RHS 不含）存在对信号的读取。区间内的读取归 m_k 的 local，之后的
+    // 归 m_{k+1} 的 local——顺序语义逐段成立。
+    let mut split_flags: FxHashMap<String, Vec<bool>> = FxHashMap::default();
+    for (target, indices) in &targets {
+        let mut flags = Vec::with_capacity(indices.len());
+        for (j, &i) in indices.iter().enumerate() {
+            let last = statements.len() - 1;
+            let end = indices.get(j + 1).copied().unwrap_or(last);
+            let threaded = statements
+                .iter()
+                .skip(i + 1)
+                .take(end - i)
+                .any(|s| stmt_reads_identifier(s, target));
+            flags.push(threaded);
+        }
+        split_flags.insert(target.clone(), flags);
+    }
+    // 重写循环：按原始语句序处理（插入 setter 后索引后移，用 while 推进）。
+    let mut rewritten = statements.to_vec();
+    let mut seen: FxHashMap<String, usize> = FxHashMap::default();
+    let mut last_local: FxHashMap<String, String> = FxHashMap::default();
+    let mut local_counts: FxHashMap<String, usize> = FxHashMap::default();
+    let mut i = 0;
+    while i < rewritten.len() {
+        let mut plan: Option<(String, MutationIntent)> = None;
+        if let StatementIR::MutationStmt {
+            intent: Some(intent),
+        } = &rewritten[i]
+        {
+            // 仅与 targets 收集同口径的 intent 推进序号（Push/Pop 等
+            // 不入 local 表，序号偏移会造成 split_flags 错位）。
+            if matches!(
+                intent,
+                MutationIntent::DirectAssign { .. }
+                    | MutationIntent::Increment { .. }
+                    | MutationIntent::Decrement { .. }
+            ) {
+                if let Some(target) = mutation_target_name(intent) {
+                    let ordinal = seen.entry(target.to_string()).or_insert(0);
+                    let threaded = split_flags
+                        .get(target)
+                        .and_then(|f| f.get(*ordinal))
+                        .copied()
+                        .unwrap_or(false);
+                    if threaded {
+                        plan = Some((target.to_string(), intent.clone()));
+                    }
+                    *ordinal += 1;
+                }
+            }
+        }
+        if let Some((target, intent)) = plan {
+            let nth = local_counts.entry(target.clone()).or_insert(0);
+            let local = if *nth == 0 {
+                format!("next{}", capitalize_first(&target))
+            } else {
+                format!("next{}{}", capitalize_first(&target), nth)
+            };
+            *nth += 1;
+            let prev = last_local.get(&target).cloned();
+            // 下值 = mutation 的普通值表达式——读「当前可见值」（前一 local
+            // 若存在；DirectAssign 的值 / Increment 的 amount 已被更早的
+            // 线程化 rename 改写为前一 local 的引用）。
+            let next_expr = mutation_next_expr(&intent, &target, prev.as_deref());
+            let setter_stmt = StatementIR::MutationStmt {
+                intent: Some(MutationIntent::DirectAssign {
+                    target: SignalRefIR {
+                        name: target.clone(),
+                    },
+                    value: Some(Box::new(ExprIR::IdentifierExpr {
+                        name: local.clone(),
+                        type_ann: None,
+                    })),
+                    field_object: None,
+                }),
+            };
+            rewritten[i] = StatementIR::LetStmtIR {
+                name: local.clone(),
+                value: Some(next_expr),
+                r#type: None,
+                is_mut: false,
+            };
+            rewritten.insert(i + 1, setter_stmt);
+            // 后续语句读取重写：跳过本 mutation 自身 RHS（读旧值——正确）。
+            // 除目标名外还重写前一 local——更早的 rename 已把它写入后缀。
+            for later in rewritten.iter_mut().skip(i + 2) {
+                rename_stmt_identifiers(later, &target, &local);
+                if let Some(ref prev_name) = prev {
+                    rename_stmt_identifiers(later, prev_name, &local);
+                }
+            }
+            last_local.insert(target, local);
+            i += 2;
+        } else {
+            i += 1;
+        }
+    }
+    rewritten
+}
+
+/// v4 H1: mutation 的「下值」表达式——DirectAssign 为值本身；
+/// Increment/Decrement 组合二元表达式（当前可见值 + amount / - amount，
+/// 当前可见值 = 前一 local 若存在否则信号本身——DSL 顺序语义
+/// `x = x + 1` 读 x 的当前值）。必须与 rewrite_write_through 的 intent
+/// 过滤一致（三变体，其余 intent 永不入 local 表，unreachable 为防御断言）。
+fn mutation_next_expr(intent: &MutationIntent, target: &str, prev_local: Option<&str>) -> ExprIR {
+    let read = |name: &str| ExprIR::IdentifierExpr {
+        name: name.to_string(),
+        type_ann: None,
+    };
+    let zero = || ExprIR::LiteralExpr {
+        value: serde_json::Value::from(0),
+    };
+    match intent {
+        MutationIntent::DirectAssign { value, .. } => match value {
+            Some(v) => (**v).clone(),
+            None => zero(),
+        },
+        MutationIntent::Increment { amount, .. } => ExprIR::BinaryOpExpr {
+            op: BinaryOpIR::Add,
+            left: Box::new(read(prev_local.unwrap_or(target))),
+            right: Box::new(amount.clone().map(|b| *b).unwrap_or_else(zero)),
+        },
+        MutationIntent::Decrement { amount, .. } => ExprIR::BinaryOpExpr {
+            op: BinaryOpIR::Sub,
+            left: Box::new(read(prev_local.unwrap_or(target))),
+            right: Box::new(amount.clone().map(|b| *b).unwrap_or_else(zero)),
+        },
+        _ => unreachable!("write-through 仅处理 DirectAssign/Increment/Decrement"),
+    }
+}
+
+/// Whether a statement subtree reads the identifier (recursive over nested
+/// statements and expressions — mirrors `walk::walk_stmt`'s traversal).
+fn stmt_reads_identifier(stmt: &StatementIR, target: &str) -> bool {
+    match stmt {
+        StatementIR::ExprStmtIR { expr } | StatementIR::ThrowStmtIR { expr } => {
+            expr_reads_identifier(expr, target)
+        }
+        StatementIR::LetStmtIR { value, .. } | StatementIR::ReturnStmtIR { value } => value
+            .as_ref()
+            .is_some_and(|v| expr_reads_identifier(v, target)),
+        StatementIR::IfStmtIR {
+            condition,
+            then_body,
+            else_ifs,
+            else_body,
+        } => {
+            expr_reads_identifier(condition, target)
+                || then_body
+                    .statements
+                    .iter()
+                    .any(|s| stmt_reads_identifier(s, target))
+                || else_ifs.iter().any(|(c, b)| {
+                    expr_reads_identifier(c, target)
+                        || b.statements
+                            .iter()
+                            .any(|s| stmt_reads_identifier(s, target))
+                })
+                || else_body.as_ref().is_some_and(|b| {
+                    b.statements
+                        .iter()
+                        .any(|s| stmt_reads_identifier(s, target))
+                })
+        }
+        StatementIR::WhileStmtIR { condition, body }
+        | StatementIR::ForInStmtIR {
+            iterable: condition,
+            body,
+            ..
+        } => {
+            expr_reads_identifier(condition, target)
+                || body
+                    .statements
+                    .iter()
+                    .any(|s| stmt_reads_identifier(s, target))
+        }
+        StatementIR::BlockStmtIR { body } => body
+            .statements
+            .iter()
+            .any(|s| stmt_reads_identifier(s, target)),
+        StatementIR::MutationStmt { intent } => intent.as_ref().is_some_and(|i| {
+            mutation_value_expr(i).is_some_and(|v| expr_reads_identifier(v, target))
+        }),
+        StatementIR::TryCatchStmtIR {
+            try_body,
+            catch_body,
+            finally_body,
+            ..
+        } => {
+            try_body
+                .statements
+                .iter()
+                .any(|s| stmt_reads_identifier(s, target))
+                || catch_body.as_ref().is_some_and(|b| {
+                    b.statements
+                        .iter()
+                        .any(|s| stmt_reads_identifier(s, target))
+                })
+                || finally_body.as_ref().is_some_and(|b| {
+                    b.statements
+                        .iter()
+                        .any(|s| stmt_reads_identifier(s, target))
+                })
+        }
+        StatementIR::EventEmitStmtIR { args, .. } => {
+            args.iter().any(|a| expr_reads_identifier(a, target))
+        }
+        StatementIR::BreakStmtIR | StatementIR::ContinueStmtIR => false,
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown StatementIR variant — update codegen for new variant"),
+    }
+}
+
+/// Whether an expression subtree reads the identifier (recursive, mirrors
+/// `walk::walk_expr`'s traversal). Call/method names and field names are
+/// strings, not reads — only `IdentifierExpr` nodes count.
+fn expr_reads_identifier(expr: &ExprIR, target: &str) -> bool {
+    match expr {
+        ExprIR::IdentifierExpr { name, .. } => name == target,
+        ExprIR::LiteralExpr { .. } => false,
+        ExprIR::FieldAccessExpr { object, .. } | ExprIR::OptionalChainExpr { object, .. } => {
+            expr_reads_identifier(object, target)
+        }
+        ExprIR::BinaryOpExpr { left, right, .. } => {
+            expr_reads_identifier(left, target) || expr_reads_identifier(right, target)
+        }
+        ExprIR::UnaryOpExpr { operand, .. } => expr_reads_identifier(operand, target),
+        ExprIR::CallExpr { args, .. } => args.iter().any(|a| expr_reads_identifier(a, target)),
+        ExprIR::MethodCallExpr { object, args, .. } => {
+            expr_reads_identifier(object, target)
+                || args.iter().any(|a| expr_reads_identifier(a, target))
+        }
+        ExprIR::TernaryIR {
+            cond,
+            then_expr,
+            else_expr,
+        } => {
+            expr_reads_identifier(cond, target)
+                || expr_reads_identifier(then_expr, target)
+                || expr_reads_identifier(else_expr, target)
+        }
+        ExprIR::IndexExpr { object, index } => {
+            expr_reads_identifier(object, target) || expr_reads_identifier(index, target)
+        }
+        ExprIR::ArrayExpr { elements } => elements.iter().any(|e| expr_reads_identifier(e, target)),
+        ExprIR::SpreadExpr { operand } => expr_reads_identifier(operand, target),
+        ExprIR::StructExpr { fields, .. } | ExprIR::VariantLiteral { fields, .. } => {
+            fields.iter().any(|(_, v)| expr_reads_identifier(v, target))
+        }
+        ExprIR::StoreFieldAccessExpr { call_args, .. } => {
+            call_args.iter().any(|a| expr_reads_identifier(a, target))
+        }
+        ExprIR::BlockExpr { statements, tail } => {
+            statements.iter().any(|s| stmt_reads_identifier(s, target))
+                || expr_reads_identifier(tail, target)
+        }
+        ExprIR::ClosureExpr { body, .. } => expr_reads_identifier(body, target),
+        ExprIR::AwaitExpr { operand } => expr_reads_identifier(operand, target),
+        ExprIR::MatchExpr { matched, arms } => {
+            expr_reads_identifier(matched, target)
+                || arms.iter().any(|arm| {
+                    arm.body
+                        .statements
+                        .iter()
+                        .any(|s| stmt_reads_identifier(s, target))
+                })
+        }
+        ExprIR::MapExpr { entries } => entries
+            .iter()
+            .any(|(k, v)| expr_reads_identifier(k, target) || expr_reads_identifier(v, target)),
+        ExprIR::ArrayMethod {
+            subject, predicate, ..
+        } => expr_reads_identifier(subject, target) || expr_reads_identifier(predicate, target),
+        ExprIR::RefOpExpr { op, .. } => ref_op_reads_identifier(op, target),
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown ExprIR variant — update codegen for new variant"),
+    }
+}
+
+/// Whether a `RefOpIR` operand subtree reads the identifier.
+fn ref_op_reads_identifier(op: &RefOpIR, target: &str) -> bool {
+    match op {
+        RefOpIR::Focus
+        | RefOpIR::Blur
+        | RefOpIR::Measure { .. }
+        | RefOpIR::Select
+        | RefOpIR::Value
+        | RefOpIR::CapturePointer
+        | RefOpIR::ReleasePointer => false,
+        RefOpIR::ScrollTo { x, y } => {
+            x.as_ref().is_some_and(|e| expr_reads_identifier(e, target))
+                || y.as_ref().is_some_and(|e| expr_reads_identifier(e, target))
+        }
+        RefOpIR::ScrollBy { dx, dy } => {
+            dx.as_ref()
+                .is_some_and(|e| expr_reads_identifier(e, target))
+                || dy
+                    .as_ref()
+                    .is_some_and(|e| expr_reads_identifier(e, target))
+        }
+        RefOpIR::SetSelection { start, end } => {
+            expr_reads_identifier(start, target) || expr_reads_identifier(end, target)
+        }
+        #[allow(unreachable_patterns)]
+        _ => false,
+    }
+}
+
+/// Rename every read of `from` to `to` in a statement subtree (recursive
+/// over nested statements and expressions — mirrors `stmt_reads_identifier`).
+/// Only `IdentifierExpr` nodes are touched: call/method/field names and
+/// statement-level names (`LetStmtIR.name`, `EventEmitStmtIR.event_name`)
+/// are not reads and stay verbatim.
+fn rename_stmt_identifiers(stmt: &mut StatementIR, from: &str, to: &str) {
+    match stmt {
+        StatementIR::ExprStmtIR { expr } | StatementIR::ThrowStmtIR { expr } => {
+            rename_expr_identifiers(expr, from, to);
+        }
+        StatementIR::LetStmtIR { value, .. } | StatementIR::ReturnStmtIR { value } => {
+            if let Some(v) = value {
+                rename_expr_identifiers(v, from, to);
+            }
+        }
+        StatementIR::IfStmtIR {
+            condition,
+            then_body,
+            else_ifs,
+            else_body,
+        } => {
+            rename_expr_identifiers(condition, from, to);
+            for s in &mut then_body.statements {
+                rename_stmt_identifiers(s, from, to);
+            }
+            for (cond, body) in else_ifs {
+                rename_expr_identifiers(cond, from, to);
+                for s in &mut body.statements {
+                    rename_stmt_identifiers(s, from, to);
+                }
+            }
+            if let Some(eb) = else_body {
+                for s in &mut eb.statements {
+                    rename_stmt_identifiers(s, from, to);
+                }
+            }
+        }
+        StatementIR::WhileStmtIR { condition, body }
+        | StatementIR::ForInStmtIR {
+            iterable: condition,
+            body,
+            ..
+        } => {
+            rename_expr_identifiers(condition, from, to);
+            for s in &mut body.statements {
+                rename_stmt_identifiers(s, from, to);
+            }
+        }
+        StatementIR::BlockStmtIR { body } => {
+            for s in &mut body.statements {
+                rename_stmt_identifiers(s, from, to);
+            }
+        }
+        StatementIR::MutationStmt { intent } => {
+            if let Some(intent) = intent {
+                match intent {
+                    MutationIntent::DirectAssign { value, .. } => {
+                        if let Some(v) = value {
+                            rename_expr_identifiers(v, from, to);
+                        }
+                    }
+                    MutationIntent::Increment { amount, .. }
+                    | MutationIntent::Decrement { amount, .. }
+                    | MutationIntent::Multiply { amount, .. }
+                    | MutationIntent::Divide { amount, .. }
+                    | MutationIntent::Modulo { amount, .. } => {
+                        if let Some(v) = amount {
+                            rename_expr_identifiers(v, from, to);
+                        }
+                    }
+                    MutationIntent::Push { item, .. } => {
+                        if let Some(v) = item {
+                            rename_expr_identifiers(v, from, to);
+                        }
+                    }
+                    MutationIntent::Pop { .. } => {}
+                    #[allow(unreachable_patterns)]
+                    _ => unreachable!("Unknown MutationIntent variant — update codegen"),
+                }
+            }
+        }
+        StatementIR::TryCatchStmtIR {
+            try_body,
+            catch_body,
+            finally_body,
+            ..
+        } => {
+            for s in &mut try_body.statements {
+                rename_stmt_identifiers(s, from, to);
+            }
+            if let Some(cb) = catch_body {
+                for s in &mut cb.statements {
+                    rename_stmt_identifiers(s, from, to);
+                }
+            }
+            if let Some(fb) = finally_body {
+                for s in &mut fb.statements {
+                    rename_stmt_identifiers(s, from, to);
+                }
+            }
+        }
+        StatementIR::EventEmitStmtIR { args, .. } => {
+            for a in args {
+                rename_expr_identifiers(a, from, to);
+            }
+        }
+        StatementIR::BreakStmtIR | StatementIR::ContinueStmtIR => {}
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown StatementIR variant — update codegen for new variant"),
+    }
+}
+
+/// Rename every read of `from` to `to` in an expression subtree (recursive,
+/// mirrors `expr_reads_identifier`).
+fn rename_expr_identifiers(expr: &mut ExprIR, from: &str, to: &str) {
+    match expr {
+        ExprIR::IdentifierExpr { name, .. } => {
+            if name == from {
+                *name = to.to_string();
+            }
+        }
+        ExprIR::LiteralExpr { .. } => {}
+        ExprIR::FieldAccessExpr { object, .. } | ExprIR::OptionalChainExpr { object, .. } => {
+            rename_expr_identifiers(object, from, to);
+        }
+        ExprIR::BinaryOpExpr { left, right, .. } => {
+            rename_expr_identifiers(left, from, to);
+            rename_expr_identifiers(right, from, to);
+        }
+        ExprIR::UnaryOpExpr { operand, .. } => rename_expr_identifiers(operand, from, to),
+        ExprIR::CallExpr { args, .. } => {
+            for a in args {
+                rename_expr_identifiers(a, from, to);
+            }
+        }
+        ExprIR::MethodCallExpr { object, args, .. } => {
+            rename_expr_identifiers(object, from, to);
+            for a in args {
+                rename_expr_identifiers(a, from, to);
+            }
+        }
+        ExprIR::TernaryIR {
+            cond,
+            then_expr,
+            else_expr,
+        } => {
+            rename_expr_identifiers(cond, from, to);
+            rename_expr_identifiers(then_expr, from, to);
+            rename_expr_identifiers(else_expr, from, to);
+        }
+        ExprIR::IndexExpr { object, index } => {
+            rename_expr_identifiers(object, from, to);
+            rename_expr_identifiers(index, from, to);
+        }
+        ExprIR::ArrayExpr { elements } => {
+            for e in elements {
+                rename_expr_identifiers(e, from, to);
+            }
+        }
+        ExprIR::SpreadExpr { operand } => rename_expr_identifiers(operand, from, to),
+        ExprIR::StructExpr { fields, .. } | ExprIR::VariantLiteral { fields, .. } => {
+            for (_, v) in fields {
+                rename_expr_identifiers(v, from, to);
+            }
+        }
+        ExprIR::StoreFieldAccessExpr { call_args, .. } => {
+            for a in call_args {
+                rename_expr_identifiers(a, from, to);
+            }
+        }
+        ExprIR::BlockExpr { statements, tail } => {
+            for s in statements {
+                rename_stmt_identifiers(s, from, to);
+            }
+            rename_expr_identifiers(tail, from, to);
+        }
+        ExprIR::ClosureExpr { body, .. } => rename_expr_identifiers(body, from, to),
+        ExprIR::AwaitExpr { operand } => rename_expr_identifiers(operand, from, to),
+        ExprIR::MatchExpr { matched, arms } => {
+            rename_expr_identifiers(matched, from, to);
+            for arm in arms {
+                for s in &mut arm.body.statements {
+                    rename_stmt_identifiers(s, from, to);
+                }
+            }
+        }
+        ExprIR::MapExpr { entries } => {
+            for (k, v) in entries {
+                rename_expr_identifiers(k, from, to);
+                rename_expr_identifiers(v, from, to);
+            }
+        }
+        ExprIR::ArrayMethod {
+            subject, predicate, ..
+        } => {
+            rename_expr_identifiers(subject, from, to);
+            rename_expr_identifiers(predicate, from, to);
+        }
+        ExprIR::RefOpExpr { op, .. } => rename_ref_op_identifiers(op, from, to),
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown ExprIR variant — update codegen for new variant"),
+    }
+}
+
+/// Rename identifier reads in a `RefOpIR` operand subtree.
+fn rename_ref_op_identifiers(op: &mut RefOpIR, from: &str, to: &str) {
+    match op {
+        RefOpIR::Focus
+        | RefOpIR::Blur
+        | RefOpIR::Measure { .. }
+        | RefOpIR::Select
+        | RefOpIR::Value
+        | RefOpIR::CapturePointer
+        | RefOpIR::ReleasePointer => {}
+        RefOpIR::ScrollTo { x, y } => {
+            if let Some(x) = x {
+                rename_expr_identifiers(x, from, to);
+            }
+            if let Some(y) = y {
+                rename_expr_identifiers(y, from, to);
+            }
+        }
+        RefOpIR::ScrollBy { dx, dy } => {
+            if let Some(dx) = dx {
+                rename_expr_identifiers(dx, from, to);
+            }
+            if let Some(dy) = dy {
+                rename_expr_identifiers(dy, from, to);
+            }
+        }
+        RefOpIR::SetSelection { start, end } => {
+            rename_expr_identifiers(start, from, to);
+            rename_expr_identifiers(end, from, to);
+        }
+        #[allow(unreachable_patterns)]
+        _ => {}
+    }
+}
+
 /// Statement generation with store-field renames (`"Store.field"` → slice
 /// local, Task 3.3) applied at expression level (reads and action calls).
 ///

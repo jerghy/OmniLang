@@ -1720,6 +1720,84 @@ fn scroll_progress_has_equality_guard() {
     );
 }
 
+// ── v4 H1: write-then-read threading (task 2.1) ────────────
+
+/// v4 H1: `agreed = !agreed; statusText = if agreed {...}` must generate
+/// sequential reads — setX 后读新值（const next + setX(next) + next 续用）。
+/// React setX 是异步的，直接读 `agreed` 会拿到陈旧闭包值。
+#[test]
+fn handler_write_then_read_threads_next_value() {
+    let out = compile_react(
+        "component App { signal agreed: Bool = false; signal statusText: String = \"\"; \
+         view { <input bind:checked={agreed} @onChange={() => { agreed = !agreed; \
+         statusText = if agreed { \"Agreed\" } else { \"Not agreed\" }; }} /> } }",
+    )
+    .expect("compile must succeed");
+    let tsx = out.files.get("App.tsx").expect("App.tsx emitted");
+    assert!(
+        tsx.contains("setAgreed(nextAgreed)") && tsx.contains("setStatusText(nextAgreed ?"),
+        "写后读未线程化：\n{}",
+        tsx
+    );
+    assert!(
+        !tsx.contains("setStatusText(agreed ?"),
+        "陈旧闭包仍存在：\n{}",
+        tsx
+    );
+}
+
+/// v4 H1: the component-fn handler path (the H1 browser-test host —
+/// FormControlsDemo's `fn handleAgree()`) must thread the same way.
+#[test]
+fn fn_handler_write_then_read_threads_next_value() {
+    let out = compile_react(
+        "component App { signal agreed: Bool = false; signal statusText: String = \"\"; \
+         fn handleAgree() { agreed = !agreed; statusText = if agreed { \"Agreed\" } \
+         else { \"Not agreed\" }; } \
+         view { <input type=\"checkbox\" checked={agreed} @onChange={handleAgree} /> } }",
+    )
+    .expect("compile must succeed");
+    let tsx = out.files.get("App.tsx").expect("App.tsx emitted");
+    assert!(
+        tsx.contains("setAgreed(nextAgreed)") && tsx.contains("setStatusText(nextAgreed ?"),
+        "fn 处理器写后读未线程化：\n{}",
+        tsx
+    );
+    assert!(
+        !tsx.contains("setStatusText(agreed ?"),
+        "fn 处理器陈旧闭包仍存在：\n{}",
+        tsx
+    );
+}
+
+/// v4 H1: 链式写（同信号多次写）按 DSL 顺序语义逐次线程化——每次「下值」
+/// 读当前可见值（前一 local），读取重写指向最后一次写的 local。
+#[test]
+fn write_then_read_chain_threads_in_order() {
+    let out = compile_react(
+        "component App { signal count: i32 = 0; signal text: String = \"\"; \
+         fn bump() { count = count + 1; count = count + 1; text = \"n=\" + count; } \
+         view { <button @onPress={bump}>bump</button> } }",
+    )
+    .expect("compile must succeed");
+    let tsx = out.files.get("App.tsx").expect("App.tsx emitted");
+    assert!(
+        tsx.contains("setCount(nextCount)") && tsx.contains("setCount(nextCount1)"),
+        "链式写未逐次线程化：\n{}",
+        tsx
+    );
+    assert!(
+        tsx.contains("setText(\"n=\" + nextCount1)"),
+        "链尾读取未指向最后一次写：\n{}",
+        tsx
+    );
+    assert!(
+        !tsx.contains("setText(\"n=\" + count)"),
+        "链尾读取仍是陈旧闭包：\n{}",
+        tsx
+    );
+}
+
 /// perf M3: a never-mutated signal initialized with a literal is hoisted to
 /// module scope — it was re-allocated inside the component function on EVERY
 /// render, and a computed/memo depending on it recomputed every render (the

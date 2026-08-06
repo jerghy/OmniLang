@@ -465,7 +465,11 @@ pub(super) fn gen_view_node_tsx(
                                         .emit_fmt(format_args!("Object.assign(e, {});", event_obj));
                                 }
                             }
-                            for stmt in &body.statements {
+                            // v4 H1 (task 2.1): 写后读线程化——改写语句列表
+                            // （`x = v; use(x)` → `const nextX = v; setX(nextX);
+                            // use(nextX);`），无写后读时原样返回。
+                            let statements = super::expr::rewrite_write_through(&body.statements);
+                            for stmt in &statements {
                                 generate_statement_tsx(
                                     &mut merged_hw,
                                     stmt,
@@ -507,7 +511,10 @@ pub(super) fn gen_view_node_tsx(
                                     merged_hw
                                         .emit_fmt(format_args!("Object.assign(e, {});", event_obj));
                                 }
-                                for stmt in &body.statements {
+                                // v4 H1 (task 2.1): 写后读线程化。
+                                let statements =
+                                    super::expr::rewrite_write_through(&body.statements);
+                                for stmt in &statements {
                                     generate_statement_tsx(
                                         &mut merged_hw,
                                         stmt,
@@ -1546,8 +1553,10 @@ fn format_inline_handler(
     possibly_undefined: &FxHashSet<String>,
 ) -> String {
     // Generate the body content first to check which params are actually used
+    // (v4 H1, task 2.1: 写后读线程化——改写语句列表，无写后读时原样返回).
     let mut body_w = CodeWriter::new();
-    for stmt in &body.statements {
+    let statements = super::expr::rewrite_write_through(&body.statements);
+    for stmt in &statements {
         generate_statement_tsx(
             &mut body_w,
             stmt,
