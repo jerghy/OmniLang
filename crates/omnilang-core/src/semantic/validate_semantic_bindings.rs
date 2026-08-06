@@ -9,7 +9,10 @@
 //!
 //! The `value={sig}` semantic-binding form is REMOVED (design D2 值绑定收敛):
 //! `bind:value` is the sole two-way binding and `value={expr}` is a plain
-//! one-way prop. Writing the bare-signal form errors with the migration hint.
+//! one-way prop. v4 5.4 discriminator: only the v1 双向形状 (bare-signal
+//! `value={sig}` on an element WITH `@ref`) errors with the migration hint;
+//! `value={sig}` without `@ref` is exactly the legal plain one-way prop
+//! (design contract D2's value_prop production) and never reaches this pass.
 //!
 //! Runs after component lowering (`ir/lower/mod.rs`), alongside
 //! `validate_ref_ops`. Ref declaration checks (`ref name: Element` exists,
@@ -22,10 +25,11 @@ use crate::ir::walk::walk_view;
 use crate::ir::ComponentIR;
 use crate::lexer::Span;
 
-/// Migration hint for the removed `value={sig}` semantic-binding form —
-/// verbatim from the v2 design doc 域 1 诊断表 (design D2). `bind:value` is
-/// the sole two-way binding; `value={expr}` remains a plain one-way prop.
-const VALUE_BINDING_REMOVED_HINT: &str = "用 bind:value 双向绑定，或普通 value prop 单向";
+/// v4: 迁移提示修正——旧文本「或普通 value prop 单向」指向不可表达形式
+/// （无 @ref 的 value={sig} 此前被误报；v4 5.4 后它本身就是合法单向
+/// prop，无需再建议）。
+pub(crate) const VALUE_BINDING_REMOVED_HINT_V4: &str =
+    "双向绑定请用 bind:value；单向显示请用 value={getter()}（计算表达式）或 value={computed}";
 
 /// Validates semantic ref bindings on elements.
 ///
@@ -58,21 +62,21 @@ fn check_element_bindings(
     // Check semantic_bindings
     for binding in el.semantic_bindings.keys() {
         if binding == "value" {
-            // design D2: the value={sig} semantic-binding form is
-            // deleted — bind:value is the sole two-way binding.
-            // Applies regardless of @ref (the form itself is gone).
-            // Task 4.11: anchors at the element's span (not the
-            // component start) and carries the verbatim migration
-            // hint in the structured suggestion field — the message
-            // stays byte-identical for docs-gate prefix matching.
-            diagnostics.push(make_diag(
-                component,
-                el.source_span,
-                Severity::Error,
-                DiagnosticKind::EValueBindingRemoved,
-                format!("'value={{sig}}' 语义绑定形式已删除，{VALUE_BINDING_REMOVED_HINT}"),
-                Some(VALUE_BINDING_REMOVED_HINT.to_string()),
-            ));
+            // v4 compiler HIGH-4: 仅 v1 双向形状（value={sig} + @ref）
+            // 报错；纯单向 value prop 是合法 surface（D2 value_prop）。
+            // 提示文本修正——旧文本建议的「普通 value prop 单向」恰好
+            // 是会被误报的形式。parser 已保证无 @ref 的 value 不会到
+            // 此处——本判别器是第二道防线（直接构造的 IR 也走这里）。
+            if el.ref_binding.is_some() {
+                diagnostics.push(make_diag(
+                    component,
+                    el.source_span,
+                    Severity::Error,
+                    DiagnosticKind::EValueBindingRemoved,
+                    format!("'value={{sig}}' 双向绑定形式已删除，{VALUE_BINDING_REMOVED_HINT_V4}"),
+                    Some(VALUE_BINDING_REMOVED_HINT_V4.to_string()),
+                ));
+            }
             continue;
         }
         match &el.ref_binding {
@@ -104,8 +108,10 @@ fn check_element_bindings(
 /// Conservative, warning-only check: `focus` on never-focusable container
 /// tags produces a warning. Scroll bindings apply to any overflow-scrollable
 /// element, so they are always accepted. Unknown tags (custom components)
-/// are accepted. (`value` is not listed — the `value={sig}` form is removed
-/// and errors in `check_element_bindings` before this check runs.)
+/// are accepted. (`value` is not listed — the v1 `value={sig}` 双向形状
+/// (with @ref) errors in `check_element_bindings` before this check runs;
+/// without @ref `value` is a plain prop and never lands in
+/// `semantic_bindings`.)
 fn binding_applies_to_tag(binding: &str, tag: &str) -> bool {
     match binding {
         "focus" => !matches!(
@@ -241,6 +247,17 @@ mod tests {
         }
     }
 
+    /// End-to-end analysis of a single source: tokenize → parse → semantic →
+    /// lower → IR passes (`analyse_multi` with one synthetic file). Returns
+    /// (diagnostics, ()) — the brief's `analyse_src` shape.
+    fn analyse_src(source: &str) -> (Vec<Diagnostic>, ()) {
+        let mut sources = FxHashMap::default();
+        sources.insert("test.omni".to_string(), source.to_string());
+        let path_mapping = FxHashMap::default();
+        let output = crate::analyse::analyse_multi(&sources, &path_mapping);
+        (output.diagnostics, ())
+    }
+
     /// Build a minimal ComponentIR with the given ref declarations and a
     /// view wrapping the given elements.
     fn make_component(name: &str, ref_names: &[&str], els: Vec<ViewTree>) -> ComponentIR {
@@ -347,10 +364,9 @@ mod tests {
 
     #[test]
     fn value_semantic_binding_form_rejected() {
-        // design D2 (值绑定收敛): the `value={sig}` semantic-binding form is
-        // removed — `bind:value` is the sole two-way binding and `value={expr}`
-        // is a plain one-way prop. Writing the bare-signal form must error with
-        // the migration hint (设计文档 域 1 诊断表), even with @ref present.
+        // design D2 (值绑定收敛) + v4 5.4: the v1 双向形状 `value={sig}` WITH
+        // @ref is removed — `bind:value` is the sole two-way binding. The
+        // shape must error with the v4 migration hint (设计文档 域 1 诊断表).
         let comp = make_component(
             "Test",
             &["field"],
@@ -370,9 +386,33 @@ mod tests {
             diagnostics[0].message
         );
         assert!(
-            diagnostics[0].message.contains("value prop"),
+            diagnostics[0].message.contains("value={getter()}"),
             "unexpected message: {}",
             diagnostics[0].message
+        );
+    }
+
+    #[test]
+    fn value_semantic_binding_without_ref_is_silent() {
+        // v4 5.4 second line of defense: even if a `value` entry lands in
+        // semantic_bindings on a @ref-less element (IR built directly, bypass
+        // the parser discriminator), it must NOT error — `value={sig}`
+        // without @ref is a legal plain one-way prop (D2 value_prop).
+        let comp = make_component(
+            "Test",
+            &[],
+            vec![ViewTree::Element(Box::new(make_el(
+                "input",
+                None,
+                &[("value", "text")],
+            )))],
+        );
+        let mut diagnostics = Vec::new();
+        validate_semantic_bindings(&comp, &mut diagnostics);
+        assert!(
+            diagnostics.is_empty(),
+            "value without @ref must not diagnose, got: {:?}",
+            diagnostics
         );
     }
 
@@ -407,7 +447,7 @@ mod tests {
         assert_eq!(diagnostics[0].col, 5);
         assert_eq!(
             diagnostics[0].suggestion.as_deref(),
-            Some(VALUE_BINDING_REMOVED_HINT),
+            Some(VALUE_BINDING_REMOVED_HINT_V4),
             "migration hint must land in suggestion: {:?}",
             diagnostics[0]
         );
@@ -492,6 +532,36 @@ mod tests {
             diagnostics.is_empty(),
             "expected no diagnostics, got: {:?}",
             diagnostics
+        );
+    }
+
+    #[test]
+    fn value_sig_without_ref_is_one_way_prop() {
+        // v4 compiler HIGH-4: 设计契约 D2「单向用普通 value={expr}」——
+        // 无 @ref 的 value={sig} 必须作为普通单向 prop 编译（此前被
+        // 重分类为已删语义绑定 → 误导性错误）。
+        let (diags, _) = analyse_src(
+            "component App { signal q: String = \"\"; \
+             view { <input value={QueryStore.query} /> } }",
+        );
+        assert!(
+            !diags.iter().any(|d| d.message.contains("value={sig}")),
+            "单向 value prop 被误报为已删形式：{:?}",
+            diags
+        );
+    }
+
+    #[test]
+    fn value_sig_with_ref_still_errors() {
+        // v1 双向形状（value={sig} + @ref）仍必须硬错误 + 迁移提示。
+        let (diags, _) = analyse_src(
+            "component App { signal q: String = \"\"; \
+             view { <input @ref={box} value={q} /> } }",
+        );
+        assert!(
+            diags.iter().any(|d| d.message.contains("bind:value")),
+            "v1 双向形状未报错：{:?}",
+            diags
         );
     }
 }

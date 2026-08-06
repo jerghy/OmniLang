@@ -273,7 +273,7 @@ component A11yDemo {
 | `@slot name: Type`（类型约束/数据参数） | `类型约束与数据参数已删除；slot = 父传内容` | `@slot name { ... }` 纯内容插槽 |
 | `slot="name"` 属性消费 | `改用命名 props：name={...}` | 命名属性 `name={...}` |
 | `@slot(name)` 指令形式 | `改用 body 级声明 @slot name=... ` | body 级 `@slot name { ... }` |
-| `value={sig}` 语义绑定（D2） | `'value={sig}' 语义绑定形式已删除，用 bind:value 双向绑定，或普通 value prop 单向` | `bind:value={sig}`（双向）/ `value={expr}`（单向 prop） |
+| `value={sig}`（带 `@ref`，v1 双向形状） | `'value={sig}' 双向绑定形式已删除，双向绑定请用 bind:value；单向显示请用 value={getter()}（计算表达式）或 value={computed}` | `bind:value={sig}`（双向）/ `value={getter()}` 或 `value={computed}`（单向显示）；无 `@ref` 的 `value={sig}` 即普通单向 prop（合法，v4 5.4） |
 | `ref.setValue(x)` / `ref.value = x` 命令式写 | `命令式写已删除，用 bind:value 双向绑定` | `bind:value` 双向绑定 |
 | `capturePointer(id)` / `releasePointer(id)` 参数（D3） | `capturePointer 无参数；多指针锁定不支持` | 无参 `capturePointer()` / `releasePointer()` |
 | `ref.style.*` / DOM API（innerHTML/querySelector 等） | `use style:{...} binding with signals instead`（含逐 API 迁移提示，如 `use ref.measure() instead`） | `style: { ... }` 信号绑定 / `ref.measure()` |
@@ -324,7 +324,7 @@ component A11yDemo {
 | `E_SLOT_REMOVED` | slot 形式已删除 | `类型约束与数据参数已删除；slot = 父传内容`（见 §3） |
 | `E_STATES_REMOVED` | `states:` 块已删除 | `states: 已删除（ADR-053），用 @motion + 触发器替代`（见 §3） |
 | `E_ON_REMOVED` | `on:` 块已删除 | `on: 已删除，用 @onXxx={...}`（见 §3） |
-| `E_VALUE_BINDING_REMOVED` | 值绑定已删除 | `'value={sig}' 语义绑定形式已删除，用 bind:value 双向绑定，或普通 value prop 单向`（见 §3） |
+| `E_VALUE_BINDING_REMOVED` | v1 双向值绑定已删除（带 `@ref` 的 `value={sig}`） | `'value={sig}' 双向绑定形式已删除，双向绑定请用 bind:value；单向显示请用 value={getter()}（计算表达式）或 value={computed}`（见 §3） |
 | `E_LINT` | lint 规则错误 | 规则 ID 见 `LintRuleId`：`undefined-ref`、`type-mismatch`、`store-field-direct-mutation`、`prop-immutability`、`computed-purity`、`missing-return`、`dead-code`、`unused-import`、`invalid-event-field`、`store-action-no-event-data`、`for-key`（对象项 @for 无 key → warning） |
 
 ### 警告码（W*）

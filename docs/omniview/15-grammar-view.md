@@ -335,8 +335,10 @@ signal reference (`{sig}`) or qualified store signal (`{Store.sig}`); the
 element must also carry `@ref={name}`. Other `{expr}` values on these names
 stay generic static props. The `value` semantic binding is REMOVED (design
 D2 值绑定收敛): `bind:value` is the sole two-way form, `value={expr}` is a
-plain one-way prop, and writing `value={sig}` is a compile error with the
-migration hint「用 bind:value 双向绑定，或普通 value prop 单向」:
+plain one-way prop — `value={sig}` without `@ref` is exactly that plain
+one-way prop (v4 5.4 discriminator); only the v1 two-way shape (`value={sig}`
++ `@ref`) is a compile error with the migration hint「双向绑定请用 bind:value；
+单向显示请用 value={getter()}（计算表达式）或 value={computed}」:
 ```
 <input @ref={searchBox} focus={isSearchActive} bind:value={searchText} />
 <ScrollView @ref={scrollPane} scroll-y={scrollPosition} />

@@ -77,8 +77,9 @@ pub(crate) fn is_lint_error(d: &crate::semantic::lints::LintDiagnostic) -> bool 
 ///    errors on malformed uses. Runs after `validate_ref_ops` (see above).
 /// 5. `validate_semantic_bindings` — `focus={sig}` / `scroll-x={sig}` /
 ///    `scroll-y={sig}` must appear only on elements with a `@ref` binding;
-///    the removed `value={sig}` form (design D2) hard-errors with the
-///    `bind:value` migration hint.
+///    the v1 双向形状 `value={sig}` (only reachable with `@ref`, v4 5.4
+///    parser discriminator) hard-errors with the `bind:value` migration
+///    hint — `value={sig}` without `@ref` is a plain one-way prop.
 /// 6. `validate_effect_deps` — `@effect(deps)` declarations must cover the
 ///    store-field reads in the effect body (incl. closure-internal reads),
 ///    else the effect silently never re-fires — E_EFFECT_DEPS_MISSING.
@@ -121,8 +122,9 @@ pub(crate) fn run_ir_passes(ir_program: &mut IRProgram, diagnostics: &mut Vec<Di
 
     // Validate semantic ref bindings: focus={sig}, scroll-x={sig},
     // scroll-y={sig} must appear only on elements with a @ref binding whose
-    // ref is declared on the component. The removed value={sig} form
-    // (design D2) hard-errors here with the bind:value migration hint.
+    // ref is declared on the component. The v1 value={sig} 双向形状
+    // (parser keeps it a RefBinding only when @ref is present, v4 5.4)
+    // hard-errors here with the bind:value migration hint.
     for module in ir_program.modules.values_mut() {
         for component in module.components.values_mut() {
             crate::semantic::validate_semantic_bindings::validate_semantic_bindings(

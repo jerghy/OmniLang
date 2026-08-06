@@ -804,8 +804,9 @@ mod tests {
     fn value_binding_removed_code_registered_and_carried() {
         // E_VALUE_BINDING_REMOVED must be a registered diagnostic code:
         // code_str, serde round-trip, and Diagnostic construction (Task 4.11
-        // threads the value={sig} removal hint into the structured
-        // suggestion field under this code).
+        // threads the v1 value={sig} 双向形状 removal hint into the
+        // structured suggestion field under this code; v4 5.4 carries the
+        // corrected hint text).
         assert_eq!(
             DiagnosticKind::EValueBindingRemoved.code_str(),
             "E_VALUE_BINDING_REMOVED"
@@ -817,7 +818,7 @@ mod tests {
 
         let diag = Diagnostic::error(
             DiagnosticKind::EValueBindingRemoved,
-            "'value={sig}' 语义绑定形式已删除，用 bind:value 双向绑定，或普通 value prop 单向",
+            "'value={sig}' 双向绑定形式已删除，双向绑定请用 bind:value；单向显示请用 value={getter()}（计算表达式）或 value={computed}",
             &Span {
                 start: 0,
                 end: 2,
@@ -825,19 +826,21 @@ mod tests {
                 col: 1,
             },
         )
-        .with_suggestion("用 bind:value 双向绑定，或普通 value prop 单向");
+        .with_suggestion(
+            "双向绑定请用 bind:value；单向显示请用 value={getter()}（计算表达式）或 value={computed}",
+        );
         assert_eq!(diag.kind, DiagnosticKind::EValueBindingRemoved);
         assert_eq!(diag.severity, Severity::Error);
         assert!(diag.message.contains("bind:value"));
         assert_eq!(
             diag.suggestion.as_deref(),
-            Some("用 bind:value 双向绑定，或普通 value prop 单向")
+            Some("双向绑定请用 bind:value；单向显示请用 value={getter()}（计算表达式）或 value={computed}")
         );
         let json = serde_json::to_value(DiagnosticJson::from(&diag)).unwrap();
         assert_eq!(json["code"], "E_VALUE_BINDING_REMOVED");
         assert_eq!(
             json["suggestion"],
-            "用 bind:value 双向绑定，或普通 value prop 单向"
+            "双向绑定请用 bind:value；单向显示请用 value={getter()}（计算表达式）或 value={computed}"
         );
     }
 

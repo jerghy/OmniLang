@@ -1902,8 +1902,10 @@ mod roundtrip_tests {
 
     #[test]
     fn view_semantic_binding_props() {
-        // focus={sig}, scroll-x={sig}, scroll-y={sig}, value={sig} parse as
+        // focus={sig}, scroll-x={sig}, scroll-y={sig} parse as
         // ElementProp::RefBinding — compiler-recognized semantic bindings.
+        // v4 5.4: value={sig} WITHOUT @ref is reclassified as a plain
+        // one-way Static prop (design D2 value_prop), not a RefBinding.
         let children = view_children(
             "component App { view { <div focus={mySig} scroll-x={pos} scroll-y={posY} value={text} /> } }",
         );
@@ -1924,13 +1926,52 @@ mod roundtrip_tests {
                     .collect();
                 assert_eq!(
                     bindings.iter().map(|(b, _)| *b).collect::<Vec<_>>(),
-                    vec!["focus", "scroll-x", "scroll-y", "value"]
+                    vec!["focus", "scroll-x", "scroll-y"]
                 );
                 assert!(
                     bindings
                         .iter()
                         .all(|(_, sig)| matches!(sig, Expr::VarRef(_, _))),
                     "each binding should carry a signal expression"
+                );
+                // value without @ref must stay a plain Static prop
+                assert!(
+                    el.props.iter().any(|p| matches!(
+                        p,
+                        ElementProp::Static { name, .. } if name == "value"
+                    )),
+                    "value={{sig}} without @ref must be a Static prop, got: {:?}",
+                    el.props
+                );
+            }
+            _ => panic!("expected Element"),
+        }
+    }
+
+    #[test]
+    fn view_value_sig_with_ref_is_ref_binding() {
+        // v4 5.4: value={sig} on an element WITH @ref keeps the RefBinding
+        // shape (v1 双向形状) — the semantic pass hard-errors it.
+        let children = view_children("component App { view { <input @ref={box} value={q} /> } }");
+        assert_eq!(children.len(), 1);
+        match &children[0] {
+            ViewNode::Element(el) => {
+                assert_eq!(el.tag, "input");
+                assert!(
+                    el.props
+                        .iter()
+                        .any(|p| matches!(p, ElementProp::Ref(n) if n == "box")),
+                    "missing @ref prop, got: {:?}",
+                    el.props
+                );
+                assert!(
+                    el.props.iter().any(|p| matches!(
+                        p,
+                        ElementProp::RefBinding { binding, signal }
+                            if binding == "value" && matches!(signal, Expr::VarRef(n, _) if n == "q")
+                    )),
+                    "value={{sig}} with @ref must stay a RefBinding, got: {:?}",
+                    el.props
                 );
             }
             _ => panic!("expected Element"),

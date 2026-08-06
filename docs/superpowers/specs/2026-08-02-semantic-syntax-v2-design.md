@@ -28,7 +28,7 @@
 | # | 决策 | 决议 |
 |---|------|------|
 | D1 | 主题切换语义 | **`@themes { ... }` 声明 + `@theme` 信号绑定**（编译器自动接线三目标）；`theme = "dark"` 语句不发明（= 普通 store action 设置 @theme 信号）；spec 删除该虚构语法 |
-| D2 | 值绑定收敛 | **`bind:value` 唯一双向绑定**；删除 `value={sig}` 语义绑定形式（单向用普通 prop `value={expr}`）；删除隐式 auto-bind |
+| D2 | 值绑定收敛 | **`bind:value` 唯一双向绑定**；删除 `value={sig}` 语义绑定形式（单向用普通 prop `value={expr}`）；删除隐式 auto-bind。v4 D-V4-4 修订：`value={sig}` 仅当元素带 `@ref` 时属该已删形式（v1 双向形状）；无 `@ref` 的 `value={sig}` 即普通单向 prop——合法 |
 | D3 | capturePointer | **无参数** `capturePointer()`/`releasePointer()`（语义：锁定后续指针事件到本元素）；多指针显式锁定 = floor 外硬诊断；Flutter = error 诊断 |
 | D4 | Typed slots | **删除 `data_param` 与类型约束**；写 `@slot name: Type` → 编译错误 + 提示；Slots 语义纯净为「父传内容」（default + named + fallback） |
 
@@ -104,7 +104,7 @@ value_binding     ::= 'bind:value' '=' expr       (* 唯一双向绑定，保留
 value_prop        ::= 'value' '=' expr            (* 普通单向 prop，无魔法 *)
 ```
 
-**删除**：`RefOpIR::SetValue`（`ref.value = x` / `ref.setValue(x)` 命令式写）、`value={sig}` 语义绑定形式、隐式 auto-bind、`capturePointer(id)` 参数
+**删除**：`RefOpIR::SetValue`（`ref.value = x` / `ref.setValue(x)` 命令式写）、`value={sig}` 语义绑定形式（v1 双向形状——带 `@ref` 的写法；无 `@ref` 时即 value_prop，合法，v4 D-V4-4）、隐式 auto-bind、`capturePointer(id)` 参数
 
 #### 语义集 vs 实现状态（Task 7.2，设计 P3）
 
@@ -164,6 +164,8 @@ _scrollController.animateTo(y, duration: 300ms, curve: Curves.easeInOut)
 | `ref.capturePointer(id)` | error：「capturePointer 无参数；多指针锁定不支持」 |
 | `ref.style.*` / DOM API（保留 v1） | error + 迁移提示（既有） |
 | `bind:value` 用于不可绑定元素 | error（既有） |
+| `value={sig}`（无 @ref） | 普通单向 prop——合法（D2 value_prop 产生式；v4 修复：此前被误报为已删形式）；无诊断 |
+| `value={sig}`（带 @ref） | v1 双向形状——EValueBindingRemoved + 迁移提示（bind:value / getter 调用 / computed）；error |
 | Flutter `capturePointer()` | error：「Flutter 不支持指针捕获，用 GestureDetector」 |
 
 #### 验证清单

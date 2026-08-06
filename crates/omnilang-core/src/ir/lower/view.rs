@@ -755,7 +755,8 @@ fn lower_element(
             // Semantic ref bindings: focus={sig}, scroll-x={sig}, scroll-y={sig}.
             // Extracted into ElementIR.semantic_bindings (consumed by codegen
             // backends in later phases); the semantic pass enforces that they
-            // appear only on @ref-bound elements. The value={sig} form is
+            // appear only on @ref-bound elements. The v1 value={sig} 双向形状
+            // (only @ref'd elements keep it — v4 5.4 parser discriminator) is
             // removed (design D2) — validate_semantic_bindings hard-errors it.
             ElementProp::RefBinding { binding, signal } => {
                 semantic_bindings

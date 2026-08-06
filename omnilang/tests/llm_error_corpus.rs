@@ -203,11 +203,13 @@ const LLM_ERROR_CASES: &[ErrorCase] = &[
     ErrorCase {
         name: "deleted_value_binding",
         category: "C 删除语法",
+        // v4 5.4: only the v1 双向形状 (value={sig} WITH @ref) errors —
+        // without @ref it is a legal plain one-way prop.
         src: "import omniview;\n\
               component V {\n\
               \x20   signal x: String = \"\";\n\
               \x20   view {\n\
-              \x20       <div value={x}/>\n\
+              \x20       <div @ref={box} value={x}/>\n\
               \x20   }\n\
               }",
         expected_line: 5,

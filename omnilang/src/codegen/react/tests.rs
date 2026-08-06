@@ -4571,7 +4571,7 @@ component StoreBinding {
         result
             .errors
             .iter()
-            .any(|e| e.message.contains("bind:value") && e.message.contains("value prop")),
+            .any(|e| e.message.contains("bind:value") && e.message.contains("单向显示")),
         "value={{Store.sig}} must diagnose with the migration hint. Got: {:?}",
         result.errors
     );

@@ -130,7 +130,7 @@ PascalCase 标签引用其他组件——编译时视图会被内联展开：
 <a href={dynamicUrl}>Link</a>
 ```
 
-`value={expr}` 是**普通单向 prop**——显示表达式的计算结果，无任何魔法（值绑定收敛 D2）。双向绑定只有一种形式：`bind:value`（见下文）。注意：`value={sig}` 裸 signal 形式已删除——写它会编译报错「用 bind:value 双向绑定，或普通 value prop 单向」。
+`value={expr}` 是**普通单向 prop**——显示表达式的计算结果，无任何魔法（值绑定收敛 D2）。双向绑定只有一种形式：`bind:value`（见下文）。注意：`value={sig}` 裸 signal 形式——无 `@ref` 时就是普通单向 prop（合法，v4 5.4 判别器修复）；带 `@ref` 的 v1 双向形状已删除，写它会编译报错「双向绑定请用 bind:value；单向显示请用 value={getter()}（计算表达式）或 value={computed}」。
 
 ### 语义绑定（focus / scroll-x / scroll-y）
 

@@ -576,6 +576,42 @@ impl<'a> Parser<'a> {
             }
         }
 
+        // v4: value={sig} 判别器——带 @ref 的元素上保持 RefBinding
+        // （v1 双向形状 → EValueBindingRemoved）；无 @ref 时还原为
+        // Static（普通单向 prop）。
+        let has_ref = props.iter().any(|p| matches!(p, ElementProp::Ref { .. }));
+        for prop in &mut props {
+            match prop {
+                // 带 @ref 的 value={sig}（裸 signal 或限定 store signal）
+                // 是 v1 双向形状——提升为 RefBinding 交给语义层报错；
+                // 计算表达式保持普通单向 Static prop。
+                ElementProp::Static { name, value } if name == "value" && has_ref => {
+                    let is_bare_signal = matches!(value, Expr::VarRef(..));
+                    let is_qualified_store_signal = matches!(
+                        value,
+                        Expr::FieldAccess { object, .. }
+                            if matches!(object.as_ref(), Expr::VarRef(..))
+                    );
+                    if is_bare_signal || is_qualified_store_signal {
+                        *prop = ElementProp::RefBinding {
+                            binding: name.clone(),
+                            signal: value.clone(),
+                        };
+                    }
+                }
+                // 无 @ref 的 value RefBinding → 普通单向 Static prop
+                // （防御分支——"value" 已离开 SEMANTIC_BINDINGS，经
+                // parse_element_prop 不会再产生该形状）。
+                ElementProp::RefBinding { binding, signal } if binding == "value" && !has_ref => {
+                    *prop = ElementProp::Static {
+                        name: binding.clone(),
+                        value: signal.clone(),
+                    };
+                }
+                _ => {}
+            }
+        }
+
         // Auto-close void HTML elements (input, br, hr, img, etc.)
         let void_tags = [
             "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param",

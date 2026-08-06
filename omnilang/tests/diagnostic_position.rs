@@ -45,15 +45,16 @@ fn compile_with_diags(src: &str, target: Target) -> ((), Vec<Diagnostic>) {
 /// `Target::All` does not exist, and the `code` field is the serialized
 /// form of `Diagnostic.kind` (accessible via `kind.code_str()`); the
 /// component wrapper below is the minimal valid form with identical
-/// assertions. The removed form is the bare-signal `value={x}` attribute
-/// (`bind:value={x}` is the legal two-way binding).
+/// assertions. The removed form is the v1 双向形状 — bare-signal
+/// `value={x}` on an element WITH `@ref` (v4 5.4 discriminator:
+/// `value={x}` without `@ref` is a legal plain one-way prop).
 #[test]
 fn semantic_binding_diag_has_element_position() {
     let src = "import omniview;\n\
                component V {\n\
                \x20   signal x: String = \"\";\n\
                \x20   view {\n\
-               \x20       <div value={x}/>\n\
+               \x20       <div @ref={box} value={x}/>\n\
                \x20   }\n\
                }";
     let (_, diags) = compile_with_diags(src, Target::React);
@@ -140,11 +141,13 @@ fn dead_code_lint_diag_has_declaration_position() {
 /// message prefix keep their exact message text when suggestion is added.
 #[test]
 fn suggestion_population_never_rewrites_message() {
+    // v4 5.4: the v1 双向形状 (value={sig} WITH @ref) keeps erroring — the
+    // no-@ref form is now a legal one-way prop and emits nothing.
     let src = "import omniview;\n\
                component V {\n\
                \x20   signal x: String = \"\";\n\
                \x20   view {\n\
-               \x20       <div value={x}/>\n\
+               \x20       <div @ref={box} value={x}/>\n\
                \x20   }\n\
                }";
     let (_, diags) = compile_with_diags(src, Target::React);
@@ -154,12 +157,12 @@ fn suggestion_population_never_rewrites_message() {
         .expect("E_VALUE_BINDING_REMOVED must be emitted");
     assert_eq!(
         d.message,
-        "'value={sig}' 语义绑定形式已删除，用 bind:value 双向绑定，或普通 value prop 单向",
+        "'value={sig}' 双向绑定形式已删除，双向绑定请用 bind:value；单向显示请用 value={getter()}（计算表达式）或 value={computed}",
         "message must remain byte-identical (docs-gate matches by prefix)"
     );
     assert_eq!(
         d.suggestion.as_deref(),
-        Some("用 bind:value 双向绑定，或普通 value prop 单向"),
+        Some("双向绑定请用 bind:value；单向显示请用 value={getter()}（计算表达式）或 value={computed}"),
         "suggestion carries the verbatim hint extracted from the message"
     );
 }

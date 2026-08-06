@@ -405,10 +405,9 @@ mod pipeline_tests {
         }
     }
 
-    /// Design D2 (值绑定收敛): the `value={sig}` semantic-binding form is
-    /// removed — `bind:value` is the sole two-way binding and `value={expr}`
-    /// is a plain one-way prop. The bare-signal form must hard-diagnose with
-    /// the migration hint and fail the compile (even with @ref present).
+    /// Design D2 (值绑定收敛) + v4 5.4: the v1 双向形状 `value={sig}` WITH
+    /// @ref is removed — `bind:value` is the sole two-way binding. The shape
+    /// must hard-diagnose with the v4 migration hint and fail the compile.
     #[test]
     fn compile_rejects_value_sig_semantic_binding_form() {
         let source = r#"
@@ -430,8 +429,30 @@ component InputComp {
             result
                 .errors
                 .iter()
-                .any(|e| e.message.contains("bind:value") && e.message.contains("value prop")),
+                .any(|e| e.message.contains("bind:value") && e.message.contains("单向显示")),
             "value={{sig}} must diagnose with the migration hint, got: {:?}",
+            result.errors
+        );
+    }
+
+    /// v4 compiler HIGH-4: `value={sig}` WITHOUT @ref is a plain one-way
+    /// prop (design contract D2 value_prop production) — no diagnostic,
+    /// compile succeeds. Previously misreported as the removed
+    /// semantic-binding form.
+    #[test]
+    fn compile_accepts_value_sig_without_ref() {
+        let source = r#"
+component InputComp {
+    signal text: String = "";
+    view {
+        <input value={text} />
+    }
+}
+"#;
+        let result = compile(source);
+        assert!(
+            result.success,
+            "value={{sig}} without @ref must compile as a one-way prop, got: {:?}",
             result.errors
         );
     }

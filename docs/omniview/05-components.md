@@ -227,7 +227,8 @@ component MyComponent {
 > `.getBoundingClientRect()` / `.offsetWidth` / `.offsetHeight`（改用
 > `.measure()`，编译器报错并提示替代方案）。高频语义操作优先使用语义绑定
 > 属性：`focus={sig}`、`scroll-x={sig}`、`scroll-y={sig}`；表单值双向同步
-> 用 `bind:value`（`value={sig}` 形式已删除——值绑定收敛 D2）。
+> 用 `bind:value`（带 `@ref` 的 `value={sig}` v1 双向形状已删除——值绑定
+> 收敛 D2；无 `@ref` 的 `value={sig}` 是普通单向 prop，v4 5.4 恢复）。
 > （需配合 `@ref={name}`）。
 
 ### 高频场景：ref + @drag-* 触发器配合
