@@ -101,11 +101,14 @@ for (const [key, val] of Object.entries(elNode.props)) {
 - 所有 relevantProps 属性行改用 chip 编辑器（label 行为不变）；**id 行保持普通输入框**（id 是元素标识符，不做芯片分段）。
 - 芯片交互与现有 label 芯片一致（文本段内嵌输入、`{expr}` 芯片整体编辑、删除）。
 
-### D9：UI —— 布尔属性行（开关 + 表达式）
+### D9：UI —— 布尔属性行（开关 ↔ 表达式互斥视图）
 
-- relevantProps 中命中 BOOLEAN_ATTRS 的属性显示专用行：
-  - **开关**（checkbox）：切换 `true`/`false`（boolean 值直存 props；`false` 时面板显示关态）
-  - **表达式切换**：点「表达式」进入输入态，输 `{expr}`（`/` 插入信号可用）→ 存 `"{expr}"` 字符串；已有表达式时显示紫色芯片（与 D8 一致）
+**前置（本次评审发现的实质缺口）**：`checked`/`disabled`/`required`/`readonly` 等布尔属性**不在 getRelevantProps 白名单**（PropsSection.tsx:573-588——input 只显示 type/placeholder/value/name，button 只显示 label/type/name）→ 解析进 props 后属性面板不可见、不可编辑。必须将 BOOLEAN_ATTRS 相关属性按 tag 补入白名单（input: checked/disabled/required/readonly；button: disabled；a/textarea/select/label: disabled 等），否则 D9 控件不可达。
+
+- 命中 BOOLEAN_ATTRS 的属性显示专用行，**两视图互斥出现**（避免「开关与表达式并存」的语义歧义）：
+  - **无表达式**：显示**开关**（勾选 = `true` 存 boolean；`false` 时面板显示关态）
+  - **点「表达式」按钮**（文字标签 + tooltip）→ 输入框出现，输 `{expr}`（`/` 插入信号可用）→ 存 `"{expr}"` 字符串
+  - **有表达式**：开关隐藏，显示紫色芯片（点击编辑 / × 删除回开关态，与 D8 交互一致）
 - 三态互转：开关 ↔ boolean；表达式 ↔ `"{expr}"` 字符串；从表达式清除 → 回开关态。
 
 ### D10：范围外（明确不做）
@@ -125,7 +128,7 @@ for (const [key, val] of Object.entries(elNode.props)) {
 | `poiesis/src/services/codegen/source-emitter.ts` | D4 BOOLEAN_ATTRS 导出 / D6 动态属性发射 |
 | `poiesis/src/services/codegen/boolean-attrs.ts`（新建） | D4 共享常量（或从 source-emitter 导出，二选一，以 parser 无循环依赖为准） |
 | `poiesis/src/services/codegen/parser-finalize.ts` 或现有转换处 | D5 class="x" → classRefs 管线确认（className 已有路径） |
-| `poiesis/src/components/panels/inspector/PropsSection.tsx` | D8 芯片推广 / D9 布尔行 |
+| `poiesis/src/components/panels/inspector/PropsSection.tsx` | D8 芯片推广 / D9 布尔行 + 布尔属性进 getRelevantProps 白名单 |
 | 测试：`parser-view` 相关 `__tests__`、`source-emitter` 相关 `__tests__`、`PropsSection.test.tsx`（如存在） | 往返矩阵 + UI 用例 |
 
 ## 测试策略（测试即契约）
@@ -147,8 +150,8 @@ for (const [key, val] of Object.entries(elNode.props)) {
 
 ### UI 测试（PropsSection）
 
-- 芯片：`{expr}` 段渲染紫色芯片、编辑/删除、`/` 插入写回 `"{expr}"`
-- 布尔行：开关 ↔ boolean；表达式切换 ↔ `"{expr}"`；三态互转
+- 芯片：`{expr}` 段渲染紫色芯片、编辑/删除、`/` 插入写回 `"{expr}"`；输入 `Hello {count}` 提交后自动拆段（自动芯片化的既有机制回归）
+- 布尔行：开关 ↔ boolean；表达式切换 ↔ `"{expr}"`；三态互转；**白名单可达性**（`<input checked>` 解析后属性面板显示 checked 行）
 - label 行为回归（芯片编辑器推广不破坏 label）
 
 ### 真机验证（Victauri + learn-omniview）
