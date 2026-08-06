@@ -12,6 +12,7 @@ use super::capitalize_first;
 use super::design::DesignResolver;
 use super::design::{class_factory_expr, decoration_fields_to_expr, merge_decoration_fields};
 use super::design::{resolve_class_decoration, resolve_variant_decoration, DecorationFields};
+use super::design_tokens::dart_string_literal;
 use super::expr::{
     format_expr_ir_flutter, rewrite_stmt_store_accesses, rewrite_stmt_widget_refs,
     rewrite_store_accesses, rewrite_widget_refs, watch_to_read_stmt, ClosureHoister,
@@ -1528,7 +1529,7 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                         continue;
                     }
                     if !args.iter().any(|a| a.starts_with("key:")) {
-                        args.push(format!("key: ValueKey('{}')", s.replace('\'', "\\'")));
+                        args.push(format!("key: ValueKey({})", dart_string_literal(s)));
                     }
                     continue;
                 }

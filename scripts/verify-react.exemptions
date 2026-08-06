@@ -27,8 +27,9 @@
 # TS2322 14, TS2353 14, TS2345 14, TS2304 10, TS2722 23, TS2588 7, TS2554 6,
 # TS18048 4, TS7005 2, TS7034 1, TS2367 2; exhaustive-deps 91,
 # unused-identifiers 17, ES5-var 10, no-control-regex 2, no-explicit-any 1.
-# Current snapshot (task 5.6, 2026-08-05): tsc 87 errors + 4 eslint
-# problems (all exempted). Burn-down: user struct/union types now emit
+# Current snapshot (task 5.6, 2026-08-05; re-measured 2026-08-06): tsc 77
+# errors + 4 eslint problems (all exempted). Burn-down: user struct/union
+# types now emit
 # TS declarations inline (deferral #49) — Todo/ApiResult/Rating TS2304,
 # DataTable never[] TS2322/TS2339, MatchBreadthDemo TS2345 deleted below.
 # The TS2722 class (23 → 25 with the I2 AboutPage/HomePage additions) is

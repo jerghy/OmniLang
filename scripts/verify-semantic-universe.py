@@ -77,7 +77,7 @@ BNF_SPEC_FILE = os.path.join(
 FLUTTER_UTILS_FILE = os.path.join(REPO_ROOT, "omnilang", "src", "codegen", "flutter", "utils.rs")
 
 # ── universe section contract ─────────────────────────────────────────────
-# Domain titles must contain the expected keyword (in order 1..5).
+# Domain titles must contain the expected keyword (in order 1..6).
 DOMAIN_TITLES = {
     1: "可动画",
     2: "数组",

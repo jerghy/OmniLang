@@ -4920,7 +4920,11 @@ component DisabledDemo {
 }
 
 /// Task C2b (#4): `data-testid` maps to `key: ValueKey('...')` — the
-/// Flutter testing hook.
+/// Flutter testing hook. v4 终审 fix: the value is emitted through
+/// `dart_string_literal` (shared `\`/`'`/`$` escaping) — the previous
+/// `'`-only replace left `$`/`\` raw, so a testid containing `${expr}`
+/// became executable Dart interpolation (injection class, same family as
+/// the v4 1.2 rust HIGH text-path fix).
 #[test]
 fn data_testid_maps_to_value_key() {
     let flutter = compile_flutter(
@@ -4929,6 +4933,10 @@ component TestIdDemo {
     view {
         <div data-testid="card-a">x</div>
         <input data-testid="name-field" placeholder="n"></input>
+        <button data-testid="pay-$total"></button>
+        <button data-testid="it's"></button>
+        <button data-testid="a\\b"></button>
+        <button data-testid="x-${alert(1)}"></button>
     }
 }
 "#,
@@ -4943,6 +4951,32 @@ component TestIdDemo {
     assert!(
         out.contains("key: ValueKey('card-a')") && out.contains("key: ValueKey('name-field')"),
         "data-testid must map to key: ValueKey('...'), got:\n{out}"
+    );
+    // v4 终审 fix: `$` → `\$` (a raw `$total` would interpolate the Dart
+    // variable), `'` → `\'`, `\` → `\\`, and `${...}` must stay inert text.
+    assert!(
+        out.contains("key: ValueKey('pay-\\$total')"),
+        "testid `$` must be escaped (Dart interpolation risk); got:\n{out}"
+    );
+    assert!(
+        !out.contains("key: ValueKey('pay-$total')"),
+        "testid must not emit raw `$` interpolation; got:\n{out}"
+    );
+    assert!(
+        out.contains("key: ValueKey('it\\'s')"),
+        "testid `'` must be escaped; got:\n{out}"
+    );
+    assert!(
+        out.contains("key: ValueKey('a\\\\b')"),
+        "testid `\\` must be escaped; got:\n{out}"
+    );
+    assert!(
+        out.contains("key: ValueKey('x-\\${alert(1)}')"),
+        "testid dollar-brace payload must stay inert text (escaped), not executable interpolation; got:\n{out}"
+    );
+    assert!(
+        !out.contains("key: ValueKey('x-${alert(1)}')"),
+        "testid must not emit raw dollar-brace interpolation; got:\n{out}"
     );
     assert!(
         !flutter

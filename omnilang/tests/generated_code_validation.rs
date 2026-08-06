@@ -1387,8 +1387,8 @@ fn learn_omniview_formpage_a11y_migration_across_targets() {
 // 因此这两个组合 fixture 放在枚举目录之外（tests/fixtures/combinations/、
 // tests/fixtures/refs/），由本节的字符串断言直接锁死生成物形态：
 // Task 3.1 已修复组合盲区（ref-op 参数内数组方法与 store 访问均被重写，
-// 见 combinations_refop_array_flutter_compiles）；Task 3.2 仍为 RED
-// （scrollTo 双轴 [flutter] warning，见 ref_scrollto_dual_axis_warns）。
+// 见 combinations_refop_array_flutter_compiles）；Task 3.2 已修复：
+// scrollTo 双轴差异警告（见 ref_scrollto_dual_axis_warns）。
 
 /// Compile a fixture (path relative to `tests/fixtures/`) to Flutter
 /// through the public compiler API, returning the generated `.dart`
