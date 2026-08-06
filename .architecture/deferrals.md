@@ -388,7 +388,7 @@
 - **#69 ES5-var**：已修复（2.11 var→let 批次）——豁免 REMOVED 注记已删
 - **#70 unused-identifiers**：已修复（2.11 标识符清理批次）——豁免 REMOVED 注记已删
 - **#62 TS2554**：已关闭（v4 Task 2.4——bind:value setter 分支空事件特判，e34f010a）
-- **#64 TS2345**：已关闭（v4 Task 2.3——数字 bind:value Number() 强制转换，c5a41da1）
+- **#64 TS2345**：已关闭（数字 bind:value 子类——v4 Task 2.3 Number() 强制转换，c5a41da1；**其余子类保持 open——豁免条目 5 条不动**）
 - **#72 TS2304**：已关闭（v4 Task 2.2——只写信号保留 useState，ba0d2474）
 - **#42 parser 分歧**：触发重写（原「任一分歧致用户困惑」不可证伪）→「任一分歧被用户或评审报告」；7 项分歧批次折叠为单一对齐任务（对齐排期随 v4 台账节）
 - **新增 deferral**：
