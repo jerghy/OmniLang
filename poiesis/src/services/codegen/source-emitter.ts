@@ -620,8 +620,16 @@ export class SourceEmitter {
         if (key.startsWith("on")) continue; // event handlers handled below
         if (typeof val === "boolean") {
           if (val) parts.push(` ${key}`);
-        } else if (typeof val === "string" || typeof val === "number") {
-          parts.push(` ${key}="${escapeAttr(String(val))}"`);
+        } else if (typeof val === "string") {
+          // D6：{expr} 形态 → 动态属性输出；否则静态字符串
+          const exprMatch = /^\{(.+)\}$/s.exec(val.trim());
+          if (exprMatch && exprMatch[1].trim().length > 0) {
+            parts.push(` ${key}={${exprMatch[1]}}`);
+          } else {
+            parts.push(` ${key}="${escapeAttr(val)}"`);
+          }
+        } else if (typeof val === "number") {
+          parts.push(` ${key}="${val}"`);
         }
       }
     }
