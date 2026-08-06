@@ -590,6 +590,7 @@ fn all_code(output: &omnilang::codegen::CompileOutput) -> String {
 /// unconditionally (BUG-A workaround) and Flutter emitted `var` always
 /// (losing `final` forever) — one IR gap producing wrong code in opposite
 /// directions per target.
+#[cfg(feature = "codegen-flutter")]
 #[test]
 fn mut_flag_threads_through_all_targets() {
     // ── mut → mutable keyword per target ──
