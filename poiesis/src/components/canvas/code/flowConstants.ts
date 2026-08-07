@@ -4,6 +4,7 @@
 /** Chinese labels for code-element tags shown in nodes */
 export const TAG_CN: Record<string, string> = {
   fn: "函数",
+  action: "动作",
   "code-block": "代码块",
   condition: "判断",
   return: "返回",
@@ -21,6 +22,7 @@ export const TAG_CN: Record<string, string> = {
 
 export const CODE_TAGS = new Set([
   "fn",
+  "action",
   "code-block",
   "condition",
   "return",

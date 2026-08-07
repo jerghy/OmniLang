@@ -44,6 +44,7 @@ const DESIGN_PREVIEW_ID = "design-preview";
 
 const nodeTypes = {
   "fn": FnNode,
+  "action": FnNode,
   "code-block": CodeBlockNode,
   "condition": ConditionNode,
   "return": ReturnNode,

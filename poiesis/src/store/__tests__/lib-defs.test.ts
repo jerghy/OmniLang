@@ -63,4 +63,70 @@ describe("libDefs slice", () => {
     s.materializeLibGraphs("src/lib/a.omni");
     expect(usePoiesisStore.getState().elements).toHaveLength(0);
   });
+
+  // ── MUST-FIX 1 回归（最终 review）：ROOT action 重载 → 物化 → 保存对齐不删除 ──
+  it("ROOT action 补登 libDef.fns 并物化上画布，保存对齐不删除声明", () => {
+    const s = usePoiesisStore.getState();
+    const actPid = "fn_fetchData_el_act1";
+    s.setLibDef("src/lib/a.omni", { imports: [], structs: [], types: [], fns: [] });
+    usePoiesisStore.setState({
+      codeFlowGraphs: {
+        fetchData: {
+          elements: [
+            codeblock(actPid, "action", { props: { name: "fetchData", params: "x: String, y: Int", isAsync: true } }),
+            codeblock("cb_1", "let", { value: "r = x" }),
+          ],
+          wires: [{ id: "w0", fromId: actPid, fromPort: "flow-out", toId: "cb_1", toPort: "flow-in" }],
+        },
+      },
+    });
+    // 重载路径：materializeLibGraphs 把 ROOT action 图补登进 def.fns 并物化元素
+    s.materializeLibGraphs("src/lib/a.omni");
+    let state = usePoiesisStore.getState();
+    expect(state.elements.map((e) => e.id)).toEqual([actPid, "cb_1"]);
+    const fns = state.libDefs["src/lib/a.omni"].fns;
+    expect(fns).toHaveLength(1);
+    expect(fns[0]).toMatchObject({
+      pid: actPid, name: "fetchData", declKind: "action", isAsync: true, pub: false, returnType: "",
+      params: [{ name: "x", type: "String" }, { name: "y", type: "Int" }],
+    });
+    // 保存对齐链尾（useSaveProject 同款过滤）：action 声明必须存活
+    const workingPids = new Set(
+      state.elements.filter((e) => e.nodeType === "codeblock" && (e.tag === "fn" || e.tag === "action")).map((e) => e.id),
+    );
+    const aligned = fns.filter((f) => !!f.pid && workingPids.has(f.pid));
+    expect(aligned.map((f) => f.pid)).toEqual([actPid]);
+    // 幂等：二次物化不重复补登
+    usePoiesisStore.getState().materializeLibGraphs("src/lib/a.omni");
+    state = usePoiesisStore.getState();
+    expect(state.libDefs["src/lib/a.omni"].fns).toHaveLength(1);
+    expect(state.elements).toHaveLength(2);
+  });
+
+  it("组件 action 不补登 lib（pid 被 componentDefs.fns 认领则跳过）", () => {
+    const s = usePoiesisStore.getState();
+    const compPid = "fn_loadData_el_comp1";
+    usePoiesisStore.setState({ componentDefs: {} });
+    usePoiesisStore.setState({
+      componentDefs: {
+        DataFetching: { fns: [{ pid: compPid, name: "loadData", params: [], returnType: "" }] },
+      } as never,
+    });
+    s.setLibDef("src/lib/a.omni", { imports: [], structs: [], types: [], fns: [] });
+    usePoiesisStore.setState({
+      codeFlowGraphs: {
+        loadData: {
+          elements: [
+            codeblock(compPid, "action", { props: { name: "loadData", isAsync: true } }),
+            codeblock("cb_2", "let", { value: "x = 1" }),
+          ],
+          wires: [],
+        },
+      },
+    });
+    s.materializeLibGraphs("src/lib/a.omni");
+    const state = usePoiesisStore.getState();
+    expect(state.libDefs["src/lib/a.omni"].fns).toHaveLength(0);
+    expect(state.elements).toHaveLength(0);
+  });
 });

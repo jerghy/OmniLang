@@ -31,4 +31,31 @@ describe("project slice（重置语义）", () => {
     usePoiesisStore.getState().newProject();
     expect(usePoiesisStore.getState().debugValues).toEqual({});
   });
+
+  // ── MUST-FIX 3 回归（最终 review）：libDefs/lifecycleGraphs/codeFlowGraphs 跨项目重置 ──
+  it("resetEditorState 清空 libDefs/lifecycleGraphs/codeFlowGraphs（声明与图不跨项目残留）", () => {
+    usePoiesisStore.setState({
+      libDefs: { "src/lib/a.omni": { imports: [], structs: [], types: [], fns: [] } },
+      lifecycleGraphs: { lc_1: { elements: [], wires: [] } },
+      codeFlowGraphs: { fetch: { elements: [], wires: [] } },
+    });
+    usePoiesisStore.getState().resetEditorState();
+    const s = usePoiesisStore.getState();
+    expect(s.libDefs).toEqual({});
+    expect(s.lifecycleGraphs).toEqual({});
+    expect(s.codeFlowGraphs).toEqual({});
+  });
+
+  it("newProject 清空 libDefs/lifecycleGraphs/codeFlowGraphs（MUST-FIX 3）", () => {
+    usePoiesisStore.setState({
+      libDefs: { "src/lib/a.omni": { imports: [], structs: [], types: [], fns: [] } },
+      lifecycleGraphs: { lc_1: { elements: [], wires: [] } },
+      codeFlowGraphs: { fetch: { elements: [], wires: [] } },
+    });
+    usePoiesisStore.getState().newProject();
+    const s = usePoiesisStore.getState();
+    expect(s.libDefs).toEqual({});
+    expect(s.lifecycleGraphs).toEqual({});
+    expect(s.codeFlowGraphs).toEqual({});
+  });
 });
