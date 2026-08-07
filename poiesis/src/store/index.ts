@@ -19,6 +19,7 @@ import { createStoreCrudSlice } from "./slices/store-crud";
 import { createTabSlice, createInitialDesignPageState } from "./operations/tab-lifecycle";
 import { createUndoSlice } from "./undo-slice";
 import { createThemeSlice } from "./slices/theme";
+import { createLibDefsSlice } from "./slices/lib-defs";
 
 export const usePoiesisStore = create<PoiesisState>((set, get) => ({
   // ── Initial state values ──
@@ -53,6 +54,7 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
   undoStacks: {},
   codeFlowGraphs: {},
   persistedPositions: {},
+  libDefs: {},
 
   // ── Actions (composed from slice factories) ──
   ...createThemeSlice(set, get),
@@ -67,6 +69,7 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
   ...createNavigationSlice(set, get),
   ...createSerializationSlice(set, get),
   ...createStoreCrudSlice(set, get),
+  ...createLibDefsSlice(set, get),
 }));
 
 // ── HMR State Preservation ──

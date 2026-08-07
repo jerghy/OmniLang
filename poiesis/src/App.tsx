@@ -8,6 +8,7 @@ import { DEFAULT_PROJECT_NAME } from "./constants";
 import { parseOmniSource } from "./services/codegen/omni-parser";
 import { parseStyleValue } from "./services/codegen/design-value-parser";
 import { mergeCodeFlowGraphs } from "./services/codegen/graph-parser";
+import type { LibFileDef } from "./services/codegen/types";
 import type { ElementData, WireData } from "./core/types";
 import { detectTabType } from "./core/types/design-page";
 import type { DesignDefinition, TokenType } from "./core/types/design";
@@ -91,9 +92,10 @@ async function loadOmniFiles(): Promise<void> {
       try {
         const res = await api.project.readFile(filePath);
         if (!res.content) return null;
-        const parseResult = parseOmniSource(res.content);
-        // Allow files with store definitions even if they have no view elements
-        if (!parseResult.designElements && !parseResult.storeDef) return null;
+        // filePath 取自闭包形参（readFile 结果只有 content/error，无 filePath 字段）
+        const parseResult = parseOmniSource(res.content, filePath);
+        // Allow files with store definitions / ROOT 层声明（lib 文件）even if they have no view elements
+        if (!parseResult.designElements && !parseResult.storeDef && !parseResult.fileDefs) return null;
         const componentName = filePath.split("/").pop()!.replace(/\.omni$/, "");
         const positionedElements = (parseResult.designElements ?? []).map((el, idx) => {
           const position = el.nodeType !== "group" ? el.position : undefined;
@@ -266,6 +268,7 @@ async function loadOmniFiles(): Promise<void> {
       wires: import("./core/types/wire").WireData[];
       rootOrder: string[];
       codeFlowGraphs: Record<string, { elements: import("./core/types/element").CodeblockElementData[]; wires: import("./core/types/wire").WireData[] }>;
+      libDefs: Record<string, LibFileDef>;
     }> = {};
     const newTabData = { ...store.tabData };
     const newComponentDefs: Record<string, import("./core/types/project-json").ComponentDef> = { ...store.componentDefs };
@@ -277,8 +280,18 @@ async function loadOmniFiles(): Promise<void> {
     // F1 物化：合并全部文件的 codeFlowGraphs（fn 名 → 图），写入 store 供 codeflow 画布消费。
     const mergedGraphs = mergeCodeFlowGraphs(parsed.map((p) => p.parseResult.codeFlowGraphs));
 
+    // G4 物化：合并全部文件的 fileDefs（lib/组件头部 ROOT 层声明，按文件路径键），
+    // 写入 store 供 code tab 物化消费（materializeLibGraphs）。每个文件的 fileDefs
+    // 只含自身 filePath 一个键，跨文件合并为并集（同名键后者胜，同 mergeCodeFlowGraphs）。
+    const mergedFileDefs: Record<string, LibFileDef> = {};
+    for (const p of parsed) {
+      if (p.parseResult.fileDefs) Object.assign(mergedFileDefs, p.parseResult.fileDefs);
+    }
+
     const tabByFilePath = new Map(store.designPage.openTabs.map(t => [t.filePath, t]));
     for (const p of parsed) {
+      // G4 物化：每文件无条件写入合并后的 fileDefs（lib 文件无 designElements 也走此分支）
+      stateUpdate.libDefs = mergedFileDefs;
       const tab = tabByFilePath.get(p.filePath);
       if (tab) {
         newTabData[tab.id] = {
@@ -306,7 +319,10 @@ async function loadOmniFiles(): Promise<void> {
           // F2 物化：fnRegistry 为空时从解析结果物化 fns（保持 existing?.fns 短路语义，不覆盖既有编辑）。
           fns: existing?.fns ?? materializeFns(p),
         };
-      } else {
+      } else if (p.parseResult.designElements) {
+        // 仅「有 design 内容」的文件建 ComponentDef：lib/store 纯声明文件（designElements 为
+        // null）不建空壳——空壳 elements 恒 []，无消费者（不能用 !fileDefs 判定：
+        // FeatureCard.omni 既有 designElements 又有 fileDefs（头部 struct），会误杀）。
         const existing = newComponentDefs[p.componentName];
         newComponentDefs[p.componentName] = {
           name: p.componentName,
@@ -339,6 +355,7 @@ async function loadOmniFiles(): Promise<void> {
 
     usePoiesisStore.setState({
       ...stateUpdate,
+      libDefs: stateUpdate.libDefs,
       tabData: newTabData,
       componentDefs: newComponentDefs,
       designPage: {

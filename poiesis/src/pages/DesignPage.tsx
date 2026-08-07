@@ -175,6 +175,15 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 物化幂等，依赖仅触发时机
   }, [codeFlowVisible, activeTabType, activeTabComponentName]);
 
+  // ── 物化：code tab 进入时合并当前 lib 文件的 fn 图（幂等，对标组件 F1 物化）──
+  const materializeLibGraphs = usePoiesisStore((s) => s.materializeLibGraphs);
+  useEffect(() => {
+    if (activeTabType === "code" && activeTab?.filePath) {
+      materializeLibGraphs(activeTab.filePath);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 物化幂等，依赖仅触发时机
+  }, [activeTabType, activeTab?.filePath]);
+
   // Ref for z-axis container to convert client coords to percentages
   const zAxisRef = useRef<HTMLDivElement>(null);
 
