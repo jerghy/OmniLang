@@ -13,8 +13,8 @@
 // ║    · .measure()          — 位置/尺寸查询                      ║
 // ║    · .width/.height/.position — 字段读取形式（measure 简写）    ║
 // ║    · scrollTo(0, ref.measure().y) — 嵌套 ref 操作组合          ║
-// ║    · .capturePointer() / .releasePointer() — 指针捕获         ║
-// ║    · @ref + @onPointerMove + style 绑定 — 高频拖拽原语（零中间层）║
+// ║    · @drag / @dragEnd — 拖拽意图（指针捕获为编译器内部细节）      ║
+// ║    · @ref + @drag + style 绑定 — 高频拖拽意图（零中间层）      ║
 // ║    · @drag-horizontal / @drag-vertical — scrubbing 语法糖     ║
 // ╚══════════════════════════════════════════════════════════════╝
 
@@ -76,8 +76,6 @@ component ElementRefDemo {
     signal dragging: Bool = false;          // 拖拽中（视觉状态 → class 绑定）
     signal dragX: f64 = 0;                  // 拖拽位移（→ style transform 绑定）
     signal dragY: f64 = 0;
-    signal dragOriginX: f64 = 0;            // pointerdown 起点（本次拖拽原点）
-    signal dragOriginY: f64 = 0;
 
     // ── @mount：挂载后置 shouldFocus = true → focus={shouldFocus} 绑定自动聚焦 ──
     @mount {
@@ -202,46 +200,39 @@ component ElementRefDemo {
         }
     }
 
-    // ── 指针捕获（.capturePointer / .releasePointer，无参形式） ──
-    // 语义 = 「锁定后续指针事件到本元素」：无参调用，由各目标运行时自动
-    // 使用活动指针（pointerdown 的 pointerId）；有参调用是编译错误。
-    fn onPtrDown() {
-        pointerBox.capturePointer();
+    // ── 拖拽意图（@drag / @dragEnd，ADR-071/073） ──
+    // 指针捕获降级为编译器内部细节：React setPointerCapture / Flutter
+    // GestureDetector pan（onPanStart 即手势竞技场获胜）/ OmniView
+    // capturePointer 原语——源码只写 @drag 意图，捕获后指针移出元素仍跟随。
+    // 事件数据 {x, y, dx, dy, pointerId, startX, startY}：dx/dy 为相对
+    // 按下点的累计位移。
+    fn onPtrDrag() {
         pointerActive = true;
-        pointerStatus = "captured";
+        pointerStatus = "dragging";
     }
-    fn onPtrUp() {
-        pointerBox.releasePointer();
+    fn onPtrEnd() {
         pointerActive = false;
         pointerStatus = "released";
     }
 
-    // ── 高频拖拽（@ref + @onPointerMove 原语） ──
-    // 移动元素 = 指针事件原语直接驱动 style 绑定，零中间层：pointerdown
-    // 捕获指针并记录起点，pointermove 把位移写入 dragX/dragY 信号，
-    // transform 绑定即时跟随。无 duration/easing/keyframes —— 高频操作
-    // 就是要简单直接（@drag-* 仅作 scrubbing 语法糖，见下方 section）。
-    fn onDragDown(e) {
-        dragging = true;
-        dragOriginX = e.x;
-        dragOriginY = e.y;
-        dragBox.capturePointer();
-    }
+    // ── 高频拖拽（@drag 意图） ──
+    // 移动元素 = @drag 意图直接驱动 style 绑定，零中间层：编译器接线捕获，
+    // @drag 处理器把 dx/dy 累计位移写入 dragX/dragY 信号，transform 绑定
+    // 即时跟随。无 duration/easing/keyframes —— 高频操作就是要简单直接
+    // （@drag-* 仅作 scrubbing 语法糖，见下方 section）。
     fn onDragMove(e) {
-        if dragging {
-            dragX = e.x - dragOriginX;
-            dragY = e.y - dragOriginY;
-        }
+        dragging = true;
+        dragX = e.dx;
+        dragY = e.dy;
     }
     fn onDragEnd() {
         dragging = false;
-        dragBox.releasePointer();
     }
 
     view {
         <div class: LearnDesign.Container>
             <h3 class: LearnDesign.CardTitle>Element Reference System</h3>
-            <p class: LearnDesign.Subtitle>ref · @ref · .focus() · .select() · .setSelection() · .width/.height/.position 字段读取 · 嵌套组合 scrollTo(0, ref.measure().y) · @onPointerMove</p>
+            <p class: LearnDesign.Subtitle>ref · @ref · .focus() · .select() · .setSelection() · .width/.height/.position 字段读取 · 嵌套组合 scrollTo(0, ref.measure().y) · @drag 意图</p>
 
             <!-- ═══ 焦点管理 ═══ -->
             <h4 class: LearnDesign.SectionTitle>焦点管理 (.focus / .blur)</h4>
@@ -406,18 +397,19 @@ component ElementRefDemo {
                 </span>
             </div>
 
-            <!-- ═══ 指针捕获 ═══ -->
-            <h4 class: LearnDesign.SectionTitle>指针捕获 (.capturePointer / .releasePointer)</h4>
+            <!-- ═══ 拖拽意图 @drag（指针捕获为编译器内部细节） ═══ -->
+            <h4 class: LearnDesign.SectionTitle>拖拽意图 (@drag / @dragEnd)</h4>
             <p class: LearnDesign.Hint>
-                pointerdown 捕获、pointerup 释放；捕获后即使指针移出元素，后续事件仍定向到该元素。
-                capturePointer() / releasePointer() 为无参语义（设计 D3）：运行时自动使用活动指针，
-                多指针锁定不支持（有参调用为编译错误）。
+                指针按下 → 编译器接线捕获（{'ADR-071/073'}）：React setPointerCapture / Flutter
+                GestureDetector pan（手势竞技场）/ OmniView capturePointer 原语——源码只写
+                @drag 意图。事件数据 {'{x, y, dx, dy, pointerId, startX, startY}'}：dx/dy 为
+                相对按下点的累计位移；捕获后指针移出元素仍跟随（隐式捕获语义）。
             </p>
             <div class: DemoRow>
                 <div
                     @ref={pointerBox}
-                    @onPointerDown={onPtrDown}
-                    @onPointerUp={onPtrUp}
+                    @drag={onPtrDrag}
+                    @dragEnd={onPtrEnd}
                     class: { Pointerbox: true, PointerCaptured: pointerActive }
                 >
                     <p>Press & hold me</p>
@@ -425,20 +417,20 @@ component ElementRefDemo {
                 <span class: StatusText>Pointer: {pointerStatus}</span>
             </div>
 
-            <!-- ═══ 高频拖拽（@ref + @onPointerMove 原语） ═══ -->
-            <h4 class: LearnDesign.SectionTitle>高频拖拽 (@ref + @onPointerMove)</h4>
+            <!-- ═══ 高频拖拽（@drag 意图） ═══ -->
+            <h4 class: LearnDesign.SectionTitle>高频拖拽 (@drag 意图)</h4>
             <p class: LearnDesign.Hint>
-                拖拽移动元素用底层原语而非动画：pointerdown 捕获指针并记录起点，
-                pointermove 把指针位移写入 dragX/dragY 信号，style 的 transform
-                绑定即时跟随 —— 无 duration/easing/keyframes，高频操作就是简单直接。
+                拖拽移动元素用 @drag 意图而非动画：编译器接线捕获（React
+                setPointerCapture / Flutter GestureDetector pan / OmniView
+                capturePointer），@drag 处理器把 dx/dy 累计位移写入 dragX/dragY
+                信号，style 的 transform 绑定即时跟随 —— 无 duration/easing/
+                keyframes，高频操作就是简单直接。
             </p>
             <div class: LearnDesign.Row>
                 <div
                     @ref={dragBox}
-                    @onPointerDown={onDragDown}
-                    @onPointerMove={onDragMove}
-                    @onPointerUp={onDragEnd}
-                    @onPointerCancel={onDragEnd}
+                    @drag={onDragMove}
+                    @dragEnd={onDragEnd}
                     style: { transform: "translate(" + dragX + "px, " + dragY + "px)" }
                     class: { DragBox: true, DragBoxActive: dragging }
                 >
@@ -450,7 +442,7 @@ component ElementRefDemo {
             <p class: LearnDesign.Hint>
                 @drag-* 是 scrubbing 语法糖：手势进度映射到 motion 自身的 keyframe 范围
                 （水平 translateX / 垂直 translateY），由 WAAPI 动画引擎驱动 —— 适合
-                「滑动解锁」式进度控制；移动元素用上方 @ref + @onPointerMove 原语。
+                「滑动解锁」式进度控制；移动元素用上方 @drag 意图。
                 constraints: [min, max] 限定手势范围（超出部分由 elastic 回弹）。
             </p>
             <div class: ConstraintsRow>

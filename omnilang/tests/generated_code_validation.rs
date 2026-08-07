@@ -699,18 +699,25 @@ fn compile_learn_omniview_flutter(scratch: &ScratchDir) -> Option<LearnOmniviewF
         );
         return None;
     }
-    // The showcase project demonstrates the DOM-only pointer-capture ref
-    // ops (design D3). On Flutter those are a DELIBERATE hard error
-    // ("Flutter 不支持指针捕获，用 GestureDetector" — spec §10.3), so the
-    // project can never compile cleanly to Flutter while ElementRefDemo
-    // keeps its pointer-capture section. Filter that expected diagnostic
-    // out; any other error is a regression.
-    let unexpected: Vec<String> = result
+    // ElementRefDemo expresses drag via the @drag intent (ADR-071/073) —
+    // pointer capture is now a compiler-internal detail, so the D3 Flutter
+    // hard error ("Flutter 不支持指针捕获，请用 @drag 指令代替" — spec
+    // §10.3) must NOT fire for the showcase project. Assert the diagnostic
+    // count is exactly zero: an explicit capturePointer creeping back into
+    // the demo is a regression, and so is any other compile error.
+    let capture_diags: Vec<String> = result
         .errors
         .iter()
-        .filter(|d| !d.message.contains("Flutter 不支持指针捕获"))
+        .filter(|d| d.message.contains("Flutter 不支持指针捕获"))
         .map(|d| d.message.clone())
         .collect();
+    assert!(
+        capture_diags.is_empty(),
+        "learn-omniview still emits the D3 pointer-capture error on Flutter \
+         (expected 0 after the @drag migration): {:?}",
+        capture_diags
+    );
+    let unexpected: Vec<String> = result.errors.iter().map(|d| d.message.clone()).collect();
     assert!(
         unexpected.is_empty(),
         "learn-omniview compilation to Flutter failed: {:?}",
@@ -1297,18 +1304,26 @@ fn compile_learn_omniview(target: Target) -> Option<FxHashMap<String, String>> {
         );
         return None;
     }
-    // The showcase project demonstrates the DOM-only pointer-capture ref
-    // ops (design D3). On Flutter those are a DELIBERATE hard error
-    // ("Flutter 不支持指针捕获，用 GestureDetector" — spec §10.3), so the
-    // project can never compile cleanly to Flutter while ElementRefDemo
-    // keeps its pointer-capture section. Filter that expected diagnostic
-    // out; any other error is a regression.
-    let unexpected: Vec<String> = result
+    // ElementRefDemo expresses drag via the @drag intent (ADR-071/073) —
+    // pointer capture is now a compiler-internal detail, so the D3 Flutter
+    // hard error ("Flutter 不支持指针捕获，请用 @drag 指令代替" — spec
+    // §10.3) must NOT fire for the showcase project. Assert the diagnostic
+    // count is exactly zero: an explicit capturePointer creeping back into
+    // the demo is a regression (no-op on non-Flutter targets), and so is
+    // any other compile error.
+    let capture_diags: Vec<String> = result
         .errors
         .iter()
-        .filter(|d| !d.message.contains("Flutter 不支持指针捕获"))
+        .filter(|d| d.message.contains("Flutter 不支持指针捕获"))
         .map(|d| d.message.clone())
         .collect();
+    assert!(
+        capture_diags.is_empty(),
+        "learn-omniview still emits the D3 pointer-capture error on {target:?} \
+         (expected 0 after the @drag migration): {:?}",
+        capture_diags
+    );
+    let unexpected: Vec<String> = result.errors.iter().map(|d| d.message.clone()).collect();
     assert!(
         unexpected.is_empty(),
         "learn-omniview compilation to {target:?} failed: {:?}",

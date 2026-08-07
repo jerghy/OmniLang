@@ -69,6 +69,10 @@ EXEMPT = {
     ("3", "resize"),  # window 级事件——元素绑定不合法（React 无元素 onResize）；DSL 无 window 绑定表面
     ("3", "animationstart"), ("3", "animationend"), ("3", "animationiteration"),
     # 动画族——触发需宿主 CSS @keyframes（DSL 无）；绑定可写但展示为「需宿主动画」说明面板
+    ("4", "capturePointer"), ("4", "releasePointer"),
+    # ADR-073 决策 3：显式 capturePointer 降级为编译器内部细节，demo 源码不再书写——
+    # 指针捕获意图由 ElementRefDemo 的 @drag/@dragEnd 绑定承担（同一演示语义的
+    # 意图形态；@drag 尚非本域登记册成员，语义集登记册演进见后续 spec 同步）
 }
 all_gaps = [g for g in all_gaps if (g[0], g[1]) not in EXEMPT]
 

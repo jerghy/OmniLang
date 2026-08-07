@@ -163,8 +163,8 @@ component SearchPage {
 | `ref.select()` | `ref.current.select()` | `TextEditingController.selection = TextSelection(...)` | `el.select()` |
 | `ref.setSelection(s,e)` | `ref.current.setSelectionRange(s, e)` | `TextEditingController.selection = TextSelection(...)` | `el.setSelectionRange(s, e)` |
 | `ref.measure()` | `ref.current.getBoundingClientRect()` | `RenderBox.localToGlobal()` + `size` | `el.getBoundingClientRect()` |
-| `ref.capturePointer()` | `ref.current.setPointerCapture(id)` | diagnostic: 不支持 | `el.setPointerCapture(id)` |
-| `ref.releasePointer()` | `ref.current.releasePointerCapture(id)` | diagnostic: 不支持 | `el.releasePointerCapture(id)` |
+| `ref.capturePointer()` | `ref.current.setPointerCapture(id)` | error「Flutter 不支持指针捕获，请用 @drag 指令代替」（D3 演进注记，ADR-071/073） | `el.setPointerCapture(id)` |
+| `ref.releasePointer()` | `ref.current.releasePointerCapture(id)` | error「同上」 | `el.releasePointerCapture(id)` |
 
 > **方向一致性契约**：`bind:value` 在三目标必须双向且方向一致——React 发射 `value` + `onChange` 写回；Flutter 发射 controller + 守卫 listener 写回（`setState`）；OmniView 发射 input listener + 守卫 effect。禁止任何目标单向化。删除的 `value={sig}` 形式不再产生单向 useEffect / 单向 sync 路径（评审 HIGH-1 分歧消除）。
 
@@ -194,6 +194,10 @@ component SearchPage {
   命令式写 → error「命令式写已删除，用 bind:value 双向绑定」
 - `capturePointer(id)` → `capturePointer()` 无参数（语义：锁定后续指针事件到本元素；
   多指针显式锁定 = floor 外诊断）；`releasePointer()` 同
+- `@drag={fn}` / `@dragEnd={fn}` 拖拽意图（ADR-071/073）：指针捕获降级为编译器内部
+  细节（React setPointerCapture / Flutter GestureDetector pan / OmniView capturePointer
+  原语）——demo 源码只写意图，不再显式调用 capturePointer/releasePointer；事件数据
+  `{x, y, dx, dy, pointerId, startX, startY}`（dx/dy = 相对按下点累计位移）
 - `value={sig}` 语义绑定形式已删除——`bind:value` 是**唯一**双向绑定语法；
   `value={expr}` = 普通单向 prop；隐式 auto-bind 已删除（value 永远是你写什么就是什么）
 
@@ -201,7 +205,7 @@ component SearchPage {
 |------|------|
 | `ref.value = x` / `ref.setValue(x)` / `ref = x` | error：「命令式写已删除，用 bind:value 双向绑定」 |
 | `capturePointer(任何参数)` | error：「capturePointer 无参数；多指针锁定不支持」 |
-| Flutter `capturePointer()` | error：「Flutter 不支持指针捕获，用 GestureDetector」 |
+| Flutter `capturePointer()` | error：「Flutter 不支持指针捕获，请用 @drag 指令代替（编译为 GestureDetector onPan 接线）」——D3 演进为目标差异注记（ADR-071/073）：捕获是编译器内部细节，用户面向 @drag 意图 |
 
 **Events（域 7）**
 
@@ -1144,8 +1148,9 @@ Flutter: [...list], count += 1, await fn()
 | `ref.select()` | `ref.current.select()` | `controller.selection = TextSelection(...)` | `el.select()` |
 | `ref.setSelection(s,e)` | `ref.current.setSelectionRange(s,e)` | `controller.selection = TextSelection(...)` | `el.setSelectionRange(s,e)` |
 | `ref.measure()` | `ref.current.getBoundingClientRect()` | `RenderBox.localToGlobal()` + `size` | `el.getBoundingClientRect()` |
-| `ref.capturePointer()` | `ref.current.setPointerCapture(id)` | diagnostic: 不支持 | `el.setPointerCapture(id)` |
-| `ref.releasePointer()` | `ref.current.releasePointerCapture(id)` | diagnostic: 不支持 | `el.releasePointerCapture(id)` |
+| `ref.capturePointer()` | `ref.current.setPointerCapture(id)` | error「Flutter 不支持指针捕获，请用 @drag 指令代替」（D3 演进注记，ADR-071/073） | `el.setPointerCapture(id)` |
+| `ref.releasePointer()` | `ref.current.releasePointerCapture(id)` | error「同上」 | `el.releasePointerCapture(id)` |
+| `@drag={fn}` / `@dragEnd={fn}`（意图，ADR-073） | 合成 onPointerDown/Move/Up（setPointerCapture + 起点快照 → DragIntent `{x,y,dx,dy,pointerId,startX,startY}`） | GestureDetector onPanStart/Update/End（DragIntent 同形） | capturePointer 原语 + pointermove 直写（DragIntent 同形） |
 
 ### 10.3 Diagnostic 完整表
 
@@ -1153,7 +1158,7 @@ Flutter: [...list], count += 1, await fn()
 |------|------|------|------|
 | `ref.value = x` / `ref.setValue(x)` / `ref = x` | 全部 | error | 命令式写已删除，用 bind:value 双向绑定 |
 | `capturePointer(任何参数)` | 全部 | error | capturePointer 无参数；多指针锁定不支持 |
-| `capturePointer` / `releasePointer` | Flutter | error | Flutter 不支持指针捕获，用 GestureDetector |
+| `capturePointer` / `releasePointer` | Flutter | error | Flutter 不支持指针捕获，请用 @drag 指令代替（编译为 GestureDetector onPan 接线）——D3 演进为目标差异注记（ADR-071/073）：捕获是编译器内部细节，用户面向 @drag 意图 |
 | `steps()` easing | Flutter | warning | Flutter 无原生 steps easing——回退 `Curves.linear` + 生成警告（2026-08-03 修正：v1 曾误记为 error） |
 | ZIndex token | Flutter | warning | z-index 在 Flutter 中用 widget 顺序/Stack 控制 |
 | CSS `display: grid` | Flutter | error | Flutter 不支持 CSS grid |

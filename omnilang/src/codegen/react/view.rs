@@ -2061,7 +2061,14 @@ fn emit_drag_react_attrs(
             ));
             continue;
         }
-        attrs.push(format!("{prop}={{(e) => {{ {body} }}}}"));
+        // Bind the event arg only when the body reads it. An arity-0 drag
+        // handler (`fn move()`) or an intent object without raw-event
+        // fields (dx/dy/startX/startY reference the snapshot, not `e`)
+        // leaves `e` unused — which trips ESLint no-unused-vars in
+        // gate'd builds. The pointermove guard and `s` snapshot are
+        // identifiers (never "e."), so the probe is exact.
+        let param = if body.contains("e.") { "(e)" } else { "()" };
+        attrs.push(format!("{prop}={{{param} => {{ {body} }}}}"));
     }
 }
 
@@ -2071,9 +2078,15 @@ fn emit_drag_react_attrs(
 /// raw event passthrough — the shared `emit_event_object_react` cannot
 /// express them (its DragIntent mapping falls through to `undefined`), so
 /// the object is built here, honoring `used_fields` with the same
-/// filter-in-schema-order + `?? 0` fallback semantics. `state` names the
-/// drag-start snapshot: `{ref}_dragStartRef.current` for pointermove, `s`
-/// for the pointerup snapshot.
+/// filter-in-schema-order semantics. `state` names the drag-start
+/// snapshot: `{ref}_dragStartRef.current` for pointermove, `s` for the
+/// pointerup snapshot.
+///
+/// No `?? 0` fallback: every extractor is statically non-null inside the
+/// caller's guard — `e.clientX/clientY/pointerId` are typed `number`, and
+/// the snapshot is narrowed by `if ({state})` / `if (s)`. A fallback
+/// would be dead code and trips TS2869 / ESLint
+/// no-constant-binary-expression on the synthesized expression.
 fn drag_event_object_react(used_fields: &Option<Vec<String>>, state: &str) -> String {
     let all: Vec<(String, String)> = vec![
         ("x".into(), "e.clientX".into()),
@@ -2088,12 +2101,12 @@ fn drag_event_object_react(used_fields: &Option<Vec<String>>, state: &str) -> St
         Some(used) if !used.is_empty() => all
             .into_iter()
             .filter(|(name, _)| used.contains(name))
-            .map(|(name, extract)| format!("{name}: {extract} ?? 0"))
+            .map(|(name, extract)| format!("{name}: {extract}"))
             .collect(),
         Some(_) => return "{}".to_string(),
         None => all
             .into_iter()
-            .map(|(name, extract)| format!("{name}: {extract} ?? 0"))
+            .map(|(name, extract)| format!("{name}: {extract}"))
             .collect(),
     };
     format!("{{ {} }}", fields.join(", "))
