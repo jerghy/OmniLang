@@ -1,5 +1,5 @@
 //! Standalone utility functions for OmniView codegen.
-use super::super::{CompileOutput, CompiledFile};
+use super::super::{CodegenWarning, CompileOutput, CompiledFile};
 use super::OmniViewOutput;
 use crate::ir::*;
 pub(super) fn serde_value_to_js(value: &serde_json::Value) -> String {
@@ -267,5 +267,20 @@ pub fn build_file_output(gen: &OmniViewOutput) -> CompileOutput {
             content: gen.types.clone(),
         });
     }
-    CompileOutput::success(files)
+    // Forward generator diagnostics (unknown attribute, undefined class,
+    // unknown variant, ...) into the standard CompileOutput warning channel
+    // so the CLI surfaces them (previously dropped — `CompileOutput::success`
+    // starts with an empty warning list, see compile_multi_internal_post).
+    let mut output = CompileOutput::success(files);
+    output.warnings = gen
+        .warnings
+        .iter()
+        .map(|w| CodegenWarning {
+            message: w.clone(),
+            file: None,
+            line: 0,
+            col: 0,
+        })
+        .collect();
+    output
 }

@@ -28,6 +28,7 @@ const HTML_BOOLEAN_ATTRS: &[&str] = &[
     "muted",
     "async",
     "defer",
+    "open", // 2026-08-07 B2: <details> 布尔属性——此前落入 data-* fallback 静默丢弃
 ];
 const HTML_URL_ATTRS: &[&str] = &["href", "src", "srcset", "action", "formaction", "poster"];
 
@@ -127,11 +128,11 @@ impl OmniViewGenerator {
                 | "pattern" | "selected" | "for" | "action" | "method" | "enctype" | "accept"
                 | "controls" | "width" | "height" | "coords" | "shape" | "media" | "srcset"
                 | "sizes" | "target" | "rel" | "lang" | "dir" | "datetime" | "cite" | "list"
-                | "loop" | "muted" | "poster" | "preload" | "tabindex" | "role" | "content"
-                | "charset" | "http-equiv" | "property" | "itemprop" | "crossorigin"
-                | "integrity" | "referrerpolicy" | "loading" | "decoding" | "async" | "defer"
-                | "nonce" | "download" | "draggable" | "spellcheck" | "contenteditable"
-                | "translate" | "autocapitalize" | "capture" => {
+                | "loop" | "muted" | "open" | "poster" | "preload" | "tabindex" | "role"
+                | "content" | "charset" | "http-equiv" | "property" | "itemprop"
+                | "crossorigin" | "integrity" | "referrerpolicy" | "loading" | "decoding"
+                | "async" | "defer" | "nonce" | "download" | "draggable" | "spellcheck"
+                | "contenteditable" | "translate" | "autocapitalize" | "capture" => {
                     let val_str = self.expr_to_static_str(value);
                     // Known boolean attributes with value "true" — emit bare attribute name
                     let is_boolean_attr = HTML_BOOLEAN_ATTRS.contains(&name.as_str());
@@ -199,6 +200,21 @@ impl OmniViewGenerator {
                 _ => {
                     // Emit as data attribute for unknown props,
                     // but preserve aria-* and data-* attributes as-is.
+                    // Unknown attribute. Static values degrade to data-* passthrough
+                    // (harmless — the emitted attribute name is data-<name>, not <name>).
+                    // DYNAMIC bindings on a bare unknown name lose reactivity silently
+                    // (B2: <details open={sig}> emitted static data-open, no __omni_effect);
+                    // data-*/aria-* prefixed names are the user's own passthrough channel
+                    // and keep the existing silent degradation.
+                    if !matches!(value, ExprIR::LiteralExpr { .. })
+                        && !name.starts_with("data-")
+                        && !name.starts_with("aria-")
+                    {
+                        self.warnings.push(format!(
+                            "unknown attribute '{}' with dynamic binding: OmniView emits it as static data-{} (not reactive); add the attribute to the known-attribute whitelist or use a known attribute",
+                            name, name
+                        ));
+                    }
                     let val_str = self.expr_to_static_str(value);
                     if val_str.is_empty() {
                         continue;

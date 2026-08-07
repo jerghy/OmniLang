@@ -1097,6 +1097,182 @@ fn test_html_element_with_attributes() {
 }
 
 #[test]
+fn details_open_dynamic_binding_emits_el_open_property() {
+    // B2: <details open={isOpen}> must emit a reactive DOM-property effect
+    // (el.open = !!(...)) — before the fix it fell into the data-* fallback
+    // and emitted static data-open="{isOpen}", silently dropping reactivity.
+    let mut module = make_module("main");
+    let mut el = make_element("details");
+    el.props.insert(
+        "open".into(),
+        ExprIR::IdentifierExpr {
+            name: "isOpen".into(),
+            type_ann: None,
+        },
+    );
+    module.components.insert(
+        "App".to_string(),
+        ComponentIR {
+            signals: vec![SignalIntent {
+                name: "isOpen".into(),
+                r#type: TypeIR {
+                    kind: "bool".into(),
+                    type_args: vec![],
+                    is_nullable: false,
+                },
+                initial_value: ExprIR::LiteralExpr {
+                    value: serde_json::json!(false),
+                },
+            }],
+            view: Some(ViewTree::Element(Box::new(el))),
+            ..make_component("App")
+        },
+    );
+    let ir = make_program(FxHashMap::from_iter([("main".into(), module)]));
+    let output = generate(&ir, false, false, false);
+    // open is a known boolean attribute → DOM-property binding, not data-*
+    assert!(output.js.contains("el.open = !!("));
+    assert!(!output.html.contains("data-open"));
+}
+
+#[test]
+fn unknown_bare_attr_dynamic_binding_warns() {
+    // B2 治本: bare unknown attribute with a DYNAMIC binding loses reactivity
+    // silently (static data-foo degradation) — must produce a diagnostic.
+    let mut module = make_module("main");
+    let mut el = make_element("div");
+    el.props.insert(
+        "foo".into(),
+        ExprIR::IdentifierExpr {
+            name: "bar".into(),
+            type_ann: None,
+        },
+    );
+    module.components.insert(
+        "App".to_string(),
+        ComponentIR {
+            signals: vec![SignalIntent {
+                name: "bar".into(),
+                r#type: TypeIR {
+                    kind: "i32".into(),
+                    type_args: vec![],
+                    is_nullable: false,
+                },
+                initial_value: ExprIR::LiteralExpr {
+                    value: serde_json::json!(0),
+                },
+            }],
+            view: Some(ViewTree::Element(Box::new(el))),
+            ..make_component("App")
+        },
+    );
+    let ir = make_program(FxHashMap::from_iter([("main".into(), module)]));
+    let output = generate(&ir, false, false, false);
+    assert!(
+        output
+            .warnings
+            .iter()
+            .any(|w| w.contains("unknown attribute 'foo' with dynamic binding")),
+        "expected unknown-attribute warning, got: {:?}",
+        output.warnings
+    );
+    // Static data-foo degradation still emitted (compiles, but warned)
+    assert!(output.html.contains("data-foo=\""));
+}
+
+#[test]
+fn data_prefixed_attr_dynamic_binding_stays_silent() {
+    // data-*/aria-* names are the user's own passthrough channel — dynamic
+    // bindings on them keep the existing silent degradation (no warning).
+    let mut module = make_module("main");
+    let mut el = make_element("div");
+    el.props.insert(
+        "data-tag".into(),
+        ExprIR::IdentifierExpr {
+            name: "count".into(),
+            type_ann: None,
+        },
+    );
+    module.components.insert(
+        "App".to_string(),
+        ComponentIR {
+            signals: vec![SignalIntent {
+                name: "count".into(),
+                r#type: TypeIR {
+                    kind: "i32".into(),
+                    type_args: vec![],
+                    is_nullable: false,
+                },
+                initial_value: ExprIR::LiteralExpr {
+                    value: serde_json::json!(0),
+                },
+            }],
+            view: Some(ViewTree::Element(Box::new(el))),
+            ..make_component("App")
+        },
+    );
+    let ir = make_program(FxHashMap::from_iter([("main".into(), module)]));
+    let output = generate(&ir, false, false, false);
+    assert!(
+        !output
+            .warnings
+            .iter()
+            .any(|w| w.contains("unknown attribute")),
+        "data-* passthrough must stay silent, got: {:?}",
+        output.warnings
+    );
+}
+
+#[test]
+fn build_file_output_forwards_generator_warnings() {
+    // B2 附加（编译管线实证发现）：OmniView codegen 的警告此前在
+    // build_file_output 处被 CompileOutput::success 的空 warnings 丢弃，
+    // CLI 永远看不到未知属性/未定义 class 等诊断——补上转发。
+    let mut module = make_module("main");
+    let mut el = make_element("div");
+    el.props.insert(
+        "foo".into(),
+        ExprIR::IdentifierExpr {
+            name: "bar".into(),
+            type_ann: None,
+        },
+    );
+    module.components.insert(
+        "App".to_string(),
+        ComponentIR {
+            signals: vec![SignalIntent {
+                name: "bar".into(),
+                r#type: TypeIR {
+                    kind: "i32".into(),
+                    type_args: vec![],
+                    is_nullable: false,
+                },
+                initial_value: ExprIR::LiteralExpr {
+                    value: serde_json::json!(0),
+                },
+            }],
+            view: Some(ViewTree::Element(Box::new(el))),
+            ..make_component("App")
+        },
+    );
+    let ir = make_program(FxHashMap::from_iter([("main".into(), module)]));
+    let gen = generate(&ir, false, false, false);
+    assert!(
+        !gen.warnings.is_empty(),
+        "generator must have collected warnings"
+    );
+    let compiled = build_file_output(&gen);
+    assert!(
+        compiled
+            .warnings
+            .iter()
+            .any(|w| w.message.contains("unknown attribute 'foo'")),
+        "build_file_output must forward generator warnings, got: {:?}",
+        compiled.warnings
+    );
+}
+
+#[test]
 fn test_html_data_nid_present() {
     let mut module = make_module("main");
     module.components.insert(
