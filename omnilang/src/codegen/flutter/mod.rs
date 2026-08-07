@@ -584,6 +584,26 @@ impl FlutterCodegen {
             w.emit("    : _OmniMeasureResult(box.localToGlobal(Offset.zero), box.size);");
             w.emit("");
         }
+        // @drag (ADR-073): the typed DragIntent carrier for the pan wiring —
+        // handler bodies read `e.dx` etc. as dynamic dot-accesses, which
+        // REQUIRE an object with real getters: a Dart `Map<String,num>`
+        // literal has none (NoSuchMethodError on the first pan — Fix round
+        // 1 of the ADR-073 review). Emitted per component (library-private
+        // `_` name — no cross-file collision); all-optional named params
+        // keep `_DragEvent()` valid for handlers that read no fields.
+        if has_drag_bindings(comp) {
+            w.emit("class _DragEvent {");
+            w.indent();
+            w.emit("    final double x, y, dx, dy, startX, startY;");
+            w.emit("    final int pointerId;");
+            w.emit("    const _DragEvent({");
+            w.emit("        this.x = 0, this.y = 0, this.dx = 0, this.dy = 0,");
+            w.emit("        this.pointerId = 0, this.startX = 0, this.startY = 0,");
+            w.emit("    });");
+            w.dedent();
+            w.emit("}");
+            w.emit("");
+        }
 
         // Store provider map (C4): store alias (as written in .omni source) →
         // Riverpod provider variable name (e.g. "TodoStore" → "todoStoreProvider").

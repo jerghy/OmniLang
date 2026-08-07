@@ -10579,36 +10579,47 @@ component DragBox {
         "the element must wrap in a GestureDetector with the pan callbacks. Got:\n{}",
         out
     );
+    // the DragIntent payload is a TYPED _DragEvent instance (named-arg
+    // construction) — handler bodies read e.dx as dot-accesses, which a
+    // Map literal cannot serve (no getters; Fix round 1 of the ADR-073
+    // review)
+    assert!(
+        out.contains("class _DragEvent {"),
+        "the _DragEvent carrier class must be emitted. Got:\n{}",
+        out
+    );
     // onPanUpdate: drag-guarded, dx/dy computed against the snapshot
     assert!(
-        out.contains("onPanUpdate: (d) { final s = _dragStart; if (s == null) return; move({"),
-        "onPanUpdate must be drag-guarded and call the move handler. Got:\n{}",
+        out.contains(
+            "onPanUpdate: (d) { final s = _dragStart; if (s == null) return; move(_DragEvent("
+        ),
+        "onPanUpdate must be drag-guarded and call the move handler with a _DragEvent. Got:\n{}",
         out
     );
     assert!(
-        out.contains("'dx': d.localPosition.dx - s.dx"),
+        out.contains("dx: d.localPosition.dx - s.dx"),
         "dx must be computed against the start snapshot. Got:\n{}",
         out
     );
     assert!(
-        out.contains("'dy': d.localPosition.dy - s.dy"),
+        out.contains("dy: d.localPosition.dy - s.dy"),
         "dy must be computed against the start snapshot. Got:\n{}",
         out
     );
     assert!(
-        out.contains("'pointerId': 0"),
+        out.contains("pointerId: 0"),
         "pointerId has no Flutter analogue — must degrade to 0. Got:\n{}",
         out
     );
     // onPanEnd: optional end handler (reads the same DragIntent shape from
     // the snapshot `s`) + clear
     assert!(
-        out.contains("onPanEnd: (d) { final s = _dragStart; if (s != null) { end({"),
+        out.contains("onPanEnd: (d) { final s = _dragStart; if (s != null) { end(_DragEvent("),
         "onPanEnd should call the end handler from the snapshot. Got:\n{}",
         out
     );
     assert!(
-        out.contains("'startX': s.dx"),
+        out.contains("startX: s.dx"),
         "startX must be read from the start snapshot. Got:\n{}",
         out
     );
@@ -10648,7 +10659,7 @@ component DragBox {
         out
     );
     assert!(
-        !out.contains("end({"),
+        !out.contains("end(_DragEvent("),
         "no end handler may be wired without @dragEnd. Got:\n{}",
         out
     );
@@ -10680,6 +10691,69 @@ component DragBox {
     assert!(
         out.contains("if (s == null) return; move();"),
         "a zero-param handler must be called bare. Got:\n{}",
+        out
+    );
+}
+
+/// Fix round 1 regression (ADR-073 review CRITICAL): the DragIntent payload
+/// must be a TYPED `_DragEvent(...)` instance — NOT a Dart `Map<String,num>`
+/// literal. Handler bodies read `e.dx`/`e.pointerId` as dynamic dot-accesses;
+/// maps have no getters, so the pre-fix Map wiring NoSuchMethodError'd on the
+/// first pan. Compiles a real @drag component through the crate API and
+/// asserts the compiled artifact carries the class declaration, constructs
+/// instances via named args, and contains NO quoted-key Map-literal payload.
+#[test]
+fn test_drag_payload_is_typed_object_not_map_literal() {
+    let source = r#"
+component DragBox {
+  signal lastDx: Float = 0
+  signal lastP: Int = 0
+  ref box: Element
+  fn move(e) {
+    lastDx = e.dx
+    lastP = e.pointerId
+  }
+  view {
+    <div ref:box @drag={move}>content</div>
+  }
+}
+"#;
+    let flutter = compile_flutter(source).expect("compile must succeed");
+    let out: String = flutter
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    // the typed carrier class is emitted with a getter for every DragIntent
+    // field (x/y/dx/dy/startX/startY Float, pointerId Int)
+    assert!(
+        out.contains("class _DragEvent {")
+            && out.contains("final double x, y, dx, dy, startX, startY;")
+            && out.contains("final int pointerId;"),
+        "the _DragEvent carrier class must carry all DragIntent fields. Got:\n{}",
+        out
+    );
+    // the pan wiring constructs instances via named args (used_fields
+    // filter: move reads dx + pointerId)
+    assert!(
+        out.contains("move(_DragEvent(dx: d.localPosition.dx - s.dx, pointerId: 0));"),
+        "onPanUpdate must construct a _DragEvent with named args. Got:\n{}",
+        out
+    );
+    // NO Map-literal payload may survive — the quoted-key shape is the
+    // pre-fix form that NoSuchMethodError'd at runtime
+    assert!(
+        !out.contains("'dx': d.localPosition.dx - s.dx") && !out.contains("{'x':"),
+        "the pan wiring must not pass a Map literal (maps have no getters). Got:\n{}",
+        out
+    );
+    // the handler body keeps its source-level dot-access — valid because the
+    // untyped (dynamic) param receives a _DragEvent instance that HAS the
+    // getters (dynamic dispatch), unlike the Map it used to receive
+    assert!(
+        out.contains("lastDx = e.dx;"),
+        "the handler body's e.dx must survive compilation (dynamic dispatch on _DragEvent). Got:\n{}",
         out
     );
 }

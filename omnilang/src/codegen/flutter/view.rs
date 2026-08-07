@@ -2669,9 +2669,9 @@ fn wrap_push(
 /// ```dart
 /// onPanStart: (d) { _dragStart = d.localPosition; },
 /// onPanUpdate: (d) { final s = _dragStart; if (s == null) return;
-///                    move({ 'x': d.localPosition.dx,
-///                           'dx': d.localPosition.dx - s.dx, ... }); },
-/// onPanEnd: (d) { final s = _dragStart; if (s != null) { end({...}); }
+///                    move(_DragEvent(x: d.localPosition.dx,
+///                                    dx: d.localPosition.dx - s.dx, ...)); },
+/// onPanEnd: (d) { final s = _dragStart; if (s != null) { end(_DragEvent(...)); }
 ///                  _dragStart = null; },
 /// ```
 ///
@@ -2751,16 +2751,24 @@ fn emit_drag_gesture_members(
     wrap_push(wrap_args, "GestureDetector", "onPanEnd", &end_body);
 }
 
-/// Build the DragIntent map literal for a drag handler call.
+/// Build the DragIntent carrier for a drag handler call.
 ///
 /// DragIntent fields are synthesized (start snapshot + pointer delta), not
 /// raw event passthrough — the shared `emit_event_object_flutter` cannot
 /// express them (its schema has no snapshot-dependent dx/dy/startX/startY),
-/// so the map is built here, honoring `used_fields` with the same
-/// filter-in-schema-order semantics. `state` names the drag-start snapshot
-/// local (`s`), `raw` the pan details param (`d`). pointerId has no Flutter
-/// analogue — it degrades to 0 (single-touch default), per the ADR-073
-/// cross-target schema contract.
+/// so the payload is built here as a `_DragEvent(...)` constructor call,
+/// honoring `used_fields` with the same filter-in-schema-order semantics.
+///
+/// The TYPED carrier (not a `Map<String,num>` literal) is load-bearing:
+/// handler bodies read `e.dx`/`e.startX` as dot-accesses, and Dart maps
+/// have no getters — a Map payload would NoSuchMethodError on the first
+/// pan (Fix round 1 of the ADR-073 review). The handler param is untyped
+/// (`dynamic`), so the dot-accesses resolve via dynamic dispatch on the
+/// instance. All-optional named constructor params keep `_DragEvent()`
+/// valid for handlers that read no fields. `state` names the drag-start
+/// snapshot local (`s`), `raw` the pan details param (`d`). pointerId has
+/// no Flutter analogue — it degrades to 0 (single-touch default), per the
+/// ADR-073 cross-target schema contract.
 fn drag_event_object_flutter(used_fields: &Option<Vec<String>>, state: &str, raw: &str) -> String {
     let all: Vec<(String, String)> = vec![
         ("x".into(), format!("{raw}.localPosition.dx")),
@@ -2775,30 +2783,28 @@ fn drag_event_object_flutter(used_fields: &Option<Vec<String>>, state: &str, raw
         Some(used) if !used.is_empty() => all
             .into_iter()
             .filter(|(name, _)| used.contains(name))
-            .map(|(name, extract)| format!("'{name}': {extract}"))
+            .map(|(name, extract)| format!("{name}: {extract}"))
             .collect(),
-        Some(_) => return "{}".to_string(),
+        // Empty used-fields: `_DragEvent()` — the all-optional constructor
+        // keeps the call valid for handlers that read no DragIntent fields.
+        Some(_) => Vec::new(),
         None => all
             .into_iter()
-            .map(|(name, extract)| format!("'{name}': {extract}"))
+            .map(|(name, extract)| format!("{name}: {extract}"))
             .collect(),
     };
-    format!("{{ {} }}", fields.join(", "))
+    format!("_DragEvent({})", fields.join(", "))
 }
 
-/// Handler call form for a drag handler: the synthesized DragIntent object
-/// as-is, or no arguments for a zero-param handler (`{}` would be
-/// extra_positional_arguments on a 0-arity Dart method — mirroring the
-/// React backend's arity resolution). `original` is the fn's pre-rename
-/// name — the arity lookup keys off it (fn_renames only fire for
+/// Handler call form for a drag handler: the synthesized DragIntent carrier
+/// as-is, or no arguments for a zero-param handler (a `_DragEvent(...)`
+/// argument would be extra_positional_arguments on a 0-arity Dart method —
+/// mirroring the React backend's arity resolution). `original` is the fn's
+/// pre-rename name — the arity lookup keys off it (fn_renames only fire for
 /// Dart-type shadowing, e.g. `double` → `double_`).
 fn drag_handler_call(renamed: &str, original: &str, obj: &str, ctx: &ViewContext) -> String {
-    if obj == "{}" {
-        if ctx.ref_is_zero_param_fn(original) {
-            format!("{renamed}();")
-        } else {
-            format!("{renamed}({{}});")
-        }
+    if ctx.ref_is_zero_param_fn(original) {
+        format!("{renamed}();")
     } else {
         format!("{renamed}({obj});")
     }
