@@ -690,6 +690,164 @@ fn scan_drag_bindings(node: &ViewTree, found: &mut bool) {
     }
 }
 
+/// The `_DragEvent` carrier class spec for a component (ADR-073, Fix round
+/// 2): which DragIntent fields the component's drag handlers actually read
+/// (union across every `@drag` / `@dragEnd` binding), and whether the class
+/// is referenced at all.
+pub(crate) struct DragEventClassSpec {
+    /// Fields the carrier class must declare, in schema order (x, y, dx,
+    /// dy, pointerId, startX, startY). Empty when no handler reads any
+    /// DragIntent field — the class then carries a bare `const _DragEvent();`
+    /// (the call site emits `_DragEvent()` for arity-1 handlers that ignore
+    /// the event object).
+    pub fields: Vec<String>,
+    /// True when any drag handler is called WITH a `_DragEvent(...)` carrier
+    /// — i.e. any handler that is not zero-param (zero-param handlers are
+    /// called bare, mirroring `drag_handler_call`'s ref_is_zero_param_fn
+    /// predicate). False ⇒ the emitted code contains no `_DragEvent`
+    /// reference ⇒ the class must not be emitted at all (an unreferenced
+    /// private class would itself be a dart `unused_element` warning).
+    pub needed: bool,
+}
+
+/// The DragIntent schema order (ADR-073) — shared by the class declaration
+/// here and the extractor list in `drag_event_object_flutter` (view.rs).
+const DRAG_SCHEMA_ORDER: [&str; 7] = ["x", "y", "dx", "dy", "pointerId", "startX", "startY"];
+
+/// Mirror of `ViewContext::ref_is_zero_param_fn` (view.rs): a zero-param
+/// drag handler is called BARE by `drag_handler_call`, so it never
+/// references the carrier class. Unknown fns are treated as param-bearing
+/// (the same conservative fallback as the call site).
+fn drag_handler_is_zero_param(
+    handler: &EventHandlerIR,
+    comp: &ComponentIR,
+    ir: &IRProgram,
+) -> bool {
+    let EventHandlerIR::FnRef { r#ref, .. } = handler else {
+        return false; // non-FnRef drag handlers are unreachable (validate_drag)
+    };
+    comp.fns
+        .iter()
+        .any(|f| f.name == *r#ref && f.params.is_empty())
+        || ir
+            .all_functions()
+            .iter()
+            .any(|f| f.name == *r#ref && f.params.is_empty())
+}
+
+/// Merge one handler's used_fields into the running union. None = full
+/// DragIntent schema (conservative; unreachable for drag — lower backfills
+/// Some for every FnRef, but a None must not drop fields).
+fn drag_merge_used_fields(
+    union: &mut Option<FxHashSet<String>>,
+    full_schema: &mut bool,
+    handler: &EventHandlerIR,
+) {
+    match handler.used_fields() {
+        None => *full_schema = true,
+        Some(fs) => {
+            let set = union.get_or_insert_with(FxHashSet::default);
+            for f in fs {
+                set.insert(f.clone());
+            }
+        }
+    }
+}
+
+fn scan_drag_class_spec(
+    node: &ViewTree,
+    comp: &ComponentIR,
+    ir: &IRProgram,
+    union: &mut Option<FxHashSet<String>>,
+    full_schema: &mut bool,
+    needed: &mut bool,
+) {
+    match node {
+        ViewTree::Element(el) => {
+            if let Some(drag) = &el.drag_binding {
+                // carrier reference: any non-zero-param drag handler is
+                // called with a _DragEvent(...) argument (drag_handler_call)
+                *needed |= !drag_handler_is_zero_param(&drag.on_drag, comp, ir);
+                drag_merge_used_fields(union, full_schema, &drag.on_drag);
+                if let Some(end) = &drag.on_drag_end {
+                    *needed |= !drag_handler_is_zero_param(end, comp, ir);
+                    drag_merge_used_fields(union, full_schema, end);
+                }
+            }
+            for child in &el.children {
+                scan_drag_class_spec(child, comp, ir, union, full_schema, needed);
+            }
+        }
+        ViewTree::Conditional(cond) => {
+            for branch in &cond.branches {
+                if let Some(ref body) = branch.body {
+                    scan_drag_class_spec(body, comp, ir, union, full_schema, needed);
+                }
+            }
+            if let Some(ref fb) = cond.fallback {
+                scan_drag_class_spec(fb, comp, ir, union, full_schema, needed);
+            }
+        }
+        ViewTree::ListRendering(list) => {
+            if let Some(ref body) = list.body {
+                scan_drag_class_spec(body, comp, ir, union, full_schema, needed);
+            }
+            if let Some(ref empty) = list.empty_body {
+                scan_drag_class_spec(empty, comp, ir, union, full_schema, needed);
+            }
+        }
+        ViewTree::Fragment(children) => {
+            for c in children {
+                scan_drag_class_spec(c, comp, ir, union, full_schema, needed);
+            }
+        }
+        ViewTree::Slot { fallback, .. } => {
+            for c in fallback {
+                scan_drag_class_spec(c, comp, ir, union, full_schema, needed);
+            }
+        }
+        ViewTree::Text(_) | ViewTree::Interpolation(_) => {}
+        #[allow(unreachable_patterns)]
+        _ => {}
+    }
+}
+
+/// The union of DragIntent fields read by every `@drag` / `@dragEnd`
+/// handler in the component, in schema order (ADR-073), plus whether the
+/// `_DragEvent` carrier class is referenced at all. Fix round 2 of the
+/// ADR-073 review: the class used to hardcode all 7 fields, which produced
+/// 5 `unused_element_parameter` warnings in dart analyze the first time a
+/// real demo (@drag on ElementRefDemo) read only dx/dy.
+pub(crate) fn drag_event_class_spec(comp: &ComponentIR, ir: &IRProgram) -> DragEventClassSpec {
+    let mut spec = DragEventClassSpec {
+        fields: Vec::new(),
+        needed: false,
+    };
+    let Some(view) = &comp.view else {
+        return spec;
+    };
+    let mut union: Option<FxHashSet<String>> = None;
+    let mut full_schema = false;
+    scan_drag_class_spec(
+        view,
+        comp,
+        ir,
+        &mut union,
+        &mut full_schema,
+        &mut spec.needed,
+    );
+    if full_schema {
+        spec.fields = DRAG_SCHEMA_ORDER.iter().map(|s| s.to_string()).collect();
+    } else if let Some(set) = union {
+        // schema order — declaration order is stable regardless of which
+        // handler read which field first
+        let mut fields: Vec<String> = DRAG_SCHEMA_ORDER.iter().map(|s| s.to_string()).collect();
+        fields.retain(|f| set.contains(f));
+        spec.fields = fields;
+    }
+    spec
+}
+
 /// A ref + its semantic bindings, collected in view-tree order.
 type RefBinding<'a> = (&'a str, Vec<(&'a str, &'a ExprIR)>);
 

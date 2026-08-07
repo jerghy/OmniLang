@@ -589,17 +589,31 @@ impl FlutterCodegen {
         // REQUIRE an object with real getters: a Dart `Map<String,num>`
         // literal has none (NoSuchMethodError on the first pan — Fix round
         // 1 of the ADR-073 review). Emitted per component (library-private
-        // `_` name — no cross-file collision); all-optional named params
-        // keep `_DragEvent()` valid for handlers that read no fields.
-        if has_drag_bindings(comp) {
+        // `_` name — no cross-file collision). Fix round 2: the declaration
+        // is driven by the union of fields the component's drag handlers
+        // actually read (a hardcoded all-7-fields carrier produced 5
+        // `unused_element_parameter` warnings in dart analyze once a real
+        // demo read only dx/dy); the class is skipped entirely when no
+        // handler references it (all drag handlers zero-param ⇒ bare calls).
+        let drag_spec = drag_event_class_spec(comp, ir);
+        if drag_spec.needed {
             w.emit("class _DragEvent {");
             w.indent();
-            w.emit("    final double x, y, dx, dy, startX, startY;");
-            w.emit("    final int pointerId;");
-            w.emit("    const _DragEvent({");
-            w.emit("        this.x = 0, this.y = 0, this.dx = 0, this.dy = 0,");
-            w.emit("        this.pointerId = 0, this.startX = 0, this.startY = 0,");
-            w.emit("    });");
+            for f in &drag_spec.fields {
+                let ty = if f == "pointerId" { "int" } else { "double" };
+                w.emit(&format!("    final {ty} {f};"));
+            }
+            if drag_spec.fields.is_empty() {
+                // no handler reads any DragIntent field — the carrier is
+                // only ever constructed as `_DragEvent()`
+                w.emit("    const _DragEvent();");
+            } else {
+                w.emit("    const _DragEvent({");
+                for f in &drag_spec.fields {
+                    w.emit(&format!("        this.{f} = 0,"));
+                }
+                w.emit("    });");
+            }
             w.dedent();
             w.emit("}");
             w.emit("");

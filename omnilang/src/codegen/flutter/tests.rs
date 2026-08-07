@@ -10725,13 +10725,26 @@ component DragBox {
         .cloned()
         .collect::<Vec<_>>()
         .join("\n");
-    // the typed carrier class is emitted with a getter for every DragIntent
-    // field (x/y/dx/dy/startX/startY Float, pointerId Int)
-    assert!(
-        out.contains("class _DragEvent {")
-            && out.contains("final double x, y, dx, dy, startX, startY;")
-            && out.contains("final int pointerId;"),
-        "the _DragEvent carrier class must carry all DragIntent fields. Got:\n{}",
+    // the typed carrier class is emitted declaring ONLY the union of
+    // fields the handlers read (Fix round 2: move reads dx + pointerId —
+    // never the hardcoded all-7 shape that produced 5
+    // unused_element_parameter warnings in dart analyze)
+    let class_start = out
+        .find("class _DragEvent {")
+        .expect("the _DragEvent carrier class must be emitted");
+    let class_end = class_start + out[class_start..].find("\n}\n").expect("class closed");
+    assert_eq!(
+        &out[class_start..class_end],
+        concat!(
+            "class _DragEvent {\n",
+            "        final double dx;\n",
+            "        final int pointerId;\n",
+            "        const _DragEvent({\n",
+            "            this.dx = 0,\n",
+            "            this.pointerId = 0,\n",
+            "        });",
+        ),
+        "the carrier class must declare exactly the used-fields union (dx + pointerId). Got:\n{}",
         out
     );
     // the pan wiring constructs instances via named args (used_fields
@@ -10754,6 +10767,148 @@ component DragBox {
     assert!(
         out.contains("lastDx = e.dx;"),
         "the handler body's e.dx must survive compilation (dynamic dispatch on _DragEvent). Got:\n{}",
+        out
+    );
+}
+
+/// Fix round 2 (ADR-073 review): the `_DragEvent` carrier class declares
+/// ONLY the union of fields the component's drag handlers actually read —
+/// a hardcoded all-7-fields declaration produced 5
+/// `unused_element_parameter` warnings in dart analyze once a real demo
+/// (@drag on ElementRefDemo) read only dx/dy. The union spans @drag +
+/// @dragEnd handlers and multiple elements; zero-param handlers stay bare
+/// calls and contribute no fields.
+#[test]
+fn test_drag_event_class_declares_only_used_fields() {
+    let source = r#"
+component DragBox {
+  signal lastDx: Float = 0
+  signal lastY: Float = 0
+  signal lastSX: Float = 0
+  signal moved: bool = false
+  ref box: Element
+  ref box2: Element
+  fn move(e) {
+    lastDx = e.dx
+    lastY = e.y
+  }
+  fn end(e) {
+    lastSX = e.startX
+  }
+  fn ping() {
+    moved = true
+  }
+  view {
+    <div ref:box @drag={move} @dragEnd={end}>content</div>
+    <div ref:box2 @drag={ping}>tap</div>
+  }
+}
+"#;
+    let flutter = compile_flutter(source).expect("compile must succeed");
+    let out: String = flutter
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    // union of {move: dx, y} ∪ {end: startX} = {y, dx, startX} in schema
+    // order — nothing more (ping is zero-param ⇒ bare call, no fields)
+    let class_start = out
+        .find("class _DragEvent {")
+        .expect("the _DragEvent carrier class must be emitted");
+    let class_end = class_start + out[class_start..].find("\n}\n").expect("class closed");
+    assert_eq!(
+        &out[class_start..class_end],
+        concat!(
+            "class _DragEvent {\n",
+            "        final double y;\n",
+            "        final double dx;\n",
+            "        final double startX;\n",
+            "        const _DragEvent({\n",
+            "            this.y = 0,\n",
+            "            this.dx = 0,\n",
+            "            this.startX = 0,\n",
+            "        });",
+        ),
+        "the carrier class must declare exactly the used-fields union (y, dx, startX). Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("ping();"),
+        "a zero-param handler must stay a bare call. Got:\n{}",
+        out
+    );
+}
+
+/// Fix round 2 edge: an arity-1 handler that ignores `e` (used_fields =
+/// Some([])) still receives a `_DragEvent()` carrier — the class must exist
+/// but declare ZERO fields (the call references `_DragEvent()`).
+#[test]
+fn test_drag_binding_ignored_event_emits_empty_carrier_class() {
+    let source = r#"
+component DragBox {
+  signal moved: bool = false
+  ref box: Element
+  fn move(e) {
+    moved = true
+  }
+  view {
+    <div ref:box @drag={move}>content</div>
+  }
+}
+"#;
+    let flutter = compile_flutter(source).expect("compile must succeed");
+    let out: String = flutter
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        out.contains("move(_DragEvent());"),
+        "an arity-1 handler that reads no fields must still receive the (empty) carrier. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("class _DragEvent {\n        const _DragEvent();\n}"),
+        "the carrier class must exist with an empty constructor. Got:\n{}",
+        out
+    );
+}
+
+/// Fix round 2 edge: when EVERY drag handler is zero-param, no `_DragEvent`
+/// reference exists in the emitted code — the carrier class must NOT be
+/// emitted (an unreferenced private class would itself be a dart
+/// `unused_element` warning).
+#[test]
+fn test_drag_binding_all_zero_param_emits_no_carrier_class() {
+    let source = r#"
+component DragBox {
+  signal moved: bool = false
+  ref box: Element
+  fn move() {
+    moved = true
+  }
+  view {
+    <div ref:box @drag={move}>content</div>
+  }
+}
+"#;
+    let flutter = compile_flutter(source).expect("compile must succeed");
+    let out: String = flutter
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        out.contains("if (s == null) return; move();"),
+        "zero-param handlers must be called bare. Got:\n{}",
+        out
+    );
+    assert!(
+        !out.contains("class _DragEvent"),
+        "no _DragEvent reference exists — the carrier class must not be emitted. Got:\n{}",
         out
     );
 }
