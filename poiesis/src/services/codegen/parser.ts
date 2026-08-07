@@ -386,7 +386,11 @@ export class Parser {
           return { name: pName || "", type: pType || "" }; // 无类型不补 String
         })
       : [];
-    const returnType = signature.match(/->\s*(\w+)/)?.[1] || ""; // 无 -> 不发射
+    // F1：完整捕获返回类型（含泛型）。签名是 token+空格拼接形态（tokenizer 把
+    // `<` `>` `,` 拆为独立 token），`Map<String, String>` → `Map < String , String > `；
+    // `\w+` 只捕获首词会静默降级签名（保存时数据丢失，T9 评审 F1）。trim 去掉
+    // 拼接产生的尾随空格，发射 `-> Map < String , String > {` 重解析 round-trip 稳定。
+    const returnType = signature.match(/->\s*([\w<>, ]+)/)?.[1]?.trim() || ""; // 无 -> 不发射
     this.synthesizeFnEntry(name, rawParams, returnType, pid, elements, wires, "fn", {});
     this.ensureBodyFallback(pid, body, elements, wires);
     this.parsedFnBodies.set(name, { elements, wires });
@@ -779,7 +783,8 @@ export class Parser {
           return { name: pName || "", type: pType || "String" };
         })
       : [];
-    const returnType = fnSignature.match(/->\s*(\w+)/)?.[1] || "void";
+    // F1 同款：完整捕获返回类型（含泛型），见 parseRootFn 注记
+    const returnType = fnSignature.match(/->\s*([\w<>, ]+)/)?.[1]?.trim() || "void";
     this.synthesizeFnEntry(fnName, rawParams, returnType, fnPid, elements, wires, "fn", {});
 
     this.parsedFnBodies.set(fnName, { elements, wires });

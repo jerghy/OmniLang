@@ -75,6 +75,22 @@ describe("emitLibFile round-trip（真实 learn-omniview 文件）", () => {
     expect(out).toContain("fn extra() {");
   });
 
+  it("fn 返回类型泛型完整捕获（F1：-> Map < String , String > 不降级为 Map）", () => {
+    // T9 评审 F1：parseRootFn 的 /->\s*(\w+)/ 只捕获首词，Map<String, String> 静默
+    // 降级为 Map——code tab 保存路径会丢签名。签名是 token+空格拼接形态（tokenizer
+    // 把 < > , 拆为独立 token），完整捕获为 "Map < String , String >"。
+    const src = fs.readFileSync(FIXTURE("lib/error_handling.omni"), "utf-8");
+    const r = parseOmniSource(src, "lib/error_handling.omni");
+    const def = r.fileDefs!["lib/error_handling.omni"];
+    const out1 = emitLibFile(def, r.codeFlowGraphs ?? {});
+    expect(out1).toContain("-> Map < String , String >");
+    expect(out1).not.toContain("-> Map {"); // 降级形态绝迹
+    // 再解析 → 再发射 → 泛型签名仍然完整（fixpoint 之外的保真断言）
+    const r2 = parseOmniSource(out1, "lib/error_handling.omni");
+    const out2 = emitLibFile(r2.fileDefs!["lib/error_handling.omni"], r2.codeFlowGraphs ?? {});
+    expect(out2).toContain("-> Map < String , String >");
+  });
+
   it("pub/async 修饰符经 def.fns 落到发射文本（save 全链路保真：async_demo 实证）", () => {
     const src = fs.readFileSync(FIXTURE("lib/async_demo.omni"), "utf-8");
     const r = parseOmniSource(src, "lib/async_demo.omni");
