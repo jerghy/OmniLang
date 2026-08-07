@@ -567,9 +567,26 @@ impl OmniViewGenerator {
 
             let signal_entries_str = signal_entries.join(", ");
 
+            // Collect component fn names for the factory return object.
+            // Top-level event bindings (deferred flush) call through the
+            // factory-exposed fns map: the IIFE scopes fns, so a direct
+            // `Main_doIt(...)` at top level throws ReferenceError (regression:
+            // FnRef event bindings dead on every click in the editor/debug
+            // window).
+            let mut fn_entries: Vec<String> = Vec::new();
+            for f in &comp.fns {
+                let prefixed = format!("{}_{}", name, f.name);
+                fn_entries.push(format!("{}: {}", f.name, prefixed));
+            }
+            let fns_str = if fn_entries.is_empty() {
+                String::new()
+            } else {
+                format!(",\n    fns: {{ {} }}", fn_entries.join(", "))
+            };
+
             let _ = write!(self.js,
-                "  return {{\n    signals: {{ {} }},\n    teardown: function() {{\n      var root = document.querySelector('[data-component=\"{}\"]');\n      if (root) root.remove();\n    }}\n  }};\n}})();\n",
-                signal_entries_str, name
+                "  return {{\n    signals: {{ {} }},{}\n    teardown: function() {{\n      var root = document.querySelector('[data-component=\"{}\"]');\n      if (root) root.remove();\n    }}\n  }};\n}})();\n",
+                signal_entries_str, fns_str, name
             );
         }
 

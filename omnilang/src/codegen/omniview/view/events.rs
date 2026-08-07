@@ -133,6 +133,20 @@ impl OmniViewGenerator {
                     }
                 };
                 if let Some(ref hname) = handler_name {
+                    // Editor mode: fn definitions live in the factory IIFE —
+                    // register the factory-exposed reference instead of the
+                    // top-level-invisible prefixed function name (same
+                    // ReferenceError regression as direct bindings).
+                    if self.editor_mode {
+                        if let EventHandlerIR::FnRef { r#ref, .. } = handler {
+                            let _ = writeln!(
+                                self.js,
+                                "__omni_forHandlers[\"{}\"] = window.__omni_components[\"{}\"].fns.{};",
+                                hname, self.scope.current_component, r#ref
+                            );
+                            continue;
+                        }
+                    }
                     let _ = writeln!(self.js, "__omni_forHandlers[\"{}\"] = {};", hname, hname);
                 }
             } else {
@@ -142,8 +156,17 @@ impl OmniViewGenerator {
                         emit_event_object(handler.event_data(), handler.used_fields(), "_e");
                     let handler_call = match handler {
                         EventHandlerIR::FnRef { r#ref, .. } => {
-                            let prefixed = format!("{}_{}", self.scope.current_component, r#ref);
-                            format!("{}({})", prefixed, event_obj)
+                            if self.editor_mode {
+                                // Same factory-fns indirection as direct bindings.
+                                format!(
+                                    "window.__omni_components[\"{}\"].fns.{}({})",
+                                    self.scope.current_component, r#ref, event_obj
+                                )
+                            } else {
+                                let prefixed =
+                                    format!("{}_{}", self.scope.current_component, r#ref);
+                                format!("{}({})", prefixed, event_obj)
+                            }
                         }
                         EventHandlerIR::StoreAction { r#ref, .. } => {
                             let var_name = r#ref.replace('.', "_");
@@ -209,6 +232,23 @@ impl OmniViewGenerator {
                         nid = nid,
                         js_event = js_event,
                         motion = r#ref,
+                    );
+                } else if self.editor_mode {
+                    // Editor mode: the factory IIFE scopes fns to the component
+                    // object. Bindings are flushed to top level, so the call
+                    // must go through the factory-exposed fns map — a direct
+                    // `Main_doIt(...)` here throws ReferenceError on every
+                    // click (regression: FnRef bindings dead in the
+                    // editor/debug window).
+                    let event_obj =
+                        emit_event_object(handler.event_data(), handler.used_fields(), "e");
+                    let call = format!(
+                        "window.__omni_components[\"{}\"].fns.{}({})",
+                        self.scope.current_component, r#ref, event_obj
+                    );
+                    let _ = writeln!(self.js,
+                        "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ try {{ {sp} {pd} {call}; }} catch(err) {{ __omni_reportError(\"error:event:{js_event}\", err); }} }}); }}",
+                        nid = nid, js_event = js_event, sp = sp, pd = pd, call = call
                     );
                 } else {
                     let prefixed = format!("{}_{}", self.scope.current_component, r#ref);

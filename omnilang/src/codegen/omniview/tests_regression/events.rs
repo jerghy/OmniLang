@@ -482,3 +482,119 @@ component Badge {
         js
     );
 }
+
+// ═════════════════════════════════════════════════════════════════════════════
+// editor_mode — FnRef bindings call through the factory-exposed fns map
+// ═════════════════════════════════════════════════════════════════════════════
+
+/// Compiles `src` in editor_mode (factory-IIFE wrapping, editor/debug window)
+/// and returns the generated JS.
+fn compile_js_editor(src: &str) -> String {
+    let result = crate::compile_omniview(src, true, false);
+    assert!(
+        result.success,
+        "compilation should succeed: {:?}",
+        result.errors
+    );
+    result.files.unwrap().js
+}
+
+/// editor_mode regression: fns are defined inside the component factory IIFE
+/// while event bindings are flushed to top level. A FnRef binding that calls
+/// the prefixed fn directly (`Main_doIt(...)`) throws `ReferenceError:
+/// Main_doIt is not defined` on every click — the debug window's buttons
+/// bound to `@onClick={fn}` were dead. The factory must expose an `fns` map
+/// and the binding must call through `window.__omni_components[name].fns.{ref}`.
+#[test]
+fn fnref_binding_calls_through_factory_fns_in_editor_mode() {
+    let js = compile_js_editor(
+        r#"
+component Main {
+    signal count: i32 = 0;
+    fn doIt() { count = count + 1; }
+    view {
+        <button @onClick={doIt}>Go</button>
+    }
+}
+"#,
+    );
+
+    // Factory return must expose the fn under its SOURCE name
+    assert!(
+        js.contains("fns: { doIt: Main_doIt }"),
+        "factory return should expose the fns map. JS:\n{}",
+        js
+    );
+    // The binding must call through the factory fns map...
+    assert!(
+        js.contains("window.__omni_components[\"Main\"].fns.doIt("),
+        "FnRef binding must call through the factory fns map. JS:\n{}",
+        js
+    );
+    // ...and must NOT reference the top-level-invisible prefixed name
+    // (only the in-factory function declaration may contain `Main_doIt`).
+    assert!(
+        !js.contains("Main_doIt({})"),
+        "binding must not call the prefixed fn directly. JS:\n{}",
+        js
+    );
+}
+
+/// Non-editor mode keeps the direct prefixed call (fns are top-level there,
+/// no factory indirection needed).
+#[test]
+fn fnref_binding_direct_call_in_plain_mode() {
+    let js = compile_js(
+        r#"
+component Main {
+    signal count: i32 = 0;
+    fn doIt() { count = count + 1; }
+    view {
+        <button @onClick={doIt}>Go</button>
+    }
+}
+"#,
+    );
+
+    assert!(
+        js.contains("Main_doIt({})"),
+        "plain-mode FnRef binding should call the prefixed fn directly. JS:\n{}",
+        js
+    );
+    assert!(
+        !js.contains("window.__omni_components"),
+        "plain mode has no component registry. JS:\n{}",
+        js
+    );
+}
+
+/// @for delegation: the delegated listener resolves FnRef handlers through
+/// __omni_forHandlers — in editor_mode the registration must hold the
+/// factory-exposed reference, not the invisible prefixed fn.
+#[test]
+fn fnref_for_delegation_registers_factory_fns_in_editor_mode() {
+    let js = compile_js_editor(
+        r#"
+component Main {
+    signal items: List<String> = [];
+    fn handleItem() { }
+    view {
+        @for item in items {
+            <button @onClick={handleItem}>{item}</button>
+        }
+    }
+}
+"#,
+    );
+
+    assert!(
+        js.contains("__omni_forHandlers[\"Main_handleItem\"] = window.__omni_components[\"Main\"].fns.handleItem;"),
+        "@for FnRef registration must use the factory-exposed fn. JS:\n{}",
+        js
+    );
+    assert!(
+        !js.contains("__omni_forHandlers[\"Main_handleItem\"] = Main_handleItem;"),
+        "@for FnRef must not register the top-level-invisible prefixed fn. JS:\n{}",
+        js
+    );
+}
