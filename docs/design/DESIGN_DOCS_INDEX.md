@@ -128,6 +128,8 @@
 
 | 文档 | 日期 | 状态 | 说明 |
 |------|------|------|------|
+| [设计: element-ref-system](element-ref-system.md) | 2026-07-29 | ✅ 现行 | Element Reference 系统设计（@ref + ref API 全集 + 三目标机制契约注记 :388-393；v2「React 退化为 useState」注记待直写通道修订） |
+| [设计: ref 高频操控——三目标直写通道](ref-high-frequency-direct-channel.md) | 2026-08-07 | 📋 规划中 | 下一步设计：style 动态绑定「恒等于」语义形式化 + React 直写通道（Phase 1，D1/D2/B2 信号域分类）+ @drag 意图化草案（Phase 2，独立 ADR）+ Flutter 表达式化（Phase 3） |
 | [spec: omniview-motion-animation-design](../superpowers/specs/2026-06-20-omniview-motion-animation-design.md) | 2026-06-20 | ✅ 现行 | ~49KB 动画系统设计（关键帧、时间线、缓动、stagger、滚动驱动、Hero）。核心语法已在 11-motion-animation.md 中实现 |
 | [plan: omniview-motion-implementation](../superpowers/plans/2026-06-21-omniview-motion-implementation.md) | 2026-06-21 | ✅ 现行 | 动画实现计划 |
 | [spec: omniview-event-data-transmission-design](../superpowers/specs/2026-06-29-omniview-event-data-transmission-design.md) | 2026-06-29 | ✅ 现行 | 事件数据传输 v2：20 类 EventDataKind、精确字段提取、@for 委托 |

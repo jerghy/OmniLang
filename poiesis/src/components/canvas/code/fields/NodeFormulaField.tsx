@@ -2,6 +2,7 @@
 // 表达式公式框（重新设计）：textarea 编辑层 + 覆盖层胶囊渲染。
 // 光标/IME/选区浏览器原生；胶囊=私有区标记段 \uE000..\uE001，覆盖层渲染高亮块；
 // 结构字符着色；自由文本为普通文本。提交=serializeSegments(markup)（字符串，编译器零改动）。
+import { createPortal } from "react-dom";
 import { memo, useEffect, useMemo, useRef, useState, type KeyboardEvent, type CompositionEvent, type FormEvent, type MouseEvent as ReactMouseEvent } from "react";
 import { parseMarkup, serializeSegments, toMarkup, isBoundary, TRIGGER_CHARS, operatorCandidates, tokenizeFormula, CAPSULE_START, CAPSULE_END } from "./expression-trigger";
 import { NodeCandidateMenu, type CandidateItem } from "./NodeCandidateMenu";
@@ -282,17 +283,21 @@ export const NodeFormulaField = memo(function NodeFormulaField({ value, onCommit
           onKeyDown={onKeyDown}
         />
       </div>
-      {menu && (
-        <NodeCandidateMenu
-          x={menu.x}
-          y={menu.y}
-          groups={menu.groups}
-          activeIdx={menu.activeIdx}
-          onSelect={selectItem}
-          onMouseEnter={(idx) => setMenu((m) => (m ? { ...m, activeIdx: idx } : m))}
-          onClose={() => setMenu(null)}
-        />
-      )}
+      {/* portal 到 body：React Flow 节点/viewport 的 CSS transform 是 fixed 定位的包含块，
+         菜单以视口坐标定位会被双重变换甩到屏外（真机 bug：斜杠弹框不可见）——挂 body 脱离变换链 */}
+      {menu &&
+        createPortal(
+          <NodeCandidateMenu
+            x={menu.x}
+            y={menu.y}
+            groups={menu.groups}
+            activeIdx={menu.activeIdx}
+            onSelect={selectItem}
+            onMouseEnter={(idx) => setMenu((m) => (m ? { ...m, activeIdx: idx } : m))}
+            onClose={() => setMenu(null)}
+          />,
+          document.body
+        )}
     </>
   );
 }, (prev, next) => {

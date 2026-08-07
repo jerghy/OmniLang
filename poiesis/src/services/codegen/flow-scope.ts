@@ -1,7 +1,7 @@
 // poiesis/src/services/codegen/flow-scope.ts
 // 节点内联编辑的补全候选数据层 + 轻量即时校验。
 // 纯函数：从 store 现有数据（componentDefs/storeDefs/inlineStoreDefs/elements）收集候选，零新数据源。
-import type { ComponentDef } from "../../core/types/project-json";
+import type { ComponentDef, FnDef } from "../../core/types/project-json";
 import type { StoreDefinition } from "../../core/types/store";
 import type { CodeblockElementData } from "../../core/types/element";
 
@@ -31,6 +31,38 @@ export function parseFnParamsStr(s: string): ScopeParam[] {
   });
 }
 
+/**
+ * 画布 fn 元素 → FnDef 形状。CodeFlow 新建/改名/删除的 fn 只体现在画布 elements
+ * （componentDefs.fns 是加载时快照，仅在 parse 时物化，见 App.tsx F2）——
+ * 事件绑定搜索与公式候选须以画布为准与快照合并，否则 CodeFlow 新建的 fn 不可见（真机缺陷）。
+ */
+export function fnsFromElements(elements: CodeblockElementData[]): FnDef[] {
+  const out: FnDef[] = [];
+  for (const el of elements) {
+    if (el.tag !== "fn") continue;
+    const name = String(el.props?.name ?? "");
+    if (!name) continue; // 未命名 fn 节点跳过（与幻影参数同款防御：空名进候选会污染签名）
+    out.push({
+      pid: el.id,
+      name,
+      params: parseFnParamsStr(String(el.props?.params ?? "")),
+      returnType: String(el.props?.returnType ?? "void"),
+    });
+  }
+  return out;
+}
+
+/** 画布 fn（实时权威）与 componentDefs.fns 快照合并：pid 或 name 命中画布的条目被画布覆盖
+ * （改名/改参后旧条目不残留）；未物化的解析 fn（从未进入 code view）保留。 */
+export function mergeComponentFns(defFns: FnDef[] | undefined, elements: CodeblockElementData[]): FnDef[] {
+  const canvasFns = fnsFromElements(elements);
+  const canvasPids = new Set<string>();
+  const canvasNames = new Set<string>();
+  for (const f of canvasFns) { canvasPids.add(f.pid); canvasNames.add(f.name); }
+  const kept = (defFns ?? []).filter((f) => !canvasPids.has(f.pid) && !canvasNames.has(f.name));
+  return [...kept, ...canvasFns];
+}
+
 export function buildFlowScope(input: {
   componentDef?: ComponentDef;
   storeDefs: Record<string, StoreDefinition>;
@@ -48,7 +80,8 @@ export function buildFlowScope(input: {
     props: componentDef?.props?.map((p) => ({ name: p.name, type: p.type })) ?? [],
     computeds: componentDef?.computeds?.map((c) => ({ name: c.name, returnType: c.returnType })) ?? [],
     events: componentDef?.events?.map((e) => ({ name: e.name })) ?? [],
-    fns: componentDef?.fns?.map((f) => ({ name: f.name, params: f.params ?? [] })) ?? [],
+    // 画布 fn 为实时权威（componentDefs.fns 为加载时快照）：CodeFlow 新建 fn 立即成为公式候选
+    fns: mergeComponentFns(componentDef?.fns, input.fnElements).map((f) => ({ name: f.name, params: f.params ?? [] })),
     stores: [...storeNames]
       .filter(Boolean)
       .map((name) => {
@@ -60,11 +93,19 @@ export function buildFlowScope(input: {
         };
       }),
     fnParams: parseFnParamsStr(input.fnParamsStr ?? ""),
-    letVars: input.fnElements
-      .filter((e) => e.tag === "let")
-      .map((e) => ({ name: (e.props?.name as string) ?? "" }))
-      .filter((v) => v.name !== ""),
+    letVars: letVarsFromElements(input.fnElements),
   };
+}
+
+/** 画布 let 变量收集（单趟遍历，跳过空名）。 */
+function letVarsFromElements(elements: CodeblockElementData[]): Array<{ name: string }> {
+  const vars: Array<{ name: string }> = [];
+  for (const e of elements) {
+    if (e.tag !== "let") continue;
+    const name = (e.props?.name as string) ?? "";
+    if (name !== "") vars.push({ name });
+  }
+  return vars;
 }
 
 /** 前缀子串匹配候选，空 query 返回全部（限 8 项）。 */

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildFlowScope, parseFnParamsStr, filterCandidates, validateSyntaxProps, buildExpressionCandidates, buildTargetOptions, type FlowScope } from "../flow-scope";
+import { buildFlowScope, parseFnParamsStr, filterCandidates, validateSyntaxProps, buildExpressionCandidates, buildTargetOptions, fnsFromElements, mergeComponentFns, type FlowScope } from "../flow-scope";
 
 const compDef = {
   name: "App", filePath: "App.omni",
@@ -166,5 +166,76 @@ describe("buildTargetOptions", () => {
     expect(values).toContain("total");
     expect(values).toContain("count");
     expect(values).toContain("ThemeStore.mode");
+  });
+});
+
+describe("fnsFromElements", () => {
+  it("提取 fn 元素：name/params/returnType", () => {
+    const els = [
+      { id: "f1", nodeType: "codeblock", tag: "fn", parentId: null, props: { name: "btnFn", params: "text: String, n: i32", returnType: "void" } },
+      { id: "l1", nodeType: "codeblock", tag: "let", parentId: null, props: { name: "total" } },
+    ] as unknown as Parameters<typeof fnsFromElements>[0];
+    expect(fnsFromElements(els)).toEqual([
+      { pid: "f1", name: "btnFn", params: [{ name: "text", type: "String" }, { name: "n", type: "i32" }], returnType: "void" },
+    ]);
+  });
+  it("returnType 缺省为 void", () => {
+    const els = [{ id: "f1", nodeType: "codeblock", tag: "fn", parentId: null, props: { name: "btnFn" } }] as unknown as Parameters<typeof fnsFromElements>[0];
+    expect(fnsFromElements(els)[0]?.returnType).toBe("void");
+  });
+  it("未命名 fn 节点跳过（空名污染签名防御）", () => {
+    const els = [{ id: "f1", nodeType: "codeblock", tag: "fn", parentId: null, props: {} }] as unknown as Parameters<typeof fnsFromElements>[0];
+    expect(fnsFromElements(els)).toEqual([]);
+  });
+  it("非 fn 元素忽略", () => {
+    const els = [
+      { id: "l1", nodeType: "codeblock", tag: "let", parentId: null, props: { name: "x" } },
+      { id: "c1", nodeType: "codeblock", tag: "call", parentId: null, props: {} },
+    ] as unknown as Parameters<typeof fnsFromElements>[0];
+    expect(fnsFromElements(els)).toEqual([]);
+  });
+});
+
+describe("mergeComponentFns", () => {
+  const defFns: Parameters<typeof mergeComponentFns>[0] = [
+    { pid: "p6", name: "close", params: [{ name: "x", type: "i32" }], returnType: "" },
+    { pid: "p7", name: "parsedOnly", params: [], returnType: "" },
+  ];
+  const canvasFns = [
+    { id: "f1", nodeType: "codeblock", tag: "fn", parentId: null, props: { name: "btnFn", params: "text: String", returnType: "void" } },
+    { id: "p6", nodeType: "codeblock", tag: "fn", parentId: null, props: { name: "closeV2", params: "", returnType: "" } }, // 同名同 pid 覆盖
+  ] as unknown as Parameters<typeof mergeComponentFns>[1];
+
+  it("画布新建 fn 并入（THE FIX：CodeFlow 新建 fn 立即可搜）", () => {
+    const merged = mergeComponentFns(defFns, canvasFns);
+    const names = merged.map((f) => f.name);
+    expect(names).toContain("btnFn");
+    expect(merged.find((f) => f.name === "btnFn")?.params).toEqual([{ name: "text", type: "String" }]);
+  });
+  it("pid/name 命中画布的旧快照条目被覆盖（改名不残留）", () => {
+    const merged = mergeComponentFns(defFns, canvasFns);
+    const closeV2 = merged.find((f) => f.pid === "p6");
+    expect(closeV2?.name).toBe("closeV2");
+    expect(merged.filter((f) => f.pid === "p6")).toHaveLength(1);
+  });
+  it("未物化的解析 fn（画布无同名同 pid）保留", () => {
+    const merged = mergeComponentFns(defFns, canvasFns);
+    expect(merged.map((f) => f.name)).toContain("parsedOnly");
+  });
+  it("空输入返回空", () => {
+    expect(mergeComponentFns(undefined, [])).toEqual([]);
+    expect(mergeComponentFns([], [])).toEqual([]);
+  });
+  it("buildFlowScope 集成：画布 fn 成为公式候选（原快照行为不变）", () => {
+    const scope = buildFlowScope({
+      componentDef: { ...compDef, fns: defFns } as never,
+      storeDefs, inlineStoreDefs: {}, storesUsed: ["TodoStore"],
+      fnElements: canvasFns,
+    });
+    const names = scope.fns.map((f) => f.name);
+    expect(names).toContain("btnFn");
+    expect(names).toContain("closeV2");
+    expect(names).toContain("parsedOnly");
+    expect(names).not.toContain("close");
   });
 });

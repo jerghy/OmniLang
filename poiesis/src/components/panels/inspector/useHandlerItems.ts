@@ -6,6 +6,8 @@ import { useMemo } from "react";
 import { usePoiesisStore } from "../../../store";
 import type { FnDef } from "../../../core/types/project-json";
 import type { StoreActionDef } from "../../../core/types/store";
+import type { CodeblockElementData } from "../../../core/types/element";
+import { mergeComponentFns } from "../../../services/codegen/flow-scope";
 
 export interface HandlerItem {
   pid: string;
@@ -23,6 +25,7 @@ export function useHandlerItems(): HandlerItem[] {
   const componentDefs = usePoiesisStore((s) => s.componentDefs);
   const storeDefs = usePoiesisStore((s) => s.storeDefs);
   const storeReferences = usePoiesisStore((s) => s.storeReferences);
+  const elements = usePoiesisStore((s) => s.elements);
 
   return useMemo(() => {
     const activeTab = activeTabId
@@ -34,11 +37,15 @@ export function useHandlerItems(): HandlerItem[] {
     const items: HandlerItem[] = [];
     const compDef = componentDefs[compName];
 
-    // Component functions
-    if (compDef?.fns) {
-      for (const fn of compDef.fns) {
-        items.push(formatFnItem(fn, compName, "component"));
-      }
+    // Component functions — 组件 tab 以画布 fn 元素为权威（CodeFlow 新建/改名/删除的 fn
+    // 只体现在 elements，componentDefs.fns 是加载时快照），与快照合并去重；
+    // 其余 tab（store/design）保持原快照行为
+    const codeElements = elements.filter((e): e is CodeblockElementData => e.nodeType === "codeblock");
+    const fns = activeTab?.tabType === "component"
+      ? mergeComponentFns(compDef?.fns, codeElements)
+      : (compDef?.fns ?? []);
+    for (const fn of fns) {
+      items.push(formatFnItem(fn, compName, "component"));
     }
 
     // Store actions from referenced stores
@@ -53,7 +60,7 @@ export function useHandlerItems(): HandlerItem[] {
     }
 
     return items;
-  }, [activeTabId, openTabs, componentDefs, storeDefs, storeReferences]);
+  }, [activeTabId, openTabs, componentDefs, storeDefs, storeReferences, elements]);
 }
 
 function formatFnItem(fn: FnDef, compName: string, source: "component" | "store"): HandlerItem {
