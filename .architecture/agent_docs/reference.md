@@ -200,7 +200,7 @@ cargo clippy --lib -p omnilang 2>&1 | tail -5                       # 查看剩�
 
 > **作用**：防止未来安全审查再次将 postMessage/innerHTML 标记为 CRITICAL。
 
-### 架构
+### 架构（ADR-072 直载，2026-08-07 起）
 
 ```
 ┌─ 主窗口（Tauri main webview）──────────────────┐
@@ -210,11 +210,13 @@ cargo clippy --lib -p omnilang 2>&1 | tail -5                       # 查看剩�
 │  │  __TAURI_INTERNALS__ 可用（仅事件 IPC）     │ │
 │  │  debug-window capability: emit + listen     │ │
 │  │                                             │ │
-│  │  ┌─ iframe #omni-preview ────────────────┐ │ │
-│  │  │  sandbox="allow-scripts"               │ │ │
-│  │  │  __TAURI_INTERNALS__ ❌ 不可访问       │ │ │
-│  │  │  加载开发者自己的 .omni 编译产物       │ │ │
-│  │  └────────────────────────────────────────┘ │ │
+│  │  编译产物直载页面本体（#root，无 iframe）   │ │
+│  │  applyCompile: css→style / html→#root /     │ │
+│  │  脚本按序 eval（payload.js 仅 html 无脚本   │ │
+│  │  时回退）——沙箱 iframe + postMessage 桥已   │ │
+│  │  整体移除（用户拍板：调试自己写的应用不需   │ │
+│  │  要沙箱；旧桥捕获阶段 stopPropagation 曾吞   │ │
+│  │  掉应用全部点击——真机根因）                │ │
 │  └─────────────────────────────────────────────┘ │
 └──────────────────────────────────────────────────┘
 ```
@@ -226,7 +228,7 @@ cargo clippy --lib -p omnilang 2>&1 | tail -5                       # 查看剩�
 | **加载的内容** | 开发者**自己写的** `.omni` 应用，不是用户输入 | 被错误当作"不可信第三方内容" |
 | **运行环境** | 本地 Tauri webview，无网络暴露 | 被按 Web 公网服务标准要求 |
 | **攻击前提** | 需要同一台机器上的另一个恶意进程或已被入侵的窗口 | 攻击前提本身就意味着系统已被攻破 |
-| **沙箱状态** | `sandbox="allow-scripts"` 已阻止 iframe 内代码访问 Tauri API | 沙箱已正确实现隔离目标 |
+| **信任边界** | 编译产物与调试壳同文档，信任边界=编辑器可信开发环境（ADR-028）——调试窗口只有事件 emit/listen 两能力，无命令面 | 被误判为"用户代码获得 Tauri 权限" |
 
 ### 各项修复的务实优先级
 
@@ -237,12 +239,12 @@ cargo clippy --lib -p omnilang 2>&1 | tail -5                       # 查看剩�
 | P1 HIGH | postMessage `'*'` → 特定 origin | **P3** | 同上 |
 | P1 HIGH | capability: `core:default` → 2 原子权限 | **P1**（该修） | 唯一真正有价值的修复——调试窗口不需要 menu/tray/window/app 等 7 个权限包 |
 
-### 安全审查时的正确结论
+### 安全审查时的正确结论（ADR-072 后）
 
-1. **沙箱架构是正确的**——iframe `sandbox="allow-scripts"` 已阻止用户编译代码访问 Tauri API
-2. **`__TAURI_INTERNALS__` 不能剥离**——调试窗口需要事件 IPC 与主窗口通信（转发编译结果、热替换、元素点击）
-3. **唯一值得修的**：收紧 debug-window capability，从 9 个权限包减少到 2 个原子权限
-4. **postMessage/innerHTML 是纵深防御的最外层**——在本地桌面应用场景下，不应该列为 CRITICAL 或 HIGH
+1. **调试窗口是直载架构**——无沙箱 iframe、无 postMessage 桥（ADR-072，用户拍板：调试自己写的应用不需要沙箱）。编译产物与调试壳同文档，信任边界=编辑器可信开发环境（ADR-028）
+2. **能力面最小是安全核心**——debug-window capability 只有 2 个原子权限（core:event:allow-emit + core:event:allow-listen），编译产物无命令面可触碰；这是替代沙箱的真正防护
+3. **直载契约**——applyCompile（css→style / html→#root / 脚本按序 eval）；`__TAURI_INTERNALS__` 在调试窗口本体可用（事件 IPC 是调试功能传输层）
+4. **生产 CSP 限制**——`script-src 'self'` 阻止 inline eval，生产包调试窗口无法加载应用 JS（pre-existing，dev 是唯一工作流）
 
 ---
 

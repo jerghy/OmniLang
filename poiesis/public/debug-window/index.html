@@ -12,6 +12,8 @@
     background: transparent;
     color: #333;
   }
+  /* 编译产物容器（替代 P38 沙箱 iframe：调试自己写的应用不设沙箱，
+      WASM 多文件编译的 HTML 直接加载进本页，未来 WASM 侧可加调试原语） */
   #root {
     width: 100vw; height: 100vh; overflow: auto;
   }
@@ -74,15 +76,10 @@
 </style>
 </head>
 <body>
-<!-- Sandboxed iframe for compiled OmniView output (P38: security isolation) -->
-<iframe id="omni-preview" sandbox="allow-scripts"
-  style="width:100vw;height:100vh;border:none;position:fixed;top:0;left:0;"
-  title="OmniView compiled output"></iframe>
-
-<!-- Inspector overlay (stays outside sandbox for security) -->
-<div id="inspector-overlay" style="position:fixed;top:0;left:0;pointer-events:none;z-index:99998;">
-  <div id="root"></div>
-</div>
+<!-- 编译产物直载容器：WASM 编译的 HTML 由 applyCompile 写入（CSS→style、正文→innerHTML、脚本按序执行）。
+     不设沙箱 iframe —— 本窗口只有 core:event 两权限，编译产物直连 Tauri 事件即可，
+     postMessage 桥接层整体移除（旧桥的捕获阶段 stopPropagation 会吞掉应用全部点击）。 -->
+<div id="root"></div>
 
 <!-- Floating Debug Ball -->
 <div id="debug-ball" title="Toggle inspector">🔍</div>
@@ -111,7 +108,6 @@
   var signalList = document.getElementById('signal-list');
   var actionList = document.getElementById('action-list');
   var compileInfo = document.getElementById('compile-info');
-  var omniPreview = document.getElementById('omni-preview');
   var debugActive = false;
   var refreshTimer = null;
 
@@ -166,43 +162,77 @@
   ball.addEventListener('click', function() { setDebugActive(true); });
   document.getElementById('panel-close').addEventListener('click', function() { setDebugActive(false); });
 
-  // ═══ postMessage bridge: parent <-> sandboxed iframe ═══
-  // The iframe runs in an isolated origin, so Tauri APIs are not available inside.
-  // All debug features (inspect, highlight, hot-replace, clicks) go through postMessage.
-
-  // ── Outbound: parent → iframe ──
-  function postToIframe(msg) {
-    if (omniPreview.contentWindow) {
-      // The sandboxed iframe has opaque origin 'null' (sandbox="allow-scripts", no allow-same-origin).
-      // window.location.origin would silently drop messages because it doesn't match 'null'.
-      omniPreview.contentWindow.postMessage(msg, 'null');
+  // ═══ 编译产物直载（替代 srcdoc iframe 组装）═══
+  // css → <style>；html 正文 → #root（脚本剥离按文档序收集）；脚本按序 (0,eval) 执行。
+  // payload.js 仅在 payload.html 无脚本时回退 —— 旧 srcdoc 方案尾部再拼 payload.js
+  // 导致 app JS 执行两遍，直载方案消除。
+  function applyCompile(payload) {
+    // 1) CSS
+    var styleEl = document.getElementById('omni-styles');
+    if (!styleEl) {
+      styleEl = document.createElement('style');
+      styleEl.id = 'omni-styles';
+      document.head.appendChild(styleEl);
     }
+    styleEl.textContent = payload.css || '';
+
+    // 2) HTML 正文（脚本剥离）
+    var tmp = document.createElement('div');
+    tmp.innerHTML = payload.html || '';
+    var scripts = [];
+    var frag = document.createDocumentFragment();
+    for (var i = 0; i < tmp.childNodes.length; i++) {
+      var n = tmp.childNodes[i];
+      if (n.nodeType === 1 && n.tagName === 'SCRIPT') { scripts.push(n.textContent); continue; }
+      frag.appendChild(n);
+    }
+    // 编译产物静态 body 以 <div id="root"> 占位时解包（本页 #root 即应用容器，避免重复 id）
+    if (frag.childNodes.length === 1) {
+      var only = frag.firstChild;
+      if (only && only.nodeType === 1 && only.id === 'root') {
+        var unwrapped = document.createDocumentFragment();
+        while (only.firstChild) unwrapped.appendChild(only.firstChild);
+        frag = unwrapped;
+      }
+    }
+    rootEl.textContent = ''; // 清空上一次应用运行
+    rootEl.appendChild(frag);
+
+    // 3) 脚本按文档序执行
+    if (scripts.length === 0 && payload.js) scripts.push(payload.js);
+    // 暴露最近一次编译的脚本（调试窗口排查编译产物用；与 runtime 的 __omni_debug 呼应）
+    window.__omni_loadedScripts = scripts;
+    scripts.forEach(function(code, idx) {
+      try { (0, eval)(code); }
+      catch (err) {
+        compileInfo.textContent = 'Script[' + idx + '] error: ' + err.message;
+        console.error('[Poiesis debug] script ' + idx + ' failed:', err);
+      }
+    });
   }
 
-  // ── Inbound: iframe → parent ──
-  window.addEventListener('message', function(e) {
-    // Verify sender is the sandboxed iframe (origin is 'null' with sandbox="allow-scripts")
-    if (e.source !== omniPreview.contentWindow || e.origin !== 'null') return;
-    var msg = e.data;
-    if (!msg || !msg.source || msg.source !== 'omni-preview') return;
-
-    switch (msg.type) {
-      case 'element-click':
-        internals.invoke('plugin:event|emit', {
-          event: 'debug:element-click',
-          payload: { nid: msg.nid, tag: msg.tag }
-        }).catch(function() {});
-        break;
-
-      case 'signal-state':
-        updateSignalDisplay(msg.signals || {});
-        break;
-    }
-  });
-
-  // ═══ Refresh inspector (via postMessage) ═══
+  // ═══ Refresh inspector — 直读编译运行时（同一文档，无需 postMessage）═══
+  // runtime v2 的信号注册进 window.__omni_subs（Map<name, signal>，含 peek）；
+  // __omni_signals 恒为空（runtime v2 不再填充），仅作旧产物回退。
   function refreshInspector() {
-    postToIframe({ source: 'debug-window', type: 'inspect', id: Date.now() });
+    var signals = {};
+    try {
+      var subs = window.__omni_subs || window.__omni_signals || null;
+      if (subs) {
+        if (typeof subs.forEach === 'function') { // runtime v2: Map
+          subs.forEach(function(sig, name) {
+            try { signals[name] = typeof sig.peek === 'function' ? sig.peek() : sig; }
+            catch (_) { signals[name] = '<error>'; }
+          });
+        } else {
+          Object.keys(subs).forEach(function(k) {
+            try { signals[k] = typeof subs[k].peek === 'function' ? subs[k].peek() : subs[k]; }
+            catch (_) { signals[k] = '<error>'; }
+          });
+        }
+      }
+    } catch (_) {}
+    updateSignalDisplay(signals);
   }
 
   function updateSignalDisplay(signals) {
@@ -261,20 +291,37 @@
     }
   }
 
-  // ═══ Highlight: forward Tauri event → iframe via postMessage ═══
-  if (internals.transformCallback) {
-    var highlightCb = internals.transformCallback(function(e) {
-      var payload = typeof e.payload === 'string' ? JSON.parse(e.payload) : e.payload;
-      postToIframe({ source: 'debug-window', type: 'highlight', nid: payload && payload.nid });
-    });
-    internals.invoke('plugin:event|listen', {
-      event: 'debug:highlight',
-      target: { kind: 'Any' },
-      handler: highlightCb
+  // ═══ Element-select: 捕获阶段点击 → Tauri 事件 ═══
+  // 只在 inspector 激活时拦截（旧 shell 桥无条件 stopPropagation 吞掉 iframe 内全部点击
+  // —— 应用按钮永远不响应的根因；激活态也只 stopPropagation 不 preventDefault，
+  // 保留输入框聚焦等原生行为）。非激活态完全不介入，按钮正常工作。
+  document.addEventListener('click', function(e) {
+    if (!debugActive) return;
+    var el = e.target && e.target.closest ? e.target.closest('[data-nid]') : null;
+    if (!el) return;
+    e.stopPropagation();
+    internals.invoke('plugin:event|emit', {
+      event: 'debug:element-click',
+      payload: { nid: el.getAttribute('data-nid'), tag: e.target.tagName.toLowerCase() }
     }).catch(function() {});
-  }
+  }, true);
 
-  // ═══ Hot-replace: forward component JS → iframe via postMessage ═══
+  // ═══ Highlight: 直接 DOM（同文档）═══
+  var highlightCb = internals.transformCallback(function(e) {
+    var payload = typeof e.payload === 'string' ? JSON.parse(e.payload) : e.payload;
+    document.querySelectorAll('[data-nid]').forEach(function(el) { el.style.outline = ''; });
+    if (payload && payload.nid) {
+      var el = document.querySelector('[data-nid="' + payload.nid + '"]');
+      if (el) { el.style.outline = '3px solid #6366f1'; el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+    }
+  });
+  internals.invoke('plugin:event|listen', {
+    event: 'debug:highlight',
+    target: { kind: 'Any' },
+    handler: highlightCb
+  }).catch(function() {});
+
+  // ═══ Hot-replace: 直接 eval 组件 JS（旧桥同款保存/恢复信号状态）═══
   internals.invoke('plugin:event|listen', {
     event: 'debug:hot-replace',
     target: { kind: 'Any' },
@@ -283,93 +330,50 @@
       if (!payload || !payload.components) return;
       var names = Object.keys(payload.components);
       compileInfo.textContent = 'Hot-replace: ' + names.join(', ') + ' @ ' + new Date().toLocaleTimeString();
-      postToIframe({ source: 'debug-window', type: 'hot-replace', components: payload.components });
+      Object.keys(payload.components).forEach(function(name) {
+        var comp = payload.components[name]; if (!comp || !comp.js) return;
+        var old = window.__omni_components && window.__omni_components[name];
+        var saved = {};
+        if (old && old.signals) {
+          Object.keys(old.signals).forEach(function(k) {
+            try { saved[k] = old.signals[k].peek(); } catch(_) {}
+          });
+        }
+        var root = document.querySelector('[data-component="' + name + '"]');
+        if (root) {
+          var clone = root.cloneNode(true);
+          if (root.parentNode) root.parentNode.replaceChild(clone, root);
+        }
+        try {
+          var newComp = (0, eval)(comp.js);
+          if (!window.__omni_components) window.__omni_components = {};
+          window.__omni_components[name] = newComp;
+          if (newComp && newComp.signals) {
+            Object.keys(saved).forEach(function(k) {
+              try { if (newComp.signals[k]) newComp.signals[k].set(saved[k]); } catch(_) {}
+            });
+          }
+        } catch(_) {}
+      });
     })
   }).catch(function(err) {
     compileInfo.textContent = 'Hot-replace listen FAILED: ' + JSON.stringify(err);
   });
 
-  // ═══ Compile result handler — renders into sandboxed iframe (P38) ═══
+  // ═══ Compile result handler — 直载 ═══
   var compileCb = internals.transformCallback(function(e) {
     try {
       var payload = typeof e.payload === 'string' ? JSON.parse(e.payload) : e.payload;
       if (!payload) return;
 
+      var scriptCount = (payload.html || '').split('<script').length - 1;
       compileInfo.textContent = 'Last: ' + new Date().toLocaleTimeString() +
         ' (JS:' + (payload.js ? payload.js.length + 'B' : '0') +
         ' HTML:' + (payload.html ? payload.html.length + 'B' : '0') +
-        ' CSS:' + (payload.css ? payload.css.length + 'B' : '0') + ')';
+        ' CSS:' + (payload.css ? payload.css.length + 'B' : '0') +
+        ' scripts:' + scriptCount + ')';
 
-      // Build complete HTML document with postMessage bridge injected
-      var bridgeScript = '<script>(function(){'
-        + 'var signals=window.__omni_signals||{};'
-        + 'window.addEventListener("message",function(e){'
-        + 'if(e.source!==window.parent)return;'
-        + 'if(e.origin!==window.parent.origin)return;'
-        + 'var m=e.data;if(!m||m.source!=="debug-window")return;'
-        + 'switch(m.type){'
-        + 'case"inspect":'
-        + '  signals=window.__omni_signals||{};'
-        + '  var snap={};Object.keys(signals).forEach(function(k){'
-        + '    try{snap[k]=typeof signals[k].peek==="function"?signals[k].peek():signals[k];}catch(_){snap[k]=signals[k];}'
-        + '  });'
-        + '  e.source.postMessage({source:"omni-preview",type:"signal-state",signals:snap},e.origin);'
-        + '  break;'
-        + 'case"highlight":'
-        + '  document.querySelectorAll("[data-nid]").forEach(function(el){el.style.outline="";});'
-        + '  if(m.nid){var el=document.querySelector("[data-nid=\\""+m.nid+"\\"]");'
-        + '    if(el){el.style.outline="3px solid #6366f1";el.scrollIntoView({behavior:"smooth",block:"center"});}}'
-        + '  break;'
-        + 'case"hot-replace":'
-        + '  if(!m.components)return;'
-        + '  Object.keys(m.components).forEach(function(name){'
-        + '    var comp=m.components[name];if(!comp||!comp.js)return;'
-        + '    var old=window.__omni_components&&window.__omni_components[name];'
-        + '    var saved={};'
-        + '    if(old&&old.signals){Object.keys(old.signals).forEach(function(k){'
-        + '      try{saved[k]=old.signals[k].peek();}catch(_){}'
-        + '    });}'
-        + '    var root=document.querySelector("[data-component=\\""+name+"\\"]");'
-        + '    if(root){var clone=root.cloneNode(true);'
-        + '      if(root.parentNode)root.parentNode.replaceChild(clone,root);}'
-        + '    try{var newComp=(0,eval)(comp.js);'
-        + '      if(!window.__omni_components)window.__omni_components={};'
-        + '      window.__omni_components[name]=newComp;'
-        + '      if(newComp&&newComp.signals){'
-        + '        Object.keys(saved).forEach(function(k){'
-        + '          try{if(newComp.signals[k])newComp.signals[k].set(saved[k]);}catch(_){}'
-        + '        });}'
-        + '    }catch(_){}'
-        + '  });'
-        + '  break;'
-        + '}})'
-        + 'document.addEventListener("click",function(e){'
-        + 'var el=e.target.closest("[data-nid]");'
-        + 'if(!el)return;'
-        + 'e.stopPropagation();e.preventDefault();'
-        + 'window.parent.postMessage({source:"omni-preview",type:"element-click",'
-        + 'nid:el.getAttribute("data-nid"),tag:el.tagName.toLowerCase()},window.parent.origin);'
-        + '},true);'
-        + '})();<' + '/script>';
-
-      var doc = '<!DOCTYPE html>\n<html>\n<head>\n';
-      if (payload.css) {
-        doc += '<style>' + payload.css + '<\/style>\n';
-      }
-      doc += '</head>\n<body>\n';
-      doc += (payload.html || '') + '\n';
-      doc += bridgeScript + '\n';
-      if (payload.js) {
-        // NOTE: escaped closing-script marker below — a literal closing
-        // script tag inside a JS string ends the inline <script> element
-        // during HTML parsing, leaking the rest of the file as text.
-        doc += '<script>' + payload.js + '<\/script>\n';
-      }
-      doc += '</body>\n</html>';
-
-      // Load into sandboxed iframe — compiled code runs isolated from Tauri APIs.
-      // postMessage bridge restores: inspect, highlight, hot-replace, element click.
-      omniPreview.srcdoc = doc;
+      applyCompile(payload);
     } catch (err) {
       compileInfo.textContent = 'Handler error: ' + err.message;
     }
