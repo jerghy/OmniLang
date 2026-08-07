@@ -330,6 +330,24 @@ pub(super) fn gen_direct_write_storage(
 // Apply-line construction (Phase 1, Task 3)
 // ═══════════════════════════════════════════════════════════
 
+/// Whether a style entry value needs the `sanitizeCss` wrapper — a value
+/// built from user-controllable strings ($concat) or arbitrary evaluation
+/// ($call/$field) is wrapped in `sanitizeCss(...)`, mirroring the OmniView
+/// `__omni_sanitizeCss` behavior (module-level helper emitted by
+/// react/design.rs; the design doc's apply example §4.3.2 shows the wrapped
+/// shape). Pure signal/computed references ($signal/$ident) are
+/// compiler-typed numbers/strings and skip the wrapper — SAME rule for the
+/// D1 apply channel and the B2 effect channel (both write the same DOM
+/// property; wrapping one and not the other would leave D1's sanitization
+/// bypassable through the B2 write on the same property).
+fn entry_needs_sanitize(e: &DirectWriteEntry) -> bool {
+    matches!(
+        &e.value,
+        Value::Object(obj)
+            if obj.contains_key("$concat") || obj.contains_key("$call") || obj.contains_key("$field")
+    )
+}
+
 /// Build `signal → apply line` map. Each apply reads the CURRENT ref
 /// values of all entry signals, so injecting after any mutation of any
 /// entry signal keeps the DOM in sync (idempotent double-writes when a
@@ -343,17 +361,7 @@ pub(super) fn build_apply_map(
     refs.extend(sets.d2.iter().cloned());
     let mut map: FxHashMap<String, Vec<String>> = FxHashMap::default();
     for e in &sets.entries {
-        // Phase 1 sanitize: a value built from user-controllable strings
-        // ($concat) or arbitrary evaluation ($call/$field) is wrapped in
-        // `sanitizeCss(...)`, mirroring the OmniView `__omni_sanitizeCss`
-        // behavior (module-level helper emitted by react/design.rs). The
-        // design doc's own apply example (§4.3.2) shows the wrapped shape.
-        let needs_sanitize = matches!(
-            &e.value,
-            Value::Object(obj)
-                if obj.contains_key("$concat") || obj.contains_key("$call") || obj.contains_key("$field")
-        );
-        let value_js = if needs_sanitize {
+        let value_js = if entry_needs_sanitize(e) {
             format!("sanitizeCss({})", format_style_value_expr(&e.value, &refs))
         } else {
             format_style_value_expr(&e.value, &refs)
@@ -381,17 +389,14 @@ pub(super) fn build_apply_map(
     map
 }
 
-/// Whether any active entry value needs the `sanitizeCss` wrapper
-/// ($concat/$call/$field) — gates the module-level helper emission at the
-/// component head (mirrors the dynamic-token trigger in react/design.rs).
+/// Whether any active entry value needs the `sanitizeCss` wrapper —
+/// gates the module-level helper emission at the component head (mirrors
+/// the dynamic-token trigger in react/design.rs). Iterates the FULL
+/// `sets.entries` collection (D1 + B2 — B2 entries are a subset pushed
+/// from it), so a B2-only component with a sanitize-worthy value still
+/// gets the helper.
 pub(super) fn apply_needs_sanitize(sets: &DirectWriteSets) -> bool {
-    sets.entries.iter().any(|e| {
-        matches!(
-            &e.value,
-            Value::Object(obj)
-                if obj.contains_key("$concat") || obj.contains_key("$call") || obj.contains_key("$field")
-        )
-    })
+    sets.entries.iter().any(entry_needs_sanitize)
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -417,6 +422,11 @@ pub(super) fn apply_needs_sanitize(sets: &DirectWriteSets) -> bool {
 ///
 /// `--` custom properties use `style.setProperty` (a quoted `'--x'` after
 /// `style.` is invalid JS) — same special case as `build_apply_map`.
+///
+/// Values needing sanitization ($concat/$call/$field) are wrapped in
+/// `sanitizeCss(...)` — identical decision to `build_apply_map`
+/// (`entry_needs_sanitize`): both channels write the same DOM property and
+/// must encode the value identically (fix round 1).
 pub(super) fn gen_ref_style_effects(
     w: &mut crate::codegen::CodeWriter,
     sets: &DirectWriteSets,
@@ -432,7 +442,16 @@ pub(super) fn gen_ref_style_effects(
     refs.extend(sets.d1.iter().cloned());
     refs.extend(sets.d2.iter().cloned());
     for e in &sets.b2_entries {
-        let value_js = format_style_value_expr(&e.value, &refs);
+        // Fix round 1: same sanitization decision as the D1 apply channel
+        // (entry_needs_sanitize) — both channels write the same DOM
+        // property, so a B2 raw write would bypass the D1 sanitizer on
+        // that property (same value, two encodings). Pure ident values
+        // stay bare, exactly like the D1 channel.
+        let value_js = if entry_needs_sanitize(e) {
+            format!("sanitizeCss({})", format_style_value_expr(&e.value, &refs))
+        } else {
+            format_style_value_expr(&e.value, &refs)
+        };
         let dep_names: FxHashSet<String> = e
             .read_signals
             .iter()

@@ -7804,3 +7804,107 @@ component Mix {
         tsx
     );
 }
+
+/// Fix round 1 — B2 effect values must apply the SAME sanitization decision
+/// as the D1 apply channel (`entry_needs_sanitize`: $concat/$call/$field →
+/// sanitizeCss wrapper): both channels write the same DOM property, a raw
+/// B2 write would bypass the D1 sanitizer on that property. $concat value
+/// reading a computed → B2 entry, effect body must wrap in sanitizeCss(...)
+/// and the module-level helper must be emitted (gated over ALL entries).
+#[test]
+fn test_direct_write_b2_concat_value_sanitized() {
+    let comp = compile_component_ir(
+        r#"
+component Mix2 {
+  signal w: f64 = 100
+  computed pct: String = w.to_string() + "%"
+  ref box: Element
+  fn bump() { w = w + 1 }
+  view {
+    <div @ref={box} @onClick={bump} style: { width: "calc(" + pct + ")" } />
+  }
+}
+"#,
+    );
+    let ir = make_ir(vec![("Mix2".into(), comp)].into_iter().collect());
+    let comp_ref = ir
+        .modules
+        .get("main")
+        .unwrap()
+        .components
+        .get("Mix2")
+        .unwrap();
+    let component_map = build_component_map(&ir);
+    let tsx = ReactCodegen::default().gen_component_tsx("Mix2", comp_ref, &ir, &component_map);
+    // pct is a computed → entry reads beyond D1 → B2 effect direct write
+    assert!(
+        tsx.contains("useEffect(() => {"),
+        "B2 write must run in useEffect. Got:\n{}",
+        tsx
+    );
+    // $concat value → effect body wraps in sanitizeCss(...) (same decision
+    // as the D1 apply channel; body-boundary split — handler is emitted
+    // after the effect and would mislead a full-text check)
+    let first_effect = tsx.split("useEffect(() => {").nth(1).unwrap_or("");
+    let first_effect_body = first_effect.split("}, [").next().unwrap_or("");
+    assert!(
+        first_effect_body.contains("sanitizeCss("),
+        "B2 $concat value must be sanitized in the effect body. Got:\n{}",
+        tsx
+    );
+    assert!(
+        first_effect_body.contains("boxRef.current?.style.width ="),
+        "B2 write must target the ref'd element's style. Got:\n{}",
+        tsx
+    );
+    // helper emission must be gated over ALL entries (B2 included) — a
+    // B2-only component still gets the module-level helper
+    assert!(
+        tsx.contains("function sanitizeCss(value: unknown): string {"),
+        "sanitizeCss helper must be emitted for a B2-only sanitized entry. Got:\n{}",
+        tsx
+    );
+}
+
+/// Fix round 1 — pure ident B2 values ($signal/$ident: bare computed/
+/// signal names) must stay UNsanitized, mirroring the D1 channel (D1 wraps
+/// only $concat/$call/$field — a pure ident is a compiler-typed number/
+/// string, no user-controllable content). Follows existing D1 behavior,
+/// not a guessed shape.
+#[test]
+fn test_direct_write_b2_pure_ident_not_sanitized() {
+    let comp = compile_component_ir(
+        r#"
+component Mix3 {
+  signal boxWidthNum: f64 = 200
+  computed boxWidthPx: String = boxWidthNum.to_string() + "px"
+  ref sb: Element
+  view {
+    <div @ref={sb} style: { width: boxWidthPx } />
+  }
+}
+"#,
+    );
+    let ir = make_ir(vec![("Mix3".into(), comp)].into_iter().collect());
+    let comp_ref = ir
+        .modules
+        .get("main")
+        .unwrap()
+        .components
+        .get("Mix3")
+        .unwrap();
+    let component_map = build_component_map(&ir);
+    let tsx = ReactCodegen::default().gen_component_tsx("Mix3", comp_ref, &ir, &component_map);
+    let first_effect = tsx.split("useEffect(() => {").nth(1).unwrap_or("");
+    let first_effect_body = first_effect.split("}, [").next().unwrap_or("");
+    assert!(
+        first_effect_body.contains("sbRef.current?.style.width = boxWidthPx;"),
+        "pure ident B2 value must be emitted bare (D1-parity). Got:\n{}",
+        tsx
+    );
+    assert!(
+        !first_effect_body.contains("sanitizeCss"),
+        "pure ident B2 value must NOT be sanitized (D1-parity). Got:\n{}",
+        tsx
+    );
+}
