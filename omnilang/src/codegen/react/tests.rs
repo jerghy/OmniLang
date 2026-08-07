@@ -7587,3 +7587,151 @@ component Counter {
         tsx
     );
 }
+
+/// Fix round F1 — an @effect body read of a D1-candidate signal must push
+/// the signal back to B2: the effect dep-array emitter emits the BARE name,
+/// which would be undeclared (TS2304) for a useRef-stored D1/D2 signal.
+/// Collected AFTER the active-entry subtraction, so an effect read of an
+/// entry-consumed signal still counts as an output read.
+#[test]
+fn test_direct_write_effect_body_read_returns_to_b2() {
+    let comp = compile_component_ir(
+        r#"
+component Shrink {
+  signal size: f64 = 100
+  ref box: Element
+  fn bump() { size = size + 10 }
+  @effect(size) {
+    let adjusted = size * 2;
+  }
+  view {
+    <div @ref={box} @onClick={bump} style: { width: size }>x</div>
+  }
+}
+"#,
+    );
+    let sets = classify_direct_write(&comp);
+    assert!(
+        !sets.d1.contains("size"),
+        "effect body read must keep size OUT of D1: {:?}",
+        sets.d1
+    );
+    assert!(
+        !sets.d2.contains("size"),
+        "effect body read must keep size OUT of D2: {:?}",
+        sets.d2
+    );
+    assert_eq!(
+        sets.b2_entries.len(),
+        1,
+        "size-driven entry must be B2: {:?}",
+        sets.b2_entries
+    );
+    assert_eq!(sets.b2_entries[0].prop, "width");
+    let ir = make_ir(vec![("Shrink".into(), comp)].into_iter().collect());
+    let comp_ref = ir
+        .modules
+        .get("main")
+        .unwrap()
+        .components
+        .get("Shrink")
+        .unwrap();
+    let component_map = build_component_map(&ir);
+    let tsx = ReactCodegen::default().gen_component_tsx("Shrink", comp_ref, &ir, &component_map);
+    assert!(
+        tsx.contains("const [size, setSize] = useState<number>(100);"),
+        "size must stay useState (bare dep name must be declared). Got:\n{}",
+        tsx
+    );
+    assert!(
+        !tsx.contains("const sizeRef"),
+        "no useRef storage for size. Got:\n{}",
+        tsx
+    );
+    assert!(
+        tsx.contains("}, [size]);"),
+        "effect dep array must reference the bare name. Got:\n{}",
+        tsx
+    );
+}
+
+/// Fix round F2 — the array_push interception collision mirror: a bare
+/// name that is BOTH a store field and a D1/D2 component signal must route
+/// to the STORE setState (store-first convention, mirroring the DirectAssign
+/// branch order) — the pre-fix guard order emitted `modeRef.current = [...]`
+/// and silently dropped the store write.
+#[test]
+fn test_direct_write_array_push_store_collision_stays_store() {
+    let mut w = CodeWriter::new();
+    let stmt = StatementIR::ExprStmtIR {
+        expr: ExprIR::CallExpr {
+            name: "array_push".to_string(),
+            args: vec![ExprIR::ident("mode"), ExprIR::ident("item")],
+        },
+    };
+    let mut owners = FxHashMap::default();
+    owners.insert("mode".to_string(), "CollisionStore".to_string());
+    let mut direct = FxHashSet::default();
+    direct.insert("mode".to_string());
+    generate_statement_tsx(
+        &mut w,
+        &stmt,
+        &FxHashSet::default(),
+        &owners,
+        &FxHashSet::default(),
+        &FxHashMap::default(),
+        &FxHashSet::default(),
+        &FxHashSet::default(),
+        &direct,
+        &FxHashMap::default(),
+    );
+    assert_eq!(
+        w.into_string(),
+        "useCollisionStore.setState((s) => ({ mode: [...s.mode, item] }));\n",
+        "a bare store-field array_push must route to the store setState, \
+         never the D1/D2 ref write (store-first convention, fix round F2)"
+    );
+}
+
+/// Fix round F3 — compound mutations (Increment/Decrement/Multiply/Divide/
+/// Modulo/Push/Pop) on a D1 signal must write the ref cell AND inject the
+/// apply line (previously zero coverage; the macro-expansion path emits
+/// setter calls, which would be TS2304 for a ref-stored signal).
+#[test]
+fn test_direct_write_compound_mutation_writes_ref_and_apply() {
+    let mut w = CodeWriter::new();
+    let stmt = StatementIR::MutationStmt {
+        intent: Some(MutationIntent::Increment {
+            target: SignalRefIR {
+                name: "count".into(),
+            },
+            amount: Some(Box::new(ExprIR::LiteralExpr {
+                value: serde_json::json!(1),
+            })),
+        }),
+    };
+    let mut direct = FxHashSet::default();
+    direct.insert("count".to_string());
+    let mut applies = FxHashMap::default();
+    applies.insert(
+        "count".to_string(),
+        vec!["boxRef.current?.style.width = countRef.current;".to_string()],
+    );
+    generate_statement_tsx(
+        &mut w,
+        &stmt,
+        &FxHashSet::default(),
+        &FxHashMap::default(),
+        &FxHashSet::default(),
+        &FxHashMap::default(),
+        &FxHashSet::default(),
+        &FxHashSet::default(),
+        &direct,
+        &applies,
+    );
+    assert_eq!(
+        w.into_string(),
+        "countRef.current += 1;\nboxRef.current?.style.width = countRef.current;\n",
+        "D1 compound mutation must write the ref and inject the apply (fix round F3)"
+    );
+}

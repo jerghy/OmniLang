@@ -2167,7 +2167,14 @@ pub(super) fn generate_statement_tsx(
                 }
                 // Phase 1 (D1/D2): ref 存储的信号无 setter——数组 push/pop
                 // 拦截改写 ref current（未豁免则落入 setter 分支 → TS2304）。
-                if direct_write_signals.contains(target_name.as_str()) {
+                // Fix round F2: store-first convention (mirrors the
+                // DirectAssign branch order below) — a store field colliding
+                // with a D1/D2 component signal's bare name must route to the
+                // store setState, not the ref write (which would silently
+                // drop the store mutation).
+                if direct_write_signals.contains(target_name.as_str())
+                    && !store_signal_owners.contains_key(target_name.as_str())
+                {
                     match name.as_str() {
                         "array_push" => {
                             let item = args

@@ -984,7 +984,15 @@ impl ReactCodegen {
             wrapped_fns.sort();
             for fn_name in &wrapped_fns {
                 if let Some(fun) = comp.fns.iter().find(|f| f.name == *fn_name) {
-                    let deps = effect::fn_read_deps(
+                    // Fix round F1: D1/D2 names are useRef-stored — the
+                    // wrapper reads `{name}Ref.current` at call time (always
+                    // the live value), and the ref identity is stable across
+                    // renders, so a D1/D2 dep adds nothing to the re-creation
+                    // decision and is filtered out. Emitting the bare name
+                    // would be TS2304 (`{name}` is not declared), and
+                    // emitting `{name}Ref` would trip eslint
+                    // exhaustive-deps ("unnecessary dependency").
+                    let deps: Vec<String> = effect::fn_read_deps(
                         fun,
                         comp,
                         &fn_names,
@@ -994,7 +1002,10 @@ impl ReactCodegen {
                         &store_actions,
                         &used_store_refs,
                         &hoisted_signals,
-                    );
+                    )
+                    .into_iter()
+                    .filter(|d| !direct_write_names.contains(d))
+                    .collect();
                     w.emit_fmt(format_args!(
                         "const __omni_cb_{} = useCallback({}, [{}]);",
                         fn_name,

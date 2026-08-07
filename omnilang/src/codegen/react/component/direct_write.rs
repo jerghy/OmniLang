@@ -14,14 +14,18 @@
 //! Computed signals and store fields NEVER enter D1/D2 (they must keep
 //! their render-path derivation); entries reading them are B2.
 //!
-//! Read-domain boundary (fix round F2): output-read classification counts
-//! only (a) view-tree reads, (b) inline event-handler body reads, and
-//! (c) active-entry value reads (subtracted for D1). Reads inside
-//! called-fn/effect bodies — including mutation-RHS self-reads — never
-//! participate in D1/D2 determination: D1/D2 names resolve to
-//! `{name}Ref.current` there (always the live value; Task 3 emission
-//! contract), so the render path never consumes them and the semantics
-//! are equivalent.
+//! Read-domain boundary (fix rounds F2/F1): output-read classification
+//! counts (a) view-tree reads, (b) inline event-handler body reads,
+//! (c) effect/lifecycle/computed-getter body reads, and (d) active-entry
+//! value reads (subtracted for D1). Reads inside *called-fn* bodies —
+//! including mutation-RHS self-reads — never participate in D1/D2
+//! determination: D1/D2 names resolve to `{name}Ref.current` there
+//! (always the live value; Task 3 emission contract), so the render path
+//! never consumes them and the semantics are equivalent. Effect/lifecycle/
+//! computed bodies DO participate (fix round F1): their dep-array emitters
+//! emit bare signal names, which would be undeclared (TS2304) for a
+//! `useRef`-stored D1/D2 signal — counting the reads sends such signals
+//! back to B2 (useState), where the bare name is declared.
 
 use crate::codegen::shared::style::{format_style_prop_key, format_style_value_expr};
 use crate::ir::{ComponentIR, ViewTree};
@@ -161,17 +165,35 @@ fn collect_output_reads(
         reads.extend(collect_view_read_signals(view));
         collect_view_inline_handler_reads(view, &mut reads);
     }
-    // Read-domain boundary (fix round F2): no fn/effect body reads are
-    // collected here — classification counts view reads + inline-handler
-    // reads + active-entry value reads only. fn/effect body reads (incl.
-    // mutation-RHS self-reads) never participate in D1/D2 determination:
-    // D1/D2 names resolve to `{name}Ref.current` inside fn/effect bodies
-    // (always the live value — Task 3 emission contract), so the render
-    // path never consumes them and semantics are equivalent.
     for entry in active_entries {
         for s in &entry.read_signals {
             reads.remove(s);
         }
+    }
+    // Fix round F1: effect + lifecycle body reads (stmt identifiers, incl.
+    // mutation-RHS reads) and computed getter body reads join the output
+    // set — the dep-array emitters (effect.rs deps, effect.rs unmount_deps,
+    // computed.rs getter_expr_contains_ident, mod.rs useCallback wrapper
+    // deps) emit these reads as BARE names; a D1/D2 signal (stored as
+    // `nameRef`) would leave the bare name undeclared (TS2304). Counting
+    // them returns the signal to B2 (useState), where the bare name is
+    // declared. Collected AFTER the active-entry subtraction so a read in
+    // BOTH an effect body and an entry still counts as an output read —
+    // entry-only reads are what make D1 legal, not effect reads. The
+    // fn-body read-domain boundary (incl. mutation-RHS self-reads) stays:
+    // fn bodies emit no dep arrays.
+    for effect in &comp.effects {
+        for stmt in &effect.body.statements {
+            super::collect_stmt_identifiers(stmt, &mut reads);
+        }
+    }
+    for lc in &comp.lifecycles {
+        for stmt in &lc.body.statements {
+            super::collect_stmt_identifiers(stmt, &mut reads);
+        }
+    }
+    for computed in &comp.computeds {
+        super::collect_expr_identifiers(&computed.body, &mut reads);
     }
     reads
 }
