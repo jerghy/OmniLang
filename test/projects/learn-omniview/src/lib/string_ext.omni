@@ -22,7 +22,7 @@ pub fn demo_substring(text: String, start: i32, end: i32) -> String {
     return string_substring(text, start, end);
 }
 
-pub fn demo_case(text: String) {
+pub fn demo_case(text: String) -> Map<String, String> {
     return { "upper": string_to_upper(text), "lower": string_to_lower(text) };
 }
 

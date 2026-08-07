@@ -87,5 +87,9 @@ pub fn find_max_index(values: Array<f64>) -> i32 {
         i = i + 1;
     }
 
+    // 空数组返回 -1（与 find_index 未命中约定一致，避免越界索引 0）
+    if values.len() == 0 {
+        return -1;
+    }
     return max_idx;
 }

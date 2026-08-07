@@ -9,19 +9,19 @@ import { math_min, math_max, math_pow, math_sin, math_cos, math_tan,
          math_log, math_log2, math_log10, math_pi, math_e,
          math_clamp, math_random_int, math_round } from "std/math";
 
-pub fn demo_math_min_max(a: f64, b: f64) {
+pub fn demo_math_min_max(a: f64, b: f64) -> Map<String, f64> {
     return { "min": math_min(a, b), "max": math_max(a, b) };
 }
 
-pub fn demo_trig(angle: f64) {
+pub fn demo_trig(angle: f64) -> Map<String, f64> {
     return { "sin": math_sin(angle), "cos": math_cos(angle), "tan": math_tan(angle) };
 }
 
-pub fn demo_logs(x: f64) {
+pub fn demo_logs(x: f64) -> Map<String, f64> {
     return { "log": math_log(x), "log2": math_log2(x), "log10": math_log10(x) };
 }
 
-pub fn demo_constants() {
+pub fn demo_constants() -> Map<String, f64> {
     return { "pi": math_pi(), "e": math_e() };
 }
 

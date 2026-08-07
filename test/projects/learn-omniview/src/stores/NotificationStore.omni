@@ -30,9 +30,11 @@ store NotificationStore {
         if priority > 5 {
             // 高优先级——置顶（数组头部插入）
             notifications = [full, ...notifications];
+            storage_set("notification-count", unreadCount.to_string());
             return "high priority added";
         }
         notifications.push(full);
+        storage_set("notification-count", unreadCount.to_string());
         return "added";
     }
 
@@ -42,6 +44,7 @@ store NotificationStore {
             return "no notifications";
         }
         notifications.pop();
+        storage_set("notification-count", unreadCount.to_string());
         return "removed";
     }
 

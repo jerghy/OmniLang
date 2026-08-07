@@ -78,7 +78,7 @@ component FilterBar {
                     Sort {sortLabel}
                 </button>
                 <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={() => {
-                    TodoStore.fetchReminders();
+                    TodoStore.markFetching();
                 }}>
                     Sync
                 </button>
