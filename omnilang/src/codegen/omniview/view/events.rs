@@ -283,4 +283,124 @@ impl OmniViewGenerator {
             }
         }
     }
+
+    // ══════════════════════════════════════════════════════
+    // @drag draggable-intent wiring (ADR-073)
+    // ══════════════════════════════════════════════════════
+
+    /// Build the JS invocation prefix for a drag handler `FnRef`: prefixed
+    /// direct call in plain mode, factory-fns indirection in editor mode —
+    /// the exact convention `emit_event_listener` uses for FnRef bindings
+    /// (editor factory IIFE scoping, 54341d13). `None` for non-FnRef
+    /// handlers (defensive: lowering always produces FnRef).
+    fn drag_handler_call(&self, handler: &EventHandlerIR) -> Option<String> {
+        match handler {
+            EventHandlerIR::FnRef { r#ref, .. } => {
+                if self.editor_mode {
+                    Some(format!(
+                        "window.__omni_components[\"{}\"].fns.{}",
+                        self.scope.current_component, r#ref
+                    ))
+                } else {
+                    Some(format!("{}_{}", self.scope.current_component, r#ref))
+                }
+            }
+            _ => None,
+        }
+    }
+
+    /// Emit `@drag` wiring (ADR-073): drag is a compiler-synthesized gesture
+    /// over native Pointer Events, not a DOM event, so the capture lifecycle
+    /// is emitted per-ref-element (ADR-071 decision 3 — capture is a
+    /// compiler-internal detail, never user-facing syntax):
+    ///   pointerdown    → snapshot `el.__dragStart` + `setPointerCapture`
+    ///   pointermove    → while dragging, call `on_drag` with a synthesized
+    ///                    DragIntent object
+    ///                    `{ x, y, dx, dy, pointerId, startX, startY }`
+    ///   pointerup      → release + clear + (optional) `on_drag_end` with the
+    ///                    same DragIntent shape read from a start snapshot
+    ///   pointercancel  → release + clear
+    /// Drag state lives on the element (`el.__dragStart`) so it follows the
+    /// element lifecycle — no component-scope bookkeeping to clean up.
+    pub(super) fn emit_drag_binding(&mut self, el: &ElementIR, nid: &str) {
+        let Some(drag) = &el.drag_binding else {
+            return;
+        };
+        self.assert_can_emit_js();
+        if self.scope.in_for_template {
+            // Defensive: semantic/validate_drag hard-errors @drag inside @for.
+            self.warnings
+                .push("[omniview] @drag 在 @for 模板内不支持，已跳过".into());
+            return;
+        }
+        let Some(move_call) = self.drag_handler_call(&drag.on_drag) else {
+            self.warnings
+                .push("[omniview] @drag 处理器必须是函数名（FnRef），已跳过".into());
+            return;
+        };
+        let EventHandlerIR::FnRef { used_fields, .. } = &drag.on_drag else {
+            // Unreachable: drag_handler_call returned Some only for FnRef.
+            return;
+        };
+        // pointerup snapshots the start BEFORE clearing, so the end handler
+        // reads the same DragIntent shape from the snapshot var `s`.
+        let end_js = match &drag.on_drag_end {
+            Some(end_handler) => match self.drag_handler_call(end_handler) {
+                Some(call) => {
+                    let end_obj = drag_event_object(end_handler.used_fields(), "s");
+                    format!(" if (s) {{ {call}({end_obj}); }}")
+                }
+                None => String::new(),
+            },
+            None => String::new(),
+        };
+        let move_obj = drag_event_object(used_fields, "el.__dragStart");
+        let _ = writeln!(
+            self.js,
+            "{{ const el = __omni_el(\"{nid}\"); if (el) {{\n\
+             \x20 el.addEventListener(\"pointerdown\", (e) => {{ try {{ el.__dragStart = {{ x: e.clientX, y: e.clientY }}; el.setPointerCapture(e.pointerId); }} catch(err) {{ __omni_reportError(\"error:drag:pointerdown\", err); }} }});\n\
+             \x20 el.addEventListener(\"pointermove\", (e) => {{ try {{ if (el.__dragStart) {{ {move_call}({move_obj}); }} }} catch(err) {{ __omni_reportError(\"error:drag:pointermove\", err); }} }});\n\
+             \x20 el.addEventListener(\"pointerup\", (e) => {{ try {{ el.releasePointerCapture(e.pointerId); const s = el.__dragStart; el.__dragStart = null;{end_js} }} catch(err) {{ __omni_reportError(\"error:drag:pointerup\", err); }} }});\n\
+             \x20 el.addEventListener(\"pointercancel\", (e) => {{ try {{ el.releasePointerCapture(e.pointerId); el.__dragStart = null; }} catch(err) {{ __omni_reportError(\"error:drag:pointercancel\", err); }} }});\n\
+             }} }}",
+            nid = nid,
+            move_call = move_call,
+            move_obj = move_obj,
+            end_js = end_js,
+        );
+    }
+}
+
+/// Build the DragIntent event object literal for a drag handler call.
+///
+/// DragIntent fields are synthesized (start snapshot + pointer delta), not
+/// raw event passthrough — the shared `emit_event_object` cannot express
+/// them (its DragIntent mapping falls through to `undefined`), so the
+/// object is built here, honoring `used_fields` with the same
+/// filter-in-schema-order + `?? 0` fallback semantics. `state` names the
+/// drag-start snapshot: `el.__dragStart` for pointermove, `s` for the
+/// pointerup snapshot.
+fn drag_event_object(used_fields: &Option<Vec<String>>, state: &str) -> String {
+    let all: Vec<(String, String)> = vec![
+        ("x".into(), "e.clientX".into()),
+        ("y".into(), "e.clientY".into()),
+        ("dx".into(), format!("e.clientX - {state}.x")),
+        ("dy".into(), format!("e.clientY - {state}.y")),
+        ("pointerId".into(), "e.pointerId".into()),
+        ("startX".into(), format!("{state}.x")),
+        ("startY".into(), format!("{state}.y")),
+    ];
+    let fields: Vec<String> = match used_fields {
+        Some(used) if !used.is_empty() => all
+            .into_iter()
+            .filter(|(name, _)| used.contains(name))
+            .map(|(name, extract)| format!("{name}: {extract} ?? 0"))
+            .collect(),
+        Some(_) => return "{}".to_string(),
+        None => all
+            .into_iter()
+            .map(|(name, extract)| format!("{name}: {extract} ?? 0"))
+            .collect(),
+    };
+    format!("{{ {} }}", fields.join(", "))
 }

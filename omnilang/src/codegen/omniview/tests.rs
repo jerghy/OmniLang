@@ -2281,3 +2281,163 @@ fn slot_injection_skips_nested_component_children() {
         output.html
     );
 }
+
+// ── @drag draggable-intent wiring (ADR-073) ──────────
+
+/// @drag/@dragEnd lower into ElementIR.drag_binding; OmniView must synthesize
+/// pointer wiring (drag is not a DOM event): pointerdown snapshots the start
+/// point onto the element + captures the pointer, pointermove computes
+/// dx/dy from the snapshot and calls the move handler, pointerup releases
+/// the capture + clears state + calls the optional end handler,
+/// pointercancel releases + clears (ADR-073 decision 3 — capture is a
+/// compiler-internal detail, never user-facing syntax).
+#[test]
+fn test_drag_binding_emits_pointer_wiring() {
+    let source = r#"
+component DragBox {
+  signal lastDx: Float = 0
+  signal lastDy: Float = 0
+  signal lastX: Float = 0
+  ref box: Element
+  fn move(e) {
+    lastDx = e.dx
+    lastDy = e.dy
+    lastX = e.x
+  }
+  fn end(e) {
+    lastX = e.startX
+  }
+  view {
+    <div ref:box @drag={move} @dragEnd={end}>content</div>
+  }
+}
+"#;
+    let result = crate::compile_omniview(source, false, false);
+    assert!(result.success, "compilation failed: {:?}", result.errors);
+    let js = result
+        .files
+        .as_ref()
+        .expect("Expected JS output")
+        .js
+        .clone();
+
+    // pointerdown: snapshot the drag start onto the element + capture
+    assert!(
+        js.contains("el.__dragStart = { x: e.clientX, y: e.clientY }"),
+        "pointerdown should snapshot the start point. JS:\n{}",
+        js
+    );
+    assert!(
+        js.contains("el.setPointerCapture(e.pointerId)"),
+        "pointerdown should capture the pointer. JS:\n{}",
+        js
+    );
+    // pointermove: only while dragging, compute dx/dy from the snapshot
+    assert!(
+        js.contains("if (el.__dragStart)"),
+        "pointermove should be drag-guarded. JS:\n{}",
+        js
+    );
+    assert!(
+        js.contains("DragBox_move({"),
+        "pointermove should call the move handler. JS:\n{}",
+        js
+    );
+    assert!(
+        js.contains("dx: e.clientX - el.__dragStart.x"),
+        "dx must be computed against the start snapshot. JS:\n{}",
+        js
+    );
+    assert!(
+        js.contains("dy: e.clientY - el.__dragStart.y"),
+        "dy must be computed against the start snapshot. JS:\n{}",
+        js
+    );
+    // pointerup: release + clear + optional end handler
+    assert!(
+        js.contains("el.releasePointerCapture(e.pointerId)"),
+        "pointerup should release the capture. JS:\n{}",
+        js
+    );
+    assert!(
+        js.contains("DragBox_end({"),
+        "pointerup should call the end handler. JS:\n{}",
+        js
+    );
+    // pointercancel: release + clear only
+    assert!(
+        js.contains("addEventListener(\"pointercancel\""),
+        "pointercancel should be wired. JS:\n{}",
+        js
+    );
+    // used_fields honored: only fields the handlers read are extracted
+    // (dx/x for move, startX for end) — no full-schema object
+    assert!(
+        !js.contains("startY:"),
+        "unused DragIntent fields must not be emitted. JS:\n{}",
+        js
+    );
+}
+
+/// @drag without @dragEnd: pointerup/cancel release + clear, no end callback.
+#[test]
+fn test_drag_binding_without_drag_end_skips_end_call() {
+    let source = r#"
+component DragBox {
+  ref box: Element
+  fn move(e) { }
+  view {
+    <div ref:box @drag={move}>content</div>
+  }
+}
+"#;
+    let result = crate::compile_omniview(source, false, false);
+    assert!(result.success, "compilation failed: {:?}", result.errors);
+    let js = result
+        .files
+        .as_ref()
+        .expect("Expected JS output")
+        .js
+        .clone();
+
+    assert!(
+        js.contains("addEventListener(\"pointerup\""),
+        "pointerup should still be wired for release + clear. JS:\n{}",
+        js
+    );
+    assert!(
+        !js.contains("_end("),
+        "no on_drag_end → no end callback call. JS:\n{}",
+        js
+    );
+}
+
+/// Editor mode: drag handlers must call through the factory fns map — the
+/// prefixed top-level name is IIFE-scoped there (same ReferenceError
+/// regression as FnRef event bindings, 54341d13).
+#[test]
+fn test_drag_binding_editor_mode_calls_through_factory_fns() {
+    let source = r#"
+component DragBox {
+  ref box: Element
+  fn move(e) { }
+  view {
+    <div ref:box @drag={move}>content</div>
+  }
+}
+"#;
+    let result = crate::compile_omniview(source, true, false);
+    assert!(result.success, "compilation failed: {:?}", result.errors);
+    let js = result
+        .files
+        .as_ref()
+        .expect("Expected JS output")
+        .js
+        .clone();
+
+    assert!(
+        js.contains("window.__omni_components[\"DragBox\"].fns.move("),
+        "editor mode must call drag handlers through the factory fns map. JS:\n{}",
+        js
+    );
+}

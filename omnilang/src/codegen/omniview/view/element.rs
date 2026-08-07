@@ -791,6 +791,11 @@ impl OmniViewGenerator {
 
         self.emit_element_events(el, &nid, &mut attrs);
 
+        // @drag is a compiler-synthesized gesture over pointer events — emit
+        // its capture + dispatch wiring right after the plain event bindings
+        // (ADR-073; @drag/@dragEnd lower into el.drag_binding).
+        self.emit_drag_binding(el, &nid);
+
         self.emit_semantic_bindings(el, &nid);
 
         // Pre-scan children for interpolations → add data-bind-text to attrs
