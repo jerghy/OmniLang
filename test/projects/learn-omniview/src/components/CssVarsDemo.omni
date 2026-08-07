@@ -179,7 +179,7 @@ component CssVarsDemo {
     style {
         // ═══ CSS 自定义属性声明 + var() 引用 ═══
         code {
-            background: var(--surface-alt);
+            background: var(--surfaceMuted);
             padding: 2px 6px;
             border-radius: 4px;
             font-size: 12px;
@@ -236,7 +236,7 @@ component CssVarsDemo {
             --bg: "#f8fafc";
             background: var(--surface);
             border: 1px solid var(--border-color);
-            border-radius: var(--radius-md);
+            border-radius: var(--radiusMd);
             padding: 16px;
             margin-bottom: 16px;
         }
