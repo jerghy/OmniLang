@@ -167,6 +167,25 @@ impl ReactCodegen {
             .chain(direct_write_sets.d2.iter())
             .cloned()
             .collect();
+        // Task 15 (gate round): String-typed signals/computeds — a style
+        // entry reading one of these is a CSS string already (no px suffix).
+        // Dimension props (width/height/padding/margin) get the `` `${...}px` ``
+        // template only for NON-string values in both direct channels (raw
+        // `el.style.width = <number>` is unit-less invalid CSS; React's JSX
+        // style-prop px auto-suffix has no direct-write equivalent — the
+        // regenerated harness's TS2322 exposed exactly this).
+        let string_typed_names: FxHashSet<String> = comp
+            .signals
+            .iter()
+            .filter(|s| matches!(s.r#type.kind, TypeKind::String))
+            .map(|s| s.name.clone())
+            .chain(
+                comp.computeds
+                    .iter()
+                    .filter(|c| matches!(c.r#type.kind, TypeKind::String))
+                    .map(|c| c.name.clone()),
+            )
+            .collect();
         // Phase 1 (Task 4): activated (ref × style-prop) pairs — the JSX
         // style-prop exclusion list. Every activated entry is driven by the
         // direct-write channel (D1 apply at mutation sites / B2 useEffect),
@@ -388,7 +407,8 @@ impl ReactCodegen {
         ref_names.extend(direct_write_names.iter().cloned());
         // Apply-line table: signal → direct DOM write injected after its
         // mutations (D1 entries only; D2 has no output reads).
-        let direct_write_applies = direct_write::build_apply_map(&direct_write_sets, &ref_names);
+        let direct_write_applies =
+            direct_write::build_apply_map(&direct_write_sets, &ref_names, &string_typed_names);
 
         // Ref name → element tag map (typing useRef declarations) — scanned
         // from the view because RefDeclIR.element_tag is not populated by
@@ -998,6 +1018,7 @@ impl ReactCodegen {
             &store_signal_map,
             &store_field_renames,
             &hoisted_signals,
+            &string_typed_names,
         );
 
         // Component-local function declarations

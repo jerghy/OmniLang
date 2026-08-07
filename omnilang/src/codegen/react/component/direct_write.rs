@@ -59,6 +59,65 @@ pub(super) fn gen_direct_write_storage(
 }
 
 // ═══════════════════════════════════════════════════════════
+// px 单位注入（Task 15 gate round）
+// ═══════════════════════════════════════════════════════════
+
+/// CSS dimension properties whose NON-string values need a `px` unit when
+/// written through the direct channels. React's JSX style prop appends px
+/// to numbers automatically, but a raw `el.style.width = 80` write is
+/// unit-less invalid CSS — the browser silently drops it. The set mirrors
+/// the Flutter channel's mapped property set (`css_prop_to_flutter_param`:
+/// width/height/padding/margin — the cross-target contract's dimension
+/// surface; `--*` custom props never get a unit).
+const DIMENSION_PROPS: [&str; 4] = ["width", "height", "padding", "margin"];
+
+/// Whether a style entry VALUE is statically a CSS string (no `px` suffix
+/// may be appended): a String literal, a sanitize-wrapped value
+/// ($concat/$call/$field — `sanitizeCss` returns a string), or a
+/// String-typed signal/computed read (declared-type lookup — mirrors
+/// Flutter's `style_value_is_string`). Everything else (numeric literals,
+/// numeric signals, unknown $ident reads) is treated as a number at
+/// runtime and gets the `` `${...}px` `` template on dimension props. The
+/// template is also what keeps the emitted code TS-clean: the DOM lib
+/// types `style.{prop}` as `string` (TS2322 on a raw numeric write — the
+/// regression the regenerated react harness exposed in Task 15).
+fn entry_value_is_string(e: &DirectWriteEntry, string_typed_names: &FxHashSet<String>) -> bool {
+    match &e.value {
+        Value::String(_) => true,
+        Value::Object(obj) => {
+            if obj.contains_key("$concat")
+                || obj.contains_key("$call")
+                || obj.contains_key("$field")
+            {
+                // sanitizeCss-wrapped → string at runtime
+                return true;
+            }
+            obj.get("$signal")
+                .and_then(|v| v.as_str())
+                .map(|name| string_typed_names.contains(name))
+                .unwrap_or(false)
+        }
+        _ => false,
+    }
+}
+
+/// Wrap a direct-write style value: `` `${value}px` `` on dimension props
+/// for non-string values, bare otherwise. Shared by the D1 apply channel
+/// and the B2 effect channel (both write the same DOM property — the px
+/// decision must match, same doctrine as `entry_needs_sanitize`).
+fn style_write_value(
+    e: &DirectWriteEntry,
+    value_js: &str,
+    string_typed_names: &FxHashSet<String>,
+) -> String {
+    if DIMENSION_PROPS.contains(&e.prop.as_str()) && !entry_value_is_string(e, string_typed_names) {
+        format!("`${{{value_js}}}px`")
+    } else {
+        value_js.to_string()
+    }
+}
+
+// ═══════════════════════════════════════════════════════════
 // Apply-line construction (Phase 1, Task 3)
 // ═══════════════════════════════════════════════════════════
 
@@ -87,6 +146,7 @@ fn entry_needs_sanitize(e: &DirectWriteEntry) -> bool {
 pub(super) fn build_apply_map(
     sets: &DirectWriteSets,
     ref_names: &FxHashSet<String>,
+    string_typed_names: &FxHashSet<String>,
 ) -> FxHashMap<String, Vec<String>> {
     let mut refs = ref_names.clone();
     refs.extend(sets.d1.iter().cloned());
@@ -98,6 +158,7 @@ pub(super) fn build_apply_map(
         } else {
             format_style_value_expr(&e.value, &refs)
         };
+        let value_js = style_write_value(e, &value_js, string_typed_names);
         for sig in &e.read_signals {
             // CSS custom property 特例：`format_style_prop_key` 对 `--*` 返回
             // 带引号的 `'--x'`，而属性赋值 `el.style.'--x'` 非法——改用
@@ -170,6 +231,7 @@ pub(super) fn gen_ref_style_effects(
     store_signal_map: &FxHashMap<String, String>,
     store_field_renames: &FxHashMap<String, String>,
     hoisted_signals: &FxHashSet<String>,
+    string_typed_names: &FxHashSet<String>,
 ) {
     if sets.b2_entries.is_empty() {
         return;
@@ -182,12 +244,16 @@ pub(super) fn gen_ref_style_effects(
         // (entry_needs_sanitize) — both channels write the same DOM
         // property, so a B2 raw write would bypass the D1 sanitizer on
         // that property (same value, two encodings). Pure ident values
-        // stay bare, exactly like the D1 channel.
+        // stay bare, exactly like the D1 channel. Task 15: same px rule as
+        // the D1 channel (style_write_value) — numeric values on dimension
+        // props get the `` `${...}px` `` template (a raw numeric write is
+        // invalid unit-less CSS and TS2322 against the DOM lib).
         let value_js = if entry_needs_sanitize(e) {
             format!("sanitizeCss({})", format_style_value_expr(&e.value, &refs))
         } else {
             format_style_value_expr(&e.value, &refs)
         };
+        let value_js = style_write_value(e, &value_js, string_typed_names);
         let dep_names: FxHashSet<String> = e
             .read_signals
             .iter()

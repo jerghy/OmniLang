@@ -341,7 +341,9 @@ const box = (function() {
 
 ## Codegen: Flutter (GlobalKey)
 
-待 Phase 2 详细设计。
+已实施。`ref box: Element` → `GlobalKey` 绑定；ref API（scrollTo/focus/measure 等）经 `_omni_measure` / 生命周期直调映射。
+
+**动态 style 绑定已表达式化**（Phase 3，`docs/design/ref-high-frequency-direct-channel.md` §6）：`style: { transform: "translate(" + dragX + "px, " + dragY + "px)" }` 不再**静默跳过**——D1/D2 信号存储为 `ValueNotifier<T>` 字段，mutation 直写 `_dragX.value = ...`（零 setState）；元素包裹 `ListenableBuilder(listenable: Listenable.merge([_dragX, _dragY]), ...)`，transform 条目映射 `Transform.translate(offset: Offset(_dragX.value, _dragY.value))`，width/height/padding/margin 映射 widget 参数，不可映射属性编译期显式诊断。局部重建，零整树 build。
 
 ## 实现计划
 
@@ -390,4 +392,7 @@ const box = (function() {
 `el.style.setProperty(...)` 直接 DOM 写入（零 reconciliation）；在 React 目标走**直写通道**（Phase 1，
 `docs/design/ref-high-frequency-direct-channel.md`）：D1/D2 信号 useRef 存储 + mutation 点直写
 （零 reconciliation，与 OmniView 同级），B2 共享信号 useEffect 直写——v2 时代「退化为 useState +
-style={{...}} 整组件重渲染」的代价陈述已被直写通道撤销。
+style={{...}} 整组件重渲染」的代价陈述已被直写通道撤销；在 Flutter 目标走**ListenableBuilder 表达式化**
+（Phase 3）：动态 style 条目从**静默跳过**（`as_str().unwrap_or("")` 空串）变为 ValueNotifier +
+`ListenableBuilder(listenable: Listenable.merge([...]))` + Transform 映射，局部重建零整树 build，
+不可映射条目编译期显式诊断。

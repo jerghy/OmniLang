@@ -183,8 +183,8 @@ Accepted
 **Acceptance Criteria:**
 - [x] （Phase 1）React 拖拽生成代码无 useState 重渲染路径（useRef + 直写），verify-react 无新错误类
 - [x] （Phase 1）浏览器实测拖拽与 OmniView 同级流畅（零 reconciliation）
-- [ ] （Phase 2）意图语义设计 ADR 评审通过；demo 源码不再显式写 capturePointer
-- [ ] （Phase 3）Flutter 拖拽位移正确渲染（ListenableBuilder + Transform）；flutter gate 行为验证替代 D3 过滤
+- [x] （Phase 2）意图语义设计 ADR 评审通过（ADR-073 @drag，6efd6853..4d40afed）；demo 源码不再显式写 capturePointer
+- [x] （Phase 3）Flutter 拖拽位移正确渲染（ListenableBuilder + Transform，ca502c54..4cccf1a8）；flutter gate 行为验证替代 D3 过滤（generated_code_validation.rs `learn_omniview_flutter_phase3_drag_behavior`）
 
 **Testing Approach:**
 * 生成代码产物审计（三目标各阶段）

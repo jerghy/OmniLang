@@ -931,6 +931,45 @@ fn learn_omniview_flutter_output_passes_dart_analyze() {
     );
 }
 
+/// Phase 3 behavioral gate (ref-high-frequency-direct-channel §6.5, ADR-071
+/// decision 2/4): the @drag + `style: { ... }` dynamic binding on the
+/// showcase ElementRefDemo must compile to the Flutter-native expression
+/// path — D1/D2 signals stored as ValueNotifiers and wired through a
+/// ListenableBuilder, multi-signal entries merged via `Listenable.merge`,
+/// and the transform entry mapped to a `Transform` widget. This replaces the
+/// old silent-skip behavior (dynamic style value → `""`) with the emitted
+/// shape itself — zero whole-tree `setState` rebuilds during drag.
+///
+/// Deterministic content assertions — the emitted shape only, no dart
+/// toolchain needed (same pattern as `match_variant_arms_flutter_compiles`);
+/// complements the dart-analyze gate which validates compilability.
+#[test]
+fn learn_omniview_flutter_phase3_drag_behavior() {
+    let scratch = ScratchDir::new("learn-omniview-phase3");
+    let Some(out) = compile_learn_omniview_flutter(&scratch) else {
+        return; // backend not compiled in
+    };
+    // Phase 3: 拖拽位移正确渲染 —— 生成代码含 ListenableBuilder + ValueNotifier
+    let dart = std::fs::read_to_string(out.out_root.join("learn-omniview/ElementRefDemo.dart"))
+        .expect("ElementRefDemo.dart generated");
+    assert!(
+        dart.contains("ListenableBuilder"),
+        "flutter drag must use ListenableBuilder (silent-skip replacement):\n{dart}"
+    );
+    assert!(
+        dart.contains("Listenable.merge"),
+        "multi-signal entries merge notifiers:\n{dart}"
+    );
+    assert!(
+        dart.contains("Transform.translate"),
+        "transform maps to Transform:\n{dart}"
+    );
+    assert!(
+        dart.contains("ValueNotifier"),
+        "D1/D2 drag signals must be stored as ValueNotifier fields:\n{dart}"
+    );
+}
+
 // ════════════════════════════════════════════════════════════════
 // unused-import false positives: DesignClass/Variant refs count as
 // uses (Task 4.12) — `class: LearnDesign.X` and

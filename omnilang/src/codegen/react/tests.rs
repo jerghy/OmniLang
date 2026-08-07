@@ -7850,6 +7850,72 @@ component Mix {
     );
 }
 
+/// Task 15 gate round — the numeric-signal style binding (demo switched to
+/// f64 for Flutter's double params) must NOT emit a raw numeric
+/// `el.style.width = <number>` write: unit-less CSS is invalid and the DOM
+/// lib types `style.{prop}` as string (TS2322 — the regenerated react
+/// harness exposed exactly this). Dimension props with non-string values
+/// get the `` `${...}px` `` template in BOTH channels (D1 apply at mutation
+/// sites + B2 useEffect); String-typed signal reads keep the bare write
+/// (a String signal already carries its own unit — double suffixing would
+/// produce "80pxpx").
+#[test]
+fn test_direct_write_dimension_numeric_px_suffix() {
+    let comp = compile_component_ir(
+        r#"
+component Mix3 {
+  signal d1w: f64 = 100          // D1：仅 style 读 → apply 通道
+  signal w: f64 = 200            // B2：文本读 → effect 通道
+  signal s: String = "80px"      // B2 String 信号：自带单位，保持裸写
+  ref b1: Element
+  ref b2: Element
+  ref b3: Element
+  fn set(e) { d1w = e.x }
+  view {
+    <div @ref={b1} @onPointerMove={set} style: { width: d1w } />
+    <div @ref={b2} style: { width: w } />
+    <div @ref={b3} style: { width: s } />
+    <span>{w} {s}</span>
+  }
+}
+"#,
+    );
+    let ir = make_ir(vec![("Mix3".into(), comp)].into_iter().collect());
+    let comp_ref = ir
+        .modules
+        .get("main")
+        .unwrap()
+        .components
+        .get("Mix3")
+        .unwrap();
+    let component_map = build_component_map(&ir);
+    let tsx = ReactCodegen::default().gen_component_tsx("Mix3", comp_ref, &ir, &component_map);
+    // D1 apply 通道（mutation 注入点）：数值信号 → `${d1wRef.current}px`
+    assert!(
+        tsx.contains("b1Ref.current!.style.width = `${d1wRef.current}px`;"),
+        "D1 numeric dimension write must carry the px template. Got:\n{}",
+        tsx
+    );
+    // B2 effect 通道：数值信号 → `${w}px`（deps 裸名 w）
+    assert!(
+        tsx.contains("b2Ref.current!.style.width = `${w}px`;"),
+        "B2 numeric dimension write must carry the px template. Got:\n{}",
+        tsx
+    );
+    // String 信号：保持裸写（自带单位，不加 px——否则 "80pxpx"）
+    assert!(
+        tsx.contains("b3Ref.current!.style.width = s;"),
+        "String-typed style signal stays a bare write. Got:\n{}",
+        tsx
+    );
+    // 无任何裸数值直写残留（TS2322 根因）
+    assert!(
+        !tsx.contains("style.width = w;") && !tsx.contains("style.width = d1w"),
+        "no bare numeric dimension write may remain. Got:\n{}",
+        tsx
+    );
+}
+
 /// Fix round 1 — B2 effect values must apply the SAME sanitization decision
 /// as the D1 apply channel (`entry_needs_sanitize`: $concat/$call/$field →
 /// sanitizeCss wrapper): both channels write the same DOM property, a raw

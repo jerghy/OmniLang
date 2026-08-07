@@ -1,6 +1,6 @@
 # ref 高频操控——三目标直写通道设计
 
-**Status**: Phase 1 已实施（React 直写通道，2026-08-07）；Phase 2/3 待实施 | **Date**: 2026-08-07 | **Related**: ADR-070, ADR-071, element-ref-system v2
+**Status**: 三阶段全部实施完成（Phase 1 React 直写 f819ba5f..92fea90a；Phase 2 @drag 意图化 6efd6853..4d40afed；Phase 3 Flutter 表达式化 ca502c54..4cccf1a8）| **Date**: 2026-08-07 | **Related**: ADR-070, ADR-071, ADR-073, element-ref-system v2
 
 ## 1. 背景与动因
 
@@ -231,6 +231,8 @@ useEffect(() => {
 
 > 本设计只给语义草案与三目标映射方向；正式决策走**独立 ADR**（ADR-071 决策 3 要求）。
 
+> **实施状态：Phase 2 已实施（ADR-073 + commit 6efd6853..4d40afed，Task 7-11）**。@drag 意图语义全链落地：parser/AST/IR/lowering/语义验证 → OmniView（setPointerCapture + dx/dy 合成）/React（per-ref useRef 状态 + setPointerCapture）/Flutter（GestureDetector onPan）codegen → demo 迁移（ElementRefDemo 无显式 capturePointer）+ D3 gate 更新（过滤 → 零诊断断言）。三目标 952/952 all-features，React GATE PASSED，Flutter EXIT=0。
+
 ### 5.1 问题
 
 `capturePointer()`/`releasePointer()` 是机制泄漏（ADR-071 决策 3）：OmniView/React 有原生对等物（setPointerCapture），Flutter 渲染树无「指针捕获」原语（move 事件靠命中链隐式路由）——spec §10.3 设计 D3 硬错误是语义对齐失败的诚实暴露。机制映射（给 Flutter 找等价）论证困难；**语义上移**（定义「可拖拽」意图）路径易行。
@@ -266,6 +268,8 @@ useEffect(() => {
 
 依赖 Phase 2 的 @drag 语义定义（demo 需先去掉显式 capturePointer 才能编译）。
 
+> **实施状态：Phase 3 已实施（commit ca502c54..4cccf1a8，Task 12-15）**。共享分类 pass（shared/direct_write.rs）→ Flutter D1/D2 信号 ValueNotifier 存储 + mutation 直写（`_dragX.value = ...`，零 setState）→ ListenableBuilder 包裹 + Transform 映射 + 不可映射编译期显式诊断（替代静默跳过）。产物审计（ElementRefDemo.dart）：`ListenableBuilder(listenable: Listenable.merge([_dragX, _dragY]), ...)` + `Transform.translate(offset: Offset(_dragX.value, _dragY.value), ...)`；flutter 行为 gate（generated_code_validation.rs `learn_omniview_flutter_phase3_drag_behavior`）断言生成代码含 ListenableBuilder/Listenable.merge/Transform.translate/ValueNotifier；`dart analyze` 0 errors；demo 信号改 f64（String→double 类型缺口显式诊断后）。全量 758/758 all-features。
+
 ### 6.1 现状根因
 
 `flutter/view.rs:1597-1689` inline_style：`css_val.as_str().unwrap_or("")` → 动态值 → 空字符串 → **静默跳过**（ADR-070 缺口）。信号 = State 字段 + setState → 整树 build（高频不可行）。
@@ -281,15 +285,18 @@ useEffect(() => {
 
 **条目发射**：动态 style 条目 → 元素包裹 `ListenableBuilder(listenable: Listenable.merge([...notifiers]), ...)`，builder 内按**属性映射表**重建参数——局部重建，零整树 build。
 
-### 6.3 CSS 属性 → widget 映射表（草案）
+### 6.3 CSS 属性 → widget 映射表（实况，Task 14/15 后）
 
-| CSS 属性 | widget 参数 |
-|----------|------------|
-| `transform: translate(dx, dy)` | `Transform.translate(Offset(dx, dy))` |
-| `opacity` | `Opacity(opacity: v)` |
-| `width`/`height` | `SizedBox(width: v, height: v)` / 约束 |
-| `color`/`background-color` | 颜色参数（TextStyle/Container 等） |
-| 其他 | **编译期诊断**（替代静默跳过——缺口升级为显式错误，诚实契约） |
+| CSS 属性 | widget 参数 | 状态 |
+|----------|------------|------|
+| `transform: translate(dx, dy)` | `Transform.translate(offset: Offset(dx, dy))`（外层再包 ListenableBuilder） | ✅ 已实施（`match_style_pattern` 识别 5 段/尾融合/首融合三种 concat 形态） |
+| `width`/`height` | widget 参数直传（`widget_allows_param` whitelist 校验） | ✅ 已实施 |
+| `padding`/`margin` | `EdgeInsets.all(v)` | ✅ 已实施 |
+| `opacity` | `Opacity(opacity: v)` | ❌ 未实施——编译期诊断（error_at，诚实契约） |
+| `color`/`background-color` | 颜色参数 | ❌ 未实施——编译期诊断 |
+| 其他 | **编译期诊断**（替代静默跳过——缺口升级为显式错误，诚实契约） | ✅ 已实施（error_at；String→double 缺口亦显式诊断） |
+
+String 信号读 numeric 参数（width/height/EdgeInsets/Offset）→ 编译期显式诊断（String→double 类型缺口，不再发射坏代码）。
 
 ### 6.4 关键取舍：transform 字符串模式解析 vs 属性级映射
 
@@ -302,7 +309,7 @@ useEffect(() => {
 
 ### 6.5 gate 演进
 
-`generated_code_validation.rs`：从「过滤 D3 诊断」→ 新增 flutter 行为验证（生成代码含 `ListenableBuilder` + `ValueNotifier`；拖拽项目编译 EXIT=0）。D3 过滤随 demo 改造移除。
+`generated_code_validation.rs`：从「过滤 D3 诊断」→ **已实施 flutter 行为验证**（`learn_omniview_flutter_phase3_drag_behavior`：确定性内容断言——生成代码含 `ListenableBuilder` + `Listenable.merge` + `Transform.translate` + `ValueNotifier`，不依赖 dart 工具链；`learn_omniview_flutter_output_passes_dart_analyze`：拖拽项目全量 `dart analyze` 0 errors）。D3 过滤已随 demo 改造移除——`compile_learn_omniview_flutter` 改为断言 D3 诊断数为零（显式 capturePointer 回潮即回归）。
 
 ---
 
@@ -310,9 +317,9 @@ useEffect(() => {
 
 | 阶段 | 内容 | 依赖 | 验证 | 状态 |
 |------|------|------|------|------|
-| P1 | React 直写通道（§4） | 无 | verify-react 无新错误类 + react 套件 + 产物审计 + 浏览器 60fps 实测 | 本设计后首个实施目标 |
-| P2 | @drag 意图语义（§5） | 独立 ADR 评审 | ADR 通过 + demo 无显式 capturePointer | 设计先于 P3 |
-| P3 | Flutter 表达式化（§6） | P2 | flutter 行为 gate + 拖拽位移渲染实测 | 最后 |
+| P1 | React 直写通道（§4） | 无 | verify-react 无新错误类 + react 套件 + 产物审计 + 浏览器 60fps 实测 | ✅ 已实施（f819ba5f..92fea90a） |
+| P2 | @drag 意图语义（§5） | 独立 ADR 评审 | ADR 通过 + demo 无显式 capturePointer | ✅ 已实施（6efd6853..4d40afed，ADR-073） |
+| P3 | Flutter 表达式化（§6） | P2 | flutter 行为 gate + 拖拽位移渲染实测 | ✅ 已实施（ca502c54..4cccf1a8） |
 
 **跨阶段不变量**（ADR-070 三目标机制契约为行为基准，任何阶段不得破坏）：
 - OmniView 直写路径不变
@@ -334,9 +341,9 @@ useEffect(() => {
 - [x] P1：ElementRefDemo.tsx 产物审计 4 断言全过（§4.5.3）
 - [x] P1：verify-react GATE PASSED（无新错误类、无新豁免）
 - [x] P1：react 套件全绿；浏览器实测断言 pointermove 零渲染提交（§4.5.5）
-- [ ] P2：@drag 独立 ADR 评审通过；demo 源码无显式 capturePointer；D3 演进为注记
-- [ ] P3：Flutter 拖拽位移正确渲染（ListenableBuilder + Transform）；flutter gate 行为验证替代 D3 过滤
-- [ ] 覆盖审计（verify-demo-coverage.py）随语义成员变化复跑
+- [x] P2：@drag 独立 ADR 评审通过（ADR-073）；demo 源码无显式 capturePointer；D3 演进为注记
+- [x] P3：Flutter 拖拽位移正确渲染（ListenableBuilder + Transform）；flutter gate 行为验证替代 D3 过滤
+- [x] 覆盖审计（verify-demo-coverage.py）随语义成员变化复跑
 
 ## 10. 参考
 
