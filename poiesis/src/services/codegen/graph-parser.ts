@@ -170,6 +170,27 @@ function detectSegmentType(
   const trimmed = firstLine.trim();
 
   if (trimmed.startsWith("fn ")) return "fn";
+  // 块头段带内嵌语句 → code-block：首行是条件/try 块头（if/else if/else/try {）且
+  // 后续还有非结构内容行时，段内嵌整块语句——这是 code-block 回退源的原始文本重解析
+  // 形态（T3 G1 同款）。若不拦截，重解析会把整块塞进 condition/try 单段：分支体在
+  // 段内无独立元素可接线 → 发射丢 throw/return 正文（if 空壳）+ 非 fixpoint
+  // （error_handling.omni 实证）。编辑器发射的 condition/try 段只有块头行（分支体是
+  // 独立分段）或块头+结构尾行（链末段），均不命中。结构尾行列表与多语句规则共用。
+  if (
+    (/^(if\s|else\s+if\s|else\s*\{|try\s*\{)/.test(trimmed) || trimmed === "else") &&
+    lines.slice(1).some(
+      (l) =>
+        l.trim() &&
+        !(/^\}\s*else/.test(l.trim()) ||
+          /^else\s*(if\b|\{)/.test(l.trim()) ||
+          l.trim() === "}" ||
+          /^\}\s*catch\b/.test(l.trim()) ||
+          /^\}\s*finally\b/.test(l.trim()) ||
+          /^catch\b/.test(l.trim()) ||
+          /^finally\b/.test(l.trim())),
+    )
+  )
+    return "code-block";
   if (
     trimmed.startsWith("if ") ||
     trimmed.startsWith("else if ") ||

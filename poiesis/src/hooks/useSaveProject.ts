@@ -6,10 +6,12 @@ import { usePoiesisStore } from "../store";
 import { api } from "../commands";
 import { generateOmniFiles } from "../services/codegen/pipeline";
 import { emitStoreDefinition } from "../services/codegen/source-emitter";
+import { emitLibFile, emitRootDeclarations } from "../services/codegen/emit-lib-file";
 import { validateSources } from "../services/monaco/diagnostics";
 import type { CodeTab } from "../core/types/codegraph";
 import type { StoreDefinition } from "../core/types/store";
-import type { CodeblockElementData } from "../core/types/element";
+import type { CodeblockElementData, ElementData } from "../core/types/element";
+import type { WireData } from "../core/types/wire";
 import { createLogger } from "../lib/utils/logger";
 
 const log = createLogger("save");
@@ -82,6 +84,27 @@ async function collectProjectSources(
   }
 
   return sources;
+}
+
+/** 从全局画布提取 fn 子图（入口 pid + wire 闭包可达的全部节点）。 */
+function extractFnSubgraph(
+  entryPid: string,
+  allElements: ElementData[],
+  allWires: WireData[],
+): { elements: CodeblockElementData[]; wires: WireData[] } {
+  const ids = new Set<string>([entryPid]);
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const w of allWires) {
+      if (ids.has(w.fromId) && !ids.has(w.toId)) { ids.add(w.toId); grew = true; }
+      if (ids.has(w.toId) && !ids.has(w.fromId)) { ids.add(w.fromId); grew = true; }
+    }
+  }
+  return {
+    elements: allElements.filter((e) => ids.has(e.id)) as CodeblockElementData[],
+    wires: allWires.filter((w) => ids.has(w.fromId) && ids.has(w.toId)),
+  };
 }
 
 export function useSaveProject() {
@@ -166,6 +189,12 @@ export function useSaveProject() {
           source = `store ${activeTab.componentName} {\n}\n`;
         }
 
+        // ROOT 层前置：store 文件头部 structs/types 不丢（TodoStore.omni 实证）
+        const storeRoot = store.libDefs[activeTab?.filePath ?? ""];
+        if (storeRoot && (storeRoot.structs.length > 0 || storeRoot.types.length > 0)) {
+          source = emitRootDeclarations(storeRoot) + source;
+        }
+
         // Validate through WASM analyse before writing (include all project sources for imports)
         const storeSources = await collectProjectSources({ [activeTab.filePath]: source });
         const storeErrors = await validateSources(storeSources);
@@ -177,6 +206,83 @@ export function useSaveProject() {
         }
 
         await api.project.writeFile(activeTab.filePath, source);
+        const result = await api.annotation.saveProject();
+        if (result.ok) markClean();
+        return;
+      }
+
+      // ── Code tab：lib 文件保存（对标 store 分支结构）──
+      if (activeTab?.tabType === "code" && activeTab.filePath) {
+        const libPath = activeTab.filePath;
+        const libDef = store.libDefs[libPath];
+        if (!libDef) {
+          setSaveError("libDef 未加载，无法保存");
+          setSaving(false);
+          return;
+        }
+        // 1. 画布 → libDef 写回：fn 增删对齐（画布新建 fn 追加、已删 fn 剔除）
+        const workingFns = store.elements.filter(
+          (e): e is CodeblockElementData => e.nodeType === "codeblock" && (e.tag === "fn" || e.tag === "action"),
+        );
+        const workingPids = new Set(workingFns.map((e) => e.id));
+        const addedFns: Array<{
+          pid: string;
+          name: string;
+          params: Array<{ name: string; type: string }>;
+          returnType: string;
+          pub: boolean;
+          isAsync: boolean;
+          declKind: "fn" | "action";
+          body: string;
+        }> = [];
+        for (const e of workingFns) {
+          if (libDef.fns.some((f) => f.pid === e.id)) continue;
+          addedFns.push({
+            pid: e.id,
+            name: (e.props?.name as string) || "unnamed",
+            params: ((e.props?.params as string) || "").split(",").flatMap((p) => {
+              const [pName, pType] = p.trim().split(":").map((s) => s.trim());
+              return pName ? [{ name: pName, type: pType || "" }] : [];
+            }),
+            returnType: (e.props?.returnType as string) || "",
+            pub: (e.props?.pub as boolean) || false,
+            isAsync: (e.props?.isAsync as boolean) || false,
+            declKind: (e.props?.declKind as "fn" | "action") || "fn",
+            body: "",
+          });
+        }
+        const updatedDef = {
+          ...libDef,
+          fns: [...libDef.fns.filter((f) => !!f.pid && workingPids.has(f.pid)), ...addedFns],
+        };
+        store.setLibDef(libPath, updatedDef);
+
+        // 2. 画布 writeback 图（按 fn 入口 pid 提取子图）→ emitLibFile
+        const graphs: Record<string, { elements: CodeblockElementData[]; wires: WireData[] }> = {};
+        for (const f of updatedDef.fns) {
+          if (!f.pid) continue;
+          graphs[f.name] = extractFnSubgraph(f.pid, store.elements, store.wires);
+        }
+        const source = emitLibFile(updatedDef, graphs);
+
+        // 3. WASM 验证（门禁为最终裁决，与 store/组件分支同款）
+        const extraSources: Array<{ path: string; content: string }> = [];
+        if (designSource && designFilePath) {
+          extraSources.push({ path: designFilePath, content: designSource });
+        }
+        const allSources = await collectProjectSources({ [libPath]: source }, extraSources);
+        const analyseErrors = await validateSources(allSources);
+        const criticalErrors = analyseErrors.filter((e) => e.severity === "error");
+        if (criticalErrors.length > 0) {
+          setSaveError(formatDiagnostics(criticalErrors));
+          log.error("WASM analyse errors:", criticalErrors);
+          setSaving(false);
+          return;
+        }
+
+        // 4. 写盘 + saveProject + markClean
+        await api.project.writeFile(libPath, source);
+        usePoiesisStore.setState({ activeFileContent: source });
         const result = await api.annotation.saveProject();
         if (result.ok) markClean();
         return;
@@ -244,6 +350,14 @@ export function useSaveProject() {
         }
 
         // ── 4. Write each generated .omni file to disk ──
+        // ROOT 层前置：组件文件头部 structs/types 不丢（FeatureCard.omni 实证）
+        const compRoot = store.libDefs[activeTab?.filePath ?? ""];
+        if (compRoot && (compRoot.structs.length > 0 || compRoot.types.length > 0)) {
+          const tPath = activeTab?.filePath ?? "src/main.omni";
+          if (genResult.value[tPath]) {
+            genResult.value[tPath] = emitRootDeclarations(compRoot) + genResult.value[tPath];
+          }
+        }
         for (const [filePath, source] of Object.entries(genResult.value)) {
           await api.project.writeFile(filePath, source);
         }

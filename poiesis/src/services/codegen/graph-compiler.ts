@@ -160,12 +160,30 @@ function emitNode(
         const source = node.element.source || "";
         out = emitPidComment(pid);
         const lines = source.split("\n");
+        // 合并 {/}-结尾行与后继非空行：解析侧 join 把同一源行上的 `} catch {` /
+        // `{ "parsed": ... }` 拆为相邻行（`{`→"{\n"、`}`→"}\n"），发射侧若照行补
+        // pad，行间分隔会在重解析时引入 NEWLINE token → join 多出空行+前导空格，
+        // 非 fixpoint（error_handling.omni 实证）。按 join 的原始相邻关系反合并；
+        // 空行分隔的不合并（那是 `{`/`}` 行尾 + 真换行的固有结构，两轮一致）。
+        const merged: string[] = [];
         for (let i = 0; i < lines.length; i++) {
+          let line = lines[i]!;
+          while (
+            /[{}]\s*$/.test(line) &&
+            i + 1 < lines.length &&
+            lines[i + 1]!.trim() !== ""
+          ) {
+            line = line + " " + lines[i + 1]!;
+            i++;
+          }
+          merged.push(line);
+        }
+        for (let i = 0; i < merged.length; i++) {
           // 首行前导空白是 tokenizer "\n " 归一化伪影（pad 已提供缩进），trimStart
           // 后发射确定性成立 → code-block fixpoint：parse(compile(g)) 的 source
           // 与回退源 body.trim() 一致（T3 G1 编译-再解析闭环实证）。后续行保留
           // 原样（块内结构缩进是内容）。
-          const line = i === 0 ? lines[i]!.trimStart() : lines[i]!;
+          const line = i === 0 ? merged[i]!.trimStart() : merged[i]!;
           out += `${pad}${line}\n`;
         }
       }
