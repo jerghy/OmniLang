@@ -105,6 +105,9 @@ export interface ComponentSourceDef {
   computeds: Array<ComputedEntry>;
   events: Array<{ pid: string; name: string; payloadType: string }>;
   fns: Array<FnDef>;
+  /** 生命周期成员（@mount/@effect/@unmount）。必填——所有构造点由编译器强制补齐，防漏。
+   *  迁移：旧 project.json 缺字段时运行时为 undefined，App.tsx/useSaveProject 的 `?? []` 兜底。 */
+  lifecycles: Array<{ pid: string; hookType: "mount" | "effect" | "unmount"; deps?: string }>;
 }
 
 /** Runtime-only canvas state (not persisted to project.json). */

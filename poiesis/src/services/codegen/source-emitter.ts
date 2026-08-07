@@ -342,6 +342,18 @@ export class SourceEmitter {
       w.blank();
     }
 
+    // ── Lifecycle 成员（@mount/@effect/@unmount）──
+    for (const lc of comp.lifecycles ?? []) {
+      const depsPart = lc.hookType === "effect" && lc.deps ? `(${lc.deps})` : "";
+      if (lc.pid) w.emit(`// @pid:${lc.pid}`);
+      w.emit(`@${lc.hookType}${depsPart} {`);
+      w.indent();
+      for (const line of lc.body.split("\n")) w.emit(line);
+      w.dedent();
+      w.emit(`}`);
+      w.blank();
+    }
+
     // View
     if (comp.view) {
       w.emit(`view {`);

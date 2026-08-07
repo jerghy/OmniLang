@@ -148,6 +148,7 @@ export function buildComponentPart(
       consts,
       storeRefs: [...phaseA.bindings.storeRefs.keys()],
       fns: phaseB.lowered.functions,
+      lifecycles: phaseB.lowered.lifecycles ?? [],
       view,
       style: phaseC.styleCollection.componentStyle,
     } satisfies import("./types").ValidComponentPart;
@@ -160,6 +161,7 @@ export function buildComponentPart(
     storeRefs: [...phaseA.bindings.storeRefs.keys()],
     computeds: componentComputeds,
     fns: phaseB.lowered.functions,
+    lifecycles: phaseB.lowered.lifecycles ?? [],
     style: phaseC.styleCollection.componentStyle,
     view: null,
     consts: consts.length > 0 ? consts : undefined,

@@ -175,8 +175,9 @@ export function createElementCrudSlice(set: SetFn, get: GetFn) {
     /** 进入组件 codeflow 时：把该组件的 fn 图合并进 elements/wires（pid 去重，已存在不覆盖，无 undo）。 */
     materializeFnGraphs: (componentName: string) => {
       const s = get();
-      const fns = s.componentDefs[componentName]?.fns ?? [];
-      if (fns.length === 0) return;
+      const def = s.componentDefs[componentName];
+      const fns = def?.fns ?? [];
+      if (fns.length === 0 && (def?.lifecycles ?? []).length === 0) return;
       // 跨组件同名 fn 图污染防护：codeFlowGraphs 全局按 fn 名取图，mergeCodeFlowGraphs
       // 跨文件同名后者覆盖——多组件同 fn 名时可能取到别的组件的图，保存时会把对方
       // fn 体静默写进本组件文件。fnRegistry.pid 与合成 fn 元素 id 同源（同一次 parse
@@ -189,7 +190,7 @@ export function createElementCrudSlice(set: SetFn, get: GetFn) {
           return fnEl && fnEl.id === f.pid ? g : null;
         })
         .filter((g): g is { elements: CodeblockElementData[]; wires: WireData[] } => Boolean(g));
-      if (graphs.length === 0) return;
+      if (graphs.length === 0 && (def?.lifecycles ?? []).length === 0) return;
       const existIds = new Set(s.elements.map((e) => e.id));
       // 物化元素可能缺 position（解析侧不生成）：先查持久化缓存（reload 布局保持），
       // 未命中再赋确定性行布局（y 递增 60），避免全部堆叠 (0,0) 互相遮挡（E2E 缺陷 3）；
@@ -213,6 +214,30 @@ export function createElementCrudSlice(set: SetFn, get: GetFn) {
           if (!existWireIds.has(w.id)) newWires.push(w);
         }
       }
+
+      // ── Lifecycle 成员（@mount/@effect/@unmount）── 合并循环
+      // 与 fn 图同构：lifecycleGraphs 按 pid 键取图（pid 全局唯一，无跨组件污染）；
+      // 入口元素 id 归属校验同 fn（解析侧合成 id 与 registry pid 同源）。位置处理
+      // 共用 layoutIdx/persistedPositions；wire 去重叠加 newWires（fn 图刚 push 的
+      // 同 id wire 不重复并入）。
+      const lifecycles = def?.lifecycles ?? [];
+      for (const lc of lifecycles) {
+        const g = s.lifecycleGraphs?.[lc.pid];
+        if (!g) continue;
+        const lcEl = g.elements.find((e) => e.tag === "lifecycle");
+        if (!lcEl || lcEl.id !== lc.pid) continue;
+        for (const e of g.elements) {
+          if (existIds.has(e.id)) continue;
+          if (e.position !== undefined) { newElements.push(e); continue; }
+          const persistedPos = persisted[e.id];
+          newElements.push({ ...e, position: persistedPos ?? { x: 0, y: layoutIdx++ * 60 } });
+        }
+        for (const w of g.wires) {
+          if (existWireIds.has(w.id) || newWires.some((nw) => nw.id === w.id)) continue;
+          newWires.push(w);
+        }
+      }
+
       // 加载时物化：直接 set（无 undo 条目，同 setElementPosition 哲学）。
       // 空合并短路：newElements/newWires 均空（全部已物化）时直接返回——
       // 不重建 elements/wires 数组，保持原引用，避免重复物化触发无意义的下游重渲染。

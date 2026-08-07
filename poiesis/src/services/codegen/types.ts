@@ -88,6 +88,13 @@ export interface FnDef {
   declKind?: "fn" | "action";
 }
 
+export interface LifecycleDef {
+  pid: string;
+  hookType: "mount" | "effect" | "unmount";
+  deps?: string;
+  body: string;
+}
+
 export interface ValidComponentPart {
   status: "valid";
   name: string;
@@ -100,6 +107,7 @@ export interface ValidComponentPart {
   consts: ConstDef[];
   props: PropDef[];
   events: EventDef[];
+  lifecycles?: LifecycleDef[];
 }
 
 export interface PartialComponentPart {
@@ -114,6 +122,7 @@ export interface PartialComponentPart {
   consts?: ConstDef[];
   props?: PropDef[];
   events?: EventDef[];
+  lifecycles?: LifecycleDef[];
   errors: Diagnostic[];
 }
 
@@ -278,6 +287,7 @@ export interface LoweredCode {
   functions: FnDef[];
   actions: Array<{ storeName: string; name: string; params: Array<{ name: string; type: string }>; body: string }>;
   getters: Array<{ name: string; returnType: string; body: string; deps: string[] }>;
+  lifecycles?: LifecycleDef[];
 }
 
 export interface ChainBlock {
@@ -316,6 +326,11 @@ export interface ParseResult {
 
   /** 组件 → fn 元数据（F2：componentDefs.fns 物化来源）。fn 名含组件上下文。 */
   fnRegistry?: Record<string, Array<{ pid: string; name: string; params: Array<{ name: string; type: string }>; returnType: string }>>;
+
+  /** 组件 → 生命周期成员（componentDefs.lifecycles 物化来源；键为声明组件名，见 componentName 注释） */
+  lifecycleRegistry?: Record<string, Array<{ pid: string; hookType: "mount" | "effect" | "unmount"; deps?: string }>>;
+  /** 生命周期图（pid 键）——materializeFnGraphs 合并来源 */
+  lifecycleGraphs?: Record<string, { elements: CodeblockElementData[]; wires: WireData[] }>;
 
   /** Parsed store definition (when source is a store .omni file). */
   storeDef?: import("../../core/types/store").StoreDefinition;

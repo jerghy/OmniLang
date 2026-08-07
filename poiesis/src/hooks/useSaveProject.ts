@@ -277,6 +277,7 @@ export function useSaveProject() {
           computeds: currentDef.computeds || [],
           events: currentDef.events || [],
           fns: currentDef.fns || [],
+          lifecycles: currentDef.lifecycles || [],
           elements: store.elements,
           wires: store.wires,
           rootOrder: store.rootOrder,
@@ -293,6 +294,7 @@ export function useSaveProject() {
           computeds: currentDef.computeds || [],
           events: currentDef.events || [],
           fns: currentDef.fns || [],
+          lifecycles: currentDef.lifecycles || [],
         });
       }
     } catch (e) {

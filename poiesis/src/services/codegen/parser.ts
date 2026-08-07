@@ -53,6 +53,8 @@ export class Parser {
   private indentMap = new Map<string, number>();
   private parsedFnBodies = new Map<string, { elements: CodeblockElementData[]; wires: WireData[] }>();
   private fnRegistry = new Map<string, Array<{ pid: string; name: string; params: Array<{ name: string; type: string }>; returnType: string; declKind?: "fn" | "action"; isAsync?: boolean }>>();
+  private lifecycleRegistry = new Map<string, Array<{ pid: string; hookType: "mount" | "effect" | "unmount"; deps?: string }>>();
+  private parsedLifecycleBodies = new Map<string, { elements: CodeblockElementData[]; wires: WireData[] }>();
   private libDef: LibFileDef | null = null;
   private filePath?: string;
 
@@ -503,9 +505,17 @@ export class Parser {
         case "IDENTIFIER":
           this.parseComponentKeyword();
           break;
-        case "AT":
+        case "AT": {
+          this.stream.consume(); // "@"
+          const hook = this.stream.peek().text;
+          if (hook === "mount" || hook === "effect" || hook === "unmount") {
+            this.parseLifecycleMember(hook as "mount" | "effect" | "unmount");
+            break;
+          }
+          // 非生命周期 @ 指令（如 @store）——parseAtStore 重构后不再消费 @
           this.parseAtStore();
           break;
+        }
         default:
           // Skip unknown tokens
           this.stream.consume();
@@ -601,7 +611,8 @@ export class Parser {
   }
 
   private parseAtStore(): void {
-    this.stream.consume(); // @
+    // @ 已由 parseComponentBody 的 AT case 消费（T6 重构：生命周期 @ 指令分流后
+    // parseAtStore 不再自行消费 @，唯一调用点 346 已确认）
     const kw = this.stream.peek()?.text;
     if (kw === "store") {
       this.stream.consume(); // "store"
@@ -829,6 +840,58 @@ export class Parser {
       const list = this.fnRegistry.get(comp) ?? [];
       list.push({ pid, name, params, returnType: "", declKind: "action", isAsync });
       this.fnRegistry.set(comp, list);
+    }
+  }
+
+  /** 生命周期成员（修复 G6）：`@mount {` / `@effect(deps) {` / `@unmount {`。
+   *  body-only 镜像 parseFn——全块文本进 parseCodeFlowGraph 会把未注解块 header
+   *  塞进 code-block source，故先提取 header 再收集 body。deps token 无空格拼接
+   *  （"searchText,setFilter"）——与 graph-parser 侧原始文本解析各自路径稳定。 */
+  private parseLifecycleMember(hook: "mount" | "effect" | "unmount"): void {
+    const pid = this.ctx.pendingPid || `lifecycle_${hook}_${uid()}`;
+    this.ctx.pendingPid = null;
+    this.stream.consume(); // "mount" | "effect" | "unmount"
+    let deps: string | undefined;
+    if (this.stream.peek().text === "(") {
+      this.stream.consume(); // "("
+      let d = "";
+      while (!this.stream.isEof() && this.stream.peek().text !== ")") {
+        d += this.stream.peek().text;
+        this.stream.consume();
+      }
+      if (this.stream.peek().text === ")") this.stream.consume();
+      deps = d;
+    }
+    // body 收集（花括号计数）
+    let body = "";
+    let depth = 0;
+    while (!this.stream.isEof()) {
+      const tok = this.stream.peek();
+      if (tok.kind === "BRACE_OPEN") {
+        depth++;
+        if (depth > 1) body += "{\n";
+        this.stream.consume();
+        continue;
+      }
+      if (tok.kind === "BRACE_CLOSE") {
+        depth--;
+        this.stream.consume();
+        if (depth === 0) break;
+        body += "}\n";
+        continue;
+      }
+      body += tok.text + " ";
+      this.stream.consume();
+    }
+    const { elements, wires } = parseCodeFlowGraph(body);
+    this.synthesizeFnEntry(hook, "", "", pid, elements, wires, "lifecycle", { hookType: hook, deps });
+    this.ensureBodyFallback(pid, body, elements, wires);
+    this.parsedLifecycleBodies.set(pid, { elements, wires });
+    const comp = this.ctx.currentComponent;
+    if (comp) {
+      const list = this.lifecycleRegistry.get(comp) ?? [];
+      list.push({ pid, hookType: hook, deps });
+      this.lifecycleRegistry.set(comp, list);
     }
   }
 
@@ -1754,6 +1817,12 @@ export class Parser {
     }
     if (this.fnRegistry.size > 0) {
       result.fnRegistry = Object.fromEntries(this.fnRegistry);
+    }
+    if (this.lifecycleRegistry.size > 0) {
+      result.lifecycleRegistry = Object.fromEntries(this.lifecycleRegistry);
+    }
+    if (this.parsedLifecycleBodies.size > 0) {
+      result.lifecycleGraphs = Object.fromEntries(this.parsedLifecycleBodies);
     }
     if (
       this.filePath &&

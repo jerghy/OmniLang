@@ -53,6 +53,7 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
   panels: { leftWidth: 240, rightWidth: 300 },
   undoStacks: {},
   codeFlowGraphs: {},
+  lifecycleGraphs: {},
   persistedPositions: {},
   libDefs: {},
 

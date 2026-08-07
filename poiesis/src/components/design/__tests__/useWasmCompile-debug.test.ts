@@ -94,6 +94,7 @@ describe("useWasmCompile 调试覆盖接线", () => {
           computeds: [],
           events: [],
           fns: [],
+          lifecycles: [],
           elements: [ELEMENT],
           wires: [],
           rootOrder: ["e1"],

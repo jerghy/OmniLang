@@ -27,7 +27,7 @@ interface ParsedSegment {
   startLine: number;
   endLine: number;
   code: string;
-  type: "fn" | "code-block" | "condition" | "return" | "let" | "assign" | "store-call" | "call" | "throw" | "await" | "while" | "for-in";
+  type: "fn" | "code-block" | "condition" | "return" | "let" | "assign" | "store-call" | "call" | "throw" | "await" | "while" | "for-in" | "lifecycle";
 }
 
 /**
@@ -154,7 +154,7 @@ function splitByPid(
 // detectSegmentType – classify a segment from its first non-empty line
 // ---------------------------------------------------------------------------
 
-type SegmentType = "fn" | "code-block" | "condition" | "return" | "let" | "assign" | "store-call" | "call" | "throw" | "await" | "while" | "for-in";
+type SegmentType = "fn" | "code-block" | "condition" | "return" | "let" | "assign" | "store-call" | "call" | "throw" | "await" | "while" | "for-in" | "lifecycle";
 
 /** Determine segment type from first non-empty line of code. */
 function detectSegmentType(
@@ -171,6 +171,9 @@ function detectSegmentType(
     trimmed.startsWith("else {")
   )
     return "condition";
+  // 生命周期块头（@mount/@effect/@unmount）：`@` 开头不匹配现有正则，显式前置防回归
+  // （否则带 // @pid 注释的生命cycle 段落入 code-block 回退，hookType/deps 丢失）。
+  if (/^@(mount|effect|unmount)\b/.test(trimmed)) return "lifecycle";
   // 多语句段 → code-block：首行是完整语句（以 ; 结尾）且后续还有非结构行时，
   // 段内含多条语句——归为 code-block 原样保真。否则单语句节点会吞并后续语句
   // （assign value 合入 "return" 等 → 语义丢失 + 编译-再解析 fixpoint 破坏；
@@ -205,6 +208,38 @@ function detectSegmentType(
   if (/^[a-zA-Z_]\w*(?:\s*\.\s*[a-zA-Z_]\w*)?\s*\(/.test(trimmed)) return "call";
   if (/^[a-zA-Z_]\w*(?:\s*\.\s*[a-zA-Z_]\w*)?\s*(?:=|\+=|-=|\*=|\/=|%=)\s*/.test(trimmed)) return "assign";
   return "code-block";
+}
+
+/**
+ * 引号/注释感知的顶层 ";" 计数——零段回退的单语句判定。字符串（' " `）、行注释
+ * （// 开头到行尾）、块注释（斜杠星号对）内的 ";" 不计：`"a;b"` 的字符串分号
+ * 不得把单语句误判成多语句（误判即整体丢弃 → 生命周期 body 数据丢失）。
+ */
+function countTopLevelSemicolons(s: string): number {
+  let count = 0;
+  let quote: string | null = null;
+  let blockComment = false;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i]!;
+    if (blockComment) {
+      if (ch === "*" && s[i + 1] === "/") { blockComment = false; i++; }
+      continue;
+    }
+    if (quote) {
+      if (ch === "\\") i++;
+      else if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === "/" && s[i + 1] === "/") {
+      i++;
+      while (i < s.length && s[i] !== "\n") i++;
+      continue;
+    }
+    if (ch === "/" && s[i + 1] === "*") { blockComment = true; i++; continue; }
+    if (ch === "'" || ch === '"' || ch === "`") { quote = ch; continue; }
+    if (ch === ";") count++;
+  }
+  return count;
 }
 
 // ---------------------------------------------------------------------------
@@ -474,6 +509,64 @@ function collectConditionBranches(
 }
 
 // ---------------------------------------------------------------------------
+// parseLifecycleSegment – 生命周期块防御路径（@mount/@effect/@unmount）
+// ---------------------------------------------------------------------------
+
+/**
+ * 解析生命周期成员块（修复 G6 防御路径）：`@mount {` / `@effect(deps) {` / `@unmount {`。
+ * 首行提取 hookType/deps（**原始文本**，保留 "searchText, setFilter" 的空格——与
+ * parser.ts parseLifecycleMember 的 token 无空格拼接各自路径稳定）；段内 `// @pid:`
+ * 注释取入口 id（无则 `lifecycle_${hookType}_${uid()}`；显式 pid 优先——分段路径
+ * splitByPid 已从注释解析出段 pid）。产出入口元素 + 首语句 wire `w_<pid>_0`
+ * （空 body 不 wire），镜像 synthesizeFnEntry 的合成形态。
+ */
+function parseLifecycleSegment(
+  code: string,
+  explicitPid?: string,
+): { elements: CodeblockElementData[]; wires: WireData[] } {
+  const lines = code.split("\n");
+  const headerIdx = lines.findIndex((l) => /^@(mount|effect|unmount)\b/.test(l.trim()));
+  const headerMatch = (headerIdx >= 0 ? lines[headerIdx] : "").trim()
+    .match(/^@(mount|effect|unmount)\s*(?:\((.*?)\))?/);
+  const hookType = (headerMatch?.[1] as "mount" | "effect" | "unmount") ?? "mount";
+  const deps = headerMatch?.[2] !== undefined ? headerMatch[2].trim() : undefined;
+  // 段内 // @pid: 注释取入口 id（显式 pid 优先——分段路径已解析过段 pid）
+  let pid = explicitPid ?? "";
+  if (!pid) {
+    for (const line of lines) {
+      const pidResult = parsePidAnnotation(line.trim());
+      if (pidResult) { pid = pidResult.pid; break; }
+    }
+  }
+  if (!pid) pid = `lifecycle_${hookType}_${uid()}`;
+  // body = header 行之后的所有行（收块 } 由 parseCodeFlowGraph 结构行防御消化）
+  const body = headerIdx >= 0 ? lines.slice(headerIdx + 1).join("\n") : code;
+  const { elements, wires } = parseCodeFlowGraph(body);
+  // 入口元素（镜像 synthesizeFnEntry：已有同 tag 元素则不重复合成）
+  if (!elements.some((e) => e.tag === "lifecycle")) {
+    elements.unshift({
+      id: pid,
+      nodeType: "codeblock",
+      tag: "lifecycle",
+      parentId: null,
+      props: { hookType, deps, name: hookType, params: "", returnType: "" },
+      source: "",
+    });
+  }
+  // 仅当存在语句时 wire 入口 → 首语句；空 body 不产生任何 wire
+  if (elements.length > 1 && !wires.some((w) => w.fromId === pid)) {
+    wires.push({
+      id: `w_${pid}_0`,
+      fromId: pid,
+      fromPort: "flow-out",
+      toId: elements[1].id,
+      toPort: "flow-in",
+    });
+  }
+  return { elements, wires };
+}
+
+// ---------------------------------------------------------------------------
 // parseCodeFlowGraph – main entry point
 // ---------------------------------------------------------------------------
 
@@ -496,7 +589,41 @@ export function parseCodeFlowGraph(
     return { elements: [], wires: [], pidMap: new Map() };
   }
 
+  // 生命周期块防御路径（修复 G6）：@mount/@effect/@unmount 块头无 // @pid 段注释时
+  // splitByPid 无 pid 段可产（整个块被丢弃）——先于分段处理直接走 parseLifecycleSegment。
+  const headTrimmed = fnBody.trimStart();
+  if (/^@(mount|effect|unmount)\b/.test(headTrimmed)) {
+    return { ...parseLifecycleSegment(fnBody), pidMap: new Map() };
+  }
+
   const { segments, pidMap } = splitByPid(fnBody);
+  // 零段回退（G6 生命周期未注解 body）：无 // @pid/// @<type> 注释的纯文本 body 会被
+  // splitByPid 整体丢弃（currentPid 恒空）。手写单语句 body（如生命周期
+  // "filterTasks(searchText);"）必须存活——否则 parser 侧编译产物带 tokenizer 空格
+  // （"filterTasks ( searchText ) ;"）且防御路径丢语句/线，生命周期编译-再解析闭环
+  // 断言（parser-lifecycle 测试 2/3）与磁盘保真双双失败。合成 pid 整块作单段结构化
+  // 解析（call/assign/return…，formatSyntaxNode 紧凑发射）；多语句（";" 引号感知计数）
+  // 保持 0 元素——fn 路径 ensureBodyFallback 原样兜底（task-1 未注解 fn body 语义不变），
+  // 生命周期防御路径维持"入口 + 无 wire"现状。
+  if (segments.length === 0) {
+    const lines = fnBody.split("\n");
+    // 结构尾行（生命周期块收块 "}"）不参与非空行计数与分类：防御路径 body 含收块
+    // （parseLifecycleSegment 整块透传），计入会把单语句误判成多语句代码块。
+    // 语句本身跨物理行（tokenizer NEWLINE 使 parser 侧 body 带 "\n "）同理——
+    // 空行不计数、分类只看语句行。
+    const bodyLines = lines.filter(
+      (l) => l.trim() && !(/^\}\s*else/.test(l.trim()) || /^else\s*(if\b|\{)/.test(l.trim()) || l.trim() === "}")
+    );
+    if (countTopLevelSemicolons(fnBody) <= 1 && bodyLines.length <= 1) {
+      segments.push({
+        pid: uid("cb"),
+        startLine: 0,
+        endLine: lines.length - 1,
+        code: fnBody.trimEnd(),
+        type: detectSegmentType(bodyLines),
+      });
+    }
+  }
   if (segments.length === 0) return { elements: [], wires: [], pidMap };
 
   const lineDepths = computeLineDepths(fnBody);
@@ -507,6 +634,10 @@ export function parseCodeFlowGraph(
   // -----------------------------------------------------------------------
   const elements: CodeblockElementData[] = [];
   const elemById = new Map<string, CodeblockElementData>();
+  // 生命周期段（带 // @pid 注释时经 splitByPid 入段）合并出的额外 wire——
+  // 元素循环内 push 会与 lineDepths/续接循环的段索引假设打架，统一收束在
+  // wire 重建完成后 append。
+  const lcExtraWires: WireData[] = [];
 
   for (let i = 0; i < segments.length; i++) {
     const seg = segments[i];
@@ -538,6 +669,17 @@ export function parseCodeFlowGraph(
       // ops 形态（"return ;" 误解析为 return(";") → 发射 "return ;;"），
       // 破坏 code-block 原样保真与 fixpoint（T3 G1 实证）。
       source = seg.code;
+    } else if (seg.type === "lifecycle") {
+      // 生命周期块段（// @pid 注释前置时经 detectSegmentType 命中）：入口元素 +
+      // body 链整体并入（与 fn 段同构）。入口 id 用段 pid——splitByPid 已从注释
+      // 解析出稳定 pid，不在此合成新 id（保 position/persistedPositions 稳定）。
+      const lcResult = parseLifecycleSegment(seg.code, seg.pid);
+      for (const le of lcResult.elements) {
+        elements.push(le);
+        elemById.set(le.id, le);
+      }
+      lcExtraWires.push(...lcResult.wires);
+      continue;
     } else if (
       seg.type === "let" ||
       seg.type === "assign" ||
@@ -664,6 +806,9 @@ export function parseCodeFlowGraph(
       }
     }
   }
+
+  // 生命周期段入口 wire 收束（见 lcExtraWires 声明处注释）
+  wires.push(...lcExtraWires);
 
   return { elements, wires, pidMap };
 }

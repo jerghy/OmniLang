@@ -122,6 +122,31 @@ function emitNode(
       return out;
     }
 
+    case "lifecycle": {
+      const hookType = (node.element.props?.hookType as "mount" | "effect" | "unmount") ?? "mount";
+      const deps = (node.element.props?.deps as string) || "";
+      const depsPart = hookType === "effect" && deps ? `(${deps})` : "";
+      let out = emitPidComment(pid);
+      out += `@${hookType}${depsPart} {\n`;
+
+      // Emit successors (the lifecycle body)
+      for (const succId of node.successors) {
+        const succ = adj.get(succId);
+        if (succ) out += emitNode(succ, adj, indent + 1, visited);
+      }
+
+      // Also check branch successors for lifecycle body nodes wired with branch ports
+      for (const [, branchIds] of node.branchSuccessors) {
+        for (const succId of branchIds) {
+          const succ = adj.get(succId);
+          if (succ) out += emitNode(succ, adj, indent + 1, visited);
+        }
+      }
+
+      out += `}`;
+      return out;
+    }
+
     case "code-block": {
       // Use structured operations if available, fall back to raw source
       const { operations } = node.element as CodeblockElementData;

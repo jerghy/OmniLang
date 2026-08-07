@@ -90,6 +90,7 @@ function defaultLoweredCode(): LoweredCode {
     functions: [],
     actions: [],
     getters: [],
+    lifecycles: [],
   };
 }
 
@@ -328,6 +329,32 @@ export function generateOmniSource(options: GenerateOmniSourceOptions): StageRes
           pub: (fnEl.props?.pub as boolean) || false,
         });
         fnMap.set(fnName, lowered.functions[lowered.functions.length - 1]);
+      }
+    }
+
+    // ── Lifecycle 成员（@mount/@effect/@unmount）── 物化注入
+    // 与 fn 注入同构：compileCodeFlowGraph 从生命周期入口元素编译（带 // @pid 注释
+    // 保证 id 稳定），innerBody 提取后按 pid 匹配更新（画布再编辑幂等）或新 push。
+    lowered.lifecycles ??= [];
+    for (const lcEl of codeFlowElements) {
+      if (lcEl.tag !== "lifecycle") continue;
+      const compiledLc = compileCodeFlowGraph(codeFlowElements, options.designWires, lcEl.id);
+      if (!compiledLc) continue;
+
+      const openBrace = compiledLc.indexOf("{");
+      const closeBrace = compiledLc.lastIndexOf("}");
+      const innerBody = openBrace !== -1 && closeBrace > openBrace
+        ? compiledLc.slice(openBrace + 1, closeBrace).trim()
+        : compiledLc;
+
+      const pid = lcEl.id;
+      const hookType = (lcEl.props?.hookType as "mount" | "effect" | "unmount") ?? "mount";
+      const deps = (lcEl.props?.deps as string) || undefined;
+      const existingLc = lowered.lifecycles.find((l) => l.pid === pid);
+      if (existingLc) {
+        existingLc.body = innerBody;
+      } else {
+        lowered.lifecycles.push({ pid, hookType, deps, body: innerBody });
       }
     }
   }

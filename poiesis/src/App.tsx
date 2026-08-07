@@ -81,6 +81,16 @@ async function loadOmniFiles(): Promise<void> {
     return (p.parseResult.fnRegistry?.[fnKey] ?? []).map((f) => ({ pid: f.pid, name: f.name, params: f.params, returnType: f.returnType }));
   };
 
+  // G6 物化辅助：lifecycleRegistry → ComponentDef.lifecycles 形状（与 materializeFns 同构）。
+  // 键对齐：lifecycleRegistry 以组件声明名（component Main → "Main"）为键，而 p.componentName
+  // 是文件名派生键（main.omni → "main"）——用 parseResult.componentName 查询，否则恒空
+  // → componentDefs.lifecycles 空 → materializeFnGraphs 生命周期合并循环空转（G6 断链）。
+  // registry 条目形状与 ComponentDef.lifecycles 直接一致（pid/hookType/deps），无需映射。
+  const materializeLifecycles = (p: ParsedFile): Array<{ pid: string; hookType: "mount" | "effect" | "unmount"; deps?: string }> => {
+    const lcKey = p.parseResult.componentName ?? p.componentName;
+    return p.parseResult.lifecycleRegistry?.[lcKey] ?? [];
+  };
+
   // ── Phase 1: Parse all files and load storeDefs BEFORE opening tabs ──
   // This prevents StorePage's useEffect from creating an empty default store
   // that overwrites the parsed store definition.
@@ -268,6 +278,7 @@ async function loadOmniFiles(): Promise<void> {
       wires: import("./core/types/wire").WireData[];
       rootOrder: string[];
       codeFlowGraphs: Record<string, { elements: import("./core/types/element").CodeblockElementData[]; wires: import("./core/types/wire").WireData[] }>;
+      lifecycleGraphs: Record<string, { elements: import("./core/types/element").CodeblockElementData[]; wires: import("./core/types/wire").WireData[] }>;
       libDefs: Record<string, LibFileDef>;
     }> = {};
     const newTabData = { ...store.tabData };
@@ -279,6 +290,15 @@ async function loadOmniFiles(): Promise<void> {
 
     // F1 物化：合并全部文件的 codeFlowGraphs（fn 名 → 图），写入 store 供 codeflow 画布消费。
     const mergedGraphs = mergeCodeFlowGraphs(parsed.map((p) => p.parseResult.codeFlowGraphs));
+
+    // G6 物化（偏离 brief：brief 只给了 lifecycles 物化，未给 lifecycleGraphs 写库——
+    // 不加则 materializeFnGraphs 生命周期合并循环读恒空 record，生命周期图加载后不上
+    // 画布，G6 数据链在加载步骤断）。与 mergedGraphs 同构：跨文件并集（pid 键全局唯一，
+    // 实际无冲突；Object.assign 后者胜与 mergeCodeFlowGraphs 语义一致）。
+    const mergedLifecycleGraphs: Record<string, { elements: import("./core/types/element").CodeblockElementData[]; wires: import("./core/types/wire").WireData[] }> = {};
+    for (const p of parsed) {
+      if (p.parseResult.lifecycleGraphs) Object.assign(mergedLifecycleGraphs, p.parseResult.lifecycleGraphs);
+    }
 
     // G4 物化：合并全部文件的 fileDefs（lib/组件头部 ROOT 层声明，按文件路径键），
     // 写入 store 供 code tab 物化消费（materializeLibGraphs）。每个文件的 fileDefs
@@ -318,6 +338,8 @@ async function loadOmniFiles(): Promise<void> {
           events: existing?.events ?? (p.parseResult.events || []).map((e: { name: string }) => ({ pid: uid("evt"), name: e.name, payloadType: "" })),
           // F2 物化：fnRegistry 为空时从解析结果物化 fns（保持 existing?.fns 短路语义，不覆盖既有编辑）。
           fns: existing?.fns ?? materializeFns(p),
+          // G6 物化：lifecycleRegistry → lifecycles（existing?.lifecycles 短路语义同 fns）。
+          lifecycles: existing?.lifecycles ?? materializeLifecycles(p),
         };
       } else if (p.parseResult.designElements) {
         // 仅「有 design 内容」的文件建 ComponentDef：lib/store 纯声明文件（designElements 为
@@ -333,6 +355,8 @@ async function loadOmniFiles(): Promise<void> {
           events: existing?.events ?? (p.parseResult.events || []).map((e: { name: string }) => ({ pid: uid("evt"), name: e.name, payloadType: "" })),
           // F2 物化：fnRegistry 为空时从解析结果物化 fns（保持 existing?.fns 短路语义，不覆盖既有编辑）。
           fns: existing?.fns ?? materializeFns(p),
+          // G6 物化：lifecycleRegistry → lifecycles（existing?.lifecycles 短路语义同 fns）。
+          lifecycles: existing?.lifecycles ?? materializeLifecycles(p),
           elements: p.elements,
           wires: p.wires,
           rootOrder: p.rootOrder,
@@ -346,6 +370,8 @@ async function loadOmniFiles(): Promise<void> {
 
     // F1 物化：fn 图合并结果写入 store.codeFlowGraphs（后续 materializeFnGraphs 消费）。
     stateUpdate.codeFlowGraphs = mergedGraphs;
+    // G6 物化：生命周期图合并结果写入 store.lifecycleGraphs（materializeFnGraphs 生命周期循环消费）。
+    stateUpdate.lifecycleGraphs = mergedLifecycleGraphs;
 
     // Find the main.omni tab ID — the active tab must match the main canvas
     // to avoid tabData corruption when switching tabs later.
