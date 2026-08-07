@@ -19,6 +19,7 @@ poiesis/public/wasm/
 # IDE
 .vscode/
 .idea/
+opencode.json
 
 # Logs and environment
 *.log
