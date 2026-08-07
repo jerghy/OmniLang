@@ -33,6 +33,7 @@ import { ComponentPalette } from "../components/panels/ComponentPalette";
 import { ComponentTree } from "../components/panels/ComponentTree";
 import { ContextInspector } from "../components/panels/ContextInspector";
 import { ComponentMembersPanel } from "../components/design/ComponentMembersPanel";
+import { LibMembersPanel } from "../components/code/LibMembersPanel";
 import { DesignToolbar } from "../components/design/DesignToolbar";
 import { usePoiesisStore } from "../store";
 import { useSaveProject } from "../hooks/useSaveProject";
@@ -237,7 +238,9 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
             ? "280px 1fr 300px"
             : showCodeFlowPanel
               ? "280px 1fr 240px"
-              : "1fr",
+              : activeTabType === "code"
+                ? "280px 1fr"
+                : "1fr",
           gridTemplateRows: "36px 32px 1fr 24px",
           height: "100vh",
           background: "var(--ol-gray-50)",
@@ -304,11 +307,26 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
         </div>
         )}
 
+        {/* Left panel: LibMembersPanel（code tab 常驻，无按钮开关——用户已确认） */}
+        {activeTabType === "code" && (
+        <div
+          style={{
+            gridRow: 3,
+            gridColumn: 1,
+            overflow: "hidden",
+            background: "var(--ol-surface)",
+            borderRight: "1px solid var(--ol-border)",
+          }}
+        >
+          <LibMembersPanel />
+        </div>
+        )}
+
         {/* Center: DesignCanvas for components, CodeFlowCanvas for store/code */}
         <div
           style={{
             gridRow: 3,
-            gridColumn: showDesignPanels ? 2 : showCodeFlowPanel ? 2 : "1 / -1",
+            gridColumn: showDesignPanels ? 2 : showCodeFlowPanel ? 2 : activeTabType === "code" ? 2 : "1 / -1",
             overflow: "hidden",
             display: "flex",
             flexDirection: "column",
