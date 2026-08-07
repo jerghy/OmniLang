@@ -33,6 +33,23 @@ def usage(domain: str, name: str) -> int:
         return len(re.findall(rf"\btoken\s+[a-zA-Z]+\s*:\s*{re.escape(name)}\b", demo_text))
     if domain == "6":
         return len(re.findall(rf"{re.escape(name)}\b", demo_text))
+    if domain == "7":
+        if name == "drag":
+            # @drag 计数排除 @drag-horizontal/@drag-vertical（scrubbing 触发器，域 1 motion 语义，避免误计）
+            return len(re.findall(r"@drag\s*=", demo_text)) - len(re.findall(r"@drag-horizontal\s*=|@drag-vertical\s*=", demo_text))
+        if name == "dragEnd":
+            return len(re.findall(r"@dragEnd\s*=", demo_text))
+        if name == "ref":
+            return len(re.findall(r"@ref\s*=|(?<![\w@])ref:\s*", demo_text))
+        if name in ("focus", "scroll-x", "scroll-y"):
+            return len(re.findall(rf"{re.escape(name)}\s*=\s*{{", demo_text))
+        if name == "style 动态绑定":
+            return len(re.findall(r"style:\s*\{", demo_text))
+        if name == "布尔属性":
+            return len(re.findall(
+                r"\b(?:controls|disabled|readonly|required|checked|selected|autofocus|multiple|loop|muted|async|defer|hidden|autocomplete|autoplay)\s*=",
+                demo_text,
+            ))
     return 0
 
 print("=" * 78)
@@ -71,8 +88,8 @@ EXEMPT = {
     # 动画族——触发需宿主 CSS @keyframes（DSL 无）；绑定可写但展示为「需宿主动画」说明面板
     ("4", "capturePointer"), ("4", "releasePointer"),
     # ADR-073 决策 3：显式 capturePointer 降级为编译器内部细节，demo 源码不再书写——
-    # 指针捕获意图由 ElementRefDemo 的 @drag/@dragEnd 绑定承担（同一演示语义的
-    # 意图形态；@drag 尚非本域登记册成员，语义集登记册演进见后续 spec 同步）
+    # 指针捕获意图由 ElementRefDemo 的 @drag/@dragEnd 绑定承担（域 7 已登记，意图形态
+    # 由 @drag 承担同一演示语义）
 }
 all_gaps = [g for g in all_gaps if (g[0], g[1]) not in EXEMPT]
 
