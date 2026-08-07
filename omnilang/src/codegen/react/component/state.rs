@@ -1408,15 +1408,43 @@ fn semantic_binding_deps(
                 .unwrap_or_else(|| format!("{}.{}", name, field));
         }
     }
-    let mut ids: Vec<String> = Vec::new();
     let mut acc = FxHashSet::default();
     collect_expr_identifiers(expr, &mut acc);
-    for id in acc {
-        if hoisted_signals.contains(&id) {
+    binding_deps_from_names(&acc, store_signal_map, store_field_renames, hoisted_signals)
+}
+
+/// Resolve a set of bare identifier names into a deterministic dep-array
+/// string — the shared tail of the semantic-binding deps and the
+/// direct-write B2 effect deps (single source for the store-slice / hoisted
+/// rules):
+///
+/// - A store field read (`CounterStore.text`) depends on the exact value the
+///   effect body reads: the slice local (`text`, T3.3) when the store is
+///   subscribed per field, otherwise the qualified expression
+///   (`CounterStore.text`) — never the store hook object, which is recreated
+///   on every store write and would re-fire the effect on unrelated updates.
+/// - A bare signal/computed depends on its own name (resolved through the
+///   store signal map for future-proofing; a computed name is a declared
+///   useMemo const — same emission form as the computed deps).
+/// - Hoisted signals (perf M3) are module-scope consts — never reactive —
+///   and are excluded from the deps (eslint react-hooks flags outer-scope
+///   values as "unnecessary dependency").
+///
+/// Callers filter out any useRef-stored D1/D2 names BEFORE calling: their
+/// bare names are undeclared (TS2304) and the ref identity is stable.
+pub(super) fn binding_deps_from_names(
+    names: &FxHashSet<String>,
+    store_signal_map: &FxHashMap<String, String>,
+    store_field_renames: &FxHashMap<String, String>,
+    hoisted_signals: &FxHashSet<String>,
+) -> String {
+    let mut ids: Vec<String> = Vec::new();
+    for id in names {
+        if hoisted_signals.contains(id) {
             continue;
         }
         let qualified = store_signal_map
-            .get(&id)
+            .get(id)
             .cloned()
             .unwrap_or_else(|| id.clone());
         ids.push(

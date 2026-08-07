@@ -167,6 +167,17 @@ impl ReactCodegen {
             .chain(direct_write_sets.d2.iter())
             .cloned()
             .collect();
+        // Phase 1 (Task 4): activated (ref × style-prop) pairs — the JSX
+        // style-prop exclusion list. Every activated entry is driven by the
+        // direct-write channel (D1 apply at mutation sites / B2 useEffect),
+        // never by the render path; keeping it in the style prop would
+        // re-apply a stale value on an unrelated re-render (double-path
+        // override race). Threaded to view.rs via the shared JSX context.
+        let direct_write_keys: FxHashSet<(String, String)> = direct_write_sets
+            .entries
+            .iter()
+            .map(|e| (e.ref_name.clone(), e.prop.clone()))
+            .collect();
 
         let value_consumed = collect_value_consumed_signals(comp);
         let mutation_call_targets = collect_call_mutation_targets(comp);
@@ -244,6 +255,11 @@ impl ReactCodegen {
             || has_motion
             || has_semantic_bindings
             || component_uses_pointer_ops(comp, view)
+            // Phase 1 (Task 4): B2 entries emit `useEffect` direct writes —
+            // a component with ONLY B2 entries (no user effects/motion/
+            // bindings) still needs the import, or the emitted `useEffect`
+            // is undeclared (TS2304).
+            || !direct_write_sets.b2_entries.is_empty()
         {
             hooks.push("useEffect".to_string());
         }
@@ -523,6 +539,7 @@ impl ReactCodegen {
             &used_store_refs,
             &store_field_renames,
             &wrapped_prop_fns,
+            &direct_write_keys,
         );
 
         // ── Emit imports ──
@@ -955,6 +972,21 @@ impl ReactCodegen {
             &possibly_undefined_handlers,
             &direct_write_names,
             &direct_write_applies,
+        );
+        // Phase 1 (Task 4): B2 direct-write effects. Placed AFTER the
+        // computeds (not next to gen_semantic_binding_effects): a B2 entry
+        // can read a computed (the fixture's `width: boxWidthPx`), and the
+        // effect's DEP ARRAY evaluates the computed name eagerly at the
+        // useEffect() call — before its `const x = useMemo(...)` declaration
+        // the name is in TDZ (TS2448/ReferenceError). Signals, store slice
+        // locals and refs are all declared before either position.
+        direct_write::gen_ref_style_effects(
+            &mut w,
+            &direct_write_sets,
+            &ref_names,
+            &store_signal_map,
+            &store_field_renames,
+            &hoisted_signals,
         );
 
         // Component-local function declarations
@@ -2035,6 +2067,7 @@ fn collect_prop_fn_memo_ctx(
     used_store_refs: &FxHashSet<String>,
     store_field_renames: &FxHashMap<String, String>,
     wrapped_prop_fns: &FxHashSet<String>,
+    direct_write_keys: &FxHashSet<(String, String)>,
 ) -> PropFnMemoCtx {
     let mut stable_idents: FxHashSet<String> = FxHashSet::default();
     stable_idents.extend(comp.signals.iter().map(|s| s.name.clone()));
@@ -2059,6 +2092,7 @@ fn collect_prop_fn_memo_ctx(
         memo_children: FxHashSet::default(),
         stable_idents,
         lib_fns: lib_fn_names.clone(),
+        direct_write_keys: direct_write_keys.clone(),
     };
     let mut memo_children: FxHashSet<String> = FxHashSet::default();
     if let Some(view) = view {
@@ -2075,6 +2109,7 @@ fn collect_prop_fn_memo_ctx(
         memo_children,
         stable_idents: ctx.stable_idents,
         lib_fns: ctx.lib_fns,
+        direct_write_keys: ctx.direct_write_keys,
     }
 }
 

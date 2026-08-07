@@ -141,7 +141,24 @@ fn collect_active_entries(node: &ViewTree, in_for: bool, out: &mut Vec<DirectWri
                 collect_active_entries(empty_body, true, out);
             }
         }
-        _ => {}
+        // Multi-element roots and slot fallbacks (Task 4 gap fix): lowering
+        // wraps multi-node view roots in ViewTree::Fragment — the collector
+        // must descend or a multi-sibling view silently deactivates the
+        // whole direct-write channel (entries=[] → style stays on the render
+        // path; the Drag fixture's single-div root masked this).
+        ViewTree::Fragment(children) => {
+            for child in children {
+                collect_active_entries(child, in_for, out);
+            }
+        }
+        ViewTree::Slot { fallback, .. } => {
+            for child in fallback {
+                collect_active_entries(child, in_for, out);
+            }
+        }
+        ViewTree::Text(_) | ViewTree::Interpolation(_) => {}
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
     }
 }
 
@@ -375,4 +392,76 @@ pub(super) fn apply_needs_sanitize(sets: &DirectWriteSets) -> bool {
                 if obj.contains_key("$concat") || obj.contains_key("$call") || obj.contains_key("$field")
         )
     })
+}
+
+// ═══════════════════════════════════════════════════════════
+// B2 effect emission (Phase 1, Task 4)
+// ═══════════════════════════════════════════════════════════
+
+/// Emit `useEffect(() => { {ref}Ref.current?.style.{prop} = value; }, [deps])`
+/// for B2 entries — entries whose value reads anything beyond D1 signals
+/// (computed / store field / prop / a plain signal left on useState), or
+/// reads nothing at all. Those entries cannot ride the mutation-site apply
+/// channel, so the style prop removal (Task 4) must be balanced by a
+/// dedicated effect; deps re-run the write exactly when a read value
+/// changes.
+///
+/// Deps = the entry's read signals MINUS D1/D2 names: D1/D2 are
+/// useRef-stored, their bare names would be undeclared (TS2304) and the ref
+/// identity is stable, so they add nothing to the re-run decision. The
+/// remaining names resolve through the shared semantic-binding deps logic
+/// (store slices / hoisted exclusion — `state::binding_deps_from_names`),
+/// so a computed dep emits its bare name (a declared useMemo const, mirror
+/// of the existing computed dep emission) and a store-field read follows
+/// the same slice renames as every other effect dep.
+///
+/// `--` custom properties use `style.setProperty` (a quoted `'--x'` after
+/// `style.` is invalid JS) — same special case as `build_apply_map`.
+pub(super) fn gen_ref_style_effects(
+    w: &mut crate::codegen::CodeWriter,
+    sets: &DirectWriteSets,
+    ref_names: &FxHashSet<String>,
+    store_signal_map: &FxHashMap<String, String>,
+    store_field_renames: &FxHashMap<String, String>,
+    hoisted_signals: &FxHashSet<String>,
+) {
+    if sets.b2_entries.is_empty() {
+        return;
+    }
+    let mut refs = ref_names.clone();
+    refs.extend(sets.d1.iter().cloned());
+    refs.extend(sets.d2.iter().cloned());
+    for e in &sets.b2_entries {
+        let value_js = format_style_value_expr(&e.value, &refs);
+        let dep_names: FxHashSet<String> = e
+            .read_signals
+            .iter()
+            .filter(|s| !sets.d1.contains(*s) && !sets.d2.contains(*s))
+            .cloned()
+            .collect();
+        let deps_str = super::state::binding_deps_from_names(
+            &dep_names,
+            store_signal_map,
+            store_field_renames,
+            hoisted_signals,
+        );
+        w.emit_fmt(format_args!("useEffect(() => {{"));
+        w.indent();
+        if e.prop.starts_with("--") {
+            w.emit_fmt(format_args!(
+                "{}Ref.current?.style.setProperty('{}', {});",
+                e.ref_name, e.prop, value_js
+            ));
+        } else {
+            w.emit_fmt(format_args!(
+                "{}Ref.current?.style.{} = {};",
+                e.ref_name,
+                format_style_prop_key(&e.prop),
+                value_js
+            ));
+        }
+        w.dedent();
+        w.emit_fmt(format_args!("}}, [{}]);", deps_str));
+        w.emit("");
+    }
 }

@@ -735,6 +735,18 @@ pub(super) fn gen_view_node_tsx(
                 if let Some(obj) = style_json.as_object() {
                     let mut pairs: Vec<String> = Vec::new();
                     for (prop, val) in obj {
+                        // Phase 1 (Task 4): 激活直写条目从 style prop 剔除
+                        // ——apply 在 mutation 点、B2 在 useEffect 直写，保留
+                        // render 路径会双写覆盖（无关重渲染把 style 重置回
+                        // 初值）。静态条目（字面量）不在 key 集，保留。
+                        if let Some(ref el_ref) = el.ref_binding {
+                            if prop_fn_ctx
+                                .direct_write_keys
+                                .contains(&(el_ref.clone(), prop.clone()))
+                            {
+                                continue;
+                            }
+                        }
                         let js_prop = format_style_prop_key(prop);
                         let js_val = format_style_value_expr(val, ref_names);
                         pairs.push(format!("{}: {}", js_prop, js_val));
@@ -1511,6 +1523,16 @@ pub(super) struct PropFnMemoCtx {
     /// Library fn names — module-scope consts, stable by construction (the
     /// event side of the memo check accepts these without a wrapper).
     pub lib_fns: FxHashSet<String>,
+    /// Phase 1 (Task 4): activated direct-write `(ref_name, style_prop)`
+    /// pairs — every activated style entry is driven by the direct-write
+    /// channel (D1 apply at mutation sites / B2 useEffect), never by the
+    /// render path; the JSX style prop must skip these pairs (a stale
+    /// re-apply on an unrelated re-render would override the live DOM
+    /// write — the double-path race). Static entries (literals) are not in
+    /// the set and stay in the style prop. Built by the component emitter
+    /// and threaded here through the shared JSX context (mod.rs → jsx.rs →
+    /// view.rs).
+    pub direct_write_keys: FxHashSet<(String, String)>,
 }
 
 /// Task 2.8: whether a child component instance is a React.memo candidate —

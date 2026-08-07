@@ -7735,3 +7735,72 @@ fn test_direct_write_compound_mutation_writes_ref_and_apply() {
         "D1 compound mutation must write the ref and inject the apply (fix round F3)"
     );
 }
+
+/// Task 4: 激活条目从 style prop 剔除（D1 apply 在 mutation 点直写、B2
+/// useEffect 直写，避免双路径覆盖竞态）；静态条目（字面量）保留。computed
+/// 驱动的条目落入 B2 → useEffect 直写（deps 复用语义绑定基建：computed
+/// 名裸发）。D1 条目不进 effect（handler 注入已覆盖）。
+#[test]
+fn test_direct_write_style_prop_removed_and_b2_effect() {
+    let comp = compile_component_ir(
+        r#"
+component Mix {
+  signal dragX: f64 = 0
+  signal boxWidthNum: f64 = 200
+  computed boxWidthPx: String = boxWidthNum.to_string() + "px"
+  ref box: Element
+  ref sb: Element
+  fn move(e) { dragX = e.x }
+  view {
+    <div @ref={box} @onPointerMove={move}
+         style: { transform: "translate(" + dragX + "px, 0px)", width: "100px" } />
+    <div @ref={sb} style: { width: boxWidthPx } />
+    <span>{boxWidthNum}</span>
+  }
+}
+"#,
+    );
+    let ir = make_ir(vec![("Mix".into(), comp)].into_iter().collect());
+    let comp_ref = ir
+        .modules
+        .get("main")
+        .unwrap()
+        .components
+        .get("Mix")
+        .unwrap();
+    let component_map = build_component_map(&ir);
+    let tsx = ReactCodegen::default().gen_component_tsx("Mix", comp_ref, &ir, &component_map);
+    // 激活条目（transform，D1）不进 style prop；静态条目（width）保留
+    assert!(
+        !tsx.contains("transform:"),
+        "active entry must NOT appear in style prop. Got:\n{}",
+        tsx
+    );
+    assert!(
+        tsx.contains("width: '100px'"),
+        "static style entry stays in style prop. Got:\n{}",
+        tsx
+    );
+    // B2：computed 驱动的条目 → useEffect 直写（fixture 的 ref 是 sb）
+    assert!(
+        tsx.contains("sbRef.current?.style.width ="),
+        "B2 entry emits effect direct write. Got:\n{}",
+        tsx
+    );
+    assert!(
+        tsx.contains("useEffect(() =>"),
+        "B2 write runs in useEffect. Got:\n{}",
+        tsx
+    );
+    // D1 条目不进 effect（handler 注入已覆盖）——transform 直写只允许出现
+    // 在 fn move 的 apply 注入点，不得出现在 useEffect 体内（本 fixture 的
+    // 唯一 useEffect 是 B2 直写）。按 effect 体边界（到 "}, [" 为止）截取，
+    // 不能按全文 split——handler 发射在 effect 之后，全文会误含 apply。
+    let first_effect = tsx.split("useEffect(() => {").nth(1).unwrap_or("");
+    let first_effect_body = first_effect.split("}, [").next().unwrap_or("");
+    assert!(
+        !first_effect_body.contains("boxRef.current?.style.transform"),
+        "D1 apply must NOT be in effect body. Got:\n{}",
+        tsx
+    );
+}
