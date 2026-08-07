@@ -147,6 +147,17 @@ pub(super) fn gen_view_node_tsx(
                 if el.ref_binding.is_some() {
                     // Only native HTML elements support @ref in the current phase
                 }
+                // @drag (ADR-073) needs the element handle (@ref) that
+                // component instances don't get in the current phase — the
+                // four synthesized pointer props would degrade to plain
+                // callback props on the child and capture would never work.
+                // Warn + skip (same family as the ref-forwarding note above).
+                if el.drag_binding.is_some() {
+                    warnings.lock().unwrap().push(
+                        "@drag 在组件实例上不支持（组件实例无 @ref 元素句柄）——@drag 已跳过，请在原生 HTML 元素上使用"
+                            .into(),
+                    );
+                }
                 // Partition children: elements carrying a literal
                 // `slot="name"` attribute, or consumer-position
                 // `@slot name { ... }` projections, matching a declared slot
@@ -708,6 +719,14 @@ pub(super) fn gen_view_node_tsx(
             for (event_name, setter_call) in &binding_events_map {
                 attrs.push(format!("{}={{(e) => {{ {}; }}}}", event_name, setter_call));
             }
+
+            // @drag draggable-intent wiring (ADR-073) — four synthesized
+            // pointer props (setPointerCapture + start snapshot / DragIntent
+            // move / release + optional end / release + clear). Capture is a
+            // compiler-internal detail, never user-facing syntax (ADR-071
+            // decision 3). A user's explicit pointer event on the same
+            // element wins the colliding prop (warn + skip the drag side).
+            emit_drag_react_attrs(el, &mut attrs, possibly_undefined, warnings);
 
             // Style classes from view — design classes emit literal names
             // (global rules in design.css), component classes stay CSS-module
@@ -1880,4 +1899,172 @@ fn append_class_attr(attrs: &mut Vec<String>, class_expr: String) {
     } else {
         attrs.push(format!("className={{{}}}", class_expr));
     }
+}
+
+// ══════════════════════════════════════════════════════
+// @drag draggable-intent wiring (ADR-073)
+// ══════════════════════════════════════════════════════
+
+/// Emit the four JSX pointer props that implement `@drag` (ADR-073): drag
+/// is a compiler-synthesized gesture over native Pointer Events, not a DOM
+/// event, so the capture lifecycle is emitted per-ref-element (ADR-071
+/// decision 3 — capture is a compiler-internal detail, never user-facing
+/// syntax):
+///   onPointerDown    → setPointerCapture + snapshot the start onto the
+///                      `{ref}_dragStartRef` useRef cell (React state
+///                      space — component functions have no DOM access)
+///   onPointerMove    → while dragging, call `on_drag` with a synthesized
+///                      DragIntent object
+///                      `{ x, y, dx, dy, pointerId, startX, startY }`
+///   onPointerUp      → release + clear + (optional) `on_drag_end` with the
+///                      same DragIntent shape read from a start snapshot
+///   onPointerCancel  → release + clear
+///
+/// A user's explicit pointer event on the same element wins the colliding
+/// prop — the drag side is skipped with a warning (a duplicated JSX prop
+/// would be a tsc error TS17001 and a silent React drop); the other three
+/// drag props stay wired.
+fn emit_drag_react_attrs(
+    el: &ElementIR,
+    attrs: &mut Vec<String>,
+    possibly_undefined: &FxHashSet<String>,
+    warnings: &Mutex<Vec<String>>,
+) {
+    let Some(drag) = &el.drag_binding else {
+        return;
+    };
+    let Some(ref ref_name) = &el.ref_binding else {
+        // Defensive: semantic/validate_drag hard-errors @drag without @ref
+        // (the start-snapshot cell keys off the ref name).
+        warnings
+            .lock()
+            .unwrap()
+            .push("[react] @drag 需要同元素 @ref——已跳过 @drag 接线".into());
+        return;
+    };
+    let EventHandlerIR::FnRef {
+        r#ref: move_fn,
+        used_fields,
+        ..
+    } = &drag.on_drag
+    else {
+        // Unreachable: lowering always produces FnRef for drag handlers
+        // (validate_drag enforces bare function names).
+        warnings
+            .lock()
+            .unwrap()
+            .push("[react] @drag 处理器必须是函数名（FnRef），已跳过".into());
+        return;
+    };
+    // Task 5.6 (deferral #61) parity: a possibly-undefined target (event
+    // prop / null-initialized signal) uses the optional call form; local
+    // fns are always defined and stay bare `f(...)`.
+    let call = |name: &str| {
+        if possibly_undefined.contains(name) {
+            format!("{}?.", name)
+        } else {
+            name.to_string()
+        }
+    };
+    let move_call = call(move_fn);
+    let state_ref = format!("{}_dragStartRef", ref_name);
+    let state_expr = format!("{}.current", state_ref);
+
+    let mut props: Vec<(String, String)> = Vec::new();
+    // pointerdown: capture the pointer + snapshot the start point
+    props.push((
+        "onPointerDown".into(),
+        format!(
+            "e.currentTarget.setPointerCapture(e.pointerId); {state_expr} = {{ x: e.clientX, y: e.clientY }};"
+        ),
+    ));
+    // pointermove: drag-guarded synthesized DragIntent call (dx/dy computed
+    // against the start snapshot)
+    let move_obj = drag_event_object_react(used_fields, &state_expr);
+    let move_body = if move_obj == "{}" {
+        format!("if ({state_expr}) {move_call}();")
+    } else {
+        format!("if ({state_expr}) {move_call}({move_obj});")
+    };
+    props.push(("onPointerMove".into(), move_body));
+    // pointerup: snapshot the start BEFORE clearing, so the end handler
+    // reads the same DragIntent shape from the snapshot var `s`
+    let end_js = match &drag.on_drag_end {
+        Some(EventHandlerIR::FnRef {
+            r#ref: end_fn,
+            used_fields: end_fields,
+            ..
+        }) => {
+            let end_call = call(end_fn);
+            let end_obj = drag_event_object_react(end_fields, "s");
+            if end_obj == "{}" {
+                format!(" if (s) {end_call}();")
+            } else {
+                format!(" if (s) {end_call}({end_obj});")
+            }
+        }
+        Some(_) => {
+            warnings
+                .lock()
+                .unwrap()
+                .push("[react] @dragEnd 处理器必须是函数名（FnRef），已跳过".into());
+            String::new()
+        }
+        None => String::new(),
+    };
+    props.push((
+        "onPointerUp".into(),
+        format!(
+            "e.currentTarget.releasePointerCapture?.(e.pointerId); const s = {state_expr}; {state_expr} = null;{end_js}"
+        ),
+    ));
+    // pointercancel: release + clear only
+    props.push((
+        "onPointerCancel".into(),
+        format!("e.currentTarget.releasePointerCapture?.(e.pointerId); {state_expr} = null;"),
+    ));
+
+    for (prop, body) in props {
+        if attrs.iter().any(|a| a.starts_with(&format!("{prop}="))) {
+            warnings.lock().unwrap().push(format!(
+                "元素 @drag 与显式 {prop} 事件共存——{prop} 以显式事件为准，@drag 的 {prop} 接线已跳过"
+            ));
+            continue;
+        }
+        attrs.push(format!("{prop}={{(e) => {{ {body} }}}}"));
+    }
+}
+
+/// Build the DragIntent event object literal for a drag handler call.
+///
+/// DragIntent fields are synthesized (start snapshot + pointer delta), not
+/// raw event passthrough — the shared `emit_event_object_react` cannot
+/// express them (its DragIntent mapping falls through to `undefined`), so
+/// the object is built here, honoring `used_fields` with the same
+/// filter-in-schema-order + `?? 0` fallback semantics. `state` names the
+/// drag-start snapshot: `{ref}_dragStartRef.current` for pointermove, `s`
+/// for the pointerup snapshot.
+fn drag_event_object_react(used_fields: &Option<Vec<String>>, state: &str) -> String {
+    let all: Vec<(String, String)> = vec![
+        ("x".into(), "e.clientX".into()),
+        ("y".into(), "e.clientY".into()),
+        ("dx".into(), format!("e.clientX - {state}.x")),
+        ("dy".into(), format!("e.clientY - {state}.y")),
+        ("pointerId".into(), "e.pointerId".into()),
+        ("startX".into(), format!("{state}.x")),
+        ("startY".into(), format!("{state}.y")),
+    ];
+    let fields: Vec<String> = match used_fields {
+        Some(used) if !used.is_empty() => all
+            .into_iter()
+            .filter(|(name, _)| used.contains(name))
+            .map(|(name, extract)| format!("{name}: {extract} ?? 0"))
+            .collect(),
+        Some(_) => return "{}".to_string(),
+        None => all
+            .into_iter()
+            .map(|(name, extract)| format!("{name}: {extract} ?? 0"))
+            .collect(),
+    };
+    format!("{{ {} }}", fields.join(", "))
 }

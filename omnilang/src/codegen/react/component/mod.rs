@@ -395,6 +395,11 @@ impl ReactCodegen {
         // lowering yet.
         let ref_tags = state::collect_ref_tags(view);
 
+        // @drag (ADR-073): `{ref}_dragStartRef` useRef cells backing the
+        // pointerdown start-point snapshot (React state space — component
+        // functions have no direct DOM access).
+        let drag_start_refs = state::collect_drag_start_refs(view);
+
         // Motion animation names — used to filter motion refs from event handlers
         let motion_names: FxHashSet<String> = ir
             .modules
@@ -874,7 +879,13 @@ impl ReactCodegen {
             &store_field_renames,
             &user_types,
         );
-        state::gen_ref_hooks(&mut w, comp, &ref_tags, &motion_internal_refs);
+        state::gen_ref_hooks(
+            &mut w,
+            comp,
+            &ref_tags,
+            &motion_internal_refs,
+            &drag_start_refs,
+        );
         // Phase 1: D1/D2 signal storage — `const nameRef = useRef<T>(init);`
         // cells replacing the useState path (reads/mutations resolve to
         // `{name}Ref.current`; Task 3 emission contract).

@@ -7910,3 +7910,226 @@ component Mix3 {
         tsx
     );
 }
+
+// ── @drag draggable-intent wiring (ADR-073) ──────────
+
+/// @drag/@dragEnd lower into ElementIR.drag_binding; React must synthesize
+/// the four JSX pointer props (drag is not a DOM event — ADR-073 decision 3,
+/// capture is a compiler-internal detail, never user-facing syntax):
+///   onPointerDown    → setPointerCapture + snapshot the start onto the
+///                      `{ref}_dragStartRef` useRef cell (React state
+///                      space — component functions have no DOM access)
+///   onPointerMove    → drag-guarded; computes dx/dy from the snapshot and
+///                      calls the move handler with the DragIntent object
+///                      `{ x, y, dx, dy, pointerId, startX, startY }`
+///   onPointerUp      → release + clear + (optional) on_drag_end call
+///   onPointerCancel  → release + clear
+#[test]
+fn test_drag_binding_emits_pointer_props() {
+    let source = r#"
+component DragBox {
+  signal lastDx: Float = 0
+  signal lastDy: Float = 0
+  signal lastX: Float = 0
+  ref box: Element
+  fn move(e) {
+    lastDx = e.dx
+    lastDy = e.dy
+    lastX = e.x
+  }
+  fn end(e) {
+    lastX = e.startX
+  }
+  view {
+    <div ref:box @drag={move} @dragEnd={end}>content</div>
+  }
+}
+"#;
+    let output = compile_react(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    // drag start lives in a useRef cell (React state space — no DOM
+    // attribute on the element, unlike OmniView's el.__dragStart).
+    assert!(
+        content.contains("const box_dragStartRef = useRef<{ x: number; y: number } | null>(null)"),
+        "drag start must live in a typed useRef cell. Got:\n{}",
+        content
+    );
+    // pointerdown: capture the pointer + snapshot the start point
+    assert!(
+        content.contains("e.currentTarget.setPointerCapture(e.pointerId)"),
+        "pointerdown should capture the pointer. Got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("box_dragStartRef.current = { x: e.clientX, y: e.clientY }"),
+        "pointerdown should snapshot the start point. Got:\n{}",
+        content
+    );
+    // pointermove: drag-guarded, dx/dy computed from the snapshot
+    assert!(
+        content.contains("if (box_dragStartRef.current) move({"),
+        "pointermove should be drag-guarded and call the move handler. Got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("dx: e.clientX - box_dragStartRef.current.x"),
+        "dx must be computed against the start snapshot. Got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("dy: e.clientY - box_dragStartRef.current.y"),
+        "dy must be computed against the start snapshot. Got:\n{}",
+        content
+    );
+    // pointerup: release + clear + optional end handler (reads the same
+    // DragIntent shape from the snapshot var `s`)
+    assert!(
+        content.contains("e.currentTarget.releasePointerCapture?.(e.pointerId)"),
+        "pointerup should release the capture. Got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("if (s) end({"),
+        "pointerup should call the end handler. Got:\n{}",
+        content
+    );
+    // pointercancel: release + clear only
+    assert!(
+        content.contains("onPointerCancel"),
+        "pointercancel should be wired. Got:\n{}",
+        content
+    );
+    // the drag handlers must be declared — the synthesized wiring calls
+    // them by bare name (TS2304 if collect_called_local_fns misses them)
+    assert!(
+        content.contains("const move = ("),
+        "move handler must be declared. Got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("const end = ("),
+        "end handler must be declared. Got:\n{}",
+        content
+    );
+    // capturePointer (the OmniView mechanism name) never leaks into React
+    // output — the intent is internalized (ADR-071 decision 3).
+    assert!(
+        !content.contains("capturePointer("),
+        "capturePointer is a compiler-internal detail — must not leak. Got:\n{}",
+        content
+    );
+    // used_fields honored: only fields the handlers read are extracted
+    // (dx/dy/x for move, startX for end) — no full-schema object
+    assert!(
+        !content.contains("startY:"),
+        "unused DragIntent fields must not be emitted. Got:\n{}",
+        content
+    );
+    assert!(
+        !content.contains("pointerId:"),
+        "unused DragIntent fields must not be emitted. Got:\n{}",
+        content
+    );
+}
+
+/// @drag without @dragEnd: pointerup/cancel release + clear, no end callback.
+#[test]
+fn test_drag_binding_without_drag_end_skips_end_call() {
+    let source = r#"
+component DragBox {
+  ref box: Element
+  fn move(e) { }
+  view {
+    <div ref:box @drag={move}>content</div>
+  }
+}
+"#;
+    let output = compile_react(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    assert!(
+        content.contains("onPointerUp"),
+        "pointerup should still be wired for release + clear. Got:\n{}",
+        content
+    );
+    assert!(
+        !content.contains("if (s) end("),
+        "no on_drag_end → no end callback call. Got:\n{}",
+        content
+    );
+}
+
+/// A user's explicit pointer event on the same element coexisting with
+/// @drag: the explicit handler wins, the colliding drag prop is skipped
+/// with a warning (a duplicated JSX prop would be a tsc error TS17001 and
+/// a silent React drop) — the other three drag props stay wired.
+#[test]
+fn test_drag_binding_coexisting_pointer_event_keeps_user_handler() {
+    let source = r#"
+component DragBox {
+  ref box: Element
+  fn move(e) { }
+  fn onDown(e) { }
+  view {
+    <div ref:box @drag={move} @onPointerDown={onDown}>content</div>
+  }
+}
+"#;
+    let result = crate::compile_multi_internal(
+        FxHashMap::from_iter([("input.omni".to_string(), source.to_string())]),
+        crate::codegen::Target::React,
+        crate::path_mapping::derive_path_mapping(&FxHashMap::from_iter([(
+            "input.omni".to_string(),
+            source.to_string(),
+        )])),
+        false,
+        false,
+        None,
+    );
+    assert!(result.success, "compilation failed: {:?}", result.errors);
+    let content: String = result
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    // user handler kept, no duplicated onPointerDown prop
+    assert!(
+        content.contains("onPointerDown={onDown}"),
+        "explicit onPointerDown must keep the user handler. Got:\n{}",
+        content
+    );
+    assert_eq!(
+        content.matches("onPointerDown=").count(),
+        1,
+        "no duplicate onPointerDown props. Got:\n{}",
+        content
+    );
+    // the drag wiring degrades on the colliding prop but keeps the rest
+    // (pointerdown held the capture call — the move channel is the check)
+    assert!(
+        content.contains("if (box_dragStartRef.current) move()"),
+        "non-colliding drag props must stay wired. Got:\n{}",
+        content
+    );
+    assert!(
+        result
+            .warnings
+            .iter()
+            .any(|w| w.message.contains("onPointerDown")),
+        "collision must warn. Got warnings: {:?}",
+        result.warnings
+    );
+}

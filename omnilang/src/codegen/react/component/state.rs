@@ -960,6 +960,68 @@ fn collect_view_store_refs_from_handlers(node: &ViewTree, acc: &mut FxHashSet<St
     }
 }
 
+/// Collect the `{ref}_dragStartRef` useRef cell names for every element
+/// carrying a `@drag` binding (ADR-073): the pointerdown start-point
+/// snapshot must live in React state space (useRef), never on the DOM
+/// element — a React component function has no direct DOM access. The
+/// element is guaranteed to carry a ref binding (validate_drag hard-errors
+/// otherwise); the defensive skip here mirrors the codegen-side guard in
+/// view.rs. Sorted for deterministic output.
+pub(super) fn collect_drag_start_refs(view: Option<&ViewTree>) -> Vec<String> {
+    let mut acc = Vec::new();
+    if let Some(view) = view {
+        collect_drag_start_refs_inner(view, &mut acc);
+    }
+    acc.sort();
+    acc
+}
+
+fn collect_drag_start_refs_inner(node: &ViewTree, acc: &mut Vec<String>) {
+    match node {
+        ViewTree::Element(el) => {
+            if el.drag_binding.is_some() {
+                if let Some(ref ref_name) = el.ref_binding {
+                    acc.push(format!("{}_dragStartRef", ref_name));
+                }
+            }
+            for child in &el.children {
+                collect_drag_start_refs_inner(child, acc);
+            }
+        }
+        ViewTree::Conditional(cond) => {
+            for branch in &cond.branches {
+                if let Some(ref body) = branch.body {
+                    collect_drag_start_refs_inner(body, acc);
+                }
+            }
+            if let Some(ref fb) = cond.fallback {
+                collect_drag_start_refs_inner(fb, acc);
+            }
+        }
+        ViewTree::ListRendering(list) => {
+            if let Some(ref body) = list.body {
+                collect_drag_start_refs_inner(body, acc);
+            }
+            if let Some(ref empty_body) = list.empty_body {
+                collect_drag_start_refs_inner(empty_body, acc);
+            }
+        }
+        ViewTree::Fragment(children) => {
+            for child in children {
+                collect_drag_start_refs_inner(child, acc);
+            }
+        }
+        ViewTree::Slot { fallback, .. } => {
+            for child in fallback {
+                collect_drag_start_refs_inner(child, acc);
+            }
+        }
+        ViewTree::Text(_) | ViewTree::Interpolation(_) => {}
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
+    }
+}
+
 // ═══════════════════════════════════════════════════════════
 // Ref codegen: ref declarations → useRef hooks
 // ═══════════════════════════════════════════════════════════
@@ -1028,13 +1090,16 @@ fn collect_ref_tags_inner(node: &ViewTree, acc: &mut FxHashMap<String, String>) 
 ///
 /// `motion_internal_refs` are synthesized `__el_N` refs for motion elements
 /// without a user `@ref` — (ref_name, tag) pairs in DFS pre-order.
+/// `drag_start_refs` are the `{ref}_dragStartRef` cells backing `@drag`
+/// (ADR-073) — full cell names, emitted last.
 pub(super) fn gen_ref_hooks(
     w: &mut CodeWriter,
     comp: &ComponentIR,
     ref_tags: &FxHashMap<String, String>,
     motion_internal_refs: &[(String, String)],
+    drag_start_refs: &[String],
 ) {
-    if comp.refs.is_empty() && motion_internal_refs.is_empty() {
+    if comp.refs.is_empty() && motion_internal_refs.is_empty() && drag_start_refs.is_empty() {
         return;
     }
     for ref_decl in &comp.refs {
@@ -1055,6 +1120,15 @@ pub(super) fn gen_ref_hooks(
         w.emit_fmt(format_args!(
             "const {}Ref = useRef<{}>(null);",
             ref_name, ts_type
+        ));
+    }
+    // @drag start snapshots (ADR-073) — `{ref}_dragStartRef` useRef cells
+    // holding the pointerdown start point in React state space. Typed
+    // `{ x: number; y: number } | null` (null = not dragging).
+    for name in drag_start_refs {
+        w.emit_fmt(format_args!(
+            "const {} = useRef<{{ x: number; y: number }} | null>(null);",
+            name
         ));
     }
     w.emit("");

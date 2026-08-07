@@ -333,6 +333,17 @@ fn collect_called_fns_from_view(node: &ViewTree, acc: &mut FxHashSet<String>) {
             for binding in el.class_map_bindings.values() {
                 collect_called_fns_from_expr(binding, acc);
             }
+            // @drag/@dragEnd handlers (ADR-073) — the synthesized pointer
+            // wiring calls them by bare name; without this the emitted JSX
+            // references an undeclared const (TS2304).
+            if let Some(drag) = &el.drag_binding {
+                if let EventHandlerIR::FnRef { r#ref, .. } = &drag.on_drag {
+                    acc.insert(r#ref.clone());
+                }
+                if let Some(EventHandlerIR::FnRef { r#ref, .. }) = &drag.on_drag_end {
+                    acc.insert(r#ref.clone());
+                }
+            }
             // C1: prop values may CALL component fns (src={getTitle()}) or
             // reference them by VALUE (transform={shout}) — the emitted JSX
             // references both forms, so both must be collected. Identifier
