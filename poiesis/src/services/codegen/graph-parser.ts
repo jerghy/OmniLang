@@ -614,7 +614,9 @@ export function parseCodeFlowGraph(
     const bodyLines = lines.filter(
       (l) => l.trim() && !(/^\}\s*else/.test(l.trim()) || /^else\s*(if\b|\{)/.test(l.trim()) || l.trim() === "}")
     );
-    if (countTopLevelSemicolons(fnBody) <= 1 && bodyLines.length <= 1) {
+    // 恰好 1 条语句行才回退：0 条（空 body / 纯结构行 "}"）不得产出幻影元素
+    // （否则 `@mount {\n}` 防御路径出现 code-block "}" + 幽灵 wire——空 body 无 wire 契约）。
+    if (countTopLevelSemicolons(fnBody) <= 1 && bodyLines.length === 1) {
       segments.push({
         pid: uid("cb"),
         startLine: 0,

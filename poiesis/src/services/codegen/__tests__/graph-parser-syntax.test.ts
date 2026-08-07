@@ -283,3 +283,56 @@ throw new Error("a . b");
     expect(g.elements[0].props?.value).toBe('new Error("a . b")');
   });
 });
+
+describe("graph-parser 生命周期段（G6）", () => {
+  it("@mount 段（防御路径）：入口元素 tag/hookType + body 语句 + wire", () => {
+    const r = parseCodeFlowGraph(`@mount {
+  initRows();
+}
+`);
+    expect(r.elements[0]).toMatchObject({ tag: "lifecycle", props: { hookType: "mount" } });
+    expect(r.elements[0].id).toMatch(/^lifecycle_mount_/);
+    expect(r.elements).toHaveLength(2);
+    expect(r.elements[1].tag).toBe("call");
+    expect(r.wires).toHaveLength(1);
+    expect(r.wires[0]?.fromId).toBe(r.elements[0].id);
+  });
+
+  it("@unmount 段：hookType=unmount（deps 恒无）", () => {
+    const r = parseCodeFlowGraph(`@unmount {
+  cleanup();
+}
+`);
+    expect(r.elements[0]).toMatchObject({ tag: "lifecycle", props: { hookType: "unmount" } });
+    expect((r.elements[0].props as Record<string, unknown>).deps).toBeUndefined();
+    expect(r.wires).toHaveLength(1);
+  });
+
+  it("空 body 生命周期：仅入口元素 + 无 wire", () => {
+    const r = parseCodeFlowGraph(`@mount {
+}
+`);
+    expect(r.elements).toHaveLength(1);
+    expect(r.elements[0].tag).toBe("lifecycle");
+    expect(r.wires).toHaveLength(0);
+  });
+
+  it("段内 // @pid 注释取入口 id（分段路径）", () => {
+    const r = parseCodeFlowGraph(`// @pid:lc-stable-1
+@effect(searchText, setFilter) {
+  filterTasks(searchText);
+}
+`);
+    expect(r.elements[0].id).toBe("lc-stable-1");
+    expect(r.elements[0].tag).toBe("lifecycle");
+    expect(r.elements[0].props).toMatchObject({ hookType: "effect", deps: "searchText, setFilter" });
+    expect(r.elements).toHaveLength(2);
+    expect(r.wires).toHaveLength(1);
+  });
+
+  it("零段回退负分支：多语句未注解 body 保持 0 元素（不吞并语句）", () => {
+    const r = parseCodeFlowGraph("let a = 1;\nlet b = 2;");
+    expect(r.elements).toHaveLength(0);
+    expect(r.wires).toHaveLength(0);
+  });
+});

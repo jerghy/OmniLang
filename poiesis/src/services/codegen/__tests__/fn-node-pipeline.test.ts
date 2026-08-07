@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { generateOmniSource } from "../pipeline";
+import { parseOmniSource } from "../omni-parser";
+import { compileCodeFlowGraph } from "../graph-compiler";
 import type { ElementData, CodeTab } from "../../../core/types";
 
 const basicCodeTabs: CodeTab[] = [
@@ -117,5 +119,87 @@ describe("fn node through generateOmniSource", () => {
       expect(result.value).not.toContain("handleAdd(: String");
       expect(result.value).not.toContain("handleAdd( )");
     }
+  });
+});
+
+describe("lifecycle 节点经 generateOmniSource（G6 注入闭环）", () => {
+  it("lifecycle 元素注入：@effect(deps)/@mount 发射格式 + pid 注释前置", () => {
+    const elements: ElementData[] = [
+      {
+        id: "lc-effect-1", nodeType: "codeblock", tag: "lifecycle",
+        props: { hookType: "effect", deps: "searchText,setFilter" }, parentId: null, source: "",
+      },
+      {
+        id: "cb-1", nodeType: "codeblock", tag: "call",
+        props: { fnName: "filterTasks", args: "searchText", emit: false }, parentId: null, source: "",
+      },
+      {
+        id: "lc-mount-1", nodeType: "codeblock", tag: "lifecycle",
+        props: { hookType: "mount" }, parentId: null, source: "",
+      },
+      {
+        id: "cb-2", nodeType: "codeblock", tag: "call",
+        props: { fnName: "initRows", args: "", emit: false }, parentId: null, source: "",
+      },
+    ];
+    const wires = [
+      { id: "w1", fromId: "lc-effect-1", fromPort: "flow-out", toId: "cb-1", toPort: "flow-in" },
+      { id: "w2", fromId: "lc-mount-1", fromPort: "flow-out", toId: "cb-2", toPort: "flow-in" },
+    ];
+    const result = generateOmniSource({
+      designElements: elements,
+      designWires: wires,
+      codeTabs: basicCodeTabs,
+      componentName: "App",
+    });
+    expect(result.errors.filter((e) => e.severity === "fatal")).toHaveLength(0);
+    // 发射格式：pid 注释前置 + deps 括号仅 effect + body 紧凑语句
+    expect(result.value).toMatch(/\/\/ @pid:lc-effect-1\n\s*@effect\(searchText,setFilter\) \{/);
+    expect(result.value).toContain("filterTasks(searchText);");
+    expect(result.value).toMatch(/\/\/ @pid:lc-mount-1\n\s*@mount \{/);
+    expect(result.value).toContain("initRows();");
+  });
+});
+
+describe("生命周期闭环：parse → 图 → compile → 再解析 fixpoint（G6）", () => {
+  it("含 @effect/@mount 组件：registry/图按 pid 键、发射格式、编译产物嵌回后重解析再编译逐字节相等", () => {
+    const src = `component Main {
+  signal searchText: String = "";
+  @effect(searchText, setFilter) {
+    filterTasks(searchText);
+  }
+  @mount {
+    initRows();
+  }
+  view {
+    <div id="root"></div>
+  }
+}`;
+    const r = parseOmniSource(src);
+    const registry = r.lifecycleRegistry!["Main"];
+    expect(registry.map((l) => l.hookType)).toEqual(["effect", "mount"]);
+    const effectGraph = r.lifecycleGraphs![registry[0].pid];
+    const compiled = compileCodeFlowGraph(effectGraph.elements, effectGraph.wires, effectGraph.elements[0].id)!;
+    // 发射格式断言
+    expect(compiled).toMatch(/^\/\/ @pid:/);
+    expect(compiled).toContain("@effect(searchText,setFilter) {");
+    expect(compiled).toContain("filterTasks(searchText);");
+
+    // 再解析 fixpoint：编译产物嵌回组件 → 重解析 → 再编译逐字节相等（id 稳定 + 语句紧凑）
+    const reparseSrc = `component Main {
+  signal searchText: String = "";
+${compiled}
+  @mount {
+    initRows();
+  }
+  view {
+    <div id="root"></div>
+  }
+}`;
+    const r2 = parseOmniSource(reparseSrc);
+    const pid2 = r2.lifecycleRegistry!["Main"][0].pid;
+    const graph2 = r2.lifecycleGraphs![pid2];
+    const compiled2 = compileCodeFlowGraph(graph2.elements, graph2.wires, graph2.elements[0].id)!;
+    expect(compiled2).toBe(compiled);
   });
 });
