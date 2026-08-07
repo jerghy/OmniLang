@@ -25,6 +25,10 @@ impl ReactCodegen {
     /// statement emitter, so no setter references remain).
     /// `hoisted_signals` (perf M3) were already emitted as module-scope consts
     /// before the component function — they are skipped here entirely.
+    /// Phase 1: `direct_write_signals` (D1/D2) are skipped too — they store in
+    /// `useRef` cells (`gen_direct_write_storage` in direct_write.rs); emitting
+    /// a useState for them would leave the ref cell and the state value
+    /// divergent.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn gen_state_hooks(
         &self,
@@ -34,11 +38,17 @@ impl ReactCodegen {
         mutated_signals: &FxHashSet<String>,
         pruned_signals: &FxHashSet<String>,
         hoisted_signals: &FxHashSet<String>,
+        direct_write_signals: &FxHashSet<String>,
         fn_names: &FxHashSet<String>,
         store_field_renames: &FxHashMap<String, String>,
         user_types: &FxHashSet<String>,
     ) {
         for state in &comp.signals {
+            // Phase 1: D1/D2 直写域信号——useRef 存储（gen_direct_write_storage
+            // 发射），绝不经 useState 路径。
+            if direct_write_signals.contains(&state.name) {
+                continue;
+            }
             // v4 H2: 有可达 mutation 的信号必须保留 state hook——
             // mutation 发射（含 fn 体）引用 setter。仅当读与写都缺失才跳过。
             let mutated = mutated_signals.contains(&state.name);
@@ -216,7 +226,10 @@ fn hoisted_const_annotation(ty: &TypeIR, user_types: &FxHashSet<String>) -> Stri
             if matches!(name.as_str(), "Map" | "HashMap" | "FxHashMap" | "Dict" | "Record")
     );
     if is_map && js_type_resolves(ty, user_types) {
-        format!(": {}", JsTypeFormatter.format_type(ty.kind.as_str(), &ty.type_args))
+        format!(
+            ": {}",
+            JsTypeFormatter.format_type(ty.kind.as_str(), &ty.type_args)
+        )
     } else {
         String::new()
     }
@@ -232,7 +245,9 @@ fn hoisted_const_annotation(ty: &TypeIR, user_types: &FxHashSet<String>) -> Stri
 /// deferral #49) since types.rs declares them inline into every file that
 /// references them. `any` is left untyped: a literal initializer (`[]`, `""`,
 /// `0`) infers a strictly better type than `any`.
-fn typed_state_annotation(ty: &TypeIR, user_types: &FxHashSet<String>) -> String {
+/// Shared with direct_write.rs (the D1/D2 useRef storage emission applies
+/// the identical gate to its `useRef<T>` generic).
+pub(super) fn typed_state_annotation(ty: &TypeIR, user_types: &FxHashSet<String>) -> String {
     if !js_type_resolves(ty, user_types) {
         return String::new();
     }

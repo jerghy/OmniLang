@@ -7404,3 +7404,50 @@ component StaticConcat {
         sets.b2_entries[0].read_signals
     );
 }
+
+#[test]
+fn test_direct_write_storage_emits_use_ref() {
+    let comp = compile_component_ir(
+        r#"
+component Drag {
+  signal dragX: f64 = 0
+  signal dragY: f64 = 0
+  signal dragOriginX: f64 = 0
+  signal dragging: Bool = false
+  ref box: Element
+  fn start(e) { dragging = true; dragOriginX = e.x }
+  fn move(e) { dragX = e.x - dragOriginX; dragY = dragX }
+  view {
+    <div @ref={box} @onPointerDown={start} @onPointerMove={move}
+         style: { transform: "translate(" + dragX + "px, " + dragY + "px)" }
+         class: { Active: dragging } />
+  }
+}
+"#,
+    );
+    let ir = make_ir(vec![("Drag".into(), comp)].into_iter().collect());
+    let comp_ref = ir.modules.get("main").unwrap().components.get("Drag").unwrap();
+    let component_map = build_component_map(&ir);
+    let tsx = ReactCodegen::default().gen_component_tsx("Drag", comp_ref, &ir, &component_map);
+    assert!(
+        tsx.contains("const dragXRef = useRef<number>(0);"),
+        "D1 storage must be useRef. Got:\n{}",
+        tsx
+    );
+    assert!(
+        tsx.contains("const dragOriginXRef = useRef<number>(0);"),
+        "D2 storage must be useRef. Got:\n{}",
+        tsx
+    );
+    assert!(
+        !tsx.contains("useState<number>(0)") || !tsx.contains("dragX"),
+        "dragX must NOT be a useState. Got:\n{}",
+        tsx
+    );
+    // dragging 有 class 消费 → 仍 useState
+    assert!(
+        tsx.contains("const [dragging, setDragging] = useState<boolean>(false);"),
+        "dragging stays useState. Got:\n{}",
+        tsx
+    );
+}

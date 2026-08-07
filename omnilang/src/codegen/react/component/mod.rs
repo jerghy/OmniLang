@@ -166,14 +166,31 @@ impl ReactCodegen {
             .cloned()
             .collect();
 
+        // ── Phase 1: direct-write channel classification (D1/D2) ──
+        // D1 (direct-write) / D2 (write-only) signals store in `useRef`
+        // cells (`gen_direct_write_storage` below) instead of useState —
+        // their render-path reads are consumed by the active style entries
+        // and their mutations move to direct DOM writes (Task 3 emission
+        // contract). The union set gates both the useState import decision
+        // (has_mutable_states) and the per-signal skip (gen_state_hooks).
+        let direct_write_sets = direct_write::classify_direct_write(comp);
+        let direct_write_names: FxHashSet<String> = direct_write_sets
+            .d1
+            .iter()
+            .chain(direct_write_sets.d2.iter())
+            .cloned()
+            .collect();
+
         // Determine if any state actually needs useState (has active setter)
         // v4 H2: 计入写专用信号（现会发射 useState）；排除 pruned 信号
         // （mutation 被剪枝、无 setter 引用——hook 不发射，import 也不得
         // 触发，否则 unused import）。
-        let has_mutable_states = comp
-            .signals
-            .iter()
-            .any(|s| mutated_signals.contains(&s.name) && !pruned_signals.contains(&s.name));
+        // Phase 1: 再排除 D1/D2 直写域信号（useRef 存储，不走 useState）。
+        let has_mutable_states = comp.signals.iter().any(|s| {
+            mutated_signals.contains(&s.name)
+                && !pruned_signals.contains(&s.name)
+                && !direct_write_names.contains(&s.name)
+        });
         // Component-local fn names — used by the task 2.8 prop-fn analysis
         // (fns passed by value to child components) and by the fn emission
         // and state hooks below.
@@ -698,7 +715,13 @@ impl ReactCodegen {
             &mutated_signals,
             &module_reserved_names,
         );
-        state::gen_hoisted_signal_consts(&mut w, comp, &hoisted_signals, &store_field_renames, &user_types);
+        state::gen_hoisted_signal_consts(
+            &mut w,
+            comp,
+            &hoisted_signals,
+            &store_field_renames,
+            &user_types,
+        );
 
         // Component function signature
         if !has_props {
@@ -796,11 +819,16 @@ impl ReactCodegen {
             &mutated_signals,
             &pruned_signals,
             &hoisted_signals,
+            &direct_write_names,
             &fn_names,
             &store_field_renames,
             &user_types,
         );
         state::gen_ref_hooks(&mut w, comp, &ref_tags, &motion_internal_refs);
+        // Phase 1: D1/D2 signal storage — `const nameRef = useRef<T>(init);`
+        // cells replacing the useState path (reads/mutations resolve to
+        // `{name}Ref.current`; Task 3 emission contract).
+        direct_write::gen_direct_write_storage(&mut w, comp, &direct_write_sets, &user_types);
         // ── Active-pointer tracker listener (task 2.11, L1) ──
         // Registered in a mount effect, removed on unmount — the old
         // module-level `if (typeof window ...) window.addEventListener(...)`

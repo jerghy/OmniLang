@@ -239,3 +239,49 @@ fn comp_mutated_signals(comp: &ComponentIR) -> FxHashSet<String> {
     let called = super::function::collect_called_local_fns(comp);
     super::state::collect_signal_mutations(comp, &called)
 }
+
+// ═══════════════════════════════════════════════════════════
+// D1/D2 storage emission (Phase 1, Task 2)
+// ═══════════════════════════════════════════════════════════
+
+/// Emit `const nameRef = useRef<T>(initial);` for D1/D2 signals.
+///
+/// D1 (direct-write) and D2 (write-only) signals move OFF the useState
+/// path into a `useRef` cell: D1 reads resolve to `{name}Ref.current`
+/// inside fn/effect bodies (always the live value — Task 3 emission
+/// contract) and mutations inject a direct DOM write; D2 has no output
+/// reads at all. The initializer and the TS generic reuse the exact
+/// useState translation (`format_expr_ir_tsx` + `typed_state_annotation`,
+/// the same gate state.rs applies — a type that does not resolve in the
+/// generated file stays unannotated). Sorted by name for deterministic
+/// output; a trailing blank line separates the block from the effects
+/// that follow (mirrors gen_ref_hooks).
+pub(super) fn gen_direct_write_storage(
+    w: &mut crate::codegen::CodeWriter,
+    comp: &ComponentIR,
+    sets: &DirectWriteSets,
+    user_types: &FxHashSet<String>,
+) {
+    let mut direct_sorted: Vec<String> = sets.d1.iter().chain(sets.d2.iter()).cloned().collect();
+    direct_sorted.sort();
+    if direct_sorted.is_empty() {
+        return;
+    }
+    for name in &direct_sorted {
+        let sig = comp.signals.iter().find(|s| s.name == *name).unwrap();
+        let init = crate::codegen::react::expr::format_expr_ir_tsx(
+            &sig.initial_value,
+            &FxHashSet::default(),
+        );
+        let type_ann = super::state::typed_state_annotation(&sig.r#type, user_types);
+        if type_ann.is_empty() {
+            w.emit_fmt(format_args!("const {}Ref = useRef({});", name, init));
+        } else {
+            w.emit_fmt(format_args!(
+                "const {}Ref = useRef<{}>({});",
+                name, type_ann, init
+            ));
+        }
+    }
+    w.emit("");
+}
