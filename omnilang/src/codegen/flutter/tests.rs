@@ -574,6 +574,9 @@ fn fmt_view_with_program_and_map<'a>(
         file: None,
         motion_counter: &mut motion_counter,
         widget_names: &FxHashSet::default(),
+        direct_write_signals: &FxHashSet::default(),
+        errors: &mut Vec::new(),
+        direct_write: &crate::codegen::shared::direct_write::DirectWriteSets::default(),
         fn_renames: &FxHashMap::default(),
         comp: &dummy_comp(),
         hoisted: &mut hoisted,
@@ -610,6 +613,9 @@ fn fmt_view_in(
         file: None,
         motion_counter: &mut motion_counter,
         widget_names: &FxHashSet::default(),
+        direct_write_signals: &FxHashSet::default(),
+        errors: &mut Vec::new(),
+        direct_write: &crate::codegen::shared::direct_write::DirectWriteSets::default(),
         fn_renames: &FxHashMap::default(),
         comp: &dummy_comp(),
         hoisted: &mut hoisted,
@@ -7793,6 +7799,9 @@ fn test_store_action_in_inline_handler_body() {
         file: None,
         motion_counter: &mut motion_counter,
         widget_names: &FxHashSet::default(),
+        direct_write_signals: &FxHashSet::default(),
+        errors: &mut Vec::new(),
+        direct_write: &crate::codegen::shared::direct_write::DirectWriteSets::default(),
         fn_renames: &FxHashMap::default(),
         comp: &dummy_comp(),
         hoisted: &mut hoisted,
@@ -7903,6 +7912,9 @@ fn test_store_action_method_call_form_in_handler() {
         file: None,
         motion_counter: &mut motion_counter,
         widget_names: &FxHashSet::default(),
+        direct_write_signals: &FxHashSet::default(),
+        errors: &mut Vec::new(),
+        direct_write: &crate::codegen::shared::direct_write::DirectWriteSets::default(),
         fn_renames: &FxHashMap::default(),
         comp: &dummy_comp(),
         hoisted: &mut hoisted,
@@ -8135,6 +8147,9 @@ fn test_ref_key_on_widget_and_controller_attachment() {
         file: None,
         motion_counter: &mut motion_counter,
         widget_names: &FxHashSet::default(),
+        direct_write_signals: &FxHashSet::default(),
+        errors: &mut Vec::new(),
+        direct_write: &crate::codegen::shared::direct_write::DirectWriteSets::default(),
         fn_renames: &FxHashMap::default(),
         comp: &dummy_comp(),
         hoisted: &mut hoisted,
@@ -8180,6 +8195,9 @@ fn test_ref_key_on_widget_and_controller_attachment() {
         file: None,
         motion_counter: &mut motion_counter,
         widget_names: &FxHashSet::default(),
+        direct_write_signals: &FxHashSet::default(),
+        errors: &mut Vec::new(),
+        direct_write: &crate::codegen::shared::direct_write::DirectWriteSets::default(),
         fn_renames: &FxHashMap::default(),
         comp: &dummy_comp(),
         hoisted: &mut hoisted,
@@ -8220,6 +8238,9 @@ fn test_ref_key_on_widget_and_controller_attachment() {
         file: None,
         motion_counter: &mut motion_counter,
         widget_names: &FxHashSet::default(),
+        direct_write_signals: &FxHashSet::default(),
+        errors: &mut Vec::new(),
+        direct_write: &crate::codegen::shared::direct_write::DirectWriteSets::default(),
         fn_renames: &FxHashMap::default(),
         comp: &dummy_comp(),
         hoisted: &mut hoisted,
@@ -11028,5 +11049,242 @@ component DragBox {
         sets.b2_entries.is_empty(),
         "all-D1 entry is not B2: {:?}",
         sets.b2_entries
+    );
+}
+
+// ── Task 13: D1/D2 ValueNotifier storage + mutation direct write ──────────
+// ADR-071 decision 2 (Phase 1, Flutter): signals whose reads are confined to
+// dynamic-style entries (D1) or that are write-only (D2) stop being plain
+// State fields + setState mutations — they become
+// `final _name = ValueNotifier<T>(init);` fields; mutations write
+// `_name.value = ...` with NO setState wrapper (zero whole-tree rebuild).
+// Render-path signals (dragging) keep the setState form.
+
+#[test]
+fn test_flutter_direct_write_value_notifier() {
+    let source = r#"
+component DragBox {
+  signal dragging: Bool = false
+  signal dragX: f64 = 0
+  signal dragOriginX: f64 = 0
+  ref box: Element
+  fn start() { dragging = true; dragOriginX = 10 }
+  fn move(e) { dragX = e.dx - dragOriginX }
+  view {
+    <div @ref={box} @onPress={start} @drag={move}
+         style: { transform: "translate(" + dragX + "px, 0px)" }
+         class: { Active: dragging } />
+  }
+}
+"#;
+    let flutter = compile_flutter_full(source);
+    assert!(flutter.success, "compile failed: {:?}", flutter.errors);
+    let out: String = flutter
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    // D1/D2 storage: `_`-prefixed ValueNotifier fields — `final _dragX =
+    // ValueNotifier<double>(0);` (ADR-071). Plain signals keep fields.
+    assert!(
+        out.contains("final _dragX = ValueNotifier<double>(0);"),
+        "D1 storage must be a ValueNotifier field, got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("final _dragOriginX = ValueNotifier<double>(0);"),
+        "D2 storage must be a ValueNotifier field, got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("bool dragging = false;"),
+        "render-path signal stays a plain field, got:\n{}",
+        out
+    );
+    assert!(
+        !out.contains("double dragX = 0;"),
+        "D1 signal must not remain a plain State field"
+    );
+    assert!(
+        !out.contains("double dragOriginX = 0;"),
+        "D2 signal must not remain a plain State field"
+    );
+
+    // Mutations: direct `.value` writes — no setState wrapper.
+    assert!(
+        out.contains("_dragOriginX.value = 10;"),
+        "D2 mutation must write the notifier directly, got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("_dragX.value = e.dx - _dragOriginX.value;"),
+        "D1 mutation must write the notifier directly (RHS self-read via \
+         `.value`), got:\n{}",
+        out
+    );
+
+    // The D1/D2 writes must sit OUTSIDE any setState closure. start() also
+    // rebuilds dragging (render-path) — assert the D2 write lands AFTER the
+    // setState block closes in that method, and move() has no setState at all.
+    // (Void-returning fns emit no return-type prefix — `start() {`.)
+    let start_body = out
+        .split("start() {")
+        .nth(1)
+        .and_then(|s| s.split("\n}").next())
+        .unwrap_or("");
+    let post_setstate = start_body.rsplit("});").next().unwrap_or("");
+    assert!(
+        post_setstate.contains("_dragOriginX.value = 10;"),
+        "D2 write must come after the setState block in start(), got:\n{}",
+        start_body
+    );
+    let move_body = out
+        .split("move(e) {")
+        .nth(1)
+        .and_then(|s| s.split("\n}").next())
+        .unwrap_or("");
+    assert!(
+        !move_body.contains("setState"),
+        "move() must not wrap the D1 write in setState, got:\n{}",
+        move_body
+    );
+
+    // The render-path mutation (dragging = true) still rebuilds via setState.
+    assert!(
+        out.contains("setState(() {"),
+        "render-path signal mutation keeps the setState wrapper"
+    );
+}
+
+// ── Task 14: Flutter 动态 style 表达式化（ADR-071 Phase 1 直接写入 channel）──
+
+/// Dynamic `style` on a `@ref`'d element with an active entry compiles to a
+/// ListenableBuilder wrap driven by the entry's read signals (ValueNotifier
+/// names, D1/D2 storage from Task 13) + a Transform.translate mapping of the
+/// `"translate(xpx, ypx)"` concat shape.
+#[test]
+fn test_flutter_style_binding_listenable_builder() {
+    let flutter = compile_flutter_full(
+        r#"
+component DragBox {
+  signal dragX: f64 = 0
+  signal dragY: f64 = 0
+  ref box: Element
+  fn move(e) { dragX = e.dx; dragY = e.dy }
+  view {
+    <div @ref={box} @drag={move}
+         style: { transform: "translate(" + dragX + "px, " + dragY + "px)" } />
+  }
+}
+"#,
+    );
+    assert!(
+        flutter.success,
+        "fixture must compile: {:?}",
+        flutter.errors
+    );
+    let dart: String = flutter
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        dart.contains("ListenableBuilder("),
+        "expected ListenableBuilder wrap, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("listenable: Listenable.merge([_dragX, _dragY])"),
+        "expected merged listenables, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("Transform.translate("),
+        "expected Transform.translate, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("offset: Offset(_dragX.value, _dragY.value)"),
+        "expected Offset from .value reads, got:\n{}",
+        dart
+    );
+}
+
+/// A dynamic style value that cannot map to any Flutter widget parameter
+/// (here `letterSpacing`) must produce a compile-time diagnostic instead of
+/// the old silent drop.
+#[test]
+fn test_flutter_unmappable_style_diagnostic() {
+    let flutter = compile_flutter_full(
+        r#"
+component LetterBox {
+  signal ls: f64 = 0
+  ref box: Element
+  fn bump() { ls = ls + 1 }
+  view {
+    <div @ref={box} @onPress={bump} style: { letterSpacing: ls } />
+  }
+}
+"#,
+    );
+    assert!(
+        !flutter.success,
+        "unmappable dynamic style must fail compilation"
+    );
+    let msg = flutter
+        .errors
+        .iter()
+        .map(|e| e.message.clone())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        msg.contains("letterSpacing"),
+        "diagnostic must mention the property: {}",
+        msg
+    );
+}
+
+#[test]
+fn test_flutter_b2_style_entry_bare_names_no_listenable() {
+    // The entry reads `shifted` — a COMPUTED signal (never D1/D2, keeps its
+    // render-path derivation; Task 12 boundary) → the entry is B2: bare
+    // name reads, no ListenableBuilder, setState rebuild channel.
+    let flutter = compile_flutter_full(
+        r#"
+component DragBox {
+  signal posX: f64 = 0
+  computed shifted: f64 = posX + 10
+  ref box: Element
+  fn move(e) { posX = e.dx }
+  view {
+    <div @ref={box} @drag={move}
+         style: { transform: "translate(" + shifted + "px, 0px)" } />
+  }
+}
+"#,
+    );
+    assert!(
+        flutter.success,
+        "B2 fixture must compile: {:?}",
+        flutter.errors
+    );
+    let dart: String = flutter
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        dart.contains("Transform.translate(offset: Offset(shifted, 0.0)"),
+        "B2 must use bare name (render-path/computed signal), got:\n{}",
+        dart
+    );
+    assert!(
+        !dart.contains("ListenableBuilder"),
+        "B2 must not wrap in ListenableBuilder, got:\n{}",
+        dart
     );
 }

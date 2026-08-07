@@ -1,12 +1,17 @@
 //! View tree formatting for Flutter codegen.
 
 use crate::codegen::json::escape_literal_str;
+use crate::codegen::shared::direct_write::{
+    match_style_pattern, DirectWriteEntry, DirectWriteSets, StylePattern,
+};
 use crate::codegen::shared::inline_handler::{build_inline_handler, InlineHandlerConfig};
 use crate::codegen::shared::stmt::FormatStmt;
 use crate::codegen::CodeWriter;
+use crate::error::{Diagnostic, DiagnosticKind, Severity};
 use crate::ir::*;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
+use serde_json::Value;
 
 use super::capitalize_first;
 use super::design::DesignResolver;
@@ -22,7 +27,7 @@ use super::motion::{
 };
 use super::motion_widgets::{emit_event_object_flutter, field_extract_flutter};
 use super::r#ref::{ref_focus_name, ref_key_name, ref_scroll_name, ref_text_name, RefUsage};
-use super::stmt::{generate_statement_flutter, FlutterStmtFormatter};
+use super::stmt::{generate_statement_flutter_dw, FlutterStmtFormatter};
 use super::utils::{
     bind_value_write_back, binding_to_flutter_param, callback_is_void, convert_literal_prop_value,
     css_color_to_dart, event_to_flutter_callback, generic_event_wrapper_callback,
@@ -91,6 +96,20 @@ pub(crate) struct ViewContext<'a> {
     /// (Task 5.8a). Without it a typed Map signal's `contains` fell to the
     /// runtime `is Map` dispatch — unnecessary_type_check under dart analyze.
     pub(crate) comp_type_scope: &'a FxHashMap<String, String>,
+    /// Compiler errors accumulated during view formatting (Task 14) —
+    /// unmappable direct-write style values fail compilation instead of
+    /// silently dropping (the old `Some(_) => skip` behavior).
+    pub(crate) errors: &'a mut Vec<Diagnostic>,
+    /// Target-independent direct-write classification (Task 12): entries =
+    /// dynamic style values on @ref'd elements; d1/d2 = ValueNotifier-stored
+    /// signal names (Task 13 storage), b2_entries = render-path-dependent
+    /// entries (setState rebuild channel, bare signal names).
+    pub(crate) direct_write: &'a DirectWriteSets,
+    /// Phase 3 (Task 13, ADR-071 decision 2): d1 ∪ d2 signal NAMES — inline
+    /// handler statements mutate those signals via `_name.value` (no
+    /// setState); the State fields were renamed `_name` (bare names would be
+    /// undeclared identifiers in Dart).
+    pub(crate) direct_write_signals: &'a FxHashSet<String>,
 }
 
 impl ViewContext<'_> {
@@ -106,6 +125,30 @@ impl ViewContext<'_> {
             line,
             col,
         ));
+    }
+
+    /// Push a compile-time codegen error positioned at the element's source
+    /// span (Task 14) — the diagnostic channel for unmappable direct-write
+    /// style values (replaces the old silent drop). Same anchor rules as
+    /// `warn_at`: file from the component's source file, line/col from the
+    /// element's span, honest `-:0:0` for span-less hand-built IR.
+    pub(crate) fn error_at(
+        &mut self,
+        message: impl Into<String>,
+        span: Option<crate::lexer::Span>,
+    ) {
+        let (line, col) = span.map_or((0, 0), |s| (s.line, s.col));
+        self.errors.push(Diagnostic {
+            severity: Severity::Error,
+            kind: DiagnosticKind::ECodegen,
+            message: message.into(),
+            file: self.file.clone(),
+            line,
+            col,
+            end_line: None,
+            end_col: None,
+            suggestion: None,
+        });
     }
 
     /// Does the named handler reference a function with NO parameters?
@@ -1233,6 +1276,188 @@ fn element_is_const(el: &ElementIR, ctx: &ViewContext) -> bool {
     el.children.iter().all(|c| view_node_is_const(c, ctx))
 }
 
+/// Direct-write channel wraps accumulated while formatting an element
+/// (Task 14, ADR-071): the entry's D1/D2 read signals drive a
+/// ListenableBuilder, and the translate shape maps to a
+/// `Transform.translate` around the fully rendered widget.
+#[derive(Default)]
+struct StyleChannelWrap {
+    /// `offset:` expression for the Transform.translate wrap
+    /// (`Offset(x, y)` with signal reads resolved to storage form).
+    offset: Option<String>,
+    /// Sorted, deduplicated ValueNotifier names (`_dragX`) for
+    /// `Listenable.merge([...])`.
+    listenables: Vec<String>,
+    /// Extra constructor args from Direct-channel shapes mapped to widget
+    /// parameters (`width: _w.value`, `padding: EdgeInsets.all(_p.value)`).
+    params: Vec<String>,
+}
+
+/// Emit one active direct-write entry's style value into the channel wraps:
+///
+/// * `Translate` — `"translate(xpx, ypx)"` concat → `Transform.translate`
+///   wrap (`offset: Offset(x, y)`).
+/// * `Direct` — single-value expression → widget parameter by CSS property
+///   (width/height → number, padding/margin → EdgeInsets.all). Mapped
+///   properties outside the whitelist (letterSpacing, ...) fail with a
+///   compile-time diagnostic — never a silent skip.
+/// * `Unmappable` — any other shape → compile-time diagnostic.
+///
+/// B2 entries (a read signal lives on the render path) resolve names bare
+/// and skip the ListenableBuilder — setState mutations rebuild the subtree
+/// with the same semantics. Non-B2 entries resolve D1/D2 signals to
+/// `_name.value` and wrap in a ListenableBuilder reacting to their
+/// ValueNotifier writes (Task 13 storage) without any setState.
+fn handle_channel_style(
+    entry: &DirectWriteEntry,
+    widget: &str,
+    el: &ElementIR,
+    wrap: &mut StyleChannelWrap,
+    ctx: &mut ViewContext,
+) {
+    let is_b2 = ctx
+        .direct_write
+        .b2_entries
+        .iter()
+        .any(|e| e.ref_name == entry.ref_name && e.prop == entry.prop);
+    match match_style_pattern(&entry.value) {
+        StylePattern::Translate { x, y } => {
+            wrap.offset = Some(format!(
+                "Offset({}, {})",
+                style_json_to_dart_expr(&x, is_b2, ctx),
+                style_json_to_dart_expr(&y, is_b2, ctx)
+            ));
+            collect_channel_listenables(entry, is_b2, ctx, wrap);
+        }
+        StylePattern::Direct(v) => {
+            match css_prop_to_flutter_param(&entry.prop) {
+                Some("width") | Some("height") => {
+                    let param = css_prop_to_flutter_param(&entry.prop).unwrap();
+                    if !widget_allows_param(widget, param) {
+                        ctx.warn_at(
+                            format!(
+                                "[flutter] dynamic style property '{}' → param '{}' is not \
+                                 supported on '{}'; skipped",
+                                entry.prop, param, widget
+                            ),
+                            el.source_span,
+                        );
+                        return;
+                    }
+                    wrap.params.push(format!(
+                        "{}: {}",
+                        entry.prop,
+                        style_json_to_dart_expr(&v, is_b2, ctx)
+                    ));
+                    collect_channel_listenables(entry, is_b2, ctx, wrap);
+                }
+                Some("padding") | Some("margin") => {
+                    wrap.params.push(format!(
+                        "{}: EdgeInsets.all({})",
+                        entry.prop,
+                        style_json_to_dart_expr(&v, is_b2, ctx)
+                    ));
+                    collect_channel_listenables(entry, is_b2, ctx, wrap);
+                }
+                _ => {
+                    // Mapped CSS property with no Flutter parameter
+                    // (letterSpacing, transform handled above, ...) — the
+                    // old code silently dropped these; surface a compile
+                    // error instead.
+                    ctx.error_at(
+                        format!(
+                            "[flutter] dynamic style property '{}' on a @ref'd element cannot \
+                             map to any Flutter widget parameter; only width/height, \
+                             padding/margin, color/background-color, and the \
+                             translate(xpx, ypx) transform shape are supported",
+                            entry.prop
+                        ),
+                        el.source_span,
+                    );
+                }
+            }
+        }
+        StylePattern::Unmappable => {
+            ctx.error_at(
+                format!(
+                    "[flutter] dynamic style value for '{}' cannot map to any Flutter widget \
+                     parameter (only single-value expressions and the translate(xpx, ypx) \
+                     concat shape are supported); the style entry was not emitted",
+                    entry.prop
+                ),
+                el.source_span,
+            );
+        }
+    }
+}
+
+/// Collect the entry's read signals that are D1/D2-stored (Task 13
+/// ValueNotifier fields) into the ListenableBuilder merge list — sorted +
+/// deduplicated for deterministic output. B2 entries read render-path
+/// signals (bare State fields, setState mutations) and need no listenable.
+fn collect_channel_listenables(
+    entry: &DirectWriteEntry,
+    is_b2: bool,
+    ctx: &ViewContext,
+    wrap: &mut StyleChannelWrap,
+) {
+    if is_b2 {
+        return;
+    }
+    for name in &entry.read_signals {
+        if ctx.direct_write.d1.contains(name) || ctx.direct_write.d2.contains(name) {
+            wrap.listenables.push(format!("_{}", name));
+        }
+    }
+    wrap.listenables.sort();
+    wrap.listenables.dedup();
+}
+
+/// Convert a style VALUE tree (the direct-write entry's JSON, shape from
+/// `lower_expr_to_json_from_ir`) to a Dart expression. Signal reads resolve
+/// to their storage form: `_name.value` for D1/D2 ValueNotifiers (Task 13),
+/// bare `name` for render-path signals (B2 — setState rebuilds, matching the
+/// render-path semantic).
+fn style_json_to_dart_expr(val: &Value, is_b2: bool, ctx: &ViewContext) -> String {
+    if let Value::Object(obj) = val {
+        if let Some(name) = obj.get("$signal").and_then(|v| v.as_str()) {
+            if !is_b2 && (ctx.direct_write.d1.contains(name) || ctx.direct_write.d2.contains(name))
+            {
+                return format!("_{}.value", name);
+            }
+            return name.to_string();
+        }
+        if let Some(name) = obj.get("$ident").and_then(|v| v.as_str()) {
+            return name.to_string();
+        }
+        if let Some(arr) = obj.get("$field").and_then(|v| v.as_array()) {
+            if let Some(field) = arr.get(1).and_then(|v| v.as_str()) {
+                return format!("{}.{}", style_json_to_dart_expr(&arr[0], is_b2, ctx), field);
+            }
+        }
+        if let Some(call) = obj.get("$call").and_then(|v| v.as_object()) {
+            let name = call.get("name").and_then(|v| v.as_str()).unwrap_or("");
+            let args = call
+                .get("args")
+                .and_then(|v| v.as_array())
+                .map(|a| {
+                    a.iter()
+                        .map(|x| style_json_to_dart_expr(x, is_b2, ctx))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                })
+                .unwrap_or_default();
+            return format!("{}({})", name, args);
+        }
+    }
+    match val {
+        Value::Number(n) => format!("{}", n),
+        Value::String(s) => dart_string_literal(s),
+        Value::Bool(b) => b.to_string(),
+        _ => "0.0".to_string(),
+    }
+}
+
 /// Format an ElementIR node as a Flutter widget constructor expression.
 /// Wraps with motion animation widgets (AnimatedBuilder, MouseRegion, GestureDetector)
 /// when the element has motion triggers.
@@ -1605,12 +1830,29 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
     }
 
     // Inline style (style: { prop: value }) — map CSS properties to Flutter widget parameters
+    // Task 14 (ADR-071 direct-write channel): channel wraps accumulated from
+    // active entries on this element — applied around the FULLY rendered
+    // widget (after the event-wrapper stack) at the end of format_element.
+    let mut channel_wrap = StyleChannelWrap::default();
     if let Some(obj) = el
         .inline_style
         .as_ref()
         .and_then(|style_json| style_json.as_object())
     {
         for (css_prop, css_val) in obj {
+            // Task 14: the direct-write channel takes precedence over the
+            // static-value path — an active entry's dynamic value is never
+            // silently skipped (`Some(_) => skip` was the old behavior).
+            let channel_ref = el.ref_binding.as_deref().unwrap_or("");
+            if let Some(entry) = ctx
+                .direct_write
+                .entries
+                .iter()
+                .find(|e| e.ref_name == channel_ref && e.prop == *css_prop)
+            {
+                handle_channel_style(entry, widget, el, &mut channel_wrap, ctx);
+                continue;
+            }
             let css_val_str = css_val.as_str().unwrap_or("");
             // T5.7: inline-style props go through the same per-widget
             // whitelist as plain props — `Text(style: { color: ... })` used
@@ -1709,6 +1951,10 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
         };
         args.push(format!("{}: {}({})", arg_name, wrapper, members.join(", ")));
     }
+
+    // Task 14: Direct-channel params (width/height/padding/margin from
+    // dynamic expressions) join the constructor args like static values.
+    args.append(&mut channel_wrap.params);
 
     // Events -> callback parameters (C6: per-widget event whitelist)
     //
@@ -1937,9 +2183,14 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                         let s2 = rewrite_stmt_widget_refs(&s1, ctx.widget_names, ctx.fn_renames);
                         // Use custom formatter with event_param_name set
                         // so FieldAccess on the raw var emits bare field name
-                        // (local final binding)
+                        // (local final binding). Phase 3: carries the D1/D2
+                        // set — handler mutations write `_name.value`.
                         let fmt = FlutterStmtFormatter {
-                            expr: super::r#ref::FlutterFormatExpr::new(Some(raw_var.to_string())),
+                            expr: super::r#ref::FlutterFormatExpr::new_with_direct_write(
+                                Some(raw_var.to_string()),
+                                ctx.direct_write_signals,
+                            ),
+                            direct_write_signals: ctx.direct_write_signals.clone(),
                         };
                         fmt.format_stmt(&mut hw, &s2);
                     }
@@ -2640,6 +2891,35 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
         wrapped
     };
 
+    // Task 14 (ADR-071 direct-write channel): channel wraps applied OUTSIDE
+    // the event-wrapper stack so the ListenableBuilder rebuild scope covers
+    // the whole rendered subtree:
+    //   Transform.translate(offset: Offset(x, y), child: <subtree>) for the
+    //   translate shape, then
+    //   ListenableBuilder(listenable: Listenable.merge([_dragX, _dragY]),
+    //   builder: (context, _) => <subtree>) reacting to the entry's D1/D2
+    //   ValueNotifier writes (Task 13 storage) — no setState, no whole-tree
+    //   build on every pan delta.
+    let result = if channel_wrap.offset.is_some() || !channel_wrap.listenables.is_empty() {
+        let mut wrapped = result;
+        if let Some(offset) = channel_wrap.offset {
+            wrapped = format!(
+                "Transform.translate(offset: {}, child: {})",
+                offset, wrapped
+            );
+        }
+        if !channel_wrap.listenables.is_empty() {
+            wrapped = format!(
+                "ListenableBuilder(listenable: Listenable.merge([{}]), builder: (context, _) => {})",
+                channel_wrap.listenables.join(", "),
+                wrapped
+            );
+        }
+        wrapped
+    } else {
+        result
+    };
+
     result
 }
 
@@ -2897,7 +3177,11 @@ fn format_key_handler_flutter(body: &BlockIR, ctx: &ViewContext) -> String {
         let s1 = watch_to_read_stmt(&s1);
         let s2 = rewrite_stmt_widget_refs(&s1, ctx.widget_names, ctx.fn_renames);
         let fmt = FlutterStmtFormatter {
-            expr: super::r#ref::FlutterFormatExpr::new(None),
+            expr: super::r#ref::FlutterFormatExpr::new_with_direct_write(
+                None,
+                ctx.direct_write_signals,
+            ),
+            direct_write_signals: ctx.direct_write_signals.clone(),
         };
         fmt.format_stmt(&mut hw, &s2);
     }
@@ -3215,7 +3499,11 @@ fn format_inline_statements_flutter(body: &BlockIR, ctx: &ViewContext) -> String
         let s1 = watch_to_read_stmt(&s1);
         let s2 = rewrite_stmt_widget_refs(&s1, ctx.widget_names, ctx.fn_renames);
         let fmt = FlutterStmtFormatter {
-            expr: super::r#ref::FlutterFormatExpr::new(None),
+            expr: super::r#ref::FlutterFormatExpr::new_with_direct_write(
+                None,
+                ctx.direct_write_signals,
+            ),
+            direct_write_signals: ctx.direct_write_signals.clone(),
         };
         fmt.format_stmt(&mut hw, &s2);
     }
@@ -3245,7 +3533,11 @@ fn format_inline_handler_flutter(body: &BlockIR, ctx: &ViewContext) -> String {
             })
             .collect(),
     };
-    build_inline_handler(&rewritten, &config, generate_statement_flutter)
+    build_inline_handler(&rewritten, &config, |w, s| {
+        // Phase 3: inline handler statements carry the D1/D2 set — handler
+        // mutations write `_name.value` (no setState in the view tree).
+        generate_statement_flutter_dw(w, s, ctx.direct_write_signals)
+    })
 }
 
 /// Warn that event field accesses in an event handler were dropped because

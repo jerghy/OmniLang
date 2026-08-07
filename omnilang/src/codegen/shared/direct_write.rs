@@ -1259,3 +1259,245 @@ pub(crate) fn classify_direct_write(comp: &ComponentIR) -> DirectWriteSets {
     }
     sets
 }
+// ═══════════════════════════════════════════════════════════
+// Flutter style-value pattern matching (Task 14)
+// ═══════════════════════════════════════════════════════════
+
+/// Flutter-side style value pattern match — CSS-value shapes that map to
+/// widget parameters (ADR-071 decision 2 / design §6.4, option B).
+#[derive(Debug, PartialEq)]
+pub(crate) enum StylePattern {
+    /// `"translate(" + x + "px, " + y + "px)"` concat shape
+    /// (5 段：["translate(", <x>, "px, ", <y>, "px)"]).
+    Translate { x: Value, y: Value },
+    /// Bare signal/number/string values for direct parameters.
+    Direct(Value),
+    /// Anything else — unmappable on Flutter (compile-time diagnostic).
+    Unmappable,
+}
+
+/// Flatten a nested `$concat` array into its leaves. The style lowering is
+/// LEFT-ASSOCIATIVE binary (`a + b + c` → `{$concat: [{$concat: [a, b]}, c]}`),
+/// so a five-part string concat arrives as a 5-deep nest, never a flat
+/// 5-element array — flattening restores the operand sequence.
+pub(crate) fn flatten_concat(parts: &[Value]) -> Vec<Value> {
+    let mut out = Vec::with_capacity(parts.len());
+    for part in parts {
+        if let Value::Object(o) = part {
+            if let Some(inner) = o.get("$concat").and_then(|v| v.as_array()) {
+                out.extend(flatten_concat(inner));
+                continue;
+            }
+        }
+        out.push(part.clone());
+    }
+    out
+}
+
+/// Recognize the translate CSS string `"translate(" + x + "px, " + y + "px)"`.
+/// Handles both the five-part shape (both x and y dynamic) and the
+/// left/right-fused three-part shapes where one operand is a literal fused
+/// into the adjacent string (`"translate(" + x + "px, 0px)"` lowers with
+/// `"px, 0px)"` as ONE string part).
+fn match_translate(parts: &[Value]) -> Option<(Value, Value)> {
+    if parts.len() == 5
+        && parts[0] == Value::String("translate(".into())
+        && parts[2] == Value::String("px, ".into())
+        && parts[4] == Value::String("px)".into())
+    {
+        return Some((parts[1].clone(), parts[3].clone()));
+    }
+    if parts.len() == 3 && parts[0] == Value::String("translate(".into()) {
+        // "px, 42px)" — y fused into the trailing string
+        if let Value::String(tail) = &parts[2] {
+            if let Some(num) = tail
+                .strip_prefix("px, ")
+                .and_then(|rest| rest.strip_suffix("px)"))
+                .and_then(|n| n.trim().parse::<f64>().ok())
+            {
+                return Some((parts[1].clone(), Value::from(num)));
+            }
+        }
+    }
+    if parts.len() == 3 && parts[2] == Value::String("px)".into()) {
+        // "translate(42px, " — x fused into the leading string
+        if let Value::String(head) = &parts[0] {
+            if let Some(num) = head
+                .strip_prefix("translate(")
+                .and_then(|rest| rest.strip_suffix("px, "))
+                .and_then(|n| n.trim().parse::<f64>().ok())
+            {
+                return Some((Value::from(num), parts[1].clone()));
+            }
+        }
+    }
+    None
+}
+
+/// Classify a dynamic style VALUE (the `style: { prop: expr }` JSON tree)
+/// for the Flutter target.
+///
+/// * `Translate` — the `"translate(xpx, ypx)"` string-concat shape → maps to
+///   `Transform.translate(offset: Offset(x, y))` (the drag direct-write
+///   channel; ADR-070/071 high-frequency primitive).
+/// * `Direct` — a single-value expression ($signal/$ident/$field/$call or a
+///   literal) → maps to a typed widget parameter by CSS property.
+/// * `Unmappable` — any other shape (non-translate $concat, unknown
+///   meta-objects) → compile-time diagnostic instead of a silent drop.
+pub(crate) fn match_style_pattern(val: &Value) -> StylePattern {
+    if let Value::Object(obj) = val {
+        if let Some(parts) = obj.get("$concat").and_then(|v| v.as_array()) {
+            let flat = flatten_concat(parts);
+            if let Some((x, y)) = match_translate(&flat) {
+                return StylePattern::Translate { x, y };
+            }
+            // Non-translate concat builds a CSS STRING — no Flutter widget
+            // parameter can consume it (the React `style` object has no
+            // Flutter analogue). Explicit diagnostic, never a silent skip.
+            return StylePattern::Unmappable;
+        }
+        if obj.contains_key("$signal")
+            || obj.contains_key("$ident")
+            || obj.contains_key("$field")
+            || obj.contains_key("$call")
+        {
+            return StylePattern::Direct(val.clone());
+        }
+        return StylePattern::Unmappable;
+    }
+    match val {
+        Value::Number(_) | Value::String(_) | Value::Bool(_) => StylePattern::Direct(val.clone()),
+        _ => StylePattern::Unmappable,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    /// Nested `$concat` shape produced by the left-associative lowering of
+    /// `"translate(" + dragX + "px, " + dragY + "px)"`.
+    fn five_part_translate() -> Value {
+        json!({
+            "$concat": [
+                { "$concat": [
+                    { "$concat": [
+                        { "$concat": [
+                            "translate(",
+                            { "$signal": "dragX" }
+                        ]},
+                        "px, "
+                    ]},
+                    { "$signal": "dragY" }
+                ]},
+                "px)"
+            ]
+        })
+    }
+
+    #[test]
+    fn flatten_unrolls_nested_concat() {
+        let val = five_part_translate();
+        let obj = val.as_object().unwrap();
+        let parts = obj.get("$concat").unwrap().as_array().unwrap();
+        let flat = flatten_concat(parts);
+        assert_eq!(flat.len(), 5);
+        assert_eq!(flat[0], Value::String("translate(".into()));
+        assert_eq!(flat[1], json!({"$signal": "dragX"}));
+        assert_eq!(flat[2], Value::String("px, ".into()));
+        assert_eq!(flat[3], json!({"$signal": "dragY"}));
+        assert_eq!(flat[4], Value::String("px)".into()));
+    }
+
+    #[test]
+    fn match_style_pattern_five_part_translate() {
+        let val = five_part_translate();
+        match match_style_pattern(&val) {
+            StylePattern::Translate { x, y } => {
+                assert_eq!(x, json!({"$signal": "dragX"}));
+                assert_eq!(y, json!({"$signal": "dragY"}));
+            }
+            other => panic!("expected Translate, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn match_style_pattern_fused_tail_translate() {
+        // "translate(" + dragX + "px, 0px)" — y is a literal fused into the
+        // trailing string part (the Task 12 Flutter drag fixture shape).
+        let val = json!({
+            "$concat": [
+                { "$concat": ["translate(", { "$signal": "dragX" }] },
+                "px, 0px)"
+            ]
+        });
+        match match_style_pattern(&val) {
+            StylePattern::Translate { x, y } => {
+                assert_eq!(x, json!({"$signal": "dragX"}));
+                assert_eq!(y, Value::from(0.0f64));
+            }
+            other => panic!("expected Translate, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn match_style_pattern_fused_head_translate() {
+        // "translate(10px, " + dragY + "px)" — x is a literal fused into the
+        // leading string part.
+        let val = json!({
+            "$concat": [
+                "translate(10px, ",
+                { "$concat": [{ "$signal": "dragY" }, "px)"] }
+            ]
+        });
+        match match_style_pattern(&val) {
+            StylePattern::Translate { x, y } => {
+                assert_eq!(x, Value::from(10.0f64));
+                assert_eq!(y, json!({"$signal": "dragY"}));
+            }
+            other => panic!("expected Translate, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn match_style_pattern_direct_signal() {
+        let val = json!({"$signal": "w"});
+        match match_style_pattern(&val) {
+            StylePattern::Direct(v) => assert_eq!(v, json!({"$signal": "w"})),
+            other => panic!("expected Direct, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn match_style_pattern_direct_call() {
+        let val = json!({"$call": {"name": "getW", "args": []}});
+        match match_style_pattern(&val) {
+            StylePattern::Direct(v) => assert_eq!(v, val),
+            other => panic!("expected Direct, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn match_style_pattern_unmappable_concat() {
+        // A non-translate concat builds a CSS string — unmappable.
+        let val = json!({"$concat": ["calc(", {"$signal": "w"}, "px)"]});
+        assert_eq!(match_style_pattern(&val), StylePattern::Unmappable);
+    }
+
+    #[test]
+    fn match_style_pattern_unmappable_object() {
+        assert_eq!(
+            match_style_pattern(&json!({"unknown_meta": 1})),
+            StylePattern::Unmappable
+        );
+    }
+
+    #[test]
+    fn match_style_pattern_direct_literal_number() {
+        assert_eq!(
+            match_style_pattern(&json!(42)),
+            StylePattern::Direct(Value::from(42))
+        );
+    }
+}
