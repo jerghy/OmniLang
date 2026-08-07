@@ -13,6 +13,15 @@
 //!
 //! Computed signals and store fields NEVER enter D1/D2 (they must keep
 //! their render-path derivation); entries reading them are B2.
+//!
+//! Read-domain boundary (fix round F2): output-read classification counts
+//! only (a) view-tree reads, (b) inline event-handler body reads, and
+//! (c) active-entry value reads (subtracted for D1). Reads inside
+//! called-fn/effect bodies — including mutation-RHS self-reads — never
+//! participate in D1/D2 determination: D1/D2 names resolve to
+//! `{name}Ref.current` there (always the live value; Task 3 emission
+//! contract), so the render path never consumes them and the semantics
+//! are equivalent.
 
 use crate::ir::{ComponentIR, ViewTree};
 use rustc_hash::FxHashSet;
@@ -133,11 +142,13 @@ fn collect_active_entries(node: &ViewTree, in_for: bool, out: &mut Vec<DirectWri
 
 /// Output reads of a signal OUTSIDE active entry values — the set of
 /// identifiers referenced by render output (text interpolation, class
-/// bindings, props, non-active style entries) plus view handler bodies
-/// and called-fn bodies, EXCLUDING mutation-RHS self-reads.
+/// bindings, props, non-active style entries) plus inline event-handler
+/// body reads. Reads inside called-fn/effect bodies (incl. mutation-RHS
+/// self-reads) are intentionally NOT collected — read-domain boundary,
+/// see module doc (fix round F2).
 ///
-/// Reuses the existing collectors (collect_view_read_signals / the
-/// read-side of collect_signal_mutations); the active-entry reads are
+/// Reuses the existing collectors (collect_view_read_signals +
+/// collect_view_inline_handler_reads); the active-entry reads are
 /// subtracted afterwards.
 fn collect_output_reads(
     comp: &ComponentIR,
@@ -149,11 +160,13 @@ fn collect_output_reads(
         reads.extend(collect_view_read_signals(view));
         collect_view_inline_handler_reads(view, &mut reads);
     }
-    // Called-fn bodies (excluding mutation RHS — covered by the existing
-    // collector's read side already; mutation RHS reads are subtracted via
-    // the entry-value subtraction below only for ACTIVE entries, so fn
-    // mutation RHS reads still land here: acceptable conservative
-    // over-approximation — see Task 1 note in the design doc §4.2).
+    // Read-domain boundary (fix round F2): no fn/effect body reads are
+    // collected here — classification counts view reads + inline-handler
+    // reads + active-entry value reads only. fn/effect body reads (incl.
+    // mutation-RHS self-reads) never participate in D1/D2 determination:
+    // D1/D2 names resolve to `{name}Ref.current` inside fn/effect bodies
+    // (always the live value — Task 3 emission contract), so the render
+    // path never consumes them and semantics are equivalent.
     for entry in active_entries {
         for s in &entry.read_signals {
             reads.remove(s);
@@ -199,14 +212,19 @@ pub(crate) fn classify_direct_write(comp: &ComponentIR) -> DirectWriteSets {
         }
     }
 
-    // B2 entries: any entry reading at least one non-D1 signal. A read
-    // that is NOT a D1 signal — computed, store field, prop, or a plain
-    // signal left on the useState path — keeps the entry on the
-    // useEffect([deps]) direct-write path (module doc + test contract:
-    // computed-driven entries are B2). Note a read can never be D2 here
-    // (D2 requires absence from every entry's read set).
+    // B2 entries: any entry that fails to read ONLY D1 signals. Empty
+    // read_signals (pure-literal $concat / zero-arg $call) is NOT "all D1":
+    // such an entry consumes no D1 signal, so Task 3's apply would never
+    // cover it and the style prop would silently never take effect — it
+    // must stay on the useEffect path (fix round F1). A non-D1 read
+    // (computed, store field, prop, or a plain signal left on the useState
+    // path) also keeps the entry on the useEffect([deps]) direct-write
+    // path (module doc + test contract: computed-driven entries are B2). A
+    // read can never be D2 here (D2 requires absence from every entry's
+    // read set).
     for e in sets.entries.iter() {
-        let all_d1 = e.read_signals.iter().all(|s| sets.d1.contains(s));
+        let all_d1 =
+            !e.read_signals.is_empty() && e.read_signals.iter().all(|s| sets.d1.contains(s));
         if !all_d1 {
             sets.b2_entries.push(e.clone());
         }

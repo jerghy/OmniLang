@@ -7374,3 +7374,33 @@ component SizeBox {
     assert!(sets.d1.is_empty(), "computed must not be D1: {:?}", sets.d1);
     assert_eq!(sets.b2_entries.len(), 1, "computed-driven entry is B2");
 }
+
+#[test]
+fn test_classify_direct_write_empty_read_concat_is_b2() {
+    // 纯字面量 $concat（"a" + "b"，无 $signal/$ident 读）→ read_signals
+    // 为空：空读条目不得留在 D1 通道（Task 3 apply 不覆盖 → 属性静默永不
+    // 生效），必须入 B2（useEffect([deps]) 路径）——fix round F1。
+    let comp = compile_component_ir(
+        r#"
+component StaticConcat {
+  ref box: Element
+  view { <div @ref={box} style: { transform: "a" + "b" } /> }
+}
+"#,
+    );
+    let sets = classify_direct_write(&comp);
+    assert_eq!(sets.entries.len(), 1, "concat entry still activates");
+    assert!(
+        sets.d1.is_empty(),
+        "empty read_signals must not produce D1: {:?}",
+        sets.d1
+    );
+    assert_eq!(sets.b2_entries.len(), 1, "empty-read entry is B2");
+    assert_eq!(sets.b2_entries[0].ref_name, "box");
+    assert_eq!(sets.b2_entries[0].prop, "transform");
+    assert!(
+        sets.b2_entries[0].read_signals.is_empty(),
+        "literal concat reads no signals: {:?}",
+        sets.b2_entries[0].read_signals
+    );
+}
