@@ -385,9 +385,9 @@ const box = (function() {
 - 事件监听器泄漏（不能用 ref 绕过框架的事件系统）
 - DOM 遍历（不能用 ref 访问兄弟/父元素）
 
-高频写入路径是 **信号 + 声明式 style 绑定**（`style: { transform: ... }`），不是 `ref.style`——
-`ref.style` 早在语义级 v2 前就已删除（v2 spec 域 1 诊断表先例），现在对 `ref.style` 的写是编译错误，
-迁移提示为 `use style:{...} binding with signals instead`。CSS 属性的修改不涉及内容安全策略；
-style 绑定在 OmniView 目标生成 `el.style.setProperty(...)` 直接 DOM 写入（零 reconciliation），
-在 React 目标退化为 `useState` + `style={{...}}`（每次变更整组件重渲染）——这是 v2 为跨目标一致性
-主动接受的代价，见 `docs/superpowers/specs/2026-08-02-semantic-syntax-v2-design.md`。
+高频写入路径是 **信号 + 声明式 style 绑定**（`style: { transform: ... }`）——`ref.style` 的写仍是编译错误，
+迁移提示为 `use style:{...} binding with signals instead`。style 绑定在 OmniView 目标生成
+`el.style.setProperty(...)` 直接 DOM 写入（零 reconciliation）；在 React 目标走**直写通道**（Phase 1，
+`docs/design/ref-high-frequency-direct-channel.md`）：D1/D2 信号 useRef 存储 + mutation 点直写
+（零 reconciliation，与 OmniView 同级），B2 共享信号 useEffect 直写——v2 时代「退化为 useState +
+style={{...}} 整组件重渲染」的代价陈述已被直写通道撤销。

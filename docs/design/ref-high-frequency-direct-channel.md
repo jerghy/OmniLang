@@ -1,6 +1,6 @@
 # ref 高频操控——三目标直写通道设计
 
-**Status**: Design（待实施） | **Date**: 2026-08-07 | **Related**: ADR-070, ADR-071, element-ref-system v2
+**Status**: Phase 1 已实施（React 直写通道，2026-08-07）；Phase 2/3 待实施 | **Date**: 2026-08-07 | **Related**: ADR-070, ADR-071, element-ref-system v2
 
 ## 1. 背景与动因
 
@@ -115,6 +115,8 @@ onDragMove(e) {
 
 ## 4. Phase 1：React 直写通道
 
+> **实施状态：Phase 1 已实施（commit f819ba5f，Task 1-5；浏览器实测 Task 6）**。产物审计（learn-omniview ElementRefDemo.tsx）：`dragX`/`dragY` 无 `useState`（单 `useRef` 存储）、`onDragMove` 内无 `setDragX`（`dragXRef.current = ...` 直写 2 处 + apply 直写）、DragBox 无 `style` prop（transform 条目已剔除）、B2 effect 直写（boxWidthPx）；verify-react GATE PASSED、tsc 72 基线不变、react 套件 442/442 全绿。浏览器实测：拖拽精确跟随指针（15 次 pointermove → `translate(60px, 30px)` 像素级一致），pointermove 期间零渲染提交（详见 §4.5.5）。
+
 ### 4.1 激活判定（React 目标）
 
 在 `react/component/mod.rs` 生成流程中新增一 pass：对每个元素，若满足 §2.3 三条件，则该元素的**动态 style 条目**进入直写通道——从 `style={{...}}` prop 剔除，改为直写发射。
@@ -218,6 +220,10 @@ useEffect(() => {
    - `style={{ ... }}` 中无 `transform` 动态条目
    - 有 B2 effect（boxWidthPx 直写）
 4. **浏览器实测**：拖拽跟随与 OmniView 同级流畅；React DevTools Profiler 断言 pointermove 期间**零组件渲染提交**
+5. **浏览器实测记录（2026-08-07 Task 6，React DevTools global hook `onCommitFiberRoot` 提交计数）**：
+   - 两轮拖拽（15 次 `+4/+2` 移动、8 次 `-5/-3` 移动）：transform 逐帧精确 `translate(20px,10px)`/`translate(60px,30px)`/`translate(-40px,-24px)`，computed matrix 与 DOM rect 位移像素级一致
+   - 提交计数：pointerdown → +1（`dragging` B2 信号）、**pointermove ×N → 0 提交（`scheduleCount` 亦为 0）**、pointerup → +1（`dragging` 复位）——D1 通道零 reconciliation 成立
+   - `dragging` class 切换（DragBoxActive）走 B2 正常渲染路径，观察期内无异常
 
 ---
 
@@ -325,9 +331,9 @@ useEffect(() => {
 
 ## 9. 验收清单
 
-- [ ] P1：ElementRefDemo.tsx 产物审计 4 断言全过（§4.5.3）
-- [ ] P1：verify-react GATE PASSED（无新错误类、无新豁免）
-- [ ] P1：react 套件全绿；浏览器 Profiler 断言 pointermove 零渲染提交
+- [x] P1：ElementRefDemo.tsx 产物审计 4 断言全过（§4.5.3）
+- [x] P1：verify-react GATE PASSED（无新错误类、无新豁免）
+- [x] P1：react 套件全绿；浏览器实测断言 pointermove 零渲染提交（§4.5.5）
 - [ ] P2：@drag 独立 ADR 评审通过；demo 源码无显式 capturePointer；D3 演进为注记
 - [ ] P3：Flutter 拖拽位移正确渲染（ListenableBuilder + Transform）；flutter gate 行为验证替代 D3 过滤
 - [ ] 覆盖审计（verify-demo-coverage.py）随语义成员变化复跑
