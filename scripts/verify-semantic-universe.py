@@ -3,9 +3,10 @@
 
 docs/superpowers/specs/semantic-universe.md is the semantic full set: the
 FRONTEND FEATURE UNIVERSE (independent of implementation progress), split
-from the implemented set. Five semantic domains (animatable properties /
-array operations / events / RefOps / design-token types). Every entry must
-map to an implementation status — the brief's 语义集条目 → 实现状态矩阵:
+from the implemented set. Seven semantic domains (animatable properties /
+array operations / events / RefOps / design-token types / value bindings /
+directives). Every entry must map to an implementation status — the brief's
+语义集条目 → 实现状态矩阵:
 
   语义域定义  (paragraph — the semantic domain; why these entries are one
                feature universe, independent of implementation)
@@ -37,6 +38,10 @@ same ground truth verify-vocabulary.py (Task 7.1) consumes:
   token   ↔ parse_token_type match arms in
             crates/omnilang-core/src/parser/design.rs
             (13 types — parser-accepted lowercase names; v4 同重指向)
+  directives ↔ drag/dragEnd dispatch + SEMANTIC_BINDINGS +
+            peek_is_boolean_attr_keyword in
+            crates/omnilang-core/src/parser/view/element.rs
+            (6 词法级条目; 机制级条目 style 动态绑定/布尔属性 走存在性断言)
 
 A whitelist word missing from the universe — or a universe entry without a
 status, or an entry claiming 支持/部分 while outside the whitelist — fails
@@ -70,6 +75,12 @@ MOTION_ANIM_FILE = os.path.join(
 DESIGN_PARSER_FILE = os.path.join(
     REPO_ROOT, "crates", "omnilang-core", "src", "parser", "design.rs"
 )
+ELEMENT_PARSER_FILE = os.path.join(
+    REPO_ROOT, "crates", "omnilang-core", "src", "parser", "view", "element.rs"
+)
+DIRECT_WRITE_FILE = os.path.join(
+    REPO_ROOT, "omnilang", "src", "codegen", "shared", "direct_write.rs"
+)
 BNF_SPEC_FILE = os.path.join(
     REPO_ROOT, "docs", "superpowers", "specs",
     "2026-07-31-semantic-level-dsl-syntax-spec.md",
@@ -85,6 +96,7 @@ DOMAIN_TITLES = {
     4: "RefOp",
     5: "design token",
     6: "值绑定",  # v4 5.3 (domain HIGH-3): bind 域——无编译器白名单常量，无交叉断言
+    7: "元素指令",  # 2026-08-07: directives 域——drag/dragEnd/ref/语义绑定/style 动态绑定/布尔属性
 }
 # Required sub-section headers per domain.
 REQUIRED_SUBSECTIONS = ("语义域定义", "语义集条目", "已实现白名单")
@@ -116,6 +128,35 @@ def flutter_callback_names(text):
     # All quoted string keys in the match arms are lowercase canonical names;
     # the callback outputs ("onPressed", …) are capitalized and not matched.
     return sorted(set(re.findall(r'"([a-z]+)"', m.group(1))))
+
+
+# ── 域 7 事实源提取（元素指令与绑定） ─────────────────────────────
+
+def drag_binding_words(text):
+    """@drag/@dragEnd 分派词——parse_event_prop 的 drag 分派分支
+    (`event_name == "drag" || event_name == "dragEnd"`)。"""
+    return sorted(set(re.findall(r'event_name == "(drag|dragEnd)"', text)))
+
+
+def semantic_binding_words(text):
+    """语义绑定词——SEMANTIC_BINDINGS 常量字符串成员
+    (`const SEMANTIC_BINDINGS: &[&str] = &["focus", "scroll-x", "scroll-y"]`)。"""
+    m = re.search(r'SEMANTIC_BINDINGS: &\[&str\] = &\[([^\]]+)\]', text)
+    if not m:
+        return None
+    return sorted(set(re.findall(r'"([^"]+)"', m.group(1))))
+
+
+def boolean_attr_keywords(text):
+    """裸布尔属性关键字——peek_is_boolean_attr_keyword 的 matches! 分支
+    (`Some("disabled") | Some("checked") | …`)。限定函数体以避免捕获
+    测试模块中的 `Some("end")` 等断言字符串。"""
+    m = re.search(
+        r'fn peek_is_boolean_attr_keyword.*?matches!\((.*?)\)\s*\}', text, re.S
+    )
+    if not m:
+        return None
+    return sorted(set(re.findall(r'Some\("([a-z]+)"\)', m.group(1))))
 
 
 def array_method_words(text):
@@ -276,7 +317,7 @@ def audit():
 
     universe = read_file(UNIVERSE_FILE)
     sections = split_domains(universe)
-    for n in range(1, 7):  # v4: 含域 6（值绑定，5.3 新建）——此前 range(1,6) 对域 6 空转
+    for n in range(1, 8):  # v4: 含域 6（值绑定，5.3 新建）——此前 range(1,6) 对域 6 空转；2026-08-07: 含域 7（元素指令与绑定）
         if n not in sections:
             fail(f"domain {n} missing (expected '## 域 {n}: …{DOMAIN_TITLES[n]}…')")
             continue
@@ -431,6 +472,42 @@ def audit():
     assert_set("design token", wl5, token_types, "已实现白名单")
     assert_matrix("design token", en5, wl5)
     bnf_doc_subset("design token", "token_type", token_types)
+
+    # directives (域 7): 词法级条目走通用矩阵断言；机制级条目（布尔属性 /
+    # style 动态绑定）走存在性断言——其语义集条目名非词法级，不进词集合比对
+    wl7, en7 = whitelist(7), entries(7)
+    element_src = read_file(ELEMENT_PARSER_FILE)
+    drag_words = drag_binding_words(element_src)
+    bind_words = semantic_binding_words(element_src)
+    if drag_words is None or bind_words is None:
+        fail("directives: cannot cross-assert 已实现白名单 (source extraction failed)")
+    else:
+        lex_words = drag_words + bind_words + ["ref"]
+        assert_set("directives", wl7, lex_words, "已实现白名单")
+        if en7 is None:
+            fail("directives: cannot cross-assert 语义集条目 (extraction failed)")
+        else:
+            lex_entries = [(e, s) for e, s in en7 if e not in ("style 动态绑定", "布尔属性")]
+            assert_matrix("directives", lex_entries, wl7)
+    # 机制级条目存在性断言
+    if en7 is None:
+        fail("directives: cannot cross-assert mechanism entries (语义集条目 extraction failed)")
+    else:
+        mech = {e: s for e, s in en7 if e in ("style 动态绑定", "布尔属性")}
+        for name in ("style 动态绑定", "布尔属性"):
+            if name not in mech:
+                fail(f"directives: missing mechanism entry '{name}'")
+                continue
+            if mech[name] not in ("支持", "部分"):
+                fail(f"directives: mechanism entry '{name}' must be 支持/部分 (implemented), got '{mech[name]}'")
+        if os.path.exists(DIRECT_WRITE_FILE):
+            dw = read_file(DIRECT_WRITE_FILE)
+            if "classify_direct_write" not in dw and "DirectWriteSets" not in dw:
+                fail("directives: style 动态绑定 declared 支持 but direct_write.rs lacks D1/D2 classification")
+        else:
+            fail("directives: style 动态绑定 declared 支持 but codegen/shared/direct_write.rs missing")
+        if boolean_attr_keywords(element_src) is None or not boolean_attr_keywords(element_src):
+            fail("directives: 布尔属性 declared 支持 but peek_is_boolean_attr_keyword has no keywords")
 
     return problems
 
