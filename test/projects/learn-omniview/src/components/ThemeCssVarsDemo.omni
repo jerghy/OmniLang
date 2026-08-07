@@ -146,7 +146,7 @@ component ThemeCssVarsDemo {
             background: var(--surface);
             color: var(--textPrimary);
             border: calc(var(--theme-border-w, 2) * 1px) solid var(--border);
-            border-radius: var(--card-radius);
+            border-radius: var(--cardRadius);
             padding: 16px;
             transition: transform 200ms ease;
             transform: scale(var(--theme-scale, 1));
