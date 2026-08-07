@@ -4,6 +4,7 @@
 //! language-family implementations.
 
 pub mod design;
+pub mod direct_write;
 pub mod drag;
 pub mod event;
 pub mod sanitize;

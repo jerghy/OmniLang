@@ -7323,7 +7323,7 @@ fn compile_component_ir(source: &str) -> ComponentIR {
     comps.next().unwrap().clone()
 }
 
-use super::component::direct_write::{classify_direct_write, DirectWriteSets};
+use crate::codegen::shared::direct_write::classify_direct_write;
 
 #[test]
 fn test_classify_direct_write_drag_demo() {

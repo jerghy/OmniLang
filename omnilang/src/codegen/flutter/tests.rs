@@ -10952,3 +10952,81 @@ component DragTapBox {
         out
     );
 }
+
+// ── Task 12: shared signal-domain classification (direct_write) ──────────
+// The D1/D2/B2 classification pass lives in shared/direct_write.rs
+// (target-independent) — this test proves the Flutter backend can consume
+// it on IR produced by the same pipeline the Flutter compile path runs.
+// Fixture mirrors the React drag-demo contract: entry-only reads → D1,
+// mutation-RHS self-reads → D2, render-path (class) reads → stays out.
+
+/// Compile a single .omni source through the pipeline and return its first
+/// component IR (run_pipeline keys the single-file module "input.omni").
+fn compile_component_ir(source: &str) -> ComponentIR {
+    let out = omnilang_core::run_pipeline(source);
+    assert!(!out.has_errors, "pipeline errors: {:?}", out.diagnostics);
+    let mut comps = out
+        .ir
+        .modules
+        .get("input.omni")
+        .unwrap()
+        .components
+        .values();
+    comps.next().unwrap().clone()
+}
+
+#[test]
+fn test_flutter_classifies_drag_signals() {
+    use crate::codegen::shared::direct_write::classify_direct_write;
+
+    let source = r#"
+component DragBox {
+  signal dragging: Bool = false
+  signal dragX: f64 = 0
+  signal dragOriginX: f64 = 0
+  ref box: Element
+  fn start() { dragging = true; dragOriginX = 10 }
+  fn move(e) { dragX = e.dx - dragOriginX }
+  view {
+    <div @ref={box} @onPress={start} @drag={move}
+         style: { transform: "translate(" + dragX + "px, 0px)" }
+         class: { Active: dragging } />
+  }
+}
+"#;
+
+    // The same fixture must compile through the Flutter target (the future
+    // direct-write channel consumer).
+    let flutter = compile_flutter_full(source);
+    assert!(
+        flutter.success,
+        "fixture must compile for Flutter: {:?}",
+        flutter.errors
+    );
+
+    // Classification runs on the target-independent component IR.
+    let comp = compile_component_ir(source);
+    let sets = classify_direct_write(&comp);
+    assert!(
+        sets.d1.contains("dragX"),
+        "dragX should be D1 (entry-only read): {:?}",
+        sets.d1
+    );
+    assert!(
+        sets.d2.contains("dragOriginX"),
+        "dragOriginX should be D2 (mutation-RHS self-read only): {:?}",
+        sets.d2
+    );
+    assert!(
+        !sets.d1.contains("dragging") && !sets.d2.contains("dragging"),
+        "dragging has a class-binding read and must stay out of D1/D2"
+    );
+    assert_eq!(sets.entries.len(), 1, "one active entry (transform)");
+    assert_eq!(sets.entries[0].ref_name, "box");
+    assert_eq!(sets.entries[0].prop, "transform");
+    assert!(
+        sets.b2_entries.is_empty(),
+        "all-D1 entry is not B2: {:?}",
+        sets.b2_entries
+    );
+}

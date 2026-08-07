@@ -160,7 +160,7 @@ impl ReactCodegen {
         // NOT dead code — they are the ref write itself (Task 3 必须项;
         // a D2 signal whose only read is its own mutation RHS would
         // otherwise be pruned and its write silently dropped).
-        let direct_write_sets = direct_write::classify_direct_write(comp);
+        let direct_write_sets = crate::codegen::shared::direct_write::classify_direct_write(comp);
         let direct_write_names: FxHashSet<String> = direct_write_sets
             .d1
             .iter()
