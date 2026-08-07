@@ -371,3 +371,37 @@ CSS 动画语义域——**属性值从 A 到 B 平滑过渡**（CSS Transitions
 | bind:checked | 设计文档 域 1 BNF `value_binding` 产生式；React `"value" \| "checked"` onChange 回写 `e.target.checked`（`omnilang/src/codegen/react/view.rs` ~:396）；OmniView two-way bindings（`omniview/view/element.rs` ~:351）；Flutter `write_back_eligible = bind_name == "value"`——checked warning + 跳过（`flutter/view.rs` ~:2084；warning 文本 ~:2107） |
 
 > 域 6 为 v4 新增（domain HIGH-3）——本全集此前无 bind 语义域；bind 无编译器白名单常量，事实源以代码锚点记录（既有 5 域交叉断言不含本域）。
+
+---
+
+## 域 7: 元素指令与绑定（directives）
+
+### 语义域定义
+
+元素属性层语义域——**声明在元素上的指令与绑定**（元素可拖拽 / 元素可被引用 / 声明式 DOM 副作用 / 动态样式 / 属性形态），与事件（域 3）和命令式 RefOp（域 4）互补：指令表达意图（`@drag` 拖拽意图——指针捕获由编译器按目标选路）、绑定表达声明（`@ref` 引用、`focus=`/`scroll-x=`/`scroll-y=` 语义绑定驱动原生 DOM 副作用）、样式与属性表达形态（`style: { prop: sig }` 动态条目经直写通道落目标、裸布尔属性三态）。语义词汇 = 指令/绑定名本体（`drag`/`ref`/`focus` 等——`@` 前缀与 `=` 后缀是 DSL 表面形态）。全集封闭按本表（2026-08-07 登记）：未列元素属性层功能视为未登记，扩充需设计评审 + 登记册 + 三目标验证（@drag 入册先例，ADR-073）。
+
+### 语义集条目
+
+| 语义集条目 | 语义 | 实现状态 | 诊断行为 |
+|-----------|------|---------|---------|
+| drag | 拖拽意图指令（指针捕获编译器选路：React setPointerCapture / OmniView capturePointer 组合 / Flutter GestureDetector pan） | 支持 | 无（三目标）；**语义验证硬错误**：需同元素 @ref、handler 必须为组件函数名（禁止内联箭头/调用）、参数 ≤1、@dragEnd 不可单独出现、二者不可重复（validate_drag.rs 6 验证项） |
+| dragEnd | 拖拽结束回调（指针抬起/取消） | 支持 | 同上 |
+| ref | 元素引用绑定（`@ref={name}` 或 `ref: name`，等价） | 支持 | 无（三目标；@ref 声明见域 4 RefOp 关联） |
+| focus | 声明式焦点绑定（`focus={sig}`，true → .focus() / false → .blur()） | 支持 | 无（三目标）；绑定值须裸 signal 引用（`{sig}` 或 `{Store.sig}`），其他表达式为普通 prop |
+| scroll-x | 声明式水平滚动绑定 | 支持 | 同上（SEMANTIC_BINDINGS 常量成员） |
+| scroll-y | 声明式垂直滚动绑定 | 支持 | 同上 |
+| style 动态绑定 | `style: { prop: sig }` 动态条目——信号驱动样式经直写通道（D1/D2 域分类）落目标：React useRef+DOM 直写（零重渲染）/ Flutter ValueNotifier+ListenableBuilder（零 setState 整树重建）/ OmniView el.style.setProperty | 支持 | 无（三目标）；**Flutter 编译期诊断**：不可映射值（opacity/color 等）error_at 显式报错；数值 dimension（width/height/padding/margin）React/OmniView 自动 px 模板 |
+| 布尔属性 | 裸布尔属性形态（`disabled`、`checked` 等 15 关键字，`<input checked />` 与 `checked={sig}` 均合法） | 支持 | 无（三目标）；parser 15 关键字 = peek_is_boolean_attr_keyword；OmniView codegen HTML_BOOLEAN_ATTRS 12 项共享 |
+
+### 已实现白名单
+
+| 条目 | 编译器事实源 |
+|------|-------------|
+| drag | `parse_event_prop` drag 分派（`crates/omnilang-core/src/parser/view/element.rs` ~:681）+ `validate_drag.rs` + `DragBindingIR`（ir/types.rs） |
+| dragEnd | 同上（merge 步骤 push_element_prop 成对合并） |
+| ref | ElementIR `ref_binding` + `RefDeclIR`（ir/types.rs） |
+| focus | `SEMANTIC_BINDINGS` 常量（parser/view/element.rs:89） |
+| scroll-x | 同上 |
+| scroll-y | 同上 |
+
+> 注：**style 动态绑定** 与 **布尔属性** 为机制级条目（非词法级），白名单交叉断言以存在性检查承担（见 verify-semantic-universe.py 域 7 断言 Task 2）；本白名单表只列 6 个词法级条目。

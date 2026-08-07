@@ -53,7 +53,7 @@
 | `scroll-x={sig}` | 声明式水平滚动绑定 | 同上 | 支持 |
 | `scroll-y={sig}` | 声明式垂直滚动绑定 | 同上 | 支持 |
 | 动态 style 绑定（直写通道） | `style: { prop: sig }` 动态条目 → D1/D2 直写 | `codegen/shared/direct_write.rs` | 支持（三目标） |
-| 属性三态 | `class="x"` 裸布尔 / `prop={expr}` 动态属性 | `HTML_BOOLEAN_ATTRS`（19 项，omniview codegen）+ `is_expr` 判定 | 支持 |
+| 属性三态 | `class="x"` 裸布尔 / `prop={expr}` 动态属性 | parser `peek_is_boolean_attr_keyword`（15 关键字，element.rs:38）+ OmniView codegen `HTML_BOOLEAN_ATTRS`（12 项）+ Poiesis TS `BOOLEAN_ATTRS`（19 项，编辑器侧） | 支持 |
 
 **语义域定义**（草稿）：元素属性层语义域——**声明在元素上的指令与绑定**（元素可拖拽 / 元素可被引用 / 声明式 DOM 副作用 / 动态样式 / 属性形态），与事件（域 3）和命令式 RefOp（域 4）互补：指令表达意图、绑定表达声明、RefOp 表达命令。
 
