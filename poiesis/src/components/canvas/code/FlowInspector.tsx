@@ -156,7 +156,7 @@ export function FlowInspector({ selectedNodeIds }: Props) {
     );
   }
 
-  if (el.tag === "fn") {
+  if (el.tag === "fn" || el.tag === "action") {
     return <FnInspector el={el} setProp={setProp} />;
   }
 
@@ -191,6 +191,14 @@ interface FnInspectorProps {
 }
 
 function FnInspector({ el, setProp }: FnInspectorProps) {
+  const pub = (el.props?.pub as boolean) || false;
+  const isAsync = (el.props?.isAsync as boolean) || false;
+  const declKind = (el.props?.declKind as "fn" | "action") || "fn";
+  const activeTabType = usePoiesisStore((s) => {
+    const activeId = s.designPage.activeTabId;
+    if (!activeId) return "component" as const;
+    return s.designPage.openTabs.find((t) => t.id === activeId)?.tabType ?? "component";
+  });
   const fnName = (el.props?.name as string) || "";
   const paramsStr = (el.props?.params as string) || "";
   const parsedParams: Array<{ name: string; type: string }> = paramsStr
@@ -267,6 +275,37 @@ function FnInspector({ el, setProp }: FnInspectorProps) {
             No parameters
           </div>
         )}
+      </div>
+
+      {/* Visibility（pub 开关仅 code tab 显示——code 文件才有作用域可见性语义） */}
+      {activeTabType === "code" && (
+        <div style={S.field}>
+          <div style={S.label}>Visibility</div>
+          <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13 }}>
+            <input type="checkbox" checked={pub}
+              onChange={(e) => setProp(el.id, "pub", e.target.checked)} />
+            <span>pub</span>
+          </label>
+        </div>
+      )}
+
+      {/* Declaration kind：fn / action 双格式发射（T3 读 props.declKind） */}
+      <div style={S.field}>
+        <div style={S.label}>Declaration kind</div>
+        <select style={S.select} value={declKind}
+          onChange={(e) => setProp(el.id, "declKind", e.target.value)}>
+          <option value="fn">fn</option>
+          <option value="action">action</option>
+        </select>
+      </div>
+
+      <div style={S.field}>
+        <div style={S.label}>Async</div>
+        <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13 }}>
+          <input type="checkbox" checked={isAsync}
+            onChange={(e) => setProp(el.id, "isAsync", e.target.checked)} />
+          <span>async</span>
+        </label>
       </div>
     </div>
   );
