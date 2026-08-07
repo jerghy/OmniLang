@@ -88,13 +88,21 @@ function emitNode(
   const tag = node.element.tag;
 
   switch (tag) {
-    case "fn": {
+    case "fn":
+    case "action": {
       const name = (node.element.props?.name as string) || "unnamed";
       const params = (node.element.props?.params as string) || "";
       const returnType = (node.element.props?.returnType as string) || "";
       const ret = returnType ? ` -> ${returnType}` : "";
+      const declKind = (node.element.props?.declKind as "fn" | "action") || "fn";
+      const pub = (node.element.props?.pub as boolean) || false;
+      const isAsync = (node.element.props?.isAsync as boolean) || false;
       let out = emitPidComment(pid);
-      out += `fn ${name}(${params})${ret} {\n`;
+      if (declKind === "action") {
+        out += `action ${name}(${params})${isAsync ? " async" : ""} {\n`;
+      } else {
+        out += `${pub ? "pub " : ""}${isAsync ? "async " : ""}fn ${name}(${params})${ret} {\n`;
+      }
 
       // Emit successors (the fn body)
       for (const succId of node.successors) {
@@ -127,7 +135,12 @@ function emitNode(
         const source = node.element.source || "";
         out = emitPidComment(pid);
         const lines = source.split("\n");
-        for (const line of lines) {
+        for (let i = 0; i < lines.length; i++) {
+          // 首行前导空白是 tokenizer "\n " 归一化伪影（pad 已提供缩进），trimStart
+          // 后发射确定性成立 → code-block fixpoint：parse(compile(g)) 的 source
+          // 与回退源 body.trim() 一致（T3 G1 编译-再解析闭环实证）。后续行保留
+          // 原样（块内结构缩进是内容）。
+          const line = i === 0 ? lines[i]!.trimStart() : lines[i]!;
           out += `${pad}${line}\n`;
         }
       }

@@ -10,7 +10,6 @@
 import type { CodeblockElementData } from "../../core/types/element";
 import type { WireData } from "../../core/types/wire";
 import { uid } from "../../core/utils/id";
-import { parseOps } from "./code-op-parser";
 import { formatSyntaxNode, type SyntaxNodeProps } from "./syntax-nodes";
 import {
   isAnyAnnotation,
@@ -29,7 +28,6 @@ interface ParsedSegment {
   endLine: number;
   code: string;
   type: "fn" | "code-block" | "condition" | "return" | "let" | "assign" | "store-call" | "call" | "while" | "for-in";
-  operations?: import("../../core/types/code-op").CodeOp[];
 }
 
 /**
@@ -173,6 +171,19 @@ function detectSegmentType(
     trimmed.startsWith("else {")
   )
     return "condition";
+  // 多语句段 → code-block：首行是完整语句（以 ; 结尾）且后续还有非结构行时，
+  // 段内含多条语句——归为 code-block 原样保真。否则单语句节点会吞并后续语句
+  // （assign value 合入 "return" 等 → 语义丢失 + 编译-再解析 fixpoint 破坏；
+  // 该形态来自 code-block 回退源的原始文本重解析，T3 G1 实证）。
+  // 置于 return/单语句检查之前：以 `return x ;` 开头的原始多语句材料同样保真
+  // （return 为终态，编译产物无后继行；此处只命中原始回退文本）。
+  // 结构尾行（} / } else / else {）除外：条件链挂载的语句段尾部保持单语句分类。
+  // 首行以 { 结尾的块头（if/while/for-in）与无分号续行（x = a +\n b;）不命中。
+  if (
+    /;\s*$/.test(trimmed) &&
+    lines.slice(1).some((l) => l.trim() && !(/^\}\s*else/.test(l.trim()) || /^else\s*(if\b|\{)/.test(l.trim()) || l.trim() === "}"))
+  )
+    return "code-block";
   if (trimmed.startsWith("return ") || trimmed === "return;" || trimmed === "return")
     return "return";
   // OmniLang 风格循环段头（无括号）：`while <expr> {` / `for <ident> in <expr> {`
@@ -515,16 +526,14 @@ export function parseCodeFlowGraph(
       const branches = collectConditionBranches(segments, i, branchCtx);
       props = { branches };
     } else if (seg.type === "code-block") {
+      // 原样保留段文本（含手写首行缩进——graph-parser.test.ts 实证 "  // 步骤一"）。
+      // 首行 tokenizer 空格伪影（"\n " 归一化）由发射侧首行 trimStart 消化（见
+      // graph-compiler emitNode code-block 分支），保证 parse(compile(g)) fixpoint。
+      // 注意：不再在此挂载 parseOps 结构化 operations——CodeCard 编辑器时代遗留，
+      // 当前无任何消费方（canvas 为语法节点模型），且会把回退原始文本改写为
+      // ops 形态（"return ;" 误解析为 return(";") → 发射 "return ;;"），
+      // 破坏 code-block 原样保真与 fixpoint（T3 G1 实证）。
       source = seg.code;
-      // Try parsing source into structured operations
-      let operations;
-      try {
-        operations = parseOps(source);
-      } catch {
-        operations = undefined; // keep as raw source only
-      }
-      // Store operations for later use
-      seg.operations = operations;
     } else if (
       seg.type === "let" ||
       seg.type === "assign" ||
@@ -554,7 +563,6 @@ export function parseCodeFlowGraph(
       parentId: null,
       props,
       source,
-      ...(seg.operations?.length ? { operations: seg.operations } : {}),
     };
 
     elements.push(el);

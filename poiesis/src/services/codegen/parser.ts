@@ -52,7 +52,7 @@ export class Parser {
   private ctx: ParseContext;
   private indentMap = new Map<string, number>();
   private parsedFnBodies = new Map<string, { elements: CodeblockElementData[]; wires: WireData[] }>();
-  private fnRegistry = new Map<string, Array<{ pid: string; name: string; params: Array<{ name: string; type: string }>; returnType: string }>>();
+  private fnRegistry = new Map<string, Array<{ pid: string; name: string; params: Array<{ name: string; type: string }>; returnType: string; declKind?: "fn" | "action"; isAsync?: boolean }>>();
   private libDef: LibFileDef | null = null;
   private filePath?: string;
 
@@ -335,6 +335,10 @@ export class Parser {
     if (kw === "struct") { this.parseRootStruct(false); return; }
     if (kw === "type") { this.parseRootType(false); return; }
     if (kw === "fn") { this.parseRootFn(false, false); return; }
+    if (kw === "action") { this.parseComponentAction(); return; }
+    // ROOT 层 action（T3 G1 round-trip 载体）：graph-compiler 发射的独立 action 块
+    // 再解析须登记 codeFlowGraphs（否则异步分派把 `async` 误送 parseRootFn → 幻影 "unnamed"）。
+    // parseComponentAction 的 fnRegistry 推送有 comp 守卫，ROOT 下自动跳过，行为安全。
 
     // Unknown identifier at root — skip
     this.stream.consume();
@@ -381,7 +385,7 @@ export class Parser {
         })
       : [];
     const returnType = signature.match(/->\s*(\w+)/)?.[1] || ""; // 无 -> 不发射
-    this.synthesizeFnEntry(name, rawParams, returnType, pid, elements, wires);
+    this.synthesizeFnEntry(name, rawParams, returnType, pid, elements, wires, "fn", {});
     this.ensureBodyFallback(pid, body, elements, wires);
     this.parsedFnBodies.set(name, { elements, wires });
     this.currentLibDef().fns.push({ pid, name, params, returnType, body, pub, isAsync, declKind: "fn" });
@@ -530,10 +534,11 @@ export class Parser {
     // @pid comment before a declaration — store in pendingPid for next keyword handler
     const pidResult = parsePidAnnotation(text);
     if (pidResult) {
-      // 约定（文档化限制，行为保持）：组件上下文中的 @pid 注释须紧邻 fn/store 声明——
-      // 二者是 pendingPid 仅有的消费方（parseFn / parseComponentKeyword store 分支）。
+      // 约定（文档化限制，行为保持）：组件上下文中的 @pid 注释须紧邻
+      // fn/store/action/lifecycle 声明——四者是 pendingPid 的消费方
+      // （parseFn / parseComponentAction / parseComponentKeyword store 分支 / T6 lifecycle）。
       // signal/computed/prop/event 等成员不消费 pendingPid，夹在其间的 @pid 会跨成员
-      // 泄漏给下一个 fn/store 并错误附着（保存侧会把错误 pid 写回源文件）。
+      // 泄漏给下一个 fn/store/action/lifecycle 并错误附着（保存侧会把错误 pid 写回源文件）。
       this.ctx.pendingPid = pidResult.pid;
       return;
     }
@@ -559,6 +564,9 @@ export class Parser {
         break;
       case "fn":
         this.parseFn();
+        break;
+      case "action":
+        this.parseComponentAction();
         break;
       case "view":
         this.parseView();
@@ -761,7 +769,7 @@ export class Parser {
         })
       : [];
     const returnType = fnSignature.match(/->\s*(\w+)/)?.[1] || "void";
-    this.synthesizeFnEntry(fnName, rawParams, returnType, fnPid, elements, wires);
+    this.synthesizeFnEntry(fnName, rawParams, returnType, fnPid, elements, wires, "fn", {});
 
     this.parsedFnBodies.set(fnName, { elements, wires });
     // 组件 fn 未注解 body 同样兜底（手写源码保真——否则保存时正文丢失，真实缺陷修复）
@@ -773,6 +781,53 @@ export class Parser {
     if (comp) {
       const list = this.fnRegistry.get(comp) ?? [];
       list.push({ pid: fnPid, name: fnName, params, returnType });
+      this.fnRegistry.set(comp, list);
+    }
+  }
+
+  /** 组件 action（修复 G1）：`action <name>(<params>) [async] { body }`（DataFetching.omni 实证）。
+   *  镜像 parseFn 的签名/body 收集；async 是签名尾关键字（`() async`）；returnType 恒 ""。 */
+  private parseComponentAction(): void {
+    this.stream.consume(); // "action"
+
+    let signature = "";
+    while (!this.stream.isEof()) {
+      const tok = this.stream.peek();
+      if (tok.kind === "BRACE_OPEN") { this.stream.consume(); break; }
+      signature += tok.text + " ";
+      this.stream.consume();
+    }
+    const sigMatch = signature.match(/(\w+)\s*\(([^)]*)\)/);
+    const name = sigMatch?.[1] || "unnamed";
+    const rawParams = (sigMatch?.[2] || "").trim();
+    const isAsync = /async/.test(signature);
+
+    let body = "";
+    let depth = 1;
+    while (depth > 0 && !this.stream.isEof()) {
+      const tok = this.stream.peek();
+      if (tok.kind === "BRACE_OPEN") { depth++; body += "{\n"; }
+      else if (tok.kind === "BRACE_CLOSE") { depth--; if (depth > 0) body += "}\n"; }
+      else { body += tok.text + " "; }
+      this.stream.consume();
+    }
+
+    const { elements, wires } = parseCodeFlowGraph(body);
+    const pid = this.ctx.pendingPid || `fn_${name}_${uid()}`;
+    this.ctx.pendingPid = null;
+    const params = rawParams
+      ? rawParams.split(",").map((p) => {
+          const [pName, pType] = p.trim().split(":").map((s) => s.trim());
+          return { name: pName || "", type: pType || "String" };
+        })
+      : [];
+    this.synthesizeFnEntry(name, rawParams, "", pid, elements, wires, "action", { declKind: "action", isAsync });
+    this.ensureBodyFallback(pid, body, elements, wires);
+    this.parsedFnBodies.set(name, { elements, wires });
+    const comp = this.ctx.currentComponent;
+    if (comp) {
+      const list = this.fnRegistry.get(comp) ?? [];
+      list.push({ pid, name, params, returnType: "", declKind: "action", isAsync });
       this.fnRegistry.set(comp, list);
     }
   }
@@ -791,15 +846,17 @@ export class Parser {
     fnPid: string,
     elements: CodeblockElementData[],
     wires: WireData[],
+    entryTag: "fn" | "action" | "lifecycle" = "fn",
+    propsExtras: Record<string, unknown> = {},
   ): void {
-    // 已有 fn 元素（如 body 内含 fn 声明）则不重复合成
-    if (elements.some((e) => e.tag === "fn")) return;
+    // 已有同 tag 元素（如 body 内含 fn 声明）则不重复合成
+    if (elements.some((e) => e.tag === entryTag)) return;
     elements.unshift({
       id: fnPid,
       nodeType: "codeblock",
-      tag: "fn",
+      tag: entryTag,
       parentId: null,
-      props: { name: fnName, params: rawParams, returnType },
+      props: { name: fnName, params: rawParams, returnType, ...propsExtras },
       source: "",
     });
     // 仅当存在语句时 wire fn → 首语句；空 body 不产生任何 wire

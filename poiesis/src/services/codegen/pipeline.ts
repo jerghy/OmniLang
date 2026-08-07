@@ -280,7 +280,7 @@ export function generateOmniSource(options: GenerateOmniSourceOptions): StageRes
     const lowered = phaseB.ctx.lowered;
     const fnMap = new Map(lowered.functions.map(f => [f.name, f]));
     for (const fnEl of codeFlowElements) {
-      if (fnEl.tag !== "fn") continue;
+      if (fnEl.tag !== "fn" && fnEl.tag !== "action") continue;
       const compiledFn = compileCodeFlowGraph(codeFlowElements, options.designWires, fnEl.id);
       if (!compiledFn) continue;
 
@@ -301,6 +301,9 @@ export function generateOmniSource(options: GenerateOmniSourceOptions): StageRes
         // 否则磁盘 fn 无 pid 注释 → 重解析合成随机 uid → 位置丢失 + 每次刷新漂移
         // （回归见 fn-node-pipeline.test.ts「fn 声明前发射 // @pid:<fnId>」）。
         existingFn.pid = fnEl.id;
+        existingFn.declKind = (fnEl.props?.declKind as "fn" | "action") || "fn";
+        existingFn.isAsync = (fnEl.props?.isAsync as boolean) || false;
+        existingFn.pub = (fnEl.props?.pub as boolean) || false;
       } else {
         // No matching lowered function (fn node added in the code flow canvas
         // without a customFn element) — create a new FnDef so the compiled
@@ -320,6 +323,9 @@ export function generateOmniSource(options: GenerateOmniSourceOptions): StageRes
           returnType: (fnEl.props?.returnType as string) || "void",
           body: innerBody,
           pid: fnEl.id,
+          declKind: (fnEl.props?.declKind as "fn" | "action") || "fn",
+          isAsync: (fnEl.props?.isAsync as boolean) || false,
+          pub: (fnEl.props?.pub as boolean) || false,
         });
         fnMap.set(fnName, lowered.functions[lowered.functions.length - 1]);
       }

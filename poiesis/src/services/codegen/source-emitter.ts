@@ -330,7 +330,11 @@ export class SourceEmitter {
       // 画布 fn 节点 pid 前置注释：解析侧 pendingPid 恢复稳定 fn 入口 id
       // （否则合成随机 uid，persistedPositions 匹配失败，刷新后位置漂移）
       if (fn.pid) w.emit(`// @pid:${fn.pid}`);
-      w.emit(`fn ${fn.name}(${params}) -> ${fn.returnType} {`);
+      if (fn.declKind === "action") {
+        w.emit(`action ${fn.name}(${params})${fn.isAsync ? " async" : ""} {`);
+      } else {
+        w.emit(`${fn.pub ? "pub " : ""}${fn.isAsync ? "async " : ""}fn ${fn.name}(${params}) -> ${fn.returnType} {`);
+      }
       w.indent();
       for (const line of fn.body.split("\n")) w.emit(line);
       w.dedent();
