@@ -1505,23 +1505,44 @@ git commit -m "feat(codeflow): 生命周期数据链（@mount/@effect/@unmount �
 
 - [ ] **Step 1: 写失败测试**
 
-```ts
+```tsx
 // poiesis/src/components/canvas/code/nodes/__tests__/LifecycleNode.test.tsx
-// 镜像 LoopNode.test.tsx 的渲染/断言形态
-import { describe, it, expect } from "vitest";
+// LifecycleNode（mount/effect/unmount）形态渲染 + 端口 handle 断言（镜像 LoopNode.test.tsx）。
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { LifecycleNode } from "../LifecycleNode";
 
+vi.mock("@xyflow/react", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@xyflow/react")>();
+  return {
+    ...actual,
+    Handle: (props: Record<string, unknown>) => <div {...props} />,
+  };
+});
+
+const baseData = {
+  tag: "lifecycle",
+  props: { hookType: "effect", deps: "searchText, setFilter" },
+  onEditProp: vi.fn(),
+  scope: undefined,
+  letVars: [],
+  onDoubleClick: undefined,
+};
+
 describe("LifecycleNode", () => {
-  it("渲染摘要：@effect 带 deps、@mount 无 deps", () => {
-    const { rerender } = render(<LifecycleNode id="lc1" data={{ tag: "lifecycle", props: { hookType: "effect", deps: "searchText,setFilter" }, name: "effect" } as never} />);
-    expect(screen.getByText("@effect(searchText,setFilter)")).toBeInTheDocument();
-    rerender(<LifecycleNode id="lc2" data={{ tag: "lifecycle", props: { hookType: "mount" }, name: "mount" } as never} />);
-    expect(screen.getByText("@mount")).toBeInTheDocument();
+  it("effect 形态渲染摘要（含 deps）与 flow-in/flow-out 端口", () => {
+    const { container } = render(<LifecycleNode id="lc-1" data={baseData as never} />);
+    expect(container.querySelector('[data-testid="lifecycle-summary"]')?.textContent).toBe("@effect(searchText, setFilter)");
+    expect(document.querySelector('[data-handle-id="flow-in"]')).toBeTruthy();
+    expect(document.querySelector('[data-handle-id="flow-out"]')).toBeTruthy();
+  });
+  it("mount 形态渲染摘要（无 deps 括号）", () => {
+    render(<LifecycleNode id="lc-2" data={{ ...baseData, props: { hookType: "mount" } } as never} />);
+    expect(screen.getByText("@mount")).toBeTruthy();
   });
 });
 ```
-（data 形状按既有节点组件实际 props 契约调整。）
+（data 形状与 LoopNode.test.tsx 的 baseData 同构；`@effect(searchText, setFilter)` 摘要带空格——发射端 deps 原样保留（解析提取括号内文本）。）
 
 - [ ] **Step 2: 运行测试确认失败**
 
@@ -1533,56 +1554,138 @@ Expected: FAIL（模块不存在）
 ```tsx
 // poiesis/src/components/canvas/code/nodes/LifecycleNode.tsx
 // 生命周期块节点：摘要渲染 @mount / @effect(deps) / @unmount，flow-out → body 链。
-// 对标 FnNode 的块形态（HandlesBoundary + 底部 source handle）。
+// 对标 LoopNode 块形态（CSS module + HandlesBoundary + data-handle-id 端口类）。
 
-import { memo } from "react";
+import React, { memo } from "react";
 import { Handle, Position } from "@xyflow/react";
-import type { CodeblockElementData } from "../../../../core/types/element";
+import type { FlowScope } from "../../../../services/codegen/flow-scope";
+import styles from "./LifecycleNode.module.css";
+import "./node-base.css";
 
-interface LifecycleNodeProps {
-  id: string;
-  data: CodeblockElementData;
-  selected?: boolean;
+interface LifecycleNodeData {
+  tag: "lifecycle";
+  props: { hookType: "mount" | "effect" | "unmount"; deps?: string };
+  source?: string;
+  scope?: FlowScope;
+  letVars?: Array<{ name: string }>;
+  onEditProp?: (id: string, prop: string, value: unknown) => void;
 }
 
-export const LifecycleNode = memo(function LifecycleNode({ id, data, selected }: LifecycleNodeProps) {
-  const hookType = (data.props?.hookType as "mount" | "effect" | "unmount") ?? "mount";
-  const deps = (data.props?.deps as string) || "";
+interface Props {
+  id?: string;
+  data: LifecycleNodeData;
+}
+
+// Handle 依赖 ReactFlowProvider（连线渲染）；单元测试直接渲染节点时静默跳过，避免抛错。
+class HandlesBoundary extends React.Component<{ children: React.ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  render() {
+    return this.state.failed ? null : this.props.children;
+  }
+}
+
+export const LifecycleNode = memo(function LifecycleNode({ id, data }: Props) {
+  const hookType = data.props?.hookType ?? "mount";
+  const deps = data.props?.deps ?? "";
   const depsPart = hookType === "effect" && deps ? `(${deps})` : "";
   return (
-    <div style={NODE_STYLE}>
-      <Handle type="target" position={Position.Left} id="flow-in" style={HANDLE_STYLE} />
-      <div style={LABEL_STYLE}>{`@${hookType}${depsPart}`}</div>
-      <Handle type="source" position={Position.Bottom} id="flow-out" style={HANDLE_STYLE} />
+    <div className={`${styles.node} codeflow-node nodrag`}>
+      <HandlesBoundary>
+        <Handle type="target" position={Position.Top} id="flow-in" className={`${styles.handle} codeflow-handle`} data-handle-id="flow-in" />
+      </HandlesBoundary>
+      <div className={`${styles.header} codeflow-header`} data-testid="lifecycle-summary">{`@${hookType}${depsPart}`}</div>
+      <HandlesBoundary>
+        <Handle type="source" position={Position.Bottom} id="flow-out" className={`${styles.handle} codeflow-handle`} data-handle-id="flow-out" />
+      </HandlesBoundary>
     </div>
   );
 });
 ```
-（`NODE_STYLE` / `LABEL_STYLE` / `HANDLE_STYLE` 三个常量对象从 `nodes/FnNode.tsx` 顶部复制（FnNode 的容器/标签/handle 内联样式——若 FnNode 用样式常量则同名引用，若内联则复制内联对象）；`id`/`selected` 参数仅用于与 ReactFlow 节点签名对齐，当前渲染不使用。）
 
-- [ ] **Step 4: FlowCanvas 注册**
+同目录新文件 `LifecycleNode.module.css`（镜像 LoopNode.module.css 的 node/header/handle 三件套）：
+```css
+.node {
+  min-width: 180px;
+  border-radius: 8px;
+  border: 1px solid var(--ol-color-primary, #14b8a6);
+  background: var(--ol-surface, #fff);
+  font-size: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+.header { padding: 6px 10px; background: rgba(20, 184, 166, 0.12); font-weight: 600; text-align: center; font-family: ui-monospace, monospace; border-radius: 8px 8px 0 0; }
+.handle { width: 10px; height: 10px; background: #14b8a6; }
+```
+（数据契约与 LoopNodeData 同构：FlowCanvas nodes useMemo 注入的 `id/scope/letVars/onEditProp` 字段全部透传；`data.props` 读 hookType/deps。）
+
+- [ ] **Step 4: FlowCanvas 注册 + NodeSearchMenu 透传 item + 单例守卫**
 
 nodeTypes（43-55）加 `"lifecycle": LifecycleNode,`（import 同步加）。
-**单例守卫**：FlowCanvas 的拖拽创建/NodeSearchMenu 插入 handler 中，tag === "lifecycle" 时检查（菜单条目在 props 上携带初始 hookType——见 Step 5 三项条目）：
+
+**NodeSearchMenu 透传 item**：现有 `onSelect: (tag: string) => void` 只传 tag——lifecycle 三个菜单项 tag 都是 `"lifecycle"`，单例守卫无法区分 hookType。改 `MenuItem` 加可选 `props` 字段、`onSelect` 改传完整 item：
 ```ts
-      const hookType = (item.props?.hookType as "mount" | "effect" | "unmount") ?? "mount";
-      const hasSame = usePoiesisStore.getState().elements.some(
-        (e) => e.nodeType === "codeblock" && e.tag === "lifecycle" && (e.props?.hookType as string) === hookType,
-      );
-      if (hasSame) return; // 单例约束：每组件每种 hookType 仅一个（learn-omniview 实证）
+// flowConstants.ts
+export interface MenuItem {
+  label: string;
+  tag: string;
+  shortcut?: string;
+  props?: Record<string, unknown>; // 创建时初始 props（lifecycle 菜单项携带 hookType）
+}
 ```
-（若创建路径不读 `item.props`，改为在创建后的节点默认 props 上取 hookType——两处必须同源；守卫只认 `store.elements` 中已存在节点，覆盖画布新建与磁盘物化两种来源。）
+```ts
+// NodeSearchMenu.tsx
+interface Props {
+  x: number;
+  y: number;
+  onSelect: (item: MenuItem) => void; // 改：传完整 item（含 props）
+  onClose: () => void;
+}
+// select(item) / onKeyDown Enter / 按钮 onClick 三处调用点同步改 `select(item)`（原传 flat[activeIdx].tag）
+```
+（menuKey 唯一性注意：三项 tag 相同，`key={item.tag}` 会 React key 冲突——按钮 key 改 `item.label`（或 `${item.tag}-${item.label}`），filterMenuItems 的匹配逻辑不变。）
+
+**FlowCanvas handleMenuSelect 改造 + 单例守卫**（现签名 `(tag: string)` → `(item: MenuItem)`，内部 `const tag = item.tag`；既有 tag 分支不动，只加 lifecycle 分支与创建 props）：
+```ts
+  const handleMenuSelect = useCallback(
+    (item: MenuItem) => {
+      if (!menuState) return;
+      const tag = item.tag;
+      const id = uid(tag);
+      const jitter = Math.random() * 40 - 20;
+      let props: Record<string, unknown> = {};
+      if (tag === "fn") { props = { name: "newFn", params: "" }; }
+      if (tag === "condition") { props = { branches: [{ id: "br0", type: "if", condition: "" }] }; }
+      if (["let", "assign", "store-call", "call", "while", "for-in"].includes(tag)) { props = { ...defaultSyntaxProps(tag) }; }
+      if (tag === "lifecycle") {
+        // 单例约束：每组件每种 hookType 仅一个（learn-omniview 实证）——检查 store.elements
+        // 中已存在节点（覆盖已保存与画布新建两种来源）
+        const hookType = (item.props?.hookType as "mount" | "effect" | "unmount") ?? "mount";
+        const hasSame = usePoiesisStore.getState().elements.some(
+          (e) => e.nodeType === "codeblock" && e.tag === "lifecycle" && (e.props?.hookType as string) === hookType,
+        );
+        if (hasSame) return; // 守卫命中：菜单关闭由 NodeSearchMenu select() 统一处理
+        props = { hookType, deps: "" };
+      }
+      addElement({ id, nodeType: "codeblock", tag, props, parentId: null, position: { x: menuState.flowX + jitter, y: menuState.flowY + jitter }, source: "" });
+      // ... 后续 pendingDragRef wire 逻辑不变
+    },
+    [menuState, addElement, addWire],
+  );
+```
+（`usePoiesisStore.getState()` 直接读 store——守卫在 setState 回调内，不能用 hook 订阅；`deps: ""` 保证 effect 创建后 FlowInspector 的 deps 输入框有受控值。菜单关闭逻辑在 NodeSearchMenu.select 内已统一，守卫 return 后 onClose 仍执行。）
 
 - [ ] **Step 5: flowConstants.ts + FlowInspector**
 
 flowConstants.ts：
 - CODE_TAGS 加 `"lifecycle"`；
 - TAG_CN 加 `lifecycle: "lifecycle"`；
-- MENU_SECTIONS「控制流」段（45-53）加**三项**（mount/effect/unmount 各一项——单例约束要求每种 hookType 独立创建路径；menuKey/tag/icon 与既有条目同构）：
-  - `@mount`（props `{ hookType: "mount" }`）
-  - `@effect`（props `{ hookType: "effect", deps: "" }`）
-  - `@unmount`（props `{ hookType: "unmount" }`）
-（节点创建后的初始 props 来源与既有条目一致——若既有条目通过创建 handler 给默认 props，则三处默认 props 按上表填写；`deps: ""` 保证 effect 创建后 FlowInspector 的 deps 输入框有受控值。）
+- MENU_SECTIONS「控制流」段（42-53）加**三项**（mount/effect/unmount 各一项——单例约束要求每种 hookType 独立创建路径；tag 恒为 `"lifecycle"`、label/shortcut 与既有条目同构、props 按上表——Step 4 已把 `props` 加进 `MenuItem` 类型并在创建 handler 读 `item.props`）：
+  - `{ label: "@mount", tag: "lifecycle", props: { hookType: "mount" } }`
+  - `{ label: "@effect", tag: "lifecycle", props: { hookType: "effect", deps: "" } }`
+  - `{ label: "@unmount", tag: "lifecycle", props: { hookType: "unmount" } }`
+（节点创建后的初始 props 在 FlowCanvas handleMenuSelect 的 lifecycle 分支读取 `item.props`（Step 4 已给出完整代码）——菜单条目与创建 handler 两处同源；`deps: ""` 保证 effect 创建后 FlowInspector 的 deps 输入框有受控值。）
 
 FlowInspector.tsx：分派（159 附近）加：
 ```ts
@@ -1636,20 +1739,21 @@ git commit -m "feat(codeflow): 生命周期节点 UI（LifecycleNode + 单例守
 ### Task 8: try 块节点（分支行 + catch/finally 解析发射）
 
 **Files:**
-- Modify: `poiesis/src/services/codegen/graph-parser.ts`（detectSegmentType `/^try\s*\{/` 前置；isElifElseCode 扩展 catch/finally 正则；新 parseTryBranches）
-- Modify: `poiesis/src/services/codegen/graph-compiler.ts`（case "try"）
-- Modify: `poiesis/src/services/codegen/types.ts`（TryBranchDef）
-- Create: `poiesis/src/components/canvas/code/nodes/TryNode.tsx`
-- Modify: `poiesis/src/components/canvas/code/FlowCanvas.tsx:43-55`（nodeTypes 加 try）
-- Modify: `poiesis/src/components/canvas/code/flowConstants.ts`（控制流段）
-- Test: `poiesis/src/services/codegen/__tests__/try-branch.test.ts`（新建，镜像 graph-compiler-branch-id.test.ts）+ `nodes/__tests__/TryNode.test.tsx`（新建）
+- Modify: `poiesis/src/services/codegen/graph-parser.ts`（detectSegmentType `/^try\s*\{/`；isElifElseCode 改名 isBranchContinuation 并扩展 catch/finally 正则；新 parseTryBranches/collectTryBranches；元素循环 try case；flow-out 续接循环加 try；parseSyntaxProps stmtEnd 扩展）
+- Modify: `poiesis/src/services/codegen/graph-compiler.ts`（case "try"，精确镜像 condition case 143-194 行）
+- Create: `poiesis/src/components/canvas/code/nodes/TryNode.tsx`（完整组件，本任务 Step 5 含全部代码）
+- Modify: `poiesis/src/components/canvas/code/FlowCanvas.tsx`（nodeTypes 加 try；handleMenuSelect 加 try 默认 props；data 装配 branches cast 放宽 + onEditCatchVar）
+- Modify: `poiesis/src/components/canvas/code/flowConstants.ts`（CODE_TAGS/TAG_CN/MENU_SECTIONS 三处）
+- Test: `poiesis/src/services/codegen/__tests__/try-branch.test.ts`（新建）+ `poiesis/src/components/canvas/code/nodes/__tests__/TryNode.test.tsx`（新建）
 
 **Interfaces:**
-- Produces: `TryBranchDef = { id: string; type: "try" | "catch" | "finally"; catchVar?: string }`（types.ts）
-- 节点 props：`{ branches: TryBranchDef[] }`；分支 source handle key = `br.id`
+- graph-parser 内部新接口（镜像 BranchDef 51-55 行的本地定义，**不加 types.ts**——ConditionNode/parseConditionBranches 均本地定义，保持同构）：
+  `TryBranchDef = { id: string; type: "try" | "catch" | "finally"; catchVar?: string }`
+- 节点 props：`{ branches: Array<{ id, type: "try"|"catch"|"finally", catchVar? }> }`；分支 source handle key = `br.id`（镜像 ConditionNode）
 - **分支 id 用 `br${idx}` 索引 id（与 ConditionNode 分支行同构）**——对 spec §4「真实 uid id」的**有意偏离**：分支 id 不落文本，uid 每次解析随机化会导致 wire 断连；索引 id 跨解析稳定（镜像 ConditionNode 的 br${max+1} 经验）。
-- 发射（镜像 condition 分支模式）：`try {\n <try 链> }` → `catch err {\n ... }` → `finally {\n ... }`；`@pid` 仅 try 首行；分支链走 branchSuccessors.get(br.id)；块后继走 successors。
+- **发射格式 = 新行风格**（镜像 condition 发射器 171-182 行：每分支 `${pad}${keyword}${catchVarStr} {\n` + 分支体 + `${pad}}\n`）→ 产出 `}\ncatch err {`（`}` 是上一分支收尾，catch 行无前导 `}`）。真实文件 error_handling.omni 虽是同行风格 `} catch err {`，但现有 condition 发射器对 else 同样产出新行风格（真实文件 ThemeStore/DynamicTokenStore 两种风格混用），round-trip 标准是**重解析图稳定性**（midchain 测试的 out2 === out1 断言）而非字节相等——try 与 condition 一致，不引入第二种发射风格。
 - 语义约束（UI 层）：try 必需（节点创建即含 try 分支）；catch ≤ 1；finally ≤ 1；至少 catch 或 finally 之一（`+ catch`/`+ finally` 按钮按 hasCatch/hasFinally guard 禁用）。
+- 解析侧段约定（镜像中链 condition）：**延续行（`} catch err {` / `} finally {`）不带 `// @pid` 注释**——挂在前一段段尾，由 2d pendingTransition + parseSyntaxProps stmtEnd 截断处理；带 pid 的延续行会生成 code-block 元素被发射进分支体（错误）。
 
 - [ ] **Step 1: 写失败测试**
 
@@ -1658,167 +1762,660 @@ git commit -m "feat(codeflow): 生命周期节点 UI（LifecycleNode + 单例守
 import { describe, it, expect } from "vitest";
 import { parseCodeFlowGraph } from "../graph-parser";
 import { compileCodeFlowGraph } from "../graph-compiler";
-import type { CodeblockElementData } from "../../../core/types/element";
+import type { WireData } from "../../../core/types/wire";
 
-const body = `try {
-  let raw = fs_read(file_path);
+/** try 中链源：镜像 graph-parser-midchain.test.ts 的段约定——
+ *  fn wrapper 首行（无 pid，被 splitByPid 丢弃）+ 每 statement 一个 `// @pid:xxx` 注释
+ *  + 延续行（`} catch err {` / `} finally {`）裸挂在上一 statement 段尾（无 pid）：
+ *  结构行不生成元素，由 2d pendingTransition + parseSyntaxProps stmtEnd 截断处理。 */
+const TRY_SRC = `fn f() {
+// @pid:try-1
+try {
+// @pid:let-2
+let raw = fs_read(file_path);
 } catch err {
-  log_error(err);
+// @pid:call-4
+log_error(err);
 } finally {
-  cleanup();
+// @pid:call-6
+cleanup();
+}
 }
 `;
 
-describe("try 块", () => {
-  it("解析：try/catch/finally 三分支（catchVar 提取）", () => {
-    const graph = parseCodeFlowGraph(body);
-    const tryEl = graph.elements.find((e) => e.tag === "try") as CodeblockElementData | undefined;
+function wireList(wires: WireData[]): string[] {
+  return wires
+    .map((w) => `${w.fromId}(${w.fromPort})->${w.toId}(${w.toPort})`)
+    .sort();
+}
+
+describe("graph-parser try 块", () => {
+  it("解析：try/catch/finally 三分支 + catchVar 提取 + 分支 wire", () => {
+    const graph = parseCodeFlowGraph(TRY_SRC);
+    const tryEl = graph.elements.find((e) => e.tag === "try");
     expect(tryEl).toBeDefined();
     const branches = tryEl!.props?.branches as Array<{ id: string; type: string; catchVar?: string }>;
     expect(branches.map((b) => b.type)).toEqual(["try", "catch", "finally"]);
+    expect(branches.map((b) => b.id)).toEqual(["br0", "br1", "br2"]);
     expect(branches[1].catchVar).toBe("err");
-    expect(branches[0].id).toMatch(/^br\d+$/);
+    // 分支体归位：br0→let-2、br1→call-4、br2→call-6
+    expect(wireList(graph.wires)).toContain("try-1(br0)->let-2(flow-in)");
+    expect(wireList(graph.wires)).toContain("try-1(br1)->call-4(flow-in)");
+    expect(wireList(graph.wires)).toContain("try-1(br2)->call-6(flow-in)");
   });
 
-  it("编译-再解析闭环：分支发射 + 分支 port 稳定性", () => {
-    const graph = parseCodeFlowGraph(body);
-    const tryEl = graph.elements.find((e) => e.tag === "try")!;
-    const compiled = compileCodeFlowGraph(graph.elements, graph.wires, tryEl.id)!;
-    expect(compiled).toContain("try {");
-    expect(compiled).toContain("} catch err {");
-    expect(compiled).toContain("} finally {");
-    expect(compiled).toContain("log_error(err)");
-    // 再解析 → 再编译 → 分支 id 稳定（fixpoint）
-    const graph2 = parseCodeFlowGraph(compiled);
-    const tryEl2 = graph2.elements.find((e) => e.tag === "try")!;
-    const compiled2 = compileCodeFlowGraph(graph2.elements, graph2.wires, tryEl2.id)!;
-    expect(compiled2).toBe(compiled);
+  it("编译 → 再解析 → 再编译幂等（新行风格发射 + fixpoint）", () => {
+    const g1 = parseCodeFlowGraph(TRY_SRC);
+    const out1 = compileCodeFlowGraph(g1.elements, g1.wires, "try-1")!;
+    // 发射镜像 condition：每分支 `${keyword}${catchVarStr} {\n`——catch 行无前导 `}`
+    expect(out1).toContain("try {");
+    expect(out1).toContain("catch err {");
+    expect(out1).toContain("finally {");
+    expect(out1).not.toContain("} catch err {");
+    expect(out1).toContain("log_error(err);");
+    expect(out1).toContain("cleanup();");
+
+    const g2 = parseCodeFlowGraph(out1);
+    const out2 = compileCodeFlowGraph(g2.elements, g2.wires, "try-1")!;
+    expect(out2).toBe(out1);
+    expect(wireList(g2.wires)).toEqual(wireList(g1.wires));
   });
 
   it("catch 无变量形式（catch {）", () => {
-    const graph = parseCodeFlowGraph(`try {\n  do_something();\n} catch {\n  recover();\n}\n`);
+    const graph = parseCodeFlowGraph(`fn f() {
+// @pid:t-1
+try {
+// @pid:a-2
+do_something();
+} catch {
+// @pid:b-3
+recover();
+}
+}
+`);
     const branches = graph.elements.find((e) => e.tag === "try")!.props?.branches as Array<{ type: string; catchVar?: string }>;
     expect(branches[1]).toMatchObject({ type: "catch", catchVar: undefined });
+    expect(wireList(graph.wires)).toContain("t-1(br1)->b-3(flow-in)");
   });
 });
 ```
-TryNode 测试（镜像 LoopNode.test.tsx 形态）：渲染 3 分支行 + `+ catch`/`+ finally` 按钮禁用态（hasCatch/hasFinally 时）+ HandlesBoundary 存在。
+
+TryNode 组件测试（完整文件，镜像 LoopNode.test.tsx 形态——vi.mock @xyflow/react 把 Handle 替换为 div + toBeTruthy/disabled 断言，**不依赖 jest-dom**）：
+
+```tsx
+// poiesis/src/components/canvas/code/nodes/__tests__/TryNode.test.tsx
+import { describe, it, expect, vi } from "vitest";
+import { render, fireEvent } from "@testing-library/react";
+
+vi.mock("@xyflow/react", () => ({
+  Handle: () => <div data-testid="mock-handle" />,
+  Position: { Top: "top", Right: "right", Bottom: "bottom" },
+}));
+
+import { TryNode } from "../TryNode";
+
+const baseData = {
+  label: "try 块",
+  branches: [
+    { id: "br0", type: "try" as const },
+    { id: "br1", type: "catch" as const, catchVar: "err" },
+    { id: "br2", type: "finally" as const },
+  ],
+};
+
+describe("TryNode", () => {
+  it("渲染三分支行 + catchVar 展示", () => {
+    const { container } = render(<TryNode data={baseData} />);
+    const rows = container.querySelectorAll('[data-testid="try-branch-row"]');
+    expect(rows.length).toBe(3);
+    expect(container.textContent).toContain("尝试");
+    expect(container.textContent).toContain("捕获");
+    expect(container.textContent).toContain("收尾");
+    expect(container.textContent).toContain("err");
+  });
+
+  it("hasCatch/hasFinally 时 + 按钮禁用", () => {
+    const { getByTestId } = render(<TryNode data={baseData} />);
+    const addCatch = getByTestId("add-catch") as HTMLButtonElement;
+    const addFinally = getByTestId("add-finally") as HTMLButtonElement;
+    expect(addCatch.disabled).toBe(true);
+    expect(addFinally.disabled).toBe(true);
+  });
+
+  it("仅 try 分支时按钮可用，点击追加新分支（br${max+1}）", () => {
+    const onUpdateBranches = vi.fn();
+    const { getByTestId } = render(
+      <TryNode data={{ label: "try 块", branches: [{ id: "br0", type: "try" }], onUpdateBranches }} />,
+    );
+    fireEvent.click(getByTestId("add-catch"));
+    expect(onUpdateBranches).toHaveBeenCalledWith([
+      { id: "br0", type: "try" },
+      { id: "br1", type: "catch" },
+    ]);
+    fireEvent.click(getByTestId("add-finally"));
+    expect(onUpdateBranches).toHaveBeenCalledWith([
+      { id: "br0", type: "try" },
+      { id: "br1", type: "finally" },
+    ]);
+  });
+});
+```
 
 - [ ] **Step 2: 运行测试确认失败**
 
 Run: `cd poiesis && npm test -- src/services/codegen/__tests__/try-branch.test.ts`
 Expected: FAIL（try 落 fallback code-block）
 
-- [ ] **Step 3: graph-parser.ts**
+- [ ] **Step 3: graph-parser.ts**（全部修改点按序执行）
 
-(a) `detectSegmentType` 在 call 正则**之前**加：
+(a) `SegmentType` union（31 行与 159 行两处）：加 `"try"`。
+(b) `detectSegmentType`（162-193 行）：在 call 正则**之前**加：
 ```ts
-    if (/^try\s*\{/.test(first)) return "try";
+  if (/^try\s*\{/.test(trimmed)) return "try";
 ```
 （try 首 token 不匹配现有正则，显式前置防回归。）
-(b) `assignBranchContext` 的 `isElifElseCode`（或同款分支延续判定）扩展两正则（镜像现有 `} else {` 模式）：
+(c) `isElifElseCode`（328-332 行）改名 `isBranchContinuation` 并扩展为 catch/finally 四正则全覆盖：
 ```ts
-    /^\}\s*catch\b/,
-    /^\}\s*finally\b/,
+    // Detect if this segment is a branch continuation (elif/else/catch/finally).
+    // Handles both `} else {` / `} catch err {` (legacy @pid style) and bare
+    // `else {` / `catch err {` (new @type style where the closing `}` is in
+    // the preceding segment).
+    const isBranchContinuation =
+      /^\}\s*else\s*\{/.test(trimmed) ||
+      /^\}\s*else\s+if\b/.test(trimmed) ||
+      /^\}\s*catch\b/.test(trimmed) ||
+      /^\}\s*finally\b/.test(trimmed) ||
+      /^else\s*\{/.test(trimmed) ||
+      /^else\s+if\b/.test(trimmed) ||
+      /^catch\b/.test(trimmed) ||
+      /^finally\b/.test(trimmed);
 ```
-(d) `types.ts` 文件末尾加：
+同步更新全部引用：pop guard（339-354 行 `isElifElseCode && startDepth === top.baseDepth` → `isBranchContinuation && ...`）、2d guard（386-391 行 `!isElifElseCode` → `!isBranchContinuation`）。
+(d) 2a 分支延续（365-369 行）：
 ```ts
-export interface TryBranchDef {
+      // 2a. @pid-style: segment starts with `} else {` / `} else if` / `} catch ...` / `} finally`
+      if (
+        /^\}\s*else\s*\{/.test(trimmed) ||
+        /^\}\s*else\s+if\b/.test(trimmed) ||
+        /^\}\s*catch\b/.test(trimmed) ||
+        /^\}\s*finally\b/.test(trimmed)
+      ) {
+```
+(e) 2b（371-375 行）：
+```ts
+      // 2b. @type-style continuation (no leading `}`)
+      else if (
+        /^else\s*\{/.test(trimmed) ||
+        /^else\s+if\b/.test(trimmed) ||
+        /^catch\b/.test(trimmed) ||
+        /^finally\b/.test(trimmed)
+      ) {
+```
+（发射器输出重解析时 catch 行无前导 `}` → 走 2b；真实文件同行 `} catch err {` 段首 → 走 2a。）
+(f) 2d（386-391 行）：
+```ts
+      if (
+        !isBranchContinuation &&
+        (/\}\s*else\s*\{/.test(seg.code) ||
+          /\}\s*else\s+if\b/.test(seg.code) ||
+          /\}\s*catch\b/.test(seg.code) ||
+          /\}\s*finally\b/.test(seg.code))
+      ) {
+        cond.pendingTransition = true;
+      }
+```
+（挂载 `} catch err {` / `} finally {` 段尾 → pendingTransition → 下一段 2c 消费——与 `} else {` 同构。）
+(g) push 规则（408-424 行）：
+```ts
+    if (
+      seg.type === "while" ||
+      seg.type === "for-in" ||
+      seg.type === "try" ||
+      (seg.type === "condition" && !isBranchContinuation)
+    ) {
+      const branches =
+        seg.type === "condition"
+          ? parseConditionBranches(seg.code)
+          : seg.type === "try"
+            ? parseTryBranches(seg.code)
+            : [{ id: "br0", type: "if" as const, condition: "" }];
+```
+（try 段 code 恒为 `try {` → parseTryBranches 得 `[br0 try]`；完整三分支列表由 (j) 的 collectTryBranches 汇总给元素。）
+(h) 新 `parseTryBranches`（放在 parseConditionBranches 之后；**完整行扫描**——逐行匹配三个 keyword 正则，出现新 keyword 时保存上一分支，末尾 push 最后一个。**不要**只用首行判断——segment 文本可能是 join 过的多行文本）：
+```ts
+/**
+ * Parse a try segment's raw code (plus continuation segments via
+ * collectTryBranches) to extract branch definitions.
+ * Mirrors parseConditionBranches: full-line scan, saving each branch when
+ * the next keyword appears, pushing the final one at the end.
+ */
+function parseTryBranches(code: string): TryBranchDef[] {
+  const branches: TryBranchDef[] = [];
+  const lines = code.split("\n");
+
+  let currentType: "try" | "catch" | "finally" = "try";
+  let currentVar: string | undefined;
+  let branchIdx = 0;
+
+  const tryRe = /^try\s*\{?\s*$/;
+  const catchRe = /^(?:\}\s*)?catch(?:\s+(\w+))?\s*\{?\s*$/;
+  const finallyRe = /^(?:\}\s*)?finally\s*\{?\s*$/;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    const match = trimmed.match(catchRe);
+
+    if (tryRe.test(trimmed)) {
+      currentType = "try";
+      currentVar = undefined;
+    } else if (match) {
+      // Save previous branch, then switch to catch
+      branches.push({ id: `br${branchIdx++}`, type: currentType, catchVar: currentVar });
+      currentType = "catch";
+      currentVar = match[1] || undefined;
+    } else if (finallyRe.test(trimmed)) {
+      // Save previous branch, then switch to finally
+      branches.push({ id: `br${branchIdx++}`, type: currentType, catchVar: currentVar });
+      currentType = "finally";
+      currentVar = undefined;
+    }
+  }
+  // Save last branch
+  branches.push({ id: `br${branchIdx}`, type: currentType, catchVar: currentVar });
+
+  return branches;
+}
+```
+（`catchRe` 同时匹配同行 `} catch err {`（`(?:\}\s*)?` 消费前导 `}`）与新行 `catch err {`——两条路径都覆盖；`\w+` 捕获 catchVar。）
+(i) 新 `collectTryBranches`（放在 collectConditionBranches 之后；循环终止条件同款——只收集 branchCtx.conditionPid 仍指向 try pid 的后续段）：
+```ts
+/**
+ * Combine the try segment's own code with code from all subsequent
+ * segments that fall within the try block's brace scope. This gives
+ * `parseTryBranches` the full picture including catch/finally keywords
+ * that live in separate segments.
+ */
+function collectTryBranches(
+  segments: ParsedSegment[],
+  tryIdx: number,
+  branchCtx: Map<number, BranchContext>,
+): TryBranchDef[] {
+  const codeParts: string[] = [segments[tryIdx].code];
+  const tryPid = segments[tryIdx].pid;
+
+  for (let j = tryIdx + 1; j < segments.length; j++) {
+    const ctx = branchCtx.get(j);
+    if (ctx && ctx.conditionPid === tryPid) {
+      codeParts.push(segments[j].code);
+    } else {
+      break;
+    }
+  }
+
+  return parseTryBranches(codeParts.join("\n"));
+}
+```
+(j) 元素循环（512-516 行的 condition case 之后加）：
+```ts
+    } else if (seg.type === "try") {
+      // Use combined code from all segments inside the try block so that
+      // catch/finally keywords in subsequent segments are picked up.
+      const branches = collectTryBranches(segments, i, branchCtx);
+      props = { branches };
+    }
+```
+(k) flow-out 续接循环（628-652 行）：
+```ts
+    if (segType !== "condition" && segType !== "while" && segType !== "for-in" && segType !== "try") continue;
+```
+（try 块后置语句经 try 的 flow-out → successors 续接，与 condition 同构。）
+(l) `parseSyntaxProps` 的 stmtEnd（750-753 行）：
+```ts
+  const stmtEnd = lines.findIndex((l) => {
+    const t = l.trim();
+    return (
+      t === "}" ||
+      /^\}\s*else/.test(t) ||
+      /^else\s*(if\b|\{)/.test(t) ||
+      /^\}\s*catch\b/.test(t) ||
+      /^\}\s*finally\b/.test(t) ||
+      /^catch\b/.test(t) ||
+      /^finally\b/.test(t)
+    );
+  });
+```
+（catch/finally 结构与 else 同构：段尾延续行不落入 stmtCode；`\b` 防误伤 `catch_*`/`finally_*` 标识符。）
+(m) 新本地接口（放 BranchDef 51-55 行旁，**本地定义**镜像 BranchDef——不加 types.ts）：
+```ts
+interface TryBranchDef {
   id: string;
   type: "try" | "catch" | "finally";
   catchVar?: string;
 }
 ```
-(c) 新 `parseTryBranches(code, baseIndex)`（与 parseConditionBranches 同机制——段文本形如 `try {`（首段）或 `} catch err {`（延续段），逐分支提取 type 与 catchVar）：
-```ts
-function parseTryBranches(code: string, baseIndex: number): TryBranchDef[] {
-  const first = code.split("\n").find((l) => l.trim().startsWith("@") === false && l.trim().length > 0) ?? "";
-  const trimmed = first.trim();
-  const branches: TryBranchDef[] = [];
-  if (/^try\s*\{/.test(trimmed)) {
-    branches.push({ id: `br${baseIndex}`, type: "try" });
-  } else if (/^\}\s*catch\b/.test(trimmed)) {
-    const m = trimmed.match(/^\}\s*catch\s+(\w+)?\s*\{?/);
-    branches.push({ id: `br${baseIndex}`, type: "catch", catchVar: m?.[1] || undefined });
-  } else if (/^\}\s*finally\b/.test(trimmed)) {
-    branches.push({ id: `br${baseIndex}`, type: "finally" });
-  }
-  return branches;
-}
-```
-（与 parseConditionBranches 的整合方式：branchIndex 从段序号派生；分支 wire 与 ConditionNode 分支行同构——`fromPort: br.id`。具体接线以 graph-parser.ts 现有 condition 分支机制为准，行为由 Step 1 测试钉死。）
-（上方 helper 中 `startsWith("@") === false` 的过滤是防御性写法，可按既有 segment 首行提取方式替换。）
 
-- [ ] **Step 4: graph-compiler.ts case "try"**
+- [ ] **Step 4: graph-compiler.ts case "try"**（精确镜像 condition case 143-194 行——逐分支发射，分支体只走本分支的 `branchSuccessors.get(br.id)`，`@pid` 仅首行，末尾 flow-out 后继）
 
 ```ts
     case "try": {
-      const branches = (node.element.props?.branches as TryBranchDef[]) ?? [];
-      let out = emitPidComment(pid);
-      out += `try {\n`;
-      // try 主链：successors（块后继）+ branchSuccessors（br0）
-      for (const succId of node.successors) {
-        const succ = adj.get(succId);
-        if (succ) out += emitNode(succ, adj, indent + 1, visited);
-      }
-      for (const [, branchIds] of node.branchSuccessors) {
-        for (const succId of branchIds) {
-          const succ = adj.get(succId);
-          if (succ) out += emitNode(succ, adj, indent + 1, visited);
+      const branches = (node.element.props?.branches as Array<{
+        id: string;
+        type: "try" | "catch" | "finally";
+        catchVar?: string;
+      }>) || [];
+
+      if (branches.length === 0) return "";
+
+      let out = "";
+      for (let i = 0; i < branches.length; i++) {
+        const br = branches[i];
+        const brPortId = br.id;
+
+        const keyword = br.type === "try" ? "try" : br.type === "catch" ? "catch" : "finally";
+        const catchVarStr = br.type === "catch" && br.catchVar ? ` ${br.catchVar}` : "";
+
+        // Emit @pid annotation only on the first branch line (try)
+        if (i === 0) {
+          out += emitPidComment(pid);
         }
-      }
-      out += `}`;
-      for (const br of branches.filter((b) => b.type !== "try")) {
-        const catchVar = br.type === "catch" && br.catchVar ? ` ${br.catchVar}` : "";
-        out += `\n${br.type}${catchVar} {\n`;
-        for (const [, branchIds] of node.branchSuccessors) {
-          if (!branchIds.some((id) => id === br.id)) continue; // 仅发射本分支链
-          for (const succId of branchIds) {
-            const succ = adj.get(succId);
-            if (succ) out += emitNode(succ, adj, indent + 1, visited);
+        out += `${pad}${keyword}${catchVarStr} {\n`;
+
+        // Emit only the successors wired to this specific branch port
+        const branchSuccIds = node.branchSuccessors.get(brPortId) || [];
+        for (const succId of branchSuccIds) {
+          const succ = adj.get(succId);
+          if (succ) {
+            out += emitNode(succ, adj, indent + 1, visited);
           }
         }
-        out += `}`;
+
+        out += `${pad}}\n`;
       }
+
+      // Emit flow-out successors as post-try code
+      for (const succId of node.successors) {
+        const succ = adj.get(succId);
+        if (succ) {
+          out += emitNode(succ, adj, indent, visited);
+        }
+      }
+
       return out;
     }
 ```
-（分支 port 到链的映射以 condition case 的 branchSuccessors 结构为准——若既有结构是 `Map<branchId, ids[]>` 则上方循环相应调整；行为由测试钉死。）
+（switch 位置：condition case 之后。`branchSuccessors`/`successors`/`pad`/`indent`/`visited`/`adj` 均为 condition case 已用的同级作用域变量。发射 → `}\ncatch err {` 新行风格；重解析时 catch 行走 Step 3(e) 2b，同行 `} catch err {` 走 Step 3(d) 2a。）
+**注意：不要**用 `for (const [, branchIds] of node.branchSuccessors)` 全量循环——那会把 catch/finally 链也发射进 try 块。每分支只发射 `branchSuccessors.get(br.id)`。
 
-- [ ] **Step 5: TryNode.tsx**
+- [ ] **Step 5: TryNode.tsx**（完整组件——分支行/公式框/按钮/样式以 `nodes/ConditionNode.tsx` 为模板逐行对齐，换 danger 色系；props 更新走 data.onUpdateBranches / data.onEditCatchVar，由 FlowCanvas 装配）
 
 ```tsx
 // poiesis/src/components/canvas/code/nodes/TryNode.tsx
-// try 块节点：对标 ConditionNode 分支行模式——每分支一行（行首 label + 行内公式框 +
-// source handle id=br.id），底部 flow-out source handle 接块后继。
-// 语义约束：try 必需；catch/finally ≤ 1；至少其一（+ 按钮按 hasCatch/hasFinally 禁用）。
+// try 块节点：对标 ConditionNode 分支行模式——每分支一行（行首 label + catchVar 行内
+// 公式框 + source handle id=br.id），底部 flow-out source handle 接块后继。
+// 语义约束：try 必需；catch ≤ 1；finally ≤ 1；至少 catch/finally 其一
+// （`+ catch`/`+ finally` 按钮按 hasCatch/hasFinally 禁用）。
 
-import { memo } from "react";
 import { Handle, Position } from "@xyflow/react";
-import type { CodeblockElementData } from "../../../../core/types/element";
+import React, { useMemo, useState } from "react";
+import { NodeFormulaField } from "../fields/NodeFormulaField";
+import { TokenPreview } from "../fields/TokenPreview";
+import { buildFormulaSource, type FlowScope } from "../../../../services/codegen/flow-scope";
+import "./node-base.css";
 
-interface TryNodeProps {
+interface TryBranchData {
   id: string;
-  data: CodeblockElementData;
-  selected?: boolean;
+  type: "try" | "catch" | "finally";
+  catchVar?: string;
 }
 
-export const TryNode = memo(function TryNode({ id, data, selected }: TryNodeProps) {
-  const branches = (data.props?.branches as Array<{ id: string; type: "try" | "catch" | "finally"; catchVar?: string }>) ?? [];
+interface Props {
+  data: {
+    label: string;
+    branches?: TryBranchData[];
+    scope?: FlowScope;
+    letVars?: Array<{ name: string }>;
+    onUpdateBranches?: (branches: TryBranchData[]) => void;
+    onEditCatchVar?: (branchId: string, catchVar: string) => void;
+  };
+}
+
+const TYPE_CN: Record<string, string> = { try: "尝试", catch: "捕获", finally: "收尾" };
+
+// Handle 依赖 ReactFlowProvider（连线渲染）；单元测试直接渲染节点时静默跳过，避免抛错。
+class HandlesBoundary extends React.Component<{ children: React.ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  render() {
+    return this.state.failed ? null : this.props.children;
+  }
+}
+
+export function TryNode({ data }: Props) {
+  const { scope, letVars } = data;
+  const branches: TryBranchData[] = data.branches || [{ id: "br0", type: "try" }];
+  const [editingBranch, setEditingBranch] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
+  const formulaSource = useMemo(() => buildFormulaSource(scope, letVars ?? []), [scope, letVars]);
+
+  const handleAddBranch = (type: "catch" | "finally") => {
+    const nextId =
+      branches.reduce(
+        (max, b) => Math.max(max, parseInt((b.id ?? "br0").replace(/^br/, ""), 10) || 0),
+        0,
+      ) + 1;
+    data.onUpdateBranches?.([...branches, { id: `br${nextId}`, type }]);
+  };
+
+  const handleEditStart = (br: TryBranchData) => {
+    setEditingBranch(br.id);
+    setEditValue(br.catchVar ?? "");
+  };
+
   const hasCatch = branches.some((b) => b.type === "catch");
   const hasFinally = branches.some((b) => b.type === "finally");
-  // 分支行渲染：label（try / catch [err] / finally）+ 行内公式框（catchVar 可编辑）
-  // + source handle（id=br.id，Position.Right）——结构照抄 ConditionNode 的分支行实现；
-  // `+ catch` / `+ finally` 按钮：hasCatch/hasFinally 时禁用。
-  // 外层包 HandlesBoundary error-boundary class（与 ConditionNode 同款）。
-  return <div>...</div>;
-});
+
+  return (
+    <div
+      className="flow-node codeflow-node"
+      data-node-type="try"
+      style={{
+        background: "var(--ol-color-danger-subtle)",
+        border: "2px solid var(--ol-color-danger)",
+        borderRadius: 8,
+        padding: "6px 0",
+        minWidth: 200,
+        fontSize: 12,
+      }}
+    >
+      <HandlesBoundary>
+        <Handle
+          className="codeflow-handle"
+          type="target"
+          position={Position.Top}
+          id="flow-in"
+          style={{ background: "var(--ol-color-danger)" }}
+        />
+      </HandlesBoundary>
+
+      <div style={{ padding: "0 10px", fontWeight: 600, marginBottom: 4, color: "var(--ol-color-danger-active)" }}>
+        ⚠ {data.label}
+      </div>
+
+      {branches.map((br, i) => (
+        <div
+          key={br.id}
+          data-testid="try-branch-row"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "3px 10px",
+            borderTop: i > 0 ? "1px solid var(--ol-color-danger-muted)" : "none",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 4, flex: 1, minWidth: 0 }}>
+            <span
+              style={{
+                fontSize: 12,
+                fontWeight: 600,
+                minWidth: 36,
+                color:
+                  br.type === "try"
+                    ? "var(--ol-color-success-active)"
+                    : br.type === "catch"
+                      ? "var(--ol-color-danger)"
+                      : "var(--ol-color-warning)",
+              }}
+            >
+              {TYPE_CN[br.type]}
+            </span>
+            {br.type === "catch" &&
+              (editingBranch === br.id ? (
+                <NodeFormulaField
+                  value={editValue}
+                  candidates={formulaSource}
+                  onCommit={(v) => {
+                    data.onEditCatchVar?.(br.id, v);
+                    setEditingBranch(null);
+                  }}
+                  onCancel={() => setEditingBranch(null)}
+                  placeholder="catch 变量"
+                  ariaLabel="编辑 catch 变量"
+                />
+              ) : (
+                <button
+                  type="button"
+                  tabIndex={0}
+                  onClick={() => handleEditStart(br)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      handleEditStart(br);
+                    }
+                  }}
+                  style={{
+                    fontFamily: "monospace",
+                    fontSize: 12,
+                    color: "var(--ol-gray-800)",
+                    cursor: "pointer",
+                    flex: 1,
+                    background: "none",
+                    border: "none",
+                    textAlign: "left",
+                    padding: 0,
+                    minWidth: 0,
+                  }}
+                >
+                  {br.catchVar ? (
+                    <TokenPreview value={br.catchVar} />
+                  ) : (
+                    <span style={{ color: "var(--ol-text-muted)" }}>...</span>
+                  )}
+                </button>
+              ))}
+          </div>
+
+          <HandlesBoundary>
+            <Handle
+              className="codeflow-handle"
+              type="source"
+              position={Position.Right}
+              id={br.id}
+              style={{ background: "var(--ol-color-danger)", position: "relative", right: -6, transform: "none" }}
+            />
+          </HandlesBoundary>
+        </div>
+      ))}
+
+      <div style={{ display: "flex", gap: 4, padding: "4px 10px 0", borderTop: "1px solid var(--ol-color-danger-muted)" }}>
+        <button
+          type="button"
+          data-testid="add-catch"
+          disabled={hasCatch}
+          onClick={() => handleAddBranch("catch")}
+          style={{
+            fontSize: 12,
+            padding: "2px 6px",
+            border: "1px solid var(--ol-color-danger)",
+            borderRadius: 3,
+            background: "var(--ol-surface)",
+            color: "var(--ol-color-danger)",
+            cursor: hasCatch ? "not-allowed" : "pointer",
+            opacity: hasCatch ? 0.5 : 1,
+          }}
+        >
+          + catch
+        </button>
+        <button
+          type="button"
+          data-testid="add-finally"
+          disabled={hasFinally}
+          onClick={() => handleAddBranch("finally")}
+          style={{
+            fontSize: 12,
+            padding: "2px 6px",
+            border: "1px solid var(--ol-color-danger)",
+            borderRadius: 3,
+            background: "var(--ol-surface)",
+            color: "var(--ol-color-danger)",
+            cursor: hasFinally ? "not-allowed" : "pointer",
+            opacity: hasFinally ? 0.5 : 1,
+          }}
+        >
+          + finally
+        </button>
+      </div>
+
+      <HandlesBoundary>
+        <Handle
+          className="codeflow-handle"
+          type="source"
+          position={Position.Bottom}
+          id="flow-out"
+          style={{ background: "var(--ol-text-muted)" }}
+        />
+      </HandlesBoundary>
+    </div>
+  );
+}
 ```
-（分支行/公式框/按钮/样式以 `nodes/ConditionNode.tsx` 为模板逐行对齐；props 更新通过 FlowCanvas 的既有 onPropsChange/setProp 通道。）
+（危险色系 CSS 变量已实证存在于 tokens.css:51-52 `--ol-color-danger-subtle`/`-muted`（light+dark 双主题）；`data-node-type="try"` 对齐既有节点惯例；不需要 selected/memo——ConditionNode 也是普通函数组件。）
 
 - [ ] **Step 6: 注册**
 
-FlowCanvas.tsx nodeTypes 加 `"try": TryNode,`；flowConstants.ts：CODE_TAGS 加 `"try"`、TAG_CN 加 `try: "try"`、MENU_SECTIONS「控制流」段加一项。节点创建时的初始 branches：`[{ id: "br0", type: "try" }]`（创建路径在既有 create 分支按 tag 给默认 props——与 let/assign 等创建时给默认 props 同构）。
+(a) `flowConstants.ts` 三处：
+- CODE_TAGS 加 `"try"`
+- TAG_CN 加 `try: "try 块"`
+- MENU_SECTIONS「控制流」段加一项：`{ label: "try 块 (try)", tag: "try", shortcut: "try" }`（对象形态，对齐 T7 的 lifecycle 项）
+
+(b) `FlowCanvas.tsx` nodeTypes 加 `"try": TryNode,` + 顶部 import `TryNode`（对齐既有节点 import 行）。
+(c) `handleMenuSelect`——T7 已把签名改成 `(item: MenuItem)`（若 T7 未合入则按当前 `(tag: string)` 形态等价处理）：在 condition 默认 props 分支后加：
+```ts
+      if (item.tag === "try") {
+        props = { branches: [{ id: "br0", type: "try" }] };
+      }
+```
+（创建即含 try 分支——语义约束「try 必需」；catch/finally 由节点内 `+ catch`/`+ finally` 按钮追加。）
+(d) data 装配（316-360 行）：
+- 331 行 branches cast 放宽（condition 三字段 → 四字段可选）：
+```ts
+branches: el.props?.branches as Array<{id:string;type:string;condition?:string;catchVar?:string}> | undefined,
+```
+- 342-349 行 onEditCondition 之后加平行的 `onEditCatchVar`：
+```ts
+onEditCatchVar: (branchId: string, catchVar: string) => {
+  const currentBranches = [...(el.props?.branches as Array<{id:string;type:string;catchVar?:string}> || [])];
+  const idx = currentBranches.findIndex((b) => b.id === branchId);
+  if (idx >= 0) {
+    currentBranches[idx] = { ...currentBranches[idx], catchVar };
+    setProp(el.id, "branches", currentBranches);
+  }
+},
+```
+（onUpdateBranches 339-341 行泛型已兼容 try 分支——直接复用。）
+(e) `nodeTypes` 注册后，FlowCanvas 的 onDoubleClick 注入（338 行：fn/while/for-in 排除）**不需要改**——try 不在排除列表，自动获得双击进 Monaco 行为（与 condition 一致，编辑态由行内公式框承载）。
 
 - [ ] **Step 7: 测试通过 + 回归 + tsc**
 
@@ -1829,7 +2426,7 @@ Run: `cd poiesis && npx tsc --noEmit`
 - [ ] **Step 8: Commit**
 
 ```bash
-git add poiesis/src/services/codegen/graph-parser.ts poiesis/src/services/codegen/graph-compiler.ts poiesis/src/services/codegen/types.ts poiesis/src/components/canvas/code/nodes/TryNode.tsx poiesis/src/components/canvas/code/FlowCanvas.tsx poiesis/src/components/canvas/code/flowConstants.ts poiesis/src/services/codegen/__tests__/try-branch.test.ts poiesis/src/components/canvas/code/nodes/__tests__/TryNode.test.tsx
+git add poiesis/src/services/codegen/graph-parser.ts poiesis/src/services/codegen/graph-compiler.ts poiesis/src/components/canvas/code/nodes/TryNode.tsx poiesis/src/components/canvas/code/FlowCanvas.tsx poiesis/src/components/canvas/code/flowConstants.ts poiesis/src/services/codegen/__tests__/try-branch.test.ts poiesis/src/components/canvas/code/nodes/__tests__/TryNode.test.tsx
 git commit -m "feat(codeflow): try 块节点（分支行 + catch/finally 解析发射）"
 ```
 
