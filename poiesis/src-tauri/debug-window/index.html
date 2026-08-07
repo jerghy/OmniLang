@@ -291,15 +291,14 @@
     }
   }
 
-  // ═══ Element-select: 捕获阶段点击 → Tauri 事件 ═══
-  // 只在 inspector 激活时拦截（旧 shell 桥无条件 stopPropagation 吞掉 iframe 内全部点击
-  // —— 应用按钮永远不响应的根因；激活态也只 stopPropagation 不 preventDefault，
-  // 保留输入框聚焦等原生行为）。非激活态完全不介入，按钮正常工作。
+  // ═══ Element-select: 捕获阶段点击 → Tauri 事件（不阻断应用交互）═══
+  // 只在 inspector 激活时发事件；不 stopPropagation、不 preventDefault——应用按钮
+  // 的 onClick 照常执行（真机教训：激活态吞点击会让「按钮点了没反应」重现）。
+  // 非激活态完全不介入。
   document.addEventListener('click', function(e) {
     if (!debugActive) return;
     var el = e.target && e.target.closest ? e.target.closest('[data-nid]') : null;
     if (!el) return;
-    e.stopPropagation();
     internals.invoke('plugin:event|emit', {
       event: 'debug:element-click',
       payload: { nid: el.getAttribute('data-nid'), tag: e.target.tagName.toLowerCase() }
