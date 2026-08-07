@@ -4,12 +4,12 @@
 // ║  演示 ref 声明 + @ref 绑定 + 语义化 ref 操作 API:            ║
 // ║    · ref name: Element   — 元素引用声明                      ║
 // ║    · @ref={name}         — 绑定到元素                        ║
-// ║    · style: { width: sig } — 信号驱动样式绑定（直写通道）        ║
+// ║    · style: { width: sig } — 信号驱动样式绑定（直写通道）    ║
 // ║    · .focus() / .blur()  — 焦点管理（命令式）                ║
 // ║    · focus={sig}         — 语义化焦点绑定（信号驱动 focus/blur）║
 // ║    · .select() / .setSelection(s, e) — 文本全选 / 选区控制    ║
 // ║    · scroll-y={sig}      — 响应式滚动绑定                    ║
-// ║    · scroll-x={sig}      — 响应式水平滚动绑定                  ║
+// ║    · scroll-x={sig}      — 响应式水平滚动绑定                ║
 // ║    · .scrollTo() / .scrollBy() — 命令式滚动控制（可单参）      ║
 // ║    · .measure()          — 位置/尺寸查询                      ║
 // ║    · .width/.height/.position — 字段读取形式（measure 简写）    ║
@@ -371,6 +371,7 @@ component ElementRefDemo {
             <div class: LearnDesign.Row>
                 <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={scrollXLeft}>scroll-x=0</button>
                 <button variant: LearnDesign.Button(color=accent, size=sm) @onPress={scrollX200}>scroll-x=200</button>
+                <span class: StatusText>X: {scrollTargetX}</span>
             </div>
 
             <!-- ═══ 位置查询 ═══ -->
