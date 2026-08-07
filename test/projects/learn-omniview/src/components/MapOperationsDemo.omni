@@ -8,7 +8,7 @@
 // ║    · Map 更新惯用法：完整字面量重新赋值（insert/spread 尚未实现——       ║
 // ║      语义全集记录在案，更新 Map 请整体重赋值）                         ║
 // ║                                                                      ║
-// ║  testId 属性：静态字符串 → data-testid（Web）/ ValueKey（Flutter）。    ║
+// ║  data-testid 属性：静态字符串 → data-testid（Web）/ ValueKey（Flutter）。   ║
 // ╚══════════════════════════════════════════════════════════════════════╝
 
 import omniview;
@@ -26,8 +26,8 @@ component MapOperationsDemo {
     // ── 购物车：Map 更新 = 完整字面量重新赋值 ──
     signal cart: Map<String, i32> = { "苹果": 3, "香蕉": 2 };
 
-    computed endpointCount: Number = endpoints.len();
-    computed cartCount: Number = cart.len();
+    computed endpointCount: i32 = endpoints.len();
+    computed cartCount: i32 = cart.len();
     computed cartHasApples: bool = cart.contains("苹果");
 
     fn switchEnv() {
@@ -46,7 +46,7 @@ component MapOperationsDemo {
         <section class: LearnDesign.DemoCard>
             <h3 class: LearnDesign.CardTitle>Map 数据操作与灵活运用</h3>
             <p class: LearnDesign.Hint>
-                Map 操作：字面量 · get · contains · len · 完整字面量重新赋值。testId="..." → data-testid（Web）/ ValueKey（Flutter）。
+                Map 操作：字面量 · get · contains · len · 完整字面量重新赋值。data-testid="..." → data-testid（Web）/ ValueKey（Flutter）。
             </p>
 
             <div class: LearnDesign.Row>
@@ -54,13 +54,13 @@ component MapOperationsDemo {
                     <h4 class: LearnDesign.SectionTitle>配置查询（contains 守卫 + get）</h4>
                     <p class: LearnDesign.Hint>当前环境 {env}（{endpointCount} 个可用环境）</p>
                     @if endpoints.contains(env) {
-                        <div class: LearnDesign.Tag testId="map-endpoint">
+                        <div class: LearnDesign.Tag data-testid="map-endpoint">
                             API 端点：{endpoints.get(env)}
                         </div>
                     } @else {
                         <div class: LearnDesign.Tag>未知环境：{env}（无端点配置）</div>
                     }
-                    <button class: LearnDesign.Button testId="map-switch-env" @onPress={switchEnv}>切换环境</button>
+                    <button class: LearnDesign.Button data-testid="map-switch-env" @onPress={switchEnv}>切换环境</button>
                 </div>
 
                 <div class: LearnDesign.Col>
@@ -81,8 +81,8 @@ component MapOperationsDemo {
                         苹果 × {cart.contains("苹果") ? cart.get("苹果") : 0} · 香蕉 × {cart.contains("香蕉") ? cart.get("香蕉") : 0} · 共 {cartCount} 种
                     </p>
                     <div class: LearnDesign.Row>
-                        <button class: LearnDesign.Button testId="map-restock" @onPress={restock}>补货（重赋值）</button>
-                        <button class: LearnDesign.Button testId="map-clear" @onPress={clearCart}>清空</button>
+                        <button class: LearnDesign.Button data-testid="map-restock" @onPress={restock}>补货（重赋值）</button>
+                        <button class: LearnDesign.Button data-testid="map-clear" @onPress={clearCart}>清空</button>
                     </div>
                     <p class: LearnDesign.Hint>
                         contains 判定：{cartHasApples ? "购物车还有苹果" : "购物车没有苹果"}

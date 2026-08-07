@@ -21,13 +21,16 @@ component NotificationsPanel {
             badgeVisible = true;
             // 新通知到达时滚动到列表底部，展示最新一条（RefOp: .scrollTo）
             scrollContainer.scrollTo(0, 9999);
+        } else {
+            // 计数归零（Remove 删完 / Clear）时复位徽章
+            badgeVisible = false;
         }
     }
 
     view {
         <div class: LearnDesign.Card>
             <div class: Header>
-                <h3 class: Title>
+                <h3 class: title>
                     Notifications
                     @if badgeVisible {
                         <span class: BadgeNew>New</span>
@@ -47,16 +50,16 @@ component NotificationsPanel {
 
             <!-- Scroll container with ref -->
             <div class: ScrollArea @ref={scrollContainer}>
-                @if NotificationStore.unreadCount == 0 {
-                    <!-- Unnamed slot: projected children render only in the empty state -->
-                    {children}
-                    <p class: LearnDesign.Hint>No notifications</p>
-                }
                 @for item in NotificationStore.notifications {
                     <div class: NotificationItem @onPress={() => { badgeVisible = false; }}>
                         <span class: Dot></span>
                         <span class: ItemText>{item}</span>
                     </div>
+                }
+                @empty {
+                    <!-- Unnamed slot: projected children render only in the empty state -->
+                    {children}
+                    <p class: LearnDesign.Hint>No notifications</p>
                 }
             </div>
 

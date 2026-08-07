@@ -25,6 +25,19 @@ component CssVarsDemo {
         }
     }
 
+    // Demo 4 驱动：hue 值在 HueBar 的四个阶梯间循环（221 → 260 → 300 → 340）
+    fn cycleHue() {
+        if accentHue == 221 {
+            accentHue = 260;
+        } else if accentHue == 260 {
+            accentHue = 300;
+        } else if accentHue == 300 {
+            accentHue = 340;
+        } else {
+            accentHue = 221;
+        }
+    }
+
     view {
         <div class: Wrapper>
             <h3 class: SectionHeader>CSS Custom Properties (CSS Variables)</h3>
@@ -120,7 +133,7 @@ component CssVarsDemo {
 
             <!-- ═══ Demo 4: CSS 变量 + 动态 hue 实现主题色循环 ═══ -->
             <div class: demo-card>
-                <h4 class: DemoLabel>④ CSS 变量级联 + Motion 驱动</h4>
+                <h4 class: DemoLabel>④ CSS 变量级联 + 信号驱动</h4>
                 <p class: DemoDesc>
                     外层设 <code>--accent-h</code>（由 accentHue 信号驱动），内层用
                     <code>var(--accent-h)</code> 计算衍生色。hue 值随信号变化实时更新。
@@ -144,6 +157,9 @@ component CssVarsDemo {
                             <span class: HueStep style: { background: "hsl(300, 80%, 60%)" }>300°</span>
                             <span class: HueStep style: { background: "hsl(340, 80%, 60%)" }>340°</span>
                         </div>
+                        <button class: CycleBtn @onPress={cycleHue}>
+                            Cycle Hue（当前 {accentHue}°）
+                        </button>
                     </div>
                 </div>
             </div>
@@ -213,6 +229,11 @@ component CssVarsDemo {
             margin: 0 0 20px 0;
         }
         .demo-card {
+            // Demo 1 演示路径：组件级 --* 声明（覆盖 design.omni 全局同名变量，
+            // 级联到 .var-card 子元素），随后用 var() 引用
+            --primary: "#6366f1";
+            --primary-alt: "#818cf8";
+            --bg: "#f8fafc";
             background: var(--surface);
             border: 1px solid var(--border-color);
             border-radius: var(--radius-md);

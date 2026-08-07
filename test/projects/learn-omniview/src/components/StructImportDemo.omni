@@ -48,7 +48,7 @@ component StructImportDemo {
                     <p class: LearnDesign.Hint>
                         hasData 派生：{hasData ? "有数据（count 为正）" : "无数据"}
                     </p>
-                    <button class: LearnDesign.Button testId="struct-rotate" @onPress={rotateStatus}>
+                    <button class: LearnDesign.Button data-testid="struct-rotate" @onPress={rotateStatus}>
                         轮转状态（构造新结构体）
                     </button>
                 </div>

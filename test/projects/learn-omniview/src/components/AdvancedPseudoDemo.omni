@@ -24,7 +24,7 @@ component AdvancedPseudoDemo {
             </div>
 
             <div class: DemoCard>
-                <h4 class: Label>组合选择器 + 伪类: .darkBtn:hover, .darkBtn:focus, .darkBtn:active</h4>
+                <h4 class: Label>组合选择器 + 伪类: .BtnDark:hover, .BtnDark:focus, .BtnDark:active</h4>
                 <div class: BtnRow>
                     <button class: BtnDark @onPress={setDark}>
                         Dark Variant
@@ -33,11 +33,11 @@ component AdvancedPseudoDemo {
                         Reset
                     </button>
                 </div>
-                <p class: Note>.darkBtn:hover .darkBtn:focus .darkBtn:active —— 三态组合伪类</p>
+                <p class: Note>.BtnDark:hover .BtnDark:focus .BtnDark:active —— 三态组合伪类</p>
             </div>
 
             <div class: DemoCard>
-                <h4 class: Label>多组合 + 多伪类: .panel-highlight:hover, .panel-highlight:focus</h4>
+                <h4 class: Label>多组合 + 多伪类: .PanelHighlight:hover, .PanelHighlight:focus</h4>
                 <div class: PanelHighlight>
                     <p>Hover or Focus this panel</p>
                     <input class: PanelInput placeholder="Tab to focus me"></input>
@@ -50,6 +50,11 @@ component AdvancedPseudoDemo {
         .activeCard { padding: 16px; border-radius: 8px; background: "#f1f5f9"; color: #64748b; font-size: 14px; text-align: center; }
         .activeCard.cardActive { background: "#dcfce7"; color: #166534; border: 2px solid "#86efac"; }
         // ★ 简单伪类
+        .BtnDark:hover { background: "#334155"; }
+        .BtnDark:focus { outline: 2px solid "#fbbf24"; outline-offset: 2; }
+        .BtnDark:active { background: "#0f172a"; transform: scale(0.97); }
         // ★ 多组合 + 多伪类
+        .PanelHighlight:hover { background: "#fef08a"; border: 1px solid "#eab308"; }
+        .PanelHighlight:focus { background: "#fefce8"; border: 1px solid "#6366f1"; }
     }
 }

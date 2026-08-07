@@ -36,8 +36,8 @@ component EventShorthand {
             <!-- 简写1: {fnName(args)} — 解析器自动生成 () => { fnName(args); } -->
             <div class: SectionBox>
                 <p class: section-title>Form 1: { "{fnName(args)}" } — auto-wraps inline</p>
-                <button variant: LearnDesign.Button(color=primary, size=sm) @onClick={greet("World")}>greet("World")</button>
-                <button variant: LearnDesign.Button(color=primary, size=sm) @onClick={farewell("World")}>farewell("World")</button>
+                <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={greet("World")}>greet("World")</button>
+                <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={farewell("World")}>farewell("World")</button>
             </div>
 
             <!-- 简写2: {store.action} — 直接引用 store action -->

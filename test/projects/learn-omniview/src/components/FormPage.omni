@@ -17,7 +17,6 @@ component FormPage {
 
     fn handleNameChange() { nameError = ""; }
     fn handleEmailChange() { emailError = ""; }
-    fn handleMessageChange() { scrollPos = scrollPos + 1; }
 
     fn handleNameFocus() { focusField = "name"; }
     fn handleNameBlur() { focusField = ""; if name == "" { nameError = "Name is required"; } else if string_length(name) < 2 { nameError = "Name must be at least 2 characters"; } else if string_starts_with(name, " ") { nameError = "Name must not start with a space"; } }
@@ -116,7 +115,6 @@ component FormPage {
                         bind:value={message}
                         a11y: { label: "Message input" }
                         data-testid="msg-field"
-                        @onChange={handleMessageChange}
                         @onScroll={handleScroll}
                     ></textarea>
                 </div>
@@ -159,7 +157,7 @@ component FormPage {
 
                 <!-- Status display -->
                 <div class: StatusArea>
-                    <p class: { Status: true, Success: submitted, Error: false, Idle: false }>
+                    <p class: { Status: true, Success: submitted, Error: nameError != "" || emailError != "", Idle: false }>
                         {getStatusText()}
                     </p>
                 </div>
@@ -195,7 +193,7 @@ component FormPage {
                     <button
                         variant: LearnDesign.Button(color=ghost, size=md)
                         @onPress={handleSubmit}
-                        disabled={false}
+                        disabled={!isFormValid()}
                         a11y: { label: "Conditional submit button" }
                         data-testid="conditional-btn"
                     >
@@ -213,6 +211,6 @@ component FormPage {
         </div>
     }
     style {
-        // 表单特有的布局和验证样式
+        // 表单布局与校验样式由 design.omni 提供（Form/Field/Label/Input/Textarea/ErrorText/StatusArea 等）
     }
 }

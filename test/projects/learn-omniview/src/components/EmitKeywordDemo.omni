@@ -92,14 +92,14 @@ component EmitKeywordDemo {
                 <div class: LogColumn>
                     <h4 class: LogTitle>emit 触发记录</h4>
                     <div class: LogBox>
-                        @if emitLog.len() == 0 {
-                            <p class: LogEmpty>暂无 emit 事件</p>
-                        }
                         @for item in emitLog {
                             <div class: LogEntry>
                                 <span class: log-badge emit>emit</span>
                                 <span class: LogMsg>{item}</span>
                             </div>
+                        }
+                        @empty {
+                            <p class: LogEmpty>暂无 emit 事件</p>
                         }
                     </div>
                 </div>
@@ -107,14 +107,14 @@ component EmitKeywordDemo {
                 <div class: LogColumn>
                     <h4 class: LogTitle>函数调用触发记录</h4>
                     <div class: LogBox>
-                        @if funcLog.len() == 0 {
-                            <p class: LogEmpty>暂无 function 事件</p>
-                        }
                         @for item in funcLog {
                             <div class: LogEntry>
                                 <span class: log-badge func>function</span>
                                 <span class: LogMsg>{item}</span>
                             </div>
+                        }
+                        @empty {
+                            <p class: LogEmpty>暂无 function 事件</p>
                         }
                     </div>
                 </div>

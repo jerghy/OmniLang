@@ -34,13 +34,14 @@ component Modal {
             @if isOpen {
                 <!-- Overlay with keyboard and mouse event handling -->
                 <div
-                    class: { Overlay: true, Hidden: !isOpen }
+                    class: { Overlay: true }
+                    tabindex="0"
+                    @onKeyDown={handleKeyDown}
                     @onPress={handleOverlayClick}
                 >
                     <div
                         class: { Modalcontent: true, Hover: isHovering }
                         tabindex="0"
-                        @onKeyDown={handleKeyDown}
                         @onMouseEnter={handleMouseEnter}
                         @onMouseLeave={handleMouseLeave}
                         @onPress={handleContentClick}

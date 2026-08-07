@@ -28,7 +28,7 @@ component OptionalChainDemo {
                 <button class: BtnOutline @onPress={toggle}>Toggle Details</button>
             </div>
 
-            <!-- @else if 和 @else @if 两种写法都演示 -->
+            <!-- @else @if 写法演示 -->
             @if showDetails {
                 <div class: DemoCard>
                     <p>user is: {displayName}</p>

@@ -130,6 +130,9 @@ component EventSpectrumDemo {
                         @for entry in log {
                             <div class: LearnDesign.Tag>{entry}</div>
                         }
+                        @empty {
+                            <span class: LearnDesign.Tag>暂无事件</span>
+                        }
                     </div>
                 </div>
             </div>

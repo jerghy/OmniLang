@@ -12,10 +12,11 @@ component CssUnitsDemo {
     view {
         <div class: Container>
             <h3 class: Title>CSS 单位全覆盖</h3>
-            <p class: Subtitle>30 个 CSS 单位（视口/容器/时间/角度/长度维度）</p>
+            <p class: Subtitle>31 个 CSS 单位（视口/容器/时间/角度/长度维度）</p>
 
             <div class: Grid>
                 <div class: BoxVh>10vh</div>
+                <div class: BoxVw>5vw</div>
                 <div class: BoxFr>1fr</div>
                 <div class: BoxPt>12pt</div>
                 <div class: BoxCm>1cm</div>
@@ -54,6 +55,38 @@ component CssUnitsDemo {
         </div>
     }
     style {
-        /* ─── 视口与容器单位 ─── */
+        // 每个 Box 类对应一个真实 CSS 单位（宽度/高度/角度/时间等维度）
+        .Grid { display: flex; flex-wrap: wrap; gap: 8px; }
+        .BoxVh { height: 10vh; background: "#fecaca"; font-size: 12px; padding: 8px; }
+        .BoxVw { width: 5vw; background: "#fde68a"; font-size: 12px; padding: 8px; }
+        .BoxFr { flex: 1 1 10fr; background: "#bbf7d0"; font-size: 12px; padding: 8px; }
+        .BoxPt { font-size: 12pt; background: "#bfdbfe"; padding: 8px; }
+        .BoxCm { width: 1cm; background: "#fef08a"; font-size: 12px; padding: 8px; }
+        .BoxMm { width: 10mm; background: "#ddd6fe"; font-size: 12px; padding: 8px; }
+        .BoxMs { transition-duration: 150ms; background: "#fed7aa"; font-size: 12px; padding: 8px; }
+        .BoxS { animation-duration: 1s; background: "#fecdd3"; font-size: 12px; padding: 8px; }
+        .BoxDeg { transform: rotate(15deg); background: "#fbcfe8"; font-size: 12px; padding: 8px; }
+        .BoxRad { transform: rotate(0.5rad); background: "#a5f3fc"; font-size: 12px; padding: 8px; }
+        .BoxGrad { transform: rotate(50grad); background: "#d9f99d"; font-size: 12px; padding: 8px; }
+        .BoxTurn { transform: rotate(0.25turn); background: "#e9d5ff"; font-size: 12px; padding: 8px; }
+        .BoxVmin { width: 5vmin; background: "#fde68a"; font-size: 12px; padding: 8px; }
+        .BoxVmax { width: 5vmax; background: "#a7f3d0"; font-size: 12px; padding: 8px; }
+        .BoxSvh { height: 5svh; background: "#cffafe"; font-size: 12px; padding: 8px; }
+        .BoxSvw { width: 5svw; background: "#c7d2fe"; font-size: 12px; padding: 8px; }
+        .BoxLvh { height: 5lvh; background: "#fce7f3"; font-size: 12px; padding: 8px; }
+        .BoxLvw { width: 5lvw; background: "#fde68a"; font-size: 12px; padding: 8px; }
+        .BoxDvh { height: 5dvh; background: "#d1fae5"; font-size: 12px; padding: 8px; }
+        .BoxDvw { width: 5dvw; background: "#ddd6fe"; font-size: 12px; padding: 8px; }
+        .BoxCq { width: 10cqw; background: "#ede9fe"; font-size: 12px; padding: 8px; }
+        .BoxCqh { height: 5cqh; background: "#fbcfe8"; font-size: 12px; padding: 8px; }
+        .BoxCqi { width: 5cqi; background: "#ffedd5"; font-size: 12px; padding: 8px; }
+        .BoxCqb { height: 5cqb; background: "#a5f3fc"; font-size: 12px; padding: 8px; }
+        .BoxCqmin { width: 5cqmin; background: "#fed7aa"; font-size: 12px; padding: 8px; }
+        .BoxCqmax { width: 5cqmax; background: "#d9f99d"; font-size: 12px; padding: 8px; }
+        .BoxCh { width: 20ch; background: "#e0e7ff"; font-size: 12px; padding: 8px; }
+        .BoxEx { width: 10ex; background: "#fee2e2"; font-size: 12px; padding: 8px; }
+        .BoxIc { width: 15ic; background: "#dbeafe"; font-size: 12px; padding: 8px; }
+        .BoxLh { line-height: 2lh; background: "#f3e8ff"; font-size: 12px; padding: 8px; }
+        .BoxRlh { line-height: 2rlh; background: "#f3e8ff"; font-size: 12px; padding: 8px; }
     }
 }

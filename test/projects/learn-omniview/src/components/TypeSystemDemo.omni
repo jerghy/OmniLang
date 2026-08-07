@@ -8,6 +8,7 @@ import omniview;
 import { demo_i8, demo_i16, demo_i64,
          demo_u8, demo_u16, demo_u32, demo_u64,
          demo_f32, demo_isize, demo_usize,
+         demo_void,
          type_system_summary } from "../lib/type_system";
 
 component TypeSystemDemo {
@@ -19,6 +20,8 @@ component TypeSystemDemo {
 
     @mount {
         loadSummary();
+        // Void 演示：无返回值函数调用（输出 "void function called" 到控制台）
+        demo_void();
     }
 
     view {
@@ -51,6 +54,13 @@ component TypeSystemDemo {
                 <h4 class: section-title>浮点类型</h4>
                 <ul class: List>
                     <li class: Item><code class: Code>f32</code> = {demo_f32()}</li>
+                </ul>
+            </div>
+
+            <div class: SectionBox>
+                <h4 class: section-title>Void 类型</h4>
+                <ul class: List>
+                    <li class: Item><code class: Code>Void</code> demo_void() —— 无返回值函数（挂载时已调用，控制台打印 "void function called"）</li>
                 </ul>
             </div>
 

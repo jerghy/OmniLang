@@ -17,7 +17,7 @@ import {
 } from "../lib/error_handling";
 
 component ErrorHandlingDemo {
-    // 触发一次 safe_divide(4, 0)，控制台会打印 finally 分支
+    // 触发一次 try_catch_finally_divide(4, 0)，控制台会打印 finally 分支
     fn triggerFinally() -> String {
         return try_catch_finally_divide(4.0, 0.0);
     }

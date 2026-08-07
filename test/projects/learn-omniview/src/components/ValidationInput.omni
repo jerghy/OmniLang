@@ -13,7 +13,6 @@ import { string_length, string_contains, string_trim } from "std/string";
 component ValidationInput {
     signal input: String = "";
     signal result: String = "";
-    signal isProcessing: bool = false;
 
     fn getDefaultMessage() -> String {
         let prefix = "Enter";
@@ -48,9 +47,7 @@ component ValidationInput {
     }
 
     fn handleValidate() {
-        isProcessing = true;
         result = validate(input);
-        isProcessing = false;
     }
 
     fn handleClear() {
@@ -66,7 +63,7 @@ component ValidationInput {
             <div class: row>
                 <input bind:value={input} placeholder="Enter text to validate..." class: Input></input>
                 <button variant: LearnDesign.Button(color=primary, size=md) @onPress={handleValidate}>
-                    {if isProcessing { "..." } else { "Validate" }}
+                    Validate
                 </button>
                 <button variant: LearnDesign.Button(color=danger, size=md) @onPress={handleClear}>Clear</button>
             </div>

@@ -54,6 +54,6 @@ component FeatureCard {
         </div>
     }
     style {
-        // 状态徽章颜色（组件特有的语义色——保留在组件级）
+        // 状态徽章颜色由 design.omni 提供（BadgeFocused/BadgeBlurred/BadgeIdle/BadgeUnknown）
     }
 }

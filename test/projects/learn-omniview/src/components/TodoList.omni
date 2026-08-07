@@ -25,8 +25,8 @@ component TodoList {
         TodoStore.remove(id);
     }
 
-    // 按 filterStatus 过滤的可见列表——FilterBar 的搜索框写入 filterStatus
-    computed visibleItems: Todo[] = TodoStore.items.filter(|item| TodoStore.filterStatus == "all" || item.text == TodoStore.filterStatus);
+    // 按 filterStatus 过滤的可见列表——FilterBar 的搜索框写入 filterStatus（子串包含匹配）
+    computed visibleItems: Todo[] = TodoStore.items.filter(|item| TodoStore.filterStatus == "all" || item.text.contains(TodoStore.filterStatus));
 
     view {
         <div>
