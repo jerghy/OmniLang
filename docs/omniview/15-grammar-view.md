@@ -257,6 +257,7 @@ html_element ::= '<' <ident> (element_prop)* ('>' (view_node)* '</' <ident> '>'
 
 element_prop ::= static_prop
                | event_prop
+               | drag_prop           // @drag / @dragEnd — drag-intent (ADR-073)
                | bind_prop
                | semantic_binding
                | motion_trigger
@@ -311,6 +312,29 @@ Event handlers bound to DOM events. `@onEventName` is the canonical spelling
 
 > Note: `@press`, `@focus` etc. (without `on`) are **motion triggers**, not
 > events — see §7.4.
+
+**Drag-intent directives** (`@drag` / `@dragEnd`, ADR-073) are dispatched
+from `parse_event_prop` on the names `drag` / `dragEnd`:
+
+```
+drag_prop ::= '@drag' '=' '{' <ident> '}' '@dragEnd' '=' '{' <ident> '}'?
+            | '@dragEnd' '=' '{' <ident> '}'
+```
+
+Semantics: pointer down on the element → capture → repeated `@drag`
+callbacks; pointer up / cancel → `@dragEnd` callback. Event data:
+`{ x, y, dx, dy, pointerId, startX, startY }` — `dx`/`dy` are cumulative
+offsets from the pointer-down point.
+
+Validation (ADR-073): the value must be a **bare component function name**
+(inline closures / calls are hard parse errors); the element must also carry
+`@ref` (semantic hard error). `@drag` and `@dragEnd` are **order-independent**;
+`@dragEnd` may not appear alone, and neither may repeat. Distinct from the
+HTML5 `@onDrag` event (standard DragEvent) and from the `@drag-horizontal` /
+`@drag-vertical` scrubbing triggers (§7.4):
+```
+<div @ref={box} @drag={onDrag} @dragEnd={onDragEnd} />
+```
 
 ### 2.6 Bind Props
 
@@ -417,6 +441,7 @@ ElementProp ::=
   | Bind { name: String, signal_path: String }
   | RefBinding { binding: String, signal: Expr }     // focus/scroll-x/scroll-y (value removed — D2)
   | Event { name: String, handler: EventHandler }
+  | Drag { on_drag: String, on_drag_end: Option<String> }   // @drag / @dragEnd (ADR-073)
   | Class { value: ClassValue }                       // StyleRef | ClassMap | DesignClass
   | Variant { design_name: String, variant_name: String, dimension_values: Vec<(String, String)> }
   | Style { entries: Vec<(String, Expr)> }
@@ -1123,6 +1148,13 @@ other five triggers accept no sub-parameters.
 > `@drag-*` (see `scroll_params` / `drag_params` above; deferral #19 closed).
 > `@hero` is rejected with a diagnostic.
 
+> **`@drag` / `@dragEnd` are NOT motion triggers** (ADR-073): they are
+> drag-intent directives handled by `parse_event_prop` — see §2.5 (drag_prop).
+> The `@drag-horizontal` / `@drag-vertical` triggers above are scrubbing
+> triggers (gesture → keyframe progress); `@drag` moves the element with the
+> pointer via handler callbacks + dynamic `style: { transform }` binding, and
+> requires `@ref` on the same element.
+
 ### 7.5 Motion AST Types
 
 ```
@@ -1209,6 +1241,11 @@ When `{expr}` parsing fails inside views, the parser collects all tokens up to t
 > Removed per ADR-053: `@leave`, `@unhover`, `@animate`, `@timeline`
 > triggers, and all trigger sub-attributes (`@inViewOnce`, `@scrollStart`,
 > `@dragConstraints`, ...).
+
+> `@drag` / `@dragEnd` (ADR-073) are **drag-intent directives**, not motion
+> triggers — see §2.5 (`drag_prop`). Use them for element-follows-pointer
+> dragging (requires `@ref`); the `@drag-*` rows above are scrubbing triggers
+> (gesture → keyframe progress).
 
 ## Appendix C: Full Component Example
 

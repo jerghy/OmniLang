@@ -154,6 +154,9 @@ component SearchBox {
 }
 ```
 
+> **拖拽意图**：`@drag`/`@dragEnd`——元素拖拽意图指令（需同元素 `@ref`，见 ADR-073），
+> 详见 [07-事件与绑定](07-events-and-bindings.md)。
+
 规则：
 
 - **裸 signal 限定**：值必须是裸 signal 引用（`{sig}`）或限定 store signal（`{Store.sig}`）；其他 `{expr}` 表达式保持为普通属性
@@ -203,6 +206,10 @@ component SearchBox {
 <div @drag-horizontal={dragSlide}>...</div>
 <div @drag-vertical={dragSlideY}>...</div>
 ```
+
+> **注意**：`@drag`（拖拽意图指令，见「语义绑定」段落）与 `@drag-horizontal` /
+> `@drag-vertical`（动画触发器）不同——前者是元素拖拽意图（移动元素跟随指针），
+> 后者是拖拽手势 scrubbing 触发器（驱动 motion 关键帧进度），不要混淆。
 
 > 注：旧破折号形式触发器子属性（`@in-view-once`、`@scroll-start`、`@drag-constraints`、`@drag-elastic` 等）已随 ADR-053 移除；v2（Task 5.1）已恢复 `@scroll`/`@drag-*` 的控制维度为冒号形式子参数（`@scroll start: 0 end: 1000 scrub: true ={motion}`），详见 [11-运动与动画](11-motion-animation.md)。元素级 `@paused` 仍为删除状态（解析期硬诊断）；运行时暂停/恢复请用条件渲染。
 

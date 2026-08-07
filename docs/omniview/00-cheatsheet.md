@@ -12,7 +12,7 @@
 
 ### 1.1 域 1 — Ref 系统 → [05-组件](05-components.md)
 
-元素引用：`ref name: Element` 声明 + `@ref={name}` 绑定 + 语义化 ref 操作（命令式 `focus()`/`scrollTo()` 与声明式 `bind:value` 双向绑定）。`ref.value = x` 命令式写已删除。
+元素引用：`ref name: Element` 声明 + `@ref={name}` 绑定 + 语义化 ref 操作（命令式 `focus()`/`scrollTo()` 与声明式 `bind:value` 双向绑定）。`ref.value = x` 命令式写已删除。元素拖拽 = `@drag`/`@dragEnd` 意图指令 + 动态 `style: { transform }` 绑定（零中间层，ADR-073）。
 
 ```omni
 import omniview;
@@ -24,6 +24,24 @@ component RefDemo {
     view {
         <input @ref={inputEl} bind:value={text} />
         <button @onPress={() => { inputEl.focus(); }}>Focus</button>
+    }
+}
+
+component DragDemo {
+    ref box: Element;
+    signal dragX: f64 = 0;
+    signal dragY: f64 = 0;
+
+    fn onDrag(e) {
+        dragX = e.dx;   // 相对按下点累计位移
+        dragY = e.dy;
+    }
+
+    view {
+        <div @ref={box} @drag={onDrag}
+             style: { transform: "translate(" + dragX + "px, " + dragY + "px)" }>
+            drag me
+        </div>
     }
 }
 ```
@@ -275,7 +293,7 @@ component A11yDemo {
 | `@slot(name)` 指令形式 | `改用 body 级声明 @slot name=... ` | body 级 `@slot name { ... }` |
 | `value={sig}`（带 `@ref`，v1 双向形状） | `'value={sig}' 双向绑定形式已删除，双向绑定请用 bind:value；单向显示请用 value={getter()}（计算表达式）或 value={computed}` | `bind:value={sig}`（双向）/ `value={getter()}` 或 `value={computed}`（单向显示）；无 `@ref` 的 `value={sig}` 即普通单向 prop（合法，v4 5.4） |
 | `ref.setValue(x)` / `ref.value = x` 命令式写 | `命令式写已删除，用 bind:value 双向绑定` | `bind:value` 双向绑定 |
-| `capturePointer(id)` / `releasePointer(id)` 参数（D3） | `capturePointer 无参数；多指针锁定不支持` | 无参 `capturePointer()` / `releasePointer()` |
+| `capturePointer(id)` / `releasePointer(id)` 参数（D3） | `capturePointer 无参数；多指针锁定不支持` | `@drag`/`@dragEnd` 意图指令（capturePointer 已降级为编译器内部实现细节，ADR-073） |
 | `ref.style.*` / DOM API（innerHTML/querySelector 等） | `use style:{...} binding with signals instead`（含逐 API 迁移提示，如 `use ref.measure() instead`） | `style: { ... }` 信号绑定 / `ref.measure()` |
 | 通用表达式中的 `x => ...` 箭头 | `通用闭包用管道 \|x\|；箭头仅用于事件内联` | 管道闭包 `\|x\| ...` |
 | store 内 `fn` 成员 | `store 内 fn 成员不允许；用 getter 或 action` | `getter` / `action` |

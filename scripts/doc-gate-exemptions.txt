@@ -2,4 +2,4 @@
 # syntax (the doc itself documents why). Format: <doc-path>:<line> <reason>
 # These are NOT skipped silently: removing a block's exemption while its
 # content still fails the gate re-enables the failure.
-docs/omniview/14-grammar-lang.md:779 intentionally-broken example teaching parser error recovery (§7.1 — the block contains a deliberate syntax error, documented in its comment)
+docs/omniview/14-grammar-lang.md:787 intentionally-broken example teaching parser error recovery (§7.1 — the block contains a deliberate syntax error, documented in its comment)

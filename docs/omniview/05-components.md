@@ -218,10 +218,8 @@ component MyComponent {
 | `.select()` | 全选文本 | `searchBox.select()` |
 | `.setSelection(start, end)` | 选区 | `searchBox.setSelection(0, 3)` |
 | `.measure()` | 位置/尺寸查询 | `let rect = searchBox.measure()` |
-| `.capturePointer()` | 捕获全部指针 | `el.capturePointer()` |
-| `.releasePointer()` | 释放全部指针 | `el.releasePointer()` |
 
-**不暴露**：`innerHTML`、`addEventListener`、`querySelector`、`parentElement`——这些会破坏跨后端抽象。
+**不暴露**：`innerHTML`、`addEventListener`、`querySelector`、`parentElement`——这些会破坏跨后端抽象。`.capturePointer()` / `.releasePointer()` 已按 ADR-073 降级为**编译器内部实现细节**（`@drag` 的指针捕获由编译器按目标选路）——源码不显式书写，元素拖拽请用 `@drag`/`@dragEnd` 意图指令。
 
 > 已删除（ADR-052/053）：`.style`（改用 `style: {...}` 绑定 signal）与
 > `.getBoundingClientRect()` / `.offsetWidth` / `.offsetHeight`（改用
@@ -231,33 +229,32 @@ component MyComponent {
 > 收敛 D2；无 `@ref` 的 `value={sig}` 是普通单向 prop，v4 5.4 恢复）。
 > （需配合 `@ref={name}`）。
 
-### 高频场景：ref + @drag-* 触发器配合
+### 高频场景：元素拖拽 = @drag 意图 + style 绑定（零中间层）
 
-`ref.style.*` 已按 ADR-052 删除（DOM 专属 API，用信号 + style 绑定替代）。拖拽驱动的 60fps 位移由 `@drag-*` 触发器 + `@motion` 关键帧实现，最终值用 signal 保存。`@drag-*` 支持 `constraints:` / `elastic:` / `threshold:` 控制维度（v2 BNF；`velocity_max` 已移除——零消费者，见 deferral #84）：
+`ref.style.*` 已按 ADR-052 删除（DOM 专属 API，用信号 + style 绑定替代）。高频拖拽（60fps 元素跟随指针）用 **`@drag` 意图指令 + 动态 `style: { transform }` 绑定**（ADR-073）——`@drag` 处理器把累计位移写入 signal，`style` 动态条目经**直写通道**落到目标（React `useRef` 直接 DOM 写 / Flutter `ValueNotifier` + `ListenableBuilder` / OmniView `el.style.setProperty`），不经过框架 diff/reconciliation：
 
 ```omni
-@motion dragSlideX {
-    from { translateX: 0 }
-    to   { translateX: 100 }
-    over: 300ms
-}
-
 component Draggable {
+    ref dragBox: Element;
     signal x: f64 = 0;
+    signal y: f64 = 0;
 
-    fn onDragUpdate(e) {
-        x = e.x;   // 最终值用 signal 保存
+    fn onDrag(e) {
+        x = e.dx;   // 相对按下点累计位移
+        y = e.dy;
     }
 
     view {
-        <div @ref={dragBox} @drag-horizontal={dragSlideX} @onPress={onDragUpdate}>
+        <div @ref={dragBox} @drag={onDrag}
+             style: { transform: "translate(" + x + "px, " + y + "px)" }>
             <p>Drag me — x:{x.to_string()}</p>
         </div>
     }
 }
 ```
 
-`@drag-horizontal` / `@drag-vertical` 触发器（kebab-case）驱动 motion 关键帧进度。
+- `@drag` 需同元素 `@ref`（语义验证硬错误）；`@dragEnd` 可选（指针抬起/取消回调）；事件数据 `{x, y, dx, dy, pointerId, startX, startY}`
+- `@drag-horizontal` / `@drag-vertical` 触发器（kebab-case）**保留为 scrubbing 语法糖**——拖拽手势驱动 motion 关键帧进度（进度控制用 `@drag-*`，元素跟随用 `@drag`），详见 [11-运动与动画](11-motion-animation.md)
 
 ### 边界情况
 

@@ -122,6 +122,8 @@ easing: steps(6, start)                                  // 阶梯（Flutter 目
 | `@drag-horizontal={motion}` | 水平拖拽 |
 | `@drag-vertical={motion}` | 垂直拖拽 |
 
+> **`@drag` 不是触发器**：`@drag` / `@dragEnd` 是独立的**拖拽意图指令**（ADR-073），不使用 motion keyframe——指针按下 → 捕获 → 持续回调处理器，事件数据 `{x, y, dx, dy, pointerId, startX, startY}`，配合动态 `style: { transform }` 绑定实现元素跟随指针（需同元素 `@ref`）。`@drag-horizontal` / `@drag-vertical` 才是 scrubbing 触发器（拖拽手势 → keyframe 进度）。详见 [07-事件与绑定](07-events-and-bindings.md)。
+
 ### 控制维度子参数（v2 恢复，Task 5.1）
 
 `@scroll` 与 `@drag-*` 支持**冒号形式控制维度子参数**——挂在触发器关键字与 `={motion}` 绑定之间（v1 语法，v2 Task 5.1 恢复，`.architecture/deferrals.md` #19 已关闭）。旧破折号形式（`@scroll-start`、`@drag-constraints` 等）已在 ADR-053 移除，不得再用。其余 5 个触发器不接受子参数；未知或畸形子参数是**硬解析错误**（不解析忽略）。
@@ -185,9 +187,31 @@ easing: steps(6, start)                                  // 阶梯（Flutter 目
 </div>
 ```
 
-## 与拖拽触发器配合实现高频拖拽（@drag-*）
+## 元素跟随（@drag 意图）vs 拖拽 scrubbing（@drag-*）
 
-`ref.style.*` 已按 ADR-052 删除（DOM 专属 API，用信号 + style 绑定替代）。拖拽驱动的 60fps 位移由 `@drag-*` 触发器 + `@motion` 关键帧实现，最终值用 signal 保存。拖拽进度范围可用 `constraints:` 子参数显式约束（v2 Task 5.1 恢复），缺省回落关键帧范围推导（`maxExtent`），无可用范围时生成代码中带警告注释（拖拽无位移）：
+**元素跟随指针**（60fps 高频拖拽）用 **`@drag` 意图指令 + 动态 `style: { transform }` 绑定**（ADR-073）——`@drag` 处理器把累计位移写入 signal，`style` 动态条目经**直写通道**落到目标（React `useRef` 直接 DOM 写 / Flutter `ValueNotifier` + `ListenableBuilder` / OmniView `el.style.setProperty`），不经过框架 diff/reconciliation（见 [09-样式系统](09-styling.md)）：
+
+```omni
+component Draggable {
+    ref dragBox: Element;
+    signal x: f64 = 0;
+    signal y: f64 = 0;
+
+    fn onDrag(e) {
+        x = e.dx;
+        y = e.dy;
+    }
+
+    view {
+        <div @ref={dragBox} @drag={onDrag}
+             style: { transform: "translate(" + x + "px, " + y + "px)" }>
+            <p>Drag me</p>
+        </div>
+    }
+}
+```
+
+**进度控制**（手势 → keyframe 进度，scrubbing）用 `@drag-horizontal` / `@drag-vertical` 触发器 + `@motion` 关键帧；拖拽进度范围可用 `constraints:` 子参数显式约束（v2 Task 5.1 恢复），缺省回落关键帧范围推导（`maxExtent`），无可用范围时生成代码中带警告注释（拖拽无位移）：
 
 ```omni
 @motion dragSlideX {

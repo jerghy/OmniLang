@@ -72,6 +72,14 @@ Trigger spellings are **kebab-case** (semantic-level DSL, ADR-053): `@in-view`,
 **not** produced by the lexer. `@hero` still lexes to `AtHero` but the parser
 rejects it with a clear diagnostic (hero transitions removed per ADR-032/053).
 
+`@drag` / `@dragEnd` (ADR-073) are **drag-intent directives** — not lexer
+tokens and not motion triggers: `parse_event_prop` dispatches on the names
+`drag` / `dragEnd` (see grammar-view §2.5). Semantics: pointer down → capture
+→ repeated `@drag` callbacks; pointer up → `@dragEnd`. The value must be a
+bare component function name, and the element must carry `@ref` (semantic
+hard error). Distinct from the `@drag-horizontal` / `@drag-vertical` scrubbing
+triggers above.
+
 #### Special
 
 | Token | Description |

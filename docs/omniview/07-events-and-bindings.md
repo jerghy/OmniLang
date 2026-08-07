@@ -99,6 +99,26 @@ component EventsDemo {
 |------|------|
 | `@onDragStart` / `@onDragOver` / `@onDragEnd` / `@onDrop` | `x`, `y`（Drop 另有 `files`, `text`） |
 
+### 拖拽意图指令（@drag / @dragEnd）
+
+`@drag` / `@dragEnd` 是**拖拽意图指令**（ADR-073）——声明「元素可拖拽」，指针捕获由编译器按目标自行选路（React `setPointerCapture` / OmniView 原语组合 / Flutter GestureDetector pan）：
+
+```omni
+<div @ref={box} @drag={onDrag} @dragEnd={onDragEnd} />
+```
+
+| 指令 | 触发时机 | 事件数据 | 约束 |
+|------|---------|---------|------|
+| `@drag` | 指针按下 → 捕获 → 持续回调 | `{x, y, dx, dy, pointerId, startX, startY}` | 需同元素 `@ref` |
+| `@dragEnd` | 指针抬起/取消 | 同 `@drag` | 可选 |
+
+- 语义：指针在元素上按下 → 捕获拖动（移出元素仍跟随）→ 拖动期间持续回调 `@drag`，抬起回调 `@dragEnd`；`dx`/`dy` 为相对按下点的**累计位移**（数值型）
+- 处理器必须是**组件函数名**（禁止内联箭头/调用），0-1 参数（拖拽事件对象）
+- `@drag` 与 `@dragEnd` **顺序无关**；`@dragEnd` 不能单独出现，二者不能重复
+- `@drag` 要求同元素 `@ref`（语义验证硬错误）；`capturePointer()` / `releasePointer()` 已降级为编译器内部实现细节——源码不显式书写
+
+> **与 `@onDrag` 的区别**：`@onDrag`（上表「拖拽」行）是 HTML5 标准 `drag` 事件（DragEvent），被动接收浏览器拖放协议事件；`@drag` 是 OmniLang 拖拽意图指令（指针按下 → 捕获 → 跟随回调），二者完全独立。与 `@drag-horizontal` / `@drag-vertical` 也不同——后者是 motion scrubbing 语法糖（手势 → keyframe 进度），前者是元素拖拽意图（移动元素跟随指针）。
+
 ### 滚轮/滚动
 
 | 事件 | 字段 |
@@ -213,4 +233,5 @@ view {
 | 函数调用 | `@onPress={switchTab("home")}` | 带参数调用组件函数 |
 
 > 注：`@press`、`@focus` 等（不带 `on`）是**动画触发器**，不是事件——
-> 事件绑定一律使用 `@on*` 形式（详见 [11-运动与动画](11-motion-animation.md)）。
+> 事件绑定一律使用 `@on*` 形式（详见 [11-运动与动画](11-motion-animation.md)）；
+> `@drag` / `@dragEnd` 是**拖拽意图指令**（见上「拖拽意图指令」），亦非事件。

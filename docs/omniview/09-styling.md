@@ -265,6 +265,9 @@ component DemoCard {
 
 支持静态值、动态表达式和 CSS 变量。
 
+> **直写通道（ADR-070/073，Phase 1/3）**：`@ref` 元素上的**动态 style 条目**经各目标优化通道发射，不经过框架 diff/reconciliation——React：`useRef` + 直接 DOM 写（`el.style.prop = ...`，零重渲染）；Flutter：`ValueNotifier` + `ListenableBuilder`（零 setState、局部重建）；OmniView：`el.style.setProperty` 直接 DOM 写。激活条件：元素带 `@ref` + 条目为动态表达式 + 不在 `@for` 内（详见 `docs/design/ref-high-frequency-direct-channel.md`）。
+> **Flutter 约束**：`width`/`height` 等 numeric widget 参数不接受 String px 值——String→double 类型缺口是**编译期显式诊断**，动态数值请用数字信号（px 显示串由 computed 派生）。
+
 ## 样式最佳实践
 
 1. **优先设计系统**：通用颜色、间距、排版定义在 `design` 块中
