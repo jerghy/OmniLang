@@ -113,20 +113,18 @@ fn check_view_nodes(
                 // OmniView keyFn 的 String() 会把全部项塌缩为
                 // "[object Object]"（键控复用/FLIP 形同虚设）。要求字段
                 // 访问（item.id）或原始类型。
-                if let Some(key_expr) = &for_dir.key_expr {
-                    if let Expr::VarRef(name, _) = key_expr {
-                        if name == &for_dir.item_name
-                            && infer_item_kind(&for_dir.iterable, typed, consts) == ItemKind::Object
-                        {
-                            diags.push(LintDiagnostic {
-                                rule: "for-key".into(),
-                                severity: LintSeverity::Warning,
-                                message: FOR_KEY_OBJECT_WARNING.into(),
-                                file: file_path.to_string(),
-                                line: for_dir.span.line,
-                                col: for_dir.span.col,
-                            });
-                        }
+                if let Some(Expr::VarRef(name, _)) = &for_dir.key_expr {
+                    if name == &for_dir.item_name
+                        && infer_item_kind(&for_dir.iterable, typed, consts) == ItemKind::Object
+                    {
+                        diags.push(LintDiagnostic {
+                            rule: "for-key".into(),
+                            severity: LintSeverity::Warning,
+                            message: FOR_KEY_OBJECT_WARNING.into(),
+                            file: file_path.to_string(),
+                            line: for_dir.span.line,
+                            col: for_dir.span.col,
+                        });
                     }
                 }
                 // Thread the loop binding's element type into the body so a

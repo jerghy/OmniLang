@@ -464,7 +464,10 @@ fn test_expr_method_call() {
             args: vec![],
             is_optional: false
         }),
-        "(arr || []).length"
+        // 021b2441: Map literals compile to plain JS objects — `({} || []).length`
+        // was undefined. len now dispatches: array/string `.length`, object
+        // own-key count, null/undefined → 0.
+        "((_c) => Array.isArray(_c) || typeof _c === \"string\" ? _c.length : (_c ? Object.keys(_c).length : 0))(arr)"
     );
     assert_eq!(
         gen.expr_to_js(&ExprIR::MethodCallExpr {
