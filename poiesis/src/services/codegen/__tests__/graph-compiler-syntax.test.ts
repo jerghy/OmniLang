@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { compileCodeFlowGraph } from "../graph-compiler";
+import { parseCodeFlowGraph } from "../graph-parser";
 import type { CodeblockElementData } from "../../../core/types/element";
 import type { WireData } from "../../../core/types/wire";
 
@@ -101,5 +102,37 @@ describe("graph-compiler 循环发射", () => {
     const out = compileCodeFlowGraph(ELEMS, wires, "fn-1");
     // 闭括号与块头同缩进（镜像 condition 模式），fn 体内为缩进 2 的 `  }`
     expect(out).toContain("while n < 10 {\n  }");
+  });
+});
+
+describe("graph-compiler throw/await 发射", () => {
+  it("throw/await 编译-再解析闭环", () => {
+    const graph = parseCodeFlowGraph(`// @pid:t1
+throw new Error("x");
+// @pid:a1
+await cleanup();
+`);
+    const compiled = compileCodeFlowGraph(graph.elements, graph.wires, graph.elements[0].id)!;
+    expect(compiled).toContain(`throw new Error("x");`);
+    expect(compiled).toContain("await cleanup();");
+    const graph2 = parseCodeFlowGraph(compiled);
+    expect(graph2.elements.map((e) => e.tag)).toEqual(["throw", "await"]);
+  });
+
+  it("throw/await 在 fn 链中按序发射（pid 注释 + 后继链）", () => {
+    const elements = [
+      el("fn1", "fn", { name: "f", params: "" }),
+      el("t1", "throw", { value: `new Error("x")` }),
+      el("a1", "await", { value: "cleanup()" }),
+      el("r1", "return", {}, ""),
+    ];
+    const wires = [
+      wire("fn1", "t1"), wire("t1", "a1"), wire("a1", "r1"),
+    ];
+    const out = compileCodeFlowGraph(elements, wires, "fn1");
+    expect(out).toContain("// @pid:t1\n  throw new Error(\"x\");");
+    expect(out).toContain("// @pid:a1\n  await cleanup();");
+    expect(out.indexOf("throw")).toBeLessThan(out.indexOf("await"));
+    expect(out.indexOf("await")).toBeLessThan(out.indexOf("return"));
   });
 });

@@ -248,3 +248,38 @@ describe("graph-parser 循环段", () => {
     expect(el?.tag).toBe("code-block");
   });
 });
+
+describe("graph-parser throw/await 段", () => {
+  it("throw/await 段解析为语法节点", () => {
+    const { elements, wires } = parseCodeFlowGraph(`// @pid:t1
+throw new Error("boom");
+// @pid:a1
+await async_sleep(20);
+`);
+    const tags = elements.map((e) => e.tag);
+    expect(tags).toEqual(["throw", "await"]);
+    // 值保留单词间空格（compactSpacedMembers 语义：new Error("boom") 不得变成 newError("boom")）
+    expect(elements[0].props?.value).toBe(`new Error("boom")`);
+    expect(elements[1].props?.value).toBe("async_sleep(20)");
+    // 值经 formatSyntaxNode 重写为规范化 source（round-trip 不退化）
+    expect(elements[0].source).toBe(`throw new Error("boom");`);
+    expect(elements[1].source).toBe("await async_sleep(20);");
+    expect(wires).toHaveLength(1); // throw → await
+  });
+
+  it("await 段头优先于 call 判定（`await foo()` 不得落入 call）", () => {
+    const g = parseCodeFlowGraph(`// @pid:a1
+await fetch_data();
+`);
+    expect(g.elements[0].tag).toBe("await");
+    expect(g.elements[0].props?.value).toBe("fetch_data()");
+  });
+
+  it("字符串字面量内的点空格不受 throw/await 值归一化影响", () => {
+    const g = parseCodeFlowGraph(`// @pid:t1
+throw new Error("a . b");
+`);
+    expect(g.elements[0].tag).toBe("throw");
+    expect(g.elements[0].props?.value).toBe('new Error("a . b")');
+  });
+});

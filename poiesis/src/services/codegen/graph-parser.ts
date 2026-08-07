@@ -27,7 +27,7 @@ interface ParsedSegment {
   startLine: number;
   endLine: number;
   code: string;
-  type: "fn" | "code-block" | "condition" | "return" | "let" | "assign" | "store-call" | "call" | "while" | "for-in";
+  type: "fn" | "code-block" | "condition" | "return" | "let" | "assign" | "store-call" | "call" | "throw" | "await" | "while" | "for-in";
 }
 
 /**
@@ -154,7 +154,7 @@ function splitByPid(
 // detectSegmentType – classify a segment from its first non-empty line
 // ---------------------------------------------------------------------------
 
-type SegmentType = "fn" | "code-block" | "condition" | "return" | "let" | "assign" | "store-call" | "call" | "while" | "for-in";
+type SegmentType = "fn" | "code-block" | "condition" | "return" | "let" | "assign" | "store-call" | "call" | "throw" | "await" | "while" | "for-in";
 
 /** Determine segment type from first non-empty line of code. */
 function detectSegmentType(
@@ -198,6 +198,10 @@ function detectSegmentType(
   // Tokenizer-spaced text ("TodoStore . add ( ) ;") must still match —
   // allow optional whitespace around the ".".
   if (/^[A-Z]\w*\s*\.\s*[a-zA-Z_]\w*\s*\(/.test(trimmed)) return "store-call";
+  // throw/await 段头必须置于 call 正则之前：`await async_sleep(20)` / `await (expr)`
+  // 首 token 是关键字，落入 call 判定会错挂（`await (` 形如调用前缀）。
+  if (/^throw\s+/.test(trimmed)) return "throw";
+  if (/^await\s+/.test(trimmed)) return "await";
   if (/^[a-zA-Z_]\w*(?:\s*\.\s*[a-zA-Z_]\w*)?\s*\(/.test(trimmed)) return "call";
   if (/^[a-zA-Z_]\w*(?:\s*\.\s*[a-zA-Z_]\w*)?\s*(?:=|\+=|-=|\*=|\/=|%=)\s*/.test(trimmed)) return "assign";
   return "code-block";
@@ -539,6 +543,8 @@ export function parseCodeFlowGraph(
       seg.type === "assign" ||
       seg.type === "store-call" ||
       seg.type === "call" ||
+      seg.type === "throw" ||
+      seg.type === "await" ||
       seg.type === "while" ||
       seg.type === "for-in"
     ) {
@@ -747,7 +753,7 @@ function compactSpacedMembers(s: string): string {
  * truncated or silently dropped.
  */
 function parseSyntaxProps(
-  type: "let" | "assign" | "store-call" | "call" | "while" | "for-in",
+  type: "let" | "assign" | "store-call" | "call" | "throw" | "await" | "while" | "for-in",
   code: string,
 ): Record<string, unknown> {
   // 语句段代码可能携带结构尾行：发射侧 `}\nelse if ... {` 把条件块收尾 `}` 与下一分支头
@@ -786,6 +792,14 @@ function parseSyntaxProps(
       const m = t.match(/^(emit\s+)?([a-zA-Z_]\w*(?:\s*\.\s*[a-zA-Z_]\w*)?)\s*\((.*?)\)\s*;?\s*$/);
       if (!m) return { fnName: "fn", args: "" };
       return { emit: !!m[1], fnName: compactSpacedMembers(m[2]), args: compactSpacedMembers(m[3].trim()) };
+    }
+    case "throw":
+    case "await": {
+      // 关键字后到行尾的表达式：单词间单空格保留（compactSpacedMembers 语义——
+      // `new Error("boom")` 不得变成 `newError("boom")`），member 空格化仍归一化。
+      const m = t.match(new RegExp(`^${type}\\s+(.*?)\\s*;?\\s*$`));
+      if (!m) return {};
+      return { value: compactSpacedMembers(m[1].trim()) };
     }
     case "while": {
       // 段头形如 `while n < 10 {`（OmniLang 风格，无括号），提取条件表达式。

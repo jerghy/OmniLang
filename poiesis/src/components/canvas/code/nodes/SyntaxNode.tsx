@@ -208,6 +208,38 @@ const SyntaxNode = React.memo(function SyntaxNode({ data }: Props) {
             />
           </>
         )}
+
+        {tag === "throw" && (
+          <>
+            <div className={styles.row}>
+              <span className={styles.op}>throw</span>
+              <NodeFormulaField
+                value={(props.value as string) ?? ""}
+                candidates={formulaSource}
+                onCommit={(v) => set("value", v)}
+                placeholder="抛出的异常（表达式）"
+                ariaLabel="throw 表达式"
+                className={styles.grow}
+              />
+            </div>
+          </>
+        )}
+
+        {tag === "await" && (
+          <>
+            <div className={styles.row}>
+              <span className={styles.op}>await</span>
+              <NodeFormulaField
+                value={(props.value as string) ?? ""}
+                candidates={formulaSource}
+                onCommit={(v) => set("value", v)}
+                placeholder="等待的异步表达式"
+                ariaLabel="await 表达式"
+                className={styles.grow}
+              />
+            </div>
+          </>
+        )}
       </div>
 
       {/* 预览：formatSyntaxNode 单一来源（data-syntax-code 属性 + 节点底部文本） */}

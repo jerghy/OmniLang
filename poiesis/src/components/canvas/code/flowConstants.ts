@@ -11,6 +11,8 @@ export const TAG_CN: Record<string, string> = {
   assign: "赋值",
   "store-call": "store 调用",
   call: "调用",
+  throw: "throw",
+  await: "await",
   while: "循环",
   "for-in": "迭代",
 };
@@ -24,6 +26,8 @@ export const CODE_TAGS = new Set([
   "assign",
   "store-call",
   "call",
+  "throw",
+  "await",
   "while",
   "for-in",
 ]);
@@ -63,6 +67,8 @@ export const MENU_SECTIONS: MenuSection[] = [
     items: [
       { label: "store 调用", tag: "store-call", shortcut: "st" },
       { label: "函数调用 (call)", tag: "call", shortcut: "fn()" },
+      { label: "抛出 (throw)", tag: "throw", shortcut: "throw" },
+      { label: "等待 (await)", tag: "await", shortcut: "await" },
     ],
   },
 ];

@@ -36,6 +36,17 @@ describe("defaultSyntaxProps", () => {
   });
 });
 
+describe("throw/await 语法节点", () => {
+  it("formatSyntaxNode 发射 throw/await", () => {
+    expect(formatSyntaxNode("throw", { value: `new Error("boom")` })).toBe(`throw new Error("boom");`);
+    expect(formatSyntaxNode("await", { value: "async_sleep(20)" })).toBe("await async_sleep(20);");
+  });
+  it("defaultSyntaxProps 提供占位默认值", () => {
+    expect(defaultSyntaxProps("throw")).toEqual({ label: "throw", value: "" });
+    expect(defaultSyntaxProps("await")).toEqual({ label: "await", value: "" });
+  });
+});
+
 describe("loop 语法节点", () => {
   it("while 生成 `while <condition> {`（无尾分号，块头由编译器补）", () => {
     expect(formatSyntaxNode("while", { condition: "n < 10" })).toBe("while n < 10 {");

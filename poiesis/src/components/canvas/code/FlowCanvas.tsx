@@ -50,6 +50,8 @@ const nodeTypes = {
   "assign": SyntaxNode,
   "store-call": SyntaxNode,
   "call": SyntaxNode,
+  "throw": SyntaxNode,
+  "await": SyntaxNode,
   "while": LoopNode,
   "for-in": LoopNode,
 };
@@ -148,7 +150,7 @@ function FlowCanvasInner() {
       let props: Record<string, unknown> = {};
       if (tag === "fn") { props = { name: "newFn", params: "" }; }
       if (tag === "condition") { props = { branches: [{ id: "br0", type: "if", condition: "" }] }; }
-      if (["let", "assign", "store-call", "call", "while", "for-in"].includes(tag)) { props = { ...defaultSyntaxProps(tag) }; }
+      if (["let", "assign", "store-call", "call", "throw", "await", "while", "for-in"].includes(tag)) { props = { ...defaultSyntaxProps(tag) }; }
       addElement({ id, nodeType: "codeblock", tag, props, parentId: null, position: { x: menuState.flowX + jitter, y: menuState.flowY + jitter }, source: "" });
       if (pendingDragRef.current) {
         addWire({

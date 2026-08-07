@@ -229,7 +229,9 @@ function emitNode(
     case "let":
     case "assign":
     case "store-call":
-    case "call": {
+    case "call":
+    case "throw":
+    case "await": {
       let out = emitPidComment(pid);
       out += `${pad}${formatSyntaxNode(tag, (node.element.props ?? {}) as SyntaxNodeProps)}\n`;
       // Emit successor (control flow continues)

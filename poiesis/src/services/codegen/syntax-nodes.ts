@@ -5,6 +5,8 @@
 //  - defaultSyntaxProps: 新节点默认值（占位符取自 learn-omniview 真实使用统计）
 
 export interface SyntaxNodeProps {
+  /** 节点显示标签（throw/await 等仅作占位，UI label 以 TAG_CN 为准） */
+  label?: string;
   /** let: 变量名；assign: 赋值目标（signal/变量/store 信号） */
   name?: string;
   mutable?: boolean;
@@ -38,6 +40,10 @@ export function defaultSyntaxProps(tag: string): SyntaxNodeProps {
       return { storeName: "TodoStore", action: "add", args: "" };
     case "call":
       return { fnName: "close", args: "", emit: false };
+    case "throw":
+      return { label: "throw", value: "" };
+    case "await":
+      return { label: "await", value: "" };
     case "while":
       return { condition: "count < 10" };
     case "for-in":
@@ -62,6 +68,10 @@ export function formatSyntaxNode(tag: string, props: SyntaxNodeProps): string {
       return `${props.storeName ?? "Store"}.${props.action ?? "action"}(${props.args ?? ""});`;
     case "call":
       return `${props.emit ? "emit " : ""}${props.fnName ?? "fn"}(${props.args ?? ""});`;
+    case "throw":
+      return `throw ${props.value ?? ""};`;
+    case "await":
+      return `await ${props.value ?? ""};`;
     case "while":
       return `while ${props.condition ?? "true"} {`;
     case "for-in":
