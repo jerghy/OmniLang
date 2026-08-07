@@ -69,6 +69,7 @@ design LearnDesign {
     token radiusMd: radius = "8px";
     token radiusLg: radius = "12px";
     token radiusFull: radius = "9999px";
+    token cardRadius: radius = "12px";
 
     // ── 阴影 ──
     token shadowSm: shadow = "0 1px 2px rgba(0,0,0,0.05)";
@@ -84,7 +85,7 @@ design LearnDesign {
     token fontSizeXl: fontSize = "18px";
     token fontSize3xl: fontSize = "22px";
     token fontSize4xl: fontSize = "28px";
-    token fontWeightNormal: fontWeight = "500";
+    token fontWeightMedium: fontWeight = "500";
     token fontWeightSemibold: fontWeight = "600";
     token fontWeightBold: fontWeight = "700";
 
@@ -977,13 +978,13 @@ design LearnDesign {
     // (C2a migration) 2 properties
     class CascadeArea {
         background: white;
-        border-radius: var(--radius-sm);
+        border-radius: var(--radiusSm);
     }
     // (C2a migration) 5 properties
     class CascadeBox {
         background: hsl(var(--accent-h, 221), 70%, 95%);
         border: 2px solid hsl(var(--accent-h, 221), 70%, 75%);
-        border-radius: var(--radius-sm);
+        border-radius: var(--radiusSm);
         padding: 16px;
         text-align: center;
     }
@@ -1095,7 +1096,7 @@ design LearnDesign {
     }
     // (C2a migration) 3 properties
     class CodeHint {
-        color: var(--text-muted);
+        color: var(--textMuted);
         font-size: 11px;
         margin: 0;
     }
@@ -1196,7 +1197,7 @@ design LearnDesign {
     class CycleBtn {
         background: token(primary);
         border: none;
-        border-radius: var(--radius-sm);
+        border-radius: var(--radiusSm);
         color: white;
         cursor: pointer;
         font-size: 13px;
@@ -1468,7 +1469,7 @@ design LearnDesign {
     // (C2a migration) 2 properties
     class DynamicArea {
         background: white;
-        border-radius: var(--radius-sm);
+        border-radius: var(--radiusSm);
     }
     // (C2a migration) 4 properties
     class DynamicSwatches {
@@ -1479,7 +1480,7 @@ design LearnDesign {
     }
     // (C2a migration) 3 properties
     class DynamicText {
-        color: var(--text-primary);
+        color: var(--textPrimary);
         font-size: 14px;
         margin: 0 0 10px 0;
     }
@@ -2199,7 +2200,7 @@ design LearnDesign {
     class PaletteSection {
         background: token(surface);
         border: 1px solid token(border);
-        border-radius: var(--card-radius);
+        border-radius: var(--cardRadius);
         padding: 14px;
     }
     // (C2a migration) 3 properties
@@ -2813,7 +2814,7 @@ design LearnDesign {
     }
     // (C2a migration) 3 properties
     class SwatchLabel {
-        color: var(--text-muted);
+        color: var(--textMuted);
         font-family: monospace;
         font-size: 13px;
     }
@@ -3091,7 +3092,7 @@ design LearnDesign {
         action-h: 48px;
         background: token(surface);
         border: 1px solid token(border);
-        border-radius: var(--card-radius);
+        border-radius: var(--cardRadius);
         card-radius: 12px;
         margin: 16px 0;
         padding: 20px;
