@@ -404,13 +404,17 @@ fn collect_mutation_identifiers(intent: &MutationIntent, acc: &mut FxHashSet<Str
 
 /// Collect signal names that are read (not just mutated) from the view tree
 /// (mirror of the React target's `collect_view_read_signals`).
-fn collect_view_read_signals(node: &ViewTree) -> FxHashSet<String> {
+fn collect_view_read_signals(node: &ViewTree, include_style: bool) -> FxHashSet<String> {
     let mut acc = FxHashSet::default();
-    collect_view_read_signals_inner(node, &mut acc);
+    collect_view_read_signals_inner(node, include_style, &mut acc);
     acc
 }
 
-fn collect_view_read_signals_inner(node: &ViewTree, acc: &mut FxHashSet<String>) {
+fn collect_view_read_signals_inner(
+    node: &ViewTree,
+    include_style: bool,
+    acc: &mut FxHashSet<String>,
+) {
     match node {
         ViewTree::Element(el) => {
             for val in el.props.values() {
@@ -461,32 +465,37 @@ fn collect_view_read_signals_inner(node: &ViewTree, acc: &mut FxHashSet<String>)
             // Inline style bindings (style: { width: sig, ... }) read their
             // signals inside the emitted style object — collect them so
             // a signal referenced only there still counts as a render-path
-            // read (active-entry reads are subtracted afterwards).
-            if let Some(ref style_json) = el.inline_style {
-                collect_inline_style_signals(style_json, acc);
+            // read (active-entry reads are subtracted afterwards; the
+            // `include_style=false` pass feeds the subtraction guard — a
+            // signal read in BOTH an entry and elsewhere must NOT be
+            // subtracted).
+            if include_style {
+                if let Some(ref style_json) = el.inline_style {
+                    collect_inline_style_signals(style_json, acc);
+                }
             }
             for child in &el.children {
-                collect_view_read_signals_inner(child, acc);
+                collect_view_read_signals_inner(child, include_style, acc);
             }
         }
         ViewTree::Conditional(cond) => {
             for branch in &cond.branches {
                 collect_expr_identifiers(&branch.condition, acc);
                 if let Some(ref body) = branch.body {
-                    collect_view_read_signals_inner(body, acc);
+                    collect_view_read_signals_inner(body, include_style, acc);
                 }
             }
             if let Some(ref fb) = cond.fallback {
-                collect_view_read_signals_inner(fb, acc);
+                collect_view_read_signals_inner(fb, include_style, acc);
             }
         }
         ViewTree::ListRendering(list) => {
             collect_expr_identifiers(&list.iterable, acc);
             if let Some(ref body) = list.body {
-                collect_view_read_signals_inner(body, acc);
+                collect_view_read_signals_inner(body, include_style, acc);
             }
             if let Some(ref empty_body) = list.empty_body {
-                collect_view_read_signals_inner(empty_body, acc);
+                collect_view_read_signals_inner(empty_body, include_style, acc);
             }
         }
         ViewTree::Interpolation(expr) => {
@@ -496,13 +505,13 @@ fn collect_view_read_signals_inner(node: &ViewTree, acc: &mut FxHashSet<String>)
             // Fallback content renders inside the component — signals it
             // reads must count toward the storage decisions.
             for child in fallback {
-                collect_view_read_signals_inner(child, acc);
+                collect_view_read_signals_inner(child, include_style, acc);
             }
         }
         ViewTree::Text(_) => {}
         ViewTree::Fragment(children) => {
             for child in children {
-                collect_view_read_signals_inner(child, acc);
+                collect_view_read_signals_inner(child, include_style, acc);
             }
         }
         #[allow(unreachable_patterns)]
@@ -1160,19 +1169,29 @@ fn collect_called_fns_from_expr(expr: &ExprIR, acc: &mut FxHashSet<String>) {
 /// see module doc (fix round F2).
 ///
 /// Reuses the shared view collectors; the active-entry reads are
-/// subtracted afterwards.
+/// subtracted afterwards — but ONLY when they are the signal's only
+/// output reads. A signal read in BOTH an active entry and anywhere else
+/// (text interpolation, props, class bindings, inline handlers) is NOT
+/// entry-only (ADR-071) — it stays render-path (B2), where the read
+/// updates on rebuild. `reads_no_style` collects the same output reads
+/// minus the inline-style contribution to guard the subtraction.
 fn collect_output_reads(
     comp: &ComponentIR,
     active_entries: &[DirectWriteEntry],
 ) -> FxHashSet<String> {
     let mut reads = FxHashSet::default();
+    let mut reads_no_style = FxHashSet::default();
     if let Some(view) = &comp.view {
-        reads.extend(collect_view_read_signals(view));
+        reads.extend(collect_view_read_signals(view, true));
+        reads_no_style.extend(collect_view_read_signals(view, false));
         collect_view_inline_handler_reads(view, &mut reads);
+        collect_view_inline_handler_reads(view, &mut reads_no_style);
     }
     for entry in active_entries {
         for s in &entry.read_signals {
-            reads.remove(s);
+            if !reads_no_style.contains(s) {
+                reads.remove(s);
+            }
         }
     }
     // Fix round F1: effect + lifecycle body reads (stmt identifiers, incl.

@@ -1363,12 +1363,30 @@ pub(crate) fn emit_ref_dispose(
 /// stays byte-identical to the Dart family except for ref ops.
 pub(crate) struct FlutterFormatExpr {
     pub(crate) inner: DartFormatExpr,
+    /// Phase 3 (ADR-071 decision 2): D1/D2 signal names — identifiers map to
+    /// the ValueNotifier form `_name.value` (the State field is renamed
+    /// `_name`). Empty for paths without component context (lib fns, signal
+    /// initial values in non-component files, view-tree expressions).
+    pub(crate) direct_write_signals: FxHashSet<String>,
 }
 
 impl FlutterFormatExpr {
     pub(crate) fn new(event_param_name: Option<String>) -> Self {
         Self {
             inner: DartFormatExpr { event_param_name },
+            direct_write_signals: FxHashSet::default(),
+        }
+    }
+
+    /// Phase 3: constructor carrying the component's D1/D2 set — every
+    /// identifier resolving to a direct-write signal emits `_name.value`.
+    pub(crate) fn new_with_direct_write(
+        event_param_name: Option<String>,
+        direct_write_signals: &FxHashSet<String>,
+    ) -> Self {
+        Self {
+            inner: DartFormatExpr { event_param_name },
+            direct_write_signals: direct_write_signals.clone(),
         }
     }
 }
@@ -1388,6 +1406,18 @@ impl FormatExpr for FlutterFormatExpr {
 
     fn event_param_name(&self) -> Option<&str> {
         self.inner.event_param_name()
+    }
+
+    // Phase 3 (ADR-071 decision 2): a D1/D2 signal identifier resolves to
+    // the ValueNotifier cell — `_name.value` (the State field was renamed
+    // `_name`; bare `name` would be an undeclared identifier in Dart).
+    // Everything else stays the Dart-family default (bare name).
+    fn format_identifier(&self, name: &str) -> String {
+        if self.direct_write_signals.contains(name) {
+            format!("_{}.value", name)
+        } else {
+            name.to_string()
+        }
     }
 
     // Delegate to the Dart-family method table (`.len()` → `.length`,
@@ -1565,8 +1595,12 @@ fn format_ref_op_flutter(ref_name: &str, op: &RefOpIR, fmt: &impl FormatExpr) ->
             let render = format!("{}.currentContext?.findRenderObject()", key);
             let box_expr = format!("({render} is RenderBox ? {render} as RenderBox : null)");
             match what {
-                MeasureWhat::Width => format!("{}?.size.width", box_expr),
-                MeasureWhat::Height => format!("{}?.size.height", box_expr),
+                // `?? 0` — React parity (react/expr.rs MeasureWhat): the
+                // nullable chain degrades to null before layout; the
+                // non-nullable `double` fields of the drag fixture would
+                // otherwise be an invalid_assignment (double? → double).
+                MeasureWhat::Width => format!("{}?.size.width ?? 0", box_expr),
+                MeasureWhat::Height => format!("{}?.size.height ?? 0", box_expr),
                 MeasureWhat::Position => {
                     // DOMRect-parity wrapper (Task 5.8): the language's
                     // measure() surface is x/y/width/height — a raw

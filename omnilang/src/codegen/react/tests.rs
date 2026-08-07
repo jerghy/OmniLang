@@ -7412,6 +7412,49 @@ component SizeBox {
 }
 
 #[test]
+fn test_classify_direct_write_style_plus_text_read_stays_b2() {
+    // 信号同时被激活条目（style entry）和非条目输出读取（text
+    // interpolation）消费 → 不是 entry-only（ADR-071），必须留在渲染路径
+    // B2：Flutter ValueNotifier 改名会留下裸名未声明（undefined），React
+    // ref 读取会变成陈旧文本。仅 style 消费的 dragX 仍为 D1。
+    let comp = compile_component_ir(
+        r#"
+component StyleText {
+  signal boxHeight: String = "80px"
+  signal dragX: f64 = 0
+  ref box: Element
+  fn expand() { boxHeight = "120px" }
+  fn move(e) { dragX = e.x }
+  view {
+    <div @ref={box} @onPointerMove={move}
+         style: { height: boxHeight, transform: "translate(" + dragX + "px, 0px)" }>
+      Height: {boxHeight}
+    </div>
+  }
+}
+"#,
+    );
+    let sets = classify_direct_write(&comp);
+    assert!(
+        !sets.d1.contains("boxHeight"),
+        "style+text signal must NOT be D1: {:?}",
+        sets.d1
+    );
+    assert!(
+        !sets.d2.contains("boxHeight"),
+        "style+text signal must NOT be D2: {:?}",
+        sets.d2
+    );
+    assert!(
+        sets.d1.contains("dragX"),
+        "style-only signal stays D1: {:?}",
+        sets.d1
+    );
+    assert_eq!(sets.b2_entries.len(), 1, "boxHeight entry is B2");
+    assert_eq!(sets.b2_entries[0].prop, "height");
+}
+
+#[test]
 fn test_classify_direct_write_empty_read_concat_is_b2() {
     // 纯字面量 $concat（"a" + "b"，无 $signal/$ident 读）→ read_signals
     // 为空：空读条目不得留在 D1 通道（Task 3 apply 不覆盖 → 属性静默永不

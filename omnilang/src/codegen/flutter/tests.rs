@@ -8913,7 +8913,7 @@ fn test_format_ref_op_flutter_variants() {
                 what: MeasureWhat::Width
             }
         )),
-        "(_boxKey.currentContext?.findRenderObject() is RenderBox ? _boxKey.currentContext?.findRenderObject() as RenderBox : null)?.size.width"
+        "(_boxKey.currentContext?.findRenderObject() is RenderBox ? _boxKey.currentContext?.findRenderObject() as RenderBox : null)?.size.width ?? 0"
     );
     assert_eq!(
         format_expr_ir_flutter(&op(
@@ -8922,7 +8922,7 @@ fn test_format_ref_op_flutter_variants() {
                 what: MeasureWhat::Height
             }
         )),
-        "(_boxKey.currentContext?.findRenderObject() is RenderBox ? _boxKey.currentContext?.findRenderObject() as RenderBox : null)?.size.height"
+        "(_boxKey.currentContext?.findRenderObject() is RenderBox ? _boxKey.currentContext?.findRenderObject() as RenderBox : null)?.size.height ?? 0"
     );
     assert_eq!(
         format_expr_ir_flutter(&op(

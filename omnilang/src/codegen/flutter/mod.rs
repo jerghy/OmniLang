@@ -34,6 +34,7 @@ mod tests;
 
 use super::{CodeWriter, Codegen, CompileOutput, CompiledFile};
 use crate::codegen::shared::build_component_map;
+use crate::codegen::shared::direct_write::classify_direct_write;
 use crate::codegen::{format_json_value, JSON_FLUTTER};
 use crate::error::Diagnostic;
 use crate::ir::*;
@@ -141,6 +142,9 @@ impl FlutterCodegen {
     ) -> (String, Vec<crate::codegen::CodegenWarning>, Vec<Diagnostic>) {
         let mut w = CodeWriter::new();
         let mut warnings: Vec<crate::codegen::CodegenWarning> = Vec::new();
+        // Task 14: compile-time diagnostics from view formatting (unmappable
+        // direct-write style values) — merged into the ref_errors return.
+        let mut view_errors: Vec<Diagnostic> = Vec::new();
         // ADR-053 D5: body-level `@slot` declarations surface in the view as
         // `{name}` interpolations — materialize them into `ViewTree::Slot`
         // nodes ONCE so the trigger-helper import decision (below), the
@@ -154,6 +158,20 @@ impl FlutterCodegen {
             .filter(|_| !comp.slots.is_empty())
             .map(|v| materialize_view_slots(v, comp, &slot_collision_names(comp)));
         let view = materialized_view.as_ref().or(comp.view.as_ref());
+
+        // ── Phase 3 (ADR-071 decision 2): signal direct-write classification ──
+        // D1 signals (reads confined to dynamic-style entries) and D2 signals
+        // (write-only) stop being plain State fields mutated via setState —
+        // they become `final _name = ValueNotifier<T>(init);` fields whose
+        // mutations write `_name.value` directly (zero whole-tree rebuild).
+        // Computed signals / store fields never enter the set (shared pass).
+        let direct_write_sets = classify_direct_write(comp);
+        let direct_write_names: FxHashSet<String> = direct_write_sets
+            .d1
+            .iter()
+            .chain(direct_write_sets.d2.iter())
+            .cloned()
+            .collect();
 
         // ── Cross-file library function inlining (Task 5.8) ──
         // Functions defined in OTHER .omni files (pure-logic modules like
@@ -503,7 +521,7 @@ impl FlutterCodegen {
 
         // Ref usage analysis (Task 5.2) — computed BEFORE the top-level
         // emission below so the measure wrapper helper can be gated on it.
-        let (ref_usage, ref_errors, dual_axis_warnings) = collect_ref_usage(comp);
+        let (ref_usage, mut ref_errors, dual_axis_warnings) = collect_ref_usage(comp);
 
         // v4 compiler HIGH-2: dual-axis scrollTo(x, y) silently drops x on
         // Flutter (single-axis scroll, vertical wins) — surface the
@@ -807,7 +825,39 @@ impl FlutterCodegen {
         let signal_names: FxHashSet<String> = comp.signals.iter().map(|s| s.name.clone()).collect();
         for state in &comp.signals {
             let ann = super::dart::dart_type_ir(&state.r#type);
-            let init = format_expr_ir_flutter(&state.initial_value);
+            // Phase 3 (ADR-071 decision 2): D1/D2 signals are stored in
+            // ValueNotifier cells — `final _dragX = ValueNotifier<double>(0);`
+            // — and every identifier resolves through `_name.value` (the
+            // initializer can reference sibling D1/D2 cells, so it formats
+            // with the set-aware formatter).
+            if direct_write_names.contains(&state.name) {
+                let init = format_expr_ir_flutter_dw(&state.initial_value, &direct_write_names);
+                let mut refs = FxHashSet::default();
+                collect_expr_identifiers(&state.initial_value, &mut refs);
+                let cross_refs_sibling = refs
+                    .iter()
+                    .any(|r| r != &state.name && signal_names.contains(r));
+                if cross_refs_sibling {
+                    // A field initializer referencing sibling fields cannot
+                    // run at construction (implicit_this_reference_in_initializer)
+                    // — `late` defers to first access, by which time every
+                    // notifier cell exists.
+                    w.emit_fmt(format_args!(
+                        "late final _{} = ValueNotifier<{}>({});",
+                        state.name, ann, init
+                    ));
+                } else {
+                    w.emit_fmt(format_args!(
+                        "final _{} = ValueNotifier<{}>({});",
+                        state.name, ann, init
+                    ));
+                }
+                continue;
+            }
+            // Initializers may reference D1/D2 sibling cells (`a = dragX + 1`
+            // — signal initializers are not view reads, so dragX stays D1) —
+            // format with the set-aware formatter in both branches.
+            let init = format_expr_ir_flutter_dw(&state.initial_value, &direct_write_names);
             let mut refs = FxHashSet::default();
             collect_expr_identifiers(&state.initial_value, &mut refs);
             let cross_refs_sibling = refs
@@ -960,7 +1010,7 @@ impl FlutterCodegen {
                 }
                 if let ExprIR::BlockExpr { statements, .. } = &rewritten {
                     for stmt in statements {
-                        generate_statement_flutter(&mut w, stmt);
+                        generate_statement_flutter_dw(&mut w, stmt, &direct_write_names);
                     }
                 }
                 w.dedent();
@@ -1119,13 +1169,13 @@ impl FlutterCodegen {
                         w.emit("() async {");
                         w.indent();
                         for stmt in &rewritten {
-                            generate_statement_flutter(&mut w, stmt);
+                            generate_statement_flutter_dw(&mut w, stmt, &direct_write_names);
                         }
                         w.dedent();
                         w.emit("}();");
                     } else {
                         for stmt in &rewritten {
-                            generate_statement_flutter(&mut w, stmt);
+                            generate_statement_flutter_dw(&mut w, stmt, &direct_write_names);
                         }
                     }
                 }
@@ -1163,8 +1213,19 @@ impl FlutterCodegen {
                         conditions.push(format!("oldWidget.{} != widget.{}", dep, dep));
                     } else if find_dep_type(comp, dep).is_some() {
                         // Signal/computed deps: compare against the last
-                        // observed value (snapshotted at the end of each run)
-                        conditions.push(format!("_prev{} != {}", dep, dep));
+                        // observed value (snapshotted at the end of each run).
+                        // A D1/D2 dep resolves through its notifier cell
+                        // (`_dep.value` — the State field was renamed `_dep`;
+                        // bare `dep` would be an undeclared identifier).
+                        // Note: a D1/D2 mutation does not rebuild, so this
+                        // comparison alone never re-triggers — the dep is
+                        // effectively inert (documented corner, ADR-071 P1).
+                        let rhs = if direct_write_names.contains(dep) {
+                            format!("_{}.value", dep)
+                        } else {
+                            dep.clone()
+                        };
+                        conditions.push(format!("_prev{} != {}", dep, rhs));
                     } else {
                         // Unresolvable dep — conservatively re-run
                         conditions.push("true".to_string());
@@ -1214,7 +1275,7 @@ impl FlutterCodegen {
                         .collect();
                     stmt::truncate_after_pointer_capture(&mut rewritten);
                     for stmt in &rewritten {
-                        generate_statement_flutter(&mut w, stmt);
+                        generate_statement_flutter_dw(&mut w, stmt, &direct_write_names);
                     }
                 }
             }
@@ -1276,7 +1337,7 @@ impl FlutterCodegen {
             if let Some(renamed) = fn_renames.get(&func.name) {
                 func.name = renamed.clone();
             }
-            generate_function_flutter_with(&mut w, &func, &rewritten);
+            generate_function_flutter_with(&mut w, &func, &rewritten, &direct_write_names);
             w.emit("");
         }
 
@@ -1308,7 +1369,7 @@ impl FlutterCodegen {
             }
             w.indent();
             for stmt in &rewritten {
-                generate_statement_flutter(&mut w, stmt);
+                generate_statement_flutter_dw(&mut w, stmt, &direct_write_names);
             }
             // Snapshot non-prop deps for the didUpdateWidget comparison
             // (skipped entirely when the effect collapses to `if (true)` —
@@ -1316,7 +1377,14 @@ impl FlutterCodegen {
             if !effect_collapses_to_true(comp, effect) {
                 for dep in &effect.deps {
                     if !comp.props.contains_key(dep) && find_dep_type(comp, dep).is_some() {
-                        w.emit_fmt(format_args!("_prev{} = {};", dep, dep));
+                        // Phase 3: a D1/D2 dep snapshots its notifier cell —
+                        // `_prevX = _X.value;` (the field was renamed `_X`).
+                        let rhs = if direct_write_names.contains(dep) {
+                            format!("_{}.value", dep)
+                        } else {
+                            dep.clone()
+                        };
+                        w.emit_fmt(format_args!("_prev{} = {};", dep, rhs));
                     }
                 }
             }
@@ -1377,6 +1445,14 @@ impl FlutterCodegen {
                 hoist_next: &mut hoist_next,
                 lazy_context: false,
                 comp_type_scope: &comp_type_scope,
+                // Phase 3: D1/D2 set — inline-handler formatters inside the
+                // view tree emit `_name.value` mutations (no setState).
+                direct_write_signals: &direct_write_names,
+                // Task 14: unmappable direct-write style values fail
+                // compilation (diagnostics merged into ref_errors below) —
+                // never a silent drop.
+                errors: &mut view_errors,
+                direct_write: &direct_write_sets,
             };
             // Multi-node root fragments are wrapped in a Column —
             // `return Text('a'), Text('b');` would be invalid Dart
@@ -1421,6 +1497,10 @@ impl FlutterCodegen {
         // the pre-C2d per-component semantics unchanged.
         let mut seen: FxHashSet<String> = FxHashSet::default();
         warnings.retain(|w| seen.insert(w.message.clone()));
+
+        // Task 14: view-formatting errors (unmappable direct-write style
+        // values) join the ref errors on the compile-error channel.
+        ref_errors.append(&mut view_errors);
 
         (w.into_string(), warnings, ref_errors)
     }

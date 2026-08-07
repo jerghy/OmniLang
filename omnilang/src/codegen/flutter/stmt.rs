@@ -39,6 +39,11 @@ fn format_dart_let_stmt<F: FormatExpr>(
 /// Component-mode Flutter statement formatter — wraps mutations in `setState`.
 pub(crate) struct FlutterStmtFormatter<F: FormatExpr> {
     pub(crate) expr: F,
+    /// Phase 3 (ADR-071 decision 2): D1/D2 signal names — mutations write
+    /// `_name.value` directly, bypassing the setState wrapper (zero
+    /// whole-tree rebuild). Filled from the shared classification at
+    /// construction sites with component context; empty elsewhere.
+    pub(crate) direct_write_signals: FxHashSet<String>,
 }
 
 impl<F: FormatExpr> FormatStmt for FlutterStmtFormatter<F> {
@@ -117,6 +122,82 @@ impl<F: FormatExpr> FormatStmt for FlutterStmtFormatter<F> {
     /// StdLibShowcase's `sleepResult = await demo_sleep_and_return();`
     /// produced `await_in_wrong_context` inside the closure).
     fn format_mutation_stmt(&self, w: &mut CodeWriter, intent: &MutationIntent) {
+        // Phase 3 (ADR-071 decision 2): D1/D2 signals write the ValueNotifier
+        // directly — `_name.value = ...`, NO setState, no whole-tree build.
+        // Every mutation form must use the `.value` target: the State field
+        // was RENAMED `_name` (bare `name += 1` would be an undeclared
+        // identifier). Runs BEFORE the await-hoisting branch — a direct write
+        // has no setState closure, so an await-bearing RHS needs no hoist.
+        if let Some(target) = mutation_target_name(intent) {
+            if self.direct_write_signals.contains(target) {
+                let semi = if self.needs_semicolon() { ";" } else { "" };
+                match intent {
+                    MutationIntent::DirectAssign { value, .. } => {
+                        let amount = value
+                            .as_ref()
+                            .map(|v| self.expr_fmt().format_expr(v))
+                            .unwrap_or_else(|| "0".into());
+                        w.emit_fmt(format_args!("_{}.value = {amount}{semi}", target));
+                    }
+                    MutationIntent::Increment { amount, .. } => {
+                        let amt = amount
+                            .as_ref()
+                            .map(|v| self.expr_fmt().format_expr(v))
+                            .unwrap_or_else(|| "1".into());
+                        w.emit_fmt(format_args!("_{}.value += {amt}{semi}", target));
+                    }
+                    MutationIntent::Decrement { amount, .. } => {
+                        let amt = amount
+                            .as_ref()
+                            .map(|v| self.expr_fmt().format_expr(v))
+                            .unwrap_or_else(|| "1".into());
+                        w.emit_fmt(format_args!("_{}.value -= {amt}{semi}", target));
+                    }
+                    MutationIntent::Multiply { amount, .. } => {
+                        let amt = amount
+                            .as_ref()
+                            .map(|v| self.expr_fmt().format_expr(v))
+                            .unwrap_or_else(|| "2".into());
+                        w.emit_fmt(format_args!("_{}.value *= {amt}{semi}", target));
+                    }
+                    MutationIntent::Divide { amount, .. } => {
+                        let amt = amount
+                            .as_ref()
+                            .map(|v| self.expr_fmt().format_expr(v))
+                            .unwrap_or_else(|| "2".into());
+                        w.emit_fmt(format_args!("_{}.value /= {amt}{semi}", target));
+                    }
+                    MutationIntent::Modulo { amount, .. } => {
+                        let amt = amount
+                            .as_ref()
+                            .map(|v| self.expr_fmt().format_expr(v))
+                            .unwrap_or_else(|| "0".into());
+                        w.emit_fmt(format_args!("_{}.value %= {amt}{semi}", target));
+                    }
+                    MutationIntent::Push { item, .. } => {
+                        let it = item
+                            .as_ref()
+                            .map(|v| self.expr_fmt().format_expr(v))
+                            .unwrap_or_else(|| "null".into());
+                        // Reassign the notifier cell (spread copy) so
+                        // listeners are notified — in-place `add` would not.
+                        w.emit_fmt(format_args!(
+                            "_{}.value = [..._{}.value, {}]{semi}",
+                            target, target, it
+                        ));
+                    }
+                    MutationIntent::Pop { .. } => {
+                        w.emit_fmt(format_args!(
+                            "_{}.value = _{}.value.sublist(0, _{}.value.length - 1){semi}",
+                            target, target, target
+                        ));
+                    }
+                    #[allow(unreachable_patterns)]
+                    _ => {}
+                }
+                return;
+            }
+        }
         let value_has_await = match intent {
             MutationIntent::DirectAssign { value, .. } => {
                 value.as_deref().is_some_and(expr_emits_await)
@@ -515,9 +596,49 @@ impl<'a> FormatStmt for StoreActionStmtFormatter<'a> {
     }
 }
 
+/// The mutation's target signal name — shared by the D1/D2 short-circuit
+/// (every MutationIntent variant carries `target: SignalRefIR`).
+fn mutation_target_name(intent: &MutationIntent) -> Option<&str> {
+    Some(match intent {
+        MutationIntent::DirectAssign { target, .. }
+        | MutationIntent::Increment { target, .. }
+        | MutationIntent::Decrement { target, .. }
+        | MutationIntent::Multiply { target, .. }
+        | MutationIntent::Divide { target, .. }
+        | MutationIntent::Modulo { target, .. }
+        | MutationIntent::Push { target, .. }
+        | MutationIntent::Pop { target } => &target.name,
+        #[allow(unreachable_patterns)]
+        _ => return None,
+    })
+}
+
+/// Setless statement emission — the D1/D2-free path for tests (setState
+/// wrapping, bare signal names). Production component emission goes through
+/// `generate_statement_flutter_dw`.
+#[cfg(test)]
 pub(crate) fn generate_statement_flutter(w: &mut CodeWriter, stmt: &StatementIR) {
     let fmt = FlutterStmtFormatter {
         expr: super::r#ref::FlutterFormatExpr::new(None),
+        direct_write_signals: FxHashSet::default(),
+    };
+    fmt.format_stmt(w, stmt);
+}
+
+/// Phase 3 (ADR-071 decision 2): statement emission carrying the component's
+/// D1/D2 signal set — mutations on those signals write `_name.value`
+/// directly (no setState), and identifiers resolve through the `.value`
+/// form. Used for every statement emitted inside a component context
+/// (State methods, @mount/@unmount, effect bodies, computed fn-form bodies,
+/// inline handlers).
+pub(crate) fn generate_statement_flutter_dw(
+    w: &mut CodeWriter,
+    stmt: &StatementIR,
+    direct_write_signals: &FxHashSet<String>,
+) {
+    let fmt = FlutterStmtFormatter {
+        expr: super::r#ref::FlutterFormatExpr::new_with_direct_write(None, direct_write_signals),
+        direct_write_signals: direct_write_signals.clone(),
     };
     fmt.format_stmt(w, stmt);
 }
@@ -704,7 +825,7 @@ pub(crate) fn generate_store_action_stmt(
 /// production call sites use `generate_function_flutter_with`).
 #[cfg(test)]
 pub(crate) fn generate_function_flutter(w: &mut CodeWriter, func: &FunctionIR) {
-    generate_function_flutter_with(w, func, &func.body.statements);
+    generate_function_flutter_with(w, func, &func.body.statements, &FxHashSet::default());
 }
 
 /// Generate a function as a method on the State class, emitting the given
@@ -712,10 +833,13 @@ pub(crate) fn generate_function_flutter(w: &mut CodeWriter, func: &FunctionIR) {
 /// when the body needs it — stdlib calls whose Flutter emission embeds
 /// `await` (storage_get/set, http_*) would otherwise produce
 /// `await_in_wrong_context` (UserSettings' storage_get in `@mount`).
+/// Phase 3: `direct_write_signals` carries the component's D1/D2 set — the
+/// method's mutations write `_name.value` directly, no setState.
 pub(crate) fn generate_function_flutter_with(
     w: &mut CodeWriter,
     func: &FunctionIR,
     statements: &[StatementIR],
+    direct_write_signals: &FxHashSet<String>,
 ) {
     // Build parameter list — Dart uses `Type name` for positional params
     let mut param_strs = Vec::new();
@@ -772,13 +896,13 @@ pub(crate) fn generate_function_flutter_with(
         statements.len()
     };
     for stmt in &statements[..tail_count] {
-        generate_statement_flutter(w, stmt);
+        generate_statement_flutter_dw(w, stmt, direct_write_signals);
     }
     if is_tail_expr {
         if let Some(StatementIR::ExprStmtIR { expr }) = statements.last() {
             w.emit_fmt(format_args!(
                 "return {};",
-                generate_statement_flutter_expr(expr)
+                generate_statement_flutter_expr(expr, direct_write_signals)
             ));
         }
     }
@@ -788,9 +912,14 @@ pub(crate) fn generate_function_flutter_with(
 }
 
 /// Format a single expression with the component statement formatter's
-/// expression pipeline.
-fn generate_statement_flutter_expr(expr: &ExprIR) -> String {
-    super::r#ref::FlutterFormatExpr::new(None).format_expr(expr)
+/// expression pipeline. Phase 3: carries the D1/D2 set so tail-expression
+/// identifiers resolve through `_name.value`.
+fn generate_statement_flutter_expr(
+    expr: &ExprIR,
+    direct_write_signals: &FxHashSet<String>,
+) -> String {
+    super::r#ref::FlutterFormatExpr::new_with_direct_write(None, direct_write_signals)
+        .format_expr(expr)
 }
 
 /// Drop the statements that follow an unsupported pointer-capture ref-op:

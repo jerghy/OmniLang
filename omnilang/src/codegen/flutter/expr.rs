@@ -15,6 +15,19 @@ pub(crate) fn format_expr_ir_flutter(expr: &ExprIR) -> String {
     super::r#ref::FlutterFormatExpr::new(None).format_expr(expr)
 }
 
+/// Phase 3 (ADR-071 decision 2): expression formatting carrying the
+/// component's D1/D2 set — identifiers resolve to `_name.value`. Used where
+/// an expression can legally reference D1/D2 signals OUTSIDE the view
+/// entries: State-field initializers (a sibling signal's notifier cell),
+/// whose output feeds the `final _name = ValueNotifier<T>(...)` storage.
+pub(crate) fn format_expr_ir_flutter_dw(
+    expr: &ExprIR,
+    direct_write_signals: &FxHashSet<String>,
+) -> String {
+    super::r#ref::FlutterFormatExpr::new_with_direct_write(None, direct_write_signals)
+        .format_expr(expr)
+}
+
 // ═══════════════════════════════════════════════════════════════
 // Store access rewriting (C4)
 // ═══════════════════════════════════════════════════════════════
