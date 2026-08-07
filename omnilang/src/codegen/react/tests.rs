@@ -7267,3 +7267,110 @@ fn struct_typed_state_emits_typed_use_state() {
         tsx
     );
 }
+
+// ── Direct-write channel (Phase 1) ──────────────────────
+
+/// Compile a single .omni source through the pipeline and return its
+/// first component IR. Panics on pipeline errors — tests are contract.
+fn compile_component_ir(source: &str) -> ComponentIR {
+    let out = omnilang_core::run_pipeline(source);
+    assert!(!out.has_errors, "pipeline errors: {:?}", out.diagnostics);
+    // run_pipeline keys the single-file module as "input.omni" (parser
+    // module naming), not "main".
+    let mut comps = out
+        .ir
+        .modules
+        .get("input.omni")
+        .unwrap()
+        .components
+        .values();
+    comps.next().unwrap().clone()
+}
+
+use super::component::direct_write::{classify_direct_write, DirectWriteSets};
+
+#[test]
+fn test_classify_direct_write_drag_demo() {
+    // 拖拽三态：dragX/dragY 仅 style 消费（D1）；dragOriginX 仅 mutation RHS
+    // 自读（D2）；dragging 有 class 绑定（B2 → 不在 D1/D2）。
+    let comp = compile_component_ir(
+        r#"
+component Drag {
+  signal dragging: Bool = false
+  signal dragX: f64 = 0
+  signal dragY: f64 = 0
+  signal dragOriginX: f64 = 0
+  signal dragOriginY: f64 = 0
+  ref box: Element
+  fn start(e) { dragging = true; dragOriginX = e.x; dragOriginY = e.y }
+  fn move(e) { if dragging { dragX = e.x - dragOriginX; dragY = e.y - dragOriginY } }
+  fn end(e) { dragging = false }
+  view {
+    <div @ref={box} @onPointerDown={start} @onPointerMove={move} @onPointerUp={end}
+         style: { transform: "translate(" + dragX + "px, " + dragY + "px)" }
+         class: { Active: dragging } />
+  }
+}
+"#,
+    );
+    let sets = classify_direct_write(&comp);
+    assert!(
+        sets.d1.contains("dragX"),
+        "dragX should be D1: {:?}",
+        sets.d1
+    );
+    assert!(
+        sets.d1.contains("dragY"),
+        "dragY should be D1: {:?}",
+        sets.d1
+    );
+    assert!(
+        sets.d2.contains("dragOriginX"),
+        "dragOriginX should be D2: {:?}",
+        sets.d2
+    );
+    assert!(
+        sets.d2.contains("dragOriginY"),
+        "dragOriginY should be D2: {:?}",
+        sets.d2
+    );
+    assert!(!sets.d1.contains("dragging"), "dragging must NOT be D1");
+    assert!(!sets.d2.contains("dragging"), "dragging must NOT be D2");
+    assert_eq!(sets.entries.len(), 1, "one active entry (transform)");
+    assert_eq!(sets.entries[0].ref_name, "box");
+    assert_eq!(sets.entries[0].prop, "transform");
+}
+
+#[test]
+fn test_classify_direct_write_no_ref_is_inactive() {
+    // 无 @ref → 不激活（激活条件 1）。
+    let comp = compile_component_ir(
+        r#"
+component NoRef {
+  signal x: f64 = 0
+  view { <div style: { transform: "translate(" + x + "px, 0px)" } /> }
+}
+"#,
+    );
+    let sets = classify_direct_write(&comp);
+    assert!(sets.entries.is_empty());
+    assert!(sets.d1.is_empty() && sets.d2.is_empty());
+}
+
+#[test]
+fn test_classify_direct_write_computed_stays_b2() {
+    // computed 信号永远不进 D1/D2（保持 useMemo 渲染路径）。
+    let comp = compile_component_ir(
+        r#"
+component SizeBox {
+  signal w: f64 = 200
+  computed wPx: String = w.to_string() + "px"
+  ref sb: Element
+  view { <div @ref={sb} style: { width: wPx } /> }
+}
+"#,
+    );
+    let sets = classify_direct_write(&comp);
+    assert!(sets.d1.is_empty(), "computed must not be D1: {:?}", sets.d1);
+    assert_eq!(sets.b2_entries.len(), 1, "computed-driven entry is B2");
+}

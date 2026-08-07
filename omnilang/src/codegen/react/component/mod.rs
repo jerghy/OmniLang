@@ -3,6 +3,7 @@
 // ═══════════════════════════════════════════════════════════
 
 pub(super) mod computed;
+pub(crate) mod direct_write;
 pub(super) mod effect;
 pub(super) mod function;
 pub(super) mod imports;
