@@ -33,6 +33,8 @@ impl ReactCodegen {
         store_field_renames: &FxHashMap<String, String>,
         pruned_signal_names: &FxHashSet<String>,
         possibly_undefined: &FxHashSet<String>,
+        direct_write_signals: &FxHashSet<String>,
+        direct_write_applies: &FxHashMap<String, Vec<String>>,
         motion_counter: &mut usize,
         prop_fn_ctx: &view::PropFnMemoCtx,
     ) {
@@ -60,6 +62,8 @@ impl ReactCodegen {
                 store_field_renames,
                 pruned_signal_names,
                 possibly_undefined,
+                direct_write_signals,
+                direct_write_applies,
                 motion_counter,
                 prop_fn_ctx,
                 &self.warnings,

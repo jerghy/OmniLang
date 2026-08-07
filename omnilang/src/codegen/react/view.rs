@@ -93,6 +93,8 @@ pub(super) fn gen_view_node_tsx(
     store_field_renames: &FxHashMap<String, String>,
     pruned_signal_names: &FxHashSet<String>,
     possibly_undefined: &FxHashSet<String>,
+    direct_write_signals: &FxHashSet<String>,
+    direct_write_applies: &FxHashMap<String, Vec<String>>,
     motion_counter: &mut usize,
     prop_fn_ctx: &PropFnMemoCtx,
     warnings: &Mutex<Vec<String>>,
@@ -128,6 +130,8 @@ pub(super) fn gen_view_node_tsx(
                         store_field_renames,
                         pruned_signal_names,
                         possibly_undefined,
+                        direct_write_signals,
+                        direct_write_applies,
                         motion_counter,
                         prop_fn_ctx,
                         warnings,
@@ -219,6 +223,8 @@ pub(super) fn gen_view_node_tsx(
                                 store_field_renames,
                                 pruned_signal_names,
                                 possibly_undefined,
+                                direct_write_signals,
+                                direct_write_applies,
                             );
                             comp_attrs.push(format!("{}={{{}}}", jsx_event, handler_str));
                         }
@@ -253,6 +259,8 @@ pub(super) fn gen_view_node_tsx(
                         store_field_renames,
                         pruned_signal_names,
                         possibly_undefined,
+                        direct_write_signals,
+                        direct_write_applies,
                         motion_counter,
                         prop_fn_ctx,
                         warnings,
@@ -286,6 +294,8 @@ pub(super) fn gen_view_node_tsx(
                             store_field_renames,
                             pruned_signal_names,
                             possibly_undefined,
+                            direct_write_signals,
+                            direct_write_applies,
                             motion_counter,
                             prop_fn_ctx,
                             warnings,
@@ -471,8 +481,7 @@ pub(super) fn gen_view_node_tsx(
                 // （React 合成 onToggle 仅 details 元素存在）。details 上正常
                 // 发射；其他元素与 hover/longpress 同族 warn + 跳过（html_tag
                 // 为归一化后的 JSX 标签，见 to_react_tag）。
-                if crate::codegen::shared::event::canonical_event_name(event_name)
-                    == Some("toggle")
+                if crate::codegen::shared::event::canonical_event_name(event_name) == Some("toggle")
                     && html_tag != "details"
                 {
                     warnings.lock().unwrap().push(format!(
@@ -576,6 +585,8 @@ pub(super) fn gen_view_node_tsx(
                                     store_field_renames,
                                     pruned_signal_names,
                                     possibly_undefined,
+                                    direct_write_signals,
+                                    direct_write_applies,
                                 );
                             }
                             let content = merged_hw.into_string();
@@ -621,6 +632,8 @@ pub(super) fn gen_view_node_tsx(
                                         store_field_renames,
                                         pruned_signal_names,
                                         possibly_undefined,
+                                        direct_write_signals,
+                                        direct_write_applies,
                                     );
                                 }
                                 let content = merged_hw.into_string();
@@ -660,6 +673,8 @@ pub(super) fn gen_view_node_tsx(
                                     store_field_renames,
                                     pruned_signal_names,
                                     possibly_undefined,
+                                    direct_write_signals,
+                                    direct_write_applies,
                                 );
                                 attrs.push(format!("{}={{{}}}", react_event, handler_str));
                             }
@@ -881,6 +896,8 @@ pub(super) fn gen_view_node_tsx(
                     store_field_renames,
                     pruned_signal_names,
                     possibly_undefined,
+                    direct_write_signals,
+                    direct_write_applies,
                     motion_counter,
                     prop_fn_ctx,
                     warnings,
@@ -935,6 +952,8 @@ pub(super) fn gen_view_node_tsx(
                         store_field_renames,
                         pruned_signal_names,
                         possibly_undefined,
+                        direct_write_signals,
+                        direct_write_applies,
                         motion_counter,
                         prop_fn_ctx,
                         warnings,
@@ -976,6 +995,8 @@ pub(super) fn gen_view_node_tsx(
                         store_field_renames,
                         pruned_signal_names,
                         possibly_undefined,
+                        direct_write_signals,
+                        direct_write_applies,
                         motion_counter,
                         prop_fn_ctx,
                         warnings,
@@ -1028,6 +1049,8 @@ pub(super) fn gen_view_node_tsx(
                     store_field_renames,
                     pruned_signal_names,
                     possibly_undefined,
+                    direct_write_signals,
+                    direct_write_applies,
                     motion_counter,
                     prop_fn_ctx,
                     warnings,
@@ -1060,6 +1083,8 @@ pub(super) fn gen_view_node_tsx(
                         store_field_renames,
                         pruned_signal_names,
                         possibly_undefined,
+                        direct_write_signals,
+                        direct_write_applies,
                         motion_counter,
                         prop_fn_ctx,
                         warnings,
@@ -1088,6 +1113,8 @@ pub(super) fn gen_view_node_tsx(
                     store_field_renames,
                     pruned_signal_names,
                     possibly_undefined,
+                    direct_write_signals,
+                    direct_write_applies,
                     motion_counter,
                     prop_fn_ctx,
                     warnings,
@@ -1157,6 +1184,8 @@ pub(super) fn gen_view_node_tsx(
                         store_field_renames,
                         pruned_signal_names,
                         possibly_undefined,
+                        direct_write_signals,
+                        direct_write_applies,
                         motion_counter,
                         prop_fn_ctx,
                         warnings,
@@ -1197,6 +1226,8 @@ pub(super) fn gen_view_node_tsx(
                     store_field_renames,
                     pruned_signal_names,
                     possibly_undefined,
+                    direct_write_signals,
+                    direct_write_applies,
                     motion_counter,
                     prop_fn_ctx,
                     warnings,
@@ -1286,6 +1317,8 @@ pub(super) fn gen_view_node_tsx(
                     store_field_renames,
                     pruned_signal_names,
                     possibly_undefined,
+                    direct_write_signals,
+                    direct_write_applies,
                     motion_counter,
                     prop_fn_ctx,
                     warnings,
@@ -1319,6 +1352,8 @@ pub(super) fn gen_view_node_tsx(
                     store_field_renames,
                     pruned_signal_names,
                     possibly_undefined,
+                    direct_write_signals,
+                    direct_write_applies,
                     motion_counter,
                     prop_fn_ctx,
                     warnings,
@@ -1358,6 +1393,8 @@ pub(super) fn gen_branch_body_tsx(
     store_field_renames: &FxHashMap<String, String>,
     pruned_signal_names: &FxHashSet<String>,
     possibly_undefined: &FxHashSet<String>,
+    direct_write_signals: &FxHashSet<String>,
+    direct_write_applies: &FxHashMap<String, Vec<String>>,
     motion_counter: &mut usize,
     prop_fn_ctx: &PropFnMemoCtx,
     warnings: &Mutex<Vec<String>>,
@@ -1391,6 +1428,8 @@ pub(super) fn gen_branch_body_tsx(
         store_field_renames,
         pruned_signal_names,
         possibly_undefined,
+        direct_write_signals,
+        direct_write_applies,
         motion_counter,
         prop_fn_ctx,
         warnings,
@@ -1591,6 +1630,8 @@ fn gen_consumer_child_tsx(
     store_field_renames: &FxHashMap<String, String>,
     pruned_signal_names: &FxHashSet<String>,
     possibly_undefined: &FxHashSet<String>,
+    direct_write_signals: &FxHashSet<String>,
+    direct_write_applies: &FxHashMap<String, Vec<String>>,
     motion_counter: &mut usize,
     prop_fn_ctx: &PropFnMemoCtx,
     warnings: &Mutex<Vec<String>>,
@@ -1616,6 +1657,8 @@ fn gen_consumer_child_tsx(
                 store_field_renames,
                 pruned_signal_names,
                 possibly_undefined,
+                direct_write_signals,
+                direct_write_applies,
                 motion_counter,
                 prop_fn_ctx,
                 warnings,
@@ -1636,6 +1679,8 @@ fn gen_consumer_child_tsx(
                 store_field_renames,
                 pruned_signal_names,
                 possibly_undefined,
+                direct_write_signals,
+                direct_write_applies,
                 motion_counter,
                 prop_fn_ctx,
                 warnings,
@@ -1678,6 +1723,8 @@ fn format_inline_handler(
     store_field_renames: &FxHashMap<String, String>,
     pruned_signal_names: &FxHashSet<String>,
     possibly_undefined: &FxHashSet<String>,
+    direct_write_signals: &FxHashSet<String>,
+    direct_write_applies: &FxHashMap<String, Vec<String>>,
 ) -> String {
     // Generate the body content first to check which params are actually used
     // (v4 H1, task 2.1: 写后读线程化——改写语句列表，无写后读时原样返回).
@@ -1693,6 +1740,8 @@ fn format_inline_handler(
             store_field_renames,
             pruned_signal_names,
             possibly_undefined,
+            direct_write_signals,
+            direct_write_applies,
         );
     }
     let body_content = body_w.into_string();
@@ -1735,6 +1784,8 @@ fn format_inline_handler(
             store_field_renames,
             pruned_signal_names,
             possibly_undefined,
+            direct_write_signals,
+            direct_write_applies,
         )
     })
 }

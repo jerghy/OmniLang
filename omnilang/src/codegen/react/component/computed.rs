@@ -25,6 +25,8 @@ pub(super) fn gen_computed_values(
     hoisted_signals: &FxHashSet<String>,
     pruned_signal_names: &FxHashSet<String>,
     possibly_undefined: &FxHashSet<String>,
+    direct_write_signals: &FxHashSet<String>,
+    direct_write_applies: &FxHashMap<String, Vec<String>>,
 ) {
     for computed in &comp.computeds {
         let mut deps_list: Vec<String> = Vec::new();
@@ -101,6 +103,8 @@ pub(super) fn gen_computed_values(
                     store_field_renames,
                     pruned_signal_names,
                     possibly_undefined,
+                    direct_write_signals,
+                    direct_write_applies,
                 );
             }
             // Render tail as return value if non-null

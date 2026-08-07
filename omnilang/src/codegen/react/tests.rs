@@ -371,6 +371,8 @@ fn test_tsx_stmt_let() {
         &FxHashMap::default(),
         &FxHashSet::default(),
         &FxHashSet::default(),
+        &FxHashSet::default(),
+        &FxHashMap::default(),
     );
     assert_eq!(w.into_string(), "const x = 42;\n");
 }
@@ -395,6 +397,8 @@ fn test_tsx_stmt_let_mut() {
         &FxHashMap::default(),
         &FxHashSet::default(),
         &FxHashSet::default(),
+        &FxHashSet::default(),
+        &FxHashMap::default(),
     );
     assert_eq!(w.into_string(), "let x = 42;\n");
 }
@@ -417,6 +421,8 @@ fn test_tsx_stmt_return() {
         &FxHashMap::default(),
         &FxHashSet::default(),
         &FxHashSet::default(),
+        &FxHashSet::default(),
+        &FxHashMap::default(),
     );
     assert_eq!(w.into_string(), "return result;\n");
 }
@@ -445,6 +451,8 @@ fn test_tsx_stmt_mutation_increment_local() {
         &FxHashMap::default(),
         &FxHashSet::default(),
         &FxHashSet::default(),
+        &FxHashSet::default(),
+        &FxHashMap::default(),
     );
     assert_eq!(w.into_string(), "count = count + 1;\n");
 }
@@ -475,6 +483,8 @@ fn test_tsx_stmt_mutation_increment_signal() {
         &FxHashMap::default(),
         &FxHashSet::default(),
         &FxHashSet::default(),
+        &FxHashSet::default(),
+        &FxHashMap::default(),
     );
     assert_eq!(w.into_string(), "setCount(prev => prev + 1);\n");
 }
@@ -504,6 +514,8 @@ fn test_tsx_stmt_mutation_assign_local() {
         &FxHashMap::default(),
         &FxHashSet::default(),
         &FxHashSet::default(),
+        &FxHashSet::default(),
+        &FxHashMap::default(),
     );
     assert_eq!(w.into_string(), "name = \"alice\";\n");
 }
@@ -535,6 +547,8 @@ fn test_tsx_stmt_mutation_assign_store() {
         &FxHashMap::default(),
         &FxHashSet::default(),
         &FxHashSet::default(),
+        &FxHashSet::default(),
+        &FxHashMap::default(),
     );
     assert_eq!(w.into_string(), "name = \"alice\";\n");
 }
@@ -573,6 +587,8 @@ fn test_tsx_stmt_mutation_assign_signal_self_read_functional_updater() {
         &FxHashMap::default(),
         &FxHashSet::default(),
         &FxHashSet::default(),
+        &FxHashSet::default(),
+        &FxHashMap::default(),
     );
     assert_eq!(w.into_string(), "setCount((c) => c + 1);\n");
 }
@@ -602,6 +618,8 @@ fn test_tsx_stmt_mutation_assign_signal_external_value_keeps_direct() {
         &FxHashMap::default(),
         &FxHashSet::default(),
         &FxHashSet::default(),
+        &FxHashSet::default(),
+        &FxHashMap::default(),
     );
     assert_eq!(w.into_string(), "setCount(step);\n");
 }
@@ -621,20 +639,26 @@ fn test_tsx_stmt_mutation_assign_signal_self_read_struct_literal_wrapped() {
             value: Some(Box::new(ExprIR::StructExpr {
                 type_name: "StatisticsData".into(),
                 fields: vec![
-                    ("name".into(), ExprIR::FieldAccessExpr {
-                        object: Box::new(ExprIR::ident("stats")),
-                        field: "name".into(),
-                    }),
-                    ("count".into(), ExprIR::BinaryOpExpr {
-                        op: BinaryOpIR::Add,
-                        left: Box::new(ExprIR::FieldAccessExpr {
+                    (
+                        "name".into(),
+                        ExprIR::FieldAccessExpr {
                             object: Box::new(ExprIR::ident("stats")),
-                            field: "count".into(),
-                        }),
-                        right: Box::new(ExprIR::LiteralExpr {
-                            value: serde_json::json!(1),
-                        }),
-                    }),
+                            field: "name".into(),
+                        },
+                    ),
+                    (
+                        "count".into(),
+                        ExprIR::BinaryOpExpr {
+                            op: BinaryOpIR::Add,
+                            left: Box::new(ExprIR::FieldAccessExpr {
+                                object: Box::new(ExprIR::ident("stats")),
+                                field: "count".into(),
+                            }),
+                            right: Box::new(ExprIR::LiteralExpr {
+                                value: serde_json::json!(1),
+                            }),
+                        },
+                    ),
                 ],
             })),
             field_object: None,
@@ -651,6 +675,8 @@ fn test_tsx_stmt_mutation_assign_signal_self_read_struct_literal_wrapped() {
         &FxHashMap::default(),
         &FxHashSet::default(),
         &FxHashSet::default(),
+        &FxHashSet::default(),
+        &FxHashMap::default(),
     );
     assert_eq!(
         w.into_string(),
@@ -694,6 +720,8 @@ fn test_tsx_stmt_mutation_assign_store_signal_self_read_functional() {
         &FxHashMap::default(),
         &FxHashSet::default(),
         &FxHashSet::default(),
+        &FxHashSet::default(),
+        &FxHashMap::default(),
     );
     assert_eq!(
         w.into_string(),
@@ -735,6 +763,8 @@ fn test_pruned_signal_dce_never_swallows_store_field_mutation() {
         &FxHashMap::default(),
         &pruned,
         &FxHashSet::default(),
+        &FxHashSet::default(),
+        &FxHashMap::default(),
     );
     assert_eq!(
         w.into_string(),
@@ -777,6 +807,8 @@ fn test_pruned_component_write_not_misrouted_to_store_by_collision() {
         &FxHashMap::default(),
         &pruned,
         &FxHashSet::default(),
+        &FxHashSet::default(),
+        &FxHashMap::default(),
     );
     assert_eq!(
         w.into_string(),
@@ -813,6 +845,8 @@ fn test_bare_store_field_array_push_emits_store_set_state() {
         &FxHashMap::default(),
         &FxHashSet::default(),
         &FxHashSet::default(),
+        &FxHashSet::default(),
+        &FxHashMap::default(),
     );
     assert_eq!(
         w.into_string(),
@@ -851,6 +885,8 @@ fn test_pruned_component_array_push_not_misrouted_to_store_by_collision() {
         &FxHashMap::default(),
         &pruned,
         &FxHashSet::default(),
+        &FxHashSet::default(),
+        &FxHashMap::default(),
     );
     assert_eq!(
         w.into_string(),
@@ -960,6 +996,8 @@ fn test_tsx_stmt_mutation_assign_signal_updater_param_avoids_collision() {
         &FxHashMap::default(),
         &FxHashSet::default(),
         &FxHashSet::default(),
+        &FxHashSet::default(),
+        &FxHashMap::default(),
     );
     assert_eq!(w.into_string(), "setCount((c1) => c1 + c);\n");
 }
@@ -994,6 +1032,8 @@ fn test_tsx_stmt_if() {
         &FxHashMap::default(),
         &FxHashSet::default(),
         &FxHashSet::default(),
+        &FxHashSet::default(),
+        &FxHashMap::default(),
     );
     let out = w.into_string();
     assert!(out.contains("if (cond) {"));
@@ -4835,8 +4875,7 @@ component RefFieldAccess {
         .cloned()
         .collect::<Vec<_>>()
         .join("\n");
-    let zero_rect =
-        "{ left: 0, top: 0, right: 0, bottom: 0, x: 0, y: 0, width: 0, height: 0 }";
+    let zero_rect = "{ left: 0, top: 0, right: 0, bottom: 0, x: 0, y: 0, width: 0, height: 0 }";
     // Field access must land on the PARENTHESIZED coalesced result, not on
     // the fallback literal (`.y` on the fresh zero-rect is always undefined).
     assert!(
@@ -4862,9 +4901,7 @@ component RefFieldAccess {
     );
     // The fallback literal must never sit bare next to the field (`?? {...}.y`).
     assert!(
-        !content.contains(&format!(
-            "getBoundingClientRect() ?? {zero_rect}.y"
-        )),
+        !content.contains(&format!("getBoundingClientRect() ?? {zero_rect}.y")),
         "bare `?? {{...}}.y` must never be emitted (binds to the fallback). Got:\n{}",
         content
     );
@@ -7112,10 +7149,7 @@ component V {
         result.errors
     );
     assert!(
-        result
-            .warnings
-            .iter()
-            .any(|w| w.message.contains("toggle")),
+        result.warnings.iter().any(|w| w.message.contains("toggle")),
         "缺 toggle 警告：{:?}",
         result
             .warnings
@@ -7426,7 +7460,13 @@ component Drag {
 "#,
     );
     let ir = make_ir(vec![("Drag".into(), comp)].into_iter().collect());
-    let comp_ref = ir.modules.get("main").unwrap().components.get("Drag").unwrap();
+    let comp_ref = ir
+        .modules
+        .get("main")
+        .unwrap()
+        .components
+        .get("Drag")
+        .unwrap();
     let component_map = build_component_map(&ir);
     let tsx = ReactCodegen::default().gen_component_tsx("Drag", comp_ref, &ir, &component_map);
     assert!(
@@ -7448,6 +7488,102 @@ component Drag {
     assert!(
         tsx.contains("const [dragging, setDragging] = useState<boolean>(false);"),
         "dragging stays useState. Got:\n{}",
+        tsx
+    );
+}
+
+#[test]
+fn test_direct_write_mutation_injects_apply() {
+    let comp = compile_component_ir(
+        r#"
+component Drag {
+  signal dragX: f64 = 0
+  signal dragY: f64 = 0
+  signal dragOriginX: f64 = 0
+  ref dragBox: Element
+  fn start(e) { dragOriginX = e.x }
+  fn move(e) { dragX = e.x - dragOriginX; dragY = e.x }
+  view {
+    <div @ref={dragBox} @onPointerDown={start} @onPointerMove={move}
+         style: { transform: "translate(" + dragX + "px, " + dragY + "px)" } />
+  }
+}
+"#,
+    );
+    let ir = make_ir(vec![("Drag".into(), comp)].into_iter().collect());
+    let comp_ref = ir
+        .modules
+        .get("main")
+        .unwrap()
+        .components
+        .get("Drag")
+        .unwrap();
+    let component_map = build_component_map(&ir);
+    let tsx = ReactCodegen::default().gen_component_tsx("Drag", comp_ref, &ir, &component_map);
+    assert!(
+        tsx.contains("dragXRef.current = e.x - dragOriginXRef.current;"),
+        "D1 mutation must write the ref. Got:\n{}",
+        tsx
+    );
+    assert!(
+        tsx.contains("dragBoxRef.current?.style.transform ="),
+        "apply direct write must be injected after D1 mutation. Got:\n{}",
+        tsx
+    );
+    assert!(
+        !tsx.contains("setDragX("),
+        "no useState setter for D1 signals. Got:\n{}",
+        tsx
+    );
+    // 值里读 D2 信号 → 必须解析为 Ref.current
+    assert!(
+        tsx.contains("dragOriginXRef.current"),
+        "D2 signal reads resolve to Ref.current. Got:\n{}",
+        tsx
+    );
+}
+
+#[test]
+fn test_direct_write_d2_self_read_mutation_not_pruned() {
+    // D2 信号（仅自 RHS 读）若落入 pruned_signals（写专用 DCE），mutation
+    // 会被整体丢弃 → nRef 声明但永无写入（静默写丢失）。Task 3 须将 D1/D2
+    // 豁免出剪枝：mutation 发射为 ref 写入。
+    let comp = compile_component_ir(
+        r#"
+component Counter {
+  signal n: f64 = 0
+  signal w: f64 = 100
+  ref box: Element
+  fn bump() { n = n + 1 }
+  view {
+    <div @ref={box} @onClick={bump} style: { width: w }>x</div>
+  }
+}
+"#,
+    );
+    let ir = make_ir(vec![("Counter".into(), comp)].into_iter().collect());
+    let comp_ref = ir
+        .modules
+        .get("main")
+        .unwrap()
+        .components
+        .get("Counter")
+        .unwrap();
+    let component_map = build_component_map(&ir);
+    let tsx = ReactCodegen::default().gen_component_tsx("Counter", comp_ref, &ir, &component_map);
+    assert!(
+        tsx.contains("const nRef = useRef<number>(0);"),
+        "D2 storage must be useRef. Got:\n{}",
+        tsx
+    );
+    assert!(
+        tsx.contains("nRef.current = nRef.current + 1;"),
+        "D2 self-read mutation must NOT be pruned. Got:\n{}",
+        tsx
+    );
+    assert!(
+        !tsx.contains("setN("),
+        "no useState setter for D2 signals. Got:\n{}",
         tsx
     );
 }

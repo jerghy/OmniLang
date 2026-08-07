@@ -149,6 +149,25 @@ impl ReactCodegen {
         // store field sharing a pruned component signal's name) is
         // protected at the EMISSION side by the field_object check
         // (generate_statement_tsx, review I1).
+        // ── Phase 1: direct-write channel classification (D1/D2) ──
+        // D1 (direct-write) / D2 (write-only) signals store in `useRef`
+        // cells (`gen_direct_write_storage` below) instead of useState —
+        // their render-path reads are consumed by the active style entries
+        // and their mutations move to direct DOM writes (Task 3 emission
+        // contract). The union set gates both the useState import decision
+        // (has_mutable_states) and the per-signal skip (gen_state_hooks).
+        // Computed BEFORE the pruned-signals analysis: D1/D2 mutations are
+        // NOT dead code — they are the ref write itself (Task 3 必须项;
+        // a D2 signal whose only read is its own mutation RHS would
+        // otherwise be pruned and its write silently dropped).
+        let direct_write_sets = direct_write::classify_direct_write(comp);
+        let direct_write_names: FxHashSet<String> = direct_write_sets
+            .d1
+            .iter()
+            .chain(direct_write_sets.d2.iter())
+            .cloned()
+            .collect();
+
         let value_consumed = collect_value_consumed_signals(comp);
         let mutation_call_targets = collect_call_mutation_targets(comp);
         // v4 H2: pruned 集合必须排除「有 mutation 但无读」的信号——它现在
@@ -159,25 +178,14 @@ impl ReactCodegen {
                 mutated_signals.contains(*s)
                     && !value_consumed.contains(*s)
                     && !mutation_call_targets.contains(*s)
+                    // Phase 1 (Task 3 必须项): D1/D2 直写域信号豁免剪枝——
+                    // 它们的 mutation 是 ref 写入本身（非死代码），剪掉即
+                    // 静默写丢失（aRef 声明但永无写入）。
+                    && !direct_write_names.contains(*s)
             })
             .filter(|s| comp.signals.iter().any(|sig| &sig.name == *s))
             // 修正：写专用信号不在 read_signals 中，天然不在此集合——
             // 无需额外排除。此注释记录决策。
-            .cloned()
-            .collect();
-
-        // ── Phase 1: direct-write channel classification (D1/D2) ──
-        // D1 (direct-write) / D2 (write-only) signals store in `useRef`
-        // cells (`gen_direct_write_storage` below) instead of useState —
-        // their render-path reads are consumed by the active style entries
-        // and their mutations move to direct DOM writes (Task 3 emission
-        // contract). The union set gates both the useState import decision
-        // (has_mutable_states) and the per-signal skip (gen_state_hooks).
-        let direct_write_sets = direct_write::classify_direct_write(comp);
-        let direct_write_names: FxHashSet<String> = direct_write_sets
-            .d1
-            .iter()
-            .chain(direct_write_sets.d2.iter())
             .cloned()
             .collect();
 
@@ -353,8 +361,18 @@ impl ReactCodegen {
             }
         }
 
-        // Build ref_names set for expression translation (ADR-036 Phase 2)
-        let ref_names: FxHashSet<String> = comp.refs.iter().map(|r| r.name.clone()).collect();
+        // Build ref_names set for expression translation (ADR-036 Phase 2).
+        // Phase 1 (Task 3): extend with D1/D2 names — inside fn/effect/
+        // lifecycle/computed/inline-handler bodies, reads of D1/D2 signals
+        // must resolve to `{name}Ref.current` (the always-live value; the
+        // render path never consumes them). This one extension is the
+        // read-resolution mechanism: every statement site flows through
+        // ReactFormatExpr.format_identifier via the shared ref_names set.
+        let mut ref_names: FxHashSet<String> = comp.refs.iter().map(|r| r.name.clone()).collect();
+        ref_names.extend(direct_write_names.iter().cloned());
+        // Apply-line table: signal → direct DOM write injected after its
+        // mutations (D1 entries only; D2 has no output reads).
+        let direct_write_applies = direct_write::build_apply_map(&direct_write_sets, &ref_names);
 
         // Ref name → element tag map (typing useRef declarations) — scanned
         // from the view because RefDeclIR.element_tag is not populated by
@@ -520,6 +538,17 @@ impl ReactCodegen {
         );
         comp_imports.emit(&mut w, name, comp, has_props);
 
+        // ── Phase 1: sanitizeCss helper (apply 直写值特例) ──
+        // apply 值含 $concat/$call/$field（动态拼接用户可控字符串）时，与
+        // OmniView __omni_sanitizeCss 行为对齐包裹 sanitizeCss(...)——模块
+        // 级 helper 在组件头部发射（react/design.rs 动态 token 同点；每文件
+        // 一组件，无重复发射风险）。
+        if direct_write::apply_needs_sanitize(&direct_write_sets) {
+            w.emit("");
+            super::design::emit_sanitize_css(&mut w);
+            w.emit("");
+        }
+
         // ── User type declarations (deferral #49) ──
         // Structs/unions/aliases referenced by THIS file's annotations are
         // declared inline at module scope: props interface, event param
@@ -610,6 +639,8 @@ impl ReactCodegen {
                             &FxHashMap::default(),
                             &FxHashSet::default(),
                             &FxHashSet::default(),
+                            &FxHashSet::default(),
+                            &FxHashMap::default(),
                         );
                         continue;
                     }
@@ -626,6 +657,8 @@ impl ReactCodegen {
                     &FxHashMap::default(),
                     &FxHashSet::default(),
                     &FxHashSet::default(),
+                    &FxHashSet::default(),
+                    &FxHashMap::default(),
                 );
             }
             let mut body_str = body_w.into_string();
@@ -892,6 +925,8 @@ impl ReactCodegen {
             &hoisted_signals,
             &pruned_signals,
             &possibly_undefined_handlers,
+            &direct_write_names,
+            &direct_write_applies,
         );
         state::gen_semantic_binding_effects(
             &mut w,
@@ -918,6 +953,8 @@ impl ReactCodegen {
             &hoisted_signals,
             &pruned_signals,
             &possibly_undefined_handlers,
+            &direct_write_names,
+            &direct_write_applies,
         );
 
         // Component-local function declarations
@@ -932,6 +969,8 @@ impl ReactCodegen {
             &store_field_renames,
             &pruned_signals,
             &possibly_undefined_handlers,
+            &direct_write_names,
+            &direct_write_applies,
         );
 
         // ── Task 2.8 (perf M4): useCallback wrappers for prop fns ──
@@ -1003,6 +1042,8 @@ impl ReactCodegen {
             &store_field_renames,
             &pruned_signals,
             &possibly_undefined_handlers,
+            &direct_write_names,
+            &direct_write_applies,
             &mut motion_counter,
             &prop_fn_ctx,
         );

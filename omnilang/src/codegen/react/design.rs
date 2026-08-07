@@ -480,7 +480,7 @@ fn emit_use_design_tokens(
 /// `data:text/html`, `document.`, `window.`) and the url() context checks,
 /// so store-driven token values cannot inject CSS. See
 /// `crate::codegen::shared::sanitize`.
-fn emit_sanitize_css(w: &mut CodeWriter) {
+pub(crate) fn emit_sanitize_css(w: &mut CodeWriter) {
     w.emit("// Strip dangerous CSS sequences from runtime values (shared sanitizer");
     w.emit("// emitter — identical logic to the OmniView runtime __omni_sanitizeCss)");
     w.emit("// so store-driven token values cannot inject CSS.");

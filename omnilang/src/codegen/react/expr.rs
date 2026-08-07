@@ -69,6 +69,11 @@ impl FormatExpr for ReactFormatExpr {
             signal_names: FxHashSet::default(),
             store_signal_owners: FxHashMap::default(),
             possibly_undefined: FxHashSet::default(),
+            // Expression-position blocks have no component context here —
+            // no D1/D2 signals reachable (computed-block body path uses
+            // generate_statement_tsx, which carries the sets).
+            direct_write_signals: FxHashSet::default(),
+            direct_write_applies: FxHashMap::default(),
         };
         for stmt in statements {
             fmt.format_stmt(&mut w, stmt);
@@ -463,6 +468,12 @@ pub(super) struct ReactStmtFormatter {
     /// `emit onX(...)` keyword form emits `onX?.(...)` for these. Mirrors
     /// `ReactFormatExpr.possibly_undefined` for the direct-call form.
     pub possibly_undefined: FxHashSet<String>,
+    /// Phase 1 (D1/D2): signal names stored in `useRef` cells — mutations
+    /// write `{name}Ref.current = ...` instead of a useState setter.
+    pub direct_write_signals: FxHashSet<String>,
+    /// Phase 1 (D1): signal → apply lines injected after its mutations
+    /// (each apply re-reads the CURRENT ref values of all entry signals).
+    pub direct_write_applies: FxHashMap<String, Vec<String>>,
 }
 
 impl FormatStmt for ReactStmtFormatter {
@@ -578,6 +589,20 @@ impl FormatStmt for ReactStmtFormatter {
                         "use{}.setState({{ {}: {} }});",
                         owner, target_str, amount
                     ));
+                } else if self.direct_write_signals.contains(target_str.as_str()) {
+                    // Phase 1 (D1/D2): 直写域信号存于 useRef 单元格——mutation
+                    // 写 `{name}Ref.current`，D1 信号随后注入 apply 直写
+                    // （读全部条目信号的当前 ref 值，与 DOM 保持同步）。
+                    let amount = value
+                        .as_ref()
+                        .map(|v| self.expr.format_expr(v))
+                        .unwrap_or_else(|| "0".into());
+                    w.emit_fmt(format_args!("{}Ref.current = {};", target_str, amount));
+                    if let Some(applies) = self.direct_write_applies.get(target_str.as_str()) {
+                        for line in applies {
+                            w.emit_fmt(format_args!("{}", line));
+                        }
+                    }
                 } else if self.signal_names.contains(target_str.as_str()) {
                     let setter = format!("set{}", capitalize_first(target_str));
                     // M2: same-signal self-read (`count = count + 1`) emits
@@ -685,6 +710,53 @@ impl ReactStmtFormatter {
         };
 
         let target_str = &target.name;
+        // Phase 1 (D1/D2): 直写域信号的 compound mutation 同样写 ref + 注入
+        // apply——宏展开路径会发射 setter 调用，而 D1/D2 无 useState setter
+        // （未声明名 TS2304）。
+        if self.direct_write_signals.contains(target_str.as_str()) {
+            let amt = amount_expr
+                .map(|v| self.expr.format_expr(v))
+                .unwrap_or_else(|| "0".into());
+            match intent {
+                MutationIntent::Increment { .. } => {
+                    w.emit_fmt(format_args!("{}Ref.current += {};", target_str, amt));
+                }
+                MutationIntent::Decrement { .. } => {
+                    w.emit_fmt(format_args!("{}Ref.current -= {};", target_str, amt));
+                }
+                MutationIntent::Multiply { .. } => {
+                    w.emit_fmt(format_args!("{}Ref.current *= {};", target_str, amt));
+                }
+                MutationIntent::Divide { .. } => {
+                    w.emit_fmt(format_args!("{}Ref.current /= {};", target_str, amt));
+                }
+                MutationIntent::Modulo { .. } => {
+                    w.emit_fmt(format_args!("{}Ref.current %= {};", target_str, amt));
+                }
+                MutationIntent::Push { .. } => {
+                    let it = item_expr
+                        .map(|v| self.expr.format_expr(v))
+                        .unwrap_or_else(|| "undefined".into());
+                    w.emit_fmt(format_args!(
+                        "{}Ref.current = [...{}Ref.current, {}];",
+                        target_str, target_str, it
+                    ));
+                }
+                MutationIntent::Pop { .. } => {
+                    w.emit_fmt(format_args!(
+                        "{}Ref.current = {}Ref.current.slice(0, -1);",
+                        target_str, target_str
+                    ));
+                }
+                _ => {}
+            }
+            if let Some(applies) = self.direct_write_applies.get(target_str.as_str()) {
+                for line in applies {
+                    w.emit_fmt(format_args!("{}", line));
+                }
+            }
+            return;
+        }
         let owner = self
             .store_signal_owners
             .get(target_str.as_str())
@@ -2031,6 +2103,8 @@ pub(super) fn generate_statement_tsx(
     renames: &FxHashMap<String, String>,
     pruned_signal_names: &FxHashSet<String>,
     possibly_undefined: &FxHashSet<String>,
+    direct_write_signals: &FxHashSet<String>,
+    direct_write_applies: &FxHashMap<String, Vec<String>>,
 ) {
     // Task 2.11 — write-only signal mutation DCE: the signal's state hook
     // was skipped (its value is never consumed), so a setter call here
@@ -2091,6 +2165,31 @@ pub(super) fn generate_statement_tsx(
                 if pruned_signal_names.contains(target_name.as_str()) {
                     return;
                 }
+                // Phase 1 (D1/D2): ref 存储的信号无 setter——数组 push/pop
+                // 拦截改写 ref current（未豁免则落入 setter 分支 → TS2304）。
+                if direct_write_signals.contains(target_name.as_str()) {
+                    match name.as_str() {
+                        "array_push" => {
+                            let item = args
+                                .get(1)
+                                .map(|e| format_expr_ir_tsx_renamed(e, ref_names, renames))
+                                .unwrap_or_else(|| "undefined".into());
+                            w.emit_fmt(format_args!(
+                                "{}Ref.current = [...{}Ref.current, {}];",
+                                target_name, target_name, item
+                            ));
+                            return;
+                        }
+                        "array_pop" => {
+                            w.emit_fmt(format_args!(
+                                "{}Ref.current = {}Ref.current.slice(0, -1);",
+                                target_name, target_name
+                            ));
+                            return;
+                        }
+                        _ => {}
+                    }
+                }
                 if signal_names.contains(target_name.as_str())
                     || store_signal_owners.contains_key(target_name.as_str())
                 {
@@ -2147,6 +2246,8 @@ pub(super) fn generate_statement_tsx(
         signal_names: signal_names.clone(),
         store_signal_owners: store_signal_owners.clone(),
         possibly_undefined: possibly_undefined.clone(),
+        direct_write_signals: direct_write_signals.clone(),
+        direct_write_applies: direct_write_applies.clone(),
     };
     fmt.format_stmt(w, stmt);
 }
@@ -2416,7 +2517,12 @@ fn translate_builtin_call(name: &str, args: &[String]) -> String {
     }
 }
 
-fn translate_method_call(obj: &str, method: &str, args: &[String], object: Option<&ExprIR>) -> String {
+fn translate_method_call(
+    obj: &str,
+    method: &str,
+    args: &[String],
+    object: Option<&ExprIR>,
+) -> String {
     match method {
         // Array element access: arr.get(i) → arr[i]
         "get" => {

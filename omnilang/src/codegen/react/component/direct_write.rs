@@ -23,8 +23,9 @@
 //! contract), so the render path never consumes them and the semantics
 //! are equivalent.
 
+use crate::codegen::shared::style::{format_style_prop_key, format_style_value_expr};
 use crate::ir::{ComponentIR, ViewTree};
-use rustc_hash::FxHashSet;
+use rustc_hash::{FxHashMap, FxHashSet};
 use serde_json::Value;
 
 /// One activated style entry: `{ref}Ref.current.style.{prop} = value`.
@@ -284,4 +285,72 @@ pub(super) fn gen_direct_write_storage(
         }
     }
     w.emit("");
+}
+
+// ═══════════════════════════════════════════════════════════
+// Apply-line construction (Phase 1, Task 3)
+// ═══════════════════════════════════════════════════════════
+
+/// Build `signal → apply line` map. Each apply reads the CURRENT ref
+/// values of all entry signals, so injecting after any mutation of any
+/// entry signal keeps the DOM in sync (idempotent double-writes when a
+/// handler mutates several signals are accepted — μs cost).
+pub(super) fn build_apply_map(
+    sets: &DirectWriteSets,
+    ref_names: &FxHashSet<String>,
+) -> FxHashMap<String, Vec<String>> {
+    let mut refs = ref_names.clone();
+    refs.extend(sets.d1.iter().cloned());
+    refs.extend(sets.d2.iter().cloned());
+    let mut map: FxHashMap<String, Vec<String>> = FxHashMap::default();
+    for e in &sets.entries {
+        // Phase 1 sanitize: a value built from user-controllable strings
+        // ($concat) or arbitrary evaluation ($call/$field) is wrapped in
+        // `sanitizeCss(...)`, mirroring the OmniView `__omni_sanitizeCss`
+        // behavior (module-level helper emitted by react/design.rs). The
+        // design doc's own apply example (§4.3.2) shows the wrapped shape.
+        let needs_sanitize = matches!(
+            &e.value,
+            Value::Object(obj)
+                if obj.contains_key("$concat") || obj.contains_key("$call") || obj.contains_key("$field")
+        );
+        let value_js = if needs_sanitize {
+            format!("sanitizeCss({})", format_style_value_expr(&e.value, &refs))
+        } else {
+            format_style_value_expr(&e.value, &refs)
+        };
+        for sig in &e.read_signals {
+            // CSS custom property 特例：`format_style_prop_key` 对 `--*` 返回
+            // 带引号的 `'--x'`，而属性赋值 `el.style.'--x'` 非法——改用
+            // `style.setProperty('--x', v)`。
+            let line = if e.prop.starts_with("--") {
+                format!(
+                    "{}Ref.current?.style.setProperty('{}', {});",
+                    e.ref_name, e.prop, value_js
+                )
+            } else {
+                format!(
+                    "{}Ref.current?.style.{} = {};",
+                    e.ref_name,
+                    format_style_prop_key(&e.prop),
+                    value_js
+                )
+            };
+            map.entry(sig.clone()).or_default().push(line);
+        }
+    }
+    map
+}
+
+/// Whether any active entry value needs the `sanitizeCss` wrapper
+/// ($concat/$call/$field) — gates the module-level helper emission at the
+/// component head (mirrors the dynamic-token trigger in react/design.rs).
+pub(super) fn apply_needs_sanitize(sets: &DirectWriteSets) -> bool {
+    sets.entries.iter().any(|e| {
+        matches!(
+            &e.value,
+            Value::Object(obj)
+                if obj.contains_key("$concat") || obj.contains_key("$call") || obj.contains_key("$field")
+        )
+    })
 }

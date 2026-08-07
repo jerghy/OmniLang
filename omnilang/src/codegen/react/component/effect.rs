@@ -27,6 +27,8 @@ impl ReactCodegen {
         hoisted_signals: &FxHashSet<String>,
         pruned_signal_names: &FxHashSet<String>,
         possibly_undefined: &FxHashSet<String>,
+        direct_write_signals: &FxHashSet<String>,
+        direct_write_applies: &FxHashMap<String, Vec<String>>,
     ) {
         // Effects (useEffect) — wrap in async IIFE if body contains await
         for effect in &comp.effects {
@@ -70,6 +72,8 @@ impl ReactCodegen {
                         store_field_renames,
                         pruned_signal_names,
                         possibly_undefined,
+                        direct_write_signals,
+                        direct_write_applies,
                     );
                 }
                 w.dedent();
@@ -89,6 +93,8 @@ impl ReactCodegen {
                         store_field_renames,
                         pruned_signal_names,
                         possibly_undefined,
+                        direct_write_signals,
+                        direct_write_applies,
                     );
                 }
                 w.dedent();
@@ -116,6 +122,8 @@ impl ReactCodegen {
                                 store_field_renames,
                                 pruned_signal_names,
                                 possibly_undefined,
+                                direct_write_signals,
+                                direct_write_applies,
                             );
                         }
                         w.dedent();
@@ -135,6 +143,8 @@ impl ReactCodegen {
                                 store_field_renames,
                                 pruned_signal_names,
                                 possibly_undefined,
+                                direct_write_signals,
+                                direct_write_applies,
                             );
                         }
                         w.dedent();
@@ -161,6 +171,8 @@ impl ReactCodegen {
                             store_field_renames,
                             pruned_signal_names,
                             possibly_undefined,
+                            direct_write_signals,
+                            direct_write_applies,
                         );
                     }
                     if body_has_await {
@@ -215,6 +227,8 @@ impl ReactCodegen {
                                 store_field_renames,
                                 pruned_signal_names,
                                 possibly_undefined,
+                                direct_write_signals,
+                                direct_write_applies,
                             );
                         }
                         w.dedent();
@@ -234,6 +248,8 @@ impl ReactCodegen {
                                 store_field_renames,
                                 pruned_signal_names,
                                 possibly_undefined,
+                                direct_write_signals,
+                                direct_write_applies,
                             );
                         }
                         w.dedent();
