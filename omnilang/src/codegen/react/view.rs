@@ -726,7 +726,7 @@ pub(super) fn gen_view_node_tsx(
             // compiler-internal detail, never user-facing syntax (ADR-071
             // decision 3). A user's explicit pointer event on the same
             // element wins the colliding prop (warn + skip the drag side).
-            emit_drag_react_attrs(el, &mut attrs, possibly_undefined, warnings);
+            emit_drag_react_attrs(el, comp, &mut attrs, possibly_undefined, warnings);
 
             // Style classes from view — design classes emit literal names
             // (global rules in design.css), component classes stay CSS-module
@@ -1926,6 +1926,7 @@ fn append_class_attr(attrs: &mut Vec<String>, class_expr: String) {
 /// drag props stay wired.
 fn emit_drag_react_attrs(
     el: &ElementIR,
+    comp: &ComponentIR,
     attrs: &mut Vec<String>,
     possibly_undefined: &FxHashSet<String>,
     warnings: &Mutex<Vec<String>>,
@@ -1970,6 +1971,33 @@ fn emit_drag_react_attrs(
     let state_ref = format!("{}_dragStartRef", ref_name);
     let state_expr = format!("{}.current", state_ref);
 
+    // Handler arity — same resolution as semantic/validate_drag (component
+    // fns; the FnRef IR's own `params` is empty for drag handlers). An
+    // empty DragIntent (`{}`) is only callable bare when the handler
+    // declares zero params: `fn move(e) {}` still requires its argument
+    // (`move({})` — a bare `move()` would be TS2554 "Expected 1 arguments,
+    // but got 0"), while `fn move()` must NOT receive one (TS2554 the
+    // other way).
+    let fn_arity = |name: &str| -> usize {
+        comp.fns
+            .iter()
+            .find(|f| f.name == name)
+            .map_or(0, |f| f.params.len())
+    };
+    // Call arguments: the object literal as-is, or `{}` for an empty
+    // DragIntent — unless the handler takes no params, then no arguments.
+    let call_args = |obj: &str, name: &str| -> String {
+        if obj == "{}" {
+            if fn_arity(name) == 0 {
+                String::new()
+            } else {
+                "{}".to_string()
+            }
+        } else {
+            obj.to_string()
+        }
+    };
+
     let mut props: Vec<(String, String)> = Vec::new();
     // pointerdown: capture the pointer + snapshot the start point
     props.push((
@@ -1981,10 +2009,11 @@ fn emit_drag_react_attrs(
     // pointermove: drag-guarded synthesized DragIntent call (dx/dy computed
     // against the start snapshot)
     let move_obj = drag_event_object_react(used_fields, &state_expr);
-    let move_body = if move_obj == "{}" {
+    let move_args = call_args(&move_obj, move_fn);
+    let move_body = if move_args.is_empty() {
         format!("if ({state_expr}) {move_call}();")
     } else {
-        format!("if ({state_expr}) {move_call}({move_obj});")
+        format!("if ({state_expr}) {move_call}({move_args});")
     };
     props.push(("onPointerMove".into(), move_body));
     // pointerup: snapshot the start BEFORE clearing, so the end handler
@@ -1997,10 +2026,11 @@ fn emit_drag_react_attrs(
         }) => {
             let end_call = call(end_fn);
             let end_obj = drag_event_object_react(end_fields, "s");
-            if end_obj == "{}" {
+            let end_args = call_args(&end_obj, end_fn);
+            if end_args.is_empty() {
                 format!(" if (s) {end_call}();")
             } else {
-                format!(" if (s) {end_call}({end_obj});")
+                format!(" if (s) {end_call}({end_args});")
             }
         }
         Some(_) => {

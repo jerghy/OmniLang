@@ -966,22 +966,26 @@ fn collect_view_store_refs_from_handlers(node: &ViewTree, acc: &mut FxHashSet<St
 /// element — a React component function has no direct DOM access. The
 /// element is guaranteed to carry a ref binding (validate_drag hard-errors
 /// otherwise); the defensive skip here mirrors the codegen-side guard in
-/// view.rs. Sorted for deterministic output.
+/// view.rs. Dedup via map keys (TS2451 guard): two @drag elements sharing
+/// one @ref must yield a single cell declaration — validate_refs only
+/// warns for a reused ref, so codegen sees the duplicates. Sorted for
+/// deterministic output.
 pub(super) fn collect_drag_start_refs(view: Option<&ViewTree>) -> Vec<String> {
-    let mut acc = Vec::new();
+    let mut acc = FxHashMap::default();
     if let Some(view) = view {
         collect_drag_start_refs_inner(view, &mut acc);
     }
-    acc.sort();
-    acc
+    let mut names: Vec<String> = acc.into_keys().collect();
+    names.sort();
+    names
 }
 
-fn collect_drag_start_refs_inner(node: &ViewTree, acc: &mut Vec<String>) {
+fn collect_drag_start_refs_inner(node: &ViewTree, acc: &mut FxHashMap<String, ()>) {
     match node {
         ViewTree::Element(el) => {
             if el.drag_binding.is_some() {
                 if let Some(ref ref_name) = el.ref_binding {
-                    acc.push(format!("{}_dragStartRef", ref_name));
+                    acc.insert(format!("{}_dragStartRef", ref_name), ());
                 }
             }
             for child in &el.children {

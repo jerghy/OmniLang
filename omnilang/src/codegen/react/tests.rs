@@ -8068,6 +8068,14 @@ component DragBox {
         "no on_drag_end → no end callback call. Got:\n{}",
         content
     );
+    // TS2554 guard (fix round 1): `fn move(e)` declares a param — the
+    // empty DragIntent must still be passed (`move({})`); a bare `move()`
+    // call would be "Expected 1 arguments, but got 0".
+    assert!(
+        content.contains("if (box_dragStartRef.current) move({})"),
+        "a 1-param handler must get its argument even when unused. Got:\n{}",
+        content
+    );
 }
 
 /// A user's explicit pointer event on the same element coexisting with
@@ -8118,9 +8126,11 @@ component DragBox {
         content
     );
     // the drag wiring degrades on the colliding prop but keeps the rest
-    // (pointerdown held the capture call — the move channel is the check)
+    // (pointerdown held the capture call — the move channel is the check;
+    // `fn move(e)` gets its DragIntent argument even when unused — fix
+    // round 1 TS2554 guard)
     assert!(
-        content.contains("if (box_dragStartRef.current) move()"),
+        content.contains("if (box_dragStartRef.current) move({})"),
         "non-colliding drag props must stay wired. Got:\n{}",
         content
     );
@@ -8131,5 +8141,73 @@ component DragBox {
             .any(|w| w.message.contains("onPointerDown")),
         "collision must warn. Got warnings: {:?}",
         result.warnings
+    );
+}
+
+/// A zero-param drag handler is called bare (`move()`) — passing `{}`
+/// would be the inverse TS2554 ("Expected 0 arguments, but got 1").
+#[test]
+fn test_drag_binding_zero_param_handler_called_bare() {
+    let source = r#"
+component DragBox {
+  ref box: Element
+  signal lastX: Float = 0
+  fn move() {
+    lastX = 1
+  }
+  view {
+    <div ref:box @drag={move}>content</div>
+  }
+}
+"#;
+    let output = compile_react(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    assert!(
+        content.contains("if (box_dragStartRef.current) move();"),
+        "zero-param handler must be called bare. Got:\n{}",
+        content
+    );
+    assert!(
+        !content.contains("move({"),
+        "zero-param handler must not receive an argument. Got:\n{}",
+        content
+    );
+}
+
+/// Two @drag elements sharing the same @ref: the `{ref}_dragStartRef`
+/// useRef cell must be declared exactly once (a duplicate `const` would be
+/// tsc TS2451). validate_refs only warns for a reused ref, so codegen must
+/// dedup defensively.
+#[test]
+fn test_drag_binding_shared_ref_declares_cell_once() {
+    let source = r#"
+component DragBox {
+  ref box: Element
+  fn move(e) { }
+  view {
+    <div ref:box @drag={move}>a</div>
+    <div ref:box @drag={move}>b</div>
+  }
+}
+"#;
+    let output = compile_react(source).unwrap();
+    let content: String = output
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    assert_eq!(
+        content.matches("const box_dragStartRef = useRef").count(),
+        1,
+        "shared ref must declare the drag-start cell once (TS2451). Got:\n{}",
+        content
     );
 }
