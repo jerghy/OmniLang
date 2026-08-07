@@ -172,6 +172,10 @@ export function FlowInspector({ selectedNodeIds }: Props) {
     return <LoopForm el={el} setProp={setProp} scope={scope ?? undefined} />;
   }
 
+  if (el.tag === "lifecycle") {
+    return <LifecycleForm el={el} setProp={setProp} />;
+  }
+
   return (
     <div style={S.panel}>
       <div style={{ padding: 16, color: "var(--ol-text-muted)", textAlign: "center" }}>
@@ -429,6 +433,38 @@ function ReturnPreview({ el }: { el: CodeblockElementData }) {
         <div style={S.label}>生成代码（实时预览）</div>
         <pre style={PRE_STYLE}>{el.source}</pre>
       </div>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────
+// 生命周期节点表单（mount / effect / unmount）
+// ────────────────────────────────────────────
+// 单例约束（每组件每种 hookType 仅一个）在 FlowCanvas handleMenuSelect 守卫；
+// 面板承担 hookType 切换与 effect deps 编辑（deps 仅 effect 有括号形式）。
+
+function LifecycleForm({ el, setProp }: FnInspectorProps) {
+  const hookType = (el.props?.hookType as "mount" | "effect" | "unmount") ?? "mount";
+  const deps = (el.props?.deps as string) || "";
+  return (
+    <div style={S.panel}>
+      <div style={S.header}>⚡ Lifecycle</div>
+      <div style={S.field}>
+        <div style={S.label}>Hook type</div>
+        <select style={S.select} value={hookType}
+          onChange={(e) => setProp(el.id, "hookType", e.target.value)}>
+          <option value="mount">mount</option>
+          <option value="effect">effect</option>
+          <option value="unmount">unmount</option>
+        </select>
+      </div>
+      {hookType === "effect" && (
+        <div style={S.field}>
+          <div style={S.label}>Deps</div>
+          <input style={S.input} value={deps} aria-label="Deps"
+            placeholder="a,b" onChange={(e) => setProp(el.id, "deps", e.target.value)} />
+        </div>
+      )}
     </div>
   );
 }

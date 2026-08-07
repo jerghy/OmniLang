@@ -15,6 +15,7 @@ export const TAG_CN: Record<string, string> = {
   await: "await",
   while: "循环",
   "for-in": "迭代",
+  lifecycle: "lifecycle",
 };
 
 export const CODE_TAGS = new Set([
@@ -30,12 +31,14 @@ export const CODE_TAGS = new Set([
   "await",
   "while",
   "for-in",
+  "lifecycle",
 ]);
 
 export interface MenuItem {
   label: string;
   tag: string;
   shortcut?: string;
+  props?: Record<string, unknown>; // 创建时初始 props（lifecycle 菜单项携带 hookType）
 }
 
 export interface MenuSection {
@@ -53,6 +56,9 @@ export const MENU_SECTIONS: MenuSection[] = [
       { label: "返回 (return)", tag: "return", shortcut: "ret" },
       { label: "循环 (while)", tag: "while", shortcut: "while" },
       { label: "迭代 (for-in)", tag: "for-in", shortcut: "for" },
+      { label: "@mount", tag: "lifecycle", props: { hookType: "mount" } },
+      { label: "@effect", tag: "lifecycle", props: { hookType: "effect", deps: "" } },
+      { label: "@unmount", tag: "lifecycle", props: { hookType: "unmount" } },
     ],
   },
   {

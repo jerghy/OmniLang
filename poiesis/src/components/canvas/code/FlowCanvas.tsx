@@ -24,10 +24,11 @@ import { ReturnNode } from "./nodes/ReturnNode";
 import { DesignPreviewNode } from "./nodes/DesignPreviewNode";
 import { SyntaxNode } from "./nodes/SyntaxNode";
 import { LoopNode } from "./nodes/LoopNode";
+import { LifecycleNode } from "./nodes/LifecycleNode";
 import { defaultSyntaxProps } from "../../../services/codegen/syntax-nodes";
 import { useFlowScope } from "../../../services/codegen/flow-scope-hook";
 import { collectLetVarsPerFn, findOwnerFnId } from "../../../services/codegen/fn-topology";
-import { CODE_TAGS, TAG_CN } from "./flowConstants";
+import { CODE_TAGS, TAG_CN, type MenuItem } from "./flowConstants";
 import { computeLayeredLayout, estimateNodeSize } from "../../../services/codegen/flow-layout";
 import { NodeSearchMenu } from "./NodeSearchMenu";
 import { CodeBlockEditor } from "./CodeBlockEditor";
@@ -54,6 +55,7 @@ const nodeTypes = {
   "await": SyntaxNode,
   "while": LoopNode,
   "for-in": LoopNode,
+  "lifecycle": LifecycleNode,
 };
 
 /** 连线用 ReactFlow 原生默认 edge（bezier 拓扑曲线）——原生渲染与跟随（移动/滑动自动重算），
@@ -143,14 +145,25 @@ function FlowCanvasInner() {
 
   // 菜单选中：若 pendingDrag 存在则自动连线
   const handleMenuSelect = useCallback(
-    (tag: string) => {
+    (item: MenuItem) => {
       if (!menuState) return;
+      const tag = item.tag;
       const id = uid(tag);
       const jitter = Math.random() * 40 - 20;
       let props: Record<string, unknown> = {};
       if (tag === "fn") { props = { name: "newFn", params: "" }; }
       if (tag === "condition") { props = { branches: [{ id: "br0", type: "if", condition: "" }] }; }
       if (["let", "assign", "store-call", "call", "throw", "await", "while", "for-in"].includes(tag)) { props = { ...defaultSyntaxProps(tag) }; }
+      if (tag === "lifecycle") {
+        // 单例约束：每组件每种 hookType 仅一个（learn-omniview 实证）——检查 store.elements
+        // 中已存在节点（覆盖已保存与画布新建两种来源）
+        const hookType = (item.props?.hookType as "mount" | "effect" | "unmount") ?? "mount";
+        const hasSame = usePoiesisStore.getState().elements.some(
+          (e) => e.nodeType === "codeblock" && e.tag === "lifecycle" && (e.props?.hookType as string) === hookType,
+        );
+        if (hasSame) return; // 守卫命中：菜单关闭由 NodeSearchMenu select() 统一处理
+        props = { hookType, deps: "" };
+      }
       addElement({ id, nodeType: "codeblock", tag, props, parentId: null, position: { x: menuState.flowX + jitter, y: menuState.flowY + jitter }, source: "" });
       if (pendingDragRef.current) {
         addWire({

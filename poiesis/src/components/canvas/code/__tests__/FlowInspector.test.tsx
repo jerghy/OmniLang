@@ -34,6 +34,16 @@ const { mockSetProp, mockState, storeListeners, resetMockState } = vi.hoisted(()
       props: { varName: "item", iterable: "items" },
       source: "",
     },
+    {
+      id: "lc1", nodeType: "codeblock", tag: "lifecycle", parentId: null,
+      props: { hookType: "mount" },
+      source: "",
+    },
+    {
+      id: "lc2", nodeType: "codeblock", tag: "lifecycle", parentId: null,
+      props: { hookType: "effect", deps: "searchText" },
+      source: "",
+    },
   ];
   const mockState = {
     elements: [] as unknown[],
@@ -138,6 +148,29 @@ describe("FlowInspector loop 表单", () => {
   it("loop 表单底部给出 formatSyntaxNode 实时预览", () => {
     render(<FlowInspector selectedNodeIds={["w1"]} />);
     expect(screen.getByText("while count < 10 {")).toBeTruthy();
+  });
+});
+
+describe("FlowInspector LifecycleForm", () => {
+  it("mount 节点渲染 Hook type 选择（无 deps 字段）", () => {
+    render(<FlowInspector selectedNodeIds={["lc1"]} />);
+    expect(screen.getByText("⚡ Lifecycle")).toBeTruthy();
+    expect(screen.getByDisplayValue("mount")).toBeTruthy();
+    expect(screen.queryByLabelText("Deps")).toBeFalsy();
+  });
+
+  it("effect 节点渲染 deps 输入框（受控值），提交走 setProp(deps)", () => {
+    render(<FlowInspector selectedNodeIds={["lc2"]} />);
+    const input = screen.getByLabelText("Deps") as HTMLInputElement;
+    expect(input.value).toBe("searchText");
+    fireEvent.change(input, { target: { value: "a, b" } });
+    expect(mockSetProp).toHaveBeenCalledWith("lc2", "deps", "a, b");
+  });
+
+  it("切换 hookType 走 setProp(hookType)", () => {
+    render(<FlowInspector selectedNodeIds={["lc2"]} />);
+    fireEvent.change(screen.getByDisplayValue("effect"), { target: { value: "unmount" } });
+    expect(mockSetProp).toHaveBeenCalledWith("lc2", "hookType", "unmount");
   });
 });
 

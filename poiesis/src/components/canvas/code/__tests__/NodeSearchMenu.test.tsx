@@ -6,7 +6,7 @@ describe("filterMenuItems", () => {
   it("空 query 返回全部 3 个分组", () => {
     const r = filterMenuItems("");
     expect(r.map((s) => s.section)).toEqual(["控制流", "变量与赋值", "调用"]);
-    expect(r.flatMap((s) => s.items)).toHaveLength(12);
+    expect(r.flatMap((s) => s.items)).toHaveLength(15);
   });
   it("中文子串匹配", () => {
     const r = filterMenuItems("赋值");
@@ -38,11 +38,11 @@ describe("NodeSearchMenu", () => {
     expect(screen.queryByText("函数定义 (fn)")).toBeFalsy();
   });
 
-  it("Enter 创建当前选中项", () => {
+  it("Enter 创建当前选中项（透传完整 item）", () => {
     const onSelect = vi.fn();
     render(<NodeSearchMenu x={0} y={0} onSelect={onSelect} onClose={vi.fn()} />);
     fireEvent.keyDown(screen.getByPlaceholderText("搜索节点…"), { key: "Enter" });
-    expect(onSelect).toHaveBeenCalledWith("fn");
+    expect(onSelect).toHaveBeenCalledWith({ label: "函数定义 (fn)", tag: "fn", shortcut: "fn" });
   });
 
   it("↓ 移动选中后 Enter 创建对应项", () => {
@@ -50,7 +50,15 @@ describe("NodeSearchMenu", () => {
     render(<NodeSearchMenu x={0} y={0} onSelect={onSelect} onClose={vi.fn()} />);
     fireEvent.keyDown(screen.getByPlaceholderText("搜索节点…"), { key: "ArrowDown" });
     fireEvent.keyDown(screen.getByPlaceholderText("搜索节点…"), { key: "Enter" });
-    expect(onSelect).toHaveBeenCalledWith("condition");
+    expect(onSelect).toHaveBeenCalledWith({ label: "判断 (condition)", tag: "condition", shortcut: "cond" });
+  });
+
+  it("选择 lifecycle 项透传完整 item（含 props.hookType，单例守卫区分依据）", () => {
+    const onSelect = vi.fn();
+    render(<NodeSearchMenu x={0} y={0} onSelect={onSelect} onClose={vi.fn()} />);
+    fireEvent.change(screen.getByPlaceholderText("搜索节点…"), { target: { value: "@effect" } });
+    fireEvent.keyDown(screen.getByPlaceholderText("搜索节点…"), { key: "Enter" });
+    expect(onSelect).toHaveBeenCalledWith({ label: "@effect", tag: "lifecycle", props: { hookType: "effect", deps: "" } });
   });
 
   it("Esc 关闭", () => {

@@ -1,7 +1,7 @@
 // poiesis/src/components/canvas/code/NodeSearchMenu.tsx
 // 可搜索节点创建菜单（复刻 ComfyUI NodeSearchBox：自动聚焦/过滤/高亮/键盘导航）。
 import { useEffect, useMemo, useRef, useState } from "react";
-import { MENU_SECTIONS } from "./flowConstants";
+import { MENU_SECTIONS, type MenuItem } from "./flowConstants";
 import styles from "./NodeSearchMenu.module.css";
 
 export interface FilteredSection {
@@ -41,7 +41,7 @@ function highlight(text: string, query: string): React.ReactNode {
 interface Props {
   x: number;
   y: number;
-  onSelect: (tag: string) => void;
+  onSelect: (item: MenuItem) => void; // 改：传完整 item（含 props）
   onClose: () => void;
 }
 
@@ -85,15 +85,15 @@ export function NodeSearchMenu({ x, y, onSelect, onClose }: Props) {
     active?.scrollIntoView?.({ block: "nearest" });
   }, [activeIdx]);
 
-  const select = (tag: string) => {
-    onSelect(tag);
+  const select = (item: MenuItem) => {
+    onSelect(item);
     onClose();
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowDown") { e.preventDefault(); setActiveIdx((i) => Math.min(i + 1, flat.length - 1)); }
     else if (e.key === "ArrowUp") { e.preventDefault(); setActiveIdx((i) => Math.max(i - 1, 0)); }
-    else if (e.key === "Enter") { e.preventDefault(); if (flat[activeIdx]) select(flat[activeIdx].tag); }
+    else if (e.key === "Enter") { e.preventDefault(); if (flat[activeIdx]) select(flat[activeIdx]); }
     else if (e.key === "Escape") { e.preventDefault(); onClose(); }
   };
 
@@ -128,12 +128,12 @@ export function NodeSearchMenu({ x, y, onSelect, onClose }: Props) {
                 return (
                   <button
                     type="button"
-                    key={item.tag}
+                    key={item.label}
                     data-menu-index={idx}
                     role="option"
                     aria-selected={idx === activeIdx}
                     className={`${styles.item} ${idx === activeIdx ? styles.itemActive : ""}`}
-                    onClick={() => select(item.tag)}
+                    onClick={() => select(item)}
                     onMouseEnter={() => setActiveIdx(idx)}
                   >
                     <span>{highlight(item.label, query)}</span>
