@@ -51,7 +51,7 @@ component Overview {
                 />
                 <CapabilityCard
                     icon="\u{1F517}" title="Element Ref"
-                    description="Direct DOM access, .focus(), .scrollTo(), .measure(), .capturePointer(), drag"
+                    description="Direct DOM access, .focus(), .scrollTo(), .measure(), @drag 意图化拖拽 + style 信号绑定零中间层"
                     tabName="ref"
                     @onNavigate={onNavigate}
                 />

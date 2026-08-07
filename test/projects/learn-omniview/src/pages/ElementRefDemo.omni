@@ -4,11 +4,12 @@
 // ║  演示 ref 声明 + @ref 绑定 + 语义化 ref 操作 API:            ║
 // ║    · ref name: Element   — 元素引用声明                      ║
 // ║    · @ref={name}         — 绑定到元素                        ║
-// ║    · style: { width: sig } — 信号驱动样式绑定                 ║
+// ║    · style: { width: sig } — 信号驱动样式绑定（直写通道）        ║
 // ║    · .focus() / .blur()  — 焦点管理（命令式）                ║
 // ║    · focus={sig}         — 语义化焦点绑定（信号驱动 focus/blur）║
 // ║    · .select() / .setSelection(s, e) — 文本全选 / 选区控制    ║
 // ║    · scroll-y={sig}      — 响应式滚动绑定                    ║
+// ║    · scroll-x={sig}      — 响应式水平滚动绑定                  ║
 // ║    · .scrollTo() / .scrollBy() — 命令式滚动控制（可单参）      ║
 // ║    · .measure()          — 位置/尺寸查询                      ║
 // ║    · .width/.height/.position — 字段读取形式（measure 简写）    ║
@@ -45,6 +46,7 @@ component ElementRefDemo {
     // ── ref 声明 ──
     ref inputBox: Element;
     ref scrollArea: Element;
+    ref scrollAreaX: Element;
     ref rectBox: Element;
     ref sizeBox: Element;
     ref mirrorInput: Element;
@@ -58,6 +60,7 @@ component ElementRefDemo {
     signal focusStatus: String = "not focused";
     signal scrollPos: String = "top";
     signal scrollTarget: f64 = 0;           // 驱动 scroll-y={scrollTarget} 绑定
+    signal scrollTargetX: f64 = 0;          // 驱动 scroll-x={scrollTargetX} 绑定
     signal rectInfo: String = "—";
     signal boxWidth: f64 = 200;             // measure() 查询结果（仅查询写入）
     signal boxHeight: f64 = 80;             // measure() 高度查询结果（仅查询写入）
@@ -119,6 +122,18 @@ component ElementRefDemo {
         scrollPos = "scrollTo(0, 200)";
     }
 
+    // ── 滚动控制：响应式 scroll-x 绑定（水平滚动区） ──
+    // scroll-x={scrollTargetX} 与 scroll-y 同族（SEMANTIC_BINDINGS）：
+    // 按钮只更新信号，绑定自动驱动元素水平滚动。
+    fn scrollXLeft() {
+        scrollTargetX = 0;
+        scrollPos = "scroll-x=0";
+    }
+    fn scrollX200() {
+        scrollTargetX = 200;
+        scrollPos = "scroll-x=200";
+    }
+
     // ── 嵌套 ref 操作组合：测量结果直接作滚动参数 ──
     // scrollTo(0, rectBox.measure().y)：先测量目标盒当前位置，再滚动
     // 滚动区到该 y —— 一次调用完成「测量 + 定位」，参数可以是任意
@@ -156,6 +171,9 @@ component ElementRefDemo {
     }
 
     // ── 信号驱动样式（style: { width: sig } 绑定，替代 ref.style 直接操作） ──
+    // 动态 style 绑定经直写通道发射：React useRef + 直接 DOM 写（零重渲染），
+    // Flutter ValueNotifier + ListenableBuilder（无 setState 整树重建），
+    // OmniView el.style.setProperty 直接 DOM 写。
     // 绑定数值信号（f64）——Flutter 的 width/height 参数是 double，String
     // px 值无法映射（编译期诊断）；px 显示串由 computed 派生（boxWidthPx）。
     fn expandBox() {
@@ -235,7 +253,7 @@ component ElementRefDemo {
     view {
         <div class: LearnDesign.Container>
             <h3 class: LearnDesign.CardTitle>Element Reference System</h3>
-            <p class: LearnDesign.Subtitle>ref · @ref · .focus() · .select() · .setSelection() · .width/.height/.position 字段读取 · 嵌套组合 scrollTo(0, ref.measure().y) · @drag 意图</p>
+            <p class: LearnDesign.Subtitle>ref · @ref · .focus() · .select() · .setSelection() · .width/.height/.position · scrollTo(0, ref.measure().y) · @drag/@dragEnd 拖拽意图 · style 信号绑定直写通道</p>
 
             <!-- ═══ 焦点管理 ═══ -->
             <h4 class: LearnDesign.SectionTitle>焦点管理 (.focus / .blur)</h4>
@@ -311,7 +329,7 @@ component ElementRefDemo {
             </div>
 
             <!-- ═══ 滚动控制 ═══ -->
-            <h4 class: LearnDesign.SectionTitle>滚动控制 (scroll-y 绑定 + .scrollBy + .scrollTo + 嵌套组合)</h4>
+            <h4 class: LearnDesign.SectionTitle>滚动控制 (scroll-y / scroll-x 绑定 + .scrollBy + .scrollTo + 嵌套组合)</h4>
             <div scroll-y={scrollTarget} @ref={scrollArea} class: ScrollBox>
                 <p class: ScrollItem>Item 1 — 滚动演示区域</p>
                 <p class: ScrollItem>Item 2 — 使用 scroll-y 绑定跳转</p>
@@ -340,6 +358,19 @@ component ElementRefDemo {
                     scrollTo(0, rectBox.measure().y)
                 </button>
                 <span class: StatusText>Pos: {scrollPos}</span>
+            </div>
+
+            <!-- ═══ 水平滚动（scroll-x 绑定） ═══ -->
+            <div scroll-x={scrollTargetX} @ref={scrollAreaX} class: ScrollBoxX>
+                <p class: ScrollItemX>Item A — 水平滚动区（scroll-x 绑定）</p>
+                <p class: ScrollItemX>Item B — 使用 scroll-x 绑定跳转</p>
+                <p class: ScrollItemX>Item C — 水平滚动演示</p>
+                <p class: ScrollItemX>Item D — scroll-x={scrollTargetX}</p>
+                <p class: ScrollItemX>Item E — 水平滚动演示结束</p>
+            </div>
+            <div class: LearnDesign.Row>
+                <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={scrollXLeft}>scroll-x=0</button>
+                <button variant: LearnDesign.Button(color=accent, size=sm) @onPress={scrollX200}>scroll-x=200</button>
             </div>
 
             <!-- ═══ 位置查询 ═══ -->
@@ -471,5 +502,7 @@ component ElementRefDemo {
         .DragBoxActive p { color: white; }
         .DragBoxActive { cursor: grabbing; }
         .DragDemoBox p { font-size: var(--fontSizeXs); margin: 0; }
+        .ScrollBoxX { width: 100%; height: 64px; overflow-x: auto; overflow-y: hidden; background: var(--surfaceSubtle); border-radius: 8px; display: flex; gap: 8px; padding: 8px; }
+        .ScrollBoxX p { flex: 0 0 auto; white-space: nowrap; font-size: var(--fontSizeXs); color: var(--textSecondary); margin: 0; }
     }
 }
