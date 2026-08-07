@@ -1303,11 +1303,13 @@ struct StyleChannelWrap {
 ///   compile-time diagnostic — never a silent skip.
 /// * `Unmappable` — any other shape → compile-time diagnostic.
 ///
-/// B2 entries (a read signal lives on the render path) resolve names bare
-/// and skip the ListenableBuilder — setState mutations rebuild the subtree
-/// with the same semantics. Non-B2 entries resolve D1/D2 signals to
-/// `_name.value` and wrap in a ListenableBuilder reacting to their
-/// ValueNotifier writes (Task 13 storage) without any setState.
+/// Signal reads resolve PER-SIGNAL (review HIGH-2): D1/D2 signals are
+/// ValueNotifier fields (`_name.value`, Task 13) and read as such wherever
+/// they appear, even inside an entry whose other reads live on the render
+/// path (computed/store field — bare State name, setState rebuild). The
+/// ListenableBuilder merge list collects the entry's D1/D2 members
+/// regardless of entry-level classification; render-path-only entries get
+/// an empty merge list and no wrap.
 fn handle_channel_style(
     entry: &DirectWriteEntry,
     widget: &str,
@@ -1315,19 +1317,23 @@ fn handle_channel_style(
     wrap: &mut StyleChannelWrap,
     ctx: &mut ViewContext,
 ) {
-    let is_b2 = ctx
-        .direct_write
-        .b2_entries
-        .iter()
-        .any(|e| e.ref_name == entry.ref_name && e.prop == entry.prop);
     match match_style_pattern(&entry.value) {
         StylePattern::Translate { x, y } => {
+            if style_value_is_string(&x, ctx) || style_value_is_string(&y, ctx) {
+                ctx.error_at(
+                    "[flutter] dynamic style transform translate reads a \
+                     String-typed x/y value; Flutter Offset params require numbers \
+                     (double) — use a numeric (f64) signal for the drag offset",
+                    el.source_span,
+                );
+                return;
+            }
             wrap.offset = Some(format!(
                 "Offset({}, {})",
-                style_json_to_dart_expr(&x, is_b2, ctx),
-                style_json_to_dart_expr(&y, is_b2, ctx)
+                style_json_to_dart_expr(&x, ctx),
+                style_json_to_dart_expr(&y, ctx)
             ));
-            collect_channel_listenables(entry, is_b2, ctx, wrap);
+            collect_channel_listenables(entry, ctx, wrap);
         }
         StylePattern::Direct(v) => {
             match css_prop_to_flutter_param(&entry.prop) {
@@ -1344,20 +1350,45 @@ fn handle_channel_style(
                         );
                         return;
                     }
+                    if style_value_is_string(&v, ctx) {
+                        ctx.error_at(
+                            format!(
+                                "[flutter] dynamic style property '{}' reads a String-typed \
+                                 value; Flutter '{}' requires a number (double) — use a \
+                                 numeric (f64) signal and derive the px display string \
+                                 separately",
+                                entry.prop, param
+                            ),
+                            el.source_span,
+                        );
+                        return;
+                    }
                     wrap.params.push(format!(
                         "{}: {}",
                         entry.prop,
-                        style_json_to_dart_expr(&v, is_b2, ctx)
+                        style_json_to_dart_expr(&v, ctx)
                     ));
-                    collect_channel_listenables(entry, is_b2, ctx, wrap);
+                    collect_channel_listenables(entry, ctx, wrap);
                 }
                 Some("padding") | Some("margin") => {
+                    if style_value_is_string(&v, ctx) {
+                        ctx.error_at(
+                            format!(
+                                "[flutter] dynamic style property '{}' reads a String-typed \
+                                 value; Flutter EdgeInsets.all requires a number (double) — \
+                                 use a numeric (f64) signal",
+                                entry.prop
+                            ),
+                            el.source_span,
+                        );
+                        return;
+                    }
                     wrap.params.push(format!(
                         "{}: EdgeInsets.all({})",
                         entry.prop,
-                        style_json_to_dart_expr(&v, is_b2, ctx)
+                        style_json_to_dart_expr(&v, ctx)
                     ));
-                    collect_channel_listenables(entry, is_b2, ctx, wrap);
+                    collect_channel_listenables(entry, ctx, wrap);
                 }
                 _ => {
                     // Mapped CSS property with no Flutter parameter
@@ -1391,19 +1422,39 @@ fn handle_channel_style(
     }
 }
 
+/// Whether a style VALUE is statically a String: a String literal, or a
+/// `$signal` read whose `comp_type_scope` type is "String" (signals +
+/// computeds). Flutter numeric params (width/height `double?`,
+/// EdgeInsets.all, Offset) cannot receive Strings — emitting them produced
+/// `argument_type_not_assignable` Dart (ElementRefDemo regression, 2×);
+/// the compiler diagnoses instead. `$ident`/`$field`/`$call` reads are
+/// statically unknown — left to runtime dispatch.
+fn style_value_is_string(val: &Value, ctx: &ViewContext) -> bool {
+    if let Value::Object(obj) = val {
+        if let Some(name) = obj.get("$signal").and_then(|v| v.as_str()) {
+            return ctx
+                .comp_type_scope
+                .get(name)
+                .map(|t| t == "String")
+                .unwrap_or(false);
+        }
+        return false;
+    }
+    matches!(val, Value::String(_))
+}
+
 /// Collect the entry's read signals that are D1/D2-stored (Task 13
 /// ValueNotifier fields) into the ListenableBuilder merge list — sorted +
-/// deduplicated for deterministic output. B2 entries read render-path
-/// signals (bare State fields, setState mutations) and need no listenable.
+/// deduplicated for deterministic output. Resolution is PER-SIGNAL (review
+/// HIGH-2): a B2 entry may mix a render-path read (computed/store field —
+/// bare State name, setState rebuild) with D1/D2 members (ValueNotifier
+/// fields) — the D1/D2 members still need their listenables so the merge
+/// list is collected regardless of the entry-level B2 classification.
 fn collect_channel_listenables(
     entry: &DirectWriteEntry,
-    is_b2: bool,
     ctx: &ViewContext,
     wrap: &mut StyleChannelWrap,
 ) {
-    if is_b2 {
-        return;
-    }
     for name in &entry.read_signals {
         if ctx.direct_write.d1.contains(name) || ctx.direct_write.d2.contains(name) {
             wrap.listenables.push(format!("_{}", name));
@@ -1415,14 +1466,15 @@ fn collect_channel_listenables(
 
 /// Convert a style VALUE tree (the direct-write entry's JSON, shape from
 /// `lower_expr_to_json_from_ir`) to a Dart expression. Signal reads resolve
-/// to their storage form: `_name.value` for D1/D2 ValueNotifiers (Task 13),
-/// bare `name` for render-path signals (B2 — setState rebuilds, matching the
-/// render-path semantic).
-fn style_json_to_dart_expr(val: &Value, is_b2: bool, ctx: &ViewContext) -> String {
+/// to their storage form PER-SIGNAL (review HIGH-2): D1/D2 signals are
+/// ValueNotifier fields (`_name.value`, Task 13) wherever they are read —
+/// even inside a B2 entry mixed with render-path reads; every other read
+/// (computed, store field, ident) is a bare State name resolved on the
+/// render path (setState rebuilds).
+fn style_json_to_dart_expr(val: &Value, ctx: &ViewContext) -> String {
     if let Value::Object(obj) = val {
         if let Some(name) = obj.get("$signal").and_then(|v| v.as_str()) {
-            if !is_b2 && (ctx.direct_write.d1.contains(name) || ctx.direct_write.d2.contains(name))
-            {
+            if ctx.direct_write.d1.contains(name) || ctx.direct_write.d2.contains(name) {
                 return format!("_{}.value", name);
             }
             return name.to_string();
@@ -1432,7 +1484,7 @@ fn style_json_to_dart_expr(val: &Value, is_b2: bool, ctx: &ViewContext) -> Strin
         }
         if let Some(arr) = obj.get("$field").and_then(|v| v.as_array()) {
             if let Some(field) = arr.get(1).and_then(|v| v.as_str()) {
-                return format!("{}.{}", style_json_to_dart_expr(&arr[0], is_b2, ctx), field);
+                return format!("{}.{}", style_json_to_dart_expr(&arr[0], ctx), field);
             }
         }
         if let Some(call) = obj.get("$call").and_then(|v| v.as_object()) {
@@ -1442,7 +1494,7 @@ fn style_json_to_dart_expr(val: &Value, is_b2: bool, ctx: &ViewContext) -> Strin
                 .and_then(|v| v.as_array())
                 .map(|a| {
                     a.iter()
-                        .map(|x| style_json_to_dart_expr(x, is_b2, ctx))
+                        .map(|x| style_json_to_dart_expr(x, ctx))
                         .collect::<Vec<_>>()
                         .join(", ")
                 })

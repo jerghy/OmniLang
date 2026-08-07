@@ -11288,3 +11288,123 @@ component DragBox {
         dart
     );
 }
+
+/// A String-typed dynamic style value cannot map to Flutter's `double?`
+/// width/height params (`Container(width: <String>)` fails dart analyze
+/// with argument_type_not_assignable) — the compiler must produce a
+/// compile-time diagnostic pointing at the String signal/computed instead
+/// of emitting broken Dart (regression: ElementRefDemo 2×
+/// argument_type_not_assignable, Task 14 follow-up).
+#[test]
+fn test_flutter_string_style_value_diagnostic() {
+    let flutter = compile_flutter_full(
+        r#"
+component SizeBox {
+  signal boxWidthNum: f64 = 200
+  computed boxWidthPx: String = boxWidthNum.to_string() + "px"
+  ref box: Element
+  fn bump() { boxWidthNum = 300 }
+  view {
+    <div @ref={box} @onPress={bump} style: { width: boxWidthPx } />
+  }
+}
+"#,
+    );
+    assert!(
+        !flutter.success,
+        "String-typed dynamic style must fail compilation (cannot map to double param)"
+    );
+    let msg = flutter
+        .errors
+        .iter()
+        .map(|e| e.message.clone())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        msg.contains("width") && msg.contains("String"),
+        "diagnostic must mention the property and the String/type mismatch: {}",
+        msg
+    );
+}
+
+/// The same String check applies to the transform translate shape: Offset
+/// x/y are doubles; a String x/y read must be diagnosed, not emitted.
+#[test]
+fn test_flutter_string_translate_component_diagnostic() {
+    let flutter = compile_flutter_full(
+        r#"
+component DragBox {
+  signal dragX: String = "10px"
+  signal dragY: f64 = 0
+  ref box: Element
+  fn move(e) { dragX = "20px" }
+  view {
+    <div @ref={box} @drag={move}
+         style: { transform: "translate(" + dragX + "px, " + dragY + "px)" } />
+  }
+}
+"#,
+    );
+    assert!(
+        !flutter.success,
+        "String-typed translate component must fail compilation"
+    );
+    let msg = flutter
+        .errors
+        .iter()
+        .map(|e| e.message.clone())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        msg.contains("translate") && msg.contains("String"),
+        "diagnostic must mention translate and the String mismatch: {}",
+        msg
+    );
+}
+
+/// Review HIGH-2: a MIXED entry — D1 signal `dragX` + computed `shifted`
+/// (render-path read) — must resolve PER-SIGNAL: the D1 member reads
+/// `_dragX.value` (ValueNotifier storage) even though the entry is
+/// B2-classified (computed read), and its listenable still enters the
+/// merge list. Previously the entry-level B2 decision emitted bare `dragX`
+/// (undefined_identifier) and dropped the listenable.
+#[test]
+fn test_flutter_mixed_d1_computed_entry_per_signal_resolution() {
+    let flutter = compile_flutter_full(
+        r#"
+component DragBox {
+  signal dragX: f64 = 0
+  signal posX: f64 = 0
+  computed shifted: f64 = posX + 10
+  ref box: Element
+  fn move(e) { dragX = e.dx }
+  fn drift() { posX = posX + 5 }
+  view {
+    <div @ref={box} @drag={move} @onPress={drift}
+         style: { transform: "translate(" + dragX + "px, " + shifted + "px)" } />
+  }
+}
+"#,
+    );
+    assert!(
+        flutter.success,
+        "mixed fixture must compile: {:?}",
+        flutter.errors
+    );
+    let dart: String = flutter
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        dart.contains("Transform.translate(offset: Offset(_dragX.value, shifted)"),
+        "D1 member must read .value, computed stays bare, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("listenable: Listenable.merge([_dragX])"),
+        "D1 member must be in the merge list, computed excluded, got:\n{}",
+        dart
+    );
+}

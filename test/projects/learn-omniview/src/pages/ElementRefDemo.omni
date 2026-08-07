@@ -61,9 +61,10 @@ component ElementRefDemo {
     signal rectInfo: String = "—";
     signal boxWidth: f64 = 200;             // measure() 查询结果（仅查询写入）
     signal boxHeight: f64 = 80;             // measure() 高度查询结果（仅查询写入）
-    signal boxWidthNum: f64 = 200;          // 滑块/按钮驱动（高频连续变更 → 绑定）
-    signal boxHeightPx: String = "80px";    // 按钮驱动的 style 值（含单位）
-    computed boxWidthPx: String = boxWidthNum.to_string() + "px";  // 派生 style 值
+    signal boxWidthNum: f64 = 200;          // 滑块/按钮驱动（高频连续变更 → 数值绑定）
+    signal boxHeightNum: f64 = 80;          // 按钮驱动的 style 值（数值）
+    computed boxWidthPx: String = boxWidthNum.to_string() + "px";   // 派生 px 显示串
+    computed boxHeightPx: String = boxHeightNum.to_string() + "px"; // 派生 px 显示串
     signal mirrorText: String = "";
     signal selectText: String = "0123456789 全选演示文本";
     signal selectStatus: String = "—";
@@ -155,13 +156,15 @@ component ElementRefDemo {
     }
 
     // ── 信号驱动样式（style: { width: sig } 绑定，替代 ref.style 直接操作） ──
+    // 绑定数值信号（f64）——Flutter 的 width/height 参数是 double，String
+    // px 值无法映射（编译期诊断）；px 显示串由 computed 派生（boxWidthPx）。
     fn expandBox() {
         boxWidthNum = 300;
-        boxHeightPx = "120px";
+        boxHeightNum = 120;
     }
     fn resetBox() {
         boxWidthNum = 200;
-        boxHeightPx = "80px";
+        boxHeightNum = 80;
     }
 
     // ── 多 ref 联动（输入 → 镜像） ──
@@ -358,13 +361,14 @@ component ElementRefDemo {
             <h4 class: LearnDesign.SectionTitle>尺寸查询 + 样式绑定 (.measure / style 绑定)</h4>
             <p class: LearnDesign.Hint>
                 连续属性变更 = 信号 + 声明式绑定：拖动滑块连续更新 boxWidthNum，
-                computed boxWidthPx 派生样式值，绑定实时生效 —— 无命令式 DOM 写入。
+                绑定实时生效 —— 无命令式 DOM 写入。绑定用数值信号（Flutter
+                width/height 参数是 double），px 显示串由 computed 派生。
                 尺寸查询有方法形式（.measure().width）与字段读取形式（.width）两种写法，
                 字段读取是 measure 的简写，同样返回响应式数值。
             </p>
             <div class: DemoRow>
                 <div @ref={sizeBox} class: SizeBox
-                    style: { width: boxWidthPx, height: boxHeightPx }>
+                    style: { width: boxWidthNum, height: boxHeightNum }>
                     <p>resize via style binding</p>
                 </div>
                 <input type="range" min="120" max="400" bind:value={boxWidthNum} class: DemoRange />

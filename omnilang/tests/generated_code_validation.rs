@@ -1128,7 +1128,21 @@ design LearnDesign {
 /// zIndex token emits its Flutter z-order warning. Each warning converts a
 /// previously-unshown feature into a live honest-degradation teaching
 /// signal; demo sources are left untouched so the warnings stay live.
-const FLUTTER_WARNINGS_BASELINE: usize = 717;
+///
+/// 2026-08-07 @drag 意图化 (ADR-073) raised it to 718 — the fourth
+/// sanctioned honest-degradation exception, NET +1 from the ElementRefDemo
+/// 拖拽意图化 series (6fe99766/df7ceb10):
+///   −2: @onPointerDown/@onPointerUp 意图化为 @drag/@dragEnd → Flutter
+///       GestureDetector onPan 映射（onPointerdown/onPointerup 警告消失）
+///   +3: 新 demo 特性诚实警告——range input 的 bind:value/min 在 TextField
+///       上无 Flutter 等价参数（2 条），DragBoxActive 类未声明确认（1 条）
+/// Each new warning converts a previously-unshown feature into a live
+/// honest-degradation teaching signal; demo sources are left untouched so
+/// the warnings stay live. Empirical attribution: warning lists at
+/// 265b5e70 (pre-Task 14) and HEAD are byte-identical — Task 14's dynamic
+/// style channel emits 0 warnings in the corpus (verified by diff of the
+/// per-warning dumps).
+const FLUTTER_WARNINGS_BASELINE: usize = 718;
 
 #[test]
 fn learn_omniview_flutter_warnings_are_tracked() {
