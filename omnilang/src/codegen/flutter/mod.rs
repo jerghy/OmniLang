@@ -900,7 +900,8 @@ impl FlutterCodegen {
             // the IR's type_ann is never populated). A typed Map signal's
             // `contains` would otherwise fall to the runtime `is Map`
             // dispatch — unnecessary_type_check under dart analyze.
-            let computed_body = type_annotate::annotate_expr_types(&computed.body, &comp_type_scope);
+            let computed_body =
+                type_annotate::annotate_expr_types(&computed.body, &comp_type_scope);
             let (computed_body, hoisted_locals) = hoister.hoist(&computed_body);
             let rewritten = rewrite_store_accesses(&computed_body, &store_provider_map, ir);
             let rewritten = rewrite_widget_refs(&rewritten, &widget_names, &fn_renames);

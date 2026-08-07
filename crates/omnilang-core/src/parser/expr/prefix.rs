@@ -486,7 +486,9 @@ mod tests {
             .expect("struct literals in ternary branches must parse");
         match ast {
             Expr::TernaryExpr {
-                then_expr, else_expr, ..
+                then_expr,
+                else_expr,
+                ..
             } => {
                 assert!(matches!(then_expr.as_ref(), Expr::StructLiteral { .. }));
                 assert!(matches!(else_expr.as_ref(), Expr::StructLiteral { .. }));

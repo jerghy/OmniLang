@@ -1,8 +1,8 @@
 //! State-sync and PID-verification commands.
 
-use crate::state::ProjectState;
 #[cfg(feature = "server-compile")]
 use crate::path::sanitize_path;
+use crate::state::ProjectState;
 
 // ── PID verification ──
 

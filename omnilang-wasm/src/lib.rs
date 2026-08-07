@@ -20,7 +20,9 @@ use omnilang::compile_omniview;
 fn js_error_value(message: &str) -> JsValue {
     to_js_value(&ErrorEnvelope {
         success: false,
-        errors: vec![omnilang::error::DiagnosticJson::synthetic("E_WASM", message)],
+        errors: vec![omnilang::error::DiagnosticJson::synthetic(
+            "E_WASM", message,
+        )],
     })
 }
 
@@ -861,10 +863,8 @@ mod tests {
             "main.omni": "import omniview;\ncomponent App { view { <div>hi</div> } }"
         }))
         .unwrap();
-        let path_mapping =
-            serde_wasm_bindgen::to_value(&serde_json::json!({})).unwrap();
-        let result =
-            resolve_styles_multi_cached(sources, path_mapping, JsValue::null());
+        let path_mapping = serde_wasm_bindgen::to_value(&serde_json::json!({})).unwrap();
+        let result = resolve_styles_multi_cached(sources, path_mapping, JsValue::null());
         let parsed: serde_json::Value = serde_wasm_bindgen::from_value(result).unwrap();
         assert!(
             parsed["result"].is_object(),
