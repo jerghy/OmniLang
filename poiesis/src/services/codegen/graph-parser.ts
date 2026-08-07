@@ -27,7 +27,7 @@ interface ParsedSegment {
   startLine: number;
   endLine: number;
   code: string;
-  type: "fn" | "code-block" | "condition" | "return" | "let" | "assign" | "store-call" | "call" | "throw" | "await" | "while" | "for-in" | "lifecycle";
+  type: "fn" | "code-block" | "condition" | "return" | "let" | "assign" | "store-call" | "call" | "throw" | "await" | "while" | "for-in" | "try" | "lifecycle";
 }
 
 /**
@@ -50,6 +50,12 @@ interface BranchDef {
   id: string;
   type: "if" | "elif" | "else";
   condition: string;
+}
+
+interface TryBranchDef {
+  id: string;
+  type: "try" | "catch" | "finally";
+  catchVar?: string;
 }
 
 /**
@@ -154,7 +160,7 @@ function splitByPid(
 // detectSegmentType – classify a segment from its first non-empty line
 // ---------------------------------------------------------------------------
 
-type SegmentType = "fn" | "code-block" | "condition" | "return" | "let" | "assign" | "store-call" | "call" | "throw" | "await" | "while" | "for-in" | "lifecycle";
+type SegmentType = "fn" | "code-block" | "condition" | "return" | "let" | "assign" | "store-call" | "call" | "throw" | "await" | "while" | "for-in" | "try" | "lifecycle";
 
 /** Determine segment type from first non-empty line of code. */
 function detectSegmentType(
@@ -180,11 +186,21 @@ function detectSegmentType(
   // 该形态来自 code-block 回退源的原始文本重解析，T3 G1 实证）。
   // 置于 return/单语句检查之前：以 `return x ;` 开头的原始多语句材料同样保真
   // （return 为终态，编译产物无后继行；此处只命中原始回退文本）。
-  // 结构尾行（} / } else / else {）除外：条件链挂载的语句段尾部保持单语句分类。
-  // 首行以 { 结尾的块头（if/while/for-in）与无分号续行（x = a +\n b;）不命中。
+  // 结构尾行（} / } else / else { / } catch / } finally / catch / finally）除外：条件/try 链挂载的
+  // 语句段尾部保持单语句分类。首行以 { 结尾的块头（if/while/for-in）与无分号续行（x = a +\n b;）不命中。
   if (
     /;\s*$/.test(trimmed) &&
-    lines.slice(1).some((l) => l.trim() && !(/^\}\s*else/.test(l.trim()) || /^else\s*(if\b|\{)/.test(l.trim()) || l.trim() === "}"))
+    lines.slice(1).some(
+      (l) =>
+        l.trim() &&
+        !(/^\}\s*else/.test(l.trim()) ||
+          /^else\s*(if\b|\{)/.test(l.trim()) ||
+          l.trim() === "}" ||
+          /^\}\s*catch\b/.test(l.trim()) ||
+          /^\}\s*finally\b/.test(l.trim()) ||
+          /^catch\b/.test(l.trim()) ||
+          /^finally\b/.test(l.trim())),
+    )
   )
     return "code-block";
   if (trimmed.startsWith("return ") || trimmed === "return;" || trimmed === "return")
@@ -205,6 +221,9 @@ function detectSegmentType(
   // 首 token 是关键字，落入 call 判定会错挂（`await (` 形如调用前缀）。
   if (/^throw\s+/.test(trimmed)) return "throw";
   if (/^await\s+/.test(trimmed)) return "await";
+  // try 块头：`try {` 首 token 不匹配现有正则，显式前置防回归（否则入 code-block 回退，
+  // catch/finally 分支结构整体丢失）。
+  if (/^try\s*\{/.test(trimmed)) return "try";
   if (/^[a-zA-Z_]\w*(?:\s*\.\s*[a-zA-Z_]\w*)?\s*\(/.test(trimmed)) return "call";
   if (/^[a-zA-Z_]\w*(?:\s*\.\s*[a-zA-Z_]\w*)?\s*(?:=|\+=|-=|\*=|\/=|%=)\s*/.test(trimmed)) return "assign";
   return "code-block";
@@ -300,6 +319,49 @@ function parseConditionBranches(code: string): BranchDef[] {
   return branches;
 }
 
+/**
+ * Parse a try segment's raw code (plus continuation segments via
+ * collectTryBranches) to extract branch definitions.
+ * Mirrors parseConditionBranches: full-line scan, saving each branch when
+ * the next keyword appears, pushing the final one at the end.
+ */
+function parseTryBranches(code: string): TryBranchDef[] {
+  const branches: TryBranchDef[] = [];
+  const lines = code.split("\n");
+
+  let currentType: "try" | "catch" | "finally" = "try";
+  let currentVar: string | undefined;
+  let branchIdx = 0;
+
+  const tryRe = /^try\s*\{?\s*$/;
+  const catchRe = /^(?:\}\s*)?catch(?:\s+(\w+))?\s*\{?\s*$/;
+  const finallyRe = /^(?:\}\s*)?finally\s*\{?\s*$/;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    const match = trimmed.match(catchRe);
+
+    if (tryRe.test(trimmed)) {
+      currentType = "try";
+      currentVar = undefined;
+    } else if (match) {
+      // Save previous branch, then switch to catch
+      branches.push({ id: `br${branchIdx++}`, type: currentType, catchVar: currentVar });
+      currentType = "catch";
+      currentVar = match[1] || undefined;
+    } else if (finallyRe.test(trimmed)) {
+      // Save previous branch, then switch to finally
+      branches.push({ id: `br${branchIdx++}`, type: currentType, catchVar: currentVar });
+      currentType = "finally";
+      currentVar = undefined;
+    }
+  }
+  // Save last branch
+  branches.push({ id: `br${branchIdx}`, type: currentType, catchVar: currentVar });
+
+  return branches;
+}
+
 // ---------------------------------------------------------------------------
 // computeLineDepths – per-line brace depth for the entire source
 // ---------------------------------------------------------------------------
@@ -372,14 +434,19 @@ function assignBranchContext(
     const startDepth = lineDepths[seg.startLine] ?? 0;
     const trimmed = seg.code.trim();
 
-    // Detect if this segment is an elif/else continuation.
-    // Handles both `} else {` (legacy @pid style) and bare `else {` / `else if`
-    // (new @type style where the closing `}` is in the preceding segment).
-    const isElifElseCode =
+    // Detect if this segment is a branch continuation (elif/else/catch/finally).
+    // Handles both `} else {` / `} catch err {` (legacy @pid style) and bare
+    // `else {` / `catch err {` (new @type style where the closing `}` is in
+    // the preceding segment).
+    const isBranchContinuation =
       /^\}\s*else\s*\{/.test(trimmed) ||
       /^\}\s*else\s+if\b/.test(trimmed) ||
+      /^\}\s*catch\b/.test(trimmed) ||
+      /^\}\s*finally\b/.test(trimmed) ||
       /^else\s*\{/.test(trimmed) ||
-      /^else\s+if\b/.test(trimmed);
+      /^else\s+if\b/.test(trimmed) ||
+      /^catch\b/.test(trimmed) ||
+      /^finally\b/.test(trimmed);
 
     // ------------------------------------------------------------------
     // 1. Close conditions whose brace scope ended (depth returned to their base)
@@ -395,7 +462,7 @@ function assignBranchContext(
       // in that case — the elif/else is a branch continuation.
       const top = conditionStack[conditionStack.length - 1];
       if (
-        isElifElseCode &&
+        isBranchContinuation &&
         startDepth === top.baseDepth
       ) {
         break;
@@ -406,22 +473,28 @@ function assignBranchContext(
     // ------------------------------------------------------------------
     // 2. Determine if this segment is a branch continuation of an open condition
     // ------------------------------------------------------------------
-    let isBranchContinuation = false;
-
     if (conditionStack.length > 0) {
       const cond = conditionStack[conditionStack.length - 1];
 
-      // 2a. @pid-style: segment starts with `} else {` or `} else if`
-      if (/^\}\s*else\s*\{/.test(trimmed) || /^\}\s*else\s+if\b/.test(trimmed)) {
+      // 2a. @pid-style: segment starts with `} else {` / `} else if` / `} catch ...` / `} finally`
+      if (
+        /^\}\s*else\s*\{/.test(trimmed) ||
+        /^\}\s*else\s+if\b/.test(trimmed) ||
+        /^\}\s*catch\b/.test(trimmed) ||
+        /^\}\s*finally\b/.test(trimmed)
+      ) {
         cond.currentBranch++;
         cond.pendingTransition = false;
-        isBranchContinuation = true;
       }
-      // 2b. @type-style elif/else (no leading `}`)
-      else if (/^else\s*\{/.test(trimmed) || /^else\s+if\b/.test(trimmed)) {
+      // 2b. @type-style continuation (no leading `}`)
+      else if (
+        /^else\s*\{/.test(trimmed) ||
+        /^else\s+if\b/.test(trimmed) ||
+        /^catch\b/.test(trimmed) ||
+        /^finally\b/.test(trimmed)
+      ) {
         cond.currentBranch++;
         cond.pendingTransition = false;
-        isBranchContinuation = true;
       }
       // 2c. Previous segment indicated a pending transition
       else if (cond.pendingTransition) {
@@ -429,13 +502,19 @@ function assignBranchContext(
         cond.pendingTransition = false;
       }
 
-      // 2d. 段内残余 `} else {` / `} else if` 过渡（段首过渡已由 2a/2b 处理，用 isElifElseCode 排除防重复推进）。
+      // 2d. 段内残余 `} else {` / `} else if` / `} catch ...` / `} finally` 过渡
+      // （段首过渡已由 2a/2b 处理，用 isBranchContinuation 排除防重复推进）。
       // else/else if 行常与前段收尾 `}` 同段挂载（发射侧 `}\nelse {` 跨段），且 2c 消费前段过渡时
       // 本段尾部可能还挂着下一分支过渡（`}\nelse {` 在 return 段尾）——若 2d 挂在 else-if 链上会被
       // 2c 短路漏检，下一分支并入当前分支（分支体错位/丢失，E2E 缺陷 2 的末分支 wire 根因）。
+      // `} catch err {` / `} finally {` 段尾挂载同构（发射侧新行风格 `}\ncatch err {` 跨段）——
+      // 挂载在上一分支体段尾，由 2c 为下一段推进分支。
       if (
-        !isElifElseCode &&
-        (/\}\s*else\s*\{/.test(seg.code) || /\}\s*else\s+if\b/.test(seg.code))
+        !isBranchContinuation &&
+        (/\}\s*else\s*\{/.test(seg.code) ||
+          /\}\s*else\s+if\b/.test(seg.code) ||
+          /\}\s*catch\b/.test(seg.code) ||
+          /\}\s*finally\b/.test(seg.code))
       ) {
         cond.pendingTransition = true;
       }
@@ -458,12 +537,15 @@ function assignBranchContext(
     if (
       seg.type === "while" ||
       seg.type === "for-in" ||
+      seg.type === "try" ||
       (seg.type === "condition" && !isBranchContinuation)
     ) {
       const branches =
         seg.type === "condition"
           ? parseConditionBranches(seg.code)
-          : [{ id: "br0", type: "if" as const, condition: "" }];
+          : seg.type === "try"
+            ? parseTryBranches(seg.code)
+            : [{ id: "br0", type: "if" as const, condition: "" }];
       conditionStack.push({
         pid: seg.pid,
         baseDepth: startDepth,
@@ -506,6 +588,32 @@ function collectConditionBranches(
   // Now parse branches from the combined code
   const combinedCode = codeParts.join("\n");
   return parseConditionBranches(combinedCode);
+}
+
+/**
+ * Combine the try segment's own code with code from all subsequent
+ * segments that fall within the try block's brace scope. This gives
+ * `parseTryBranches` the full picture including catch/finally keywords
+ * that live in separate segments.
+ */
+function collectTryBranches(
+  segments: ParsedSegment[],
+  tryIdx: number,
+  branchCtx: Map<number, BranchContext>,
+): TryBranchDef[] {
+  const codeParts: string[] = [segments[tryIdx].code];
+  const tryPid = segments[tryIdx].pid;
+
+  for (let j = tryIdx + 1; j < segments.length; j++) {
+    const ctx = branchCtx.get(j);
+    if (ctx && ctx.conditionPid === tryPid) {
+      codeParts.push(segments[j].code);
+    } else {
+      break;
+    }
+  }
+
+  return parseTryBranches(codeParts.join("\n"));
 }
 
 // ---------------------------------------------------------------------------
@@ -662,6 +770,11 @@ export function parseCodeFlowGraph(
       // elif/else keywords in subsequent segments are picked up.
       const branches = collectConditionBranches(segments, i, branchCtx);
       props = { branches };
+    } else if (seg.type === "try") {
+      // Use combined code from all segments inside the try block so that
+      // catch/finally keywords in subsequent segments are picked up.
+      const branches = collectTryBranches(segments, i, branchCtx);
+      props = { branches };
     } else if (seg.type === "code-block") {
       // 原样保留段文本（含手写首行缩进——graph-parser.test.ts 实证 "  // 步骤一"）。
       // 首行 tokenizer 空格伪影（"\n " 归一化）由发射侧首行 trimStart 消化（见
@@ -785,7 +898,7 @@ export function parseCodeFlowGraph(
   // 进入，循环结束经 flow-out 跳出作用域继续线形链）。
   for (let i = 0; i < segments.length; i++) {
     const segType = segments[i].type;
-    if (segType !== "condition" && segType !== "while" && segType !== "for-in") continue;
+    if (segType !== "condition" && segType !== "while" && segType !== "for-in" && segType !== "try") continue;
 
     // Find the first segment after this condition's brace scope
     const condSeg = segments[i];
@@ -910,7 +1023,15 @@ function parseSyntaxProps(
   const lines = code.split("\n");
   const stmtEnd = lines.findIndex((l) => {
     const t = l.trim();
-    return t === "}" || /^\}\s*else/.test(t) || /^else\s*(if\b|\{)/.test(t);
+    return (
+      t === "}" ||
+      /^\}\s*else/.test(t) ||
+      /^else\s*(if\b|\{)/.test(t) ||
+      /^\}\s*catch\b/.test(t) ||
+      /^\}\s*finally\b/.test(t) ||
+      /^catch\b/.test(t) ||
+      /^finally\b/.test(t)
+    );
   });
   const stmtCode = stmtEnd === -1 ? code : lines.slice(0, stmtEnd).join("\n");
   const t = stmtCode.split("\n").map((l) => l.trim()).filter(Boolean).join(" ").trim();

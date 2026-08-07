@@ -25,6 +25,7 @@ import { DesignPreviewNode } from "./nodes/DesignPreviewNode";
 import { SyntaxNode } from "./nodes/SyntaxNode";
 import { LoopNode } from "./nodes/LoopNode";
 import { LifecycleNode } from "./nodes/LifecycleNode";
+import { TryNode } from "./nodes/TryNode";
 import { defaultSyntaxProps } from "../../../services/codegen/syntax-nodes";
 import { useFlowScope } from "../../../services/codegen/flow-scope-hook";
 import { collectLetVarsPerFn, findOwnerFnId } from "../../../services/codegen/fn-topology";
@@ -55,6 +56,7 @@ const nodeTypes = {
   "await": SyntaxNode,
   "while": LoopNode,
   "for-in": LoopNode,
+  "try": TryNode,
   "lifecycle": LifecycleNode,
 };
 
@@ -153,6 +155,9 @@ function FlowCanvasInner() {
       let props: Record<string, unknown> = {};
       if (tag === "fn") { props = { name: "newFn", params: "" }; }
       if (tag === "condition") { props = { branches: [{ id: "br0", type: "if", condition: "" }] }; }
+      if (item.tag === "try") {
+        props = { branches: [{ id: "br0", type: "try" }] };
+      }
       if (["let", "assign", "store-call", "call", "throw", "await", "while", "for-in"].includes(tag)) { props = { ...defaultSyntaxProps(tag) }; }
       if (tag === "lifecycle") {
         // 单例约束：每组件每种 hookType 仅一个（learn-omniview 实证）——检查 store.elements
@@ -343,7 +348,7 @@ function FlowCanvasInner() {
           source: el.source,
           fnName: el.props?.name as string,
           params: el.props?.params as string,
-          branches: el.props?.branches as Array<{id:string;type:string;condition:string}> | undefined,
+          branches: el.props?.branches as Array<{id:string;type:string;condition?:string;catchVar?:string}> | undefined,
           returnExpr: el.source,
           onCommitReturn: (expr: string) => setElementSource(el.id, expr),
           description: el.props?.description as string | undefined,
@@ -359,6 +364,14 @@ function FlowCanvasInner() {
             const idx = currentBranches.findIndex(b => b.id === branchId);
             if (idx >= 0) {
               currentBranches[idx] = { ...currentBranches[idx], condition };
+              setProp(el.id, "branches", currentBranches);
+            }
+          },
+          onEditCatchVar: (branchId: string, catchVar: string) => {
+            const currentBranches = [...(el.props?.branches as Array<{id:string;type:string;catchVar?:string}> || [])];
+            const idx = currentBranches.findIndex((b) => b.id === branchId);
+            if (idx >= 0) {
+              currentBranches[idx] = { ...currentBranches[idx], catchVar };
               setProp(el.id, "branches", currentBranches);
             }
           },

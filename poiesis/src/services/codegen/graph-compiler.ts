@@ -231,6 +231,52 @@ function emitNode(
       return out;
     }
 
+    case "try": {
+      const branches = (node.element.props?.branches as Array<{
+        id: string;
+        type: "try" | "catch" | "finally";
+        catchVar?: string;
+      }>) || [];
+
+      if (branches.length === 0) return "";
+
+      let out = "";
+      for (let i = 0; i < branches.length; i++) {
+        const br = branches[i];
+        const brPortId = br.id;
+
+        const keyword = br.type === "try" ? "try" : br.type === "catch" ? "catch" : "finally";
+        const catchVarStr = br.type === "catch" && br.catchVar ? ` ${br.catchVar}` : "";
+
+        // Emit @pid annotation only on the first branch line (try)
+        if (i === 0) {
+          out += emitPidComment(pid);
+        }
+        out += `${pad}${keyword}${catchVarStr} {\n`;
+
+        // Emit only the successors wired to this specific branch port
+        const branchSuccIds = node.branchSuccessors.get(brPortId) || [];
+        for (const succId of branchSuccIds) {
+          const succ = adj.get(succId);
+          if (succ) {
+            out += emitNode(succ, adj, indent + 1, visited);
+          }
+        }
+
+        out += `${pad}}\n`;
+      }
+
+      // Emit flow-out successors as post-try code
+      for (const succId of node.successors) {
+        const succ = adj.get(succId);
+        if (succ) {
+          out += emitNode(succ, adj, indent, visited);
+        }
+      }
+
+      return out;
+    }
+
     case "while":
     case "for-in": {
       const header = formatSyntaxNode(tag, (node.element.props ?? {}) as SyntaxNodeProps);
