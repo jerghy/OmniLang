@@ -62,6 +62,33 @@ describe("fn node through generateOmniSource", () => {
     expect(result.value).toContain("emit onSelect();");
   });
 
+  it("fn 声明前发射 // @pid:<fnId> 注释（刷新后 fn 入口 pid 稳定）", () => {
+    // 回归：保存链路把 compileCodeFlowGraph 的 pid 注释裁进 innerBody 后不再补发 →
+    // 磁盘 fn 前无 @pid 注释 → 重解析 fn 入口合成随机 uid pid → 位置丢失 + 每次刷新漂移。
+    const elements: ElementData[] = [
+      {
+        id: "fn-stable-001", nodeType: "codeblock", tag: "fn",
+        props: { name: "newFn", params: "" }, parentId: null, source: "",
+      },
+      {
+        id: "a1", nodeType: "codeblock", tag: "assign",
+        props: { target: "newSignal", operator: "=", value: "\"demo\"" }, parentId: null, source: "",
+      },
+    ];
+    const wires = [
+      { id: "w1", fromId: "fn-stable-001", fromPort: "flow-out", toId: "a1", toPort: "flow-in" },
+    ];
+    const result = generateOmniSource({
+      designElements: elements,
+      designWires: wires,
+      codeTabs: basicCodeTabs,
+      componentName: "App",
+    });
+    expect(result.errors.filter((e) => e.severity === "fatal")).toHaveLength(0);
+    // fn 声明行之前必须紧跟其 pid 注释（供下次解析恢复稳定 id）
+    expect(result.value).toMatch(/\/\/ @pid:fn-stable-001\n\s*fn newFn\(\) -> void \{/);
+  });
+
   it("空参 fn 签名不被幻影参数污染（E2E 缺陷 1 回归）", () => {
     // 覆盖两种历史形状：修复前解析侧的空格伪影（" "）与已被污染的签名（": String"）。
     // 防御性过滤应使两种输入都发射干净的 `fn handleAdd() -> void`。

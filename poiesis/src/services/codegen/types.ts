@@ -78,6 +78,9 @@ export interface FnDef {
   params: Array<{ name: string; type: string }>;
   returnType: string;
   body: string;
+  /** 画布 fn 节点 id（fn_<name>_el_<uid>）。发射时在 fn 声明前补发
+   *  `// @pid:<pid>` 注释，保证刷新重解析后 fn 入口 pid 稳定（位置不漂移）。 */
+  pid?: string;
 }
 
 export interface ValidComponentPart {
@@ -281,6 +284,10 @@ export interface ChainBlock {
 // ── Parse output ──
 
 export interface ParseResult {
+  /** 组件声明名（component <Name> 的字面名）。与文件名派生键（App.tsx 的
+   *  componentName）可能不一致（main.omni 声明 component Main）；fnRegistry 以
+   *  此名为键，App.tsx materializeFns 须用它查询（见 fn-registry 回归测试）。 */
+  componentName?: string;
   designElements: ElementData[] | null;
   designWires: WireData[];
   codeTabs: CodeTab[];

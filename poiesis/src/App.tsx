@@ -71,8 +71,14 @@ async function loadOmniFiles(): Promise<void> {
   }
 
   // F2 物化辅助：fnRegistry → ComponentDef.fns 形状（main 与非 main 分支共用，消除逐字重复）
-  const materializeFns = (p: ParsedFile): import("./core/types/project-json").FnDef[] =>
-    (p.parseResult.fnRegistry?.[p.componentName] ?? []).map((f) => ({ pid: f.pid, name: f.name, params: f.params, returnType: f.returnType }));
+  // 键对齐：fnRegistry 以组件声明名（component Main → "Main"）为键，而 p.componentName
+  // 是文件名派生键（main.omni → "main"）——用 parseResult.componentName 查询，否则恒空
+  // → componentDefs.fns 空 → materializeFnGraphs 提前返回 → 刷新后 fn 不上画布（回归见
+  // __tests__/fn-registry.test.ts「ParseResult.componentName 暴露组件声明名」）。
+  const materializeFns = (p: ParsedFile): import("./core/types/project-json").FnDef[] => {
+    const fnKey = p.parseResult.componentName ?? p.componentName;
+    return (p.parseResult.fnRegistry?.[fnKey] ?? []).map((f) => ({ pid: f.pid, name: f.name, params: f.params, returnType: f.returnType }));
+  };
 
   // ── Phase 1: Parse all files and load storeDefs BEFORE opening tabs ──
   // This prevents StorePage's useEffect from creating an empty default store

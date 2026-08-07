@@ -65,4 +65,19 @@ component B {
     expect(result.fnRegistry?.["A"]?.map((f) => f.name)).toEqual(["fa"]);
     expect(result.fnRegistry?.["B"]?.map((f) => f.name)).toEqual(["fb"]);
   });
+  it("ParseResult.componentName 暴露组件声明名（main.omni → \"Main\"，App.tsx materializeFns 键对齐）", () => {
+    // 回归：materializeFns 用文件名键（"main"）查 fnRegistry（键=声明名 "Main"）恒空 →
+    // componentDefs.fns 空 → materializeFnGraphs 提前返回 → 刷新后 fn 不上画布。
+    const src = `
+component Main {
+    fn newFn() -> void {
+        newSignal = "demo";
+    }
+    view { div { } }
+}
+`;
+    const result = parseOmniSource(src);
+    expect(result.componentName).toBe("Main");
+    expect(result.fnRegistry?.[result.componentName ?? ""]).toHaveLength(1);
+  });
 });

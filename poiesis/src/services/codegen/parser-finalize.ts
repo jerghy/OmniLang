@@ -96,6 +96,7 @@ export function finalizeParse(internals: ParserInternals): void {
 
 export function buildParseResult(ctx: ParserInternals["ctx"]): ParseResult {
   return {
+    componentName: ctx.currentComponent || undefined,
     designElements:
       ctx.elements.length > 0 ? ctx.elements : null,
     designWires: ctx.wires,

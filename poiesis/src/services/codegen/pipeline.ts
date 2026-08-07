@@ -297,6 +297,10 @@ export function generateOmniSource(options: GenerateOmniSourceOptions): StageRes
       const existingFn = fnMap.get(fnName);
       if (existingFn) {
         existingFn.body = innerBody;
+        // 画布 fn 节点 id 回填 FnDef：source-emitter 在声明前补发 // @pid:<pid>，
+        // 否则磁盘 fn 无 pid 注释 → 重解析合成随机 uid → 位置丢失 + 每次刷新漂移
+        // （回归见 fn-node-pipeline.test.ts「fn 声明前发射 // @pid:<fnId>」）。
+        existingFn.pid = fnEl.id;
       } else {
         // No matching lowered function (fn node added in the code flow canvas
         // without a customFn element) — create a new FnDef so the compiled
@@ -315,6 +319,7 @@ export function generateOmniSource(options: GenerateOmniSourceOptions): StageRes
           params,
           returnType: (fnEl.props?.returnType as string) || "void",
           body: innerBody,
+          pid: fnEl.id,
         });
         fnMap.set(fnName, lowered.functions[lowered.functions.length - 1]);
       }
