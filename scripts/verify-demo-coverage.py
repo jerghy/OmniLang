@@ -35,8 +35,7 @@ def usage(domain: str, name: str) -> int:
         return len(re.findall(rf"{re.escape(name)}\b", demo_text))
     if domain == "7":
         if name == "drag":
-            # @drag 计数排除 @drag-horizontal/@drag-vertical（scrubbing 触发器，域 1 motion 语义，避免误计）
-            return len(re.findall(r"@drag\s*=", demo_text)) - len(re.findall(r"@drag-horizontal\s*=|@drag-vertical\s*=", demo_text))
+            return len(re.findall(r"@drag\s*=", demo_text))
         if name == "dragEnd":
             return len(re.findall(r"@dragEnd\s*=", demo_text))
         if name == "ref":
