@@ -10,7 +10,7 @@
 //! | scroll     | `ScrollController _nameScroll` | `ref.scrollTo()`/`ref.scrollBy()` or `scroll-x/y={sig}` |
 //! | text       | `TextEditingController _nameText` | `ref.value`/`ref.select()`/`ref.setSelection()` or `value={sig}` |
 //! | measure    | (none — inline `RenderBox` reads) | `ref.measure()` / `ref.width` / `ref.height` / `ref.position` |
-//! | pointer capture | (none — hard error) | `ref.capturePointer()`/`ref.releasePointer()` — unsupported on Flutter; compile error + generated `throw UnsupportedError` (design D3 / spec §10.3) |
+//! | pointer capture | (none — hard error → `@drag`) | `ref.capturePointer()`/`ref.releasePointer()` — unsupported on Flutter; compile error + generated `throw UnsupportedError`, hint points at `@drag` (ADR-073 decision 3: capture is a compiler-internal detail — Flutter's @drag emits a GestureDetector onPan wiring) |
 //!
 //! Semantic bindings (`focus={sig}`, `scroll-x/y={sig}`) are applied by a
 //! `_syncSemanticBindings()` State method registered as a post-frame
@@ -29,11 +29,16 @@ use crate::ir::*;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 
-/// Compile-error hint for pointer capture on Flutter — verbatim from the v2
-/// design doc 域 1 诊断表 / spec §10.3. Pointer capture is floor-outside on
-/// Flutter; the generated code additionally throws `UnsupportedError` so
-/// failure is loud even if the diagnostic is bypassed.
-const FLUTTER_POINTER_CAPTURE_ERROR: &str = "Flutter 不支持指针捕获，用 GestureDetector";
+/// Compile-error hint for pointer capture on Flutter — the hard error is
+/// RETAINED per ADR-073 decision 3 (explicit capturePointer/releasePointer
+/// stays a compile error, guarding against mechanism-leak regression), but
+/// the hint now points at the semantic replacement: `@drag` compiles to a
+/// GestureDetector pan wiring (ADR-073 decision 4 — D3 evolved from hard
+/// error to target-difference note; the generated code still throws
+/// `UnsupportedError` so failure is loud even if the diagnostic is
+/// bypassed).
+const FLUTTER_POINTER_CAPTURE_ERROR: &str =
+    "Flutter 不支持指针捕获，请用 @drag 指令代替（编译为 GestureDetector onPan 接线）";
 
 /// v4 compiler HIGH-2: dual-axis `scrollTo(x, y)` is silently narrowed to
 /// the y axis on Flutter — `format_ref_op_flutter` scrolls a single axis
@@ -616,6 +621,67 @@ fn scan_semantic_bindings(node: &ViewTree, found: &mut bool) {
         ViewTree::Slot { fallback, .. } => {
             for c in fallback {
                 scan_semantic_bindings(c, found);
+            }
+        }
+        ViewTree::Text(_) | ViewTree::Interpolation(_) => {}
+        #[allow(unreachable_patterns)]
+        _ => {}
+    }
+}
+
+/// Whether any element in the view carries a `@drag` binding (ADR-073) —
+/// this drives the single `Offset? _dragStart;` State field the
+/// GestureDetector pan callbacks share (the drag-start snapshot lives in
+/// the State's class-instance space, not on the element).
+pub(crate) fn has_drag_bindings(comp: &ComponentIR) -> bool {
+    let Some(view) = &comp.view else {
+        return false;
+    };
+    let mut found = false;
+    scan_drag_bindings(view, &mut found);
+    found
+}
+
+fn scan_drag_bindings(node: &ViewTree, found: &mut bool) {
+    if *found {
+        return;
+    }
+    match node {
+        ViewTree::Element(el) => {
+            if el.drag_binding.is_some() {
+                *found = true;
+                return;
+            }
+            for child in &el.children {
+                scan_drag_bindings(child, found);
+            }
+        }
+        ViewTree::Conditional(cond) => {
+            for branch in &cond.branches {
+                if let Some(ref body) = branch.body {
+                    scan_drag_bindings(body, found);
+                }
+            }
+            if let Some(ref fb) = cond.fallback {
+                scan_drag_bindings(fb, found);
+            }
+        }
+        ViewTree::ListRendering(list) => {
+            if let Some(ref body) = list.body {
+                scan_drag_bindings(body, found);
+            }
+            if let Some(ref empty) = list.empty_body {
+                scan_drag_bindings(empty, found);
+            }
+        }
+        ViewTree::Fragment(children) => {
+            for c in children {
+                scan_drag_bindings(c, found);
+            }
+        }
+        ViewTree::Slot { fallback, .. } => {
+            for c in fallback {
+                scan_drag_bindings(c, found);
             }
         }
         ViewTree::Text(_) | ViewTree::Interpolation(_) => {}

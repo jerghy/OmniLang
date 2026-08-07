@@ -8263,6 +8263,7 @@ fn test_a11y_unmappable_role_warns_and_comments() {
         motion: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
+        drag_binding: None,
     };
     let view = ViewTree::Element(Box::new(el));
     let comp = ref_component("A11yDemo", &[], vec![], vec![], Some(view));
@@ -8340,6 +8341,7 @@ fn test_a11y_label_dollar_escaped_and_role_comment_sanitized() {
         motion: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
+        drag_binding: None,
     };
     let view = ViewTree::Element(Box::new(el));
     let comp = ref_component("A11yInjectionDemo", &[], vec![], vec![], Some(view));
@@ -8489,6 +8491,7 @@ fn test_a11y_label_alt_collision_non_image_dedupes() {
         motion: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
+        drag_binding: None,
     };
     let view = ViewTree::Element(Box::new(el));
     let comp = ref_component("A11yDemo", &[], vec![], vec![], Some(view));
@@ -8561,6 +8564,7 @@ fn test_a11y_alt_alone_non_image_degrades_to_label() {
         motion: None,
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
+        drag_binding: None,
     };
     let view = ViewTree::Element(Box::new(el));
     let comp = ref_component("A11yDemo", &[], vec![], vec![], Some(view));
@@ -9037,10 +9041,15 @@ component PtrBox {
     );
     let messages: Vec<&str> = result.errors.iter().map(|d| d.message.as_str()).collect();
     assert!(
-        messages
-            .iter()
-            .any(|m| m.contains("Flutter 不支持指针捕获") && m.contains("GestureDetector")),
-        "expected the verbatim §10.3 hint, got: {:?}",
+        messages.iter().any(|m| {
+            m.contains("Flutter 不支持指针捕获")
+                && m.contains("GestureDetector")
+                // ADR-073 decision 3: the hard error survives but the hint
+                // points at the semantic replacement — @drag compiles to
+                // the GestureDetector onPan wiring (D3 evolution).
+                && m.contains("@drag")
+        }),
+        "expected the D3 hint pointing at @drag (ADR-073 decision 3), got: {:?}",
         messages
     );
     let dart: String = result
@@ -10501,6 +10510,216 @@ fn disabled_false_emits_enabled_true() {
     assert!(
         !out.contains("enabled: false"),
         "negation inverted: {}",
+        out
+    );
+}
+
+// ── @drag draggable-intent wiring (ADR-073) ──────────
+
+/// @drag/@dragEnd lower into ElementIR.drag_binding; Flutter must wrap the
+/// rendered element in a GestureDetector whose pan callbacks synthesize the
+/// DragIntent payload (drag is not a DOM event — ADR-073 decision 3, capture
+/// is a compiler-internal detail, never user-facing syntax):
+///   onPanStart → snapshot `d.localPosition` onto the State field `_dragStart`
+///   onPanUpdate → drag-guarded move-handler call with
+///                 `{ x, y, dx, dy, pointerId, startX, startY }` computed
+///                 against the snapshot (dx/dy = delta from start)
+///   onPanEnd   → optional end-handler call (same DragIntent shape read from
+///                 the snapshot `s`) + clear `_dragStart`
+#[test]
+fn test_drag_binding_emits_gesture_detector_pan() {
+    let source = r#"
+component DragBox {
+  signal lastDx: Float = 0
+  signal lastDy: Float = 0
+  signal lastX: Float = 0
+  signal lastP: Int = 0
+  ref box: Element
+  fn move(e) {
+    lastDx = e.dx
+    lastDy = e.dy
+    lastX = e.x
+    lastP = e.pointerId
+  }
+  fn end(e) {
+    lastX = e.startX
+  }
+  view {
+    <div ref:box @drag={move} @dragEnd={end}>content</div>
+  }
+}
+"#;
+    let flutter = compile_flutter(source).expect("compile must succeed");
+    let out: String = flutter
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    // the drag-start snapshot lives in ONE State field (shared by all drag
+    // elements — Flutter's class-instance state space)
+    assert!(
+        out.contains("Offset? _dragStart;"),
+        "the drag-start snapshot must be a nullable Offset State field. Got:\n{}",
+        out
+    );
+    // onPanStart: snapshot the start point
+    assert!(
+        out.contains("onPanStart: (d) { _dragStart = d.localPosition; }"),
+        "onPanStart must snapshot d.localPosition. Got:\n{}",
+        out
+    );
+    // the element wraps in a GestureDetector carrying the pan callbacks
+    // (wrapper params are sorted deterministically — onPanEnd sorts first)
+    assert!(
+        out.contains("GestureDetector(onPanEnd:")
+            && out.contains("onPanStart:")
+            && out.contains("onPanUpdate:"),
+        "the element must wrap in a GestureDetector with the pan callbacks. Got:\n{}",
+        out
+    );
+    // onPanUpdate: drag-guarded, dx/dy computed against the snapshot
+    assert!(
+        out.contains("onPanUpdate: (d) { final s = _dragStart; if (s == null) return; move({"),
+        "onPanUpdate must be drag-guarded and call the move handler. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("'dx': d.localPosition.dx - s.dx"),
+        "dx must be computed against the start snapshot. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("'dy': d.localPosition.dy - s.dy"),
+        "dy must be computed against the start snapshot. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("'pointerId': 0"),
+        "pointerId has no Flutter analogue — must degrade to 0. Got:\n{}",
+        out
+    );
+    // onPanEnd: optional end handler (reads the same DragIntent shape from
+    // the snapshot `s`) + clear
+    assert!(
+        out.contains("onPanEnd: (d) { final s = _dragStart; if (s != null) { end({"),
+        "onPanEnd should call the end handler from the snapshot. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("'startX': s.dx"),
+        "startX must be read from the start snapshot. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("_dragStart = null; }"),
+        "onPanEnd must clear the start snapshot. Got:\n{}",
+        out
+    );
+}
+
+/// @drag without @dragEnd: onPanEnd still clears the snapshot — no end
+/// callback is wired.
+#[test]
+fn test_drag_binding_without_drag_end_clears_start() {
+    let source = r#"
+component DragBox {
+  signal lastDx: Float = 0
+  ref box: Element
+  fn move(e) {
+    lastDx = e.dx
+  }
+  view {
+    <div ref:box @drag={move}>content</div>
+  }
+}
+"#;
+    let flutter = compile_flutter(source).expect("compile must succeed");
+    let out: String = flutter
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        out.contains("onPanEnd: (d) { _dragStart = null; }"),
+        "onPanEnd without @dragEnd must clear the snapshot only. Got:\n{}",
+        out
+    );
+    assert!(
+        !out.contains("end({"),
+        "no end handler may be wired without @dragEnd. Got:\n{}",
+        out
+    );
+}
+
+/// A zero-param move handler is called BARE — `move();` (a `move({})` call
+/// would be extra_positional_arguments on the 0-arity method).
+#[test]
+fn test_drag_binding_zero_param_handler_called_bare() {
+    let source = r#"
+component DragBox {
+  signal moved: bool = false
+  ref box: Element
+  fn move() {
+    moved = true
+  }
+  view {
+    <div ref:box @drag={move}>content</div>
+  }
+}
+"#;
+    let flutter = compile_flutter(source).expect("compile must succeed");
+    let out: String = flutter
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        out.contains("if (s == null) return; move();"),
+        "a zero-param handler must be called bare. Got:\n{}",
+        out
+    );
+}
+
+/// @drag + a tap-family event on the same element MERGE into ONE
+/// GestureDetector (onTap + onPan*) — never two nested wrappers.
+#[test]
+fn test_drag_binding_merges_into_tap_wrapper() {
+    let source = r#"
+component DragTapBox {
+  signal lastDx: Float = 0
+  ref box: Element
+  fn onCardPress() { }
+  fn move(e) {
+    lastDx = e.dx
+  }
+  view {
+    <div ref:box @onPress={onCardPress} @drag={move}>content</div>
+  }
+}
+"#;
+    let flutter = compile_flutter(source).expect("compile must succeed");
+    let out: String = flutter
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        out.contains("GestureDetector(onPanEnd:")
+            && out.contains("onPanStart:")
+            && out.contains("onPanUpdate:")
+            && out.contains("onTap: onCardPress"),
+        "@drag must merge into the existing tap wrapper (one GestureDetector), got:\n{}",
+        out
+    );
+    assert_eq!(
+        out.matches("GestureDetector(").count(),
+        1,
+        "exactly ONE GestureDetector wrapper expected, got:\n{}",
         out
     );
 }

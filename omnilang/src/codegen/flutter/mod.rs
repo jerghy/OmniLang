@@ -795,6 +795,15 @@ impl FlutterCodegen {
             w.emit("");
         }
 
+        // @drag (ADR-073): the GestureDetector pan callbacks share ONE
+        // State field snapshotting the drag start — onPanStart writes it,
+        // onPanUpdate/onPanEnd read it (Flutter's class-instance state
+        // space; the element has no DOM attributes).
+        if has_drag_bindings(comp) {
+            w.emit("Offset? _dragStart;");
+            w.emit("");
+        }
+
         // Effect dependency snapshot fields (C2): previous values of non-prop
         // deps so didUpdateWidget can detect changes and re-run @effect bodies.
         let mut prev_fields: FxHashSet<String> = FxHashSet::default();

@@ -1240,6 +1240,16 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
     // Component composition: check if tag is a known component
     if let Some(_child_comp) = ctx.component_map.get(el.tag.as_str()) {
         let mut child_args: Vec<String> = Vec::new();
+        // @drag (ADR-073): the pan wiring lives on the rendered element's
+        // GestureDetector wrapper — component instances take callback props
+        // instead (no wrapper machinery on this path). Warn + skip (mirrors
+        // the React backend's component-instance handling).
+        if el.drag_binding.is_some() {
+            ctx.warn_at(
+                "[flutter] @drag 在组件实例上不支持（组件实例走回调 prop 通道，无 GestureDetector 包装）——@drag 已跳过，请在原生元素上使用",
+                el.source_span,
+            );
+        }
         // Ref binding (Step 6): GlobalKey attaches to any widget, including
         // custom component widgets.
         if let Some(ref_name) = &el.ref_binding {
@@ -2052,6 +2062,19 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
         wrap_push(&mut wrap_args, "Focus", "onKeyEvent", &body);
     }
 
+    // @drag draggable-intent wiring (ADR-073): drag is not a DOM event —
+    // the GestureDetector pan callbacks synthesize the DragIntent payload
+    // ({ x, y, dx, dy, pointerId, startX, startY }). onPanStart snapshots
+    // the start Offset onto the shared State field `_dragStart`; onPanUpdate
+    // computes dx/dy against the snapshot and calls the move handler;
+    // onPanEnd calls the optional end handler and clears the snapshot.
+    // The pan members MERGE into an existing GestureDetector wrapper
+    // (tap family) — one wrapper, never two (ADR-071 decision 3: the pan
+    // wiring is a compiler-internal detail, never user-facing syntax).
+    if let Some(drag) = &el.drag_binding {
+        emit_drag_gesture_members(drag, ctx, &mut wrap_args);
+    }
+
     // Bindings (C6: per-widget whitelist)
     for (bind_name, signal_ref) in &el.bindings {
         let param = binding_to_flutter_param(bind_name);
@@ -2632,6 +2655,152 @@ fn wrap_push(
     match wrap_args.iter_mut().find(|(w, _)| *w == wrapper) {
         Some((_, members)) => members.push((param.to_string(), body.to_string())),
         None => wrap_args.push((wrapper, vec![(param.to_string(), body.to_string())])),
+    }
+}
+
+/// Emit the GestureDetector pan callbacks implementing `@drag` (ADR-073).
+///
+/// Flutter's gesture arena has no DOM-style pointer capture — the pan
+/// recognizer IS the capture: onPanStart wins the arena for the element,
+/// onPanUpdate streams drag deltas, onPanEnd fires on release. The
+/// DragIntent payload is synthesized against the start Offset snapshot in
+/// the shared State field `_dragStart`:
+///
+/// ```dart
+/// onPanStart: (d) { _dragStart = d.localPosition; },
+/// onPanUpdate: (d) { final s = _dragStart; if (s == null) return;
+///                    move({ 'x': d.localPosition.dx,
+///                           'dx': d.localPosition.dx - s.dx, ... }); },
+/// onPanEnd: (d) { final s = _dragStart; if (s != null) { end({...}); }
+///                  _dragStart = null; },
+/// ```
+///
+/// Handlers are FnRef by contract (validate_drag enforces bare fn names);
+/// a zero-param handler is called BARE (a `{...}` argument would be
+/// extra_positional_arguments on a 0-arity Dart method).
+fn emit_drag_gesture_members(
+    drag: &DragBindingIR,
+    ctx: &mut ViewContext,
+    wrap_args: &mut Vec<(&'static str, Vec<(String, String)>)>,
+) {
+    // onPanStart: snapshot the drag start onto the shared State field.
+    wrap_push(
+        wrap_args,
+        "GestureDetector",
+        "onPanStart",
+        "(d) { _dragStart = d.localPosition; }",
+    );
+
+    let EventHandlerIR::FnRef {
+        r#ref: move_fn,
+        used_fields,
+        ..
+    } = &drag.on_drag
+    else {
+        // Unreachable: lowering always produces FnRef for drag handlers
+        // (validate_drag enforces bare function names).
+        ctx.warn_at("[flutter] @drag 处理器必须是函数名（FnRef），已跳过", None);
+        return;
+    };
+    let renamed = ctx
+        .fn_renames
+        .get(move_fn)
+        .cloned()
+        .unwrap_or_else(|| move_fn.clone());
+    let move_obj = drag_event_object_flutter(used_fields, "s", "d");
+    let move_call = drag_handler_call(&renamed, move_fn, &move_obj, ctx);
+    // onPanUpdate: drag-guarded move-handler call — `s` is a local so the
+    // null check promotes it under Dart's flow analysis (an instance field
+    // would not).
+    wrap_push(
+        wrap_args,
+        "GestureDetector",
+        "onPanUpdate",
+        &format!("(d) {{ final s = _dragStart; if (s == null) return; {move_call} }}"),
+    );
+
+    // onPanEnd: optional end handler (same DragIntent shape read from the
+    // snapshot `s`, x/y from the release position `d.localPosition`) + clear.
+    let end_body = match &drag.on_drag_end {
+        Some(EventHandlerIR::FnRef {
+            r#ref: end_fn,
+            used_fields: end_fields,
+            ..
+        }) => {
+            let end_renamed = ctx
+                .fn_renames
+                .get(end_fn)
+                .cloned()
+                .unwrap_or_else(|| end_fn.clone());
+            let end_obj = drag_event_object_flutter(end_fields, "s", "d");
+            let end_call = drag_handler_call(&end_renamed, end_fn, &end_obj, ctx);
+            format!(
+                "(d) {{ final s = _dragStart; if (s != null) {{ {end_call} }} _dragStart = null; }}"
+            )
+        }
+        Some(_) => {
+            // Unreachable (validate_drag enforces FnRef); honest warning.
+            ctx.warn_at(
+                "[flutter] @dragEnd 处理器必须是函数名（FnRef），已跳过",
+                None,
+            );
+            "(d) { _dragStart = null; }".to_string()
+        }
+        None => "(d) { _dragStart = null; }".to_string(),
+    };
+    wrap_push(wrap_args, "GestureDetector", "onPanEnd", &end_body);
+}
+
+/// Build the DragIntent map literal for a drag handler call.
+///
+/// DragIntent fields are synthesized (start snapshot + pointer delta), not
+/// raw event passthrough — the shared `emit_event_object_flutter` cannot
+/// express them (its schema has no snapshot-dependent dx/dy/startX/startY),
+/// so the map is built here, honoring `used_fields` with the same
+/// filter-in-schema-order semantics. `state` names the drag-start snapshot
+/// local (`s`), `raw` the pan details param (`d`). pointerId has no Flutter
+/// analogue — it degrades to 0 (single-touch default), per the ADR-073
+/// cross-target schema contract.
+fn drag_event_object_flutter(used_fields: &Option<Vec<String>>, state: &str, raw: &str) -> String {
+    let all: Vec<(String, String)> = vec![
+        ("x".into(), format!("{raw}.localPosition.dx")),
+        ("y".into(), format!("{raw}.localPosition.dy")),
+        ("dx".into(), format!("{raw}.localPosition.dx - {state}.dx")),
+        ("dy".into(), format!("{raw}.localPosition.dy - {state}.dy")),
+        ("pointerId".into(), "0".into()),
+        ("startX".into(), format!("{state}.dx")),
+        ("startY".into(), format!("{state}.dy")),
+    ];
+    let fields: Vec<String> = match used_fields {
+        Some(used) if !used.is_empty() => all
+            .into_iter()
+            .filter(|(name, _)| used.contains(name))
+            .map(|(name, extract)| format!("'{name}': {extract}"))
+            .collect(),
+        Some(_) => return "{}".to_string(),
+        None => all
+            .into_iter()
+            .map(|(name, extract)| format!("'{name}': {extract}"))
+            .collect(),
+    };
+    format!("{{ {} }}", fields.join(", "))
+}
+
+/// Handler call form for a drag handler: the synthesized DragIntent object
+/// as-is, or no arguments for a zero-param handler (`{}` would be
+/// extra_positional_arguments on a 0-arity Dart method — mirroring the
+/// React backend's arity resolution). `original` is the fn's pre-rename
+/// name — the arity lookup keys off it (fn_renames only fire for
+/// Dart-type shadowing, e.g. `double` → `double_`).
+fn drag_handler_call(renamed: &str, original: &str, obj: &str, ctx: &ViewContext) -> String {
+    if obj == "{}" {
+        if ctx.ref_is_zero_param_fn(original) {
+            format!("{renamed}();")
+        } else {
+            format!("{renamed}({{}});")
+        }
+    } else {
+        format!("{renamed}({obj});")
     }
 }
 
