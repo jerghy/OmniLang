@@ -75,10 +75,13 @@ impl SemanticAnalyzer {
                         self.resolve_expr_refs(alt, vctx);
                     }
                 }
+                // @drag/@dragEnd handler names are bare component-function
+                // refs (ADR-073) — resolved via validate_drag, not here.
                 ElementProp::Bind { .. }
                 | ElementProp::Ref(_)
                 | ElementProp::MotionTrigger(_)
-                | ElementProp::Variant { .. } => {}
+                | ElementProp::Variant { .. }
+                | ElementProp::Drag { .. } => {}
             }
         }
         // Children of a component instantiation are consumer-side

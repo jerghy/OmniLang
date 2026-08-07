@@ -221,6 +221,7 @@ mod tests {
             motion: None,
             ref_binding: None,
             semantic_bindings: FxHashMap::default(),
+            drag_binding: None,
         }
     }
 

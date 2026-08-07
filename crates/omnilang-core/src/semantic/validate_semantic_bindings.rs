@@ -244,6 +244,7 @@ mod tests {
             source_span: None,
             motion: None,
             a11y: None,
+            drag_binding: None,
         }
     }
 

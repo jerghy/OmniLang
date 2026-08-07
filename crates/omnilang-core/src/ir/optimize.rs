@@ -646,6 +646,7 @@ mod tests {
                 ref_binding: None,
                 semantic_bindings: FxHashMap::default(),
                 a11y: None,
+                drag_binding: None,
             }))),
             ..ComponentIR::default()
         };
@@ -679,6 +680,7 @@ mod tests {
                 ref_binding: None,
                 semantic_bindings: FxHashMap::default(),
                 a11y: None,
+                drag_binding: None,
             }))),
             ..ComponentIR::default()
         };
@@ -712,6 +714,7 @@ mod tests {
                 ref_binding: None,
                 semantic_bindings: FxHashMap::default(),
                 a11y: None,
+                drag_binding: None,
             }))),
             ..ComponentIR::default()
         };
@@ -924,6 +927,7 @@ mod tests {
                 ref_binding: None,
                 semantic_bindings: FxHashMap::default(),
                 a11y: None,
+                drag_binding: None,
             }))),
             ..ComponentIR::default()
         };
@@ -949,6 +953,7 @@ mod tests {
             ref_binding: None,
             semantic_bindings: FxHashMap::default(),
             a11y: None,
+            drag_binding: None,
         }))
     }
 

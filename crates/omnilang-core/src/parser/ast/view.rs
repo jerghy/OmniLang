@@ -210,6 +210,20 @@ pub enum ElementProp {
     A11y(A11ySpec),
     Ref(String),
     MotionTrigger(MotionTrigger),
+    /// `@drag={onDrag}` `@dragEnd={onDragEnd}` — draggable-intent directive
+    /// (ADR-073). Source expresses intent ("element is draggable; call
+    /// onDrag while dragging, onDragEnd on release"); each target compiler
+    /// wires its own pointer-capture mechanism (React setPointerCapture /
+    /// OmniView capturePointer / Flutter GestureDetector pan) —
+    /// capturePointer is a compiler-internal detail, never user-facing
+    /// (ADR-071 decision 3). The two attributes are order-independent:
+    /// `@dragEnd` without `@drag` hard-errors at parse time.
+    Drag {
+        /// The @drag={fn} move handler (bare function name, required)
+        on_drag: String,
+        /// The @dragEnd={fn} release handler (bare function name, optional)
+        on_drag_end: Option<String>,
+    },
 }
 
 /// The `a11y: { ... }` block contents (design doc 域 10 BNF):

@@ -24,6 +24,7 @@ pub mod symbols;
 pub mod types;
 pub mod validate_a11y;
 pub mod validate_array_methods;
+pub mod validate_drag;
 pub mod validate_effect_deps;
 pub mod validate_event_names;
 pub mod validate_props;

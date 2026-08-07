@@ -490,6 +490,7 @@ fn lower_element(
     let mut ref_binding: Option<String> = None;
     let mut semantic_bindings: Option<FxHashMap<String, ExprIR>> = None;
     let mut a11y: Option<A11yIR> = None;
+    let mut drag_binding: Option<DragBindingIR> = None;
     // Named slot projections (ADR-053 D5): `header={<div/>}` on a component
     // call lowers to `ViewTree::Slot { name: Some(name), fallback: content }`
     // inserted into the element's children — codegen consumes the projection
@@ -752,6 +753,24 @@ fn lower_element(
             ElementProp::Ref(r) => {
                 ref_binding = Some(r.clone());
             }
+            // @drag={move} @dragEnd={end} — draggable-intent directive
+            // (ADR-073). Lowered into ElementIR.drag_binding; validated by
+            // semantic/validate_drag (@ref requirement, handler existence,
+            // arity); consumed by codegen backends (Phase 2 Tasks 8-10 wire
+            // pointer capture per target). Handlers become FnRef IR with
+            // event_data = DragIntent so the per-event field extraction
+            // (used_fields) applies unchanged.
+            ElementProp::Drag {
+                on_drag,
+                on_drag_end,
+            } => {
+                drag_binding = Some(DragBindingIR {
+                    on_drag: drag_handler_ir(fns, on_drag),
+                    on_drag_end: on_drag_end
+                        .as_deref()
+                        .map(|name| drag_handler_ir(fns, name)),
+                });
+            }
             // Semantic ref bindings: focus={sig}, scroll-x={sig}, scroll-y={sig}.
             // Extracted into ElementIR.semantic_bindings (consumed by codegen
             // backends in later phases); the semantic pass enforces that they
@@ -884,6 +903,7 @@ fn lower_element(
         ref_binding,
         semantic_bindings: semantic_bindings.unwrap_or_default(),
         a11y,
+        drag_binding,
     }))
 }
 
@@ -1111,6 +1131,42 @@ fn collect_ir_event_fields(block: &BlockIR, fields: &mut Vec<String>, param_name
     }
 }
 
+/// Build the FnRef handler IR for an `@drag` / `@dragEnd` handler name
+/// (ADR-073): `event_data = DragIntent` with `used_fields` scanned from the
+/// fn body (same lookup/scan as the `ElementProp::Event` FnRef path), so
+/// codegen's per-event field extraction works unchanged for drag handlers.
+fn drag_handler_ir(fns: &[FunctionIR], fn_name: &str) -> EventHandlerIR {
+    let func_ir = fns.iter().find(|f| f.name == *fn_name).or_else(|| {
+        fns.iter()
+            .find(|f| f.name == *fn_name || f.name.ends_with(&format!("_{}", fn_name)))
+    });
+    let schema = event_data_schema(&EventDataKind::DragIntent);
+    let valid_names: Vec<&str> = schema.iter().map(|f| f.name.as_str()).collect();
+    let used_fields = func_ir.map(|func| {
+        let mut used = Vec::new();
+        let fn_param_name = func.params.first().map(|p| p.name.as_str()).unwrap_or("e");
+        collect_ir_event_fields(&func.body, &mut used, fn_param_name);
+        used.into_iter()
+            .filter(|f| valid_names.contains(&f.as_str()))
+            .collect()
+    });
+    let (needs_pd, needs_sp) = match func_ir {
+        Some(func) => {
+            let fn_param_name = func.params.first().map(|p| p.name.as_str()).unwrap_or("e");
+            scan_ir_event_methods(&func.body, fn_param_name)
+        }
+        None => (false, false),
+    };
+    EventHandlerIR::FnRef {
+        r#ref: fn_name.to_string(),
+        params: vec![],
+        event_data: Some(EventDataKind::DragIntent),
+        used_fields,
+        needs_prevent_default: needs_pd,
+        needs_stop_propagation: needs_sp,
+    }
+}
+
 /// IR-level scan for `e.stopPropagation()` / `e.preventDefault()` calls
 /// inside a lowered function body (the AST-level `scan_event_methods` only
 /// sees inline handler bodies). FnRef handlers get their needs_* flags from
@@ -1157,6 +1213,7 @@ fn make_fragment_element(children: Vec<ViewTree>, construction_kind: Constructio
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
         a11y: None,
+        drag_binding: None,
     }))
 }
 
@@ -1702,5 +1759,80 @@ component MultiRoot {
             "design classes and class-map keys must not diagnose: {:?}",
             semantics.diagnostics
         );
+    }
+
+    #[test]
+    fn test_lower_element_drag_directive() {
+        // @drag/@dragEnd lower into ElementIR.drag_binding as FnRef handlers
+        // with event_data = DragIntent (ADR-073) — codegen backends read
+        // drag_binding and wire capture per target (Tasks 8-10).
+        let span = Span {
+            start: 0,
+            end: 0,
+            line: 1,
+            col: 1,
+        };
+        let el = Element {
+            tag: "div".into(),
+            props: vec![ElementProp::Drag {
+                on_drag: "move".into(),
+                on_drag_end: Some("end".into()),
+            }],
+            children: vec![],
+            self_closing: true,
+            span,
+        };
+        let mut semantics = SemanticResult {
+            symbols: SymbolTable::default(),
+            dependencies: FxHashMap::default(),
+            diagnostics: vec![],
+            event_param_name: None,
+        };
+        let fns = vec![FunctionIR {
+            name: "move".into(),
+            visibility: Visibility::Private,
+            params: vec![ParamIR {
+                name: "e".into(),
+                r#type: None,
+            }],
+            return_type: None,
+            body: BlockIR { statements: vec![] },
+            is_async: false,
+            source_span: None,
+        }];
+        let result = lower_element(
+            &el,
+            &FxHashMap::default(),
+            &mut semantics,
+            &fns,
+            &FxHashSet::default(),
+        );
+        let ViewTree::Element(el_ir) = result else {
+            panic!("Expected ViewTree::Element");
+        };
+        let drag = el_ir
+            .drag_binding
+            .as_ref()
+            .expect("drag_binding should be set from ElementProp::Drag");
+        let EventHandlerIR::FnRef {
+            r#ref,
+            event_data,
+            used_fields,
+            ..
+        } = &drag.on_drag
+        else {
+            panic!("on_drag must lower to FnRef, got: {:?}", drag.on_drag);
+        };
+        assert_eq!(r#ref, "move");
+        assert_eq!(event_data, &Some(EventDataKind::DragIntent));
+        assert_eq!(used_fields, &Some(vec![]), "empty fn body uses no fields");
+        let EventHandlerIR::FnRef { r#ref: end_ref, .. } = drag
+            .on_drag_end
+            .as_ref()
+            .expect("on_drag_end should be set")
+        else {
+            panic!("on_drag_end must lower to FnRef");
+        };
+        assert_eq!(end_ref, "end");
     }
 }

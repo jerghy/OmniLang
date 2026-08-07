@@ -152,7 +152,9 @@ pub(super) fn collect_used_names_in_expr<'a>(expr: &'a Expr, used: &mut FxHashSe
                 }
             }
         }
-        Expr::StructLiteral { type_name, fields, .. } => {
+        Expr::StructLiteral {
+            type_name, fields, ..
+        } => {
             // The struct type name itself is a real reference — an imported
             // struct constructed here must not be flagged unused-import.
             used.insert(type_name.as_str());
@@ -308,6 +310,17 @@ pub(super) fn collect_used_names_in_view_node<'a>(
                             for (_, value) in entries {
                                 collect_used_names_in_expr(value, used);
                             }
+                        }
+                    }
+                    // @drag/@dragEnd handler names are real uses of the
+                    // component functions they name (ADR-073).
+                    ElementProp::Drag {
+                        on_drag,
+                        on_drag_end,
+                    } => {
+                        used.insert(on_drag.as_str());
+                        if let Some(ref end) = on_drag_end {
+                            used.insert(end.as_str());
                         }
                     }
                     // Remaining variants carry no signal-referencing

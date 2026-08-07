@@ -257,6 +257,7 @@ mod tests {
             motion: None,
             semantic_bindings: FxHashMap::default(),
             a11y: None,
+            drag_binding: None,
         }
     }
 
@@ -465,6 +466,7 @@ mod tests {
                     motion: None,
                     semantic_bindings: FxHashMap::default(),
                     a11y: None,
+                    drag_binding: None,
                 }))),
                 empty_body: None,
                 scroll_hint: false,

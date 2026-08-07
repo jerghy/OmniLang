@@ -670,6 +670,38 @@ impl<'a> Parser<'a> {
             ));
         }
 
+        // @drag / @dragEnd — draggable-intent directive (ADR-073). Name-based
+        // dispatch BEFORE the generic event path: the directive is NOT a DOM
+        // event — it is an intent the compiler wires per target
+        // (capturePointer is an internal detail, ADR-071 decision 3). The
+        // value must be a bare component-function name. @dragEnd alone
+        // (without @drag) hard-errors in the caller's merge step
+        // (`push_element_prop`), which keeps the two attributes
+        // order-independent on the same element.
+        if event_name == "drag" || event_name == "dragEnd" {
+            let handler = self.parse_event_handler_value()?;
+            let handler_name = match &handler {
+                EventHandler::FnRef(n) => n.clone(),
+                _ => {
+                    return Err(ParseError {
+                        kind: None,
+                        message: "@drag/@dragEnd 值必须是组件函数名（如 @drag={onDragMove}）"
+                            .into(),
+                        span: t.span,
+                    })
+                }
+            };
+            let is_drag = event_name == "drag";
+            return Ok(ElementProp::Drag {
+                on_drag: if is_drag {
+                    handler_name.clone()
+                } else {
+                    String::new()
+                },
+                on_drag_end: if is_drag { None } else { Some(handler_name) },
+            });
+        }
+
         let handler = self.parse_event_handler_value()?;
         Ok(ElementProp::Event {
             name: event_name,
@@ -689,6 +721,69 @@ impl<'a> Parser<'a> {
             name: event_name.to_string(),
             handler,
         })
+    }
+
+    /// Push an element prop, merging `@drag`/`@dragEnd` pairs (ADR-073).
+    ///
+    /// The two draggable-intent attributes are order-independent on the same
+    /// element: `parse_event_prop` emits `@dragEnd` with an empty `on_drag`
+    /// placeholder, and the merge here backfills the already-seen `@drag`
+    /// (or errors if `@dragEnd` stands alone, or either attribute repeats).
+    pub(super) fn push_element_prop(
+        &mut self,
+        props: &mut Vec<ElementProp>,
+        prop: ElementProp,
+    ) -> Result<(), ParseError> {
+        let ElementProp::Drag {
+            on_drag,
+            on_drag_end,
+        } = &prop
+        else {
+            props.push(prop);
+            return Ok(());
+        };
+        let Some(existing) = props
+            .iter_mut()
+            .find(|p| matches!(p, ElementProp::Drag { .. }))
+        else {
+            // First @drag/@dragEnd of the element — push verbatim. A lone
+            // @dragEnd placeholder (empty on_drag) is rejected at the end of
+            // the prop loop (finalize in mod.rs), because @drag may
+            // legitimately come later on the element.
+            props.push(prop);
+            return Ok(());
+        };
+        let ElementProp::Drag {
+            on_drag: existing_on_drag,
+            on_drag_end: existing_end,
+        } = existing
+        else {
+            unreachable!("find matched ElementProp::Drag");
+        };
+        if on_drag.is_empty() {
+            // New prop is @dragEnd — the @drag part must already be present
+            // (a placeholder existing alongside means two @dragEnds).
+            if existing_on_drag.is_empty() || existing_end.is_some() {
+                return Err(ParseError {
+                    kind: None,
+                    message: "duplicate @dragEnd on the same element".into(),
+                    span: self.peek_span(),
+                });
+            }
+            *existing_end = on_drag_end.clone();
+        } else {
+            // New prop is @drag — backfill into the @dragEnd placeholder
+            // (order-independent pair, ADR-073).
+            if !existing_on_drag.is_empty() {
+                return Err(ParseError {
+                    kind: None,
+                    message: "duplicate @drag on the same element".into(),
+                    span: self.peek_span(),
+                });
+            }
+            *existing_on_drag = on_drag.clone();
+        }
+        Ok(())
     }
 
     /// Parse the ={handler} part of an event binding.
@@ -796,6 +891,141 @@ mod legacy_states_on_tests {
                 .iter()
                 .any(|d| d.message.contains("on:") || d.message.contains("@onXxx")),
             "must diagnose on:"
+        );
+    }
+}
+
+/// Parser tests for the `@drag` / `@dragEnd` draggable-intent directive
+/// (ADR-073).
+#[cfg(test)]
+mod drag_directive_tests {
+    use super::*;
+    use crate::lexer::tokenize;
+    use crate::parser::parse;
+
+    /// Parse a component source and return its view children.
+    fn view_children(source: &str) -> Vec<ViewNode> {
+        let tokens = tokenize(source);
+        let (program, errors) = parse(tokens, source);
+        assert!(errors.is_empty(), "unexpected parse errors: {:?}", errors);
+        program.modules.get("input.omni").unwrap().components[0]
+            .view
+            .as_ref()
+            .expect("component should have view")
+            .children
+            .clone()
+    }
+
+    /// Find the Drag prop of the first element child.
+    fn drag_prop(nodes: &[ViewNode]) -> Option<&ElementProp> {
+        nodes.iter().find_map(|n| match n {
+            ViewNode::Element(el) => el
+                .props
+                .iter()
+                .find(|p| matches!(p, ElementProp::Drag { .. })),
+            _ => None,
+        })
+    }
+
+    #[test]
+    fn parses_drag_directive() {
+        let src = r#"
+component Drag {
+  ref box: Element
+  fn move(e) { }
+  fn end(e) { }
+  view { <div @ref={box} @drag={move} @dragEnd={end} /> }
+}
+"#;
+        let children = view_children(src);
+        let prop = drag_prop(&children).expect("element must carry a Drag prop");
+        match prop {
+            ElementProp::Drag {
+                on_drag,
+                on_drag_end,
+            } => {
+                assert_eq!(on_drag, "move");
+                assert_eq!(on_drag_end.as_deref(), Some("end"));
+            }
+            other => panic!("expected ElementProp::Drag, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn drag_end_before_drag_is_order_independent() {
+        // @dragEnd may appear before @drag on the same element — the merge
+        // happens after the prop loop (ADR-073).
+        let src = "component Drag { ref box: Element; fn move(e) { } fn end(e) { } \
+                   view { <div @dragEnd={end} @drag={move} @ref={box} /> } }";
+        let children = view_children(src);
+        let prop = drag_prop(&children).expect("element must carry a Drag prop");
+        match prop {
+            ElementProp::Drag {
+                on_drag,
+                on_drag_end,
+            } => {
+                assert_eq!(on_drag, "move");
+                assert_eq!(on_drag_end.as_deref(), Some("end"));
+            }
+            other => panic!("expected ElementProp::Drag, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn drag_end_without_drag_errors() {
+        let src = "component Drag { fn end(e) { } view { <div @dragEnd={end} /> } }";
+        let tokens = tokenize(src);
+        let (_program, errors) = parse(tokens, src);
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.message.contains("@dragEnd requires @drag")),
+            "expected '@dragEnd requires @drag' error, got: {:?}",
+            errors
+        );
+    }
+
+    #[test]
+    fn duplicate_drag_errors() {
+        let src = "component Drag { fn move(e) { } view { <div @drag={move} @drag={move} /> } }";
+        let tokens = tokenize(src);
+        let (_program, errors) = parse(tokens, src);
+        assert!(
+            errors.iter().any(|d| d.message.contains("duplicate @drag")),
+            "expected duplicate @drag error, got: {:?}",
+            errors
+        );
+    }
+
+    #[test]
+    fn drag_value_must_be_bare_function_name() {
+        // Inline arrows / calls are rejected — @drag takes a bare fn name
+        // (the compiler wires the call, ADR-073).
+        let src = "component Drag { fn move(e) { } view { <div @drag={move(e)} /> } }";
+        let tokens = tokenize(src);
+        let (_program, errors) = parse(tokens, src);
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.message.contains("必须是组件函数名")),
+            "expected bare-fn-name error, got: {:?}",
+            errors
+        );
+    }
+
+    #[test]
+    fn drag_does_not_collide_with_motion_drag_triggers() {
+        // @drag-horizontal / @drag-vertical are motion triggers — @drag must
+        // not shadow them (lexer keeps them as dedicated tokens).
+        let src = "@motion fade { from { opacity: 0 } to { opacity: 1 } } \
+                   component App { view { <div @drag-horizontal ={fade} @drag={move} /> } \
+                   fn move(e) { } }";
+        let tokens = tokenize(src);
+        let (_program, errors) = parse(tokens, src);
+        assert!(
+            errors.is_empty(),
+            "motion drag triggers + @drag must coexist, got: {:?}",
+            errors
         );
     }
 }

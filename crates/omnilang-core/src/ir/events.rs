@@ -18,6 +18,12 @@ pub enum EventDataKind {
     FocusEvent,
     ClipboardEvent,
     DragEvent,
+    /// `@drag` / `@dragEnd` draggable-intent payload (ADR-073) — NOT the
+    /// HTML5 drag-and-drop `DragEvent` above: this is the semantic
+    /// "element is draggable" directive's event object
+    /// `{ x, y, dx, dy, pointerId, startX, startY }` (design doc
+    /// ref-high-frequency-direct-channel §5.2).
+    DragIntent,
     DropEvent,
     ContextMenuEvent,
     SelectEvent,
@@ -139,6 +145,15 @@ pub fn event_data_schema(kind: &EventDataKind) -> Vec<EventFieldDef> {
             f("shift", EventFieldType::Bool),
             f("meta", EventFieldType::Bool),
         ],
+        EventDataKind::DragIntent => vec![
+            f("x", EventFieldType::Float),
+            f("y", EventFieldType::Float),
+            f("dx", EventFieldType::Float),
+            f("dy", EventFieldType::Float),
+            f("pointerId", EventFieldType::Int),
+            f("startX", EventFieldType::Float),
+            f("startY", EventFieldType::Float),
+        ],
         EventDataKind::DropEvent => vec![
             f("x", EventFieldType::Float),
             f("y", EventFieldType::Float),
@@ -244,6 +259,7 @@ pub fn event_data_kind_label(kind: &EventDataKind) -> &'static str {
         EventDataKind::FocusEvent => "FocusEvent",
         EventDataKind::ClipboardEvent => "ClipboardEvent",
         EventDataKind::DragEvent => "DragEvent",
+        EventDataKind::DragIntent => "DragIntent",
         EventDataKind::DropEvent => "DropEvent",
         EventDataKind::ContextMenuEvent => "ContextMenuEvent",
         EventDataKind::SelectEvent => "SelectEvent",

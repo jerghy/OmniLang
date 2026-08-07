@@ -87,6 +87,10 @@ pub(crate) fn is_lint_error(d: &crate::semantic::lints::LintDiagnostic) -> bool 
 ///    must be in the Flutter-mappable subset (warning otherwise), `live`
 ///    accepts only "polite"/"assertive" (error otherwise), raw `aria-*`
 ///    props are a deleted form, `alt`/`hidden` misuse warns.
+/// 8. `validate_drag` — `@drag` / `@dragEnd` draggable-intent directives
+///    (ADR-073): the element must carry `@ref`, handlers must resolve to
+///    component functions, and a handler takes at most one parameter (the
+///    DragIntent event object `{ x, y, dx, dy, pointerId, startX, startY }`).
 ///
 /// Passes 3 and 4 mutate the IR (rewrite expression nodes); the rest are
 /// read-only. All diagnostics land in `diagnostics` in pass order.
@@ -154,6 +158,15 @@ pub(crate) fn run_ir_passes(ir_program: &mut IRProgram, diagnostics: &mut Vec<Di
     for module in ir_program.modules.values() {
         for component in module.components.values() {
             crate::semantic::validate_a11y::validate_a11y(component, diagnostics);
+        }
+    }
+
+    // Validate @drag / @dragEnd draggable-intent directives (ADR-073):
+    // element must carry @ref; handlers must resolve to component
+    // functions; a handler takes at most one parameter (DragIntent data).
+    for module in ir_program.modules.values() {
+        for component in module.components.values() {
+            crate::semantic::validate_drag::validate_drag(component, diagnostics);
         }
     }
 }

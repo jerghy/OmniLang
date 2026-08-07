@@ -477,7 +477,8 @@ impl<'a> Parser<'a> {
                 }
                 TokenKind::Ident(ref name) if name.starts_with('@') => {
                     let prop = self.parse_event_prop()?;
-                    props.push(prop);
+                    // @drag/@dragEnd merge (ADR-073) — order-independent pair
+                    self.push_element_prop(&mut props, prop)?;
                 }
                 TokenKind::Ident(ref name) if is_event_like(name) => {
                     // onPress, onClick, onChange, etc. without @ prefix
@@ -499,7 +500,8 @@ impl<'a> Parser<'a> {
                 }
                 TokenKind::At => {
                     let prop = self.parse_event_prop()?;
-                    props.push(prop);
+                    // @drag/@dragEnd merge (ADR-073) — order-independent pair
+                    self.push_element_prop(&mut props, prop)?;
                 }
                 // ── Motion trigger attributes @enter={...}, @hover={...} ──
                 TokenKind::AtEnter => {
@@ -608,6 +610,21 @@ impl<'a> Parser<'a> {
                 }
                 _ => {}
             }
+        }
+
+        // @dragEnd without @drag — hard error (ADR-073). Detected here, at
+        // the end of the prop loop, because the pair is order-independent:
+        // an @dragEnd-first placeholder is only illegal once no @drag showed
+        // up at all.
+        if props
+            .iter()
+            .any(|p| matches!(p, ElementProp::Drag { on_drag, .. } if on_drag.is_empty()))
+        {
+            return Err(ParseError {
+                kind: None,
+                message: "@dragEnd requires @drag on the same element".into(),
+                span: start,
+            });
         }
 
         // Auto-close void HTML elements (input, br, hr, img, etc.)

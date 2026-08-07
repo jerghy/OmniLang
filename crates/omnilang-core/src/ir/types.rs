@@ -670,6 +670,26 @@ pub struct A11yIR {
     pub alt: Option<ExprIR>,
 }
 
+/// `@drag` / `@dragEnd` draggable-intent handlers (ADR-073).
+///
+/// Source expresses intent ("this element is draggable; call `on_drag` while
+/// the pointer is captured, `on_drag_end` on release"); each target compiler
+/// wires its own pointer-capture mechanism (React setPointerCapture /
+/// OmniView capturePointer / Flutter GestureDetector pan) — capturePointer
+/// is a compiler-internal detail, never user-facing (ADR-071 decision 3).
+/// Handlers are stored as `EventHandlerIR::FnRef` (never InlineFn — the
+/// parser requires bare function names) carrying `event_data = DragIntent`
+/// and `used_fields` scanned from the fn body, so codegen can reuse the
+/// existing per-event field extraction path.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DragBindingIR {
+    /// The @drag={fn} move handler.
+    pub on_drag: EventHandlerIR,
+    /// The @dragEnd={fn} release handler (optional).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub on_drag_end: Option<EventHandlerIR>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ElementIR {
     pub tag: String,
@@ -710,6 +730,12 @@ pub struct ElementIR {
     /// aria-* / Flutter Semantics+ExcludeSemantics / OmniView aria-*).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub a11y: Option<A11yIR>,
+    /// `@drag` / `@dragEnd` draggable-intent handlers (ADR-073) — populated
+    /// during view lowering from `ElementProp::Drag`, validated by
+    /// `semantic/validate_drag`, consumed by codegen backends (Phase 2
+    /// Tasks 8-10 wire capture per target).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub drag_binding: Option<DragBindingIR>,
 }
 
 impl ElementIR {

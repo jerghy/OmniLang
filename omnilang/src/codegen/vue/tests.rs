@@ -241,6 +241,7 @@ mod tests {
                     source_span: None,
                     semantic_bindings: FxHashMap::default(),
                     a11y: None,
+                    drag_binding: None,
                 }))),
                 styles: vec![],
                 ..Default::default()
@@ -309,6 +310,7 @@ mod tests {
                     source_span: None,
                     semantic_bindings: FxHashMap::default(),
                     a11y: None,
+                    drag_binding: None,
                 }))),
                 styles: vec![],
                 ..Default::default()
@@ -1028,6 +1030,7 @@ mod tests {
             source_span: None,
             semantic_bindings: FxHashMap::default(),
             a11y: None,
+            drag_binding: None,
         };
         crate::codegen::vue::gen_template_node(&mut w, &ViewTree::Element(Box::new(el)), &fmt);
         let out = w.into_string();
@@ -1060,6 +1063,7 @@ mod tests {
             source_span: None,
             semantic_bindings: FxHashMap::default(),
             a11y: None,
+            drag_binding: None,
         };
         crate::codegen::vue::gen_template_node(&mut w, &ViewTree::Element(Box::new(el)), &fmt);
         let out = w.into_string();
@@ -1091,6 +1095,7 @@ mod tests {
             source_span: None,
             semantic_bindings: FxHashMap::default(),
             a11y: None,
+            drag_binding: None,
         };
         crate::codegen::vue::gen_template_node(&mut w, &ViewTree::Element(Box::new(el)), &fmt);
         let out = w.into_string();
@@ -1123,6 +1128,7 @@ mod tests {
             source_span: None,
             semantic_bindings: FxHashMap::default(),
             a11y: None,
+            drag_binding: None,
         };
         crate::codegen::vue::gen_template_node(&mut w, &ViewTree::Element(Box::new(el)), &fmt);
         let out = w.into_string();

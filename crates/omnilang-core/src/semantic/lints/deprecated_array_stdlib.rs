@@ -210,6 +210,9 @@ fn walk_view_node(node: &ViewNode, diags: &mut Vec<LintDiagnostic>) {
                     }
                     ElementProp::MotionTrigger(trigger) => walk_expr(&trigger.motion_expr, diags),
                     ElementProp::Variant { .. } | ElementProp::Ref(_) => {}
+                    // @drag/@dragEnd name component functions only — no
+                    // expressions to walk (ADR-073).
+                    ElementProp::Drag { .. } => {}
                 }
             }
             for child in &el.children {
