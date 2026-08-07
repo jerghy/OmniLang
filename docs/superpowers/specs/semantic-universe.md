@@ -391,7 +391,7 @@ CSS 动画语义域——**属性值从 A 到 B 平滑过渡**（CSS Transitions
 | scroll-x | 声明式水平滚动绑定 | 支持 | 同上（SEMANTIC_BINDINGS 常量成员） |
 | scroll-y | 声明式垂直滚动绑定 | 支持 | 同上 |
 | style 动态绑定 | `style: { prop: sig }` 动态条目——信号驱动样式经直写通道（D1/D2 域分类）落目标：React useRef+DOM 直写（零重渲染）/ Flutter ValueNotifier+ListenableBuilder（零 setState 整树重建）/ OmniView el.style.setProperty | 支持 | 无（三目标）；**Flutter 编译期诊断**：不可映射值（opacity/color 等）error_at 显式报错；数值 dimension（width/height/padding/margin）React/OmniView 自动 px 模板 |
-| 布尔属性 | 裸布尔属性形态（`disabled`、`checked` 等 15 关键字，`<input checked />` 与 `checked={sig}` 均合法） | 支持 | 无（三目标）；parser 15 关键字 = peek_is_boolean_attr_keyword；OmniView codegen HTML_BOOLEAN_ATTRS 12 项共享 |
+| 布尔属性 | 裸布尔属性形态（`disabled`、`checked` 等 15 关键字，`<input checked />` 与 `checked={sig}` 均合法） | 支持 | 无（三目标）；parser 布尔关键字集合 = peek_is_boolean_attr_keyword（当前 15 项——实现细节，以代码为准）；OmniView codegen HTML_BOOLEAN_ATTRS 13 项共享 |
 
 ### 已实现白名单
 

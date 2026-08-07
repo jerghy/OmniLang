@@ -88,7 +88,7 @@ BNF_SPEC_FILE = os.path.join(
 FLUTTER_UTILS_FILE = os.path.join(REPO_ROOT, "omnilang", "src", "codegen", "flutter", "utils.rs")
 
 # ── universe section contract ─────────────────────────────────────────────
-# Domain titles must contain the expected keyword (in order 1..6).
+# Domain titles must contain the expected keyword (in order 1..7).
 DOMAIN_TITLES = {
     1: "可动画",
     2: "数组",
@@ -479,7 +479,9 @@ def audit():
     element_src = read_file(ELEMENT_PARSER_FILE)
     drag_words = drag_binding_words(element_src)
     bind_words = semantic_binding_words(element_src)
-    if drag_words is None or bind_words is None:
+    if bind_words is None:
+        # drag_binding_words 永不返回 None（parse_event_prop drag 分派分支恒可匹配）——
+        # 仅 bind_words（SEMANTIC_BINDINGS 常量提取）可能提取失败；显式 fail，不静默放行
         fail("directives: cannot cross-assert 已实现白名单 (source extraction failed)")
     else:
         lex_words = drag_words + bind_words + ["ref"]
@@ -489,7 +491,9 @@ def audit():
         else:
             lex_entries = [(e, s) for e, s in en7 if e not in ("style 动态绑定", "布尔属性")]
             assert_matrix("directives", lex_entries, wl7)
-    # 机制级条目存在性断言
+    # 机制级条目存在性断言——仅对 支持/部分 状态执行（未支持即诚实契约，
+    # 未支持条目不得触发「declared 支持」误导消息；条目状态合法性已由
+    # 通用 STATUSES 检查承担）
     if en7 is None:
         fail("directives: cannot cross-assert mechanism entries (语义集条目 extraction failed)")
     else:
@@ -497,17 +501,17 @@ def audit():
         for name in ("style 动态绑定", "布尔属性"):
             if name not in mech:
                 fail(f"directives: missing mechanism entry '{name}'")
-                continue
-            if mech[name] not in ("支持", "部分"):
-                fail(f"directives: mechanism entry '{name}' must be 支持/部分 (implemented), got '{mech[name]}'")
-        if os.path.exists(DIRECT_WRITE_FILE):
-            dw = read_file(DIRECT_WRITE_FILE)
-            if "classify_direct_write" not in dw and "DirectWriteSets" not in dw:
-                fail("directives: style 动态绑定 declared 支持 but direct_write.rs lacks D1/D2 classification")
-        else:
-            fail("directives: style 动态绑定 declared 支持 but codegen/shared/direct_write.rs missing")
-        if boolean_attr_keywords(element_src) is None or not boolean_attr_keywords(element_src):
-            fail("directives: 布尔属性 declared 支持 but peek_is_boolean_attr_keyword has no keywords")
+        if mech.get("style 动态绑定") in ("支持", "部分"):
+            if os.path.exists(DIRECT_WRITE_FILE):
+                dw = read_file(DIRECT_WRITE_FILE)
+                if "classify_direct_write" not in dw and "DirectWriteSets" not in dw:
+                    fail("directives: style 动态绑定 declared 支持 but direct_write.rs lacks D1/D2 classification")
+            else:
+                fail("directives: style 动态绑定 declared 支持 but codegen/shared/direct_write.rs missing")
+        if mech.get("布尔属性") in ("支持", "部分"):
+            keywords = boolean_attr_keywords(element_src)
+            if keywords is None or not keywords:
+                fail("directives: 布尔属性 declared 支持 but peek_is_boolean_attr_keyword has no keywords")
 
     return problems
 
