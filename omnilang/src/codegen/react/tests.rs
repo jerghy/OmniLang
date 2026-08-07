@@ -7526,7 +7526,7 @@ component Drag {
         tsx
     );
     assert!(
-        tsx.contains("dragBoxRef.current?.style.transform ="),
+        tsx.contains("dragBoxRef.current!.style.transform ="),
         "apply direct write must be injected after D1 mutation. Got:\n{}",
         tsx
     );
@@ -7715,7 +7715,7 @@ fn test_direct_write_compound_mutation_writes_ref_and_apply() {
     let mut applies = FxHashMap::default();
     applies.insert(
         "count".to_string(),
-        vec!["boxRef.current?.style.width = countRef.current;".to_string()],
+        vec!["boxRef.current!.style.width = countRef.current;".to_string()],
     );
     generate_statement_tsx(
         &mut w,
@@ -7731,7 +7731,7 @@ fn test_direct_write_compound_mutation_writes_ref_and_apply() {
     );
     assert_eq!(
         w.into_string(),
-        "countRef.current += 1;\nboxRef.current?.style.width = countRef.current;\n",
+        "countRef.current += 1;\nboxRef.current!.style.width = countRef.current;\n",
         "D1 compound mutation must write the ref and inject the apply (fix round F3)"
     );
 }
@@ -7783,7 +7783,7 @@ component Mix {
     );
     // B2：computed 驱动的条目 → useEffect 直写（fixture 的 ref 是 sb）
     assert!(
-        tsx.contains("sbRef.current?.style.width ="),
+        tsx.contains("sbRef.current!.style.width ="),
         "B2 entry emits effect direct write. Got:\n{}",
         tsx
     );
@@ -7799,7 +7799,7 @@ component Mix {
     let first_effect = tsx.split("useEffect(() => {").nth(1).unwrap_or("");
     let first_effect_body = first_effect.split("}, [").next().unwrap_or("");
     assert!(
-        !first_effect_body.contains("boxRef.current?.style.transform"),
+        !first_effect_body.contains("boxRef.current!.style.transform"),
         "D1 apply must NOT be in effect body. Got:\n{}",
         tsx
     );
@@ -7853,7 +7853,7 @@ component Mix2 {
         tsx
     );
     assert!(
-        first_effect_body.contains("boxRef.current?.style.width ="),
+        first_effect_body.contains("boxRef.current!.style.width ="),
         "B2 write must target the ref'd element's style. Got:\n{}",
         tsx
     );
@@ -7898,7 +7898,7 @@ component Mix3 {
     let first_effect = tsx.split("useEffect(() => {").nth(1).unwrap_or("");
     let first_effect_body = first_effect.split("}, [").next().unwrap_or("");
     assert!(
-        first_effect_body.contains("sbRef.current?.style.width = boxWidthPx;"),
+        first_effect_body.contains("sbRef.current!.style.width = boxWidthPx;"),
         "pure ident B2 value must be emitted bare (D1-parity). Got:\n{}",
         tsx
     );

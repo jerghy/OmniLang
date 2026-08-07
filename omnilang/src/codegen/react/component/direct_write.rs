@@ -370,6 +370,10 @@ pub(super) fn build_apply_map(
             // CSS custom property 特例：`format_style_prop_key` 对 `--*` 返回
             // 带引号的 `'--x'`，而属性赋值 `el.style.'--x'` 非法——改用
             // `style.setProperty('--x', v)`。
+            // TS 语法约束（TS2779）：`?.` 不能作赋值 LHS——写点只出现在
+            // 事件处理器（D1 apply）与挂载后 effect（B2）中，ref 必已附着，
+            // 用 `!` 非空断言（同生成产物 `__omni_activePointerId!` 先例）。
+            // `--` 分支的 setProperty 是方法调用，`?.` 合法，保持空安全。
             let line = if e.prop.starts_with("--") {
                 format!(
                     "{}Ref.current?.style.setProperty('{}', {});",
@@ -377,7 +381,7 @@ pub(super) fn build_apply_map(
                 )
             } else {
                 format!(
-                    "{}Ref.current?.style.{} = {};",
+                    "{}Ref.current!.style.{} = {};",
                     e.ref_name,
                     format_style_prop_key(&e.prop),
                     value_js
@@ -403,7 +407,7 @@ pub(super) fn apply_needs_sanitize(sets: &DirectWriteSets) -> bool {
 // B2 effect emission (Phase 1, Task 4)
 // ═══════════════════════════════════════════════════════════
 
-/// Emit `useEffect(() => { {ref}Ref.current?.style.{prop} = value; }, [deps])`
+/// Emit `useEffect(() => { {ref}Ref.current!.style.{prop} = value; }, [deps])`
 /// for B2 entries — entries whose value reads anything beyond D1 signals
 /// (computed / store field / prop / a plain signal left on useState), or
 /// reads nothing at all. Those entries cannot ride the mutation-site apply
@@ -466,6 +470,8 @@ pub(super) fn gen_ref_style_effects(
         );
         w.emit_fmt(format_args!("useEffect(() => {{"));
         w.indent();
+        // 同 D1 apply 通道：TS2779 约束下赋值 LHS 用 `!` 非空断言
+        // （effect 挂载后运行，ref 必已附着）；`--` 分支 setProperty 保持 `?.`。
         if e.prop.starts_with("--") {
             w.emit_fmt(format_args!(
                 "{}Ref.current?.style.setProperty('{}', {});",
@@ -473,7 +479,7 @@ pub(super) fn gen_ref_style_effects(
             ));
         } else {
             w.emit_fmt(format_args!(
-                "{}Ref.current?.style.{} = {};",
+                "{}Ref.current!.style.{} = {};",
                 e.ref_name,
                 format_style_prop_key(&e.prop),
                 value_js

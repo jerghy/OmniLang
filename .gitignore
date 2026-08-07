@@ -72,8 +72,9 @@ test/projects/learn-omniview/dist/
 # ts-rs auto-generated bindings (default export directory)
 bindings/
 
-# Codegen-validation harness residue (one dir per flutter gate run)
+# Codegen-validation harness residue (one dir per flutter/react gate run)
 tmp_codegen_validation_flutter_*/
+tmp_codegen_validation_react_*/
 
 # Screenshots and temp files
 *.png
