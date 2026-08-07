@@ -29,8 +29,8 @@ import omniview;
 }
 
 component MotionDemo {
-  signal count: i32 = 0
-  signal isOpen: bool = false
+  signal count: i32 = 0;
+  signal isOpen: bool = false;
 
   fn toggleModal() {
     isOpen = !isOpen
@@ -50,7 +50,7 @@ component MotionDemo {
 
       <p>Count: {count}</p>
 
-      <button @press={scalePress} @hover={pulse} @click={toggleModal}>
+      <button @press={scalePress} @hover={pulse} @onPress={toggleModal}>
         Toggle Modal
       </button>
 
@@ -60,8 +60,8 @@ component MotionDemo {
         </div>
       }
 
-      <button @press={scalePress} @click={addItem}>Add Item</button>
-      <button @press={scalePress} @click={removeItem}>Remove Item</button>
+      <button @press={scalePress} @onPress={addItem}>Add Item</button>
+      <button @press={scalePress} @onPress={removeItem}>Remove Item</button>
 
       <div @hover={pulse} @press={scalePress}>
         Interactive Panel

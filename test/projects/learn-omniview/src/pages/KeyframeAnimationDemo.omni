@@ -192,7 +192,7 @@ component KeyframeAnimationDemo {
             <p class: LearnDesign.Subtitle>8 触发器 · 4 播放属性 · 4 缓动变体 · 多停靠关键帧</p>
 
             <!-- 重放全部：切换 playAll 信号 → 重放本组件所有命名 @enter 动画 -->
-            <button variant: LearnDesign.Button(color=primary, size=sm) @click={toggleAll}>
+            <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={toggleAll}>
                 Replay All @enter Animations
             </button>
 

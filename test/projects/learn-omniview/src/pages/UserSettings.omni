@@ -8,6 +8,10 @@ import { json_parse, json_stringify } from "std/json";
 component UserSettings {
     signal username: String = "";
     signal savedText: String = "";
+    // 加载基线：@mount 把加载值写入此处；@effect 仅在 username 偏离基线
+    // （用户编辑）时保存——effect 构造首跑（OmniView @mount 之后立即执行）
+    // 与加载写入都不会触发保存，"Settings loaded from storage" 文案得以保留。
+    signal loadedUsername: String = "";
 
     // @mount：组件挂载时从 storage 读取配置
     @mount {
@@ -19,6 +23,7 @@ component UserSettings {
             let parsed = json_parse(raw);
             if parsed != "" && parsed != null {
                 username = parsed;
+                loadedUsername = parsed;
                 savedText = "Settings loaded from storage";
             } else {
                 savedText = "No saved settings found";
@@ -28,9 +33,14 @@ component UserSettings {
         }
     }
 
-    // @effect：信号变化时自动保存
+    // @effect：信号变化时自动保存。仅在 username 偏离加载基线时执行——
+    // effect 构造首跑（OmniView 在 @mount 之后立即运行一次）与 @mount 的
+    // 加载写入（React 目标 mount setState → effect 随 username 变化重跑）
+    // 均不会误保存，加载文案不被覆盖；用户编辑才触发保存。
     @effect(username) {
-        saveSettings();
+        if username != loadedUsername {
+            saveSettings();
+        }
     }
 
     // 保存设置到 localStorage + JSON 序列化
@@ -40,10 +50,12 @@ component UserSettings {
         savedText = "Settings saved";
     }
 
-    // 清除存储的设置
+    // 清除存储的设置（基线同步置空：effect 判定 username == loadedUsername 跳过保存，
+    // "Settings cleared" 文案不被 effect 覆盖）
     fn clearSettings() {
         storage_set("user-settings", "");
         username = "";
+        loadedUsername = "";
         savedText = "Settings cleared";
     }
 

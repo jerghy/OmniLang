@@ -14,7 +14,7 @@ component Overview {
         <section ><div class: LearnDesign.Banner>
                 <h1 class: LearnDesign.BannerTitle>{'\u{1F680}'} OmniLang Capability Showcase</h1>
                 <p class: LearnDesign.BannerSubtitle>
-                    v2 语义级 DSL · 96 源文件 · 4 主题 · 10 语义域 · 9 标签页
+                    v2 语义级 DSL · 102 源文件 · 4 主题 · 10 语义域 · 9 标签页
                 </p>
             </div>
 
@@ -71,7 +71,7 @@ component Overview {
 
             <div class: StatsBar>
                 <div class: StatItem>
-                    <span class: StatValue>93</span>
+                    <span class: StatValue>102</span>
                     <span class: StatLabel>Source Files</span>
                 </div>
                 <div class: StatItem>
@@ -91,6 +91,6 @@ component Overview {
     }
 
     style {
-        .capability-grid { display: grid; grid-template-columns: "1fr 1fr 1fr 1fr"; gap: 14px; margin: 0 0 20px 0; }
+        .capability-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 0 0 20px 0; }
     }
 }

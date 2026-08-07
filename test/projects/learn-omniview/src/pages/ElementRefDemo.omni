@@ -258,6 +258,7 @@ component ElementRefDemo {
             <!-- ═══ 焦点管理 ═══ -->
             <h4 class: LearnDesign.SectionTitle>焦点管理 (.focus / .blur)</h4>
             <div class: DemoRow>
+                <!-- @onInput 空回调：仅保持 input 可交互（焦点演示，无需处理逻辑） -->
                 <input
                     class: RefInput
                     @ref={inputBox}

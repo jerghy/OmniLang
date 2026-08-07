@@ -88,8 +88,10 @@ component SignalPatternsDemo {
 
     fn removeLast() {
         if items.len() > 0 {
-            items = items.slice(0, items.len() - 1);
-            onItemRemoved(items.len());
+            // 先记录被删项 index 再 emit——载荷语义为「被移除项」，而非「删除后的长度」
+            let removedIndex = items.len() - 1;
+            items = items.slice(0, removedIndex);
+            onItemRemoved(removedIndex);
         }
     }
 
@@ -101,7 +103,13 @@ component SignalPatternsDemo {
         mountTime = "mounted!";
     }
 
-    @effect {
+    // 依赖 count：count 变化时触发一次（+1 / -1 / Reset 交互）。
+    // body 须读取 count 建立订阅——OmniView 目标 __omni_effect 自动跟踪
+    // body 实际读取的信号（显式依赖列表仅 React 目标 useEffect 使用）；
+    // 写入 effectCount（非依赖信号）不构成自依赖：React 无无限循环、
+    // OmniView setting 标志挡掉同步重入（自增仅在 count 变化时生效）。
+    @effect(count) {
+        let _ = count;
         effectCount = effectCount + 1;
     }
 

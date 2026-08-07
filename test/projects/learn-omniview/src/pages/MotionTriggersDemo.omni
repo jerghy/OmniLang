@@ -4,7 +4,8 @@ import { LearnDesign } from "../design";
 // ╔══════════════════════════════════════════════════════════════╗
 // ║  MotionTriggersDemo.omni —— 触发器控制维度                      ║
 // ║                                                              ║
-// ║  演示 @in-view / @scroll / @focus / @drag 触发器及其参数：      ║
+// ║  演示 @in-view / @scroll / @focus / scrubbing 触发器           ║
+// ║  （@drag-horizontal / @drag-vertical）及其参数：                ║
 // ║    · @scroll  start: / end: / scrub:   滚动区间映射           ║
 // ║    · @drag-horizontal constraints: / elastic: / threshold:    ║
 // ║    · @drag-vertical  constraints / elastic / threshold     ║

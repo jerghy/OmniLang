@@ -144,7 +144,7 @@ component DynamicTokens {
             background: var(--primaryLight);
             color: var(--primary);
         }
-        .pipeline-grid { display: grid; grid-template-columns: "1fr 1fr"; gap: 14px; margin: 0 0 16px 0; }
+        .pipeline-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 0 0 16px 0; }
         .RulesList li { font-size: var(--fontSizeSm); color: var(--textSecondary); margin-bottom: 6px; line-height: 1.5; }
     }
 }
