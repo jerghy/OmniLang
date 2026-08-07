@@ -13,10 +13,10 @@ const log = createLogger("parser");
 
 // ── Public API ──
 
-export function parseOmniSource(source: string): ParseResult {
+export function parseOmniSource(source: string, filePath?: string): ParseResult {
   const tokens = tokenize(source);
   const stream = new TokenStream(tokens);
-  const parser = new Parser(stream);
+  const parser = new Parser(stream, filePath);
   const result = parser.parse();
 
   // Parse // @pid:xxx comments and build a PidMap

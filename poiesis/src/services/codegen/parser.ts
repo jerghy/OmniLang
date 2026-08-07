@@ -4,6 +4,7 @@
 import type { Token } from "./omni-tokenizer";
 import { TokenStream } from "./token-stream";
 import type { ParseResult } from "./types";
+import type { LibFileDef, StructDef, TypeDef } from "./types";
 import type { CodeblockElementData } from "../../core/types/element";
 import type { WireData } from "../../core/types";
 import { parseCodeFlowGraph } from "./graph-parser";
@@ -52,9 +53,12 @@ export class Parser {
   private indentMap = new Map<string, number>();
   private parsedFnBodies = new Map<string, { elements: CodeblockElementData[]; wires: WireData[] }>();
   private fnRegistry = new Map<string, Array<{ pid: string; name: string; params: Array<{ name: string; type: string }>; returnType: string }>>();
+  private libDef: LibFileDef | null = null;
+  private filePath?: string;
 
-  constructor(stream: TokenStream) {
+  constructor(stream: TokenStream, filePath?: string) {
     this.stream = stream;
+    this.filePath = filePath;
     this.ctx = this.createContext();
   }
 
@@ -313,8 +317,161 @@ export class Parser {
       return;
     }
 
+    if (kw === "pub") {
+      // pub 是前缀关键字：peek 后一个 token 分派（pub 本身不是声明类型）
+      this.stream.consume(); // "pub"
+      const nxt = this.stream.peek().text;
+      if (nxt === "async") { this.stream.consume(); this.parseRootFn(true, true); return; }
+      if (nxt === "struct") { this.parseRootStruct(true); return; }
+      if (nxt === "type") { this.parseRootType(true); return; }
+      if (nxt === "fn") { this.parseRootFn(true, false); return; }
+      return; // 防御：pub 前缀后跟未知 token（已消费）
+    }
+    if (kw === "async") {
+      this.stream.consume(); // "async"
+      this.parseRootFn(false, true);
+      return;
+    }
+    if (kw === "struct") { this.parseRootStruct(false); return; }
+    if (kw === "type") { this.parseRootType(false); return; }
+    if (kw === "fn") { this.parseRootFn(false, false); return; }
+
     // Unknown identifier at root — skip
     this.stream.consume();
+  }
+
+  // ── ROOT 层声明（lib 文件 struct/type/fn，fileDefs 模型）──
+
+  /** ROOT 层顶层 fn（lib 文件，修复 G2）。镜像 parseFn 的签名/body 收集，但：
+   *  returnType 默认 ""（无 -> 不发射）、参数无类型默认 ""（不补 String，
+   *  error_handling.omni `fn parse_config(file_path)` round-trip 关键）。 */
+  private parseRootFn(pub: boolean, isAsync: boolean): void {
+    const pid = this.ctx.pendingPid || `fn_${uid()}`;
+    this.ctx.pendingPid = null;
+    this.stream.consume(); // "fn"
+
+    // 签名收集（与 parseFn 相同：token + 空格拼接，直到 {）
+    let signature = "";
+    while (!this.stream.isEof()) {
+      const tok = this.stream.peek();
+      if (tok.kind === "BRACE_OPEN") { this.stream.consume(); break; }
+      signature += tok.text + " ";
+      this.stream.consume();
+    }
+    const sigMatch = signature.match(/(\w+)\s*\(([^)]*)\)/);
+    const name = sigMatch?.[1] || "unnamed";
+
+    // body 收集（花括号计数，保留 // @pid 注释——与 parseFn 相同）
+    let body = "";
+    let depth = 1;
+    while (depth > 0 && !this.stream.isEof()) {
+      const tok = this.stream.peek();
+      if (tok.kind === "BRACE_OPEN") { depth++; body += "{\n"; }
+      else if (tok.kind === "BRACE_CLOSE") { depth--; if (depth > 0) body += "}\n"; }
+      else { body += tok.text + " "; }
+      this.stream.consume();
+    }
+
+    const { elements, wires } = parseCodeFlowGraph(body);
+    const rawParams = (sigMatch?.[2] || "").trim();
+    const params = rawParams
+      ? rawParams.split(",").map((p) => {
+          const [pName, pType] = p.trim().split(":").map((s) => s.trim());
+          return { name: pName || "", type: pType || "" }; // 无类型不补 String
+        })
+      : [];
+    const returnType = signature.match(/->\s*(\w+)/)?.[1] || ""; // 无 -> 不发射
+    this.synthesizeFnEntry(name, rawParams, returnType, pid, elements, wires);
+    this.ensureBodyFallback(pid, body, elements, wires);
+    this.parsedFnBodies.set(name, { elements, wires });
+    this.currentLibDef().fns.push({ pid, name, params, returnType, body, pub, isAsync, declKind: "fn" });
+  }
+
+  /** body 兜底（parseFn 与 parseRootFn 共用）：图空且 body 非空 → 整块作为 code-block
+   *  （手写源码保真——否则未注解 body 保存时正文丢失）。空 body 不兜底。 */
+  private ensureBodyFallback(pid: string, body: string, elements: CodeblockElementData[], wires: WireData[]): void {
+    if (body.trim() === "" || elements.length > 1) return;
+    const cbId = `cb_${pid}_${uid()}`;
+    elements.push({
+      id: cbId,
+      nodeType: "codeblock",
+      tag: "code-block",
+      parentId: null,
+      props: {},
+      source: body.trim(),
+    });
+    wires.push({ id: `w_${pid}_0`, fromId: pid, fromPort: "flow-out", toId: cbId, toPort: "flow-in" });
+  }
+
+  /** ROOT 层 struct（修复 G3）：`[pub] struct [nominal] Name { field: Type, ... }`。
+   *  字段类型 token 无空格拼接（镜像 import 收集模式，OmniLang 空白不敏感）。 */
+  private parseRootStruct(pub: boolean): void {
+    const pid = this.ctx.pendingPid || `struct_${uid()}`;
+    this.ctx.pendingPid = null;
+    this.stream.consume(); // "struct"
+    let nominal = false;
+    if (this.stream.peek().text === "nominal") {
+      nominal = true;
+      this.stream.consume(); // "nominal"
+    }
+    const nameTok = this.stream.expect("IDENTIFIER");
+    if (nameTok.kind === "EOF") {
+      this.pushError("error", "P012", "Invalid struct declaration: missing name", nameTok);
+      return;
+    }
+    const fields: Array<{ name: string; type: string }> = [];
+    this.stream.expect("BRACE_OPEN");
+    while (!this.stream.isEof()) {
+      const tok = this.stream.peek();
+      if (tok.kind === "BRACE_CLOSE") { this.stream.consume(); break; }
+      if (tok.text === ",") { this.stream.consume(); continue; } // 尾逗号容忍
+      if (tok.kind === "NEWLINE") { this.stream.consume(); continue; }
+      const fname = tok.text;
+      this.stream.consume();
+      let ftype = "";
+      if (this.stream.peek().kind === "COLON") {
+        this.stream.consume(); // ":"
+        let t = "";
+        while (!this.stream.isEof() && this.stream.peek().text !== "," && this.stream.peek().kind !== "BRACE_CLOSE") {
+          if (this.stream.peek().kind !== "NEWLINE") t += this.stream.consume().text;
+          else this.stream.consume();
+        }
+        ftype = t;
+      }
+      fields.push({ name: fname, type: ftype });
+    }
+    const structDef: StructDef = { pid, name: nameTok.text, pub, nominal, fields };
+    this.currentLibDef().structs.push(structDef);
+  }
+
+  /** ROOT 层 type（修复 G3）：`[pub] type Name = <表达式文本>;`（alias 与 tagged union 共用）。
+   *  收集到 SEMICOLON 或行尾（types.omni 的 union 无分号）。 */
+  private parseRootType(pub: boolean): void {
+    const pid = this.ctx.pendingPid || `type_${uid()}`;
+    this.ctx.pendingPid = null;
+    this.stream.consume(); // "type"
+    const nameTok = this.stream.expect("IDENTIFIER");
+    if (nameTok.kind === "EOF") {
+      this.pushError("error", "P013", "Invalid type declaration: missing name", nameTok);
+      return;
+    }
+    this.stream.expect("EQUALS");
+    let value = "";
+    while (!this.stream.isEof()) {
+      const tok = this.stream.peek();
+      if (tok.kind === "SEMICOLON" || tok.kind === "NEWLINE" || tok.kind === "EOF") break;
+      value += tok.text; // token 无空格拼接（union 含 {} 与 |）
+      this.stream.consume();
+    }
+    if (this.stream.peek().kind === "SEMICOLON") this.stream.consume();
+    const typeDef: TypeDef = { pid, name: nameTok.text, pub, value };
+    this.currentLibDef().types.push(typeDef);
+  }
+
+  /** 当前文件的 ROOT 声明容器（filePath 为空时一次性容器不落结果——回归关键属性）。 */
+  private currentLibDef(): LibFileDef {
+    if (!this.libDef) this.libDef = { imports: [], structs: [], types: [], fns: [] };
+    return this.libDef;
   }
 
   // ── IN_COMPONENT ──
@@ -607,6 +764,8 @@ export class Parser {
     this.synthesizeFnEntry(fnName, rawParams, returnType, fnPid, elements, wires);
 
     this.parsedFnBodies.set(fnName, { elements, wires });
+    // 组件 fn 未注解 body 同样兜底（手写源码保真——否则保存时正文丢失，真实缺陷修复）
+    this.ensureBodyFallback(fnPid, fnBody, elements, wires);
 
     // F2：登记 fn 元数据（组件维度）——componentDefs.fns 物化来源。
     // 收拢到合成之后：registry 的 pid 与 fn 元素 id 一致（由合成产物决定）。
@@ -1538,6 +1697,14 @@ export class Parser {
     }
     if (this.fnRegistry.size > 0) {
       result.fnRegistry = Object.fromEntries(this.fnRegistry);
+    }
+    if (
+      this.filePath &&
+      this.libDef &&
+      (this.libDef.structs.length > 0 || this.libDef.types.length > 0 ||
+       this.libDef.fns.length > 0 || this.ctx.imports.length > 0)
+    ) {
+      result.fileDefs = { [this.filePath]: { ...this.libDef, imports: this.ctx.imports } };
     }
     return result;
   }

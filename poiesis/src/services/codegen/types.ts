@@ -81,6 +81,11 @@ export interface FnDef {
   /** 画布 fn 节点 id（fn_<name>_el_<uid>）。发射时在 fn 声明前补发
    *  `// @pid:<pid>` 注释，保证刷新重解析后 fn 入口 pid 稳定（位置不漂移）。 */
   pid?: string;
+  /** lib 文件 ROOT 层 fn 修饰符（组件 fn 默认 false/undefined，行为不变） */
+  pub?: boolean;
+  isAsync?: boolean;
+  /** "fn" 普通函数 / "action" 组件动作（action 无返回类型，async 后缀式） */
+  declKind?: "fn" | "action";
 }
 
 export interface ValidComponentPart {
@@ -335,6 +340,10 @@ export interface ParseResult {
     branches: Array<{ name: string; properties: Array<{ name: string; value: string }> }>;
     defaults: Record<string, string>;
   }>;
+
+  /** ROOT 层顶层声明（lib/组件头部/store 头部），按文件路径键。filePath 缺省时（现有
+   *  调用形态）不产出——回归关键属性。 */
+  fileDefs?: Record<string, LibFileDef>;
 }
 
 /** Result of expanding custom component references into a flat element set. */
@@ -345,4 +354,25 @@ export interface ExpansionResult {
   customChildIds: Set<string>;
   /** Maps expanded element ID -> original definition element ID (for WASM class translation). */
   idMappings: Map<string, string>;
+}
+
+export interface StructDef {
+  pid: string;
+  name: string;
+  pub: boolean;
+  nominal: boolean;
+  fields: Array<{ name: string; type: string }>;
+}
+export interface TypeDef {
+  pid: string;
+  name: string;
+  pub: boolean;
+  /** 类型表达式文本（alias 与 tagged union 共用；token 无空格拼接） */
+  value: string;
+}
+export interface LibFileDef {
+  imports: string[];
+  structs: StructDef[];
+  types: TypeDef[];
+  fns: FnDef[];
 }
