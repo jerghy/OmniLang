@@ -47,9 +47,9 @@ pub fn canonical_event_name(event_name: &str) -> Option<&'static str> {
         "keydown" => Some("keydown"),
         "keyup" => Some("keyup"),
         "keypress" => Some("keypress"),
-        // mouse
-        "mouseenter" => Some("mouseenter"),
-        "mouseleave" => Some("mouseleave"),
+        // mouse — enter/leave 短拼写（语义名 @onEnter/@onLeave）与 DOM 名同族
+        "enter" | "mouseenter" => Some("mouseenter"),
+        "leave" | "mouseleave" => Some("mouseleave"),
         "mousedown" => Some("mousedown"),
         "mouseup" => Some("mouseup"),
         "mousemove" => Some("mousemove"),
@@ -161,7 +161,9 @@ pub const EVENT_NAME_SUGGESTIONS: &[&str] = &[
     "onKeyDown",
     "onKeyUp",
     "onKeyPress",
+    "onEnter",
     "onMouseEnter",
+    "onLeave",
     "onMouseLeave",
     "onMouseDown",
     "onMouseUp",
@@ -335,6 +337,10 @@ mod tests {
             "onTransitionend",
             "TransitionEnd",
         ],
+        // Task 3: enter/leave 语义拼写与 DOM 拼写同族（onEnter/onLeave 为
+        // 语义名，enter/leave 为短拼写，onMouseEnter/onMouseLeave 为旧名）
+        &["onEnter", "enter", "onMouseEnter", "mouseenter"],
+        &["onLeave", "leave", "onMouseLeave", "mouseleave"],
     ];
 
     #[test]
