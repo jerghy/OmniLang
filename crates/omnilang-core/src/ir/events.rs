@@ -130,9 +130,13 @@ pub fn event_data_schema(kind: &EventDataKind) -> Vec<EventFieldDef> {
             f("shift", EventFieldType::Bool),
             f("meta", EventFieldType::Bool),
         ],
-        EventDataKind::ScrollEvent => {
-            vec![f("x", EventFieldType::Float), f("y", EventFieldType::Float)]
-        }
+        // progress = 滚动进度 0..1（顶部 0 / 底部 1；不可测时 0 兜底），
+        // x/y = scrollLeft/scrollTop（元素局部滚动位置）。
+        EventDataKind::ScrollEvent => vec![
+            f("x", EventFieldType::Float),
+            f("y", EventFieldType::Float),
+            f("progress", EventFieldType::Float),
+        ],
         EventDataKind::InputEvent => vec![
             f("value", EventFieldType::String),
             f("checked", EventFieldType::Bool),
@@ -284,6 +288,23 @@ mod tests {
             .find(|f| f.name == "buttons")
             .expect("buttons in schema");
         assert_eq!(btns.field_type, EventFieldType::Int);
+    }
+
+    /// Task 6: ScrollEvent schema gains progress (Float) — scroll progress
+    /// 0..1 (top 0 / bottom 1; unmeasurable → 0 fallback), alongside x/y.
+    #[test]
+    fn scroll_schema_has_progress() {
+        let schema = event_data_schema(&EventDataKind::ScrollEvent);
+        assert!(
+            schema.iter().any(|f| f.name == "progress"),
+            "schema missing progress: {:?}",
+            schema.iter().map(|f| f.name.as_str()).collect::<Vec<_>>()
+        );
+        let progress = schema
+            .iter()
+            .find(|f| f.name == "progress")
+            .expect("progress in schema");
+        assert_eq!(progress.field_type, EventFieldType::Float);
     }
 }
 

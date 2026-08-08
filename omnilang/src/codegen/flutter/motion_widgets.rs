@@ -734,6 +734,19 @@ pub(crate) fn field_extract_flutter(
         // ScrollEvent — from ScrollNotification
         (EventDataKind::ScrollEvent, "x") => format!("{}.metrics.pixels", raw),
         (EventDataKind::ScrollEvent, "y") => format!("{}.metrics.pixels", raw),
+        // progress: the real mapping (ScrollMetrics.extentBefore /
+        // maxScrollExtent, same source as x/y) is reachable but lands in
+        // Task 7 — until then degrade honestly with the schema's
+        // "unmeasurable → 0" fallback semantics (ADR-054, no silent stubs).
+        (EventDataKind::ScrollEvent, "progress") => {
+            warn_event_field_stub(
+                warnings,
+                kind,
+                field,
+                "real mapping (ScrollMetrics extentBefore/maxScrollExtent) lands in Task 7",
+            );
+            "0.0 /* progress: extentBefore/maxScrollExtent mapping lands in Task 7 */".to_string()
+        }
 
         // InputEvent
         (EventDataKind::InputEvent, "value") => raw.to_string(),

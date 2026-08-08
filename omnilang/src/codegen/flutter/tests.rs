@@ -9411,6 +9411,31 @@ fn mapped_event_fields_do_not_warn() {
     }
 }
 
+/// Task 6: ScrollEvent.progress is schema-visible but its real Flutter
+/// mapping (ScrollMetrics extentBefore/maxScrollExtent) lands in Task 7 —
+/// until then the extraction must degrade honestly per ADR-054: warning
+/// naming field + kind, and a 0.0 placeholder matching the schema's
+/// "unmeasurable → 0" fallback semantics.
+#[test]
+fn scroll_progress_degrades_not_silent_until_task7() {
+    let (expr, warnings) = extract_with_warnings(&EventDataKind::ScrollEvent, "progress");
+    assert!(
+        warnings
+            .iter()
+            .any(|w| w.message.contains("progress") && w.message.contains("ScrollEvent")),
+        "scroll progress stub must warn with field + kind, got: {:?}",
+        warnings
+    );
+    assert!(
+        expr.contains("/*") && expr.contains("*/"),
+        "degradation comment missing from generated code: {expr}"
+    );
+    assert!(
+        expr.contains("0.0"),
+        "placeholder must follow 'unmeasurable → 0' fallback semantics: {expr}"
+    );
+}
+
 /// KeyEvent.code must use a STABLE mapping — the DOM-analogue physical key
 /// id — never debugName (a debug-oriented string that changes with the
 /// Flutter engine and is not stable data).

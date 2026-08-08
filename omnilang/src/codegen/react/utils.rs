@@ -398,6 +398,17 @@ fn field_extract_react(kind: &EventDataKind, field: &str, raw: &str) -> (String,
         // ScrollEvent — React guarantees e.target
         (EventDataKind::ScrollEvent, "x") => (format!("{}.target.scrollLeft", raw), "0".into()),
         (EventDataKind::ScrollEvent, "y") => (format!("{}.target.scrollTop", raw), "0".into()),
+        // progress = 滚动进度 0..1（与 Web 同式，React 合成事件风格——e.target
+        // 保证存在、无 ?.，与上方 x/y 保持一致；无溢出时 0 兜底）。
+        (EventDataKind::ScrollEvent, "progress") => {
+            let t = format!("{}.target", raw);
+            (
+                format!(
+                    "({t}.scrollHeight - {t}.clientHeight > 0) ? {t}.scrollTop / ({t}.scrollHeight - {t}.clientHeight) : 0"
+                ),
+                "0".into(),
+            )
+        }
 
         // InputEvent — React guarantees e.target
         (EventDataKind::InputEvent, "value") => (format!("{}.target.value", raw), "\"\"".into()),
@@ -550,5 +561,18 @@ mod tests {
     fn non_pointer_events_keep_synthetic_viewport_coords() {
         let (x, _) = field_extract_react(&EventDataKind::WheelEvent, "x", "e");
         assert_eq!(x, "e.clientX");
+    }
+
+    /// Task 6: ScrollEvent progress — same ratio as Web but in React
+    /// synthetic-event style (e.target guaranteed, no ?. — consistent with
+    /// the existing ScrollEvent x/y mapping).
+    #[test]
+    fn scroll_field_extract_react_progress() {
+        let (extract, fallback) = field_extract_react(&EventDataKind::ScrollEvent, "progress", "e");
+        assert_eq!(
+            extract,
+            "(e.target.scrollHeight - e.target.clientHeight > 0) ? e.target.scrollTop / (e.target.scrollHeight - e.target.clientHeight) : 0"
+        );
+        assert_eq!(fallback, "0");
     }
 }

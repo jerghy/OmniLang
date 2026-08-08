@@ -226,10 +226,10 @@ mod event_data_tests {
     }
 
     #[test]
-    fn test_schema_scroll_event_only_position() {
+    fn test_schema_scroll_event_position_and_progress() {
         let fields = event_data_schema(&EventDataKind::ScrollEvent);
         let names: Vec<&str> = fields.iter().map(|f| f.name.as_str()).collect();
-        assert_eq!(names, vec!["x", "y"]);
+        assert_eq!(names, vec!["x", "y", "progress"]);
     }
 
     #[test]

@@ -65,6 +65,17 @@ pub fn field_extract_js(kind: &EventDataKind, field: &str, raw: &str) -> (String
         // ScrollEvent
         (EventDataKind::ScrollEvent, "x") => (format!("{}.target?.scrollLeft", raw), "0".into()),
         (EventDataKind::ScrollEvent, "y") => (format!("{}.target?.scrollTop", raw), "0".into()),
+        // progress = 滚动进度 0..1（scrollTop/(scrollHeight-clientHeight)，
+        // 无溢出/目标缺失时 0 兜底——NaN 比较为 false 自然落入 : 0 臂）。
+        (EventDataKind::ScrollEvent, "progress") => {
+            let t = format!("{}.target", raw);
+            (
+                format!(
+                    "({t}?.scrollHeight - {t}?.clientHeight > 0) ? {t}?.scrollTop / ({t}?.scrollHeight - {t}?.clientHeight) : 0"
+                ),
+                "0".into(),
+            )
+        }
 
         // InputEvent
         (EventDataKind::InputEvent, "value") => (format!("{}.target?.value", raw), "\"\"".into()),
@@ -232,5 +243,17 @@ mod tests {
     fn non_pointer_events_keep_viewport_coords() {
         let (x, _) = field_extract_js(&EventDataKind::WheelEvent, "x", "e");
         assert_eq!(x, "e.clientX");
+    }
+
+    /// Task 6: ScrollEvent progress = scrollTop / (scrollHeight - clientHeight),
+    /// 0 when not measurable (no scrollable overflow / missing target).
+    #[test]
+    fn scroll_field_extract_js_progress() {
+        let (extract, fallback) = field_extract_js(&EventDataKind::ScrollEvent, "progress", "e");
+        assert_eq!(
+            extract,
+            "(e.target?.scrollHeight - e.target?.clientHeight > 0) ? e.target?.scrollTop / (e.target?.scrollHeight - e.target?.clientHeight) : 0"
+        );
+        assert_eq!(fallback, "0");
     }
 }
