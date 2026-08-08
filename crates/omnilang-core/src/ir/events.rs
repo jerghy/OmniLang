@@ -213,8 +213,8 @@ pub fn event_data_schema(kind: &EventDataKind) -> Vec<EventFieldDef> {
 pub fn map_event_data_kind(event_name: &str) -> Option<EventDataKind> {
     match event_name {
         "onClick" | "onPress" | "onTap" | "onDoubleClick" | "onLongPress" | "onMouseMove"
-        | "onHover" | "onMouseEnter" | "onMouseLeave" | "onPointerDown" | "onPointerUp"
-        | "onPointerMove" | "onPointerCancel" => Some(EventDataKind::PointerEvent),
+        | "onHover" | "onEnter" | "onMouseEnter" | "onLeave" | "onMouseLeave" | "onPointerDown"
+        | "onPointerUp" | "onPointerMove" | "onPointerCancel" => Some(EventDataKind::PointerEvent),
         "onTouchStart" | "onTouchMove" | "onTouchEnd" | "onTouchCancel" => {
             Some(EventDataKind::TouchEvent)
         }

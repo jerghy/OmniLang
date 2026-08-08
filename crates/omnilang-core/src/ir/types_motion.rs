@@ -177,6 +177,16 @@ mod event_data_tests {
             map_event_data_kind("onPointerDown"),
             Some(EventDataKind::PointerEvent)
         );
+        // Task 3 fix: @onEnter/@onLeave 语义名必须带 PointerEvent 数据——
+        // 否则 lowering 得 event_data=None，语义字段 e.x 等静默失效
+        assert_eq!(
+            map_event_data_kind("onEnter"),
+            Some(EventDataKind::PointerEvent)
+        );
+        assert_eq!(
+            map_event_data_kind("onLeave"),
+            Some(EventDataKind::PointerEvent)
+        );
     }
 
     #[test]

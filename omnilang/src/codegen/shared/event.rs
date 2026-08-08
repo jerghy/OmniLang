@@ -55,6 +55,10 @@ mod tests {
             "onTransitionend",
             "TransitionEnd",
         ],
+        // Task 3: enter/leave 语义拼写（onEnter/onLeave、短拼写 enter/leave）
+        // 与旧 DOM 拼写（onMouseEnter/mouseenter）同族——跨后端一致性钉住
+        &["onEnter", "enter", "onMouseEnter", "mouseenter"],
+        &["onLeave", "leave", "onMouseLeave", "mouseleave"],
     ];
 
     /// The dblclick-class bug must be impossible: each backend's handler
