@@ -53,7 +53,7 @@
 | `@onSubmit` | 表单/输入提交 | `{value}` | React onSubmit / Flutter onSubmitted / OmniView submit |
 | `@onKeyDown` | 按键按下 | `{key: KeyName, ctrl, shift, alt, meta}` | React onKeyDown / Flutter KeyEvent / OmniView keydown |
 | `@onKeyUp` | 按键抬起 | 同上 | 同上 |
-| `@onPointerDown/Move/Up` | 指针原始交互（低层；@drag 仍是高层意图） | `{x, y, dx, dy, pointerId, buttons}` | React pointer props / Flutter Listener / OmniView pointer 事件 |
+| `@onPointerDown/Move/Up` | 指针原始交互（低层；@drag 仍是高层意图） | `{x, y, pointerId, buttons}`（dx/dy 已 YAGNI 移除——@drag 覆盖增量语义，pointer 原始事件增量需跨事件快照状态、零消费者） | React pointer props / Flutter Listener / OmniView pointer 事件 |
 | `@onScroll` | 滚动位置/进度变化 | `{y, progress}` | React onScroll / Flutter NotificationListener / OmniView scroll |
 | `@onFocus` / `@onBlur` | 焦点进出 | `{}` | React onFocus/onBlur / Flutter FocusNode / OmniView focus/blur |
 | `@onEnter` / `@onLeave` | 指针悬停进出 | `{x, y}` | React onMouseEnter/Leave / Flutter MouseRegion / OmniView mouseenter/leave |
