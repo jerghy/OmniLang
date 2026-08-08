@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { GROUP_COLORS, validateGroupMembers, fnNameOf, computeGroupBoxes } from "../groups";
+import { GROUP_COLORS, validateGroupMembers, fnNameOf, computeGroupBoxes, collectCollapsedMemberIds, buildFlowEdges } from "../groups";
 import type { CodeblockElementData } from "../../../core/types/element";
 import type { WireData } from "../../../core/types/wire";
 import type { CodeFlowGroup } from "../../../core/types/project-json";
@@ -72,4 +72,33 @@ describe("groups 纯函数", () => {
     // cb1 有 position 但 sizes 无记录 → 无法可靠摆放，跳过
     expect(computeGroupBoxes([g], ELEMS, new Map()).size).toBe(0);
   });
+});
+
+// 折叠态连线重路由
+it("collectCollapsedMemberIds：收集所有折叠组的成员", () => {
+  const groups = [
+    { id: "g1", name: "a", memberIds: ["cb1", "cb2"], color: "#6366f1", collapsed: true },
+    { id: "g2", name: "b", memberIds: ["cb3"], color: "#6366f1", collapsed: false },
+  ] as CodeFlowGroup[];
+  expect(collectCollapsedMemberIds(groups)).toEqual(new Set(["cb1", "cb2"]));
+});
+
+it("buildFlowEdges：进线/出线重路由到组边界，组内连线隐藏，wire id 保留", () => {
+  const groups = [{ id: "g1", name: "a", memberIds: ["cb1", "cb2"], color: "#6366f1", collapsed: true }] as CodeFlowGroup[];
+  const edges = buildFlowEdges([
+    { id: "w1", fromId: "fn1", fromPort: "flow-out", toId: "cb1", toPort: "flow-in" },
+    { id: "w2", fromId: "cb1", fromPort: "flow-out", toId: "cb2", toPort: "flow-in" },
+    { id: "w3", fromId: "cb2", fromPort: "flow-out", toId: "cb3", toPort: "flow-in" },
+  ], groups);
+  expect(edges).toEqual([
+    { id: "w1", type: "default", source: "fn1", target: "g1", sourceHandle: "flow-out", targetHandle: "flow-in" },
+    { id: "w3", type: "default", source: "g1", target: "cb3", sourceHandle: "flow-out", targetHandle: "flow-in" },
+  ]);
+});
+
+it("buildFlowEdges：无折叠组时原样透传（含 type: default）", () => {
+  const edges = buildFlowEdges([
+    { id: "w1", fromId: "fn1", fromPort: "flow-out", toId: "cb1", toPort: "flow-in" },
+  ], []);
+  expect(edges).toEqual([{ id: "w1", type: "default", source: "fn1", target: "cb1", sourceHandle: "flow-out", targetHandle: "flow-in" }]);
 });

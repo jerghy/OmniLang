@@ -1,5 +1,6 @@
 // poiesis/src/services/codegen/groups.ts
-// 分组纯函数：成员校验 / fn 归属 / 包围盒。DOM 测量与 store 写入在组件层完成。
+// 分组纯函数：成员校验 / fn 归属 / 包围盒 / 折叠态连线重路由。DOM 测量与 store 写入在组件层完成。
+import type { Edge } from "@xyflow/react";
 import type { CodeblockElementData } from "../../core/types/element";
 import type { WireData } from "../../core/types/wire";
 import type { CodeFlowGroup } from "../../core/types/project-json";
@@ -74,6 +75,44 @@ export function computeGroupBoxes(
     }
     if (!ok || !Number.isFinite(minX)) continue;
     out.set(g.id, { x: minX - GROUP_PADDING, y: minY - GROUP_PADDING, width: maxX - minX + GROUP_PADDING * 2, height: maxY - minY + GROUP_PADDING * 2 });
+  }
+  return out;
+}
+
+/** 所有折叠组的成员 id 集合（渲染层过滤用）。 */
+export function collectCollapsedMemberIds(groups: CodeFlowGroup[]): Set<string> {
+  const out = new Set<string>();
+  for (const g of groups) {
+    if (g.collapsed) for (const mid of g.memberIds) out.add(mid);
+  }
+  return out;
+}
+
+/** 折叠组连线重路由：进线接到组节点左侧（flow-in）、出线发自组节点右侧（flow-out）、
+ *  组内连线隐藏。保留 wire id（防 key 冲突）；展开后从 wires 重推自动还原。 */
+export function buildFlowEdges(wires: WireData[], groups: CodeFlowGroup[]): Edge[] {
+  const collapsed = collectCollapsedMemberIds(groups);
+  if (collapsed.size === 0) {
+    return wires.map((w) => ({ id: w.id, type: "default", source: w.fromId, target: w.toId, sourceHandle: w.fromPort, targetHandle: w.toPort }));
+  }
+  const memberToGroup = new Map<string, string>();
+  for (const g of groups) {
+    if (!g.collapsed) continue;
+    for (const mid of g.memberIds) memberToGroup.set(mid, g.id);
+  }
+  const out: Edge[] = [];
+  for (const w of wires) {
+    const fromGroup = memberToGroup.get(w.fromId);
+    const toGroup = memberToGroup.get(w.toId);
+    if (fromGroup && toGroup && fromGroup === toGroup) continue; // 组内连线隐藏
+    out.push({
+      id: w.id,
+      type: "default",
+      source: fromGroup ?? w.fromId,
+      target: toGroup ?? w.toId,
+      sourceHandle: fromGroup ? "flow-out" : w.fromPort,
+      targetHandle: toGroup ? "flow-in" : w.toPort,
+    });
   }
   return out;
 }

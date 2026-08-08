@@ -32,7 +32,7 @@ import { useFlowScope } from "../../../services/codegen/flow-scope-hook";
 import { collectLetVarsPerFn, findOwnerFnId } from "../../../services/codegen/fn-topology";
 import { CODE_TAGS, TAG_CN, type MenuItem } from "./flowConstants";
 import { computeLayeredLayout, estimateNodeSize } from "../../../services/codegen/flow-layout";
-import { validateGroupMembers, fnNameOf, GROUP_COLORS, computeGroupBoxes } from "../../../services/codegen/groups";
+import { validateGroupMembers, fnNameOf, GROUP_COLORS, computeGroupBoxes, collectCollapsedMemberIds, buildFlowEdges } from "../../../services/codegen/groups";
 import type { GroupBBox } from "../../../services/codegen/groups";
 import type { CodeFlowGroup } from "../../../core/types/project-json";
 import { NodeSearchMenu } from "./NodeSearchMenu";
@@ -449,9 +449,12 @@ function FlowCanvasInner() {
     [groupFnName],
   );
 
-  const nodes: RFNode[] = useMemo(
-    () =>
-      codeElements.map((el) => ({
+  const nodes: RFNode[] = useMemo(() => {
+    // ── 折叠组：成员节点渲染层过滤（Task 5）──
+    // 数据防线：只过滤渲染输出，store 元素不动——保存/代码生成永远用全量。
+    const collapsedMemberIds = collectCollapsedMemberIds(Object.values(codeFlowGroups ?? {}).flat());
+    const visibleElements = codeElements.filter((e) => !collapsedMemberIds.has(e.id));
+    return visibleElements.map((el) => ({
         id: el.id,
         type: el.tag,
         position: el.position ?? { x: 0, y: 0 },
@@ -499,26 +502,42 @@ function FlowCanvasInner() {
             onEditProp: (id: string, prop: string, value: unknown) => setProp(id, prop, value),
           } : {}),
         },
-      })),
-    [codeElements, selectedNodeIds, setEditingNodeId, setProp, flowScope, letVarsByFn],
+      }));
+    },
+    [codeElements, selectedNodeIds, setEditingNodeId, setProp, flowScope, letVarsByFn, codeFlowGroups],
   );
 
   // ── Group nodes（Task 4）──
   // 展开态 = bbox 尺寸占位节点（GroupBox 内部绝对定位铺满）+ 标题栏交互；折叠态 = 紧凑组卡，
-  // 位置优先 Task 7 的 collapsedGroupPositions，其次沿用最后一次展开 bbox（缓存）。
+  // 位置优先 Task 7 的 collapsedGroupPositions，其次沿用最后一次展开 bbox（缓存），
+  // 再无则退化到成员 position 原点（首次加载即折叠 / 无 DOM 测量环境）。
   // 数组首位渲染：组框在成员节点下层（z 序背景层），ReactFlow 按数组序覆盖。
-  // 成员节点不做过滤隐藏（Task 5 折叠成员过滤）。
-  const groupNodes: RFNode[] = [];
-  for (const g of Object.values(codeFlowGroups ?? {}).flat()) {
+  // 成员节点过滤在下方 nodes useMemo 完成（Task 5 渲染层过滤，store 元素不动）。
+  const groupNodes: RFNode[] = useMemo(() => {
+    const out: RFNode[] = [];
+    for (const g of Object.values(codeFlowGroups ?? {}).flat()) {
     const bbox = groupBoxes.get(g.id);
     let pos: { x: number; y: number } | undefined;
     if (g.collapsed) {
       pos = collapsedGroupPositions[g.id] ?? (bbox ? { x: bbox.x, y: bbox.y } : undefined);
+      // 无缓存位置（首次加载即折叠 / jsdom 无 DOM 可测）：退化到成员 position 原点，
+      // 卡落在成员所在处；展开测量后即被 bbox 缓存取代。
+      if (!pos) {
+        let minX = Infinity, minY = Infinity;
+        for (const mid of g.memberIds) {
+          const m = codeElements.find((e) => e.id === mid);
+          if (m?.position) {
+            minX = Math.min(minX, m.position.x);
+            minY = Math.min(minY, m.position.y);
+          }
+        }
+        if (Number.isFinite(minX)) pos = { x: minX, y: minY };
+      }
     } else if (bbox) {
       pos = { x: bbox.x, y: bbox.y };
     }
     if (!pos) continue;
-    groupNodes.push({
+    out.push({
       id: g.id,
       type: "group",
       position: pos,
@@ -539,22 +558,18 @@ function FlowCanvasInner() {
         onDelete: () => removeGroup(g),
       },
     });
-  }
+    }
+    return out;
+  }, [codeFlowGroups, groupBoxes, collapsedGroupPositions, editingGroupId, patchGroup, removeGroup, groupFnName, codeElements]);
   const allNodesWithGroups = [...groupNodes, ...nodes];
 
   const edges = useMemo(
     () =>
-      wires.map((w) => ({
-        id: w.id,
-        // 原生默认 edge（bezier 拓扑曲线）——显式声明防"注释与实现矛盾"回归（2026-08-05
-        // 曾注释声称 smoothstep 但未配置 → 实际 bezier 却无人知晓）；用户拍板要曲线交叉
-        type: "default",
-        source: w.fromId,
-        target: w.toId,
-        sourceHandle: w.fromPort,
-        targetHandle: w.toPort,
-      })),
-    [wires],
+      buildFlowEdges(wires, Object.values(codeFlowGroups ?? {}).flat()),
+    // 原生默认 edge（bezier 拓扑曲线）——显式声明防"注释与实现矛盾"回归（2026-08-05
+    // 曾注释声称 smoothstep 但未配置 → 实际 bezier 却无人知晓）；用户拍板要曲线交叉；
+    // 折叠组连线由 buildFlowEdges 重路由：组内隐藏、进出线接组边界 flow-in/flow-out。
+    [wires, codeFlowGroups],
   );
 
   // ── 自动整理布局：computeLayeredLayout 纯函数 → setElementsAndWires 批量写入（一次 undo 条目）──
