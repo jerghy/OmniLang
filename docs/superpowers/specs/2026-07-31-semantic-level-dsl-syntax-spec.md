@@ -878,12 +878,12 @@ component TodoPage {
   view {
     <div>
       <input bind:value={localDraft} placeholder="输入待办事项..." />
-      <button @onClick={handleAdd}>添加</button>
+      <button @onPress={handleAdd}>添加</button>
 
       <p>剩余 {TodoStore.activeCount} 项</p>
 
       @for item in TodoStore.filteredItems key={item.id} {
-        <div @onClick={() => { TodoStore.toggle(item.id) }}>
+        <div @onPress={() => { TodoStore.toggle(item.id) }}>
           <span>{item.text}</span>
         </div>
       }

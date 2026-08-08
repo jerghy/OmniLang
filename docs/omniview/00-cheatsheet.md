@@ -178,12 +178,12 @@ import omniview;
 component EventDemo {
     signal clicks: i32 = 0;
 
-    fn onClick(e) {
+    fn onPress(e) {
         clicks = clicks + 1;
     }
 
     view {
-        <button @onClick={onClick}>clicked {clicks}</button>
+        <button @onPress={onPress}>clicked {clicks}</button>
     }
 }
 ```
@@ -252,7 +252,7 @@ component A11yDemo {
 
 **单一事实来源**：`crates/omnilang-core/src/codegen/shared/event_names.rs` 的共享 canonical 表（v2 Task 4.2 起五后端共用，`dblclick` 类漂移 bug 的根治）。共 **54 个 canonical 事件名**。
 
-**解析规则**：`on` 前缀可选、大小写不敏感；别名族（press/click/tap 等）折叠到同一 canonical 名。**未知事件名 → warning（E0006）+ 最近合法建议**（如 `@onTotallyBogus` → 建议 `@onTap`/`@onClick`/`@onPress`），非 error。
+**解析规则**：`on` 前缀可选、大小写不敏感；别名族（press/click/tap 等）折叠到同一 canonical 名。**语义化即切换**（2026-08-08）：首批 14 个语义事件名（`@onPress`/`@onEnter`/`@onLeave` 等）是唯一合法拼写——旧 DOM 拼写（`@onClick`/`@onTap`/`@onMouseEnter`/`@onMouseLeave` 等）产生编译期硬错误 + 迁移提示（E0006）；其余 40 个 DOM 事件名维持透传。**未知事件名 → warning（E0006）+ 最近合法建议**（如 `@onTotallyBogus` → 建议 `@onPress`），非 error。
 
 | 族 | @on 拼写（建议写法） | canonical（DOM） | 别名 |
 |------|----------------------|------------------|------|
@@ -262,7 +262,7 @@ component A11yDemo {
 | 悬停 | `@onHover` | `hover` | —（无 DOM 事件） |
 | 表单 | `@onChange` / `@onInput` / `@onToggle` / `@onSubmit` / `@onFocus` / `@onBlur` / `@onSelect` / `@onResize` | `change` / `input` / `toggle` / `submit` / `focus` / `blur` / `select` / `resize` | — |
 | 键盘 | `@onKeyDown` / `@onKeyUp` / `@onKeyPress` | `keydown` / `keyup` / `keypress` | — |
-| 鼠标 | `@onMouseEnter` / `@onMouseLeave` / `@onMouseDown` / `@onMouseUp` / `@onMouseMove` / `@onMouseOver` / `@onMouseOut` | 同名小写 | — |
+| 鼠标 | `@onEnter` / `@onLeave`（语义事件；旧 `@onMouseEnter`/`@onMouseLeave` 已弃用）/ `@onMouseDown` / `@onMouseUp` / `@onMouseMove` / `@onMouseOver` / `@onMouseOut`（透传） | 同名小写 | — |
 | 指针 | `@onPointerDown` / `@onPointerUp` / `@onPointerMove` / `@onPointerCancel` | 同名小写 | — |
 | 滚动/滚轮 | `@onScroll` / `@onWheel` | `scroll` / `wheel` | — |
 | 触摸 | `@onTouchStart` / `@onTouchEnd` / `@onTouchMove` / `@onTouchCancel` | 同名小写 | `onTouchcancel` 等大小写变体 |

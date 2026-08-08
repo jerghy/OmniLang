@@ -223,7 +223,7 @@ component SearchBox {
 <!-- 冒号简写 -->
 <input ref: myInput bind:value={text} />
 
-<!-- @ref 事件风格（推荐，与 @onClick 等一致性更高）-->
+<!-- @ref 事件风格（推荐，与 @onPress 等语义事件一致性高）-->
 <input @ref={myInput} bind:value={text} />
 <div @ref={scrollContainer}>...</div>
 ```

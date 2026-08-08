@@ -199,7 +199,7 @@ component MyComponent {
         <!-- 方式 A：冒号简写（原语） -->
         <input ref: myInput bind:value={text} />
 
-        <!-- 方式 B：@ref 事件风格（推荐，与 @onClick 一致性高）-->
+        <!-- 方式 B：@ref 事件风格（推荐，与 @onPress 等语义事件一致性高）-->
         <div @ref={scrollContainer}>...</div>
     }
 }

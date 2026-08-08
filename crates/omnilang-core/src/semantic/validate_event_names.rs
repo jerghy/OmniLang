@@ -291,8 +291,8 @@ mod tests {
     }
 
     /// 14 个语义事件名全部通过验证（无 Error 诊断）。注意：@onEnter/@onLeave
-    /// 的 canonical 目前为 None（enter/leave 别名入表属 Task 3），会走既有
-    /// 未知事件名 warning——本测试只断言不产生 Error。
+    /// 的 canonical 已入表（Task 3，mouseenter/mouseleave 族）——本测试只断言
+    /// 不产生 Error。
     #[test]
     fn semantic_event_names_pass_validation() {
         let fns = SEMANTIC_EVENT_NAMES

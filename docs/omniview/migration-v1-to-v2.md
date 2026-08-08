@@ -118,7 +118,7 @@
 
 - **诊断（verbatim）**：`通用闭包用管道 |x|；箭头仅用于事件内联`
 - **v1 写法**：`items.filter(x => x > 0)`
-- **v2 写法**：管道闭包 `items.filter(|x| x > 0)`；`=>` 仅用于事件内联 `@onClick={() => { ... }}`
+- **v2 写法**：管道闭包 `items.filter(|x| x > 0)`；`=>` 仅用于事件内联 `@onPress={() => { ... }}`
 - **提示**：管道闭包是唯一通用闭包形式——见 [03-表达式与运算符](03-expressions-and-operators.md) 与 [00-速查表 §1.8](00-cheatsheet.md)
 
 ### 12. store 内 `fn` 成员 → `E0001`（解析错误）
@@ -226,7 +226,7 @@ component App {
         <div a11y: { label: "demo" } @enter={fadeIn}>
             <input @ref={inputEl} bind:value={text} />
             <Card header={<h3>Custom</h3>}>custom body</Card>
-            <button @onClick={() => { clicks = clicks + 1; }}>clicked {clicks}</button>
+            <button @onPress={() => { clicks = clicks + 1; }}>clicked {clicks}</button>
             @if show { <p>conditional</p> }
             <p>theme: {ThemeStore.mode}</p>
         </div>

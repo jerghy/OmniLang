@@ -123,6 +123,7 @@ DELETED_SYNTAX_PREFIXES = (
     "expected '{' after '@themes'",         # v1 '@themes light, dark;' (parse error already; listed for completeness)
     "hero transitions are not supported",   # @hero removed (ADR-032/053)
     "aria-* 原生属性已删除",                  # raw aria-* attr (domain MEDIUM-1/D-D) — a11y: { ... } block only
+    '事件名 "',                              # E0006 语义事件旧拼写（@onClick/@onMouseEnter/@onMouseLeave 等）——@onPress/@onEnter/@onLeave only（2026-08-08 语义化即切换）
 )
 
 
@@ -408,6 +409,33 @@ def main():
     args = ap.parse_args()
 
     args.omnic = os.path.abspath(args.omnic)
+
+    # Binary freshness: the gate trusts omnic as ground truth, so a STALE
+    # binary reports fake green for syntax the compiler has since rejected —
+    # 旧 binary 跑 docs-gate 报假绿（2026-08-08 实证）。Compare omnic's mtime
+    # against the newest compiler source; gate mode FAILS, --inspect warns.
+    newest_rs = 0.0
+    for src_dir in ("crates/omnilang-core/src", "omnilang/src"):
+        src_root = os.path.join(REPO_ROOT, src_dir)
+        if not os.path.isdir(src_root):
+            continue
+        for dirpath, _dirnames, filenames in os.walk(src_root):
+            for f in filenames:
+                if f.endswith(".rs"):
+                    newest_rs = max(newest_rs, os.path.getmtime(os.path.join(dirpath, f)))
+    if newest_rs and os.path.isfile(args.omnic) and os.path.getmtime(args.omnic) < newest_rs:
+        stale_msg = (
+            f"STALE omnic binary {os.path.relpath(args.omnic, REPO_ROOT)} is older than "
+            f"newest compiler source — 旧 binary 跑 docs-gate 报假绿（2026-08-08 实证）；"
+            f"请先 cargo build 再跑 gate"
+        )
+        if args.inspect:
+            print(f"WARNING: {stale_msg}")
+        else:
+            print(f"ERROR: {stale_msg}")
+            print("\nGATE FAILED: stale binary — rebuild omnic first "
+                  "(compiler is ground truth).")
+            return 1
 
     paths = sorted(
         os.path.join(args.docs, f) for f in os.listdir(args.docs) if f.endswith(".md")
