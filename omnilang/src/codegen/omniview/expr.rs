@@ -572,6 +572,14 @@ impl OmniViewGenerator {
         dot_op: &str,
         value_op: &str,
     ) -> String {
+        // ── @form 内置状态（Task 6）──
+        // form.errors / form.valid / form.submitting 及两级 form.errors.<field>
+        // 仅在当前组件存在 @form 意图时接管；否则按常规 store/属性解析。
+        if self.scope.form_intent.is_some() {
+            if let Some(js) = self.try_form_builtin_access(object, field) {
+                return js;
+            }
+        }
         let raw_obj_name = if let ExprIR::IdentifierExpr { name, .. } = object {
             Some(name.clone())
         } else {
@@ -604,6 +612,52 @@ impl OmniViewGenerator {
         } else {
             format!("{}{}{}", obj, dot_op, field)
         }
+    }
+
+    /// @form 内置状态访问解析（Task 6）：
+    /// - 单级 `form.X`（X ∈ {errors, valid, submitting}）→ `{Comp}_formX` 信号的
+    ///   `.value`（editor 模式经 `__omni_subs.get` 统一读取）。
+    /// - 两级 `form.errors.<field>` → `{Comp}_formErrors.value["<field>"]`。
+    ///
+    /// 非 form 形态返回 None，由调用方走常规解析。
+    fn try_form_builtin_access(&self, object: &ExprIR, field: &str) -> Option<String> {
+        let builtin = |f: &str| match f {
+            "errors" => Some("formErrors"),
+            "valid" => Some("formValid"),
+            "submitting" => Some("formSubmitting"),
+            _ => None,
+        };
+        let comp = &self.scope.current_component;
+        let signal_suffix = match object {
+            ExprIR::IdentifierExpr { name, .. } if name == "form" => builtin(field)?,
+            ExprIR::FieldAccessExpr {
+                object: inner,
+                field: mid,
+            } => {
+                let ExprIR::IdentifierExpr { name, .. } = inner.as_ref() else {
+                    return None;
+                };
+                if name != "form" {
+                    return None;
+                }
+                let suffix = builtin(mid)?;
+                // 两级访问：form.errors.<field> → 信号 value 的字段索引
+                return Some(if self.editor_mode {
+                    format!(
+                        "__omni_subs.get(\"{}_{}\").value[\"{}\"]",
+                        comp, suffix, field
+                    )
+                } else {
+                    format!("{}_{}.value[\"{}\"]", comp, suffix, field)
+                });
+            }
+            _ => return None,
+        };
+        Some(if self.editor_mode {
+            format!("__omni_subs.get(\"{}_{}\").value", comp, signal_suffix)
+        } else {
+            format!("{}_{}.value", comp, signal_suffix)
+        })
     }
 
     pub(super) fn expr_to_static_str(&self, expr: &ExprIR) -> String {

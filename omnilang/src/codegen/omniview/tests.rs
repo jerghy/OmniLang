@@ -2695,3 +2695,156 @@ component DragBox {
         js
     );
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Task 6: @form HTML5 校验 + 自绘错误 / @load 三态信号（spec 2026-08-08 §4.1/§4.2）
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// @form：提交拦截（submit 监听 + preventDefault）、required/pattern 规则落
+/// HTML5 属性、自绘错误信号 formErrors 与字段 aria-invalid/aria-describedby
+/// 动态绑定；校验失败不发事件（提交门禁 validateForm）。
+#[test]
+fn omniview_form_emits_html5_and_errors() {
+    let source = r#"
+component App {
+  signal name: string = "";
+  fn submit(e) {}
+  view {
+    <form @form @onSubmit={submit}>
+      <input bind:value={name} validate:{required: true} />
+      @if form.errors.name { <span id="err-name">{form.errors.name}</span> }
+    </form>
+  }
+}
+"#;
+    let result = crate::compile_omniview(source, false, false);
+    assert!(result.success, "compilation failed: {:?}", result.errors);
+    let js = result.files.expect("Expected JS output").js;
+
+    // 提交拦截：submit 事件监听 + preventDefault（OmniView 用 addEventListener 形态）
+    assert!(
+        js.contains("addEventListener(\"submit\""),
+        "must intercept submit via addEventListener. JS:\n{}",
+        js
+    );
+    assert!(
+        js.contains("e.preventDefault()"),
+        "submit listener must preventDefault. JS:\n{}",
+        js
+    );
+    // required 规则 → HTML5 属性
+    assert!(
+        js.contains("required"),
+        "required rule must land on the DOM element. JS:\n{}",
+        js
+    );
+    // 自绘错误：formErrors 信号 + 字段 aria 动态绑定
+    assert!(
+        js.contains("formErrors"),
+        "formErrors signal must be emitted. JS:\n{}",
+        js
+    );
+    assert!(
+        js.contains("aria-invalid"),
+        "field must get aria-invalid binding. JS:\n{}",
+        js
+    );
+    assert!(
+        js.contains("aria-describedby"),
+        "field must get aria-describedby binding. JS:\n{}",
+        js
+    );
+    // 提交门禁：校验函数存在且提交处理器经其放行（校验失败不发事件）
+    assert!(
+        js.contains("validateForm"),
+        "validateForm fn must be emitted for the submit gate. JS:\n{}",
+        js
+    );
+}
+
+/// @form 编辑器模式：validateForm 必须经工厂 fns 映射暴露（54341d13 类回归门禁）。
+#[test]
+fn omniview_form_editor_mode_exposes_validate_form() {
+    let source = r#"
+component App {
+  signal name: string = "";
+  fn submit(e) {}
+  view {
+    <form @form @onSubmit={submit}>
+      <input bind:value={name} validate:{required: true} />
+    </form>
+  }
+}
+"#;
+    let result = crate::compile_omniview(source, true, false);
+    assert!(result.success, "compilation failed: {:?}", result.errors);
+    let js = result.files.expect("Expected JS output").js;
+    assert!(
+        js.contains("window.__omni_components[\"App\"].fns.validateForm"),
+        "editor mode must expose validateForm through the factory fns map. JS:\n{}",
+        js
+    );
+}
+
+/// @load：组件脚本生成三态信号 loading（初始 true）/error/data（初始 []）、
+/// 挂载调用与 retry 函数；编辑器模式经工厂 fns 暴露 retry。
+#[test]
+fn omniview_load_emits_three_state_signals() {
+    let source = r#"
+component App {
+  fn fetchTodos() -> Array<String> {}
+  view {
+    @load={fetchTodos}
+    <div/>
+  }
+}
+"#;
+    let result = crate::compile_omniview(source, false, false);
+    assert!(result.success, "compilation failed: {:?}", result.errors);
+    let js = result.files.expect("Expected JS output").js;
+
+    // 三态信号（组件前缀，用户未声明）
+    assert!(
+        js.contains("App_loading"),
+        "loading signal must be emitted. JS:\n{}",
+        js
+    );
+    assert!(
+        js.contains("App_error"),
+        "error signal must be emitted. JS:\n{}",
+        js
+    );
+    assert!(
+        js.contains("App_data"),
+        "data signal must be emitted. JS:\n{}",
+        js
+    );
+    // retry 函数（三态重置 + 重载）
+    assert!(
+        js.contains("App_retry"),
+        "retry fn must be emitted. JS:\n{}",
+        js
+    );
+}
+
+/// @load 编辑器模式：retry 必须经工厂 fns 映射暴露（54341d13 类回归门禁）。
+#[test]
+fn omniview_load_editor_mode_exposes_retry() {
+    let source = r#"
+component App {
+  fn fetchTodos() -> Array<String> {}
+  view {
+    @load={fetchTodos}
+    <div/>
+  }
+}
+"#;
+    let result = crate::compile_omniview(source, true, false);
+    assert!(result.success, "compilation failed: {:?}", result.errors);
+    let js = result.files.expect("Expected JS output").js;
+    assert!(
+        js.contains("window.__omni_components[\"App\"].fns.retry"),
+        "editor mode must expose retry through the factory fns map. JS:\n{}",
+        js
+    );
+}

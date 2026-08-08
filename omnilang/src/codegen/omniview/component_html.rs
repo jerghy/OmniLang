@@ -38,6 +38,8 @@ impl OmniViewGenerator {
                 self.scope.for_item_var = saved_scope.for_item_var.clone();
                 self.scope.rewrite_for_item = saved_scope.rewrite_for_item;
                 self.scope.current_component = child_comp.name.clone();
+                self.scope.form_intent = child_comp.form_intent.clone();
+                self.scope.load_intent = child_comp.load_intent.clone();
 
                 if self.scope.in_for_template {
                     // fn-typed props of the child must be callable in the

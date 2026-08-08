@@ -242,10 +242,20 @@ impl OmniViewGenerator {
                     // editor/debug window).
                     let event_obj =
                         emit_event_object(handler.event_data(), handler.used_fields(), "e");
-                    let call = format!(
+                    let mut call = format!(
                         "window.__omni_components[\"{}\"].fns.{}({})",
                         self.scope.current_component, r#ref, event_obj
                     );
+                    // @form submit gate (Task 6): only dispatch the submit
+                    // handler when validateForm passes (self-drawn errors land
+                    // in the formErrors signal; the handler is skipped otherwise).
+                    if js_event == "submit" && self.scope.form_intent.is_some() {
+                        let gate = format!(
+                            "window.__omni_components[\"{}\"].fns.validateForm()",
+                            self.scope.current_component
+                        );
+                        call = format!("if ({gate}) {{ {call} }}");
+                    }
                     let _ = writeln!(self.js,
                         "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ try {{ {sp} {pd} {call}; }} catch(err) {{ __omni_reportError(\"error:event:{js_event}\", err); }} }}); }}",
                         nid = nid, js_event = js_event, sp = sp, pd = pd, call = call
@@ -254,9 +264,15 @@ impl OmniViewGenerator {
                     let prefixed = format!("{}_{}", self.scope.current_component, r#ref);
                     let event_obj =
                         emit_event_object(handler.event_data(), handler.used_fields(), "e");
+                    let mut call = format!("{prefixed}({event_obj})");
+                    // @form submit gate (Task 6) — non-editor: direct call.
+                    if js_event == "submit" && self.scope.form_intent.is_some() {
+                        let gate = format!("{}_validateForm()", self.scope.current_component);
+                        call = format!("if ({gate}) {{ {call} }}");
+                    }
                     let _ = writeln!(self.js,
-                        "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ try {{ {sp} {pd} {prefixed}({event_obj}); }} catch(err) {{ __omni_reportError(\"error:event:{js_event}\", err); }} }}); }}",
-                        nid = nid, js_event = js_event, sp = sp, pd = pd, prefixed = prefixed, event_obj = event_obj
+                        "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ try {{ {sp} {pd} {call}; }} catch(err) {{ __omni_reportError(\"error:event:{js_event}\", err); }} }}); }}",
+                        nid = nid, js_event = js_event, sp = sp, pd = pd, call = call
                     );
                 }
             }

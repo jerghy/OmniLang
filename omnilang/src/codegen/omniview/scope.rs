@@ -13,7 +13,7 @@
 //! in the save/restore cycle.
 
 use super::AttrPart;
-use crate::ir::EventDataKind;
+use crate::ir::{EventDataKind, FormIntentIR, LoadIntentIR};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 /// All state scoped to a single component during codegen.
@@ -27,6 +27,12 @@ pub(super) struct ComponentScope {
     /// shadows a same-named store signal rename ("items" → "TodoStore_items").
     pub fn_locals: FxHashSet<String>,
     pub current_component: String,
+    /// The current component's @form intent (None when absent) — consumed by
+    /// element emission (HTML5 required/pattern + aria wiring) and event
+    /// emission (submit validation gate).
+    pub form_intent: Option<FormIntentIR>,
+    /// The current component's @load intent (None when absent).
+    pub load_intent: Option<LoadIntentIR>,
     pub signal_names: FxHashSet<String>,
     pub name_renames: FxHashMap<String, String>,
     pub for_text_bindings: Vec<(String, String)>,
@@ -68,6 +74,8 @@ impl ComponentScope {
         ComponentScope {
             fn_locals: std::mem::take(&mut gen.scope.fn_locals),
             current_component: std::mem::take(&mut gen.scope.current_component),
+            form_intent: std::mem::take(&mut gen.scope.form_intent),
+            load_intent: std::mem::take(&mut gen.scope.load_intent),
             signal_names: std::mem::take(&mut gen.name_resolver.signal_names),
             name_renames: std::mem::take(&mut gen.name_resolver.name_renames),
             for_text_bindings: std::mem::take(&mut gen.scope.for_text_bindings),
@@ -88,6 +96,8 @@ impl ComponentScope {
     /// Restore per-component state back to the generator.
     pub(super) fn restore(self, gen: &mut super::OmniViewGenerator) {
         gen.scope.current_component = self.current_component;
+        gen.scope.form_intent = self.form_intent;
+        gen.scope.load_intent = self.load_intent;
         gen.name_resolver.signal_names = self.signal_names;
         gen.name_resolver.name_renames = self.name_renames;
         gen.scope.for_text_bindings = self.for_text_bindings;
@@ -109,6 +119,8 @@ impl ComponentScope {
         ComponentScope {
             fn_locals: FxHashSet::default(),
             current_component: String::new(),
+            form_intent: None,
+            load_intent: None,
             signal_names: FxHashSet::default(),
             name_renames: FxHashMap::default(),
             for_text_bindings: Vec::new(),

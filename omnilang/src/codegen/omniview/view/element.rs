@@ -331,6 +331,35 @@ impl OmniViewGenerator {
             ));
         }
 
+        // ── @form HTML5 校验属性（Task 6）──
+        // required 规则 → 元素 required 属性；pattern 规则（字面量）→ pattern 属性。
+        // 守卫：用户显式书写的同名静态 prop 优先（spec §4.1 V-F5）。
+        // 字段匹配：bindings 中 value/checked 的信号路径末段 == FormFieldIR.name。
+        if let Some(form) = &self.scope.form_intent {
+            for (prop_name, binding) in &el.bindings {
+                if prop_name != "value" && prop_name != "checked" {
+                    continue;
+                }
+                let field_name = binding.name.rsplit('.').next().unwrap_or(&binding.name);
+                let Some(field) = form.fields.iter().find(|f| f.name == field_name) else {
+                    continue;
+                };
+                if !el.props.contains_key("required")
+                    && field.rules.iter().any(|r| r.name == "required")
+                {
+                    attrs.push_str(" required");
+                }
+                if !el.props.contains_key("pattern") {
+                    if let Some(rule) = field.rules.iter().find(|r| r.name == "pattern") {
+                        let pat = self.expr_to_static_str(&rule.value);
+                        if !pat.is_empty() {
+                            let _ = write!(attrs, " pattern=\"{}\"", escape_html(&pat));
+                        }
+                    }
+                }
+            }
+        }
+
         (attrs, class_name_parts)
     }
 
@@ -401,6 +430,35 @@ impl OmniViewGenerator {
                     nid, guard_name, prop_name, sig_name
                 );
             }
+        }
+    }
+
+    /// Emit @form field error aria wiring (Task 6, spec §4.1).
+    ///
+    /// For every bound form field (bindings "value"/"checked" whose signal
+    /// path last segment matches a FormFieldIR.name), a reactive effect syncs
+    /// `aria-invalid` / `aria-describedby` from the component's formErrors
+    /// signal. The error <span> itself is rendered explicitly by the user
+    /// (e.g. `@if form.errors.name { <span id="err-name">...`), so this only
+    /// wires the accessibility channel.
+    fn emit_form_field_aria(&mut self, el: &ElementIR, nid: &str) {
+        let Some(form) = &self.scope.form_intent else {
+            return;
+        };
+        let comp = &self.scope.current_component;
+        for (prop_name, binding) in &el.bindings {
+            if prop_name != "value" && prop_name != "checked" {
+                continue;
+            }
+            let field_name = binding.name.rsplit('.').next().unwrap_or(&binding.name);
+            if !form.fields.iter().any(|f| f.name == field_name) {
+                continue;
+            }
+            let _ = writeln!(
+                self.js,
+                "__omni_effect(() => {{ const el = __omni_el(\"{0}\"); if (el) {{ const err = __omni_subs.get(\"{1}_formErrors\").value[\"{2}\"]; el.setAttribute('aria-invalid', err ? 'true' : 'false'); el.setAttribute('aria-describedby', err ? 'err-{2}' : ''); }} }});",
+                nid, comp, field_name
+            );
         }
     }
 
@@ -804,6 +862,9 @@ impl OmniViewGenerator {
         // run in registration order, so a bind sync registered after the user
         // handler would make the handler read the pre-update signal value.
         self.emit_element_bindings(el, &nid);
+
+        // @form field error aria wiring — reactive from formErrors signal
+        self.emit_form_field_aria(el, &nid);
 
         self.emit_element_events(el, &nid, &mut attrs);
 

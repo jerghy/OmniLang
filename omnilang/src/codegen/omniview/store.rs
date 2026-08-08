@@ -136,6 +136,49 @@ impl OmniViewGenerator {
         self.js.push('\n');
     }
 
+    /// Resolve a form-field signal name to its JS read expression, used by the
+    /// generated `{name}_validateForm`. Mirrors expr.rs IdentifierExpr
+    /// resolution: component name_renames → store signals ("{Store}_{field}")
+    /// → bare field fallback. Editor mode reads through __omni_subs (same as
+    /// expr.rs:45) so validateForm sees the live signal instances.
+    fn form_field_read(&self, field: &str) -> String {
+        let mut resolved = self
+            .name_resolver
+            .name_renames
+            .get(field)
+            .cloned()
+            .unwrap_or_else(|| field.to_string());
+        if !self.name_resolver.signal_names.contains(resolved.as_str()) {
+            // Store-bound field (bind:value={todo.title} → FormFieldIR.name =
+            // "title"): find "{Store}_{field}" among the registered signals.
+            let mut stores: Vec<&String> = self.name_resolver.store_names.iter().collect();
+            stores.sort();
+            if let Some(found) = stores.into_iter().find(|store| {
+                self.name_resolver
+                    .signal_names
+                    .contains(format!("{}_{}", store, field).as_str())
+            }) {
+                resolved = format!("{}_{}", found, field);
+            }
+        }
+        if self.editor_mode {
+            format!("__omni_subs.get(\"{}\").value", resolved)
+        } else {
+            format!("{}.value", resolved)
+        }
+    }
+
+    /// Resolve a function-name reference (custom validator / @load loader)
+    /// through the same chain as expr.rs: name_renames → global_renames → bare.
+    fn resolve_fn_name(&self, name: &str) -> String {
+        self.name_resolver
+            .name_renames
+            .get(name)
+            .or_else(|| self.name_resolver.global_renames.get(name))
+            .cloned()
+            .unwrap_or_else(|| name.to_string())
+    }
+
     // ══════════════════════════════════════════════════════
     // Component Generation
     // ══════════════════════════════════════════════════════
@@ -157,6 +200,8 @@ impl OmniViewGenerator {
             self.current_css_start = self.css.len();
         }
         self.scope.current_component = name.to_string();
+        self.scope.form_intent = comp.form_intent.clone();
+        self.scope.load_intent = comp.load_intent.clone();
         // Clear component-local signal renames (global function/event renames persist).
         self.name_resolver.name_renames.clear();
         self.name_resolver.signal_names.clear();
@@ -273,6 +318,67 @@ impl OmniViewGenerator {
             self.name_resolver.signal_names.insert(prefixed);
         }
 
+        // ── @form builtin signals (Task 6) ──
+        // formErrors/formSubmitting are real signals; formValid is a computed
+        // over formErrors (empty error map ⇒ valid). Declared AFTER prop
+        // defaults and BEFORE the user computeds below — the formValid
+        // computed must see formErrors already registered (eager evaluation,
+        // runtime.rs:85). V-F8 guarantees users cannot declare same-named
+        // signals, so no collision.
+        if self.scope.form_intent.is_some() {
+            let ferr = format!("{name}_formErrors");
+            let fsub = format!("{name}_formSubmitting");
+            let fval = format!("{name}_formValid");
+            self.name_resolver
+                .name_renames
+                .insert("formErrors".to_string(), ferr.clone());
+            self.name_resolver.signal_names.insert(ferr.clone());
+            self.name_resolver
+                .name_renames
+                .insert("formSubmitting".to_string(), fsub.clone());
+            self.name_resolver.signal_names.insert(fsub.clone());
+            self.name_resolver
+                .name_renames
+                .insert("formValid".to_string(), fval.clone());
+            self.name_resolver.signal_names.insert(fval.clone());
+            let _ = writeln!(self.js, "const {ferr} = __omni_signal(\"{ferr}\", {{}});");
+            let _ = writeln!(self.js, "const {fsub} = __omni_signal(\"{fsub}\", false);");
+            let _ = writeln!(
+                self.js,
+                "const {fval} = __omni_computed(\"{fval}\", () => (Object.keys({ferr}.value).length === 0));"
+            );
+        }
+
+        // ── @load builtin signals (Task 6) ──
+        // loading starts true (the mount call below flips it), error starts "",
+        // data starts []. V-F8 guarantees no user-declared collisions.
+        if self.scope.load_intent.is_some() {
+            let lloading = format!("{name}_loading");
+            let lerror = format!("{name}_error");
+            let ldata = format!("{name}_data");
+            self.name_resolver
+                .name_renames
+                .insert("loading".to_string(), lloading.clone());
+            self.name_resolver.signal_names.insert(lloading.clone());
+            self.name_resolver
+                .name_renames
+                .insert("error".to_string(), lerror.clone());
+            self.name_resolver.signal_names.insert(lerror.clone());
+            self.name_resolver
+                .name_renames
+                .insert("data".to_string(), ldata.clone());
+            self.name_resolver.signal_names.insert(ldata.clone());
+            let _ = writeln!(
+                self.js,
+                "const {lloading} = __omni_signal(\"{lloading}\", true);"
+            );
+            let _ = writeln!(
+                self.js,
+                "const {lerror} = __omni_signal(\"{lerror}\", \"\");"
+            );
+            let _ = writeln!(self.js, "const {ldata} = __omni_signal(\"{ldata}\", []);");
+        }
+
         // Computed declarations — MUST come AFTER prop defaults so that
         // __omni_computed's eager evaluation (runtime.rs:85) can reference
         // prop readonlySignals that are already declared.
@@ -334,6 +440,133 @@ impl OmniViewGenerator {
         for f in &comp.fns {
             let prefixed_name = format!("{}{}", fn_prefix, f.name);
             self.emit_function_named(f, &prefixed_name);
+        }
+
+        // ── @form validateForm + @load retry (Task 6) ──
+        // validateForm mirrors the React executor (react/component/mod.rs:981-1069)
+        // with TS casts stripped: reads live signal values per form field, applies
+        // the field rules, writes the error map into the formErrors signal, and
+        // returns validity (the submit gate in view/events.rs consumes it).
+        if let Some(intent) = self.scope.form_intent.clone() {
+            let ferr = format!("{name}_formErrors");
+            let _ = writeln!(self.js, "function {name}_validateForm() {{");
+            let _ = writeln!(self.js, "  var values = {{}};");
+            let _ = writeln!(self.js, "  var errs = {{}};");
+            for field in &intent.fields {
+                let read = self.form_field_read(&field.name);
+                let _ = writeln!(self.js, "  // @field {}", field.name);
+                let _ = writeln!(self.js, "  values[\"{}\"] = {};", field.name, read);
+                for rule in &field.rules {
+                    let _ = writeln!(self.js, "  // @{}", rule.name);
+                    let literal = match &rule.value {
+                        ExprIR::LiteralExpr { value } => Some(value.to_string()),
+                        _ => None,
+                    };
+                    match rule.name.as_str() {
+                        "required" => {
+                            let _ = writeln!(
+                                self.js,
+                                "  if (!values[\"{}\"]) {{ errs[\"{{}}\"] = \"此项必填\"; }}",
+                                field.name
+                            );
+                        }
+                        "min" | "max" => {
+                            let val = literal
+                                .clone()
+                                .unwrap_or_else(|| self.expr_to_js(&rule.value));
+                            let (op, msg) = if rule.name == "min" {
+                                (
+                                    "<",
+                                    literal
+                                        .clone()
+                                        .map(|l| format!("长度至少为 {l}"))
+                                        .unwrap_or_else(|| "长度不符合要求".to_string()),
+                                )
+                            } else {
+                                (
+                                    ">",
+                                    literal
+                                        .clone()
+                                        .map(|l| format!("长度最多为 {l}"))
+                                        .unwrap_or_else(|| "长度不符合要求".to_string()),
+                                )
+                            };
+                            let _ = writeln!(
+                                self.js,
+                                "  if (values[\"{}\"] && (values[\"{}\"].length {op} {val})) {{ errs[\"{{}}\"] = \"{msg}\"; }}",
+                                field.name, field.name
+                            );
+                        }
+                        "pattern" => {
+                            let pat = literal
+                                .clone()
+                                .unwrap_or_else(|| self.expr_to_js(&rule.value));
+                            let _ = writeln!(
+                                self.js,
+                                "  if (values[\"{}\"] && !new RegExp({pat}).test(values[\"{}\"])) {{ errs[\"{{}}\"] = \"格式不正确\"; }}",
+                                field.name, field.name
+                            );
+                        }
+                        "format" => {
+                            let which = literal
+                                .as_deref()
+                                .and_then(|l| serde_json::from_str::<String>(l).ok());
+                            match which.as_deref() {
+                                Some("email") => {
+                                    let _ = writeln!(
+                                        self.js,
+                                        "  if (values[\"{}\"] && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(values[\"{}\"])) {{ errs[\"{{}}\"] = \"邮箱格式不正确\"; }}",
+                                        field.name, field.name
+                                    );
+                                }
+                                Some("url") => {
+                                    let _ = writeln!(
+                                        self.js,
+                                        "  if (values[\"{}\"] && !/^(https?:\\/\\/)?([\\w-]+\\.)+[\\w-]{{2,}}(\\/\\S*)?$/.test(values[\"{}\"])) {{ errs[\"{{}}\"] = \"URL 格式不正确\"; }}",
+                                        field.name, field.name
+                                    );
+                                }
+                                _ => {
+                                    let _ = writeln!(self.js, "  // format: 动态取值跳过");
+                                }
+                            }
+                        }
+                        "custom" => {
+                            if let ExprIR::IdentifierExpr { name: rule_fn, .. } = &rule.value {
+                                let resolved = self.resolve_fn_name(rule_fn);
+                                let _ = writeln!(
+                                    self.js,
+                                    "  const errMsg = {resolved}(values[\"{}\"]); if (errMsg) {{ errs[\"{{}}\"] = errMsg; }}",
+                                    field.name
+                                );
+                            } else {
+                                let _ = writeln!(self.js, "  // custom: 动态规则跳过");
+                            }
+                        }
+                        _ => {
+                            let _ = writeln!(
+                                self.js,
+                                "  // 未知规则 @{}（语义 pass 应已报错）",
+                                rule.name
+                            );
+                        }
+                    }
+                }
+            }
+            let _ = writeln!(self.js, "  {ferr}.set(errs);");
+            let _ = writeln!(self.js, "  return Object.keys(errs).length === 0;");
+            let _ = writeln!(self.js, "}}");
+        }
+        // @load retry: re-run the loader and reset the three-state signals.
+        // Always wraps in Promise.resolve().then() so BOTH sync and async
+        // loaders take the same path (React distinguishes via an is_async walk;
+        // the unified shape is correct for both — see task-6-report 自审发现).
+        if let Some(intent) = self.scope.load_intent.clone() {
+            let loader = self.resolve_fn_name(&intent.fn_name);
+            let _ = writeln!(
+                self.js,
+                "function {name}_retry() {{ {name}_loading.set(true); {name}_error.set(\"\"); Promise.resolve().then(() => {loader}()).then((r) => {{ {name}_data.set(r); {name}_loading.set(false); }}).catch((e) => {{ {name}_error.set(String(e)); {name}_loading.set(false); }}); }}"
+            );
         }
 
         // View → HTML + reactive bindings (only root component emits its view;
@@ -420,6 +653,30 @@ impl OmniViewGenerator {
             }
             self.name_resolver.signal_names = saved_signal_names;
             self.scope.current_component = saved_component;
+        }
+
+        // @load mount call (Task 6): fire the loader right after the component
+        // mounts — placed in mount_js/comp_mount_js (runs after DOM attach).
+        // Three-state signals (loading=true/error=""/data=[]) were declared in
+        // the builtin-signal block above; retry resets them on user action.
+        if let Some(intent) = self.scope.load_intent.clone() {
+            let _ = if self.editor_mode {
+                writeln!(self.comp_mount_js, "// @load {}", intent.fn_name)
+            } else {
+                writeln!(self.mount_js, "// @load {}", intent.fn_name)
+            };
+            // Editor mode: comp_mount_js is top-level JS OUTSIDE the factory
+            // IIFE — a direct `{name}_retry()` throws ReferenceError (same
+            // regression as user fn event bindings, store.rs:840-844). Route
+            // through the factory-exposed fns map.
+            let _ = if self.editor_mode {
+                writeln!(
+                    self.comp_mount_js,
+                    "window.__omni_components[\"{name}\"].fns.retry();"
+                )
+            } else {
+                writeln!(self.mount_js, "{name}_retry();")
+            };
         }
 
         // @effect hooks — stored separately in comp.effects (not in comp.lifecycles)
@@ -564,6 +821,20 @@ impl OmniViewGenerator {
                 let prefixed = format!("{}_{}", name, prop_name);
                 signal_entries.push(format!("{}: {}", prefixed, prefixed));
             }
+            // @form builtin signals (Task 6) — formErrors/formSubmitting/formValid
+            if self.scope.form_intent.is_some() {
+                for sig in ["formErrors", "formSubmitting", "formValid"] {
+                    let prefixed = format!("{}_{}", name, sig);
+                    signal_entries.push(format!("{}: {}", prefixed, prefixed));
+                }
+            }
+            // @load builtin signals (Task 6) — loading/error/data
+            if self.scope.load_intent.is_some() {
+                for sig in ["loading", "error", "data"] {
+                    let prefixed = format!("{}_{}", name, sig);
+                    signal_entries.push(format!("{}: {}", prefixed, prefixed));
+                }
+            }
 
             let signal_entries_str = signal_entries.join(", ");
 
@@ -577,6 +848,14 @@ impl OmniViewGenerator {
             for f in &comp.fns {
                 let prefixed = format!("{}_{}", name, f.name);
                 fn_entries.push(format!("{}: {}", f.name, prefixed));
+            }
+            // @form validateForm / @load retry (Task 6) — exposed for the editor
+            // bridge (submit gate + retry button) alongside user fns.
+            if self.scope.form_intent.is_some() {
+                fn_entries.push(format!("validateForm: {name}_validateForm"));
+            }
+            if self.scope.load_intent.is_some() {
+                fn_entries.push(format!("retry: {name}_retry"));
             }
             let fns_str = if fn_entries.is_empty() {
                 String::new()
