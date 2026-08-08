@@ -6,6 +6,7 @@ import type { ElementData, WireData, CodeTab } from "../../core/types";
 import type { ComponentMeta, StageResult } from "./types";
 import type { PidMap } from "../../core/types/pid";
 import type { StoreDefinition } from "../../core/types/store";
+import type { CodeFlowGroup } from "../../core/types/project-json";
 
 /**
  * Options for generating a single OmniLang source string from design data.
@@ -28,6 +29,8 @@ export interface GenerateOmniSourceOptions {
    * 引用据此收集进 storeRefs → 生成 import（否则 WASM 门禁 Undeclared variable 拦截保存）。
    */
   knownStores?: string[];
+  /** 组注释数据（键=fn 名）：保存时从 store.codeFlowGroups 传入。 */
+  codeFlowGroups?: Record<string, CodeFlowGroup[]>;
 }
 
 /**
@@ -47,6 +50,8 @@ export interface GenerateOmniFilesOptions {
   inlineStores?: StoreDefinition[];
   /** 已知 store 名（src/stores/*.omni），见 GenerateOmniSourceOptions。 */
   knownStores?: string[];
+  /** 组注释数据（键=fn 名）：保存时从 store.codeFlowGroups 传入。 */
+  codeFlowGroups?: Record<string, CodeFlowGroup[]>;
 }
 
 /**

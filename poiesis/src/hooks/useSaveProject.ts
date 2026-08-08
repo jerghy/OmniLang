@@ -330,6 +330,7 @@ export function useSaveProject() {
         inlineStores: inlineStores as StoreDefinition[], // NEW
         designName: store.activeDesign?.name && (store.activeDesign.tokens?.length || store.activeDesign.classes?.length || store.activeDesign.variants?.length) ? store.activeDesign.name : undefined,
         knownStores: knownStoreNames,
+        codeFlowGroups: usePoiesisStore.getState().codeFlowGroups,
       });
 
       if (genResult.value) {

@@ -282,10 +282,9 @@ export function generateOmniSource(options: GenerateOmniSourceOptions): StageRes
     const fnMap = new Map(lowered.functions.map(f => [f.name, f]));
     for (const fnEl of codeFlowElements) {
       if (fnEl.tag !== "fn" && fnEl.tag !== "action") continue;
-      const compiledFn = compileCodeFlowGraph(codeFlowElements, options.designWires, fnEl.id);
+      const fnName = (fnEl.props?.name as string) ?? "unnamed";
+      const compiledFn = compileCodeFlowGraph(codeFlowElements, options.designWires, fnEl.id, options.codeFlowGroups?.[fnName]);
       if (!compiledFn) continue;
-
-      const fnName = (fnEl.props?.name as string) || "unnamed";
       // compileCodeFlowGraph returns a full fn definition like:
       //   // @pid:xxx\nfn name(params) {\n  body\n}
       // Extract just the inner body content (between { and }).
