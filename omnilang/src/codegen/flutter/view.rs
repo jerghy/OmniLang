@@ -1021,7 +1021,7 @@ fn wrap_design_decorations(el: &ElementIR, inner: String, ctx: &mut ViewContext)
             ExprIR::LiteralExpr { value } if value.as_bool() == Some(false) => {}
             _ => {
                 if let Some(resolved) = resolve_static_class(name, el.source_span, ctx) {
-                    dynamic.push((ctx.format_expr(expr), resolved.0));
+                    dynamic.push((format_bool_condition(ctx, expr), resolved.0));
                 }
             }
         }
@@ -3130,23 +3130,32 @@ fn form_validator_args(ctx: &ViewContext<'_>, signal_ref: &SignalRefIR, args: &m
     }
     let mut checks: Vec<(String, String)> = Vec::new(); // (condition, message)
     let mut custom_tail: Option<String> = None;
+    // Dart flow analysis promotes `v` to non-null in every ternary else-branch
+    // after `v == null || v.isEmpty` has been evaluated false — a later
+    // `v != null &&` is therefore always true (unnecessary_null_comparison
+    // warning). Track whether a null guard already appeared earlier in the
+    // chain and drop the redundant prefix for subsequent rules.
+    let mut null_guarded = false;
     for rule in &field.rules {
         match rule.name.as_str() {
             "required" => {
-                checks.push(("v == null || v.isEmpty".to_string(), "此项必填".to_string()))
+                checks.push(("v == null || v.isEmpty".to_string(), "此项必填".to_string()));
+                null_guarded = true;
             }
             "min" => {
                 if let Some(n) = rule_literal_int(rule) {
+                    let guard = if null_guarded { "" } else { "v != null && " };
                     checks.push((
-                        format!("v != null && v.length < {n}"),
+                        format!("{guard}v.length < {n}"),
                         format!("此项至少 {n} 个字符"),
                     ));
                 }
             }
             "max" => {
                 if let Some(n) = rule_literal_int(rule) {
+                    let guard = if null_guarded { "" } else { "v != null && " };
                     checks.push((
-                        format!("v != null && v.length > {n}"),
+                        format!("{guard}v.length > {n}"),
                         format!("此项最多 {n} 个字符"),
                     ));
                 }
@@ -3158,15 +3167,14 @@ fn form_validator_args(ctx: &ViewContext<'_>, signal_ref: &SignalRefIR, args: &m
             // time; the rule must be implemented as a custom validator).
             "format" => {
                 if let Some(p) = rule_literal_str(rule) {
+                    let guard = if null_guarded { "" } else { "v != null && " };
                     match p.as_str() {
                         "email" => checks.push((
-                            "v != null && !RegExp(r'^[^\\s@]+@[^\\s@]+\\.[^\\s@]+').hasMatch(v)"
-                                .to_string(),
+                            format!("{guard}!RegExp(r'^[^\\s@]+@[^\\s@]+\\.[^\\s@]+').hasMatch(v)"),
                             "邮箱格式不正确".to_string(),
                         )),
                         "url" => checks.push((
-                            "v != null && !RegExp(r'^(https?:\\/\\/)?([\\w-]+\\.)+[\\w-]{2,}(\\/\\S*)?').hasMatch(v)"
-                                .to_string(),
+                            format!("{guard}!RegExp(r'^(https?:\\/\\/)?([\\w-]+\\.)+[\\w-]{{2,}}(\\/\\S*)?').hasMatch(v)"),
                             "URL 格式不正确".to_string(),
                         )),
                         _ => {}
@@ -3178,10 +3186,25 @@ fn form_validator_args(ctx: &ViewContext<'_>, signal_ref: &SignalRefIR, args: &m
             "pattern" => {
                 if let Some(p) = rule_literal_str(rule) {
                     let escaped = p.replace('\'', "\\'");
+                    let guard = if null_guarded { "" } else { "v != null && " };
                     checks.push((
-                        format!("v != null && !RegExp(r'{escaped}').hasMatch(v)"),
+                        format!("{guard}!RegExp(r'{escaped}').hasMatch(v)"),
                         "格式不正确".to_string(),
                     ));
+                }
+            }
+            // `custom` is a keyword rule — the component fn lives in the
+            // rule VALUE (e.g. `custom: noLeadingSpace`), mirroring the
+            // React backend. It becomes the chain's tail (returns null
+            // when valid).
+            "custom" => {
+                if let ExprIR::IdentifierExpr { name, .. } = &rule.value {
+                    let renamed = ctx
+                        .fn_renames
+                        .get(name)
+                        .cloned()
+                        .unwrap_or_else(|| name.to_string());
+                    custom_tail = Some(format!("{renamed}(v)"));
                 }
             }
             // Any other rule name is a component fn — the custom validator
@@ -3490,6 +3513,44 @@ fn format_key_handler_flutter(body: &BlockIR, ctx: &ViewContext) -> String {
 
 /// Format a ConditionalIntent as a Dart ternary expression wrapped in Builder
 /// so that setState rebuilds re-evaluate conditions reactively.
+/// Detect a bare `form.errors.<field>` read used in a BOOL position (e.g.
+/// `@if form.errors.name` or a class-map condition). `format_expr` lowers it
+/// to the Dart index access `formErrors["<field>"]` (a `String?`) — Dart
+/// rejects that as a ternary condition (`non_bool_condition`). The React
+/// runtime semantics (entry truthy iff a NON-EMPTY message is present) map
+/// to `(formErrors["<field>"] ?? '').isNotEmpty`. Matches the same
+/// nested-chain shape as `FlutterFormatExpr::format_special_field_access`;
+/// compound conditions (e.g. `!form.errors.name`) are out of scope and stay
+/// as emitted (registered in the Task 8 report as a boundary note).
+fn form_errors_bool_condition(cond: &ExprIR) -> Option<String> {
+    // outer: form.errors.<field>  (field = the per-field error key)
+    let (obj, field) = match cond {
+        ExprIR::FieldAccessExpr { object, field }
+        | ExprIR::OptionalChainExpr { object, field } => (object.as_ref(), field.as_str()),
+        _ => return None,
+    };
+    // inner: form.errors (must be rooted at `form` — never match unrelated
+    // maps, same guard as format_special_field_access)
+    let (inner_obj, inner_field) = match obj {
+        ExprIR::FieldAccessExpr { object, field }
+        | ExprIR::OptionalChainExpr { object, field } => (object.as_ref(), field.as_str()),
+        _ => return None,
+    };
+    if inner_field != "errors" {
+        return None;
+    }
+    if !matches!(inner_obj, ExprIR::IdentifierExpr { name, .. } if name == "form") {
+        return None;
+    }
+    Some(format!("(formErrors[\"{field}\"] ?? '').isNotEmpty"))
+}
+
+/// Format a ternary condition — `form.errors.<field>` reads are wrapped
+/// into a bool-typed Dart expression (see form_errors_bool_condition).
+fn format_bool_condition(ctx: &mut ViewContext, cond: &ExprIR) -> String {
+    form_errors_bool_condition(cond).unwrap_or_else(|| ctx.format_expr(cond))
+}
+
 fn format_conditional(
     cond: &ConditionalIntent,
     motions: &[MotionIntent],
@@ -3511,7 +3572,7 @@ fn format_conditional(
 
     let mut result = String::new();
     for (i, branch) in cond.branches.iter().enumerate() {
-        let cond_str = ctx.format_expr(&branch.condition);
+        let cond_str = format_bool_condition(ctx, &branch.condition);
         // Branch bodies must be single widget expressions — multi-node
         // fragments are Column-wrapped (format_view_tree comma-joins,
         // which is only valid inside `children: [...]` lists).
@@ -3644,7 +3705,7 @@ pub(crate) fn format_page_switcher(
     }
     let mut index_expr = String::new();
     for (i, branch) in cond.branches.iter().enumerate() {
-        let cond_str = ctx.format_expr(&branch.condition);
+        let cond_str = format_bool_condition(ctx, &branch.condition);
         if i == 0 {
             index_expr = format!("{cond_str} ? {i}");
         } else {
@@ -3838,7 +3899,13 @@ fn format_inline_handler_flutter(body: &BlockIR, ctx: &ViewContext) -> String {
         // mutations write `_name.value` (no setState in the view tree).
         // Task 5 review Minor #3: `retry()` statements in inline handlers
         // resolve to the @load invalidate action (`ref.invalidate(...)`).
-        generate_statement_flutter_dw(w, s, ctx.direct_write_signals, ctx.retry_expr.clone())
+        generate_statement_flutter_dw(
+            w,
+            s,
+            ctx.direct_write_signals,
+            ctx.form_present,
+            ctx.retry_expr.clone(),
+        )
     })
 }
 

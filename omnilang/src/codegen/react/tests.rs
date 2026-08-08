@@ -8430,6 +8430,13 @@ component App {
         "字段 aria-describedby missing. Got:\n{}",
         out
     );
+    // Task 6 评审（plan-mandated）: @form 表单必须发射 noValidate——原生
+    // 约束校验在 submit 事件前拦截失败提交，与受控校验三态不兼容。
+    assert!(
+        out.contains("noValidate"),
+        "@form 表单 noValidate missing（原生校验截胡失败路径）. Got:\n{}",
+        out
+    );
     assert!(
         out.contains("e.preventDefault()"),
         "提交拦截（preventDefault）missing. Got:\n{}",

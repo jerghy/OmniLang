@@ -278,6 +278,20 @@ pub(super) fn collect_called_local_fns(comp: &ComponentIR) -> FxHashSet<String> 
     // tmp-form-load corpus).
     if let Some(form) = &comp.form_intent {
         acc.insert(form.submit_handler.clone());
+        // Task 4 (@form): `validate: { custom: fn }` 规则引用的组件 fn 只
+        // 出现在 GENERATED validateForm 代码里——视图/effect/lifecycle 收集
+        // 器不可见，与 submit_handler 同源（TS2304/ReferenceError 守卫，
+        // ValidationInput 的 noAtCheck 实证）。按 submit_handler 同样方式
+        // seed，交给下方传递闭包覆盖更深层调用。
+        for field in &form.fields {
+            for rule in &field.rules {
+                if rule.name == "custom" {
+                    if let ExprIR::IdentifierExpr { name, .. } = &rule.value {
+                        acc.insert(name.clone());
+                    }
+                }
+            }
+        }
     }
     if let Some(load) = &comp.load_intent {
         acc.insert(load.fn_name.clone());

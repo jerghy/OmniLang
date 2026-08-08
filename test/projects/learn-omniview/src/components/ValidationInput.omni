@@ -1,14 +1,14 @@
 // ╔══════════════════════════════════════════════════════════════╗
-// ║  ValidationInput.omni —— let + while + action + 三元运算符      ║
+// ║  ValidationInput.omni —— @form + validate: 规则声明             ║
 // ║                                                              ║
-// ║  本组件演示：let 声明、while 循环、组件内 action（带参数/返回）、 ║
-// ║  三元运算符（if-expr）。纯逻辑关键字（break/continue 等）见     ║
-// ║  lib/transform.omni 与 components/StatsDashboard.omni。        ║
+// ║  本组件演示：@form 意图（@onSubmit 提交拦截 + 校验门禁）、       ║
+// ║  validate: 规则（required/min/max/custom）、form.errors 显式    ║
+// ║  错误渲染，以及 let 声明、while 循环、三元运算符（if-expr）。     ║
 // ╚══════════════════════════════════════════════════════════════╝
 
 import omniview;
 import { LearnDesign } from "../design";
-import { string_length, string_contains, string_trim } from "std/string";
+import { string_contains } from "std/string";
 
 component ValidationInput {
     signal input: String = "";
@@ -31,14 +31,10 @@ component ValidationInput {
         return count;
     }
 
-    // 组件内 action（带参数和返回类型）
-    action validate(text: String): String {
-        let trimmed = string_trim(text);
-        if trimmed == "" { return "Input cannot be empty"; }
-        if string_length(trimmed) < 3 { return "Need at least 3 characters"; }
-        if string_length(trimmed) > 50 { return "Cannot exceed 50 characters"; }
-        if string_contains(trimmed, "@") { return "Email pattern not allowed in generic validation"; }
-        return "OK Validation passed";
+    // validate: custom 规则——单参返回 String，非空串即错误消息
+    fn noAtCheck(text: String) -> String {
+        if string_contains(text, "@") { return "Email pattern not allowed in generic validation"; }
+        return "";
     }
 
     // 三元运算符（if-expr）在 return 中使用
@@ -46,8 +42,9 @@ component ValidationInput {
         return if result == "" { "Waiting for input" } else { "Result ready" };
     }
 
-    fn handleValidate() {
-        result = validate(input);
+    // @form 提交处理——校验通过（@onSubmit 门禁拦截）后才会执行
+    fn submit() {
+        result = "OK Validation passed";
     }
 
     fn handleClear() {
@@ -60,27 +57,37 @@ component ValidationInput {
             <h3 class: LearnDesign.CardTitle>ValidationInput Demo</h3>
             <p class: LearnDesign.Hint>{getDefaultMessage()}</p>
 
-            <div class: row>
-                <input bind:value={input} placeholder="Enter text to validate..." class: Input></input>
-                <button variant: LearnDesign.Button(color=primary, size=md) @onPress={handleValidate}>
-                    Validate
-                </button>
-                <button variant: LearnDesign.Button(color=danger, size=md) @onPress={handleClear}>Clear</button>
-            </div>
+            <form @form @onSubmit={submit}>
+                <div class: row>
+                    <input
+                        bind:value={input}
+                        placeholder="Enter text to validate..."
+                        class: Input
+                        validate: { required: true, min: 3, max: 50, custom: noAtCheck }
+                    ></input>
+                    <button variant: LearnDesign.Button(color=primary, size=md) type="submit">
+                        Validate
+                    </button>
+                    <button variant: LearnDesign.Button(color=danger, size=md) type="button" @onPress={handleClear}>Clear</button>
+                </div>
+                @if form.errors.input {
+                    <p class: ErrorText id="err-input">{form.errors.input}</p>
+                }
+            </form>
 
             <div class: ResultArea>
                 <p class: ResultText>Status: {getStatusLabel()}</p>
                 <p class: ResultValue>
                     {if result == "" { "-" } else { result }}
                 </p>
-                <p class: Stats>Chars: {input.len()} | EvenPos: {countEvenPositions(input)}</p>
+                <p class: Stats>Chars: {input.len()} | EvenPos: {countEvenPositions(input)} | Submitting: {form.submitting}</p>
             </div>
 
         </div>
     }
     style {
         // 验证器特有的输入行布局和状态区
-    
+
         .row { display: flex; gap: 8px; margin: 0 0 12px 0; }
     }
 }

@@ -939,6 +939,19 @@ pub(super) fn gen_view_node_tsx(
             // 错误文本容器由用户 @if={form.errors.<field>} 显式渲染，
             // codegen 不自动生成错误 DOM（错误容器 id 约定 err-<field>）。
             if let Some(form) = &comp.form_intent {
+                // Task 6 评审（plan-mandated，与 OmniView 目标 4b25619f 对齐）:
+                // @form 表单发射 noValidate——浏览器原生约束校验在 submit
+                // 事件之前拦截失败提交（必填为空时 submit 不 fire、
+                // validateForm 永不运行、formErrors 永不填充），与「自绘
+                // 错误」受控校验三态不兼容。required/pattern 等 HTML5 属性
+                // 保留（a11y 语义），校验职责由 validateForm 独占。JSX 布尔
+                // 属性缩写字面量即 noValidate={true}；用户显式声明
+                // noValidate 时防重复（JSX 不允许同名重复属性）。
+                if html_tag == "form"
+                    && !attrs.iter().any(|a| a.starts_with("noValidate"))
+                {
+                    attrs.push("noValidate".to_string());
+                }
                 for (bind_name, signal_ref) in &el.bindings {
                     if matches!(bind_name.as_str(), "value" | "checked") {
                         let field = signal_ref
