@@ -1,8 +1,9 @@
 // poiesis/src/services/codegen/__tests__/flow-layout.test.ts
 import { describe, it, expect } from "vitest";
-import { computeLayeredLayout, estimateNodeSize, LAYOUT_CONSTS } from "../flow-layout";
+import { computeLayeredLayout, estimateNodeSize, LAYOUT_CONSTS, buildLayoutInput } from "../flow-layout";
 import type { CodeblockElementData } from "../../../core/types/element";
 import type { WireData } from "../../../core/types/wire";
+import type { CodeFlowGroup } from "../../../core/types/project-json";
 
 function el(id: string, tag: string, props: Record<string, unknown> = {}, position?: { x: number; y: number }): CodeblockElementData {
   return { id, nodeType: "codeblock", tag, parentId: null, props, source: "", ...(position ? { position } : {}) };
@@ -211,5 +212,38 @@ describe("computeLayeredLayout", () => {
     expect(loopRight).toBeGreaterThanOrEqual(nextRight);
     // body（分支目标）在主干列右缘之后（走廊存在）
     expect(pos["body"].x).toBeGreaterThanOrEqual(loopRight);
+  });
+});
+
+describe("buildLayoutInput（布局输入构建）", () => {
+  const el = (id: string, tag: string): CodeblockElementData => ({ id, nodeType: "codeblock", tag, parentId: null, source: "", props: {}, position: { x: 0, y: 0 } });
+
+  it("折叠组 → 伪元素 code-block 替代，成员与组内连线剔除；展开组原样保留", () => {
+    const ELEMS = [el("fn1", "fn"), el("cb1", "let"), el("cb2", "assign"), el("cb3", "call")];
+    const WIRES: WireData[] = [
+      { id: "w1", fromId: "fn1", fromPort: "flow-out", toId: "cb1", toPort: "flow-in" },
+      { id: "w2", fromId: "cb1", fromPort: "flow-out", toId: "cb2", toPort: "flow-in" },
+      { id: "w3", fromId: "cb2", fromPort: "flow-out", toId: "cb3", toPort: "flow-in" },
+    ];
+    const groups: CodeFlowGroup[] = [
+      { id: "g1", name: "a", memberIds: ["cb1", "cb2"], color: "#6366f1", collapsed: true },
+      { id: "g2", name: "b", memberIds: ["cb3"], color: "#6366f1", collapsed: false },
+    ];
+    const { elements, wires } = buildLayoutInput(ELEMS, WIRES, groups);
+    const ids = elements.map((e) => e.id);
+    expect(ids).toContain("fn1");
+    expect(ids).toContain("group:g1");
+    expect(ids).toContain("cb3");
+    expect(ids).not.toContain("cb1");
+    expect(ids).not.toContain("cb2");
+    expect(wires.map((w) => w.id)).toEqual(["w1", "w3"]); // w2 组内连线剔除，w3 保留
+  });
+
+  it("无折叠组 → 原样透传", () => {
+    const ELEMS = [el("fn1", "fn"), el("cb1", "let")];
+    const WIRES: WireData[] = [{ id: "w1", fromId: "fn1", fromPort: "flow-out", toId: "cb1", toPort: "flow-in" }];
+    const { elements, wires } = buildLayoutInput(ELEMS, WIRES, []);
+    expect(elements.map((e) => e.id)).toEqual(["fn1", "cb1"]);
+    expect(wires).toEqual(WIRES);
   });
 });

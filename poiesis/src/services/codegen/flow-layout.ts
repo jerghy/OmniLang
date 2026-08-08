@@ -4,6 +4,8 @@
 // 隐式回边设计（loop body 无回边 wire）保证控制流图为 DAG，无需环处理。
 import type { CodeblockElementData } from "../../core/types/element";
 import type { WireData } from "../../core/types/wire";
+import type { CodeFlowGroup } from "../../core/types/project-json";
+import { collectCollapsedMemberIds } from "./groups";
 
 export const LAYOUT_CONSTS = {
   /** 层内垂直间距 */
@@ -232,4 +234,43 @@ export function computeLayeredLayout(
   }
 
   return pos;
+}
+
+/**
+ * 布局输入构建：折叠组 → 伪元素 `group:<gid>`（tag code-block，尺寸走估算兜底 200×64）占位，
+ * 成员节点剔除、组内连线（两端皆折叠成员）剔除；边界连线保留并把端点重路由到组伪元素——
+ * 折叠卡在布局中占据成员原流程位置（落点经 collapsedGroupPositions 单独写回，不覆盖成员坐标）。
+ * 展开组原样保留；无折叠组时原样透传。
+ */
+export function buildLayoutInput(
+  elements: CodeblockElementData[],
+  wires: WireData[],
+  groups: CodeFlowGroup[],
+): { elements: Array<Pick<CodeblockElementData, "id" | "tag" | "props">>; wires: WireData[] } {
+  const collapsed = collectCollapsedMemberIds(groups);
+  if (collapsed.size === 0) {
+    return { elements, wires };
+  }
+  const collapsedGroups = groups.filter((g) => g.collapsed);
+  const memberToGroup = new Map<string, string>();
+  for (const g of collapsedGroups) {
+    for (const mid of g.memberIds) memberToGroup.set(mid, g.id);
+  }
+  const nextElements: Array<Pick<CodeblockElementData, "id" | "tag" | "props">> = [];
+  for (const e of elements) {
+    if (collapsed.has(e.id)) continue; // 折叠组成员剔除
+    nextElements.push(e);
+  }
+  for (const g of collapsedGroups) {
+    nextElements.push({ id: `group:${g.id}`, tag: "code-block", props: {} });
+  }
+  // 组内连线剔除（两端皆折叠成员）；边界连线端点重路由到组伪元素
+  const nextWires = wires
+    .filter((w) => !(collapsed.has(w.fromId) && collapsed.has(w.toId)))
+    .map((w) => ({
+      ...w,
+      fromId: memberToGroup.get(w.fromId) ?? w.fromId,
+      toId: memberToGroup.get(w.toId) ?? w.toId,
+    }));
+  return { elements: nextElements, wires: nextWires };
 }

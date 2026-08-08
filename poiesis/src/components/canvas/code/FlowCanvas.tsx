@@ -31,7 +31,7 @@ import { defaultSyntaxProps } from "../../../services/codegen/syntax-nodes";
 import { useFlowScope } from "../../../services/codegen/flow-scope-hook";
 import { collectLetVarsPerFn, findOwnerFnId } from "../../../services/codegen/fn-topology";
 import { CODE_TAGS, TAG_CN, type MenuItem } from "./flowConstants";
-import { computeLayeredLayout, estimateNodeSize } from "../../../services/codegen/flow-layout";
+import { computeLayeredLayout, estimateNodeSize, buildLayoutInput } from "../../../services/codegen/flow-layout";
 import { validateGroupMembers, fnNameOf, GROUP_COLORS, computeGroupBoxes, collectCollapsedMemberIds, buildFlowEdges } from "../../../services/codegen/groups";
 import type { GroupBBox } from "../../../services/codegen/groups";
 import type { CodeFlowGroup } from "../../../core/types/project-json";
@@ -234,7 +234,7 @@ function FlowCanvasInner() {
   const [groupBoxes, setGroupBoxes] = useState<Map<string, GroupBBox>>(new Map());
   const lastGroupBoxesRef = useRef<Map<string, GroupBBox>>(new Map());
   // 折叠组位置（Task 7 布局落点消费；Task 4 仅 getter——setter 由 Task 7 写入，弃名防 TS6133）
-  const [collapsedGroupPositions] = useState<Record<string, { x: number; y: number }>>({});
+  const [collapsedGroupPositions, setCollapsedGroupPositions] = useState<Record<string, { x: number; y: number }>>({});
 
   // Preview node — shows the design canvas inside the flow when in codeflow mode.
   // position 为 state（非 store elements——它是伪节点）：布局按钮点击时把预览组件归位到
@@ -585,6 +585,13 @@ function FlowCanvasInner() {
     // 早退」守卫（2d14f9ff），但代码流视图下 store 无 view 元素是合法状态（如从
     // 架构页进入），守卫把布局按钮静默废掉（用户实测按钮无反应）——守卫删除，
     // 数据安全由 allElements 全量 map 保证。
+    // 折叠组布局配合（Task 7）：折叠成员剔除、组伪元素 `group:<gid>` 占位参与分层、边界
+    // 连线重路由到组伪元素；折叠卡落点写回 collapsedGroupPositions（组节点渲染优先用该落点）。
+    // 组数据用组件订阅值 codeFlowGroups（须入 deps 防陈旧闭包）——不能用 getState() 现读：
+    // FlowCanvasLayout.test.tsx 的 store mock 仅实现 hook 形式（无 .getState），现读会炸测试。
+    const groups = Object.values(codeFlowGroups ?? {}).flat();
+    const collapsedMemberIds = collectCollapsedMemberIds(groups);
+    const { elements: layoutInput, wires: layoutWires } = buildLayoutInput(codeElements, wires, groups);
     const nodeById = new Map(nodes.map((nd) => [nd.id, nd]));
     const sizes = new Map<string, { width: number; height: number }>();
     // 受控模式下 RFNode.measured 恒缺（xyflow 内部状态不回填受控 nodes）——布局尺寸须
@@ -608,12 +615,21 @@ function FlowCanvasInner() {
       }
       if (w && h) sizes.set(el.id, { width: w, height: h });
     }
-    const layout = computeLayeredLayout(codeElements, wires, sizes);
+    const layout = computeLayeredLayout(layoutInput, layoutWires, sizes);
+    // 折叠卡落点：组伪元素在分层中的位置（成员原流程位置）；仅折叠组收集——
+    // 组节点渲染（GroupNode）优先用 collapsedGroupPositions[g.id] 落点（Task 4 约定）。
+    const groupPos: Record<string, { x: number; y: number }> = {};
+    for (const g of groups) {
+      if (g.collapsed && layout["group:" + g.id]) groupPos[g.id] = layout["group:" + g.id];
+    }
+    setCollapsedGroupPositions(groupPos);
     // 必须以「完整 elements」（含 view 设计树）构建写回数组：本组件顶层 elements 是
     // useCodeElements（仅 codeblock），若用它 map 后全量 setElementsAndWires，
     // view 元素会被覆盖删除（组件 view 块整体丢失，保存报 E0006——Task 12 E2E 实测 CRITICAL）。
     const nextElements = allElements.map((e) =>
-      e.nodeType === "codeblock" && CODE_TAGS.has(e.tag) && layout[e.id]
+      // !collapsedMemberIds.has(e.id)：折叠成员不写回坐标——其位置被折叠卡落点覆盖，
+      // 展开时成员坐标仍保持折叠前的原位（不随布局漂移，展开不跳变）。
+      e.nodeType === "codeblock" && CODE_TAGS.has(e.tag) && !collapsedMemberIds.has(e.id) && layout[e.id]
         ? { ...e, position: { ...layout[e.id] } } as ElementData
         : e,
     );
@@ -630,7 +646,7 @@ function FlowCanvasInner() {
       maxY = Math.max(maxY, p.y + s.height);
     }
     setPreviewPos({ x: maxX + 40, y: maxY + 40 });
-  }, [codeElements, allElements, wires, nodes, setElementsAndWires]);
+  }, [codeElements, allElements, wires, nodes, setElementsAndWires, codeFlowGroups]);
 
   // Preview node — shows the design canvas inside the flow when in codeflow mode.
   // draggable:false——拖拽由 DesignPreviewNode 自管（ref + transform 直改，无 state 往返，
