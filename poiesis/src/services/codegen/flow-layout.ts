@@ -238,8 +238,10 @@ export function computeLayeredLayout(
 
 /**
  * 布局输入构建：折叠组 → 伪元素 `group:<gid>`（tag code-block，尺寸走估算兜底 200×64）占位，
- * 成员节点剔除、组内连线（两端皆折叠成员）剔除；边界连线保留并把端点重路由到组伪元素——
+ * 成员节点剔除、组内连线（两端同属同一折叠组）剔除；边界连线保留并把端点重路由到各自的组伪元素——
  * 折叠卡在布局中占据成员原流程位置（落点经 collapsedGroupPositions 单独写回，不覆盖成员坐标）。
+ * 连线剔除条件与渲染层 buildFlowEdges 严格同语义（仅同组剔除）：跨组边界线（两端分属不同折叠组）
+ * 保留并两端重路由，避免 union-find 把一条流程裂成多个分量导致折叠卡垂直堆叠。
  * 展开组原样保留；无折叠组时原样透传。
  */
 export function buildLayoutInput(
@@ -264,13 +266,20 @@ export function buildLayoutInput(
   for (const g of collapsedGroups) {
     nextElements.push({ id: `group:${g.id}`, tag: "code-block", props: {} });
   }
-  // 组内连线剔除（两端皆折叠成员）；边界连线端点重路由到组伪元素
+  // 组内连线剔除（两端同属同一折叠组，与 buildFlowEdges 第 107 行同条件）；其余连线保留：
+  // 一端折叠 → 该端点重路由；两端分属不同折叠组（跨组边界线）→ 两端各自重路由，保证连通分量不断裂。
+  // 重路由端点为组伪元素 id `group:<gid>`（与伪元素命名一致，FlowCanvas 经 layout["group:" + g.id]
+  // 取位写回 collapsedGroupPositions）——若裸用 gid 则连线指向不存在的节点，union-find 会把流程裂开。
   const nextWires = wires
-    .filter((w) => !(collapsed.has(w.fromId) && collapsed.has(w.toId)))
+    .filter((w) => {
+      const fromGroup = memberToGroup.get(w.fromId);
+      const toGroup = memberToGroup.get(w.toId);
+      return !(fromGroup && toGroup && fromGroup === toGroup);
+    })
     .map((w) => ({
       ...w,
-      fromId: memberToGroup.get(w.fromId) ?? w.fromId,
-      toId: memberToGroup.get(w.toId) ?? w.toId,
+      fromId: memberToGroup.has(w.fromId) ? `group:${memberToGroup.get(w.fromId)}` : w.fromId,
+      toId: memberToGroup.has(w.toId) ? `group:${memberToGroup.get(w.toId)}` : w.toId,
     }));
   return { elements: nextElements, wires: nextWires };
 }

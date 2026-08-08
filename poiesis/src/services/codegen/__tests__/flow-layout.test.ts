@@ -246,4 +246,41 @@ describe("buildLayoutInput（布局输入构建）", () => {
     expect(elements.map((e) => e.id)).toEqual(["fn1", "cb1"]);
     expect(wires).toEqual(WIRES);
   });
+
+  it("跨组双折叠链：不同折叠组间的边界线保留并两端重路由，连通分量不断裂", () => {
+    // fn1→cb1∈g1→cb2∈g2→cb3，g1/g2 均折叠：w2 两端分属不同折叠组（跨组边界线）。
+    // 回归（修复轮 1）：剔除条件须与渲染层 buildFlowEdges 同语义（仅同组剔除）——
+    // 若按「两端皆折叠成员即剔除」，w2 被删会使 union-find 把流程裂成两个分量（折叠卡垂直堆叠）。
+    const ELEMS = [el("fn1", "fn"), el("cb1", "let"), el("cb2", "assign"), el("cb3", "call")];
+    const WIRES: WireData[] = [
+      { id: "w1", fromId: "fn1", fromPort: "flow-out", toId: "cb1", toPort: "flow-in" },
+      { id: "w2", fromId: "cb1", fromPort: "flow-out", toId: "cb2", toPort: "flow-in" },
+      { id: "w3", fromId: "cb2", fromPort: "flow-out", toId: "cb3", toPort: "flow-in" },
+    ];
+    const groups: CodeFlowGroup[] = [
+      { id: "g1", name: "a", memberIds: ["cb1"], color: "#6366f1", collapsed: true },
+      { id: "g2", name: "b", memberIds: ["cb2"], color: "#6366f1", collapsed: true },
+    ];
+    const { elements, wires } = buildLayoutInput(ELEMS, WIRES, groups);
+    // 边界线 w2 保留（id 不变），两端重路由到各自组伪元素；w1/w3 单端重路由
+    expect(wires.map((w) => w.id)).toEqual(["w1", "w2", "w3"]);
+    expect(wires.find((w) => w.id === "w1")).toMatchObject({ fromId: "fn1", toId: "group:g1" });
+    expect(wires.find((w) => w.id === "w2")).toMatchObject({ fromId: "group:g1", toId: "group:g2" });
+    expect(wires.find((w) => w.id === "w3")).toMatchObject({ fromId: "group:g2", toId: "cb3" });
+    // 连通分量不断裂：全图单分量（与渲染层 buildFlowEdges 的可见图一致）
+    const allIds = new Set([...elements.map((e) => e.id), ...wires.flatMap((w) => [w.fromId, w.toId])]);
+    const parent = new Map<string, string>();
+    const find = (x: string): string => {
+      const p = parent.get(x) ?? x;
+      if (p !== x) parent.set(x, find(p));
+      return parent.get(x) ?? x;
+    };
+    const union = (a: string, b: string): void => {
+      const ra = find(a);
+      parent.set(ra, find(b));
+    };
+    for (const w of wires) union(w.fromId, w.toId);
+    const roots = new Set([...allIds].map((id) => find(id)));
+    expect(roots.size).toBe(1);
+  });
 });
