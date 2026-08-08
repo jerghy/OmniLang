@@ -12,6 +12,14 @@ export function createSerializationSlice(set: SetFn, get: GetFn) {
   return {
     toProjectJson: (): ProjectJson => {
       const s = get();
+      // 分组有效性判定用元素 id 全集（collectPersistedPositions 同款扫描范围：
+      // 活动 tab elements + 各 tabData 槽），成员存在于任一画布即视为有效。
+      const liveElementIds = new Set(
+        [
+          ...s.elements.map((e) => e.id),
+          ...Object.values(s.tabData).flatMap((tab) => (tab ? tab.elements.map((e) => e.id) : [])),
+        ],
+      );
       return {
         version: 3,
         nodes: s.nodeMeta,
@@ -30,11 +38,17 @@ export function createSerializationSlice(set: SetFn, get: GetFn) {
         // 节点位置独立收集：store.elements 是活动 tab 工作副本，其余 tab 画布在
         // tabData 槽（switchTab 时写入）——两处都扫，避免切 tab 后保存丢位置。
         persistedPositions: collectPersistedPositions(s.elements, s.tabData),
-        // 分组直写（键=fn 名，与 codeFlowGraphs 对齐）；空数组 fn 与空组（成员删光）不写入
-        // （空组无可见 UI 无法手动删——保存时自动清理，spec §8「空框保留」落地为 JSON 剔除）
+        // 分组直写（键=fn 名，与 codeFlowGraphs 对齐）；空数组 fn、空组（成员删光）与
+        // 悬空成员组（memberIds 非空但全部失联——removeElement 级联删除不清理组，终审 I-1）不写入。
+        // （空组/悬空组无可见 UI 无法手动删——保存时自动清理，spec §8「空框保留」落地为 JSON 剔除）
         codeFlowGroups: Object.fromEntries(
           Object.entries(s.codeFlowGroups)
-            .map(([fnName, gs]) => [fnName, gs.filter((g) => g.memberIds.length > 0)] as const)
+            .map(([fnName, gs]) => [
+              fnName,
+              gs.filter(
+                (g) => g.memberIds.length > 0 && g.memberIds.some((id) => liveElementIds.has(id)),
+              ),
+            ] as const)
             .filter(([, gs]) => gs.length > 0),
         ),
       };

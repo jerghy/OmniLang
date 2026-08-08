@@ -383,9 +383,23 @@ function FlowCanvasInner() {
   // 按 wire 拓扑推断每个 fn 的 let 变量（多 fn 隔离）：语法节点公式框候选数据源
   const letVarsByFn = useMemo(() => collectLetVarsPerFn(codeElements, wires), [codeElements, wires]);
 
+  // ── Group ops（Task 4）──
+  // 组写入一律走 store.setCodeFlowGroups：patch 用 map-replace（不可变），
+  // 订阅 codeFlowGroups 保证改色/折叠/删除视觉即时刷新（Zustand 引用比较）。
+  // groupFnName 只负责「创建」时的键定位；patch/remove 按 g.id 全键扫描（终审 I-1：
+  // removeElement 级联删除不清理 codeFlowGroups，成员断链后 groupFnName 退化为
+  // "unnamed"，若用它读写键将全部命中不存在的键 → 组卡操作静默失效）。
+  // 注意：groupFnName 必须位于 handleCreateGroup 之前——deps 数组在渲染期求值，前置引用会触发 TDZ。
+  const groupFnName = useCallback(
+    (g: CodeFlowGroup) => {
+      const ownerFnId = findOwnerFnId(g.memberIds[0] ?? "", codeElements, wires);
+      return ownerFnId ? fnNameOf(ownerFnId, codeElements) : "unnamed";
+    },
+    [codeElements, wires],
+  );
+
   // ── Create group ──
   // 校验（同 fn 连通域、不含容器节点）通过后写入 store.codeFlowGroups，并进入命名态（Task 4 消费）。
-  // 注意：必须位于 codeElements/letVarsByFn 之后——deps 数组在渲染期求值，前置会触发 TDZ。
   const handleCreateGroup = useCallback(() => {
     const sel = selectedNodeIds;
     if (sel.length < 2) return;
@@ -395,7 +409,6 @@ function FlowCanvasInner() {
       setNodeMenu(null);
       return;
     }
-    const fnName = fnNameOf(v.ownerFnId, codeElements);
     const group: CodeFlowGroup = {
       id: uid("group"),
       name: "新分组",
@@ -403,42 +416,43 @@ function FlowCanvasInner() {
       color: GROUP_COLORS[0],
       collapsed: false,
     };
+    const fnName = groupFnName(group);
     usePoiesisStore.getState().setCodeFlowGroups(fnName, [...(usePoiesisStore.getState().codeFlowGroups[fnName] ?? []), group]);
     setEditingGroupId(group.id);
     setNodeMenu(null);
-  }, [selectedNodeIds, codeElements, wires]);
-
-  // ── Group ops（Task 4）──
-  // 组写入一律走 store.setCodeFlowGroups：patch 用 map-replace（不可变），
-  // 订阅 codeFlowGroups 保证改色/折叠/删除视觉即时刷新（Zustand 引用比较）。
-  const groupFnName = useCallback(
-    (g: CodeFlowGroup) => {
-      const ownerFnId = findOwnerFnId(g.memberIds[0] ?? "", codeElements, wires);
-      return ownerFnId ? fnNameOf(ownerFnId, codeElements) : "unnamed";
-    },
-    [codeElements, wires],
-  );
+  }, [selectedNodeIds, groupFnName]);
 
   const patchGroup = useCallback(
     (g: CodeFlowGroup, patch: Partial<CodeFlowGroup>) => {
-      const fnName = groupFnName(g);
-      const groups = usePoiesisStore.getState().codeFlowGroups[fnName] ?? [];
-      usePoiesisStore.getState().setCodeFlowGroups(
-        fnName,
-        groups.map((x) => (x.id === g.id ? { ...x, ...patch } : x)),
-      );
+      // 按 g.id 全键扫描定位（终审 I-1）：组可能停留在任意原键（成员断链后
+      // groupFnName 不可信）——遍历所有键找含该组 id 的键再操作；找不到（组已被清理）静默跳过。
+      const groups = usePoiesisStore.getState().codeFlowGroups;
+      for (const fnName of Object.keys(groups)) {
+        if (groups[fnName].some((x) => x.id === g.id)) {
+          usePoiesisStore.getState().setCodeFlowGroups(
+            fnName,
+            groups[fnName].map((x) => (x.id === g.id ? { ...x, ...patch } : x)),
+          );
+          return;
+        }
+      }
     },
-    [groupFnName],
+    [],
   );
 
   const removeGroup = useCallback(
     (g: CodeFlowGroup) => {
-      const fnName = groupFnName(g);
-      const groups = usePoiesisStore.getState().codeFlowGroups[fnName] ?? [];
-      usePoiesisStore.getState().setCodeFlowGroups(
-        fnName,
-        groups.filter((x) => x.id !== g.id),
-      );
+      // 同上：全键扫描定位，不依赖 groupFnName。
+      const groups = usePoiesisStore.getState().codeFlowGroups;
+      for (const fnName of Object.keys(groups)) {
+        if (groups[fnName].some((x) => x.id === g.id)) {
+          usePoiesisStore.getState().setCodeFlowGroups(
+            fnName,
+            groups[fnName].filter((x) => x.id !== g.id),
+          );
+          break;
+        }
+      }
       // 折叠态几何缓存同步移除（删组后防止缓存残留引用）
       if (lastGroupBoxesRef.current.has(g.id)) {
         const next = new Map(lastGroupBoxesRef.current);
@@ -446,7 +460,7 @@ function FlowCanvasInner() {
         lastGroupBoxesRef.current = next;
       }
     },
-    [groupFnName],
+    [],
   );
 
   const nodes: RFNode[] = useMemo(() => {
