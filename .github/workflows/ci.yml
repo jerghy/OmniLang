@@ -145,6 +145,20 @@ jobs:
         run: wasm-pack test --node omnilang-wasm
       - name: Build WASM (release)
         run: wasm-pack build --release omnilang-wasm
+      # Check committed WASM freshness（镜像 ts-rs bindings freshness 模式）：
+      # 直接调用 scripts/build-wasm.sh（仓库内产物生成的唯一权威脚本，输出
+      # public/wasm + 同步 src/wasm 的 4 个跟踪产物）后 git diff——dirty 说明
+      # 提交的 wasm 二进制与当前 Rust 源码静默漂移（门禁测试依赖真实编译器，
+      # 漂移会悄悄改变门禁行为），报错退出。public/wasm 被 gitignore，diff
+      # 只针对 src/wasm 的 4 个跟踪产物。
+      - name: Check committed WASM freshness
+        shell: bash
+        run: |
+          bash scripts/build-wasm.sh
+          git diff --exit-code poiesis/src/wasm/ || {
+            echo "ERROR: committed WASM artifacts are stale. Run 'bash scripts/build-wasm.sh' and commit the changes."
+            exit 1
+          }
       - name: Upload WASM artifact
         uses: actions/upload-artifact@v4
         with:

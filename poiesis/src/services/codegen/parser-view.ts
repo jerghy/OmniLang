@@ -9,7 +9,7 @@ import { isAttrBound } from "./parser-types";
 import { createElement } from "./parser-helpers";
 import { parsePidAnnotation } from "./annotation-registry";
 import { BOOLEAN_ATTRS } from "./boolean-attrs";
-import { toSemanticEventName } from "./event-name-map";
+import { semanticEventName } from "./event-name-map";
 
 // ── View entry ──
 
@@ -340,10 +340,11 @@ export function parseViewAttributes(internals: ParserInternals): ViewElementAttr
       // 语义化归一化（Task 4）：旧 DOM 拼写（@click/@onClick/@tap/@onTap/
       // @mouseenter/@onMouseEnter/@mouseleave/@onMouseLeave）收敛为语义名
       // （onPress/onEnter/onLeave）——与 Rust event_names.rs 同步，门禁测试防漂移。
-      // 读侧归一化保证编辑器内存态只出现语义名。
-      const semanticEventName = toSemanticEventName(normalizedEventName) ?? normalizedEventName;
+      // 读侧归一化保证编辑器内存态只出现语义名；semanticEventName 是
+      // toSemanticEventName + 恒等回退的封装，两端共用同一张表。
+      const semanticName = semanticEventName(normalizedEventName);
 
-      result.events[semanticEventName] = handlerExpr;
+      result.events[semanticName] = handlerExpr;
       continue;
     }
 
