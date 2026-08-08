@@ -407,3 +407,69 @@ CSS 动画语义域——**属性值从 A 到 B 平滑过渡**（CSS Transitions
 | scroll-y | 同上 |
 
 > 注：**style 动态绑定** 与 **布尔属性** 为机制级条目（非词法级），白名单交叉断言以存在性检查承担（见 verify-semantic-universe.py 域 7 断言 Task 2）；本白名单表只列 6 个词法级条目。
+
+---
+
+## 域 8: 表单（form）
+
+### 语义域定义
+
+表单意图语义域——**声明式表单校验与提交门禁**（`@form` 视图级意图 + `validate:` 字段级规则 + 内建错误信号）。语义词汇 = 规则名本体（`required`/`format`/`min`/`max`/`pattern`/`custom`——`validate: 规则` 值域，`VALIDATE_RULES` 闭集 6 名）+ 意图与信号名（`@form`/`formErrors`/`formValid`/`formSubmitting`——机制级条目，跨三目标无单一定义的词法白名单常量，白名单交叉断言以存在性检查承担）。全集封闭按本表（2026-08-09 登记，阶段 2 域 A Task 7）：未列表单功能视为未登记。v0 边界：每组件至多一个 `@form`；`form.submitting` 恒为 false（三目标声明但从不写入——语义 v0 未实现）；FormData prefill / 多表单 deferred。
+
+### 语义集条目
+
+| 语义集条目 | 语义 | 实现状态 | 诊断行为 |
+|-----------|------|---------|---------|
+| @form | 视图级表单意图（绑定字段 + submit 提交门禁：校验失败 handler 不调用） | 支持 | 无（三目标：React 受控表单 + validateForm 执行器 / Flutter Form + GlobalKey validate() / OmniView `<form novalidate>` + `{Comp}_validateForm`）；**语义验证硬错误**：信号名保留冲突（formErrors/formValid/formSubmitting）、`@form` 重复 |
+| required | 必填校验（内建消息「此项必填」） | 支持 | 无（三目标：React/OmniView validateForm 执行器「此项必填」/ Flutter validator 链「此项必填」） |
+| format | 格式校验（**闭集名字分派**：email/url 发射具体正则，其余值跳过 → 需 custom） | 支持 | 无（三目标：email「邮箱格式不正确」/ url「URL 格式不正确」；未知/动态格式值跳过 + 注释，React/OmniView/Flutter 同决策） |
+| min | 最小长度校验（内建消息「长度至少为 N」） | 支持 | 无（三目标：React/OmniView「长度至少为 N」/ Flutter 链式三元「此项至少 N 个字符」） |
+| max | 最大长度校验（内建消息「长度最多为 N」） | 支持 | 无（三目标：React/OmniView「长度最多为 N」/ Flutter 链式三元「此项最多 N 个字符」） |
+| pattern | 正则校验（用户正则是规则本体，内建消息「格式不正确」） | 支持 | 无（三目标：`RegExp` 形态；Flutter 转义原样 `RegExp(r'{escaped}')`） |
+| custom | 自定义校验（组件 fn 名作规则本体） | 支持 | 无（三目标：`{fn}(v)` 链尾/执行器调用）；**v0 边界**：仅组件 fn 名字，无字面量自定义消息（Task 5 自审 #6） |
+| formErrors | 内建错误信号（`form.errors`：字段名 → 错误消息） | 部分 | **React/OmniView 显式渲染**（`@if form.errors.name` 用户显式渲染）；**Flutter 形态差异**：错误经 `TextFormField.errorText` 自动展示，`form.errors` 发射为常量空 map（`<String, String>{}`）——语言面跨目标一致保留，行为注记 |
+| formValid | 内建有效信号（`form.valid`：错误集为空） | 部分 | React computed（`Object.keys(formErrors).length === 0`）/ OmniView computed（同形）；**Flutter 恒 `true` 常量**（校验同步经 validator 链，无独立有效态） |
+| formSubmitting | 内建提交中信号（`form.submitting`） | 部分 | **v0 恒 false**：三目标信号声明存在（React `useState(false)` 无 setter / Flutter `static const false` / OmniView `_formSubmitting` 初始 false）但从不写入——语义 v0 未实现，与 React 端一致 |
+
+### 已实现白名单
+
+| 条目 | 编译器事实源 |
+|------|-------------|
+| required | `VALIDATE_RULES` 常量（`crates/omnilang-core/src/semantic/validate_form_load.rs:10`，6 规则名闭集；登记册 域 6 同载） |
+| format | 同上（`FORMAT_VALUES` 闭集分派：email/url） |
+| min | 同上 |
+| max | 同上 |
+| pattern | 同上 |
+| custom | 同上 |
+
+> 注：**@form**/**formErrors**/**formValid**/**formSubmitting** 为机制级条目（非词法级），白名单交叉断言以存在性检查承担（跨三目标代码锚点：`collect_form_intent`（lower）/ `setFormErrors`·`formValid`·`formSubmitting`（react）/ `formErrors`·`formValid`·`formSubmitting`（flutter）/ `_formErrors`·`_formValid`·`_formSubmitting`（omniview）——见 verify-semantic-universe.py 域 8 断言 Task 7）；本白名单表只列 6 个词法级规则名。
+
+---
+
+## 域 9: 数据三态（@load）
+
+### 语义域定义
+
+视图级数据装载语义域——**声明式装载意图 + 三态信号**（`@load` 视图级指令 + `loading`/`error`/`data` 三信号 + `retry` 重试函数）。语义词汇 = 意图与信号名（`@load`/`loading`/`error`/`data`/`retry`——机制级条目，无编译器词法级白名单常量，事实源以代码锚点记录，白名单表作锚点账本，交叉断言以存在性检查承担）。全集封闭按本表（2026-08-09 登记，阶段 2 域 A Task 7）：未列数据装载功能视为未登记。**v0 边界：`@load` 仅支持 Array 返回**（三目标 `{T}[]` 形态）；每组件至多一个 `@load`。
+
+### 语义集条目
+
+| 语义集条目 | 语义 | 实现状态 | 诊断行为 |
+|-----------|------|---------|---------|
+| @load | 视图级数据装载意图（mount 后自动装载 + retry 重试；loader 可为同步或异步） | 支持 | 无（三目标：React mount 调 `load()` / Flutter `FutureProvider` / OmniView mount 调 `{name}_retry()`）；**语义验证硬错误**：保留信号名冲突（loading/error/data/retry）、`@load` 重复；**v0 边界：仅 Array 返回** |
+| loading | 装载中信号（初始 true，装载完成 false） | 支持 | 无（三目标：React `useState(true)` + setLoading / Flutter `{fn}Async.isLoading` / OmniView `{Comp}_loading`） |
+| error | 装载错误信号（初始 ""，失败时 `String(e)`） | 支持 | 无（三目标：React `useState("")` + setError / Flutter `({fn}Async.error?.toString() ?? "")` / OmniView `{Comp}_error`） |
+| data | 装载数据信号（初始 []，成功时 loader 返回） | 支持 | 无（三目标：React `useState({T}[])` + setData / Flutter `{fn}Async.valueOrNull ?? const []` / OmniView `{Comp}_data`） |
+| retry | 重试函数（重置三态 → 重跑 loader） | 支持 | 无（三目标：React `load()` 复用 / Flutter `ref.invalidate({fn}Provider)` 全表达式上下文 / OmniView `{Comp}_retry` fn）；OmniView editor 模式须经 `window.__omni_components["{Comp}"].fns.retry()`（comp_mount_js 在工厂 IIFE 外，直调 ReferenceError——store.rs:840-844 回归） |
+
+### 已实现白名单
+
+| 条目 | 编译器事实源 |
+|------|-------------|
+| @load | `load_intent` 收集（`crates/omnilang-core/src/ir/lower/component.rs:417` `collect_form_intent` 同列）；三目标装载接线（react `load()` mount / flutter `FutureProvider`（mod.rs:901）/ omniview `{name}_retry`（store.rs:570）） |
+| loading | react `setLoading`（component/mod.rs:1073）/ omniview `_loading`（store.rs:358）；flutter 经 `{fn}Async.isLoading`（ref.rs format_identifier） |
+| error | react `setError`（component/mod.rs:1074）/ omniview `_error`（store.rs:359）；flutter 经 `error?.toString()`（ref.rs） |
+| data | react `setData`（component/mod.rs:1090）/ omniview `_data`（store.rs:360）；flutter 经 `valueOrNull ?? const []`（ref.rs:1804） |
+| retry | flutter `ref.invalidate({fn}Provider)`（mod.rs:1535）/ omniview `_retry`（store.rs:570）；react 复用 `load()`（`retry` → `load` 重命名，component/mod.rs:561） |
+
+> 注：域 9 无编译器词法级白名单常量（信号名非闭集词汇，仅保留名冲突检查），**白名单表为锚点账本**（代码锚点记录事实源，域 6 值绑定先例）；交叉断言以存在性检查承担（见 verify-semantic-universe.py 域 9 断言 Task 7）。

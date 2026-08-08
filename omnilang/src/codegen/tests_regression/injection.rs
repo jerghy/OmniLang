@@ -41,6 +41,15 @@
 //! (exact E0006 switch message per backend for @onClick/@click/@onTap/@tap →
 //! @onPress and the mouseenter family → @onEnter/@onLeave; spec
 //! 2026-08-08 §3.3 切换表事实).
+//!
+//! Task 7 (semantic-form-load-phase2) additions: the
+//! `form_load_semantic_messages_across_backends` pattern-missing assertion —
+//! the @form/@load 语义域诊断（spec 2026-08-08 §4.1/§4.2 的 V-F4/V-F7/V-F8：
+//! 「未知校验规则 "@x"——合法规则: required/format/min/max/pattern/custom」
+//! /「信号名 "@x" 与 @form 生成的保留名冲突」/「信号名 "@x" 与 @load 生成的
+//! 保留名冲突」/「@load 仅支持 Array 返回（v0）」）是后端无关的共享语义层产物，
+//! 逐字断言其跨全部 5 后端全链路可见（parse → semantic → diagnostics 不因
+//! 目标差异而丢失/改写）。
 
 use rustc_hash::FxHashMap;
 
@@ -1070,6 +1079,60 @@ fn legacy_event_switch_messages_across_backends() {
                     d.severity == crate::error::Severity::Error && d.message == expected
                 }),
                 "[{backend}] `{attr}` 必须逐字产生 {expected:?}，got: {:?}",
+                result.errors
+            );
+        }
+    }
+}
+
+/// Task 7 模式缺失断言——@form/@load 语义域诊断消息跨后端固定（spec
+/// 2026-08-08 §4.1/§4.2 的 V-F4/V-F7/V-F8）：语义层硬错误是后端无关产物，
+/// 必须对每个后端全链路可见（parse → semantic → diagnostics 不因目标差异而
+/// 丢失/改写）。消息逐字断言：「未知校验规则 "@x"——合法规则:
+/// required/format/min/max/pattern/custom」（validate_form_load.rs V-F4，
+/// VALIDATE_RULES join("/")）、「信号名 "@x" 与 @form 生成的保留名冲突」/
+/// 「信号名 "@x" 与 @load 生成的保留名冲突」（V-F8）、
+/// 「@load 仅支持 Array 返回（v0）」（V-F7）。
+#[test]
+fn form_load_semantic_messages_across_backends() {
+    // (源, 期望逐字错误消息)——源的 @form/@load 语法与后端无关（语义层先于
+    // codegen），每个源必须硬失败且逐字命中期望消息。
+    let cases: &[(&str, &str)] = &[
+        // V-F4 未知校验规则名：validate: 必须与 bind:value 配对（V-F3 通过）
+        // 才会走到规则名检查。
+        (
+            "component App {\n    signal title: string = \"\"\n    fn submit(e) {}\n    view {\n        <form @form @onSubmit={submit}>\n            <input bind:value={title} validate:{bogus: true} />\n        </form>\n    }\n}\n",
+            "未知校验规则 \"@bogus\"——合法规则: required/format/min/max/pattern/custom",
+        ),
+        // V-F8（@form 侧）：用户信号与 @form 生成的保留名冲突。
+        (
+            "component App {\n    signal formErrors: string = \"\"\n    signal title: string = \"\"\n    fn submit(e) {}\n    view {\n        <form @form @onSubmit={submit}>\n            <input bind:value={title} validate:{required: true} />\n        </form>\n    }\n}\n",
+            "信号名 \"@formErrors\" 与 @form 生成的保留名冲突",
+        ),
+        // V-F8（@load 侧）：用户信号与 @load 生成的保留名冲突。
+        (
+            "component App {\n    signal loading: bool = false\n    fn fetchTodos() -> Array<String> {}\n    view {\n        @load={fetchTodos}\n        <div>{loading}</div>\n    }\n}\n",
+            "信号名 \"@loading\" 与 @load 生成的保留名冲突",
+        ),
+        // V-F7：@load fn 返回类型非 Array（无返回类型注记）→ v0 硬错误。
+        (
+            "component App {\n    fn fetchName() {}\n    view {\n        @load={fetchName}\n        <div>x</div>\n    }\n}\n",
+            "@load 仅支持 Array 返回（v0）",
+        ),
+    ];
+    for (target, backend) in BACKENDS {
+        for (source, expected) in cases {
+            let result = compile_target(source, *target);
+            assert!(
+                !result.success,
+                "[{backend}] 语义硬错误必须使编译失败，got: {:?}",
+                result.errors
+            );
+            assert!(
+                result.errors.iter().any(|d| {
+                    d.severity == crate::error::Severity::Error && d.message == *expected
+                }),
+                "[{backend}] 必须逐字产生 {expected:?}，got: {:?}",
                 result.errors
             );
         }

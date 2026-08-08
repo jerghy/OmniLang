@@ -3,10 +3,10 @@
 
 docs/superpowers/specs/semantic-universe.md is the semantic full set: the
 FRONTEND FEATURE UNIVERSE (independent of implementation progress), split
-from the implemented set. Seven semantic domains (animatable properties /
+from the implemented set. Nine semantic domains (animatable properties /
 array operations / events / RefOps / design-token types / value bindings /
-directives). Every entry must map to an implementation status — the brief's
-语义集条目 → 实现状态矩阵:
+directives / form validation / async data three-states). Every entry must
+map to an implementation status — the brief's 语义集条目 → 实现状态矩阵:
 
   语义域定义  (paragraph — the semantic domain; why these entries are one
                feature universe, independent of implementation)
@@ -42,6 +42,13 @@ same ground truth verify-vocabulary.py (Task 7.1) consumes:
             peek_is_boolean_attr_keyword in
             crates/omnilang-core/src/parser/view/element.rs
             (6 词法级条目; 机制级条目 style 动态绑定/布尔属性 走存在性断言)
+  form     ↔ VALIDATE_RULES in
+            crates/omnilang-core/src/semantic/validate_form_load.rs
+            (6 规则名白名单); 机制级条目 @form/formErrors/formValid/
+            formSubmitting 走存在性断言（ADR-074 先例——跨三目标锚点）
+  data     ↔ 无词法级白名单常量——@load/loading/error/data/retry 以
+            编译器代码锚点存在性断言（域 6 值绑定先例）; v0 边界（仅
+            Array 返回）记录于诊断行为列
 
 A whitelist word missing from the universe — or a universe entry without a
 status, or an entry claiming 支持/部分 while outside the whitelist — fails
@@ -86,9 +93,20 @@ BNF_SPEC_FILE = os.path.join(
     "2026-07-31-semantic-level-dsl-syntax-spec.md",
 )
 FLUTTER_UTILS_FILE = os.path.join(REPO_ROOT, "omnilang", "src", "codegen", "flutter", "utils.rs")
+VALIDATE_FORM_FILE = os.path.join(
+    REPO_ROOT, "crates", "omnilang-core", "src", "semantic", "validate_form_load.rs"
+)
+LOWER_COMPONENT_FILE = os.path.join(
+    REPO_ROOT, "crates", "omnilang-core", "src", "ir", "lower", "component.rs"
+)
+REACT_COMPONENT_FILE = os.path.join(
+    REPO_ROOT, "omnilang", "src", "codegen", "react", "component", "mod.rs"
+)
+FLUTTER_MOD_FILE = os.path.join(REPO_ROOT, "omnilang", "src", "codegen", "flutter", "mod.rs")
+OMNIVIEW_STORE_FILE = os.path.join(REPO_ROOT, "omnilang", "src", "codegen", "omniview", "store.rs")
 
 # ── universe section contract ─────────────────────────────────────────────
-# Domain titles must contain the expected keyword (in order 1..7).
+# Domain titles must contain the expected keyword (in order 1..9).
 DOMAIN_TITLES = {
     1: "可动画",
     2: "数组",
@@ -97,6 +115,8 @@ DOMAIN_TITLES = {
     5: "design token",
     6: "值绑定",  # v4 5.3 (domain HIGH-3): bind 域——无编译器白名单常量，无交叉断言
     7: "元素指令",  # 2026-08-07: directives 域——drag/dragEnd/ref/语义绑定/style 动态绑定/布尔属性
+    8: "表单",  # 2026-08-09: form 域——@form/validate 规则/内建信号（Task 7，阶段 2 域 A）
+    9: "数据三态",  # 2026-08-09: @load 域——loading/error/data/retry（Task 7，阶段 2 域 A）
 }
 # Required sub-section headers per domain.
 REQUIRED_SUBSECTIONS = ("语义域定义", "语义集条目", "已实现白名单")
@@ -381,7 +401,7 @@ def audit():
 
     universe = read_file(UNIVERSE_FILE)
     sections = split_domains(universe)
-    for n in range(1, 8):  # v4: 含域 6（值绑定，5.3 新建）——此前 range(1,6) 对域 6 空转；2026-08-07: 含域 7（元素指令与绑定）
+    for n in range(1, 10):  # v4: 含域 6（值绑定，5.3 新建）——此前 range(1,6) 对域 6 空转；2026-08-07: 含域 7（元素指令与绑定）；2026-08-09: 含域 8（表单）/域 9（数据三态，Task 7）
         if n not in sections:
             fail(f"domain {n} missing (expected '## 域 {n}: …{DOMAIN_TITLES[n]}…')")
             continue
@@ -608,6 +628,62 @@ def audit():
             keywords = boolean_attr_keywords(element_src)
             if keywords is None or not keywords:
                 fail("directives: 布尔属性 declared 支持 but peek_is_boolean_attr_keyword has no keywords")
+
+    # form (域 8, 2026-08-09 Task 7): 词法级规则名 == VALIDATE_RULES 双向断言；
+    # 机制级条目（@form/formErrors/formValid/formSubmitting）走存在性断言
+    # （ADR-074 先例——跨三目标锚点，无单一定义的词法白名单常量）
+    wl8, en8 = whitelist(8), entries(8)
+    validate_words = rust_str_array(read_file(VALIDATE_FORM_FILE), "VALIDATE_RULES")
+    assert_set("form", wl8, validate_words, "已实现白名单")
+    if en8 is None:
+        fail("form: cannot cross-assert 语义集条目 (extraction failed)")
+    else:
+        lex_entries8 = [
+            (e, s) for e, s in en8 if e not in ("@form", "formErrors", "formValid", "formSubmitting")
+        ]
+        assert_matrix("form", lex_entries8, wl8)
+        lower_src = read_file(LOWER_COMPONENT_FILE)
+        react_src = read_file(REACT_COMPONENT_FILE)
+        flutter_src = read_file(FLUTTER_MOD_FILE)
+        omniview_src = read_file(OMNIVIEW_STORE_FILE)
+        for name, needles in (
+            ("@form", [("collect_form_intent", lower_src)]),
+            ("formErrors", [("setFormErrors", react_src), ("formErrors", flutter_src), ("_formErrors", omniview_src)]),
+            ("formValid", [("formValid", react_src), ("formValid", flutter_src), ("_formValid", omniview_src)]),
+            ("formSubmitting", [("formSubmitting", react_src), ("formSubmitting", flutter_src), ("_formSubmitting", omniview_src)]),
+        ):
+            if dict(en8).get(name) in ("支持", "部分"):
+                for needle, haystack in needles:
+                    if needle not in haystack:
+                        fail(f"form: '{name}' 声明 支持/部分 但编译器锚点 '{needle}' 缺失")
+            elif name not in dict(en8):
+                fail(f"form: 缺失语义集条目 '{name}'")
+
+    # data three-states (域 9, 2026-08-09 Task 7): 无词法级白名单常量——
+    # @load/loading/error/data/retry 以编译器代码锚点存在性断言（域 6 值绑定先例）；
+    # v0 边界（仅 Array 返回）记录于诊断行为列
+    wl9, en9 = whitelist(9), entries(9)
+    if en9 is None:
+        fail("数据三态: cannot cross-assert 语义集条目 (extraction failed)")
+    else:
+        assert_matrix("数据三态", en9, wl9)
+        lower_src = read_file(LOWER_COMPONENT_FILE)
+        react_src = read_file(REACT_COMPONENT_FILE)
+        flutter_src = read_file(FLUTTER_MOD_FILE)
+        omniview_src = read_file(OMNIVIEW_STORE_FILE)
+        for name, needles in (
+            ("@load", [("load_intent", lower_src)]),
+            ("loading", [("setLoading", react_src), ("_loading", omniview_src)]),
+            ("error", [("setError", react_src), ("_error", omniview_src)]),
+            ("data", [("setData", react_src), ("_data", omniview_src)]),
+            ("retry", [("ref.invalidate", flutter_src), ("_retry", omniview_src)]),
+        ):
+            if dict(en9).get(name) in ("支持", "部分"):
+                for needle, haystack in needles:
+                    if needle not in haystack:
+                        fail(f"数据三态: '{name}' 声明 支持/部分 但编译器锚点 '{needle}' 缺失")
+            elif name not in dict(en9):
+                fail(f"数据三态: 缺失语义集条目 '{name}'")
 
     return problems
 

@@ -123,6 +123,18 @@
 - 三目标：React `useEffect`+三态 state（或库）/ Flutter `FutureProvider`（Riverpod 3.0 既有依赖）/ OmniView 自绘
 - 决策点：`@load` 与既有 `async action + await` 的关系（三态封装是增量，不替代既有原语）
 
+#### 实施收口（2026-08-09，阶段 2 域 A Task 7——实施完成，形态拍板）
+
+| # | 决策点 | 收口决策 |
+|---|---|---|
+| 1 | 字段校验声明形态 | **字段级 `validate: 规则` 属性**（`<input validate: required>`；规则闭集 6 名 = `VALIDATE_RULES`：required/format/min/max/pattern/custom；format 闭集名字分派 email/url，其余值跳过 → 需 custom） |
+| 2 | 错误展示接线 | **错误信号显式渲染**（`form.errors` + `@if form.errors.name` 用户显式渲染，React/OmniView）；**Flutter 例外**：错误经 `TextFormField.errorText` 自动展示，`form.errors` 发射为常量空 map——语言面跨目标一致保留、行为注记（semantic-universe 域 8 诊断行为列） |
+| 3 | `@load` 形态 | **视图级指令**：`@load loadData` 绑定组件 fn，mount 后自动装载；生成 `loading/error/data` 三信号 + `retry` 重试；至多一个 `@load` 每组件（与 `@form` 同） |
+| 4 | v0 范围边界 | `@load` **仅 Array 返回**（`{T}[]` 三目标形态）；`form.submitting` 恒 false（三目标声明但从不写入，语义 v0 未实现）；custom 仅组件 fn 名（无字面量自定义消息）；Flutter 无 submit 按钮场景 handler 无门禁直发（v0 边界） |
+| 5 | 语义验证 | 保留名冲突硬错误（formErrors/formValid/formSubmitting、loading/error/data/retry——`validate_form_load.rs` 保留名检查）；`@form`/`@load` 重复硬错误 |
+
+> 注：A1/A2 语法草案中的「内联规则 map 或声明式块」「绑定方式」等未决形态均以上表 1/3 行收口；三目标实现细节见 Task 4/5/6 报告（react/component、flutter、omniview codegen）。
+
 ### 4.2 域 B：反馈 + 模态
 
 **B1 toast/通知**

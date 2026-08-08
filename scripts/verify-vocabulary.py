@@ -2,9 +2,9 @@
 """Vocabulary-registry gate — design P1 recurrence mechanism (v3 plan Task 7.1).
 
 docs/superpowers/specs/vocabulary-registry.md is the closed-vocabulary
-registry of the semantic DSL: five closed vocabulary domains (events / a11y
-role / motion properties / RefOps / design-token types). Every entry must
-answer 「词汇的语义域是什么」with four required fields:
+registry of the semantic DSL: six closed vocabulary domains (events / a11y
+role / motion properties / RefOps / design-token types / form validation
+rules). Every entry must answer 「词汇的语义域是什么」with four required fields:
 
   语义词汇（table, first column = the semantic vocabulary word）
   来源域    (paragraph — the authoritative semantic domain)
@@ -29,6 +29,9 @@ the same ground truth the codegen and semantic passes consume:
   token type  ↔ parse_token_type match arms in
                 crates/omnilang-core/src/parser/design.rs
                 (13 类型 — parser-accepted lowercase names; v4 同重指向)
+  form rule   ↔ VALIDATE_RULES in
+                crates/omnilang-core/src/semantic/validate_form_load.rs
+                (6 规则名 — validate 值域闭集; Task 7 新增域 6)
 
 A word added to any compiler whitelist forces the registry to learn it and
 vice versa — the registry can never drift from the whitelists, and a platform
@@ -66,15 +69,19 @@ BNF_SPEC_FILE = os.path.join(
     REPO_ROOT, "docs", "superpowers", "specs",
     "2026-07-31-semantic-level-dsl-syntax-spec.md",
 )
+VALIDATE_FORM_FILE = os.path.join(
+    REPO_ROOT, "crates", "omnilang-core", "src", "semantic", "validate_form_load.rs"
+)
 
 # ── registry section contract ────────────────────────────────────────────
-# Domain titles must contain the expected keyword (in order 1..5).
+# Domain titles must contain the expected keyword (in order 1..6).
 DOMAIN_TITLES = {
     1: "事件",
     2: "a11y",
     3: "motion",
     4: "RefOp",
     5: "design token",
+    6: "表单校验规则",  # 2026-08-09 Task 7: @form validate 规则域——VALIDATE_RULES 锚点
 }
 # Required sub-section headers per domain (the four entry fields).
 REQUIRED_SUBSECTIONS = ("来源域", "语义词汇", "目标映射", "排除词汇")
@@ -216,7 +223,7 @@ def audit():
 
     registry = read_file(REGISTRY_FILE)
     sections = split_domains(registry)
-    for n in range(1, 6):
+    for n in range(1, 7):  # 2026-08-09 Task 7: 含域 6（表单校验规则）
         if n not in sections:
             fail(f"domain {n} missing (expected '## 域 {n}: …{DOMAIN_TITLES[n]}…')")
             continue
@@ -349,8 +356,12 @@ def audit():
     assert_set("design token", vocab(5), token_types, "语义词汇")
     bnf_doc_subset("design token", "token_type", token_types)
 
+    # form rule (域 6, 2026-08-09 Task 7): registry vocabulary == VALIDATE_RULES
+    # （validate_form_load.rs:10，6 规则名闭集——@form validate 值域）
+    assert_set("表单校验规则", vocab(6), rust_str_array(read_file(VALIDATE_FORM_FILE), "VALIDATE_RULES"), "语义词汇")
+
     # borrow-word rule across all domains: 排除词汇 must be disjoint from 语义词汇
-    for n, label in ((1, "事件"), (2, "a11y"), (3, "motion"), (4, "RefOp"), (5, "design token")):
+    for n, label in ((1, "事件"), (2, "a11y"), (3, "motion"), (4, "RefOp"), (5, "design token"), (6, "表单校验规则")):
         v, x = vocab(n), excluded(n)
         if v is not None and x is not None:
             overlap = sorted(set(v) & set(x))

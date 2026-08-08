@@ -2,11 +2,11 @@
 
 **日期**: 2026-08-05
 **状态**: Active —— 设计 P1 复发机制（v3 修复计划 Phase 7，Task 7.1）
-**依据**: 设计文档 §2 原则 6（词汇语义域封闭）+ §5 每域模板「词汇来源」字段；4.2 事件白名单（`event_names.rs` 共享表）/ 4.3 a11y 词汇（`validate_a11y.rs`）/ 19 属性白名单 / RefOp 10 ops / design token 13 类型
+**依据**: 设计文档 §2 原则 6（词汇语义域封闭）+ §5 每域模板「词汇来源」字段；4.2 事件白名单（`event_names.rs` 共享表）/ 4.3 a11y 词汇（`validate_a11y.rs`）/ 19 属性白名单 / RefOp 10 ops / design token 13 类型 / validate 6 规则名（`validate_form_load.rs`）
 **审计**: `scripts/verify-vocabulary.py`（登记册 ↔ 编译器白名单交叉断言，docs-gate 同批）
 
 > 本登记册强制回答一个问题：**每个语义词汇的语义域是什么**（WAI-ARIA / DOM 事件 / CSS 属性 / …）。
-> 5 个封闭词汇域：事件 / a11y role / motion 属性 / RefOp / design token 类型。
+> 6 个封闭词汇域：事件 / a11y role / motion 属性 / RefOp / design token 类型 / 表单校验规则。
 > **动因（设计 P1）**：a11y 域曾以 Flutter 旗标名（`textField`/`image`）为 role 词汇——出生即违反「语义纯度」原则（web 输出非法 `role="textField"`）；4.3 已修正词汇（Task 4.3 词汇 ARIA 化），本登记册使复发机制化：新域设计时「禁止借词」是硬规则，不是好习惯。
 
 ## 登记册结构（条目必含四字段）
@@ -350,7 +350,47 @@ DOM 命令式元素 API 的语义意图——**焦点 / 滚动 / 测量 / 选择
 
 ---
 
+## 域 6: 表单校验规则（表单 validate）
+
+### 来源域
+
+表单字段校验意图——**字段级 `validate: 规则` 属性的值域闭集**（2026-08-09 阶段 2 域 A 收口；`VALIDATE_RULES` = `crates/omnilang-core/src/semantic/validate_form_load.rs:10`，6 规则名闭集）。语义词汇是「校验规则名」，不是平台校验机制名，也不是规则参数值（如 `format: email` 的 `email`/`url` 是 `FORMAT_VALUES` 闭集值，非规则名——见排除词汇）。
+
+> 判定注记（内建信号名不是词汇）：`formErrors`/`formValid`/`formSubmitting`（`@form`）与 `loading`/`error`/`data`/`retry`（`@load`）为**编译器保留名判定**（`validate_form_load.rs` 保留名冲突硬错误），三目标内建信号形态——它们随 `@form`/`@load` 机制自动生成，用户不可自定义，不进本登记册词汇表（域 6 仅收 validate 规则名本体）。
+
+### 语义词汇
+
+| 语义词汇 | 值域 / 约束 | 内建错误消息 | 说明 |
+|---------|------------|-------------|------|
+| required | 无参 | 此项必填 | 必填校验 |
+| format | 闭集名 `FORMAT_VALUES`：email / url | 邮箱格式不正确 / URL 格式不正确 | 格式校验（闭集名字分派；其余值跳过 → 需 custom） |
+| min | 数字 | 长度至少为 N（Flutter 此项至少 n 个字符） | 最小长度 |
+| max | 数字 | 长度最多为 N（Flutter 此项最多 n 个字符） | 最大长度 |
+| pattern | 正则字符串 | RegExp 格式不正确 | 正则校验 |
+| custom | 组件 fn 名（v0 边界：无字面量自定义消息） | fn 返回消息 | 自定义校验 |
+
+### 目标映射
+
+| 目标 | 生成形状 |
+|------|---------|
+| React | `validateForm` 执行器（校验规则链 → `setFormErrors` map，`formValid = Object.keys(formErrors).length === 0`） |
+| Flutter | `TextFormField.validator` 链（`Form` + `_formKey`；错误经 `errorText` 自动展示——语言面 `form.errors` 发射为常量空 map，行为差异注记于 semantic-universe 域 8） |
+| OmniView | HTML5 校验属性（`required`/`minLength`/`maxLength`/`pattern`…）+ `{Comp}_validateForm` 自绘错误 |
+
+### 排除词汇
+
+| 排除词汇 | 平台 | 不得成为语义词汇的原因 | 正确语义词汇 |
+|----------|------|----------------------|-------------|
+| validator | Flutter | TextFormField.validator 参数名——平台机制形状 | validate: 规则 |
+| regex | JS/HTML | 平台正则形状（`pattern: "..."` 是值不是规则名） | pattern |
+| minLength | HTML | HTML5 属性名——平台机制形状 | min |
+| maxLength | HTML | 同上 | max |
+| email | HTML | `input[type=email]` 机制形状——`format:` 闭集值，非规则名 | format |
+| url | HTML | 同上 | format |
+
+---
+
 ## 维护约定
 
-- 编译器白名单变更（新增事件 canonical 名 / a11y 角色 / 动画属性 / RefOp / token 类型）必须同步本登记册**同 commit**——`scripts/verify-vocabulary.py` 双向断言使漂移即门禁失败（与 docs-gate 对设计文档的强制力同级）。
+- 编译器白名单变更（新增事件 canonical 名 / a11y 角色 / 动画属性 / RefOp / token 类型 / 表单校验规则）必须同步本登记册**同 commit**——`scripts/verify-vocabulary.py` 双向断言使漂移即门禁失败（与 docs-gate 对设计文档的强制力同级）。
 - 新语义域设计时，§5 模板「词汇来源」字段必填：写清词汇来源域 + 排除词汇，并确保本登记册收录后方可定稿。
