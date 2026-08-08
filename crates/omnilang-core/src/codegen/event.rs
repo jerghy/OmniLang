@@ -16,14 +16,17 @@ use crate::ir::EventDataKind;
 #[must_use]
 pub fn field_extract_js(kind: &EventDataKind, field: &str, raw: &str) -> (String, String) {
     match (kind, field) {
-        // PointerEvent
-        (EventDataKind::PointerEvent, "x") => (format!("{}.clientX", raw), "0".into()),
-        (EventDataKind::PointerEvent, "y") => (format!("{}.clientY", raw), "0".into()),
+        // PointerEvent — x/y are ELEMENT-LOCAL coordinates (offsetX/offsetY,
+        // D1 coordinate-basis change), not viewport (clientX/clientY).
+        (EventDataKind::PointerEvent, "x") => (format!("{}.offsetX", raw), "0".into()),
+        (EventDataKind::PointerEvent, "y") => (format!("{}.offsetY", raw), "0".into()),
         (EventDataKind::PointerEvent, "button") => (format!("{}.button", raw), "0".into()),
         (EventDataKind::PointerEvent, "pressure") => (format!("{}.pressure", raw), "0".into()),
         (EventDataKind::PointerEvent, "tiltX") => (format!("{}.tiltX", raw), "0".into()),
         (EventDataKind::PointerEvent, "tiltY") => (format!("{}.tiltY", raw), "0".into()),
         (EventDataKind::PointerEvent, "pointerType") => (format!("{}.pointerType", raw), "\"\"".into()),
+        (EventDataKind::PointerEvent, "pointerId") => (format!("{}.pointerId", raw), "0".into()),
+        (EventDataKind::PointerEvent, "buttons") => (format!("{}.buttons", raw), "0".into()),
         (EventDataKind::PointerEvent, m @ ("alt"|"ctrl"|"shift"|"meta")) => {
             let key = match m { "alt" => "altKey", "ctrl" => "ctrlKey", "shift" => "shiftKey", _ => "metaKey" };
             (format!("{}.{}", raw, key), "false".into())
@@ -200,4 +203,34 @@ pub fn emit_event_object(
     };
 
     format!("{{ {} }}", fields.join(", "))
+}
+
+#[cfg(all(test, any(feature = "codegen-omniview", feature = "codegen-vue")))]
+mod tests {
+    use super::*;
+
+    /// D1: PointerEvent x/y switch from viewport (clientX/clientY) to
+    /// element-local coordinates (offsetX/offsetY); pointerId/buttons added.
+    #[test]
+    fn pointer_field_extract_js_element_local_coords() {
+        let cases = [
+            ("x", "e.offsetX"),
+            ("y", "e.offsetY"),
+            ("pointerId", "e.pointerId"),
+            ("buttons", "e.buttons"),
+        ];
+        for (field, expected) in cases {
+            let (extract, fallback) = field_extract_js(&EventDataKind::PointerEvent, field, "e");
+            assert_eq!(extract, expected, "field {field}");
+            assert_eq!(fallback, "0", "field {field} fallback");
+        }
+    }
+
+    /// The coordinate-basis change is scoped to PointerEvent — other
+    /// kinds keep viewport coordinates.
+    #[test]
+    fn non_pointer_events_keep_viewport_coords() {
+        let (x, _) = field_extract_js(&EventDataKind::WheelEvent, "x", "e");
+        assert_eq!(x, "e.clientX");
+    }
 }

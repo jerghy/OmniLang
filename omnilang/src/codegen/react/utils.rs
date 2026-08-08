@@ -343,14 +343,23 @@ fn react_prop_for_canonical(canonical: &str) -> Option<String> {
 /// SyntheticEvent conventions (e.target guaranteed during handler, no ?. needed).
 fn field_extract_react(kind: &EventDataKind, field: &str, raw: &str) -> (String, String) {
     match (kind, field) {
-        // PointerEvent
-        (EventDataKind::PointerEvent, "x") => (format!("{}.clientX", raw), "0".into()),
-        (EventDataKind::PointerEvent, "y") => (format!("{}.clientY", raw), "0".into()),
+        // PointerEvent — x/y are ELEMENT-LOCAL coordinates (D1). React's
+        // synthetic event does not proxy offsetX/offsetY → read via
+        // nativeEvent; pointerId/buttons are proxied by the synthetic
+        // PointerEvent (same interface as button/pressure/tiltX).
+        (EventDataKind::PointerEvent, "x") => {
+            (format!("{}.nativeEvent.offsetX", raw), "0".into())
+        }
+        (EventDataKind::PointerEvent, "y") => {
+            (format!("{}.nativeEvent.offsetY", raw), "0".into())
+        }
         (EventDataKind::PointerEvent, "button") => (format!("{}.button", raw), "0".into()),
         (EventDataKind::PointerEvent, "pressure") => (format!("{}.pressure", raw), "0".into()),
         (EventDataKind::PointerEvent, "tiltX") => (format!("{}.tiltX", raw), "0".into()),
         (EventDataKind::PointerEvent, "tiltY") => (format!("{}.tiltY", raw), "0".into()),
         (EventDataKind::PointerEvent, "pointerType") => (format!("{}.pointerType", raw), "\"\"".into()),
+        (EventDataKind::PointerEvent, "pointerId") => (format!("{}.pointerId", raw), "0".into()),
+        (EventDataKind::PointerEvent, "buttons") => (format!("{}.buttons", raw), "0".into()),
         (EventDataKind::PointerEvent, m @ ("alt"|"ctrl"|"shift"|"meta")) => {
             let key = match m { "alt" => "altKey", "ctrl" => "ctrlKey", "shift" => "shiftKey", _ => "metaKey" };
             (format!("{}.{}", raw, key), "false".into())
@@ -512,4 +521,34 @@ pub(super) fn emit_event_object_react(
     };
 
     format!("{{ {} }}", fields.join(", "))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// D1: React synthetic PointerEvent exposes pointerId/buttons directly,
+    /// but offsetX/offsetY only via nativeEvent (element-local coordinates).
+    #[test]
+    fn pointer_field_extract_react_element_local_coords() {
+        let cases = [
+            ("x", "e.nativeEvent.offsetX"),
+            ("y", "e.nativeEvent.offsetY"),
+            ("pointerId", "e.pointerId"),
+            ("buttons", "e.buttons"),
+        ];
+        for (field, expected) in cases {
+            let (extract, fallback) = field_extract_react(&EventDataKind::PointerEvent, field, "e");
+            assert_eq!(extract, expected, "field {field}");
+            assert_eq!(fallback, "0", "field {field} fallback");
+        }
+    }
+
+    /// The coordinate-basis change is scoped to PointerEvent — other
+    /// kinds keep synthetic-event viewport coordinates.
+    #[test]
+    fn non_pointer_events_keep_synthetic_viewport_coords() {
+        let (x, _) = field_extract_react(&EventDataKind::WheelEvent, "x", "e");
+        assert_eq!(x, "e.clientX");
+    }
 }

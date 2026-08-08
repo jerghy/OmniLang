@@ -87,6 +87,8 @@ pub fn event_data_schema(kind: &EventDataKind) -> Vec<EventFieldDef> {
     };
     match kind {
         EventDataKind::PointerEvent => vec![
+            // x/y = element-local coordinates (offsetX/offsetY, D1) —
+            // NOT viewport coordinates (clientX/clientY).
             f("x", EventFieldType::Float),
             f("y", EventFieldType::Float),
             f("button", EventFieldType::Int),
@@ -94,6 +96,8 @@ pub fn event_data_schema(kind: &EventDataKind) -> Vec<EventFieldDef> {
             f("tiltX", EventFieldType::Float),
             f("tiltY", EventFieldType::Float),
             f("pointerType", EventFieldType::String),
+            f("pointerId", EventFieldType::Int),
+            f("buttons", EventFieldType::Int),
             f("alt", EventFieldType::Bool),
             f("ctrl", EventFieldType::Bool),
             f("shift", EventFieldType::Bool),
@@ -241,6 +245,45 @@ pub fn map_event_data_kind(event_name: &str) -> Option<EventDataKind> {
             Some(EventDataKind::TransitionEvent)
         }
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Task 4: PointerEvent schema gains pointerId/buttons (Int) — dx/dy
+    /// stay YAGNI-removed (@drag covers incremental movement).
+    #[test]
+    fn pointer_schema_has_semantic_fields() {
+        let schema = event_data_schema(&EventDataKind::PointerEvent);
+        let names: Vec<&str> = schema.iter().map(|f| f.name.as_str()).collect();
+        assert!(
+            names.contains(&"pointerId"),
+            "schema missing pointerId: {names:?}"
+        );
+        assert!(
+            names.contains(&"buttons"),
+            "schema missing buttons: {names:?}"
+        );
+        assert!(
+            !names.contains(&"dx"),
+            "dx/dy 已 YAGNI 移除（@drag 覆盖增量）"
+        );
+        assert!(
+            !names.contains(&"dy"),
+            "dx/dy 已 YAGNI 移除（@drag 覆盖增量）"
+        );
+        let pid = schema
+            .iter()
+            .find(|f| f.name == "pointerId")
+            .expect("pointerId in schema");
+        assert_eq!(pid.field_type, EventFieldType::Int);
+        let btns = schema
+            .iter()
+            .find(|f| f.name == "buttons")
+            .expect("buttons in schema");
+        assert_eq!(btns.field_type, EventFieldType::Int);
     }
 }
 

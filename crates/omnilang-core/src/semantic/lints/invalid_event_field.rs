@@ -9,6 +9,38 @@ use crate::ir::{event_data_schema, IRProgram, ViewTree};
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 
+/// DOM-shaped event-object property names → semantic DSL field names, used
+/// to attach migration hints to invalid-field errors (spec §3.5 V5).
+/// The note (empty = none) explains semantic deltas — x/y switched from
+/// viewport to element-local coordinates (D1).
+const DOM_FIELD_MIGRATIONS: &[(&str, &str, &str)] = &[
+    ("clientX", "x", "元素局部坐标"),
+    ("clientY", "y", "元素局部坐标"),
+    ("altKey", "alt", ""),
+    ("ctrlKey", "ctrl", ""),
+    ("shiftKey", "shift", ""),
+    ("metaKey", "meta", ""),
+];
+
+/// Migration hint for a DOM-shaped field name, e.g. `clientX` →
+/// ` 可改用 e.x（元素局部坐标）`. `None` when the name is not DOM-shaped or
+/// the semantic counterpart is not a field of this event's schema (the
+/// suggestion must always be actionable).
+fn dom_field_migration_hint(field: &str, valid: &FxHashSet<&str>) -> Option<String> {
+    DOM_FIELD_MIGRATIONS
+        .iter()
+        .find(|(dom, _, _)| *dom == field)
+        .filter(|(_, semantic, _)| valid.contains(*semantic))
+        .map(|(_, semantic, note)| {
+            let note = if note.is_empty() {
+                String::new()
+            } else {
+                format!("（{}）", note)
+            };
+            format!(" 可改用 e.{}{}", semantic, note)
+        })
+}
+
 pub struct InvalidEventField;
 
 impl LintRule for InvalidEventField {
@@ -56,14 +88,16 @@ fn check_view_invalid_fields(
                     let valid: FxHashSet<&str> = schema.iter().map(|f| f.name.as_str()).collect();
                     for field in used {
                         if !valid.contains(field.as_str()) {
+                            let hint = dom_field_migration_hint(field, &valid).unwrap_or_default();
                             diags.push(LintDiagnostic {
                                 rule: rule.name().into(),
                                 severity: rule.severity(),
                                 message: format!(
-                                    "`e.{}` is not a field of {:?}. Available fields: {:?}",
+                                    "`e.{}` is not a field of {:?}. Available fields: {:?}{}",
                                     field,
                                     kind,
-                                    schema.iter().map(|f| f.name.as_str()).collect::<Vec<_>>()
+                                    schema.iter().map(|f| f.name.as_str()).collect::<Vec<_>>(),
+                                    hint
                                 ),
                                 file: comp_file.to_string(),
                                 line: el.source_span.map_or(0, |s| s.line),
@@ -245,6 +279,94 @@ mod tests {
         assert!(
             diags.is_empty(),
             "Valid event field `value` should not trigger diagnostic"
+        );
+    }
+
+    /// Build an IR whose single element has a PointerEvent handler reading
+    /// exactly `used_fields`.
+    fn make_pointer_event_ir(comp_name: &str, used_fields: Vec<String>) -> IRProgram {
+        let view = Some(ViewTree::Element(Box::new(ElementIR {
+            tag: "div".into(),
+            props: FxHashMap::default(),
+            bindings: FxHashMap::default(),
+            events: [(
+                "onPointerMove".into(),
+                EventHandlerIR::InlineFn {
+                    body: BlockIR { statements: vec![] },
+                    params: vec![],
+                    event_data: Some(EventDataKind::PointerEvent),
+                    used_fields: Some(used_fields),
+                    needs_prevent_default: false,
+                    needs_stop_propagation: false,
+                },
+            )]
+            .into_iter()
+            .collect(),
+            style_classes: None,
+            inline_style: None,
+            children: vec![],
+            construction_kind: ConstructionKind::Normal,
+            class_map_bindings: FxHashMap::default(),
+            source_span: None,
+            motion: None,
+            ref_binding: None,
+            semantic_bindings: FxHashMap::default(),
+            a11y: None,
+            drag_binding: None,
+        })));
+        make_test_ir_with_view(comp_name, view)
+    }
+
+    /// V5 (spec §3.5): DOM-shaped coordinate names get a migration hint
+    /// pointing at the semantic field with the element-local note.
+    #[test]
+    fn test_invalid_event_field_dom_coord_name_gets_migration_hint() {
+        let ir = make_pointer_event_ir("Move", vec!["clientX".into()]);
+        let diags = InvalidEventField.check_ir(&ir, &FxHashMap::default());
+        assert_eq!(diags.len(), 1, "exactly one diagnostic, got: {diags:?}");
+        assert!(
+            diags[0].message.contains("可改用 e.x（元素局部坐标）"),
+            "hint must suggest e.x with the element-local note: {}",
+            diags[0].message
+        );
+    }
+
+    /// V5 (spec §3.5): DOM-shaped modifier names get a migration hint
+    /// pointing at the semantic field.
+    #[test]
+    fn test_invalid_event_field_dom_modifier_name_gets_migration_hint() {
+        for (dom, semantic) in [
+            ("altKey", "e.alt"),
+            ("ctrlKey", "e.ctrl"),
+            ("shiftKey", "e.shift"),
+            ("metaKey", "e.meta"),
+        ] {
+            let ir = make_pointer_event_ir("Move", vec![dom.into()]);
+            let diags = InvalidEventField.check_ir(&ir, &FxHashMap::default());
+            assert_eq!(
+                diags.len(),
+                1,
+                "{dom}: exactly one diagnostic, got: {diags:?}"
+            );
+            assert!(
+                diags[0].message.contains(&format!("可改用 {}", semantic)),
+                "{dom}: hint must suggest {semantic}: {}",
+                diags[0].message
+            );
+        }
+    }
+
+    /// V5 (spec §3.5): plain unknown names get no migration hint — the
+    /// hint only fires for known DOM-shaped property names.
+    #[test]
+    fn test_invalid_event_field_no_hint_for_unknown_name() {
+        let ir = make_pointer_event_ir("Move", vec!["bogus".into()]);
+        let diags = InvalidEventField.check_ir(&ir, &FxHashMap::default());
+        assert_eq!(diags.len(), 1, "exactly one diagnostic, got: {diags:?}");
+        assert!(
+            !diags[0].message.contains("可改用"),
+            "no hint for unknown names: {}",
+            diags[0].message
         );
     }
 
