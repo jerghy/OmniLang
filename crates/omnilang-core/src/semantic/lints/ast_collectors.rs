@@ -375,5 +375,11 @@ pub(super) fn collect_used_names_in_view_node<'a>(
                 }
             }
         }
+        // @load={fnName} names a component function (spec 2026-08-08
+        // §4.1) — a real use, like FnRef/Drag handlers, keeping the
+        // function out of dead-code diagnostics.
+        ViewNode::LoadDirective { fn_name, .. } => {
+            used.insert(fn_name.as_str());
+        }
     }
 }

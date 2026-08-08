@@ -213,6 +213,10 @@ fn walk_view_node(node: &ViewNode, diags: &mut Vec<LintDiagnostic>) {
                     // @drag/@dragEnd name component functions only — no
                     // expressions to walk (ADR-073).
                     ElementProp::Drag { .. } => {}
+                    // @form is a bare marker; @validate rule values are
+                    // plain exprs — walked in Task 3's validate pass
+                    // together with the rest of form handling.
+                    ElementProp::Form | ElementProp::Validate { .. } => {}
                 }
             }
             for child in &el.children {
@@ -261,6 +265,8 @@ fn walk_view_node(node: &ViewNode, diags: &mut Vec<LintDiagnostic>) {
         }
         ViewNode::Text(_) => {}
         ViewNode::Interpolation(expr) => walk_expr(expr, diags),
+        // @load is a bare function name — no expressions to walk.
+        ViewNode::LoadDirective { .. } => {}
     }
 }
 

@@ -106,11 +106,13 @@ pub(super) fn body_has_motion_trigger(nodes: &[ViewNode]) -> bool {
                 }
             }
             // Nested @for bodies are diagnosed by their own ForDirective
-            // visit — do not recurse here.
+            // visit — do not recurse here. @load is a leaf directive —
+            // no motion content inside.
             ViewNode::ForDirective(_)
             | ViewNode::Text(_)
             | ViewNode::Interpolation(_)
-            | ViewNode::SlotDirective { .. } => {}
+            | ViewNode::SlotDirective { .. }
+            | ViewNode::LoadDirective { .. } => {}
         }
     }
     false

@@ -157,7 +157,11 @@ fn check_view_nodes(
                     check_view_nodes(else_body, typed, consts, file_path, diags);
                 }
             }
-            ViewNode::Text(_) | ViewNode::Interpolation(_) | ViewNode::SlotDirective { .. } => {}
+            // @load is a leaf directive — no @for content inside.
+            ViewNode::Text(_)
+            | ViewNode::Interpolation(_)
+            | ViewNode::SlotDirective { .. }
+            | ViewNode::LoadDirective { .. } => {}
         }
     }
 }

@@ -322,6 +322,46 @@ impl<'a> Parser<'a> {
                         dimension_values,
                     });
                 }
+                // validate: { required: true, min: 3, ... } — field validation
+                // rules (spec 2026-08-08 §4.1). Mirrors the style: { ... }
+                // block shape; each rule is `name: expr` with the rule name's
+                // span recorded for diagnostics.
+                if name == "validate" {
+                    self.advance(); // consume ':'
+                    self.expect_token(TokenKind::LBrace, "expected '{' after 'validate:'")?;
+                    let mut rules = Vec::new();
+                    if !self.at(&TokenKind::RBrace) {
+                        let span = self.peek_span();
+                        let rule_name = self.expect_ident("expected validation rule name")?;
+                        self.expect_token(
+                            TokenKind::Colon,
+                            "expected ':' after validation rule name",
+                        )?;
+                        let value = self.parse_expr()?;
+                        rules.push(ValidateRule {
+                            name: rule_name,
+                            value,
+                            span,
+                        });
+                        while self.at(&TokenKind::Comma) {
+                            self.advance();
+                            let span = self.peek_span();
+                            let rule_name = self.expect_ident("expected validation rule name")?;
+                            self.expect_token(
+                                TokenKind::Colon,
+                                "expected ':' after validation rule name",
+                            )?;
+                            let value = self.parse_expr()?;
+                            rules.push(ValidateRule {
+                                name: rule_name,
+                                value,
+                                span,
+                            });
+                        }
+                    }
+                    self.expect_token(TokenKind::RBrace, "expected '}'")?;
+                    return Ok(ElementProp::Validate { rules });
+                }
                 // style: entries or class: name
                 self.advance();
                 match self.peek_kind() {
@@ -1026,6 +1066,124 @@ component Drag {
             errors.is_empty(),
             "motion drag triggers + @drag must coexist, got: {:?}",
             errors
+        );
+    }
+}
+
+/// Parser tests for the form intent (`@form` bare attr) and field validation
+/// (`validate: { ... }` block) — spec 2026-08-08 §4.1 (域 A, Task 1).
+#[cfg(test)]
+mod form_load_tests {
+    use super::*;
+    use crate::lexer::tokenize;
+    use crate::parser::parse;
+
+    /// Parse a component source and return its view children.
+    fn view_children(source: &str) -> Vec<ViewNode> {
+        let tokens = tokenize(source);
+        let (program, errors) = parse(tokens, source);
+        assert!(errors.is_empty(), "unexpected parse errors: {:?}", errors);
+        program.modules.get("input.omni").unwrap().components[0]
+            .view
+            .as_ref()
+            .expect("component should have view")
+            .children
+            .clone()
+    }
+
+    /// Find the first Element matching `tag`, recursing through the
+    /// view tree (children of form containers are nested inside them).
+    /// Find the first `Element` matching `tag`, recursing through the view
+    /// tree (form children like `<input>` are nested inside `<form>`).
+    fn find_element<'a>(nodes: &'a [ViewNode], tag: &str) -> &'a Element {
+        find_element_opt(nodes, tag).unwrap_or_else(|| panic!("expected <{tag}> element in view"))
+    }
+
+    fn find_element_opt<'a>(nodes: &'a [ViewNode], tag: &str) -> Option<&'a Element> {
+        for node in nodes {
+            if let ViewNode::Element(el) = node {
+                if el.tag == tag {
+                    return Some(el);
+                }
+                if let Some(found) = find_element_opt(&el.children, tag) {
+                    return Some(found);
+                }
+            }
+        }
+        None
+    }
+
+    #[test]
+    fn parse_form_element_with_validate() {
+        let src = r#"
+component App {
+    fn submit(e) {}
+    view {
+        <form @form @onSubmit={submit}>
+            <input bind:value={name} validate: { required: true, min: 3 } />
+        </form>
+    }
+}
+"#;
+        let children = view_children(src);
+        let form = find_element(&children, "form");
+        assert!(
+            form.props.iter().any(|p| matches!(p, ElementProp::Form)),
+            "form element must carry ElementProp::Form, got: {:?}",
+            form.props
+        );
+        // Event prop coexists with the bare @form intent
+        assert!(
+            form.props
+                .iter()
+                .any(|p| matches!(p, ElementProp::Event { name, .. } if name == "onSubmit")),
+            "form element must keep @onSubmit event, got: {:?}",
+            form.props
+        );
+
+        let input = find_element(&children, "input");
+        let validate = input
+            .props
+            .iter()
+            .find_map(|p| match p {
+                ElementProp::Validate { rules } => Some(rules),
+                _ => None,
+            })
+            .unwrap_or_else(|| {
+                panic!(
+                    "input must carry ElementProp::Validate, got: {:?}",
+                    input.props
+                )
+            });
+        assert_eq!(
+            validate.len(),
+            2,
+            "expected required + min rules, got: {:?}",
+            validate
+        );
+        assert_eq!(validate[0].name, "required");
+        assert_eq!(validate[1].name, "min");
+        assert!(matches!(
+            &validate[0].value,
+            Expr::Literal(Literal::Bool(true), _)
+        ));
+        assert!(matches!(
+            &validate[1].value,
+            Expr::Literal(Literal::Int(3), _)
+        ));
+    }
+
+    #[test]
+    fn parse_load_directive_in_view() {
+        let src = "component App { fn f() {} view { @load={f} <div /> } }";
+        let children = view_children(src);
+        assert!(
+            matches!(
+                &children[0],
+                ViewNode::LoadDirective { fn_name, .. } if fn_name == "f"
+            ),
+            "expected ViewNode::LoadDirective {{ fn_name: \"f\" }}, got: {:?}",
+            children[0]
         );
     }
 }

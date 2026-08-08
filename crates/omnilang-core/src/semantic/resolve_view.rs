@@ -28,7 +28,11 @@ impl SemanticAnalyzer {
             ViewNode::ForDirective(dir) => {
                 self.resolve_for_directive_refs(dir, vctx);
             }
-            ViewNode::SlotDirective { .. } | ViewNode::Text(_) => {}
+            // @load has no expressions to resolve (bare fn name; lowering
+            // wires the call in Task 2). @form/@validate are resolved via
+            // their Static/value exprs — handled below.
+            ViewNode::LoadDirective { .. } | ViewNode::SlotDirective { .. } | ViewNode::Text(_) => {
+            }
         }
     }
 
@@ -77,11 +81,15 @@ impl SemanticAnalyzer {
                 }
                 // @drag/@dragEnd handler names are bare component-function
                 // refs (ADR-073) — resolved via validate_drag, not here.
+                // validate: rule values are plain exprs — resolved in Task 3's
+                // validate_form_load pass together with @form/@load.
                 ElementProp::Bind { .. }
                 | ElementProp::Ref(_)
                 | ElementProp::MotionTrigger(_)
                 | ElementProp::Variant { .. }
-                | ElementProp::Drag { .. } => {}
+                | ElementProp::Drag { .. }
+                | ElementProp::Form
+                | ElementProp::Validate { .. } => {}
             }
         }
         // Children of a component instantiation are consumer-side

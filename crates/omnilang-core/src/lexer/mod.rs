@@ -1192,6 +1192,11 @@ mod tests {
     fn test_at_slot() {
         assert_token("@slot", TokenKind::AtSlot);
     }
+    #[test]
+    fn at_form_and_at_load_keywords() {
+        assert_token("@form", TokenKind::AtForm);
+        assert_token("@load", TokenKind::AtLoad);
+    }
     /// Task 4.4: the `@native` token is REMOVED (dead token — no spec §1.2
     /// platform-layer syntax). An unknown @-word falls back to the
     /// `Ident("@native")` shape (event-binding style), so `@native(...)`

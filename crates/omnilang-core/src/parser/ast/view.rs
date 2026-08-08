@@ -137,6 +137,13 @@ pub enum ViewNode {
         name: Option<String>,
         default_content: Option<Vec<ViewNode>>,
     },
+    /// Data three-state intent: `@load={fn}` — view-level directive that
+    /// generates loading/error/data signals (v0: Array-returning fn only,
+    /// spec 2026-08-08 §4.1).
+    LoadDirective {
+        fn_name: String,
+        span: Span,
+    },
     Text(String),
     Interpolation(Expr),
 }
@@ -210,6 +217,14 @@ pub enum ElementProp {
     A11y(A11ySpec),
     Ref(String),
     MotionTrigger(MotionTrigger),
+    /// Form intent: `@form` bare attribute — activates form validation/error
+    /// signals/a11y wiring (spec 2026-08-08 §4.1).
+    Form,
+    /// Field validation declaration: `validate: { required: true, min: 3 }` —
+    /// mirrors the `style: { ... }` block shape.
+    Validate {
+        rules: Vec<ValidateRule>,
+    },
     /// `@drag={onDrag}` `@dragEnd={onDragEnd}` — draggable-intent directive
     /// (ADR-073). Source expresses intent ("element is draggable; call
     /// onDrag while dragging, onDragEnd on release"); each target compiler
@@ -242,6 +257,16 @@ pub struct A11ySpec {
     pub live: Option<String>,
     /// Image alternative text (→ alt / Image semanticLabel / alt).
     pub alt: Option<Expr>,
+}
+
+/// One rule inside a `validate: { ... }` block: `required: true` →
+/// `ValidateRule { name: "required", value: Expr::Bool(true) }`. Rule names
+/// are identifiers; values are arbitrary expressions (spec 2026-08-08 §4.1).
+#[derive(Debug, Clone, Serialize)]
+pub struct ValidateRule {
+    pub name: String,
+    pub value: Expr,
+    pub span: Span,
 }
 
 #[derive(Debug, Clone, Serialize)]

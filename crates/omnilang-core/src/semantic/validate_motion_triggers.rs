@@ -66,8 +66,11 @@ impl SemanticAnalyzer {
                         self.validate_view_motion_triggers(empty_body, all_motion_names);
                     }
                 }
-                ViewNode::Text(_) | ViewNode::Interpolation(_) | ViewNode::SlotDirective { .. } => {
-                }
+                // @load is a leaf directive — no motion content inside.
+                ViewNode::Text(_)
+                | ViewNode::Interpolation(_)
+                | ViewNode::SlotDirective { .. }
+                | ViewNode::LoadDirective { .. } => {}
             }
         }
     }

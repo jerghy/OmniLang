@@ -41,7 +41,8 @@ pub fn walk_view_nodes(nodes: &[ViewNode], on_element: &mut impl FnMut(&Element)
                     walk_view_nodes(content, on_element);
                 }
             }
-            ViewNode::Text(_) | ViewNode::Interpolation(_) => {}
+            // @load is a leaf directive — no element content to walk.
+            ViewNode::LoadDirective { .. } | ViewNode::Text(_) | ViewNode::Interpolation(_) => {}
         }
     }
 }

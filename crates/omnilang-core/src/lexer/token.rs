@@ -69,6 +69,10 @@ pub enum TokenKind {
     AtFor,
     AtEmpty,
     AtSlot,
+    /// Form intent: `@form` bare attribute on an element (spec 2026-08-08 §4.1).
+    AtForm,
+    /// Data three-state intent: `@load={fn}` view directive (spec 2026-08-08 §4.1).
+    AtLoad,
     AtMount,
     AtUnmount,
     AtEffect,

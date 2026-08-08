@@ -62,6 +62,21 @@ impl<'a> Parser<'a> {
                     }
                 }
             }
+            TokenKind::AtLoad => {
+                // Try to parse @load as a real directive; fall back to text on
+                // failure. This handles @load in text content (e.g. a heading
+                // mentioning "@load"), mirroring the @if/@for fallback.
+                let saved_pos = self.pos;
+                let saved_depth = self.depth;
+                match self.parse_load_directive() {
+                    Ok(node) => Ok(node),
+                    Err(_) => {
+                        self.pos = saved_pos;
+                        self.depth = saved_depth;
+                        Ok(self.collect_at_text("@load"))
+                    }
+                }
+            }
             TokenKind::AtSlot => {
                 let slot = self.parse_slot_directive_common(false)?;
                 Ok(ViewNode::SlotDirective {
@@ -222,6 +237,7 @@ impl<'a> Parser<'a> {
                 | TokenKind::AtIf
                 | TokenKind::AtFor
                 | TokenKind::AtSlot
+                | TokenKind::AtLoad
                 | TokenKind::Eof
                 | TokenKind::StringLiteral(_) => break,
                 _ => {
@@ -548,6 +564,21 @@ impl<'a> Parser<'a> {
                     })?;
                     props.push(ElementProp::MotionTrigger(trigger));
                 }
+                // Form intent: bare `@form` attribute on an element (spec
+                // 2026-08-08 §4.1). Marks the form container for validation/
+                // error-signal/a11y wiring; a value is not allowed.
+                TokenKind::AtForm => {
+                    let t = self.advance();
+                    if matches!(self.peek_kind(), TokenKind::Eq) {
+                        return Err(ParseError {
+                            kind: None,
+                            message: "'@form' takes no value — use the bare attribute (spec 2026-08-08 §4.1)"
+                                .into(),
+                            span: t.span,
+                        });
+                    }
+                    props.push(ElementProp::Form);
+                }
                 // @hero is dead syntax: hero transitions were removed from the
                 // feature set in the semantic DSL (ADR-032 scoping / ADR-053
                 // syntax). Report a clear diagnostic instead of the generic
@@ -660,7 +691,7 @@ impl<'a> Parser<'a> {
                         }
                         children.push(self.parse_view_node()?);
                     }
-                    TokenKind::AtIf | TokenKind::AtFor | TokenKind::AtSlot => {
+                    TokenKind::AtIf | TokenKind::AtFor | TokenKind::AtSlot | TokenKind::AtLoad => {
                         children.push(self.parse_view_node()?);
                     }
                     TokenKind::StringLiteral(_) | TokenKind::LBrace => {

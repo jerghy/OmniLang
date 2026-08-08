@@ -78,6 +78,9 @@ pub(super) fn at_keyword_to_token(kw: &str) -> Option<TokenKind> {
         "@for" => Some(TokenKind::AtFor),
         "@empty" => Some(TokenKind::AtEmpty),
         "@slot" => Some(TokenKind::AtSlot),
+        // Form/data-three-state intent keywords (spec 2026-08-08 §4.1)
+        "@form" => Some(TokenKind::AtForm),
+        "@load" => Some(TokenKind::AtLoad),
         "@mount" => Some(TokenKind::AtMount),
         "@unmount" => Some(TokenKind::AtUnmount),
         "@effect" => Some(TokenKind::AtEffect),

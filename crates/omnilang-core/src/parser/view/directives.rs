@@ -94,6 +94,20 @@ impl<'a> Parser<'a> {
         }))
     }
 
+    /// Data three-state intent: `@load={fnName}` (spec 2026-08-08 §4.1).
+    /// Strict shape — `@load` `=` `{` IDENT `}` — mirrors the @if fallback:
+    /// on any parse failure the caller restores position and re-collects
+    /// the text so `@load` appearing in prose keeps working.
+    pub(super) fn parse_load_directive(&mut self) -> Result<ViewNode, ParseError> {
+        let span = self.peek_span();
+        self.advance(); // '@load'
+        self.expect_token(TokenKind::Eq, "expected '=' after '@load'")?;
+        self.expect_token(TokenKind::LBrace, "expected '{' after '='")?;
+        let fn_name = self.expect_ident("expected function name inside @load={...}")?;
+        self.expect_token(TokenKind::RBrace, "expected '}' after @load function name")?;
+        Ok(ViewNode::LoadDirective { fn_name, span })
+    }
+
     pub(super) fn parse_for_directive(&mut self) -> Result<ViewNode, ParseError> {
         self.advance(); // '@for'
         let item_name = self.expect_ident("expected item variable name")?;

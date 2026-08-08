@@ -220,6 +220,10 @@ pub(super) fn lower_view_node(
             lower_slot_common(&shape, variant_map, semantics, fns, signal_like_names)
                 .into_view_tree()
         }
+        // @load={fnName} (data three-state, spec 2026-08-08 §4.1) is
+        // lowered to LoadIntentIR in Task 2 — until then it contributes
+        // no view output (empty fragment keeps codegen running).
+        ViewNode::LoadDirective { .. } => ViewTree::Fragment(vec![]),
     }
 }
 
@@ -840,6 +844,10 @@ fn lower_element(
                     fallback,
                 });
             }
+            // @form is a bare marker and @validate rule values lower with
+            // the form intent — Task 2 (FormIntentIR/ValidateRuleIR)
+            // owns both; nothing to lower here yet.
+            ElementProp::Form | ElementProp::Validate { .. } => {}
         }
     }
 
