@@ -99,6 +99,44 @@ pub fn canonical_event_name(event_name: &str) -> Option<&'static str> {
     }
 }
 
+/// 首批语义事件（spec 2026-08-08 §3.1）——语义化即切换，旧名由
+/// `legacy_spelling` 映射到硬诊断迁移提示。新增语义事件必须在此登记，
+/// 且同时更新 Task 9 的 semantic-universe 域 3 登记册（门禁双向断言）。
+pub const SEMANTIC_EVENT_NAMES: &[&str] = &[
+    "onPress",
+    "onInput",
+    "onChange",
+    "onSubmit",
+    "onKeyDown",
+    "onKeyUp",
+    "onPointerDown",
+    "onPointerMove",
+    "onPointerUp",
+    "onScroll",
+    "onFocus",
+    "onBlur",
+    "onEnter",
+    "onLeave",
+];
+
+/// 语义事件 → 被取代的旧 DOM 拼写；无旧名（原名即语义名）返回 None。
+/// 旧名在语义验证阶段产生硬错误 + 「use @onX instead」迁移提示。
+#[must_use]
+pub fn legacy_spelling(semantic: &str) -> Option<&'static str> {
+    match semantic {
+        "onPress" => Some("onClick"),
+        "onEnter" => Some("onMouseEnter"),
+        "onLeave" => Some("onMouseLeave"),
+        _ => None,
+    }
+}
+
+/// 语义事件分级查询——canonical 表合法但非语义的事件名维持透传。
+#[must_use]
+pub fn is_semantic_event(name: &str) -> bool {
+    SEMANTIC_EVENT_NAMES.contains(&name)
+}
+
 /// Representative `onXxx` spellings for every name the shared table accepts
 /// — the suggestion candidate set for `nearest_event_suggestion` (Task 4.2).
 /// One representative per canonical stem, spelled the way the docs write
@@ -477,5 +515,41 @@ mod tests {
         assert_eq!(nearest_event_suggestion("clik"), Some("onClick"));
         // Case variants are folded.
         assert_eq!(nearest_event_suggestion("ONMOUSEDOWN"), Some("onMouseDown"));
+    }
+
+    /// 语义事件全集——Task 2 硬诊断与 Task 9 登记册锚点。
+    /// press/input/change/submit/key(down/up)/pointer(down/move/up)/scroll/focus/blur/enter/leave
+    const SEMANTIC_NAMES: &[&str] = &[
+        "onPress",
+        "onInput",
+        "onChange",
+        "onSubmit",
+        "onKeyDown",
+        "onKeyUp",
+        "onPointerDown",
+        "onPointerMove",
+        "onPointerUp",
+        "onScroll",
+        "onFocus",
+        "onBlur",
+        "onEnter",
+        "onLeave",
+    ];
+
+    #[test]
+    fn semantic_names_match_design_contract() {
+        for n in SEMANTIC_NAMES {
+            assert!(SEMANTIC_EVENT_NAMES.contains(n), "{n} 必须是语义事件");
+        }
+        assert_eq!(SEMANTIC_EVENT_NAMES.len(), 14, "首批 14 个事件名/9 语义族");
+    }
+
+    #[test]
+    fn legacy_spelling_maps_old_names() {
+        assert_eq!(legacy_spelling("onPress"), Some("onClick"));
+        assert_eq!(legacy_spelling("onEnter"), Some("onMouseEnter"));
+        assert_eq!(legacy_spelling("onLeave"), Some("onMouseLeave"));
+        assert_eq!(legacy_spelling("onInput"), None, "onInput 无旧名");
+        assert_eq!(legacy_spelling("onKeyDown"), None);
     }
 }
