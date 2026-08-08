@@ -926,12 +926,20 @@ impl ReactCodegen {
                     value_sources.push(field.name.clone());
                     continue;
                 }
-                for (store_name, store) in &all_stores {
+                // H3: all_stores() 是 FxHashMap，迭代序由哈希决定——多 store
+                // 声明同名信号时"先匹配到谁"非确定。按 store 名排序后首匹配
+                // 确定化（同名信号归属歧义留待语言级裁决，codegen 侧保证可复现）。
+                let mut store_names: Vec<&str> = all_stores.keys().copied().collect();
+                store_names.sort();
+                for store_name in store_names {
+                    let Some(store) = all_stores.get(store_name) else {
+                        continue;
+                    };
                     if !store.signals.contains_key(&field.name) {
                         continue;
                     }
                     let sliced = slice_fields
-                        .get(*store_name)
+                        .get(store_name)
                         .is_some_and(|fields| fields.signals.contains(&field.name));
                     value_sources.push(if sliced {
                         field.name.clone()

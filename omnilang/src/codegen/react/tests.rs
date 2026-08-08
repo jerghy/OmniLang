@@ -8404,6 +8404,15 @@ component App {
         "required 规则落 DOM missing. Got:\n{}",
         out
     );
+    // M1: 校验通过路径先清空残留 formErrors 再调用 handler——完整包装序列
+    // 断言（校验失败拦截 → 成功清错 → handler）防止顺序回归。
+    assert!(
+        out.contains(
+            "if (Object.keys(errs).length > 0) { setFormErrors(errs); return; } setFormErrors({}); submit();"
+        ),
+        "提交包装缺少 失败拦截→成功清错→handler 序列. Got:\n{}",
+        out
+    );
 }
 
 /// Task 4 (阶段 2 域 A): @load 数据三态（loading/error/data）+ useEffect 一次调用 +
@@ -8426,11 +8435,26 @@ component App {
         out
     );
     assert!(
-        out.contains("loading"),
-        "loading state missing. Got:\n{}",
+        out.contains("useState(true)"),
+        "loading 初始三态 missing. Got:\n{}",
         out
     );
-    assert!(out.contains("error"), "error state missing. Got:\n{}", out);
-    assert!(out.contains("data"), "data state missing. Got:\n{}", out);
+    assert!(
+        out.contains("useState(\"\")"),
+        "error 初始三态 missing. Got:\n{}",
+        out
+    );
+    // M4: 元素类型来自 fn 返回 Array<String> 的 String→string 映射。
+    assert!(
+        out.contains("useState<string[]>([])"),
+        "data 类型化三态 missing. Got:\n{}",
+        out
+    );
+    // M4: 同步 fn 包装为 Promise.resolve().then(() => fetchTodos())。
+    assert!(
+        out.contains("Promise.resolve().then(() => fetchTodos())"),
+        "同步 fn Promise 包装 missing. Got:\n{}",
+        out
+    );
     assert!(out.contains("retry"), "retry 回调 missing. Got:\n{}", out);
 }

@@ -249,4 +249,33 @@ mod tests {
             diags.iter().map(|d| &d.message).collect::<Vec<_>>()
         );
     }
+
+    /// H1（reviewer BLOCK）：@form 生成的内建符号 `form` 必须在语义 pass 可见——
+    /// 用户源码 `form.errors.name`（错误显式渲染，brief 第 44 行）不得报 E0001。
+    /// V-F8 保留名证明 formErrors/formValid/formSubmitting 是编译器生成符号，
+    /// 语义 pass 必须种入 `form` 供 FieldAccess 解析对象。
+    #[test]
+    fn form_builtin_symbol_resolves() {
+        let src = "component App { signal name: string = \"\"; fn submit(e) {} view { <form @form @onSubmit={submit}> <input bind:value={name} validate:{required: true} /> @if form.errors.name { <span id=\"err-name\">{form.errors.name}</span> } </form> } }";
+        let diags = compile_diags(src);
+        assert!(
+            diags.is_empty(),
+            "form builtin symbol should resolve, got: {:?}",
+            diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+        );
+    }
+
+    /// H1（reviewer BLOCK）：@load 生成的内建符号 loading/error/data 必须在语义
+    /// pass 可见——用户源码三态渲染（`@if loading` / `@if error != ""` /
+    /// `@for item in data`，brief 第 27 行）不得报 E0001。
+    #[test]
+    fn load_builtin_symbols_resolve() {
+        let src = "component App { fn fetchTodos() -> Array<String> {} view { @load={fetchTodos} @if loading { <div>loading</div> } @if error != \"\" { <div>{error}</div> } @for item in data { <div>{item}</div> } } }";
+        let diags = compile_diags(src);
+        assert!(
+            diags.is_empty(),
+            "load builtin symbols should resolve, got: {:?}",
+            diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+        );
+    }
 }

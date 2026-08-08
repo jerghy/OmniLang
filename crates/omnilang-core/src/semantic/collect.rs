@@ -128,6 +128,43 @@ impl SemanticAnalyzer {
                 }
             }
 
+            // Builtin implicit symbols for @form / @load intents (spec
+            // 2026-08-08 §4.1/§4.2). V-F8 (validate_form_load) reserves
+            // formErrors/formValid/formSubmitting and loading/error/data as
+            // compiler-generated names — users cannot declare them, so the
+            // semantic pass must seed the user-visible surfaces here: `form`
+            // (FieldAccess object for form.errors/form.valid/form.submitting)
+            // plus the @load three-state signals. SymbolKind::Unknown with
+            // declared_at: 0 keeps them invisible to dead-code/type lints;
+            // type_ann mirrors the codegen-side shapes so binary-op checks
+            // (`error != ""`) stay well-typed.
+            let (has_form, load_fn) =
+                scan_form_load(comp.view.as_ref().map(|v| v.children.as_slice()));
+            if has_form {
+                self.declare_or_warn(Symbol {
+                    name: "form".into(),
+                    kind: SymbolKind::Unknown,
+                    type_ann: None,
+                    mutable: false,
+                    declared_at: 0,
+                });
+            }
+            if load_fn.is_some() {
+                for (name, ty) in [
+                    ("loading", Some("bool")),
+                    ("error", Some("string")),
+                    ("data", Some("Array")),
+                ] {
+                    self.declare_or_warn(Symbol {
+                        name: name.into(),
+                        kind: SymbolKind::Unknown,
+                        type_ann: ty.map(str::to_string),
+                        mutable: false,
+                        declared_at: 0,
+                    });
+                }
+            }
+
             self.symbols.pop_scope(); // component scope
 
             // Collect computed dependencies (merged from former Pass 3)
@@ -438,5 +475,69 @@ fn infer_type_from_expr(expr: &Expr) -> Option<String> {
         Expr::Literal(Literal::Float(_), _) => Some("Float".to_string()),
         Expr::Literal(Literal::Bool(_), _) => Some("Bool".to_string()),
         _ => None,
+    }
+}
+
+/// Recursively scan view nodes for @form / @load intents (spec 2026-08-08
+/// §4.1/§4.2). `walk_view`'s on_element callback never sees
+/// `ViewNode::LoadDirective` (it treats it as a leaf) and ElementProp::Form
+/// is a bare attribute, so this private scanner walks the AST view tree
+/// directly. Returns `(has_form, load_fn_name)` — at most one @load per
+/// component (V-F6 is enforced in ir/lower/component.rs; the first hit wins
+/// here, which only decides whether the builtin symbols are seeded).
+fn scan_form_load(nodes: Option<&[ViewNode]>) -> (bool, Option<String>) {
+    let Some(nodes) = nodes else {
+        return (false, None);
+    };
+    let mut has_form = false;
+    let mut load_fn = None;
+    for node in nodes {
+        match node {
+            ViewNode::Element(el) => {
+                has_form |= el.props.iter().any(|p| matches!(p, ElementProp::Form));
+                merge_scan(
+                    &mut has_form,
+                    &mut load_fn,
+                    scan_form_load(Some(&el.children)),
+                );
+            }
+            ViewNode::IfDirective(dir) => {
+                merge_scan(&mut has_form, &mut load_fn, scan_form_load(Some(&dir.body)));
+                for (_, body) in &dir.else_ifs {
+                    merge_scan(&mut has_form, &mut load_fn, scan_form_load(Some(body)));
+                }
+                if let Some(body) = &dir.else_body {
+                    merge_scan(&mut has_form, &mut load_fn, scan_form_load(Some(body)));
+                }
+            }
+            ViewNode::ForDirective(dir) => {
+                merge_scan(&mut has_form, &mut load_fn, scan_form_load(Some(&dir.body)));
+                if let Some(body) = &dir.empty_body {
+                    merge_scan(&mut has_form, &mut load_fn, scan_form_load(Some(body)));
+                }
+            }
+            ViewNode::SlotDirective {
+                default_content, ..
+            } => {
+                if let Some(body) = default_content {
+                    merge_scan(&mut has_form, &mut load_fn, scan_form_load(Some(body)));
+                }
+            }
+            ViewNode::LoadDirective { fn_name, .. } => {
+                if load_fn.is_none() {
+                    load_fn = Some(fn_name.clone());
+                }
+            }
+            ViewNode::Text(_) | ViewNode::Interpolation(_) => {}
+        }
+    }
+    (has_form, load_fn)
+}
+
+/// Merge a nested scan result into the accumulators (first @load fn wins).
+fn merge_scan(has_form: &mut bool, load_fn: &mut Option<String>, next: (bool, Option<String>)) {
+    *has_form |= next.0;
+    if load_fn.is_none() {
+        *load_fn = next.1;
     }
 }

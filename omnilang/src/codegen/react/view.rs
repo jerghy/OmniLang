@@ -554,8 +554,10 @@ pub(super) fn gen_view_node_tsx(
                                     format!("{call}();")
                                 }
                             };
+                            // M1: 校验通过时清空残留错误（此前失败提交留下的
+                            // formErrors），随后才调用业务 handler。
                             attrs.push(format!(
-                                "{}={{(e) => {{ e.preventDefault(); const errs = validateForm(formValues); if (Object.keys(errs).length > 0) {{ setFormErrors(errs); return; }} {} }}}}",
+                                "{}={{(e) => {{ e.preventDefault(); const errs = validateForm(formValues); if (Object.keys(errs).length > 0) {{ setFormErrors(errs); return; }} setFormErrors({{}}); {} }}}}",
                                 react_event, handler_call
                             ));
                             continue;
