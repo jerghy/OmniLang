@@ -66,4 +66,10 @@ describe("groups 纯函数", () => {
     const g: CodeFlowGroup = { id: "g1", name: "空", memberIds: [], color: "#6366f1", collapsed: false };
     expect(computeGroupBoxes([g], ELEMS, new Map()).size).toBe(0);
   });
+
+  it("computeGroupBoxes：成员存在但尺寸缺失 → 该组跳过", () => {
+    const g: CodeFlowGroup = { id: "g1", name: "缺尺寸", memberIds: ["cb1"], color: "#6366f1", collapsed: false };
+    // cb1 有 position 但 sizes 无记录 → 无法可靠摆放，跳过
+    expect(computeGroupBoxes([g], ELEMS, new Map()).size).toBe(0);
+  });
 });

@@ -134,12 +134,21 @@ export function FlowInspector({ selectedNodeIds }: Props) {
   const scope = useFlowScope(activeTab?.componentName);
 
   if (selectedNodeIds.length !== 1) {
+    if (selectedNodeIds.length > 1) {
+      // 多选态提示（Task 3）：右键任一选中节点 → 组成分组
+      return (
+        <div style={S.panel}>
+          <div style={{ padding: 16, color: "var(--ol-text-muted)", textAlign: "center" }}>
+            <div>已选 {selectedNodeIds.length} 个节点</div>
+            <div style={{ fontSize: 11, opacity: 0.7 }}>右键 → 组成分组（同函数节点）</div>
+          </div>
+        </div>
+      );
+    }
     return (
       <div style={S.panel}>
         <div style={{ padding: 16, color: "var(--ol-text-muted)", textAlign: "center" }}>
-          {selectedNodeIds.length === 0
-            ? "Select a node to edit"
-            : "Select one node at a time"}
+          Select a node to edit
         </div>
       </div>
     );

@@ -31,6 +31,8 @@ import { useFlowScope } from "../../../services/codegen/flow-scope-hook";
 import { collectLetVarsPerFn, findOwnerFnId } from "../../../services/codegen/fn-topology";
 import { CODE_TAGS, TAG_CN, type MenuItem } from "./flowConstants";
 import { computeLayeredLayout, estimateNodeSize } from "../../../services/codegen/flow-layout";
+import { validateGroupMembers, fnNameOf, GROUP_COLORS } from "../../../services/codegen/groups";
+import type { CodeFlowGroup } from "../../../core/types/project-json";
 import { NodeSearchMenu } from "./NodeSearchMenu";
 import { CodeBlockEditor } from "./CodeBlockEditor";
 import type { CodeBlockEditorContext } from "./CodeBlockEditor";
@@ -219,6 +221,9 @@ function FlowCanvasInner() {
   // ── Selected node IDs (manual tracking — xyflow v12 internal selection resets on element updates) ──
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
+  // 新建组的命名态（Task 4 GroupBox 消费：创建分组后进入改名态）。
+  // getter 弃名（TS6133）：仅 setter 在 handleCreateGroup 写入命名态，Task 4 渲染消费时恢复命名。
+  const [, setEditingGroupId] = useState<string | null>(null);
 
   // Preview node — shows the design canvas inside the flow when in codeflow mode.
   // position 为 state（非 store elements——它是伪节点）：布局按钮点击时把预览组件归位到
@@ -333,6 +338,31 @@ function FlowCanvasInner() {
 
   // 按 wire 拓扑推断每个 fn 的 let 变量（多 fn 隔离）：语法节点公式框候选数据源
   const letVarsByFn = useMemo(() => collectLetVarsPerFn(codeElements, wires), [codeElements, wires]);
+
+  // ── Create group ──
+  // 校验（同 fn 连通域、不含容器节点）通过后写入 store.codeFlowGroups，并进入命名态（Task 4 消费）。
+  // 注意：必须位于 codeElements/letVarsByFn 之后——deps 数组在渲染期求值，前置会触发 TDZ。
+  const handleCreateGroup = useCallback(() => {
+    const sel = selectedNodeIds;
+    if (sel.length < 2) return;
+    const v = validateGroupMembers(sel, codeElements, wires);
+    if (!v.ownerFnId || v.error) {
+      window.alert(v.error ?? "无法创建分组");
+      setNodeMenu(null);
+      return;
+    }
+    const fnName = fnNameOf(v.ownerFnId, codeElements);
+    const group: CodeFlowGroup = {
+      id: uid("group"),
+      name: "新分组",
+      memberIds: v.valid,
+      color: GROUP_COLORS[0],
+      collapsed: false,
+    };
+    usePoiesisStore.getState().setCodeFlowGroups(fnName, [...(usePoiesisStore.getState().codeFlowGroups[fnName] ?? []), group]);
+    setEditingGroupId(group.id);
+    setNodeMenu(null);
+  }, [selectedNodeIds, codeElements, wires]);
 
   const nodes: RFNode[] = useMemo(
     () =>
@@ -578,7 +608,14 @@ function FlowCanvasInner() {
           nodesFocusable
           elementsSelectable
           panOnScroll
-          onNodeClick={(_event, node) => setSelectedNodeIds([node.id])}
+          onNodeClick={(_event, node) => {
+            if (_event.shiftKey) {
+              // Shift 点击：数组中 toggle（多选/取消），不打断既有选中
+              setSelectedNodeIds((prev) => prev.includes(node.id) ? prev.filter((id) => id !== node.id) : [...prev, node.id]);
+            } else {
+              setSelectedNodeIds([node.id]);
+            }
+          }}
           onPaneClick={() => setSelectedNodeIds([])}
           onNodesChange={handleNodesChange}
           onConnect={onConnect}
@@ -672,6 +709,28 @@ function FlowCanvasInner() {
           }}
           onContextMenu={(e) => e.preventDefault()}
         >
+          {/* 组成分组：右键节点在选中集内且多选 ≥2 时显示（同 fn 校验在 handleCreateGroup 内） */}
+          {selectedNodeIds.includes(nodeMenu.nodeId) && selectedNodeIds.length >= 2 && (
+            <button
+              type="button"
+              onClick={() => handleCreateGroup()}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                width: "100%",
+                padding: "6px 12px",
+                border: "none",
+                cursor: "pointer",
+                fontSize: 12,
+                color: "#6366f1",
+                textAlign: "left" as const,
+                fontFamily: "inherit",
+              }}
+            >
+              📦 组成分组
+            </button>
+          )}
           <button
             onClick={() => { removeElement(nodeMenu.nodeId); setNodeMenu(null); }}
             className={styles.deleteBtn}
