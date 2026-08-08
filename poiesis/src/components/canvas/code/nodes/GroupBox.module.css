@@ -11,3 +11,25 @@
 .swatch { width: 16px; height: 16px; border: none; border-radius: 4px; cursor: pointer; }
 .cardMeta { color: #94a3b8; font-size: 11px; }
 .nameInput { width: 120px; }
+/* ── 折叠卡 Handle（error008 修复）──────────────────────────────
+   基础圆点样式来自 node-base.css 的 .codeflow-handle；此处仅覆盖定位。
+   node-base.css 的 flow-in/flow-out 共享规则把两者都钉左缘（主干列布局前提，
+   特异性 (0,3,0) 且 !important）；折叠卡按设计 §4 进线左汇、出线右发，
+   需逐侧钉缘。`.card`（局部类）+ :global(.react-flow__handle .codeflow-handle
+   [data-handleid]) 把特异性抬到 (0,4,0) 压过共享规则，!important 对拼 xyflow 内联定位。 */
+.card :global(.react-flow__handle.codeflow-handle[data-handleid="flow-in"]) {
+  left: 0 !important;
+  right: auto !important;
+  transform: translate(-50%, -50%) !important;
+}
+.card :global(.react-flow__handle.codeflow-handle[data-handleid="flow-out"]) {
+  left: auto !important;
+  right: 0 !important;
+  transform: translate(50%, -50%) !important;
+}
+.card :global(.react-flow__handle.codeflow-handle[data-handleid="flow-in"]:hover) {
+  transform: translate(-50%, -50%) scale(1.5) !important;
+}
+.card :global(.react-flow__handle.codeflow-handle[data-handleid="flow-out"]:hover) {
+  transform: translate(50%, -50%) scale(1.5) !important;
+}

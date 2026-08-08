@@ -11,14 +11,18 @@ vi.mock("@xyflow/react", () => ({
     return <div data-testid="rf-mock" />;
   },
   ReactFlowProvider: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  Handle: () => <div />,
+  // 真实 xyflow Handle 渲染 data-handleid={id}；mock 转发 props 以支持 data-handleid 断言
+  Handle: ({ id, ...rest }: { id?: string } & Record<string, unknown>) => <div data-handleid={id} {...rest} />,
   Controls: () => <div />,
   Background: () => <div />,
   BackgroundVariant: { Dots: "dots" },
+  // GroupBox 折叠卡 Handle 用到 Position（Left/Right 钉缘）；mock 缺失该导出会在渲染期抛错
+  Position: { Left: "left", Right: "right" },
   useReactFlow: () => ({ screenToFlowPosition: (p: { x: number; y: number }) => p }),
 }));
 
 import { FlowCanvas } from "../FlowCanvas";
+import { GroupBox } from "../nodes/GroupBox";
 import { usePoiesisStore } from "../../../../store";
 
 const codeEl = (id: string, tag: string, name?: string) =>
@@ -69,5 +73,30 @@ describe("FlowCanvas 折叠组", () => {
     expect(ids).toContain("cb1");
     const edges = captured.edges as Array<{ id: string }>;
     expect(edges.map((e) => e.id).sort()).toEqual(["w1", "w2", "w3"]);
+  });
+
+  it("折叠组卡渲染 flow-in/flow-out Handle（error008：重路由边不被 ReactFlow 丢弃）", () => {
+    // 折叠态连线重路由为 source/target=g1 + flow-in/flow-out handle；
+    // ReactFlow 要求组节点渲染对应 id 的 Handle 才保留边（缺失 → error008 静默丢弃）。
+    const { container } = render(
+      <div className="codeflow-group">
+        <GroupBox data={{
+          group: { id: "g1", name: "初始化", memberIds: ["cb1", "cb2"], color: "#6366f1", collapsed: true },
+          editing: false, onRename: () => {}, onColorChange: () => {}, onToggleCollapsed: () => {}, onDelete: () => {},
+        }} />
+      </div>,
+    );
+    expect(container.querySelector('.codeflow-group [data-handleid="flow-in"]')).toBeTruthy();
+    expect(container.querySelector('.codeflow-group [data-handleid="flow-out"]')).toBeTruthy();
+  });
+
+  it("展开态组框不渲染 Handle（保持 Task 4 现状）", () => {
+    const { container } = render(
+      <GroupBox data={{
+        group: { id: "g1", name: "初始化", memberIds: ["cb1", "cb2"], color: "#6366f1", collapsed: false },
+        editing: false, onRename: () => {}, onColorChange: () => {}, onToggleCollapsed: () => {}, onDelete: () => {},
+      }} />,
+    );
+    expect(container.querySelector("[data-handleid]")).toBeNull();
   });
 });
