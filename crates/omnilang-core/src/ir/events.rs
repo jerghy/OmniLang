@@ -252,6 +252,34 @@ pub fn map_event_data_kind(event_name: &str) -> Option<EventDataKind> {
     }
 }
 
+/// Map EventDataKind to a string label for the @for JS kind-lookup map.
+#[must_use]
+pub fn event_data_kind_label(kind: &EventDataKind) -> &'static str {
+    match kind {
+        EventDataKind::PointerEvent => "PointerEvent",
+        EventDataKind::TouchEvent => "TouchEvent",
+        EventDataKind::WheelEvent => "WheelEvent",
+        EventDataKind::KeyEvent => "KeyEvent",
+        EventDataKind::ScrollEvent => "ScrollEvent",
+        EventDataKind::InputEvent => "InputEvent",
+        EventDataKind::ToggleEvent => "ToggleEvent",
+        EventDataKind::SubmitEvent => "SubmitEvent",
+        EventDataKind::FocusEvent => "FocusEvent",
+        EventDataKind::ClipboardEvent => "ClipboardEvent",
+        EventDataKind::DragEvent => "DragEvent",
+        EventDataKind::DragIntent => "DragIntent",
+        EventDataKind::DropEvent => "DropEvent",
+        EventDataKind::ContextMenuEvent => "ContextMenuEvent",
+        EventDataKind::SelectEvent => "SelectEvent",
+        EventDataKind::ResizeEvent => "ResizeEvent",
+        EventDataKind::MediaEvent => "MediaEvent",
+        EventDataKind::MediaLoadEvent => "MediaLoadEvent",
+        EventDataKind::MediaErrorEvent => "MediaErrorEvent",
+        EventDataKind::AnimationEvent => "AnimationEvent",
+        EventDataKind::TransitionEvent => "TransitionEvent",
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -305,33 +333,5 @@ mod tests {
             .find(|f| f.name == "progress")
             .expect("progress in schema");
         assert_eq!(progress.field_type, EventFieldType::Float);
-    }
-}
-
-/// Map EventDataKind to a string label for the @for JS kind-lookup map.
-#[must_use]
-pub fn event_data_kind_label(kind: &EventDataKind) -> &'static str {
-    match kind {
-        EventDataKind::PointerEvent => "PointerEvent",
-        EventDataKind::TouchEvent => "TouchEvent",
-        EventDataKind::WheelEvent => "WheelEvent",
-        EventDataKind::KeyEvent => "KeyEvent",
-        EventDataKind::ScrollEvent => "ScrollEvent",
-        EventDataKind::InputEvent => "InputEvent",
-        EventDataKind::ToggleEvent => "ToggleEvent",
-        EventDataKind::SubmitEvent => "SubmitEvent",
-        EventDataKind::FocusEvent => "FocusEvent",
-        EventDataKind::ClipboardEvent => "ClipboardEvent",
-        EventDataKind::DragEvent => "DragEvent",
-        EventDataKind::DragIntent => "DragIntent",
-        EventDataKind::DropEvent => "DropEvent",
-        EventDataKind::ContextMenuEvent => "ContextMenuEvent",
-        EventDataKind::SelectEvent => "SelectEvent",
-        EventDataKind::ResizeEvent => "ResizeEvent",
-        EventDataKind::MediaEvent => "MediaEvent",
-        EventDataKind::MediaLoadEvent => "MediaLoadEvent",
-        EventDataKind::MediaErrorEvent => "MediaErrorEvent",
-        EventDataKind::AnimationEvent => "AnimationEvent",
-        EventDataKind::TransitionEvent => "TransitionEvent",
     }
 }

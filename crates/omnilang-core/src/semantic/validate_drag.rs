@@ -114,9 +114,7 @@ fn make_diag(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{
-        BindingIR, DragBindingIR, ElementIR, ListRenderingIntent, RefDeclIR, ViewTree, Visibility,
-    };
+    use crate::ir::{BindingIR, ElementIR, ListRenderingIntent, RefDeclIR, ViewTree, Visibility};
     use rustc_hash::FxHashMap;
 
     /// Build a minimal ComponentIR with the given ref declarations, fns and

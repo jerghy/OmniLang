@@ -183,7 +183,7 @@ impl FormatExpr for ReactFormatExpr {
         &self,
         object: &ExprIR,
         method: &str,
-        args: &[ExprIR],
+        _args: &[ExprIR],
         is_optional: bool,
         obj_str: &str,
         arg_strs: &[String],

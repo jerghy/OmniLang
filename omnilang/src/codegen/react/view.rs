@@ -495,9 +495,9 @@ pub(super) fn gen_view_node_tsx(
                 if crate::codegen::shared::event::canonical_event_name(event_name) == Some("toggle")
                     && html_tag != "details"
                 {
-                    warnings.lock().unwrap().push(format!(
-                        "事件 'toggle' 在 React 目标仅 <details> 元素有合成事件（onToggle）——其他元素上处理器已跳过"
-                    ));
+                    warnings.lock().unwrap().push(
+                        "事件 'toggle' 在 React 目标仅 <details> 元素有合成事件（onToggle）——其他元素上处理器已跳过".to_string(),
+                    );
                     continue;
                 }
                 match handler {

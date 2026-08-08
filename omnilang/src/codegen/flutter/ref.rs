@@ -106,13 +106,15 @@ impl RefUsage {
 /// The third return value carries v4 HIGH-2 warnings for dual-axis
 /// `scrollTo(x, y)` calls — one `(message, span)` per component (span = the
 /// component's source span; `RefOpIR`/`ExprIR` carry no finer span).
-pub(crate) fn collect_ref_usage(
-    comp: &ComponentIR,
-) -> (
+/// `collect_ref_usage` result: (per-ref usage map, hard compile errors,
+/// dual-axis `scrollTo(x, y)` warnings as (message, span)).
+pub(crate) type RefUsageSummary = (
     FxHashMap<String, RefUsage>,
     Vec<Diagnostic>,
     Vec<(String, Option<crate::lexer::Span>)>,
-) {
+);
+
+pub(crate) fn collect_ref_usage(comp: &ComponentIR) -> RefUsageSummary {
     let mut usage: FxHashMap<String, RefUsage> = FxHashMap::default();
     for r in &comp.refs {
         usage.entry(r.name.clone()).or_default();
