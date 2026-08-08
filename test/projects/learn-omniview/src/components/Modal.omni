@@ -1,5 +1,5 @@
 // Modal.omni - @slot header/body/footer (body-level declarations + {name} interpolation),
-// @onKeyDown (Escape), @onMouseEnter/@onMouseLeave
+// @onKeyDown (Escape), @onEnter/@onLeave
 // Demonstrates slot projection, keyboard events, and mouse hover tracking
 
 import omniview;
@@ -42,8 +42,8 @@ component Modal {
                     <div
                         class: { Modalcontent: true, Hover: isHovering }
                         tabindex="0"
-                        @onMouseEnter={handleMouseEnter}
-                        @onMouseLeave={handleMouseLeave}
+                        @onEnter={handleMouseEnter}
+                        @onLeave={handleMouseLeave}
                         @onPress={handleContentClick}
                     >
                         <!-- Named slot: header interpolation (title + close stay as static chrome) -->

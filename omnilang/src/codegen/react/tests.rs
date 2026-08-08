@@ -920,8 +920,8 @@ fn test_pruned_component_signal_keeps_colliding_store_field_mutation() {
             fn setDark() { CollisionStore.mode = "dark"; }
             fn pushMode() { array_push(mode, "x"); }
             view {
-                <button @click={setDark}>dark</button>
-                <button @click={pushMode}>push</button>
+                <button @onPress={setDark}>dark</button>
+                <button @onPress={pushMode}>push</button>
                 <span>{CollisionStore.mode}</span>
             }
         }
@@ -1647,7 +1647,7 @@ fn event_handler_call_sites_use_optional_call() {
         r#"
         component V {
             signal f: fn(String) -> Void = null;
-            view { <button @onClick={f}/> }
+            view { <button @onPress={f}/> }
         }
     "#,
     )
@@ -4782,7 +4782,7 @@ component RefOps {
     box.releasePointer()
   }
   view {
-    <div ref:box @onClick={runAll}>click</div>
+    <div ref:box @onPress={runAll}>click</div>
   }
 }
 "#;
@@ -4864,7 +4864,7 @@ component RefFieldAccess {
     info = w
   }
   view {
-    <div ref:rectBox @onClick={query}>box</div>
+    <div ref:rectBox @onPress={query}>box</div>
     <div ref:scrollArea>scroll</div>
   }
 }
@@ -4919,7 +4919,7 @@ component RefOpsNoPtr {
     box.focus()
   }
   view {
-    <div ref:box @onClick={runAll}>click</div>
+    <div ref:box @onPress={runAll}>click</div>
   }
 }
 "#;
@@ -4949,7 +4949,7 @@ component ToggleDemo {
     signal playAll: bool = false;
     fn toggleAll() { playAll = !playAll; }
     view {
-        <button @click={toggleAll}>Replay</button>
+        <button @onPress={toggleAll}>Replay</button>
     }
 }
 "#;
@@ -4990,7 +4990,7 @@ component App {
     signal variant: String = "light";
     fn setDark() { variant = "dark"; }
     view {
-        <button @onClick={setDark}>Dark</button>
+        <button @onPress={setDark}>Dark</button>
     }
 }
 "#;
@@ -5025,7 +5025,7 @@ component KeepDemo {
     signal other: i32 = 5;
     fn bump() { count = other + 1; }
     view {
-        <button @click={bump}>Go</button>
+        <button @onPress={bump}>Go</button>
         <span>{count}</span>
     }
 }
@@ -6329,7 +6329,7 @@ component TodoView {
     view {
         <p>{TodoStore.items.len()}</p>
         <p>{filtered}</p>
-        <button @onClick={doAdd}>add</button>
+        <button @onPress={doAdd}>add</button>
     }
 }
 "#;
@@ -6446,7 +6446,7 @@ component NoteView {
         let n = NoteStore.notes.len();
     }
     view {
-        <button @onClick={NoteStore.clear}>clear</button>
+        <button @onPress={NoteStore.clear}>clear</button>
         <p>{NoteStore.notes.len()}</p>
     }
 }
@@ -6695,7 +6695,7 @@ component PushView {
     view {
         <p>{PushStore.items.len()}</p>
         <p>{local.len()}</p>
-        <button @onClick={doPush}>push</button>
+        <button @onPress={doPush}>push</button>
     }
 }
 "#;
@@ -6765,7 +6765,7 @@ component AliasView {
     }
     view {
         <p>{AliasStore.items.len()}</p>
-        <button @onClick={getLen}>go</button>
+        <button @onPress={getLen}>go</button>
     }
 }
 "#;
@@ -6857,8 +6857,8 @@ component OptView {
     }
     view {
         <p>{OptStore.items.len()}</p>
-        <button @onClick={peek}>go</button>
-        <button @onClick={peekStore}>store</button>
+        <button @onPress={peek}>go</button>
+        <button @onPress={peekStore}>store</button>
     }
 }
 "#;
@@ -6937,7 +6937,7 @@ import { console_log } from "std/console";
 component V {
     fn score(item) { match item { 1 => "a", _ => "b" } }
     view {
-        <button @click={() => { console_log(score(1)); }}>go</button>
+        <button @onPress={() => { console_log(score(1)); }}>go</button>
     }
 }
 "#;
@@ -6963,7 +6963,7 @@ import omniview;
 component V {
     fn f(x) { let y = x + 1; y }
     view {
-        <button @click={() => { f(1); }}>go</button>
+        <button @onPress={() => { f(1); }}>go</button>
     }
 }
 "#;
@@ -7255,7 +7255,7 @@ fn variant_literal_keeps_literal_discriminant() {
                 result = e;
             }
             view {
-                <div @onClick={load}/>
+                <div @onPress={load}/>
             }
         }
     "#,
@@ -7285,7 +7285,7 @@ fn struct_typed_state_emits_typed_use_state() {
                 rows = [RowItem { id: 1, name: "a" }];
             }
             view {
-                <div @onClick={load}/>
+                <div @onPress={load}/>
             }
         }
     "#,
@@ -7601,7 +7601,7 @@ component Counter {
   ref box: Element
   fn bump() { n = n + 1 }
   view {
-    <div @ref={box} @onClick={bump} style: { width: w }>x</div>
+    <div @ref={box} @onPress={bump} style: { width: w }>x</div>
   }
 }
 "#,
@@ -7650,7 +7650,7 @@ component Shrink {
     let adjusted = size * 2;
   }
   view {
-    <div @ref={box} @onClick={bump} style: { width: size }>x</div>
+    <div @ref={box} @onPress={bump} style: { width: size }>x</div>
   }
 }
 "#,
@@ -7932,7 +7932,7 @@ component Mix2 {
   ref box: Element
   fn bump() { w = w + 1 }
   view {
-    <div @ref={box} @onClick={bump} style: { width: "calc(" + pct + ")" } />
+    <div @ref={box} @onPress={bump} style: { width: "calc(" + pct + ")" } />
   }
 }
 "#,

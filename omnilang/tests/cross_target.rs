@@ -596,7 +596,7 @@ fn mut_flag_threads_through_all_targets() {
     // ── mut → mutable keyword per target ──
     let mut_src = r#"component V {
         fn f() { let mut x = 0; x = x + 1; log(x) }
-        view { <button @click={f}>go</button> }
+        view { <button @onPress={f}>go</button> }
     }"#;
 
     let react_out = compile_source(mut_src, Target::React);
@@ -628,7 +628,7 @@ fn mut_flag_threads_through_all_targets() {
     // ── immutable → per-target immutable keyword ──
     let imm_src = r#"component V {
         fn f() { let y = 1; log(y) }
-        view { <button @click={f}>go</button> }
+        view { <button @onPress={f}>go</button> }
     }"#;
 
     let imm_react = compile_source(imm_src, Target::React);

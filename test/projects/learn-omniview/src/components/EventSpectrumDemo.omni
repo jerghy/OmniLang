@@ -37,8 +37,8 @@ component EventSpectrumDemo {
                 <div class: LearnDesign.Col>
                     <!-- ═══ 鼠标族（8） ═══ -->
                     <h4 class: LearnDesign.SectionTitle>鼠标族</h4>
-                    <div class: TriggerPad @onMouseEnter={() => { fire("mouseenter"); }}
-                                            @onMouseLeave={() => { fire("mouseleave"); }}
+                    <div class: TriggerPad @onEnter={() => { fire("mouseenter"); }}
+                                            @onLeave={() => { fire("mouseleave"); }}
                                             @onMouseMove={() => { fire("mousemove"); }}
                                             @onMouseOver={() => { fire("mouseover"); }}
                                             @onMouseOut={() => { fire("mouseout"); }}
@@ -46,7 +46,7 @@ component EventSpectrumDemo {
                                             @onMouseUp={() => { fire("mouseup"); }}>
                         悬停/移入移出/按下抬起
                     </div>
-                    <div class: TriggerPad @onClick={() => { fire("click"); }}
+                    <div class: TriggerPad @onPress={() => { fire("click"); }}
                                             @onDblClick={() => { fire("dblclick"); }}>
                         单击 / 双击
                     </div>
@@ -107,7 +107,7 @@ component EventSpectrumDemo {
                     <!-- ═══ 过渡族（4，真实触发） ═══ -->
                     <h4 class: LearnDesign.SectionTitle>过渡族（transition 切换触发）</h4>
                     <div class: { ExpandPad: true, On: expand, Off: !expand }
-                         @onClick={toggleExpand}
+                         @onPress={toggleExpand}
                          @onTransitionEnd={() => { fire("transitionend"); }}
                          @onTransitionRun={() => { fire("transitionrun"); }}
                          @onTransitionStart={() => { fire("transitionstart"); }}

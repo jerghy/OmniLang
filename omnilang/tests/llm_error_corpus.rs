@@ -562,11 +562,11 @@ fn llm_error_corpus_positive_controls_compile_clean() {
     let clean: &[(&str, &str)] = &[
         // A — canonical event name, no warning.
         ("event_correct",
-         "import omniview;\ncomponent V {\n  fn f(e) {}\n  view { <div @onClick={f}/> }\n}"),
+         "import omniview;\ncomponent V {\n  fn f(e) {}\n  view { <div @onPress={f}/> }\n}"),
         // B — canonical stdlib method, no warning (f bound to an event so
         // the dead-code lint does not fire on the control itself).
         ("method_correct",
-         "import omniview;\ncomponent V {\n  fn f(e) {\n    let s = \"hi\";\n    s.to_uppercase();\n  }\n  view { <button @onClick={f}>b</button> }\n}"),
+         "import omniview;\ncomponent V {\n  fn f(e) {\n    let s = \"hi\";\n    s.to_uppercase();\n  }\n  view { <button @onPress={f}>b</button> }\n}"),
         // C — bind:value two-way binding instead of value={sig}.
         ("deleted_syntax_correct",
          "import omniview;\ncomponent V {\n  signal x: String = \"\";\n  view { <input bind:value={x} /> }\n}"),

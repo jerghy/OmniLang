@@ -134,7 +134,7 @@ fn collect_view_store_field_refs(
                         }
                     }
                     EventHandlerIR::FnRef { r#ref, .. } => {
-                        // `@onClick={Store.action}` shorthand lowering to FnRef —
+                        // `@onPress={Store.action}` shorthand lowering to FnRef —
                         // the ref may be `Store.action` when the store hook is
                         // the only resolution (defensive; StoreAction is the
                         // canonical form).

@@ -73,7 +73,6 @@ component KnownEvents {
     fn handle(e) {}
     view {
         <div
-            @onClick={handle}
             @onPress={handle}
             @onTap={handle}
             @onDoubleClick={handle}
@@ -83,8 +82,6 @@ component KnownEvents {
             @onInput={handle}
             @onFocus={handle}
             @onBlur={handle}
-            @onMouseEnter={handle}
-            @onMouseLeave={handle}
             @onScroll={handle}
             @onWheel={handle}
             @onTouchStart={handle}
@@ -114,6 +111,37 @@ component KnownEvents {
             .map(|d| &d.message)
             .collect::<Vec<_>>()
     );
+}
+
+/// Legacy spellings (@onClick/@onMouseEnter/@onMouseLeave) are NOT "known
+/// events that stay silent" anymore — Task 2 hard-diagnoses them with the
+/// semantic migration hint. Pins the Task 2 behavior through the REAL
+/// pipeline (message format must stay byte-compatible with the docs-gate).
+#[test]
+fn legacy_event_names_hard_error_with_migration_hint() {
+    for (legacy, semantic) in [
+        ("@onClick", "@onPress"),
+        ("@onMouseEnter", "@onEnter"),
+        ("@onMouseLeave", "@onLeave"),
+    ] {
+        let src = format!(
+            "import omniview;\ncomponent V {{\n  fn handle(e) {{}}\n  view {{ <div {legacy}={{{{handle}}}}/> }}\n}}"
+        );
+        let (_, diags) = compile_with_diags(&src, Target::React);
+        let d = diags
+            .iter()
+            .find(|d| {
+                d.severity == Severity::Error
+                    && d.message.contains("已弃用")
+                    && d.message.contains(legacy)
+            })
+            .unwrap_or_else(|| panic!("{legacy} must hard-error as legacy, got: {diags:?}"));
+        assert!(
+            d.message.contains(semantic),
+            "{legacy} migration hint must name {semantic}, got: {}",
+            d.message
+        );
+    }
 }
 
 /// Custom `event` declarations on component instances are legal bindings —

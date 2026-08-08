@@ -246,7 +246,7 @@ component RefOps {
     box.releasePointer()
   }
   view {
-    <div ref:box @onClick={runAll}>click</div>
+    <div ref:box @onPress={runAll}>click</div>
   }
 }
 "#;
@@ -345,7 +345,7 @@ component RefOps {{
     {write}
   }}
   view {{
-    <div ref:box @onClick={{runAll}}>click</div>
+    <div ref:box @onPress={{runAll}}>click</div>
   }}
 }}
 "#

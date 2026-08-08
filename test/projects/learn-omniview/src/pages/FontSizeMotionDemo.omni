@@ -60,11 +60,11 @@ component FontSizeMotionDemo {
             </p>
 
             <div class: LearnDesign.Row>
-                <div class: LearnDesign.Chip @onClick={toggleFont}>
+                <div class: LearnDesign.Chip @onPress={toggleFont}>
                     {if fontPhase == "grow" { "字号 14 → 30" } else { "字号 30 → 14" }}
                 </div>
 
-                <div class: LearnDesign.Chip @onClick={toggleCombo}>
+                <div class: LearnDesign.Chip @onPress={toggleCombo}>
                     {if comboPhase == "in" { "复合：放大+上浮+变色+圆角" } else { "复合回弹" }}
                 </div>
             </div>

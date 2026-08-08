@@ -1293,7 +1293,7 @@ fn learn_omniview_flutter_warning_anchors_are_exact() {
     expect_anchor(
         "class 'alt' is not declared by any design block",
         "components/CssVarsDemo.omni",
-        45,
+        58,
         21,
     );
     // 2. Design definition-point warning — the `design LearnDesign {` block

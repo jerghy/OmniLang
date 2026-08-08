@@ -822,7 +822,7 @@ fn a11y_src(payload: &str) -> String {
 
 fn event_src(payload: &str) -> String {
     format!(
-        "component App {{\n    fn show(t) {{ return t }}\n    view {{\n        <div @onClick={{show(\"x{payload}\")}}/>\n    }}\n}}\n"
+        "component App {{\n    fn show(t) {{ return t }}\n    view {{\n        <div @onPress={{show(\"x{payload}\")}}/>\n    }}\n}}\n"
     )
 }
 

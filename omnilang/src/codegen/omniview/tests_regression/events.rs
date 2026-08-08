@@ -503,7 +503,7 @@ fn compile_js_editor(src: &str) -> String {
 /// while event bindings are flushed to top level. A FnRef binding that calls
 /// the prefixed fn directly (`Main_doIt(...)`) throws `ReferenceError:
 /// Main_doIt is not defined` on every click — the debug window's buttons
-/// bound to `@onClick={fn}` were dead. The factory must expose an `fns` map
+/// bound to `@onPress={fn}` were dead. The factory must expose an `fns` map
 /// and the binding must call through `window.__omni_components[name].fns.{ref}`.
 #[test]
 fn fnref_binding_calls_through_factory_fns_in_editor_mode() {
@@ -513,7 +513,7 @@ component Main {
     signal count: i32 = 0;
     fn doIt() { count = count + 1; }
     view {
-        <button @onClick={doIt}>Go</button>
+        <button @onPress={doIt}>Go</button>
     }
 }
 "#,
@@ -550,7 +550,7 @@ component Main {
     signal count: i32 = 0;
     fn doIt() { count = count + 1; }
     view {
-        <button @onClick={doIt}>Go</button>
+        <button @onPress={doIt}>Go</button>
     }
 }
 "#,
@@ -580,7 +580,7 @@ component Main {
     fn handleItem() { }
     view {
         @for item in items {
-            <button @onClick={handleItem}>{item}</button>
+            <button @onPress={handleItem}>{item}</button>
         }
     }
 }

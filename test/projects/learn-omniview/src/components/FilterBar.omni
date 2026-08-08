@@ -1,6 +1,6 @@
 // ╔══════════════════════════════════════════════════════════════╗
 // ║  FilterBar.omni —— 过滤排序工具栏                              ║
-// ║  演示：@effect 订阅 searchText 过滤、@onClick 排序、                ║
+// ║  演示：@effect 订阅 searchText 过滤、@onPress 排序、                ║
 // ║        computed 过滤标签、@store 读取                            ║
 // ╚══════════════════════════════════════════════════════════════╝
 
@@ -65,7 +65,7 @@ component FilterBar {
                 }}>X</button>
             </div>
 
-            <!-- 排序按钮 + @onClick 排序 -->
+            <!-- 排序按钮 + @onPress 排序 -->
             <div class: SortRow>
                 <p class: FilterLabel>
                     {if searchText == "" {
@@ -74,7 +74,7 @@ component FilterBar {
                         "Filter: " + searchText + " (" + TodoStore.totalCount.to_string() + " total)"
                     }}
                 </p>
-                <button variant: LearnDesign.Button(color=primary, size=sm) @onClick={handleSortToggle}>
+                <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={handleSortToggle}>
                     Sort {sortLabel}
                 </button>
                 <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={() => {

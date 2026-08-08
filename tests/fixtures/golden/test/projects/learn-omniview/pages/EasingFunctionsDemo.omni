@@ -226,7 +226,7 @@ component EasingFunctionsDemo {
         <div class: container>
             <h3 class: title>缓动函数全家桶</h3>
             <p class: subtitle>23 种缓动 · 点击按钮播放当前屏幕所有 @enter 动画</p>
-            <button @press={backOutMove} @click={toggleAll} class: trigger-btn>
+            <button @press={backOutMove} @onPress={toggleAll} class: trigger-btn>
                 Replay All Animations
             </button>
 

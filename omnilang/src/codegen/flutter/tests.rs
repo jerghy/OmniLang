@@ -4461,7 +4461,7 @@ fn compile_flutter_full(source: &str) -> crate::InternalCompileResult {
 
 // ── Task 3.6: generic-element tap wrappers + multi-theme warning ──
 
-/// Task C2b (#3): `@onMouseEnter`/`@onMouseLeave` on a generic element
+/// Task C2b (#3): `@onEnter`/`@onLeave` on a generic element
 /// (Container) wrap in a `MouseRegion(onEnter:/onExit:)` — the DOM
 /// mouseenter/mouseleave analogue — instead of dropping with a warning.
 #[test]
@@ -4473,7 +4473,7 @@ component HoverDemo {
     fn enter() { hovering = true; }
     fn exit() { hovering = false; }
     view {
-        <div @onMouseEnter={enter} @onMouseLeave={exit}>x</div>
+        <div @onEnter={enter} @onLeave={exit}>x</div>
     }
 }
 "#,
@@ -7709,7 +7709,7 @@ fn test_text_field_placeholder_wrapped_in_decoration() {
 
 #[test]
 fn test_store_action_in_inline_handler_body() {
-    // `@onClick={TodoStore.clear}` lowers to an InlineFn whose body contains a
+    // `@onPress={TodoStore.clear}` lowers to an InlineFn whose body contains a
     // bare store-action reference — it must rewrite to ref.read(...notifier).
     let store = StoreIR {
         name: "TodoStore".into(),
@@ -7819,7 +7819,7 @@ fn test_store_action_in_inline_handler_body() {
 
 #[test]
 fn test_store_action_method_call_form_in_handler() {
-    // `@onClick={TodoStore.clear()}` (with parens) lowers the handler body to
+    // `@onPress={TodoStore.clear()}` (with parens) lowers the handler body to
     // a MethodCallExpr on the store identifier — same Riverpod rewrite.
     let _codegen = FlutterCodegen;
     let store = StoreIR {
