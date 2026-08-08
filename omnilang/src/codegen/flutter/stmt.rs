@@ -640,6 +640,7 @@ pub(crate) fn generate_statement_flutter_dw(
     w: &mut CodeWriter,
     stmt: &StatementIR,
     direct_write_signals: &FxHashSet<String>,
+    form_present: bool,
     retry_expr: Option<String>,
 ) {
     let fmt = FlutterStmtFormatter {
@@ -647,7 +648,7 @@ pub(crate) fn generate_statement_flutter_dw(
             None,
             direct_write_signals,
             None,
-            false,
+            form_present,
             retry_expr,
         ),
         direct_write_signals: direct_write_signals.clone(),
@@ -837,7 +838,7 @@ pub(crate) fn generate_store_action_stmt(
 /// production call sites use `generate_function_flutter_with`).
 #[cfg(test)]
 pub(crate) fn generate_function_flutter(w: &mut CodeWriter, func: &FunctionIR) {
-    generate_function_flutter_with(w, func, &func.body.statements, &FxHashSet::default());
+    generate_function_flutter_with(w, func, &func.body.statements, &FxHashSet::default(), false);
 }
 
 /// Generate a function as a method on the State class, emitting the given
@@ -852,6 +853,7 @@ pub(crate) fn generate_function_flutter_with(
     func: &FunctionIR,
     statements: &[StatementIR],
     direct_write_signals: &FxHashSet<String>,
+    form_present: bool,
 ) {
     // Build parameter list — Dart uses `Type name` for positional params
     let mut param_strs = Vec::new();
@@ -908,13 +910,13 @@ pub(crate) fn generate_function_flutter_with(
         statements.len()
     };
     for stmt in &statements[..tail_count] {
-        generate_statement_flutter_dw(w, stmt, direct_write_signals, None);
+        generate_statement_flutter_dw(w, stmt, direct_write_signals, form_present, None);
     }
     if is_tail_expr {
         if let Some(StatementIR::ExprStmtIR { expr }) = statements.last() {
             w.emit_fmt(format_args!(
                 "return {};",
-                generate_statement_flutter_expr(expr, direct_write_signals)
+                generate_statement_flutter_expr(expr, direct_write_signals, form_present)
             ));
         }
     }
@@ -929,8 +931,9 @@ pub(crate) fn generate_function_flutter_with(
 fn generate_statement_flutter_expr(
     expr: &ExprIR,
     direct_write_signals: &FxHashSet<String>,
+    form_present: bool,
 ) -> String {
-    super::r#ref::FlutterFormatExpr::new_with_direct_write(None, direct_write_signals)
+    super::r#ref::FlutterFormatExpr::new_with_context(None, direct_write_signals, None, form_present, None)
         .format_expr(expr)
 }
 

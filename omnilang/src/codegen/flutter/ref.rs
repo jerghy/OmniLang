@@ -701,9 +701,10 @@ fn scan_drag_bindings(node: &ViewTree, found: &mut bool) {
 /// The scan covers exactly the expression contexts that receive the Flutter
 /// `form` mapping (`FlutterFormatExpr::new_with_context(.., form_present)`):
 /// element prop values, semantic bindings, inline handler bodies (all
-/// nesting depths — `format_stmt` recurses), interpolations. Component fn
-/// bodies / computeds / effects are formatted with the shared Dart formatter
-/// and stay out of scope (Task 5, YAGNI).
+/// nesting depths — `format_stmt` recurses), interpolations — plus component
+/// fn bodies / computeds / effects / lifecycles (Task 8b: `form_present` now
+/// threads into those contexts too, so their `form.*` reads must reach the
+/// same reachability-gated constants).
 pub(crate) struct FormBuiltinUsage {
     pub valid: bool,
     pub errors: bool,
@@ -718,6 +719,18 @@ pub(crate) fn form_builtin_usage(comp: &ComponentIR) -> FormBuiltinUsage {
     };
     if let Some(view) = &comp.view {
         scan_view_for_form_builtin(view, &mut usage);
+    }
+    for f in &comp.fns {
+        scan_block_for_form_builtin(&f.body.statements, &mut usage);
+    }
+    for e in &comp.effects {
+        scan_block_for_form_builtin(&e.body.statements, &mut usage);
+    }
+    for c in &comp.computeds {
+        scan_expr_for_form_builtin(&c.body, &mut usage);
+    }
+    for lc in &comp.lifecycles {
+        scan_block_for_form_builtin(&lc.body.statements, &mut usage);
     }
     usage
 }

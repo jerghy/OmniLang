@@ -47,6 +47,22 @@ impl FormatExpr for ReactFormatExpr {
         &JSON_REACT
     }
 
+    /// Task 4 (@form 内建对象映射): 自由函数 `format_expr_ir_tsx_renamed_locals`
+    /// 的 FieldAccess/OptionalChain 直写分支已映射 `form.valid` 等，但该映射
+    /// 未覆盖语句上下文（fn 体经 `ReactStmtFormatter`）与复合表达式（UnaryOp/
+    /// BinaryOp/Ternary 落入自由函数 fallback）。共享 trait 在 FieldAccessExpr
+    /// 与 OptionalChainExpr 两个分支都先询问此钩子 —— 在此补上映射即修复
+    /// 两处缺口（`if (!form.valid)`、class-map `!form.valid` 运行时 ReferenceError）。
+    fn format_special_field_access(&self, object: &ExprIR, field: &str) -> Option<String> {
+        if matches!(object, ExprIR::IdentifierExpr { name, .. } if name == "form") {
+            if let Some(mapped) = form_builtin_field(field) {
+                return Some(mapped.to_string());
+            }
+        }
+        // `form.errors.<field>`（根为 `form`）→ `formErrors["<field>"]`
+        form_errors_index_access(object, field)
+    }
+
     /// Block expressions emit an IIFE so statements execute in expression position.
     /// Statements are formatted through the full React statement machinery
     /// (`const` lets, setter mutations, semicolons).

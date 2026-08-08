@@ -1064,7 +1064,13 @@ impl FlutterCodegen {
                 }
                 if let ExprIR::BlockExpr { statements, .. } = &rewritten {
                     for stmt in statements {
-                        generate_statement_flutter_dw(&mut w, stmt, &direct_write_names, None);
+                        generate_statement_flutter_dw(
+                            &mut w,
+                            stmt,
+                            &direct_write_names,
+                            comp.form_intent.is_some(),
+                            None,
+                        );
                     }
                 }
                 w.dedent();
@@ -1223,13 +1229,25 @@ impl FlutterCodegen {
                         w.emit("() async {");
                         w.indent();
                         for stmt in &rewritten {
-                            generate_statement_flutter_dw(&mut w, stmt, &direct_write_names, None);
+                            generate_statement_flutter_dw(
+                                &mut w,
+                                stmt,
+                                &direct_write_names,
+                                comp.form_intent.is_some(),
+                                None,
+                            );
                         }
                         w.dedent();
                         w.emit("}();");
                     } else {
                         for stmt in &rewritten {
-                            generate_statement_flutter_dw(&mut w, stmt, &direct_write_names, None);
+                            generate_statement_flutter_dw(
+                                &mut w,
+                                stmt,
+                                &direct_write_names,
+                                comp.form_intent.is_some(),
+                                None,
+                            );
                         }
                     }
                 }
@@ -1329,7 +1347,13 @@ impl FlutterCodegen {
                         .collect();
                     stmt::truncate_after_pointer_capture(&mut rewritten);
                     for stmt in &rewritten {
-                        generate_statement_flutter_dw(&mut w, stmt, &direct_write_names, None);
+                        generate_statement_flutter_dw(
+                            &mut w,
+                            stmt,
+                            &direct_write_names,
+                            comp.form_intent.is_some(),
+                            None,
+                        );
                     }
                 }
             }
@@ -1391,7 +1415,13 @@ impl FlutterCodegen {
             if let Some(renamed) = fn_renames.get(&func.name) {
                 func.name = renamed.clone();
             }
-            generate_function_flutter_with(&mut w, &func, &rewritten, &direct_write_names);
+            generate_function_flutter_with(
+                &mut w,
+                &func,
+                &rewritten,
+                &direct_write_names,
+                comp.form_intent.is_some(),
+            );
             w.emit("");
         }
 
@@ -1423,7 +1453,13 @@ impl FlutterCodegen {
             }
             w.indent();
             for stmt in &rewritten {
-                generate_statement_flutter_dw(&mut w, stmt, &direct_write_names, None);
+                generate_statement_flutter_dw(
+                    &mut w,
+                    stmt,
+                    &direct_write_names,
+                    comp.form_intent.is_some(),
+                    None,
+                );
             }
             // Snapshot non-prop deps for the didUpdateWidget comparison
             // (skipped entirely when the effect collapses to `if (true)` —
