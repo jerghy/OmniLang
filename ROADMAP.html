@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OmniLang × Poiesis 开发路线图 v1.0</title>
+<link rel="icon" href="data:,">
+<meta name="description" content="单一事实来源：语义冻结 → poiesis 主产品。拍板 2026-08-08。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════
+   Poiesis design tokens (light default) + dataviz slots
+   ═══════════════════════════════════════════════ */
+:root {
+  color-scheme: light;
+  --surface:        #f5f4ed;   /* parchment */
+  --card:           #faf9f2;
+  --card-hover:     #f3f1e8;
+  --border:         #e8e5dc;
+  --border-strong:  #d3d2cc;
+  --ink:            #141413;
+  --ink-2:          #5e5d59;
+  --ink-3:          #908f8b;
+  --ink-inverse:    #f5f4ed;
+
+  /* 主线 ordinal 渐变（已验证 light surface #f5f4ed） */
+  --ph0: #d68869;  --ph1: #c96442;  --ph2: #a94d2c;  --ph3: #8a3b1f;
+  /* 探索轨（注解色，配形状+标签双编码） */
+  --track: #5e5d59;
+  --track-line: #bdbcb7;
+  /* 状态色（产品 token，永远图标+标签） */
+  --ok:  #52c41a;  --warn: #faad14;  --danger: #ff4d4f;
+
+  --font-ui:  'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Consolas', 'Courier New', monospace;
+  --radius: 8px;
+  --spine: #d3d2cc;
+  --chip-ink: #141413;
+}
+/* 暗色：OS 偏好 + data-theme 双路径（data-theme 覆盖 OS） */
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --surface: #141414;  --card: #1d1d1d;  --card-hover: #242424;
+    --border: #343434;   --border-strong: #4f4f4f;
+    --ink: #dcdcdc;  --ink-2: #adadad;  --ink-3: #7e7e7e;  --ink-inverse: #141413;
+    --ph0: #ce9e87;  --ph1: #b9775c;  --ph2: #9a6147;  --ph3: #7c4c36;
+    --track: #7e7e7e;  --track-line: #4f4f4f;
+    --ok: #64b537;  --warn: #dcaa37;  --danger: #dc6966;
+    --spine: #3e3e3e;
+    --chip-ink: #141413;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface: #141414;  --card: #1d1d1d;  --card-hover: #242424;
+  --border: #343434;   --border-strong: #4f4f4f;
+  --ink: #dcdcdc;  --ink-2: #adadad;  --ink-3: #7e7e7e;  --ink-inverse: #141413;
+  --ph0: #ce9e87;  --ph1: #b9775c;  --ph2: #9a6147;  --ph3: #7c4c36;
+  --track: #7e7e7e;  --track-line: #4f4f4f;
+  --ok: #64b537;  --warn: #dcaa37;  --danger: #dc6966;
+  --spine: #3e3e3e;
+  --chip-ink: #141413;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: var(--font-ui);
+  background: var(--surface);
+  color: var(--ink);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  * { transition: none !important; animation: none !important; }
+}
+a { color: var(--ph1); text-decoration: none; }
+a:hover { text-decoration: underline; }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+code, .mono { font-family: var(--font-mono); font-size: 0.88em; }
+h2.section {
+  font-size: 20px; font-weight: 700; letter-spacing: -0.01em;
+  margin: 56px 0 4px; display: flex; align-items: baseline; gap: 12px;
+}
+h2.section .no { font-family: var(--font-mono); font-size: 13px; color: var(--ink-3); font-weight: 600; }
+.section-sub { color: var(--ink-2); font-size: 14px; margin-bottom: 20px; }
+
+/* ── Header ── */
+header { padding: 40px 0 28px; border-bottom: 1px solid var(--border); }
+.crumbs { font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); letter-spacing: 0.08em; margin-bottom: 12px; }
+header h1 { font-size: clamp(26px, 4vw, 34px); font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; }
+header h1 .amp { color: var(--ph1); }
+.subtitle { color: var(--ink-2); font-size: 15px; margin-top: 8px; max-width: 640px; }
+.focus-band {
+  margin-top: 24px; padding: 16px 20px; border: 1px solid var(--border);
+  border-left: 4px solid var(--track); border-radius: var(--radius);
+  background: var(--card); display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px;
+}
+.focus-band .label { font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); letter-spacing: 0.08em; }
+.focus-band .state {
+  display: inline-flex; align-items: center; gap: 8px; font-weight: 600; font-size: 16px;
+}
+.focus-band .state .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--track); box-shadow: 0 0 0 2px var(--surface), 0 0 0 3.5px var(--track); }
+.focus-band .hint { color: var(--ink-2); font-size: 13px; }
+nav { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+nav a {
+  font-size: 13px; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--border);
+  color: var(--ink-2); white-space: nowrap;
+}
+nav a:hover { border-color: var(--ph1); color: var(--ph1); text-decoration: none; }
+
+/* ── 战略形状 ── */
+.shape { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 20px; }
+.shape .card {
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 16px 18px;
+}
+.shape .card .k { font-family: var(--font-mono); font-size: 11px; color: var(--ph1); letter-spacing: 0.1em; margin-bottom: 6px; }
+.shape .card .v { font-size: 14px; font-weight: 500; line-height: 1.5; }
+.shape .card .v small { display: block; color: var(--ink-2); font-weight: 400; font-size: 12.5px; margin-top: 4px; }
+
+/* ── 时间线 ── */
+.timeline { margin-top: 24px; }
+.spine {
+  position: relative; display: grid; gap: 14px;
+  grid-template-columns: 1fr 1.7fr 0.42fr 1fr 0.85fr;
+  align-items: stretch;
+}
+.spine::before {
+  content: ""; position: absolute; top: 26px; left: 0; right: 0; height: 2px;
+  background: var(--spine); pointer-events: none;
+}
+.station { position: relative; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.station .head { display: flex; align-items: center; gap: 10px; }
+.phase-chip {
+  flex: none; display: inline-flex; align-items: center; gap: 7px;
+  font-family: var(--font-mono); font-size: 12px; font-weight: 600; color: var(--chip-ink);
+  padding: 4px 10px; border-radius: 999px; letter-spacing: 0.02em;
+  box-shadow: 0 0 0 2px var(--surface); /* surface ring: marker 与脊线交叉时保持可读 */
+}
+.phase-chip.p0 { background: var(--ph0); } .phase-chip.p1 { background: var(--ph1); }
+.phase-chip.p2 { background: var(--ph2); } .phase-chip.p3 { background: var(--ph3); }
+.station .ttl { font-size: 15px; font-weight: 600; line-height: 1.3; }
+.station .ttl small { display: block; color: var(--ink-3); font-weight: 500; font-size: 12px; margin-top: 2px; }
+.station .body {
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; flex: 1;
+}
+.station .body ul { list-style: none; display: flex; flex-direction: column; gap: 7px; }
+.station .body li { font-size: 13px; color: var(--ink-2); display: flex; gap: 8px; align-items: baseline; }
+.station .body li .n { font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); flex: none; }
+.station .body .acc {
+  margin-top: auto; padding-top: 10px; border-top: 1px solid var(--border);
+  font-size: 12px; color: var(--ink-3);
+}
+.station .body .acc b { color: var(--ink-2); font-weight: 600; }
+
+/* 检查点 details */
+details.cp { border-top: 1px solid var(--border); padding-top: 8px; }
+details.cp:first-child { border-top: none; padding-top: 0; }
+details.cp summary {
+  list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px;
+  font-size: 13px; font-weight: 600; padding: 3px 0; border-radius: 4px;
+}
+details.cp summary::-webkit-details-marker { display: none; }
+details.cp summary .id { font-family: var(--font-mono); font-size: 11px; color: var(--ph1); font-weight: 600; }
+details.cp summary .chev { margin-left: auto; color: var(--ink-3); font-size: 11px; transition: transform 200ms var(--ease); }
+details[open].cp summary .chev { transform: rotate(90deg); }
+details.cp .cp-body { font-size: 12.5px; color: var(--ink-2); padding: 6px 0 4px 24px; display: flex; flex-direction: column; gap: 5px; }
+details.cp .cp-body .acc-line { color: var(--ink-3); }
+details.cp .cp-body b { color: var(--ink-2); }
+
+/* 冻结墙 */
+.wall { display: flex; flex-direction: column; align-items: center; gap: 8px; padding-top: 26px; }
+.wall .bar {
+  width: 3px; flex: 1; min-height: 64px; border-radius: 2px;
+  background: linear-gradient(var(--ph3), var(--ph1));
+  box-shadow: 0 0 0 2px var(--surface);
+}
+.wall .tag {
+  writing-mode: vertical-rl; font-family: var(--font-mono); font-size: 11px;
+  letter-spacing: 0.28em; color: var(--ink-2); font-weight: 600;
+}
+.wall .lock { font-size: 15px; }
+
+/* 状态徽标（图标+标签，永不纯色） */
+.badge {
+  display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600;
+  padding: 2px 8px; border-radius: 999px; background: var(--card); border: 1px solid var(--border);
+  color: var(--ink-2); white-space: nowrap;
+}
+.badge.ok    { color: #245a0b; border-color: #a9d98a; background: #f0fbe6; }
+.badge.warn  { color: #7a4f00; border-color: #f2d57e; background: #fdf7dd; }
+.badge.gray  { color: var(--ink-3); }
+:root[data-theme="dark"] .badge.ok   { color: #bfe8a5; border-color: #3f6b2a; background: rgba(100,181,55,0.14); }
+:root[data-theme="dark"] .badge.warn { color: #f0d38a; border-color: #6b5623; background: rgba(220,170,55,0.14); }
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .badge.ok   { color: #bfe8a5; border-color: #3f6b2a; background: rgba(100,181,55,0.14); }
+  :root:where(:not([data-theme="light"])) .badge.warn { color: #f0d38a; border-color: #6b5623; background: rgba(220,170,55,0.14); }
+}
+
+/* 探索轨 */
+.track-lane {
+  margin-top: 18px; border: 1px solid var(--border); border-left: 3px solid var(--track);
+  border-radius: var(--radius); background: var(--card); padding: 14px 18px;
+}
+.track-lane .trow { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.track-lane .tmarker {
+  font-family: var(--font-mono); font-size: 12px; font-weight: 600; color: var(--track);
+  letter-spacing: 0.06em; display: inline-flex; align-items: center; gap: 8px;
+}
+.track-lane .tmarker::before { content: "◆"; font-size: 10px; color: var(--track); }
+.track-lane .ttl { font-weight: 600; font-size: 15px; }
+.track-lane .tagline { color: var(--ink-2); font-size: 13px; margin-top: 6px; }
+.track-lane .constraints { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px; margin-top: 10px; }
+.track-lane .c {
+  font-size: 12px; color: var(--ink-2); border: 1px dashed var(--border-strong);
+  border-radius: 6px; padding: 8px 10px;
+}
+.track-lane .c b { color: var(--ink); }
+
+/* ── 决策树表 ── */
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; margin-top: 8px; }
+thead th {
+  text-align: left; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em;
+  color: var(--ink-3); font-weight: 600; padding: 8px 12px; border-bottom: 2px solid var(--border-strong);
+}
+tbody td { padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+tbody tr:hover td { background: var(--card-hover); }
+td .dno { font-family: var(--font-mono); color: var(--ph1); font-weight: 600; font-size: 12px; }
+tbody td.d { color: var(--ink-2); }
+tbody td.k { font-weight: 600; white-space: nowrap; }
+
+/* ── 节奏规则 ── */
+.rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-top: 20px; }
+.rule { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; }
+.rule .rn { font-family: var(--font-mono); font-size: 24px; font-weight: 700; color: var(--ph1); line-height: 1; }
+.rule h3 { font-size: 15px; margin: 8px 0 6px; }
+.rule p { font-size: 13px; color: var(--ink-2); }
+
+/* ── 治理 ── */
+.gov { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-top: 20px; }
+.gov .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
+.gov .card .k { font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); letter-spacing: 0.08em; }
+.gov .card .v { font-size: 13.5px; margin-top: 4px; font-weight: 500; }
+.gov .card .v small { display: block; color: var(--ink-2); font-weight: 400; font-size: 12px; margin-top: 3px; }
+
+footer {
+  margin-top: 64px; padding: 20px 0 48px; border-top: 1px solid var(--border);
+  color: var(--ink-3); font-size: 12.5px; display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: space-between;
+}
+
+/* ── 窄屏：脊线改纵向 ── */
+@media (max-width: 900px) {
+  .spine { grid-template-columns: 1fr; gap: 16px; }
+  .spine::before { display: none; }
+  .station { border-left: 2px solid var(--spine); padding-left: 16px; }
+  .wall { flex-direction: row; padding: 4px 0 4px 16px; }
+  .wall .bar { width: 3px; height: 44px; flex: none; min-height: 0; }
+  .wall .tag { writing-mode: horizontal-tb; letter-spacing: 0.2em; }
+  nav { margin-left: 0; }
+}
+
+/* 打印：强制浅色，展开全部 details */
+@media print {
+  :root { color-scheme: light; --surface:#fff; --card:#faf9f2; --ink:#141413; --ink-2:#5e5d59; --ink-3:#908f8b;
+    --ph0:#d68869; --ph1:#c96442; --ph2:#a94d2c; --ph3:#8a3b1f; --track:#5e5d59; --spine:#d3d2cc; }
+  details.cp { border-top: none; }
+  details.cp .cp-body { display: block; }
+  details.cp summary .chev { display: none; }
+  nav, .focus-band .hint { display: none; }
+  a { color: var(--ink); text-decoration: none; }
+  body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="crumbs">OMNILANG × POIESIS · 单一事实来源 · 拍板 2026-08-08 · v1.0</div>
+  <h1>开发路线图 <span class="amp">v1.0</span></h1>
+  <p class="subtitle">先冻结语言面，再上层盖楼。主线推进语义全覆盖收官 → 冻结 ADR；并行轨探索 poiesis 编辑器设计；冻结后实现基准应用里程碑。</p>
+  <div class="focus-band">
+    <div>
+      <div class="label">当前焦点</div>
+      <div class="state"><span class="dot"></span>未开工 — 待定开工时机</div>
+    </div>
+    <div class="hint">预计从阶段 0 开始：第一件事 = <code>01-commit-and-push</code>（推送 82 个未提交 commit，消除单点磁盘风险）。<br>文本版：<a href="ROADMAP.md">ROADMAP.md</a> · 问题清单：<code>.scratch/</code> · 台账：<code>.architecture/deferrals.md</code></div>
+    <nav>
+      <a href="#shape">战略</a>
+      <a href="#timeline">路线</a>
+      <a href="#decisions">决策树</a>
+      <a href="#rules">节奏</a>
+      <a href="#gov">治理</a>
+    </nav>
+  </div>
+</header>
+
+<!-- ═══ 战略形状 ═══ -->
+<section id="shape">
+  <h2 class="section"><span class="no">00</span>战略形状</h2>
+  <p class="section-sub">Language-First：语言面稳定是 poiesis 的地基——否则语法改动反噬编辑器。</p>
+  <div class="shape">
+    <div class="card"><div class="k">产品定位</div><div class="v">poiesis 是主产品<small>omnilang 与其同等重要；编译器深度是长期资产</small></div></div>
+    <div class="card"><div class="k">里程碑</div><div class="v">全流程编辑器内实现一个应用<small>编辑 + 实时预览 + 编译运行（单目标）；不用太复杂</small></div></div>
+    <div class="card"><div class="k">编译器原则</div><div class="v">前置补齐 · 一步到位<small>语言面一旦冻结，不再为语法改动买单</small></div></div>
+    <div class="card"><div class="k">时间约束</div><div class="v">弹性无硬期限<small>核心诉求是「不乱」：单焦点 + 检查点不跳</small></div></div>
+  </div>
+</section>
+
+<!-- ═══ 时间线 ═══ -->
+<section id="timeline">
+  <h2 class="section"><span class="no">01</span>路线</h2>
+  <p class="section-sub">阶段 0→3 依序推进；检查点顺序灵活，但每个必须留可验证产物 + 门禁绿。</p>
+
+  <div class="timeline">
+    <div class="spine">
+
+      <!-- 阶段 0 -->
+      <div class="station">
+        <div class="head"><span class="phase-chip p0">阶段 0</span></div>
+        <div class="ttl">清债<small>先清再开工 · ~1-2 天</small></div>
+        <div class="body">
+          <ul>
+            <li><span class="n">0.1</span><span>收尾提交 + push（82 commits 未推送）<span class="badge ok">✓ 可开工</span></span></li>
+            <li><span class="n">0.2</span><span>红门清零（docs-gate + verify-vocabulary）<span class="badge ok">✓ 可开工</span></span></li>
+            <li><span class="n">0.3</span><span>ADR-072 信任边界守卫（CRITICAL）<span class="badge ok">✓ 可开工</span></span></li>
+            <li><span class="n">0.4</span><span>验证放行（Groups Task 8 + Enrichment 证据）<span class="badge ok">✓ 可开工</span></span></li>
+            <li><span class="n">0.5</span><span>B3 variant class 噪音<span class="badge warn">⚠ 待批准</span></span></li>
+          </ul>
+          <div class="acc"><b>验收：</b>CI 全绿 + 全部推送 + 验证证据存档</div>
+        </div>
+      </div>
+
+      <!-- 阶段 1 -->
+      <div class="station">
+        <div class="head"><span class="phase-chip p1">阶段 1</span></div>
+        <div class="ttl">语义全覆盖收官 → 冻结<small>主线 · 数周 · 检查点顺序可调</small></div>
+        <div class="body">
+          <details class="cp" open>
+            <summary><span class="id">1A</span>域 A 收口<span class="badge ok">✓ 可开工</span><span class="chev">▶</span></summary>
+            <div class="cp-body">
+              <span>Task 5-6：Flutter / OmniView @form/@load codegen（现仅 React）</span>
+              <span>Task 7：语义全集域 8/9 登记 + BNF/文档/语料</span>
+              <span>Task 8：learn-omniview 演示迁移（现零 @form/@load 用例）+ Playwright</span>
+              <span class="acc-line"><b>产物：</b>三目标 @form/@load + 门禁绿</span>
+            </div>
+          </details>
+          <details class="cp">
+            <summary><span class="id">1B</span>机制级登记<span class="badge ok">✓ 可开工</span><span class="chev">▶</span></summary>
+            <div class="cp-body">
+              <span>@store / @mount / @effect / @unmount 登记进语义全集（已实现未登记）</span>
+              <span>C2 决策记录：legacy 硬错误覆盖组件实例（推荐：是）</span>
+              <span class="acc-line"><b>产物：</b>语义全集 10 域全登记</span>
+            </div>
+          </details>
+          <details class="cp">
+            <summary><span class="id">1C</span>域 B 反馈 + 模态<span class="badge ok">✓ 可开工</span><span class="chev">▶</span></summary>
+            <div class="cp-body">
+              <span>契约草案 → 三目标实现 → 验证</span>
+              <span class="acc-line"><b>产物：</b>真机 / Playwright 证据</span>
+            </div>
+          </details>
+          <details class="cp">
+            <summary><span class="id">1D</span>域 C 导航路由<span class="badge ok">✓ 可开工</span><span class="chev">▶</span></summary>
+            <div class="cp-body">
+              <span>契约草案 → 三目标实现 → 验证</span>
+              <span class="acc-line"><b>产物：</b>真机 / Playwright 证据</span>
+            </div>
+          </details>
+          <details class="cp">
+            <summary><span class="id">1E</span>域 D 响应式断点<span class="badge ok">✓ 可开工</span><span class="chev">▶</span></summary>
+            <div class="cp-body">
+              <span>契约草案 → 三目标实现 → 验证</span>
+              <span class="acc-line"><b>产物：</b>真机 / Playwright 证据</span>
+            </div>
+          </details>
+          <details class="cp">
+            <summary><span class="id">1F</span>已知缺陷收官<span class="badge ok">✓ 可开工</span><span class="chev">▶</span></summary>
+            <div class="cp-body">
+              <span>IR type_ann 恒 None（typed 分派死代码）</span>
+              <span>跨文件验证空洞（validate_required_props / validate_effect_deps 仅单文件）</span>
+              <span>cache 性能：MAX_CACHE_ENTRIES=50 → 击键 15.6× 回归</span>
+              <span>E0006 suggestion 缺陷（按闭包计划处置或 defer）</span>
+              <span class="acc-line"><b>产物：</b>基线回归绿 + 击键延迟恢复</span>
+            </div>
+          </details>
+          <div class="acc"><b>终点：</b>冻结 ADR —— 语义 DSL 收官宣言 + 语法面冻结清单 + 硬规则生效</div>
+        </div>
+      </div>
+
+      <!-- 冻结墙 -->
+      <div class="wall">
+        <div class="bar"></div>
+        <div class="tag">冻结</div>
+        <div class="lock">🔒</div>
+      </div>
+
+      <!-- 阶段 2 -->
+      <div class="station">
+        <div class="head"><span class="phase-chip p2">阶段 2</span></div>
+        <div class="ttl">基准应用里程碑<small>冻结后启动</small></div>
+        <div class="body">
+          <ul>
+            <li><span class="n">·</span><span>应用不用太复杂，体现 poiesis × omniview 当前阶段</span></li>
+            <li><span class="n">·</span><span>覆盖：域 A + <b>模态 + 路由各一处</b></span></li>
+            <li><span class="n">·</span><span>全流程编辑器内：编辑 + 实时预览 + 编译运行（单目标）</span></li>
+          </ul>
+          <div class="acc"><b>开放决策：</b><span class="badge warn">⚠ 应用选择 — 启动时定</span><br>届时语义面已冻结、能力边界清晰</div>
+        </div>
+      </div>
+
+      <!-- 阶段 3 -->
+      <div class="station">
+        <div class="head"><span class="phase-chip p3">阶段 3</span></div>
+        <div class="ttl">强化轮<small>可选</small></div>
+        <div class="body">
+          <ul>
+            <li><span class="n">·</span><span>三目标全跑通</span></li>
+            <li><span class="n">·</span><span>Storybook 补全</span></li>
+            <li><span class="n">·</span><span>死面清理（~1500 行）</span></li>
+            <li><span class="n">·</span><span>golden mirror 修复</span></li>
+            <li><span class="n">·</span><span>vue / dioxus floor 诊断</span></li>
+          </ul>
+          <div class="acc"><span class="badge gray">○ 可选</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 探索轨 -->
+    <div class="track-lane">
+      <div class="trow">
+        <span class="tmarker">并行轨 A</span>
+        <span class="ttl">poiesis 设计探索</span>
+        <span class="badge gray">○ 剩余时间原则</span>
+        <span class="badge gray">◇ 产出 = 原型 + 文档</span>
+      </div>
+      <p class="tagline">阶段 1 起长期并行：设计画布面（布局界面效率 / WYSIWYG / 设计系统）+ CodeFlow UX（代码逻辑可视化新范式）。Storybook 当原型场地，顺带补欠账。</p>
+      <div class="constraints">
+        <div class="c"><b>.omni 往返兼容</b> — 图模型 ↔ 源码往返不破坏</div>
+        <div class="c"><b>语言语法零变更</b> — 冻结期不改语法</div>
+        <div class="c"><b>落地过四链同步</b> — 编辑器侧改动走四链验证</div>
+        <div class="c"><b>缺口记账</b> — 编译器缺口 → deferrals 台账（带触发器），冻结期不修</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 决策树 ═══ -->
+<section id="decisions">
+  <h2 class="section"><span class="no">02</span>决策树（18 项）</h2>
+  <p class="section-sub">grilling 会话拍板，2026-08-08。完整上下文见 <a href="ROADMAP.md">ROADMAP.md</a>。</p>
+  <table>
+    <thead><tr><th style="width:44px">#</th><th style="width:180px">决策</th><th>结论</th></tr></thead>
+    <tbody>
+      <tr><td><span class="dno">01</span></td><td class="k">混乱根源</td><td class="d">线程太多 + 依赖纠缠 + 优先级漂移 → 解药 = 单一路线图 + 单焦点纪律</td></tr>
+      <tr><td><span class="dno">02</span></td><td class="k">产品定位</td><td class="d">poiesis 主产品，两者同等重要</td></tr>
+      <tr><td><span class="dno">03</span></td><td class="k">里程碑</td><td class="d">poiesis 编辑器能实现一个中等复杂（不用太复杂）应用</td></tr>
+      <tr><td><span class="dno">04</span></td><td class="k">验收口径</td><td class="d">全流程编辑器内：编辑 + 实时预览 + 编译运行（单目标）</td></tr>
+      <tr><td><span class="dno">05</span></td><td class="k">编译器原则</td><td class="d">前置补齐、一步到位</td></tr>
+      <tr><td><span class="dno">06</span></td><td class="k">时间约束</td><td class="d">弹性无硬期限；核心诉求是「不乱」</td></tr>
+      <tr><td><span class="dno">07</span></td><td class="k">覆盖范围</td><td class="d">语义全覆盖收官（含域 B/C/D 模态/路由/断点 × 3 目标）</td></tr>
+      <tr><td><span class="dno">08</span></td><td class="k">冻结治理</td><td class="d">硬规则：语法/语义变更 = ADR + 同 commit 全生态迁移</td></tr>
+      <tr><td><span class="dno">09</span></td><td class="k">红债时机</td><td class="d">先清再开工</td></tr>
+      <tr><td><span class="dno">10</span></td><td class="k">检查点</td><td class="d">按语义域切，顺序灵活但每个留可验证产物 + 门禁绿</td></tr>
+      <tr><td><span class="dno">11</span></td><td class="k">探索轨边界</td><td class="d">含 CodeFlow UX，三约束：.omni 往返兼容 / 语法零变更 / 落地过四链同步</td></tr>
+      <tr><td><span class="dno">12</span></td><td class="k">探索产出</td><td class="d">原型 + 文档（Storybook 当原型场地）</td></tr>
+      <tr><td><span class="dno">13</span></td><td class="k">探索投入</td><td class="d">剩余时间原则：编译器主线优先</td></tr>
+      <tr><td><span class="dno">14</span></td><td class="k">基准应用覆盖</td><td class="d">域 A + 模态 + 路由各一处</td></tr>
+      <tr><td><span class="dno">15</span></td><td class="k">治理落点</td><td class="d">ROADMAP.md 新建 + .scratch/ 复活</td></tr>
+      <tr><td><span class="dno">16</span></td><td class="k">语言目标</td><td class="d">react / flutter / omniview 三目标；vue/dioxus 保持 floor 诊断（#87 触发制）</td></tr>
+      <tr><td><span class="dno">17</span></td><td class="k">语法现状</td><td class="d">语法成熟；语义域未收口（域 A Task 5-8、域 8/9 登记、@store/@mount/@effect 未登记）</td></tr>
+      <tr><td><span class="dno">18</span></td><td class="k">债清单</td><td class="d">红门 ×2 / ADR-072 CRITICAL / 82 commits 未推送 / cache 15.6× / 跨文件验证空洞 / B3 噪音</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ═══ 节奏规则 ═══ -->
+<section id="rules">
+  <h2 class="section"><span class="no">03</span>节奏规则（治「乱」三件套）</h2>
+  <div class="rules">
+    <div class="rule"><div class="rn">1</div><h3>单焦点</h3><p>任一时刻一个主焦点，写进 ROADMAP.md「当前焦点」区。探索轨用剩余精力，不喧宾夺主。</p></div>
+    <div class="rule"><div class="rn">2</div><h3>硬规则冻结</h3><p>语法/语义变更 = ADR + 同 commit 全生态迁移（编译器 + poiesis + 文档 + registry + 门禁）。先例：ADR-053、08-08 事件意图化教训。</p></div>
+    <div class="rule"><div class="rn">3</div><h3>检查点不跳</h3><p>每检查点留可验证产物 + 门禁绿；顺序灵活，半成品不留——治「快完成但没完成」的死状态。</p></div>
+  </div>
+</section>
+
+<!-- ═══ 治理落点 ═══ -->
+<section id="gov">
+  <h2 class="section"><span class="no">04</span>治理落点</h2>
+  <div class="gov">
+    <div class="card"><div class="k">状态跟踪</div><div class="v">commit 引用<small>本仓库约定：checkbox 不勾，以提交记进度</small></div></div>
+    <div class="card"><div class="k">问题清单</div><div class="v">.scratch/ 首批 11 个<small>stage0-debt-clearance ×5 + phase1-semantic-freeze ×6</small></div></div>
+    <div class="card"><div class="k">Backlog</div><div class="v">.architecture/deferrals.md<small>台账 #1-#87，~55 项 open（defer-with-trigger）</small></div></div>
+    <div class="card"><div class="k">计划</div><div class="v">docs/superpowers/plans/<small>既有计划文件沿用，不另起仪式</small></div></div>
+  </div>
+</section>
+
+<footer>
+  <span>OmniLang × Poiesis 路线图 v1.0 · 拍板 2026-08-08（grilling 会话 · 18 项决策）</span>
+  <span>与 <a href="ROADMAP.md">ROADMAP.md</a> 同步 · 状态以 commit 引用跟踪</span>
+</footer>
+
+</div>
+</body>
+</html>
