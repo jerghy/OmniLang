@@ -41,9 +41,15 @@
 
 ### 来源域
 
-W3C UI Events / Pointer Events / Touch Events / CSS Animation & Transition Events——**用户与元素交互的时机与类型化数据**（设计文档 域 7；4.2 事件白名单 = `crates/omnilang-core/src/codegen/shared/event_names.rs` 共享 canonical 表）。DSL 表面拼写是 `@onXxx={...}`（或裸 `onXxx={...}`），内部 canonical 名即本表词汇——`onXxx` 拼写是平台形状（React 合成事件惯例），语义词汇是事件名本体。
+W3C UI Events / Pointer Events / Touch Events / CSS Animation & Transition Events——**用户与元素交互的时机与类型化数据**（设计文档 域 7；4.2 事件白名单 = `crates/omnilang-core/src/codegen/shared/event_names.rs` 共享 canonical 表）。本域词汇分三层（spec 2026-08-08 §3.1，原则 8「语义化即切换」）：
+
+1. **DSL 表面 = 14 个语义事件名**（`SEMANTIC_EVENT_NAMES` 常量，见下节「语义事件名（DSL 表面）」）——用户写 `@onPress={...}` 等；被取代的旧 DOM 拼写（`@onClick`/`@click`/`@onTap`/`@tap` → `@onPress`；`@onMouseEnter`/`@mouseenter` → `@onEnter`；`@onMouseLeave`/`@mouseleave` → `@onLeave`）是编译期硬错误 + 迁移提示（`semantic/validate_event_names.rs`，无透传共存期）。
+2. **内部解析面 = canonical 名（54）**——编译器 `canonical_event_name` 单表解析目标，即下方「语义词汇」表；14 个语义名只覆盖其中 9 族，其余 40 族仍合法透传（非语义名，未知拼写走未知名 warning）。
+3. **平台形状 = 排除词汇**——React 合成事件名（onClick/onKeyDown/…）与 Flutter 组件回调名（onPressed/onChanged/…）不得成为 canonical 语义词汇（借词黑名单，见「排除词汇」表）。
 
 ### 语义词汇
+
+> 内部解析面：canonical 名（54）——编译器 `canonical_event_name` 单表解析目标（断言锚点不变）；DSL 表面拼写见下节「语义事件名（DSL 表面）」。
 
 | 语义词汇（canonical） | 家族 | 别名拼写 | 说明 |
 |----------------------|------|---------|------|
@@ -101,6 +107,27 @@ W3C UI Events / Pointer Events / Touch Events / CSS Animation & Transition Event
 | transitionrun | 过渡 | — | 过渡运行 |
 | transitionstart | 过渡 | — | 过渡开始 |
 | transitioncancel | 过渡 | — | 过渡取消 |
+
+### 语义事件名（DSL 表面）
+
+首批语义化事件（spec 2026-08-08 §3.1，`SEMANTIC_EVENT_NAMES` 常量）——14 个事件名/9 语义族；旧 DOM 拼写（`@onClick`/`@onTap`/`@onMouseEnter`/`@onMouseLeave`…）→ 硬错误 + 迁移提示，其余 40 个 canonical 家族维持透传。
+
+| 语义事件名（DSL 表面） | 解析关系（canonical_event_name） | 语义 |
+|------------------------|----------------------------------|------|
+| onPress | → click | 点按（click/tap 别名收编） |
+| onInput | → input | 输入中 |
+| onChange | → change | 选值变化提交 |
+| onSubmit | → submit | 表单提交 |
+| onKeyDown | → keydown | 按键按下 |
+| onKeyUp | → keyup | 按键抬起 |
+| onPointerDown | → pointerdown | 指针按下 |
+| onPointerMove | → pointermove | 指针移动 |
+| onPointerUp | → pointerup | 指针抬起 |
+| onScroll | → scroll | 滚动 |
+| onFocus | → focus | 获得焦点 |
+| onBlur | → blur | 失去焦点 |
+| onEnter | → mouseenter（enter 短拼写同族） | 指针悬停进入 |
+| onLeave | → mouseleave（leave 短拼写同族） | 指针悬停离开 |
 
 ### 目标映射
 

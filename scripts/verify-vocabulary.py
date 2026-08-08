@@ -271,6 +271,17 @@ def audit():
     ev = vocab(1)
     if ev is not None:
         assert_set("事件", ev, event_canonical_names(read_file(EVENT_TABLE_FILE)), "语义词汇")
+    # 语义事件名（DSL 表面）== SEMANTIC_EVENT_NAMES（14 名，spec 2026-08-08 §3.1
+    # 首批语义事件）双向断言——新增语义事件必须同 commit 在登记册入册。
+    # 发现 A（EVENT_NAME_SUGGESTIONS 含 4 个自身硬错误名 onClick/onTap/onMouseEnter/
+    # onMouseLeave——建议可能把用户引到硬错误拼写）defer 阶段 4——此处不加
+    # suggestions 防御断言（当前会红：建议表含自身硬错误名）。
+    if 1 in sections:
+        ev_sem = first_column_rows(subsection(sections[1][1], "语义事件名（DSL 表面）") or "")
+        if ev_sem is None:
+            fail("domain 事件: '### 语义事件名（DSL 表面）' missing or malformed (header + separator + ≥1 row, no empty first column)")
+        else:
+            assert_set("事件", ev_sem, rust_str_array(read_file(EVENT_TABLE_FILE), "SEMANTIC_EVENT_NAMES"), "语义事件名")
     ex_ev = excluded(1)
     if ev is not None and ex_ev is not None:
         overlap = sorted(set(ev) & set(ex_ev))
