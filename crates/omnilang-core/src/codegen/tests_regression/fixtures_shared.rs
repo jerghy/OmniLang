@@ -270,7 +270,7 @@ pub(crate) fn fixture_component_with_store() -> IRProgram {
             props: FxHashMap::default(),
             bindings: FxHashMap::default(),
             events: FxHashMap::from_iter([(
-                "onClick".into(),
+                "onPress".into(),
                 EventHandlerIR::StoreAction {
                     r#ref: "AppStore.increment".into(),
                 },

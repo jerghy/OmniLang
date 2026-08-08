@@ -1412,7 +1412,7 @@ component FnRefSpDemo {
         e.stopPropagation();
     }
     view {
-        <div @onClick={stopIt}>x</div>
+        <div @onPress={stopIt}>x</div>
     }
 }
 "#;
@@ -1420,7 +1420,7 @@ component FnRefSpDemo {
         let view = comp.view.expect("should have view");
         match &view {
             ViewTree::Element(el) => {
-                let handler = el.events.get("onClick").expect("should have onClick event");
+                let handler = el.events.get("onPress").expect("should have onPress event");
                 match handler {
                     EventHandlerIR::FnRef {
                         needs_stop_propagation,

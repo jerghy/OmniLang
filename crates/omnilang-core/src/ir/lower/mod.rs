@@ -891,11 +891,11 @@ component Clicker {
 import omniview;
 component FnRefDemo {
     signal msg: String = "";
-    fn handleClick() {
+    fn handlePress() {
         msg = "clicked";
     }
     view {
-        <button @onClick={handleClick}>Click</button>
+        <button @onPress={handlePress}>Click</button>
     }
 }
 "#;
@@ -904,10 +904,10 @@ component FnRefDemo {
         match &view {
             ViewTree::Element(el) => {
                 assert!(
-                    el.events.contains_key("onClick"),
-                    "should have onClick event"
+                    el.events.contains_key("onPress"),
+                    "should have onPress event"
                 );
-                let handler = el.events.get("onClick").unwrap();
+                let handler = el.events.get("onPress").unwrap();
                 match handler {
                     EventHandlerIR::FnRef {
                         r#ref,
@@ -915,8 +915,8 @@ component FnRefDemo {
                         used_fields,
                         ..
                     } => {
-                        assert_eq!(r#ref, "handleClick", "fn ref should be 'handleClick'");
-                        assert!(event_data.is_some(), "onClick should have event data");
+                        assert_eq!(r#ref, "handlePress", "fn ref should be 'handlePress'");
+                        assert!(event_data.is_some(), "onPress should have event data");
                         // used_fields should be backfilled (None initially, Some after Pass 2)
                         // In our case we expect Some(...) since backfill runs
                         assert!(

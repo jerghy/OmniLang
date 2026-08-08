@@ -137,7 +137,7 @@ mod tests {
             props: FxHashMap::default(),
             bindings: FxHashMap::default(),
             events: [(
-                "onClick".into(),
+                "onPress".into(),
                 EventHandlerIR::StoreAction {
                     r#ref: "MyStore.increment".into(),
                 },
@@ -177,7 +177,7 @@ mod tests {
             props: FxHashMap::default(),
             bindings: FxHashMap::default(),
             events: [(
-                "onClick".into(),
+                "onPress".into(),
                 EventHandlerIR::StoreAction {
                     r#ref: "MyStore.increment".into(),
                 },
@@ -212,7 +212,7 @@ mod tests {
             props: FxHashMap::default(),
             bindings: FxHashMap::default(),
             events: [(
-                "onClick".into(),
+                "onPress".into(),
                 EventHandlerIR::InlineFn {
                     body: BlockIR { statements: vec![] },
                     params: vec![],
