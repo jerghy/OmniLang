@@ -213,19 +213,22 @@ pub(super) fn gen_hoisted_signal_consts(
     }
 }
 
-/// TS annotation for a hoisted const (perf M3). Only Map-family containers
-/// get one: a bare object literal infers a narrow type whose keys cannot be
-/// indexed by `string` (TS7053 — MapOperationsDemo's `endpoints[env]`),
-/// while scalars keep their literal inference (`const orderStatus =
-/// "shipped"` stays `"shipped"`, not `string`). Mirrors the useState generic
-/// gate: types must resolve in the generated file.
+/// TS annotation for a hoisted const (perf M3). Map-family containers and
+/// array-family containers get one: a bare object literal infers a narrow
+/// type whose keys cannot be indexed by `string` (TS7053 —
+/// MapOperationsDemo's `endpoints[env]`), and an empty array literal infers
+/// `any[]` (TS7034/TS7005 — surfaced by @load reading a signal array,
+/// tmp-form-load corpus), while scalars keep their literal inference
+/// (`const orderStatus = "shipped"` stays `"shipped"`, not `string`).
+/// Mirrors the useState generic gate: types must resolve in the generated
+/// file.
 fn hoisted_const_annotation(ty: &TypeIR, user_types: &FxHashSet<String>) -> String {
-    let is_map = matches!(
+    let is_container = matches!(
         &ty.kind,
         TypeKind::Named { name }
-            if matches!(name.as_str(), "Map" | "HashMap" | "FxHashMap" | "Dict" | "Record")
+            if matches!(name.as_str(), "Map" | "HashMap" | "FxHashMap" | "Dict" | "Record" | "Array" | "Vec" | "List")
     );
-    if is_map && js_type_resolves(ty, user_types) {
+    if is_container && js_type_resolves(ty, user_types) {
         format!(
             ": {}",
             JsTypeFormatter.format_type(ty.kind.as_str(), &ty.type_args)

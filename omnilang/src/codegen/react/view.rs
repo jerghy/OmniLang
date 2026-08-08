@@ -217,11 +217,17 @@ pub(super) fn gen_view_node_tsx(
                             // Bare fn-ref events on a component instance use
                             // the stable useCallback wrapper when the ref is
                             // a local fn (task 2.8).
-                            let ref_emitted = if prop_fn_ctx.wrapped_fns.contains(r#ref) {
-                                format!("__omni_cb_{}", r#ref)
-                            } else {
-                                r#ref.clone()
-                            };
+                            // Task 4 评审（retry 可达性）: @load 回调别名映射
+                            // 为 load 标识符（load 已是 useCallback 稳定
+                            // 引用，不能再包 __omni_cb_ 包装）。
+                            let ref_emitted =
+                                if r#ref.as_str() == "retry" && comp.load_intent.is_some() {
+                                    "load".to_string()
+                                } else if prop_fn_ctx.wrapped_fns.contains(r#ref) {
+                                    format!("__omni_cb_{}", r#ref)
+                                } else {
+                                    r#ref.clone()
+                                };
                             comp_attrs.push(format!("{}={{{}}}", jsx_event, ref_emitted));
                         }
                         EventHandlerIR::InlineFn { body, params, .. } => {
@@ -517,10 +523,27 @@ pub(super) fn gen_view_node_tsx(
                         // hoisted shape) must use the optional call form
                         // `f?.(eventObj)` (TS2722). Local fns are always
                         // defined and stay bare `f(...)`.
-                        let call = if possibly_undefined.contains(r#ref.as_str()) {
-                            format!("{}?.", r#ref)
+                        // Task 4 评审（retry 可达性）: retry 是 @load 回调别
+                        // 名（语义 pass 播种内建符号）——FnRef 直发路径映射
+                        // 为 load 标识符（与表达式上下文的
+                        // store_field_renames 映射一致）；别名不在生成输出
+                        // 中发射，避免未使用局部（eslint no-unused-vars）。
+                        let ref_name = if r#ref.as_str() == "retry" && comp.load_intent.is_some() {
+                            "load"
                         } else {
-                            r#ref.clone()
+                            r#ref.as_str()
+                        };
+                        // Task 4 评审（TS2554 防护）: retry→load 映射的引用在
+                        // lowering 侧按用户 fn 反查 used_fields 失败（"retry"
+                        // 非 comp.fns 成员）→ event_data 整 schema 展开。load
+                        // 是无参 useCallback，事件对象必须整体跳过（否则
+                        // `load({ x: ... })` 报 Expected 0 arguments）。
+                        let is_retry_mapped =
+                            r#ref.as_str() == "retry" && comp.load_intent.is_some();
+                        let call = if possibly_undefined.contains(ref_name) {
+                            format!("{ref_name}?.")
+                        } else {
+                            ref_name.to_string()
                         };
                         // Task 4 (@form, spec 2026-08-08 §4.1): 提交拦截——
                         // form 元素的 @onSubmit 包装为 preventDefault + 校验
@@ -531,21 +554,35 @@ pub(super) fn gen_view_node_tsx(
                             && react_event == "onSubmit"
                             && comp.form_intent.is_some()
                         {
-                            let handler_call = if event_data.is_some() {
+                            // 实参形状按 fn 声明参数数保真（0 参不传 e 避免
+                            // TS2554；1 参传 e 与 setter 分支对齐）——覆盖
+                            // event_data 为空对象（空体 `fn submit(e) {}` 是
+                            // brief 的规范形态，无消费字段）与无事件数据两种
+                            // 路径；retry→load 映射（load 恒 0 参）保持零参。
+                            let handler_call = if is_retry_mapped {
+                                format!("{call}();")
+                            } else if event_data.is_some() {
                                 let obj = emit_event_object_react(event_data, used_fields, "e");
                                 if obj == "{}" {
-                                    format!("{call}();")
+                                    let n_params = comp
+                                        .fns
+                                        .iter()
+                                        .find(|f| f.name == ref_name)
+                                        .map(|f| f.params.len())
+                                        .unwrap_or(0);
+                                    if n_params == 1 {
+                                        format!("{call}(e);")
+                                    } else {
+                                        format!("{call}();")
+                                    }
                                 } else {
                                     format!("{call}({obj});")
                                 }
                             } else {
-                                // event_data 为 None 时按 fn 声明参数数保真
-                                // （0 参不传 e 避免 TS2554；1 参传 e 与
-                                // setter 分支对齐）。
                                 let n_params = comp
                                     .fns
                                     .iter()
-                                    .find(|f| f.name == r#ref.as_str())
+                                    .find(|f| f.name == ref_name)
                                     .map(|f| f.params.len())
                                     .unwrap_or(0);
                                 if n_params == 1 {
@@ -583,12 +620,12 @@ pub(super) fn gen_view_node_tsx(
                                 "{}={{(e) => {{ {}; {} }}}}",
                                 react_event, setter_call, handler_call
                             ));
-                        } else if event_data.is_some() {
+                        } else if event_data.is_some() && !is_retry_mapped {
                             let event_obj = emit_event_object_react(event_data, used_fields, "e");
                             // When no event fields are actually needed (empty object),
                             // skip the (e) wrapper to avoid unused-param warnings.
                             if event_obj == "{}" {
-                                attrs.push(format!("{}={{{}}}", react_event, r#ref));
+                                attrs.push(format!("{}={{{}}}", react_event, ref_name));
                             } else {
                                 attrs.push(format!(
                                     "{}={{(e) => {{ {}({}) }}}}",
@@ -596,7 +633,7 @@ pub(super) fn gen_view_node_tsx(
                                 ));
                             }
                         } else {
-                            attrs.push(format!("{}={{{}}}", react_event, r#ref));
+                            attrs.push(format!("{}={{{}}}", react_event, ref_name));
                         }
                     }
                     EventHandlerIR::InlineFn {
@@ -2025,6 +2062,13 @@ fn emit_drag_react_attrs(
     // Task 5.6 (deferral #61) parity: a possibly-undefined target (event
     // prop / null-initialized signal) uses the optional call form; local
     // fns are always defined and stay bare `f(...)`.
+    // Task 4 评审（retry 可达性）: @load 回调别名在 @drag 处理器上同样映
+    // 射为 load 标识符（load 是无参 useCallback，`load()` 直调合法）。
+    let move_fn = if move_fn == "retry" && comp.load_intent.is_some() {
+        "load"
+    } else {
+        move_fn
+    };
     let call = |name: &str| {
         if possibly_undefined.contains(name) {
             format!("{}?.", name)
@@ -2052,6 +2096,13 @@ fn emit_drag_react_attrs(
     // Call arguments: the object literal as-is, or `{}` for an empty
     // DragIntent — unless the handler takes no params, then no arguments.
     let call_args = |obj: &str, name: &str| -> String {
+        // Task 4 评审（TS2554 防护）: retry→load 映射（load 为无参
+        // useCallback）恒零参直调——"load" 不在 comp.fns，fn_arity 查无
+        // 返回 0，但非空 DragIntent 仍会走到 else 分支传对象；对 load
+        // 整体跳过实参（含 @dragEnd 侧，共用本闭包）。
+        if name == "load" && comp.load_intent.is_some() {
+            return String::new();
+        }
         if obj == "{}" {
             if fn_arity(name) == 0 {
                 String::new()
@@ -2089,6 +2140,12 @@ fn emit_drag_react_attrs(
             used_fields: end_fields,
             ..
         }) => {
+            // Task 4 评审: @dragEnd={retry} 同 move 侧映射为 load。
+            let end_fn = if end_fn == "retry" && comp.load_intent.is_some() {
+                "load"
+            } else {
+                end_fn
+            };
             let end_call = call(end_fn);
             let end_obj = drag_event_object_react(end_fields, "s");
             let end_args = call_args(&end_obj, end_fn);

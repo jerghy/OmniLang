@@ -2061,10 +2061,36 @@ fn literal_never_mutated_signal_hoisted() {
     .expect("compile must succeed");
     let tsx = out.files.get("V.tsx").expect("V.tsx emitted");
     let fn_start = tsx.find("function V").expect("component function emitted");
-    let decl = tsx.find("const items =").expect("signal const emitted");
+    let decl = tsx
+        .find("const items: string[] =")
+        .expect("signal const emitted");
     assert!(
         decl < fn_start,
         "literal signal must be module-scoped: {}",
+        tsx
+    );
+}
+
+/// TS7034/TS7005 gate regression（tmp-form-load 语料实证）: a hoisted EMPTY
+/// array-literal const must carry its element annotation — bare `const todos
+/// = [];` infers `any[]`（@load 读信号数组的规范形态, fetchTodos 返回
+/// Array<String> 处 TS7005）。
+#[test]
+fn hoisted_empty_array_signal_const_annotated() {
+    let out = compile_react(
+        r#"
+        component V {
+            signal todos: Array<String> = [];
+            fn fetchTodos() -> Array<String> { todos }
+            view { @load={fetchTodos} <div/> }
+        }
+        "#,
+    )
+    .expect("compile must succeed");
+    let tsx = out.files.get("V.tsx").expect("V.tsx emitted");
+    assert!(
+        tsx.contains("const todos: string[] = [];"),
+        "hoisted empty Array const must be annotated: {}",
         tsx
     );
 }
@@ -8344,9 +8370,11 @@ component DragBox {
 }
 
 /// Task 4 (阶段 2 域 A): @form 受控表单 + 校验执行器 + a11y。
-/// 产物断言：formErrors/formValid/formSubmitting state、validateForm 执行器、
-/// onSubmit 包装（preventDefault + 校验失败拦截）、字段 aria-invalid/aria-describedby、
-/// required 规则落 DOM。
+/// 产物断言：formErrors state、validateForm 执行器、onSubmit 包装
+/// （preventDefault + 校验失败拦截）、字段 aria-invalid/aria-describedby、
+/// required 规则落 DOM、form.errors 显式渲染（formErrors["name"]）。
+/// 可达性（评审）：视图未引用 form.valid/form.submitting → 不发射
+/// formValid/formSubmitting 局部（eslint no-unused-vars 门禁）。
 #[test]
 fn react_form_emits_validation_and_a11y() {
     let source = r#"
@@ -8359,6 +8387,7 @@ component App {
       <input bind:value={name} validate:{required: true} />
       <input bind:value={email} validate:{format: "email"} />
       <button type="submit">Submit</button>
+      @if form.errors.name { <span id="err-name">{form.errors.name}</span> }
     </form>
   }
 }
@@ -8369,14 +8398,21 @@ component App {
         "formErrors state missing. Got:\n{}",
         out
     );
+    // M3: form.errors 显式渲染产物——FieldAccess 链落 formErrors["name"]。
     assert!(
-        out.contains("formValid"),
-        "formValid 派生 state missing. Got:\n{}",
+        out.contains("formErrors[\"name\"]"),
+        "form.errors.name 显式渲染 missing. Got:\n{}",
+        out
+    );
+    // 评审（unused-locals）: 视图未引用 form.valid/form.submitting → 不发射。
+    assert!(
+        !out.contains("const formValid"),
+        "formValid 未引用时不应发射（可达性）. Got:\n{}",
         out
     );
     assert!(
-        out.contains("formSubmitting"),
-        "formSubmitting state missing. Got:\n{}",
+        !out.contains("formSubmitting"),
+        "formSubmitting 未引用时不应发射（可达性）. Got:\n{}",
         out
     );
     assert!(
@@ -8408,15 +8444,58 @@ component App {
     // 断言（校验失败拦截 → 成功清错 → handler）防止顺序回归。
     assert!(
         out.contains(
-            "if (Object.keys(errs).length > 0) { setFormErrors(errs); return; } setFormErrors({}); submit();"
+            "if (Object.keys(errs).length > 0) { setFormErrors(errs); return; } setFormErrors({}); submit(e);"
         ),
         "提交包装缺少 失败拦截→成功清错→handler 序列. Got:\n{}",
         out
     );
+    // TS2554 防护（tmp-form-load 语料实证）：空体 1 参 handler
+    // `fn submit(e) {}` 的空事件对象路径也必须传 e（否则 Expected 1 arguments）。
+    assert!(
+        out.contains("const submit = (_e) => {"),
+        "未引用参数应 _ 前缀（eslint ^_ 豁免契约）. Got:\n{}",
+        out
+    );
 }
 
-/// Task 4 (阶段 2 域 A): @load 数据三态（loading/error/data）+ useEffect 一次调用 +
-/// retry 回调别名。断言作用于代码生成脚手架（useState/useCallback/useEffect/retry）。
+/// 可达性正例：视图引用 form.valid/form.submitting → 发射 formValid 派生与
+/// formSubmitting state（setter 省略——v4 H2 写-only 模式，仅读不写）。
+#[test]
+fn react_form_emits_submitting_valid_when_referenced() {
+    let source = r#"
+component App {
+  signal name: String = ""
+  fn submit(e) { }
+  view {
+    <form @form @onSubmit={submit}>
+      <input bind:value={name} validate:{required: true} />
+      <button type="submit">Submit</button>
+    </form>
+    @if form.valid { <span id="ok">valid</span> }
+    @if form.submitting { <span id="busy">submitting</span> }
+  }
+}
+"#;
+    let out = compile_react_src(source);
+    assert!(
+        out.contains("const [formSubmitting] = useState(false);"),
+        "form.submitting 引用时 formSubmitting state missing. Got:\n{}",
+        out
+    );
+    assert!(
+        !out.contains("setFormSubmitting"),
+        "formSubmitting 仅读不写——setter 不应发射. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("const formValid = Object.keys(formErrors).length === 0;"),
+        "form.valid 引用时 formValid 派生 missing. Got:\n{}",
+        out
+    );
+}
+
+/// Task 4 (阶段 2 域 A): @load 数据三态（loading/error/data）+ useEffect 一次调用。
+/// 评审（unused-locals）: 视图未引用 retry → 不发射 `const retry = load;` 死别名。
 #[test]
 fn react_load_emits_three_state_effect() {
     let source = r#"
@@ -8456,5 +8535,43 @@ component App {
         "同步 fn Promise 包装 missing. Got:\n{}",
         out
     );
-    assert!(out.contains("retry"), "retry 回调 missing. Got:\n{}", out);
+    // TS2304 防护（tmp-form-load 语料实证）：@load 引用的 loader fn 只经
+    // load_intent 可达（视图无调用点），collect_called_local_fns 必须播种——
+    // 否则 gen_functions 丢弃，生成物引用未定义名（Cannot find name 'fetchTodos'）。
+    assert!(
+        out.contains("const fetchTodos = () => {"),
+        "@load loader fn 未发射（TS2304 回归）. Got:\n{}",
+        out
+    );
+    assert!(
+        !out.contains("const retry"),
+        "retry 未引用时不应发射死别名（可达性）. Got:\n{}",
+        out
+    );
+}
+
+/// 可达性正例：视图引用 retry（@onPress={retry}）→ 事件回调映射为 load
+/// （FnRef 映射），不发射死别名。
+#[test]
+fn react_load_retry_referenced_maps_to_load() {
+    let source = r#"
+component App {
+  fn fetchTodos() -> Array<String> { }
+  view {
+    @load={fetchTodos}
+    <button @onPress={retry}>Retry</button>
+  }
+}
+"#;
+    let out = compile_react_src(source);
+    assert!(
+        out.contains("onClick={load}"),
+        "retry 引用应映射为 load 回调. Got:\n{}",
+        out
+    );
+    assert!(
+        !out.contains("const retry"),
+        "retry 映射后不应发射死别名. Got:\n{}",
+        out
+    );
 }

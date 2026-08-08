@@ -551,6 +551,15 @@ impl ReactCodegen {
             &bare_store_refs,
             &all_stores,
         );
+        // Task 4 评审（retry 可达性）: @load 回调别名 retry 播种为语义内
+        // 建符号——经 rename 映射统一解析为 load 标识符（表达式上下文：
+        // 属性/条件/fn 体/语句，format_identifier 查 renames）。映射只在
+        // @load 存在时生效；别名不在输出中发射（映射覆盖全部引用面，
+        // 别名恒为未使用局部——评审目标 eslint no-unused-vars）。
+        let mut store_field_renames = store_field_renames;
+        if comp.load_intent.is_some() {
+            store_field_renames.insert("retry".to_string(), "load".to_string());
+        }
 
         // ── Task 2.8 (perf M4): prop-fn useCallback + React.memo for
         // slot-free children ──
@@ -662,7 +671,8 @@ impl ReactCodegen {
                     (escaped, needs_rename)
                 })
                 .collect();
-            let params_str = function::format_fn_params(fun);
+            let unused_params = function::unused_param_names(fun);
+            let params_str = function::format_fn_params(fun, &unused_params);
             let is_async =
                 fun.is_async || fun.body.statements.iter().any(effect::stmt_contains_await);
             let async_prefix = if is_async { "async " } else { "" };
@@ -915,9 +925,19 @@ impl ReactCodegen {
         if let Some(form) = &comp.form_intent {
             w.emit("// @form (spec 2026-08-08 §4.1): 受控校验三态");
             w.emit("const [formErrors, setFormErrors] = useState<Record<string, string>>({});");
-            w.emit("const [formSubmitting, setFormSubmitting] = useState(false);");
-            // formValid 由 formErrors 推导——不生成冗余 state
-            w.emit("const formValid = Object.keys(formErrors).length === 0;");
+            // Task 4 评审（unused-locals）: formSubmitting/formValid 按组
+            // 件 IR 可达性条件发射——仅当视图/回调引用 form.submitting /
+            // form.valid（评审 Minor 1: submitting 语义 v0 未实现，恒为
+            // false；setFormSubmitting 无任何消费点，按 v4 H2 写端-only
+            // 先例省略 setter 避免未使用局部）。
+            let builtin_refs = collect_builtin_refs(comp);
+            if builtin_refs.form_submitting {
+                w.emit("const [formSubmitting] = useState(false);");
+            }
+            if builtin_refs.form_valid {
+                // formValid 由 formErrors 推导——不生成冗余 state
+                w.emit("const formValid = Object.keys(formErrors).length === 0;");
+            }
             // 字段值来源：组件信号/切片 store → 简写标识符（state/slice
             // 局部名与字段同名）；整 store 订阅 → 限定名 `Store.field`。
             let mut value_sources: Vec<String> = Vec::new();
@@ -1092,7 +1112,9 @@ impl ReactCodegen {
             w.dedent();
             w.emit("}, []);");
             w.emit("useEffect(() => { load(); }, [load]);");
-            w.emit("const retry = load;");
+            // Task 4 评审（retry 可达性）: 别名不发射——store_field_renames
+            // 映射（表达式上下文）+ view.rs FnRef 映射（事件回调）覆盖全
+            // 部引用面，别名恒为未使用局部（eslint no-unused-vars）。
         }
         state::gen_ref_hooks(
             &mut w,
@@ -2271,6 +2293,142 @@ fn collect_wrapped_prop_fns_inner(
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
     }
+}
+
+/// @form 内建符号可达性（Task 4 评审 unused-locals 条件发射）：
+/// `form.valid` / `form.submitting` 的组件 IR 引用扫描结果——决定 @form
+/// 脚手架是否发射 `formValid` / `formSubmitting` 局部（未被引用则省略，
+/// 避免 eslint no-unused-vars；setFormSubmitting 无任何消费点，按 v4 H2
+/// 写端-only 先例省略 setter）。
+struct BuiltinRefs {
+    form_valid: bool,
+    form_submitting: bool,
+}
+
+/// 扫描全部引用面：视图树（props/绑定/事件内联体/条件/列表/插值/slot
+/// 回退）+ fn 体 + computed 体 + effect/lifecycle 体。inline style 的
+/// `$field` 渲染为逐字 `form.valid`（shared/style.rs 预存边角），不在
+/// 扫描范围。
+fn collect_builtin_refs(comp: &ComponentIR) -> BuiltinRefs {
+    let mut refs = BuiltinRefs {
+        form_valid: false,
+        form_submitting: false,
+    };
+    if let Some(view) = &comp.view {
+        scan_view_tree_form_refs(view, &mut refs);
+    }
+    for f in &comp.fns {
+        for stmt in &f.body.statements {
+            scan_stmt_form_refs(stmt, &mut refs);
+        }
+    }
+    for c in &comp.computeds {
+        scan_expr_form_refs(&c.body, &mut refs);
+    }
+    for e in &comp.effects {
+        for stmt in &e.body.statements {
+            scan_stmt_form_refs(stmt, &mut refs);
+        }
+    }
+    for lc in &comp.lifecycles {
+        for stmt in &lc.body.statements {
+            scan_stmt_form_refs(stmt, &mut refs);
+        }
+    }
+    refs
+}
+
+fn scan_view_tree_form_refs(view: &ViewTree, refs: &mut BuiltinRefs) {
+    match view {
+        ViewTree::Element(el) => {
+            for expr in el.props.values() {
+                scan_expr_form_refs(expr, refs);
+            }
+            for expr in el.class_map_bindings.values() {
+                scan_expr_form_refs(expr, refs);
+            }
+            for expr in el.semantic_bindings.values() {
+                scan_expr_form_refs(expr, refs);
+            }
+            if let Some(a11y) = &el.a11y {
+                if let Some(hidden) = &a11y.hidden {
+                    scan_expr_form_refs(hidden, refs);
+                }
+                if let Some(alt) = &a11y.alt {
+                    scan_expr_form_refs(alt, refs);
+                }
+            }
+            for handler in el.events.values() {
+                if let EventHandlerIR::InlineFn { body, .. } = handler {
+                    for stmt in &body.statements {
+                        scan_stmt_form_refs(stmt, refs);
+                    }
+                }
+            }
+            for child in &el.children {
+                scan_view_tree_form_refs(child, refs);
+            }
+        }
+        ViewTree::Conditional(c) => {
+            for branch in &c.branches {
+                scan_expr_form_refs(&branch.condition, refs);
+                if let Some(body) = &branch.body {
+                    scan_view_tree_form_refs(body, refs);
+                }
+            }
+            if let Some(fallback) = &c.fallback {
+                scan_view_tree_form_refs(fallback, refs);
+            }
+        }
+        ViewTree::ListRendering(l) => {
+            scan_expr_form_refs(&l.iterable, refs);
+            if let Some(key) = &l.key_expr {
+                scan_expr_form_refs(key, refs);
+            }
+            if let Some(body) = &l.body {
+                scan_view_tree_form_refs(body, refs);
+            }
+            if let Some(empty) = &l.empty_body {
+                scan_view_tree_form_refs(empty, refs);
+            }
+        }
+        ViewTree::Interpolation(expr) => scan_expr_form_refs(expr, refs),
+        ViewTree::Text(_) => {}
+        ViewTree::Slot { fallback, .. } => {
+            for child in fallback {
+                scan_view_tree_form_refs(child, refs);
+            }
+        }
+        ViewTree::Fragment(children) => {
+            for child in children {
+                scan_view_tree_form_refs(child, refs);
+            }
+        }
+        // ViewTree 是 #[non_exhaustive]（core 预留扩展面）——未来变体默认
+        // 无表达式承载面。
+        _ => {}
+    }
+}
+
+fn scan_stmt_form_refs(stmt: &StatementIR, refs: &mut BuiltinRefs) {
+    crate::ir::walk::walk_stmt(stmt, &mut |expr| scan_expr_form_refs(expr, refs));
+}
+
+fn scan_expr_form_refs(expr: &ExprIR, refs: &mut BuiltinRefs) {
+    crate::ir::walk::walk_expr(expr, &mut |e| match e {
+        ExprIR::FieldAccessExpr { object, field, .. }
+        | ExprIR::OptionalChainExpr { object, field, .. }
+            if matches!(object.as_ref(), ExprIR::IdentifierExpr { name, .. } if name == "form")
+                && (field == "valid" || field == "submitting") =>
+        {
+            if field == "valid" {
+                refs.form_valid = true;
+            } else {
+                refs.form_submitting = true;
+            }
+        }
+        _ => {}
+    });
 }
 
 /// Build the task 2.8 codegen context for one component file:

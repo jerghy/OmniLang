@@ -45,7 +45,8 @@ impl ReactCodegen {
                     (escaped, needs_rename)
                 })
                 .collect();
-            let params_str = format_fn_params(fun);
+            let unused_params = unused_param_names(fun);
+            let params_str = format_fn_params(fun, &unused_params);
             let is_async =
                 fun.is_async || fun.body.statements.iter().any(effect::stmt_contains_await);
             let async_prefix = if is_async { "async " } else { "" };
@@ -198,25 +199,52 @@ pub(super) fn emit_fn_tail_return(
 /// the IR param types (TS batch: `(name: string, score: number)` instead of
 /// bare names — previously every generated fn param was implicit any).
 /// Params without an IR type annotation stay bare (the source had none).
-pub(super) fn format_fn_params(fun: &FunctionIR) -> String {
+/// Params in `unused` (DSL names not referenced in the fn body) get a `_`
+/// prefix — the eslint config's no-unused-vars `^_` exemption contract;
+/// call sites pass arguments positionally, so the rename is invisible.
+pub(super) fn format_fn_params(fun: &FunctionIR, unused: &FxHashSet<String>) -> String {
     fun.params
         .iter()
         .map(|p| {
             let escaped = crate::codegen::react::escape_js_ident(&p.name);
+            let name = if unused.contains(&p.name) {
+                format!("_{escaped}")
+            } else {
+                escaped
+            };
             match p.r#type.as_ref() {
                 Some(t) => {
                     let ty = JsTypeFormatter.format_type(t.kind.as_str(), &t.type_args);
                     if ty.is_empty() {
-                        escaped
+                        name
                     } else {
-                        format!("{}: {}", escaped, ty)
+                        format!("{name}: {ty}")
                     }
                 }
-                None => escaped,
+                None => name,
             }
         })
         .collect::<Vec<_>>()
         .join(", ")
+}
+
+/// DSL names of params not referenced anywhere in the fn body — used to
+/// underscore-prefix emitted signatures (`fn submit(e) {}` is the canonical
+/// @form/@load handler shape; `(e) => {}` would trip eslint no-unused-vars).
+pub(super) fn unused_param_names(fun: &FunctionIR) -> FxHashSet<String> {
+    let mut referenced: FxHashSet<String> = FxHashSet::default();
+    for stmt in &fun.body.statements {
+        crate::ir::walk::walk_stmt(stmt, &mut |e| {
+            if let ExprIR::IdentifierExpr { name, .. } = e {
+                referenced.insert(name.clone());
+            }
+        });
+    }
+    fun.params
+        .iter()
+        .map(|p| p.name.clone())
+        .filter(|n| !referenced.contains(n))
+        .collect()
 }
 
 /// Collect names of local component functions that are called from the view
@@ -243,6 +271,16 @@ pub(super) fn collect_called_local_fns(comp: &ComponentIR) -> FxHashSet<String> 
     // From computeds
     for computed in &comp.computeds {
         collect_called_fns_from_expr(&computed.body, &mut acc);
+    }
+    // Task 4 (@form/@load): the submit handler and the @load loader fn are
+    // referenced only through component intents, not via view call sites —
+    // seed them so gen_functions emits them (TS2304 guard, verified with the
+    // tmp-form-load corpus).
+    if let Some(form) = &comp.form_intent {
+        acc.insert(form.submit_handler.clone());
+    }
+    if let Some(load) = &comp.load_intent {
+        acc.insert(load.fn_name.clone());
     }
 
     // Transitive closure: scan bodies of called fns for calls to other local fns

@@ -150,10 +150,14 @@ impl SemanticAnalyzer {
                 });
             }
             if load_fn.is_some() {
+                // Task 4 评审修复: type_ann 统一大写（Bool/String，与
+                // codegen 侧 useState 类型一致）+ retry 播种（@load 回
+                // 调别名，expr.rs/view.rs 映射为 load 标识符）。
                 for (name, ty) in [
-                    ("loading", Some("bool")),
-                    ("error", Some("string")),
+                    ("loading", Some("Bool")),
+                    ("error", Some("String")),
                     ("data", Some("Array")),
+                    ("retry", None),
                 ] {
                     self.declare_or_warn(Symbol {
                         name: name.into(),

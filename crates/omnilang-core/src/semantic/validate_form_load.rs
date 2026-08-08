@@ -136,9 +136,10 @@ fn validate_load(component: &ComponentIR, load: &LoadIntentIR, diagnostics: &mut
             diagnostics,
         );
     }
-    // V-F8（@load 侧）保留名冲突：loading/error/data
+    // V-F8（@load 侧）保留名冲突：loading/error/data/retry（retry 为
+    // @load 回调别名，语义 pass 已播种内建符号）
     for signal in &component.signals {
-        if matches!(signal.name.as_str(), "loading" | "error" | "data") {
+        if matches!(signal.name.as_str(), "loading" | "error" | "data" | "retry") {
             error_diag(
                 component,
                 format!("信号名 \"@{}\" 与 @load 生成的保留名冲突", signal.name),

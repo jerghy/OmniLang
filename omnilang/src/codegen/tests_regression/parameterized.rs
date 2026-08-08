@@ -668,7 +668,7 @@ fn assert_array_methods_react(files: &FxHashMap<String, String>) {
     assert_contains(
         files,
         "ArrayMethodsDemo.tsx",
-        "const items = [1, 2, 3, 4, 5, 6];",
+        "const items: number[] = [1, 2, 3, 4, 5, 6];",
     );
     assert_contains(files, "ArrayMethodsDemo.tsx", "}, []);");
     assert!(
