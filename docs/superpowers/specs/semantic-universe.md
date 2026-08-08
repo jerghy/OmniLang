@@ -162,7 +162,7 @@ CSS 动画语义域——**属性值从 A 到 B 平滑过渡**（CSS Transitions
 | blur | 失去焦点（schema：value） | 支持 | 语义化 | 无（全目标） |
 | select | 文本选择 | 支持 | 透传 | 无（全目标） |
 | resize | 尺寸变化 | 部分 | 透传 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
-| keydown | 键按下（schema：key/code + alt/ctrl/shift/meta；key 走语义键名枚举，spec §3.4） | 支持 | 语义化 | 无（全目标；KeyEvent 稳定映射 keyCode/keyLabel） |
+| keydown | 键按下（schema：key/code + alt/ctrl/shift/meta；key 走语义键名枚举，spec §3.2） | 支持 | 语义化 | 无（全目标；KeyEvent 稳定映射 keyCode/keyLabel） |
 | keyup | 键抬起（schema 同 keydown） | 支持 | 语义化 | 无（全目标） |
 | keypress | 键按下（字符） | 部分 | 透传 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
 | mouseenter | 指针进入（不冒泡）（schema 同 click） | 支持 | 语义化 | 无（全目标） |
