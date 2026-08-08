@@ -250,6 +250,12 @@
 |------|------|------|------|
 | [spec: poiesis-debug-window-design](../superpowers/specs/2026-07-11-poiesis-debug-window-design.md) | 2026-07-11 | ✅ 现行 | Tauri 调试 Webview（双向高亮 + 信号检查 + 150ms 热更新）。已验证：`useDebugWindow.ts`、Tauri event bus 均已实现 |
 
+### 3.10 产品级设计（探路轨）
+
+| 文档 | 日期 | 状态 | 说明 |
+|------|------|------|------|
+| [设计: poiesis-visual-app-editor-design](poiesis-visual-app-editor-design.md) | 2026-08-08 | 📋 规划中 | **探路轨（并行轨 A）产品级设计初稿**：一对象·四透镜·一车间·一树；想法→落地四关卡；四条设计契约（对象/动作/透镜/语言）。**样式板块未定稿**（两轮探索均被用户否决，待重想） |
+
 ---
 
 ## 四、工具与基础设施
@@ -350,6 +356,7 @@
 | 样式系统设计演进 | §3.4 中的取代链：editor-style-panel → style-panel → style-system → poiesis-style-panel |
 | 某项功能的历史开发过程 | `.superpowers/sdd/` 中对应批次的任务简报和报告 |
 | 早期设计参考 | §3.2 中的过时文档（标记了过时原因） |
+| Poiesis 产品级设计愿景（探路轨） | [poiesis-visual-app-editor-design](poiesis-visual-app-editor-design.md) |
 
 ---
 
