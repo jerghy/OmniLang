@@ -93,9 +93,20 @@ def read_file(path):
 
 
 def event_canonical_names(text):
-    """Canonical event names from the shared event table — every
-    `... => Some("name")` match arm (4.2 事件白名单)."""
-    return sorted(set(re.findall(r'=>\s*Some\("([^"]+)"\)', text)))
+    """Canonical event names from the shared event table — the
+    `... => Some("name")` match arms of `canonical_event_name`'s body
+    (4.2 事件白名单).
+
+    FN-SCOPED（防回归教训，2026-08-08 Task 1）: whole-file 正则会同时命中
+    `legacy_spelling` 的 match 臂（"onPress" => Some("onClick") 等 3 个）——
+    旧名是硬错误迁移提示，不是白名单成员，误捕会让门禁报出幽灵 whitelist-only
+    diff。必须先定位 `pub fn canonical_event_name` 函数体再提取（先例：
+    verify-semantic-universe.py:120-129）。提取失败返回 None——门禁显式失败，
+    不静默放行。"""
+    m = re.search(r'pub fn canonical_event_name.*?\{(.*?)\n\}', text, re.S)
+    if not m:
+        return None
+    return sorted(set(re.findall(r'=>\s*Some\("([^"]+)"\)', m.group(1))))
 
 
 def rust_str_array(text, const_name):
