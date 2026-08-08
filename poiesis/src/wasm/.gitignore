@@ -1,0 +1,5 @@
+*
+!omnilang_wasm.js
+!omnilang_wasm_bg.wasm
+!omnilang_wasm.d.ts
+!omnilang_wasm_bg.wasm.d.ts

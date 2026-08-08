@@ -100,7 +100,9 @@ jobs:
           diff poiesis/src-tauri/debug-window/index.html poiesis/public/debug-window/index.html || \
             (echo "ERROR: debug-window HTML files differ!" && exit 1)
       - name: Unit tests (golden + codegen)
-        run: cd poiesis && npx vitest run --config vitest.config.js src/services/codegen/__tests__/
+        # vitest.config.js 在仓库中不存在（真实文件是 vitest.config.ts），
+        # 此前 CI 实际一直因找不到配置而失败——Task 4 修正。
+        run: cd poiesis && npx vitest run --config vitest.config.ts src/services/codegen/__tests__/
       - name: Build
         run: cd poiesis && npm run build
       - name: Verify dist debug-window is direct-load shell (ADR-072)
