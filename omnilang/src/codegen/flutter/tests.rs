@@ -504,6 +504,8 @@ fn test_stmt_if() {
 /// context's fn-arity lookups only matter for handler-wiring tests).
 fn dummy_comp() -> ComponentIR {
     ComponentIR {
+        form_intent: None,
+        load_intent: None,
         name: "Dummy".into(),
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
@@ -1820,6 +1822,8 @@ fn test_design_class_on_component_element_wraps_in_decoration() {
     };
     let ir = design_test_program();
     let my_card = ComponentIR {
+        form_intent: None,
+        load_intent: None,
         name: "MyCard".into(),
         view: None,
         ..Default::default()
@@ -1955,6 +1959,8 @@ fn test_empty_component() {
     components.insert(
         "App".into(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "App".into(),
             props: FxHashMap::default(),
             prop_defaults: FxHashMap::default(),
@@ -2013,6 +2019,8 @@ fn test_component_with_state() {
     components.insert(
         "Counter".into(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "Counter".into(),
             props: FxHashMap::default(),
             prop_defaults: FxHashMap::default(),
@@ -2094,6 +2102,8 @@ fn test_component_with_props() {
     components.insert(
         "Greeting".into(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "Greeting".into(),
             props,
             prop_defaults: FxHashMap::default(),
@@ -2146,6 +2156,8 @@ fn test_component_with_mount_lifecycle() {
     components.insert(
         "App".into(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "App".into(),
             props: FxHashMap::default(),
             prop_defaults: FxHashMap::default(),
@@ -2198,6 +2210,8 @@ fn test_component_with_unmount_lifecycle() {
     components.insert(
         "App".into(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "App".into(),
             props: FxHashMap::default(),
             prop_defaults: FxHashMap::default(),
@@ -2573,6 +2587,8 @@ fn test_motion_enter_controller_init() {
     components.insert(
         "App".into(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "App".into(),
             view: Some(view),
             ..Default::default()
@@ -2867,6 +2883,8 @@ fn test_motion_inline_body_handling() {
     components.insert(
         "App".into(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "App".into(),
             view: Some(view),
             ..Default::default()
@@ -4089,6 +4107,8 @@ fn test_motion_pipeline_warnings_and_playback() {
     components.insert(
         "App".into(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "App".into(),
             view: Some(view),
             ..Default::default()
@@ -4267,6 +4287,8 @@ fn test_full_pipeline_empty() {
 fn test_full_pipeline_component() {
     let codegen = FlutterCodegen;
     let comp = ComponentIR {
+        form_intent: None,
+        load_intent: None,
         name: "App".into(),
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
@@ -4373,6 +4395,8 @@ fn test_full_pipeline_component_with_store_ref() {
         ..Default::default()
     };
     let comp = ComponentIR {
+        form_intent: None,
+        load_intent: None,
         name: "App".into(),
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
@@ -6082,6 +6106,8 @@ fn test_effect_emits_real_method_and_lifecycle_wiring() {
     components.insert(
         "App".into(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "App".into(),
             props,
             prop_defaults: FxHashMap::default(),
@@ -6200,6 +6226,8 @@ fn test_effect_unresolvable_dep_skips_dead_prev_fields() {
     components.insert(
         "App".into(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "App".into(),
             props: FxHashMap::default(),
             prop_defaults: FxHashMap::default(),
@@ -6274,6 +6302,8 @@ fn test_component_constructor_includes_class_name() {
     components.insert(
         "Greeting".into(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "Greeting".into(),
             props,
             prop_defaults: FxHashMap::default(),
@@ -6377,6 +6407,8 @@ fn test_view_store_field_read_uses_ref_watch() {
     components.insert(
         "FilterBar".into(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "FilterBar".into(),
             store_refs: vec!["TodoStore".into()],
             view: Some(view),
@@ -8051,6 +8083,8 @@ fn ref_component(
     view: Option<ViewTree>,
 ) -> ComponentIR {
     ComponentIR {
+        form_intent: None,
+        load_intent: None,
         name: name.into(),
         refs: refs
             .iter()

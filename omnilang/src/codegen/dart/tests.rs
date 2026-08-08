@@ -312,6 +312,8 @@ fn test_generate_function_with_params() {
 fn test_generate_component_empty() {
     let mut w = CodeWriter::new();
     let comp = ComponentIR {
+        form_intent: None,
+        load_intent: None,
         name: "App".into(),
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
@@ -338,6 +340,8 @@ fn test_generate_component_empty() {
 fn test_generate_component_with_function() {
     let mut w = CodeWriter::new();
     let comp = ComponentIR {
+        form_intent: None,
+        load_intent: None,
         name: "App".into(),
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
@@ -372,6 +376,8 @@ fn test_generate_component_with_function() {
 fn test_generate_component_with_state() {
     let mut w = CodeWriter::new();
     let comp = ComponentIR {
+        form_intent: None,
+        load_intent: None,
         name: "Counter".into(),
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
@@ -613,6 +619,8 @@ fn test_full_pipeline_through_trait() {
                 components: FxHashMap::from_iter([(
                     "App".into(),
                     ComponentIR {
+                        form_intent: None,
+                        load_intent: None,
                         name: "App".into(),
                         props: FxHashMap::default(),
                         prop_defaults: FxHashMap::default(),

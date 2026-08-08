@@ -23,6 +23,8 @@ fn computed_references_prop_with_default() {
 
     // ── Build IR directly (avoids type-checker prop resolution bug) ──
     let comp = ComponentIR {
+        form_intent: None,
+        load_intent: None,
         name: "Counter".into(),
         source_file: None,
         props: FxHashMap::from_iter([(

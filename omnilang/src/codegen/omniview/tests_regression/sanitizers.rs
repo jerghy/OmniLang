@@ -122,6 +122,8 @@ fn design_block_css_values_are_sanitized() {
         source_file: None,
     };
     let comp = ComponentIR {
+        form_intent: None,
+        load_intent: None,
         name: "Test".into(),
         source_file: Some("main.omni".into()),
         props: FxHashMap::default(),

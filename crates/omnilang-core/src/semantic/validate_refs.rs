@@ -269,6 +269,8 @@ mod tests {
             .collect();
 
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: name.to_string(),
             refs: ref_names
                 .iter()
@@ -325,6 +327,8 @@ mod tests {
     fn test_duplicate_ref_binding_warns() {
         // Two elements both bind to "btn"
         let comp = ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "Test".to_string(),
             refs: vec![RefDeclIR {
                 element_tag: None,
@@ -382,6 +386,8 @@ mod tests {
         // "btn" correctly bound, "input" orphan binding (not declared),
         // "header" declared but unbound, "btn2" duplicate
         let comp = ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "Test".to_string(),
             refs: vec![
                 RefDeclIR {
@@ -439,6 +445,8 @@ mod tests {
     #[test]
     fn warns_on_ref_inside_for_loop() {
         let comp = ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "TestComp".into(),
             refs: vec![RefDeclIR {
                 element_tag: None,

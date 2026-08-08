@@ -126,6 +126,8 @@ mod tests {
         els: Vec<ViewTree>,
     ) -> ComponentIR {
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: name.to_string(),
             refs: ref_names
                 .iter()
@@ -291,6 +293,8 @@ mod tests {
         );
         // Give "move" two params — the pass reads arity from the fn IR.
         let comp = ComponentIR {
+            form_intent: None,
+            load_intent: None,
             fns: vec![crate::ir::logic::FunctionIR {
                 name: "move".into(),
                 visibility: Visibility::Private,
@@ -324,6 +328,8 @@ mod tests {
     #[test]
     fn drag_inside_list_body_is_checked() {
         let comp = ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "TestComp".into(),
             refs: vec![],
             view: Some(ViewTree::ListRendering(Box::new(ListRenderingIntent {

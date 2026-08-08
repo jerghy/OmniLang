@@ -228,6 +228,8 @@ mod tests {
     /// Build a minimal ComponentIR wrapping the given elements in a view.
     fn make_component(name: &str, els: Vec<ViewTree>) -> ComponentIR {
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: name.to_string(),
             view: if els.is_empty() {
                 None
@@ -368,6 +370,8 @@ mod tests {
     fn a11y_inside_list_body_is_checked() {
         // a11y blocks nested inside a @for body must also be validated.
         let comp = ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "TestComp".into(),
             view: Some(ViewTree::ListRendering(Box::new(ListRenderingIntent {
                 iterable: ExprIR::ident("items"),

@@ -181,6 +181,21 @@ pub(super) fn lower_component(
         .as_ref()
         .map(|v| lower_view_block(v, variant_map, semantics, &fns, &signal_like_names));
 
+    // 表单/数据三态意图（spec 2026-08-08 §4.1/§4.2）——AST 预扫描收集。
+    // 内建信号（errors/submitting/loading/data）不在此生成信号声明：由语义
+    // pass 校验保留名冲突、codegen 生成对应实现（三目标各自惯用形态）。
+    let mut form_intent: Option<FormIntentIR> = None;
+    let mut load_intent: Option<LoadIntentIR> = None;
+    if let Some(v) = &comp.view {
+        scan_view_intents(
+            &v.children,
+            variant_map,
+            semantics,
+            &mut form_intent,
+            &mut load_intent,
+        );
+    }
+
     let styles: Vec<StyleRuleIR> = comp
         .styles
         .iter()
@@ -276,7 +291,164 @@ pub(super) fn lower_component(
         slots,
         view,
         styles,
+        form_intent,
+        load_intent,
         source_span: Some(comp.span),
+    }
+}
+
+/// 遍历组件视图收集 @form / @load 意图（spec 2026-08-08 §4.1/§4.2）。
+/// 多个表单/加载意图时取第一个——重复检测（V-F6）属语义 pass 的职责。
+fn scan_view_intents(
+    nodes: &[ViewNode],
+    variant_map: &FxHashMap<String, String>,
+    semantics: &mut SemanticResult,
+    form_intent: &mut Option<FormIntentIR>,
+    load_intent: &mut Option<LoadIntentIR>,
+) {
+    for node in nodes {
+        match node {
+            ViewNode::Element(el) => {
+                if form_intent.is_none() {
+                    if let Some(form) = collect_form_intent(el, variant_map, semantics) {
+                        *form_intent = Some(form);
+                    }
+                }
+                scan_view_intents(
+                    &el.children,
+                    variant_map,
+                    semantics,
+                    form_intent,
+                    load_intent,
+                );
+            }
+            ViewNode::IfDirective(ifd) => {
+                scan_view_intents(&ifd.body, variant_map, semantics, form_intent, load_intent);
+                for (_, branch) in &ifd.else_ifs {
+                    scan_view_intents(branch, variant_map, semantics, form_intent, load_intent);
+                }
+                if let Some(else_body) = &ifd.else_body {
+                    scan_view_intents(else_body, variant_map, semantics, form_intent, load_intent);
+                }
+            }
+            ViewNode::ForDirective(fd) => {
+                scan_view_intents(&fd.body, variant_map, semantics, form_intent, load_intent);
+                if let Some(empty) = &fd.empty_body {
+                    scan_view_intents(empty, variant_map, semantics, form_intent, load_intent);
+                }
+            }
+            ViewNode::SlotDirective {
+                default_content, ..
+            } => {
+                if let Some(fallback) = default_content {
+                    scan_view_intents(fallback, variant_map, semantics, form_intent, load_intent);
+                }
+            }
+            ViewNode::LoadDirective { fn_name, .. } => {
+                if load_intent.is_none() {
+                    *load_intent = Some(LoadIntentIR {
+                        fn_name: fn_name.clone(),
+                    });
+                }
+            }
+            ViewNode::Text(_) | ViewNode::Interpolation(_) => {}
+        }
+    }
+}
+
+/// 从 @form 元素构造表单意图：onSubmit 的 FnRef 为 submit_handler
+/// （InlineFn/StoreAction 不接受，缺失诊断属语义 pass V-F2），
+/// 子树内带 validate: 的元素（+ 同元素 bind: 信号路径末段）为字段。
+fn collect_form_intent(
+    el: &Element,
+    variant_map: &FxHashMap<String, String>,
+    semantics: &mut SemanticResult,
+) -> Option<FormIntentIR> {
+    if !el.props.iter().any(|p| matches!(p, ElementProp::Form)) {
+        return None;
+    }
+    let submit_handler = el
+        .props
+        .iter()
+        .find_map(|p| match p {
+            ElementProp::Event {
+                name,
+                handler: EventHandler::FnRef(f),
+            } if name == "onSubmit" => Some(f.clone()),
+            _ => None,
+        })
+        .unwrap_or_default();
+    let mut fields = Vec::new();
+    collect_validated_fields(&el.children, variant_map, semantics, &mut fields);
+    Some(FormIntentIR {
+        fields,
+        submit_handler,
+    })
+}
+
+/// 收集子树内所有带 validate: 的字段元素：字段名为同元素 bind: 信号路径
+/// 末段（validate 无 bind 的缺失诊断属语义 pass V-F3）。
+fn collect_validated_fields(
+    nodes: &[ViewNode],
+    variant_map: &FxHashMap<String, String>,
+    semantics: &mut SemanticResult,
+    out: &mut Vec<FormFieldIR>,
+) {
+    for node in nodes {
+        match node {
+            ViewNode::Element(el) => {
+                let rules: Vec<ValidateRuleIR> = el
+                    .props
+                    .iter()
+                    .filter_map(|p| match p {
+                        ElementProp::Validate { rules } => Some(rules.clone()),
+                        _ => None,
+                    })
+                    .flatten()
+                    .map(|r| ValidateRuleIR {
+                        name: r.name.clone(),
+                        value: lower_expr(&r.value, variant_map, None, semantics),
+                    })
+                    .collect();
+                if !rules.is_empty() {
+                    let name = el
+                        .props
+                        .iter()
+                        .find_map(|p| match p {
+                            ElementProp::Bind { signal_path, .. } => {
+                                signal_path.rsplit('.').next().map(str::to_string)
+                            }
+                            _ => None,
+                        })
+                        .unwrap_or_default();
+                    out.push(FormFieldIR { name, rules });
+                }
+                collect_validated_fields(&el.children, variant_map, semantics, out);
+            }
+            ViewNode::IfDirective(ifd) => {
+                collect_validated_fields(&ifd.body, variant_map, semantics, out);
+                for (_, branch) in &ifd.else_ifs {
+                    collect_validated_fields(branch, variant_map, semantics, out);
+                }
+                if let Some(else_body) = &ifd.else_body {
+                    collect_validated_fields(else_body, variant_map, semantics, out);
+                }
+            }
+            ViewNode::ForDirective(fd) => {
+                collect_validated_fields(&fd.body, variant_map, semantics, out);
+                if let Some(empty) = &fd.empty_body {
+                    collect_validated_fields(empty, variant_map, semantics, out);
+                }
+            }
+            ViewNode::SlotDirective {
+                default_content, ..
+            } => {
+                if let Some(fallback) = default_content {
+                    collect_validated_fields(fallback, variant_map, semantics, out);
+                }
+            }
+            ViewNode::LoadDirective { .. } | ViewNode::Text(_) | ViewNode::Interpolation(_) => {}
+        }
     }
 }
 
@@ -502,5 +674,54 @@ pub(crate) fn lower_type(ty: &TypeAnnotation) -> TypeIR {
             type_args: vec![],
             is_nullable: false,
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lexer::tokenize;
+    use crate::parser::parse;
+    use crate::semantic::analyze;
+
+    /// Lower the first component of a source snippet and clone it out of the IR program.
+    fn lower_component_src(src: &str) -> ComponentIR {
+        let tokens = tokenize(src);
+        let (program, _) = parse(tokens, src);
+        let mut semantics = analyze(&program);
+        let ir = crate::ir::lower(&program, &mut semantics, None);
+        let module = ir.modules.get("input.omni").expect("should have module");
+        let (_, comp) = module
+            .components
+            .iter()
+            .next()
+            .expect("should have a component");
+        comp.clone()
+    }
+
+    #[test]
+    fn lower_form_intent_collects_validated_fields() {
+        let ir = lower_component_src(
+            r#"component App {
+                fn submit() {}
+                signal name: String = ""
+                view {
+                    <form @form @onSubmit={submit}>
+                        <input bind:value={name} validate:{required:true}/>
+                    </form>
+                }
+            }"#,
+        );
+        let form = ir.form_intent.expect("form intent");
+        assert_eq!(form.submit_handler, "submit");
+        assert_eq!(form.fields.len(), 1);
+        assert_eq!(form.fields[0].name, "name");
+        assert_eq!(form.fields[0].rules.len(), 1);
+    }
+
+    #[test]
+    fn lower_load_directive_carries_fn_name() {
+        let ir = lower_component_src("component App { fn f() {} view { @load={f} <div/> } }");
+        assert_eq!(ir.load_intent.expect("load intent").fn_name, "f");
     }
 }

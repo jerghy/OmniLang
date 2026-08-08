@@ -301,6 +301,8 @@ mod tests {
     fn test_generate_component_empty() {
         let mut w = CodeWriter::new();
         let comp = ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "App".into(),
             props: FxHashMap::default(),
             prop_defaults: FxHashMap::default(),
@@ -325,6 +327,8 @@ mod tests {
     fn test_generate_component_with_function() {
         let mut w = CodeWriter::new();
         let comp = ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "App".into(),
             props: FxHashMap::default(),
             prop_defaults: FxHashMap::default(),
@@ -359,6 +363,8 @@ mod tests {
     fn test_generate_component_with_state() {
         let mut w = CodeWriter::new();
         let comp = ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "Counter".into(),
             props: FxHashMap::default(),
             prop_defaults: FxHashMap::default(),
@@ -636,6 +642,8 @@ mod tests {
                     components: FxHashMap::from_iter([(
                         "App".into(),
                         ComponentIR {
+                            form_intent: None,
+                            load_intent: None,
                             name: "App".into(),
                             props: FxHashMap::default(),
                             prop_defaults: FxHashMap::default(),

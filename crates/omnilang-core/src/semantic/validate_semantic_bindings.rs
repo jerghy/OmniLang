@@ -263,6 +263,8 @@ mod tests {
     /// view wrapping the given elements.
     fn make_component(name: &str, ref_names: &[&str], els: Vec<ViewTree>) -> ComponentIR {
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: name.to_string(),
             refs: ref_names
                 .iter()
@@ -484,6 +486,8 @@ mod tests {
     fn semantic_binding_inside_list_body_is_checked() {
         // Semantic bindings nested inside a @for body must also be validated.
         let comp = ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "TestComp".into(),
             refs: vec![],
             view: Some(ViewTree::ListRendering(Box::new(ListRenderingIntent {

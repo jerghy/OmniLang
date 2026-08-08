@@ -48,6 +48,8 @@ fn make_module(name: &str) -> ModuleIR {
 
 fn make_component(name: &str) -> ComponentIR {
     ComponentIR {
+        form_intent: None,
+        load_intent: None,
         name: name.into(),
         source_file: None,
         props: FxHashMap::default(),
@@ -232,6 +234,8 @@ fn props_are_emitted_as_readonly_wrappers() {
     // Build a component with `prop count: i32 = 0` and a signal
     let mut module = make_module("main");
     let comp = ComponentIR {
+        form_intent: None,
+        load_intent: None,
         name: "PropComponent".into(),
         source_file: None,
         props: FxHashMap::from_iter([(
@@ -840,6 +844,8 @@ fn test_component_with_states() {
     module.components.insert(
         "Counter".to_string(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             signals: vec![SignalIntent {
                 name: "count".into(),
                 r#type: TypeIR {
@@ -866,6 +872,8 @@ fn test_component_with_computed() {
     module.components.insert(
         "Calc".to_string(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             signals: vec![SignalIntent {
                 name: "x".into(),
                 r#type: TypeIR {
@@ -911,6 +919,8 @@ fn test_component_with_functions() {
     module.components.insert(
         "App".to_string(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             fns: vec![FunctionIR {
                 name: "greet".into(),
                 visibility: Visibility::Public,
@@ -956,6 +966,8 @@ fn test_component_with_lifecycle_mount() {
     module.components.insert(
         "App".to_string(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             signals: vec![SignalIntent {
                 name: "count".into(),
                 r#type: TypeIR {
@@ -1014,6 +1026,8 @@ fn test_component_with_store_ref() {
     module.components.insert(
         "App".to_string(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             store_refs: vec!["AppStore".into()],
             ..make_component("App")
         },
@@ -1029,6 +1043,8 @@ fn test_component_with_effect() {
     module.components.insert(
         "App".to_string(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             signals: vec![SignalIntent {
                 name: "count".into(),
                 r#type: TypeIR {
@@ -1085,6 +1101,8 @@ fn test_html_element_with_attributes() {
     module.components.insert(
         "App".to_string(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             view: Some(ViewTree::Element(Box::new(el))),
             ..make_component("App")
         },
@@ -1113,6 +1131,8 @@ fn details_open_dynamic_binding_emits_el_open_property() {
     module.components.insert(
         "App".to_string(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             signals: vec![SignalIntent {
                 name: "isOpen".into(),
                 r#type: TypeIR {
@@ -1151,6 +1171,8 @@ fn unknown_bare_attr_dynamic_binding_warns() {
     module.components.insert(
         "App".to_string(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             signals: vec![SignalIntent {
                 name: "bar".into(),
                 r#type: TypeIR {
@@ -1196,6 +1218,8 @@ fn data_prefixed_attr_dynamic_binding_stays_silent() {
     module.components.insert(
         "App".to_string(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             signals: vec![SignalIntent {
                 name: "count".into(),
                 r#type: TypeIR {
@@ -1240,6 +1264,8 @@ fn build_file_output_forwards_generator_warnings() {
     module.components.insert(
         "App".to_string(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             signals: vec![SignalIntent {
                 name: "bar".into(),
                 r#type: TypeIR {
@@ -1278,6 +1304,8 @@ fn test_html_data_nid_present() {
     module.components.insert(
         "App".to_string(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             view: Some(ViewTree::Element(Box::new(make_element("button")))),
             ..make_component("App")
         },
@@ -1298,6 +1326,8 @@ fn test_html_interpolation() {
     module.components.insert(
         "App".to_string(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             signals: vec![SignalIntent {
                 name: "name".into(),
                 r#type: TypeIR {
@@ -1330,6 +1360,8 @@ fn test_html_conditional() {
     module.components.insert(
         "App".to_string(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             view: Some(ViewTree::Conditional(Box::new(ConditionalIntent {
                 branches: vec![ConditionalBranch {
                     condition: ExprIR::IdentifierExpr {
@@ -1361,6 +1393,8 @@ fn make_conditional_module(transition_mode: Option<String>) -> IRProgram {
     module.components.insert(
         "App".to_string(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             view: Some(ViewTree::Conditional(Box::new(ConditionalIntent {
                 branches: vec![ConditionalBranch {
                     condition: ExprIR::IdentifierExpr {
@@ -1454,6 +1488,8 @@ fn test_full_pipeline_component_only() {
     module.components.insert(
         "App".to_string(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             signals: vec![SignalIntent {
                 name: "count".into(),
                 r#type: TypeIR {
@@ -1527,6 +1563,8 @@ fn test_full_pipeline_component_with_store() {
     module.components.insert(
         "App".to_string(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             store_refs: vec!["AppStore".into()],
             view: Some(ViewTree::Element(Box::new(make_element("div")))),
             ..make_component("App")
@@ -1557,6 +1595,8 @@ fn test_event_binding_click() {
     module.components.insert(
         "App".to_string(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             fns: vec![FunctionIR {
                 name: "handleClick".into(),
                 visibility: Visibility::Public,
@@ -1673,6 +1713,8 @@ fn test_style_emission() {
     module.components.insert(
         "App".to_string(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             view: Some(ViewTree::Element(Box::new(make_element("div")))),
             styles: vec![StyleRuleIR {
                 class_name: "myClass".into(),
@@ -1710,6 +1752,8 @@ fn test_source_map_entries() {
     module.components.insert(
         "App".to_string(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             view: Some(ViewTree::Element(Box::new(el))),
             ..make_component("App")
         },
@@ -1736,6 +1780,8 @@ fn test_runtime_error_reporting() {
     module.components.insert(
         "App".to_string(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             signals: vec![SignalIntent {
                 name: "name".into(),
                 r#type: TypeIR {
@@ -1806,6 +1852,8 @@ fn test_theme_runtime_emitted_when_design_has_themes() {
     module.components.insert(
         "App".to_string(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             view: Some(ViewTree::Element(Box::new(make_element("div")))),
             ..make_component("App")
         },
@@ -1858,6 +1906,8 @@ fn test_theme_runtime_not_emitted_without_themes() {
     module.components.insert(
         "App".to_string(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             view: Some(ViewTree::Element(Box::new(make_element("div")))),
             ..make_component("App")
         },
@@ -1914,6 +1964,8 @@ fn make_theme_signal_ir(theme_signal: Option<String>) -> IRProgram {
     module.components.insert(
         "App".to_string(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             view: Some(ViewTree::Element(Box::new(make_element("div")))),
             ..make_component("App")
         },
@@ -1982,6 +2034,8 @@ fn slot_projection_inlines_parent_children_into_default_slot() {
     module.components.insert(
         "Button".to_string(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             view: Some(ViewTree::Element(Box::new(btn_div))),
             ..make_component("Button")
         },
@@ -1993,6 +2047,8 @@ fn slot_projection_inlines_parent_children_into_default_slot() {
     module.components.insert(
         "App".to_string(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             view: Some(ViewTree::Element(Box::new(app_el))),
             ..make_component("App")
         },
@@ -2027,6 +2083,8 @@ fn slot_projection_maps_named_slots_correctly() {
     module.components.insert(
         "Panel".to_string(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             view: Some(ViewTree::Element(Box::new(panel_div))),
             ..make_component("Panel")
         },
@@ -2050,6 +2108,8 @@ fn slot_projection_maps_named_slots_correctly() {
     module.components.insert(
         "App".to_string(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             view: Some(ViewTree::Element(Box::new(app_el))),
             ..make_component("App")
         },
@@ -2146,6 +2206,8 @@ fn typescript_declarations_emit_props_interface() {
     module.components.insert(
         "Counter".to_string(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             props: FxHashMap::from_iter([
                 (
                     "count".into(),
@@ -2189,6 +2251,8 @@ fn typescript_declarations_optional_for_defaulted_props() {
     module.components.insert(
         "Widget".to_string(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             props: FxHashMap::from_iter([
                 (
                     "required".into(),
@@ -2230,6 +2294,8 @@ fn typescript_declarations_event_handler_types() {
     module.components.insert(
         "Button".to_string(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             events: vec![
                 EventDeclIR {
                     name: "onClick".into(),
@@ -2279,6 +2345,8 @@ fn body_slot_declaration_renders_fallback_at_interpolation() {
     module.components.insert(
         "Panel".to_string(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             slots: vec![SlotDeclIR {
                 name: Some("header".into()),
                 fallback: vec![ViewTree::Element(Box::new(h4))],
@@ -2324,6 +2392,8 @@ fn consumer_named_prop_projects_into_body_declared_slot() {
     module.components.insert(
         "Panel".to_string(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             slots: vec![
                 SlotDeclIR {
                     name: Some("header".into()),
@@ -2357,6 +2427,8 @@ fn consumer_named_prop_projects_into_body_declared_slot() {
     module.components.insert(
         "App".to_string(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             view: Some(ViewTree::Element(Box::new(app_el))),
             ..make_component("App")
         },
@@ -2411,6 +2483,8 @@ fn slot_injection_skips_nested_component_children() {
     module.components.insert(
         "Outer".to_string(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             slots: vec![SlotDeclIR {
                 name: Some("header".into()),
                 fallback: Vec::new(),
@@ -2423,6 +2497,8 @@ fn slot_injection_skips_nested_component_children() {
     module.components.insert(
         "Inner".to_string(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             ..make_component("Inner")
         },
     );
@@ -2438,6 +2514,8 @@ fn slot_injection_skips_nested_component_children() {
     module.components.insert(
         "App".to_string(),
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             view: Some(ViewTree::Element(Box::new(app_el))),
             ..make_component("App")
         },

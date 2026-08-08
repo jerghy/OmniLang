@@ -543,6 +543,8 @@ fn make_theme_ir_multi(designs: Vec<DesignIR>) -> IRProgram {
     module.components.insert(
         "App".to_string(),
         crate::ir::ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "App".to_string(),
             view: None,
             ..Default::default()

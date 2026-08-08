@@ -247,6 +247,8 @@ mod tests {
         );
 
         let comp = ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "Counter".into(),
             props,
             ..ComponentIR::default()
@@ -274,6 +276,8 @@ mod tests {
         );
 
         let comp = ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "Button".into(),
             props,
             prop_defaults: Default::default(),
@@ -329,6 +333,8 @@ mod tests {
         );
 
         let comp = ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "Widget".into(),
             props,
             prop_defaults,

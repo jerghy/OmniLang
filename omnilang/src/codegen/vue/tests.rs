@@ -215,6 +215,8 @@ mod tests {
         components.insert(
             "Card".into(),
             ComponentIR {
+                form_intent: None,
+                load_intent: None,
                 name: "Card".into(),
                 props: FxHashMap::default(),
                 prop_defaults: FxHashMap::default(),
@@ -279,6 +281,8 @@ mod tests {
         components.insert(
             "Card".into(),
             ComponentIR {
+                form_intent: None,
+                load_intent: None,
                 name: "Card".into(),
                 props: FxHashMap::default(),
                 prop_defaults: FxHashMap::default(),
@@ -473,6 +477,8 @@ mod tests {
         components.insert(
             "App".into(),
             ComponentIR {
+                form_intent: None,
+                load_intent: None,
                 name: "App".into(),
                 props: FxHashMap::default(),
                 prop_defaults: FxHashMap::default(),
@@ -528,6 +534,8 @@ mod tests {
         components.insert(
             "Counter".into(),
             ComponentIR {
+                form_intent: None,
+                load_intent: None,
                 name: "Counter".into(),
                 props: FxHashMap::default(),
                 prop_defaults: FxHashMap::default(),
@@ -585,6 +593,8 @@ mod tests {
         components.insert(
             "Greeting".into(),
             ComponentIR {
+                form_intent: None,
+                load_intent: None,
                 name: "Greeting".into(),
                 props,
                 prop_defaults: FxHashMap::default(),
@@ -638,6 +648,8 @@ mod tests {
         components.insert(
             "Watcher".into(),
             ComponentIR {
+                form_intent: None,
+                load_intent: None,
                 name: "Watcher".into(),
                 props: FxHashMap::default(),
                 prop_defaults: FxHashMap::default(),
@@ -679,6 +691,8 @@ mod tests {
         components.insert(
             "App".into(),
             ComponentIR {
+                form_intent: None,
+                load_intent: None,
                 name: "App".into(),
                 props: FxHashMap::default(),
                 prop_defaults: FxHashMap::default(),
@@ -841,6 +855,8 @@ mod tests {
     fn test_full_pipeline_component() {
         let codegen = VueCodegen;
         let comp = ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "App".into(),
             props: FxHashMap::default(),
             prop_defaults: FxHashMap::default(),
@@ -1155,6 +1171,8 @@ mod tests {
             ..Default::default()
         };
         let comp = ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "App".into(),
             props: FxHashMap::default(),
             prop_defaults: FxHashMap::default(),

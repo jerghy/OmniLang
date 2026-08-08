@@ -261,6 +261,8 @@ mod tests {
 
     fn make_component(effects: Vec<EffectIntent>) -> ComponentIR {
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "Test".into(),
             effects,
             ..ComponentIR::default()
@@ -590,6 +592,8 @@ mod tests {
             },
         };
         let comp = ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "Test".into(),
             effects: vec![effect(vec!["notifications"], vec![])],
             lifecycles: vec![unmount.clone()],
@@ -631,6 +635,8 @@ mod tests {
             },
         };
         let comp = ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "Test".into(),
             lifecycles: vec![unmount.clone()],
             ..ComponentIR::default()
@@ -667,6 +673,8 @@ mod tests {
             },
         };
         let comp = ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "Test".into(),
             lifecycles: vec![unmount.clone()],
             ..ComponentIR::default()

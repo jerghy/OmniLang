@@ -617,6 +617,8 @@ mod tests {
     /// Helper: component with no declared refs.
     fn make_component() -> ComponentIR {
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "Test".into(),
             ..ComponentIR::default()
         }
@@ -857,6 +859,8 @@ mod tests {
     #[test]
     fn declared_ref_subject_is_left_for_ref_validation() {
         let mut comp = ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "Test".into(),
             refs: vec![RefDeclIR {
                 name: "box".into(),

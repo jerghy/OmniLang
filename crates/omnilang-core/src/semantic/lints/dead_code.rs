@@ -253,6 +253,8 @@ mod tests {
         components.insert(
             "App".into(),
             ComponentIR {
+                form_intent: None,
+                load_intent: None,
                 name: "App".into(),
                 props: FxHashMap::default(),
                 prop_defaults: FxHashMap::default(),

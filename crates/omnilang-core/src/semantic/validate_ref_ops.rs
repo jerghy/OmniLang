@@ -781,6 +781,8 @@ mod tests {
     /// Helper: component with a single declared ref named "box".
     fn make_component() -> ComponentIR {
         ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "Test".into(),
             refs: vec![RefDeclIR {
                 name: "box".into(),
@@ -1205,6 +1207,8 @@ mod tests {
     #[test]
     fn component_without_refs_is_a_noop() {
         let mut comp = ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "NoRefs".into(),
             ..ComponentIR::default()
         };

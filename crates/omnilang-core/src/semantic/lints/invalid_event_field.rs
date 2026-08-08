@@ -149,6 +149,8 @@ mod tests {
         components.insert(
             comp_name.to_string(),
             ComponentIR {
+                form_intent: None,
+                load_intent: None,
                 name: comp_name.to_string(),
                 props: FxHashMap::default(),
                 prop_defaults: FxHashMap::default(),

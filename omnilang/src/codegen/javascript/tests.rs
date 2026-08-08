@@ -380,6 +380,8 @@ fn test_format_await_expr_js() {
 fn test_js_empty_component() {
     let mut w = CodeWriter::new();
     let comp = ComponentIR {
+        form_intent: None,
+        load_intent: None,
         name: "App".into(),
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
@@ -405,6 +407,8 @@ fn test_js_empty_component() {
 fn test_ts_empty_component() {
     let mut w = CodeWriter::new();
     let comp = ComponentIR {
+        form_intent: None,
+        load_intent: None,
         name: "App".into(),
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
@@ -430,6 +434,8 @@ fn test_ts_empty_component() {
 fn test_js_component_with_function() {
     let mut w = CodeWriter::new();
     let comp = ComponentIR {
+        form_intent: None,
+        load_intent: None,
         name: "App".into(),
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
@@ -463,6 +469,8 @@ fn test_js_component_with_function() {
 fn test_js_component_with_state() {
     let mut w = CodeWriter::new();
     let comp = ComponentIR {
+        form_intent: None,
+        load_intent: None,
         name: "Counter".into(),
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
@@ -499,6 +507,8 @@ fn test_js_component_with_state() {
 fn test_ts_component_with_state() {
     let mut w = CodeWriter::new();
     let comp = ComponentIR {
+        form_intent: None,
+        load_intent: None,
         name: "Counter".into(),
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
@@ -680,6 +690,8 @@ fn test_js_full_pipeline_through_trait() {
                 components: FxHashMap::from_iter([(
                     "App".into(),
                     ComponentIR {
+                        form_intent: None,
+                        load_intent: None,
                         name: "App".into(),
                         props: FxHashMap::default(),
                         prop_defaults: FxHashMap::default(),
@@ -735,6 +747,8 @@ fn test_ts_full_pipeline_through_trait() {
                 components: FxHashMap::from_iter([(
                     "App".into(),
                     ComponentIR {
+                        form_intent: None,
+                        load_intent: None,
                         name: "App".into(),
                         props: FxHashMap::default(),
                         prop_defaults: FxHashMap::default(),

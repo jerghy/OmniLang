@@ -473,6 +473,8 @@ mod tests {
     #[test]
     fn removes_unused_computed() {
         let mut comp = ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "TestComp".to_string(),
             computeds: vec![int_computed("unused"), int_computed("used")],
             view: Some(ViewTree::Interpolation(Box::new(ident("used")))),
@@ -488,6 +490,8 @@ mod tests {
     #[test]
     fn removes_unused_computed_without_motion_ref() {
         let mut comp = ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "TestComp".to_string(),
             computeds: vec![int_computed("motion_val")],
             ..ComponentIR::default()
@@ -505,6 +509,8 @@ mod tests {
         // A computed referenced by an IdentifierExpr inside a function body
         // should survive dead-computed elimination.
         let mut comp = ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "TestComp".to_string(),
             computeds: vec![int_computed("helper")],
             fns: vec![FunctionIR {
@@ -531,6 +537,8 @@ mod tests {
     fn computed_referenced_from_effect_survives() {
         // A computed referenced inside an effect body should survive.
         let mut comp = ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "TestComp".to_string(),
             computeds: vec![int_computed("tracked")],
             effects: vec![EffectIntent {
@@ -552,6 +560,8 @@ mod tests {
     fn computed_referenced_from_lifecycle_survives() {
         // A computed referenced inside a lifecycle hook (mount) should survive.
         let mut comp = ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "TestComp".to_string(),
             computeds: vec![int_computed("init_val")],
             lifecycles: vec![LifecycleIntent {
@@ -574,6 +584,8 @@ mod tests {
         // A computed that depends on another computed (chain) should keep
         // its dependency alive.
         let mut comp = ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "TestComp".to_string(),
             computeds: vec![
                 ComputedIntent {
@@ -611,6 +623,8 @@ mod tests {
     fn computed_referenced_from_event_handler_survives() {
         // A computed referenced inside an inline event handler body should survive.
         let mut comp = ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "TestComp".to_string(),
             computeds: vec![int_computed("click_handler")],
             view: Some(ViewTree::Element(Box::new(ElementIR {
@@ -659,6 +673,8 @@ mod tests {
     fn computed_referenced_from_element_prop_survives() {
         // A computed used as an element prop value should survive.
         let mut comp = ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "TestComp".to_string(),
             computeds: vec![int_computed("dynamic_src")],
             view: Some(ViewTree::Element(Box::new(ElementIR {
@@ -693,6 +709,8 @@ mod tests {
     fn computed_referenced_from_class_map_survives() {
         // A computed used as a class-map binding expression should survive.
         let mut comp = ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "TestComp".to_string(),
             computeds: vec![int_computed("is_active")],
             view: Some(ViewTree::Element(Box::new(ElementIR {
@@ -727,6 +745,8 @@ mod tests {
     fn computed_referenced_from_conditional_survives() {
         // A computed used as a conditional branch condition should survive.
         let mut comp = ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "TestComp".to_string(),
             computeds: vec![int_computed("show_banner")],
             view: Some(ViewTree::Conditional(Box::new(ConditionalIntent {
@@ -749,6 +769,8 @@ mod tests {
         // A computed used as the iterable expression of a list rendering
         // should survive.
         let mut comp = ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "TestComp".to_string(),
             computeds: vec![int_computed("items")],
             view: Some(ViewTree::ListRendering(Box::new(ListRenderingIntent {
@@ -773,6 +795,8 @@ mod tests {
     fn computed_referenced_from_prop_default_survives() {
         // A computed used as a prop default value should survive.
         let mut comp = ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "TestComp".to_string(),
             computeds: vec![int_computed("default_title")],
             prop_defaults: {
@@ -791,6 +815,8 @@ mod tests {
     fn computed_referenced_from_style_property_survives() {
         // A computed used as a style property value should survive.
         let mut comp = ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "TestComp".to_string(),
             computeds: vec![int_computed("dynamic_color")],
             styles: vec![StyleRuleIR {
@@ -841,6 +867,8 @@ mod tests {
             source_span: None,
         };
         let mut comp = ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "TestComp".to_string(),
             computeds: vec![int_computed("motion_val")],
             ..ComponentIR::default()
@@ -891,6 +919,8 @@ mod tests {
         // When multiple computeds exist and none are referenced, all should
         // be eliminated.
         let mut comp = ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "TestComp".to_string(),
             computeds: vec![int_computed("a"), int_computed("b"), int_computed("c")],
             ..ComponentIR::default()
@@ -905,6 +935,8 @@ mod tests {
         // When all computeds are referenced from the view, none should be
         // eliminated.
         let mut comp = ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "TestComp".to_string(),
             computeds: vec![int_computed("x"), int_computed("y")],
             view: Some(ViewTree::Element(Box::new(ElementIR {
@@ -964,6 +996,8 @@ mod tests {
         // ONLY from that consumer projection must survive DCE — regression:
         // walkers treated ViewTree::Slot as a leaf and eliminated it.
         let mut comp = ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "TestComp".to_string(),
             computeds: vec![int_computed("header_val")],
             view: Some(el(
@@ -994,6 +1028,8 @@ mod tests {
         // from the slot fallback must survive DCE (pre-existing gap, same
         // root cause: walkers treated ViewTree::Slot as a leaf).
         let mut comp = ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "TestComp".to_string(),
             computeds: vec![int_computed("slot_val")],
             view: Some(ViewTree::Slot {
@@ -1021,6 +1057,8 @@ mod tests {
         // separate DCE path from comp.view — a computed referenced only
         // there must survive elimination.
         let mut comp = ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "TestComp".to_string(),
             computeds: vec![int_computed("body_val")],
             slots: vec![SlotDeclIR {
@@ -1055,6 +1093,8 @@ mod tests {
                     comps.insert(
                         comp_name.to_string(),
                         ComponentIR {
+                            form_intent: None,
+                            load_intent: None,
                             name: comp_name.to_string(),
                             computeds: vec![int_computed("dead")],
                             ..ComponentIR::default()
@@ -1092,6 +1132,8 @@ mod tests {
     fn no_computeds_no_panic() {
         // optimize() should not panic when a component has zero computeds.
         let mut comp = ComponentIR {
+            form_intent: None,
+            load_intent: None,
             name: "Empty".to_string(),
             ..ComponentIR::default()
         };
@@ -1359,6 +1401,8 @@ mod tests {
                 comps.insert(
                     "Comp".to_string(),
                     ComponentIR {
+                        form_intent: None,
+                        load_intent: None,
                         name: "Comp".to_string(),
                         fns: vec![FunctionIR {
                             name: "bad".to_string(),

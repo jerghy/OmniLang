@@ -156,6 +156,8 @@ mod tests {
         components.insert(
             "App".into(),
             ComponentIR {
+                form_intent: None,
+                load_intent: None,
                 name: "App".into(),
                 props: FxHashMap::default(),
                 prop_defaults: FxHashMap::default(),
@@ -223,6 +225,8 @@ mod tests {
         components.insert(
             "App".into(),
             ComponentIR {
+                form_intent: None,
+                load_intent: None,
                 name: "App".into(),
                 props: FxHashMap::default(),
                 prop_defaults: FxHashMap::default(),
@@ -299,6 +303,8 @@ mod tests {
         components.insert(
             "App".into(),
             ComponentIR {
+                form_intent: None,
+                load_intent: None,
                 name: "App".into(),
                 computeds: vec![crate::ir::ComputedIntent {
                     name: "evens".into(),
@@ -377,6 +383,8 @@ mod tests {
         components.insert(
             "App".into(),
             ComponentIR {
+                form_intent: None,
+                load_intent: None,
                 name: "App".into(),
                 computeds: vec![crate::ir::ComputedIntent {
                     name: "hacked".into(),

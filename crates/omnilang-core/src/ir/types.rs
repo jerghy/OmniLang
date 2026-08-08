@@ -925,6 +925,32 @@ impl SlotDeclIR {
     }
 }
 
+/// 表单意图（spec 2026-08-08 §4.1）——@form 元素上的字段校验规则集。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FormIntentIR {
+    pub fields: Vec<FormFieldIR>,
+    pub submit_handler: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FormFieldIR {
+    /// bind: 信号路径末段（errors 信号的键名）
+    pub name: String,
+    pub rules: Vec<ValidateRuleIR>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ValidateRuleIR {
+    pub name: String,
+    pub value: ExprIR,
+}
+
+/// 数据三态意图（spec 2026-08-08 §4.2）——@load 绑定的组件 fn。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LoadIntentIR {
+    pub fn_name: String,
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ComponentIR {
     pub name: String,
@@ -959,6 +985,12 @@ pub struct ComponentIR {
     pub slots: Vec<SlotDeclIR>,
     pub view: Option<ViewTree>,
     pub styles: Vec<StyleRuleIR>,
+    /// 表单意图（spec 2026-08-08 §4.1）——@form 元素上的字段校验规则集。
+    #[serde(default)]
+    pub form_intent: Option<FormIntentIR>,
+    /// 数据三态意图（spec 2026-08-08 §4.2）——@load 绑定的组件 fn。
+    #[serde(default)]
+    pub load_intent: Option<LoadIntentIR>,
     /// Source location in .omni file
     #[serde(default)]
     pub source_span: Option<Span>,

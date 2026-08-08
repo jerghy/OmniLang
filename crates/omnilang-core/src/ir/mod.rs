@@ -26,10 +26,11 @@ pub use types::{
     event_data_kind_label, event_data_schema, map_event_data_kind, A11yIR, ArrayMethodIR,
     BinaryOpIR, BindingIR, BlockIR, ComponentIR, ComputedIntent, ConditionalBranch,
     ConditionalIntent, ConstructionKind, DragBindingIR, EffectIntent, ElementIR, EventDataKind,
-    EventDeclIR, EventFieldDef, EventHandlerIR, ExprIR, IRProgram, LifecycleIntent, LifecycleKind,
-    ListRenderingIntent, MatchArmIR, MatchPatternIR, MatchPatternKindIR, MeasureWhat,
-    MutationIntent, MutationOp, ParamIR, RefDeclIR, RefOpIR, SignalIntent, SignalRefIR, SlotDeclIR,
-    StatementIR, StoreIR, StyleRuleIR, TypeIR, TypeKind, UnaryOpIR, ViewTree,
+    EventDeclIR, EventFieldDef, EventHandlerIR, ExprIR, FormFieldIR, FormIntentIR, IRProgram,
+    LifecycleIntent, LifecycleKind, ListRenderingIntent, LoadIntentIR, MatchArmIR, MatchPatternIR,
+    MatchPatternKindIR, MeasureWhat, MutationIntent, MutationOp, ParamIR, RefDeclIR, RefOpIR,
+    SignalIntent, SignalRefIR, SlotDeclIR, StatementIR, StoreIR, StyleRuleIR, TypeIR, TypeKind,
+    UnaryOpIR, ValidateRuleIR, ViewTree,
 };
 
 // ── Explicit re-exports from logic.rs ──
