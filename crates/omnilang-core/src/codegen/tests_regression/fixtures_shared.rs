@@ -71,7 +71,7 @@ pub(crate) fn fixture_component() -> IRProgram {
         },
     };
     let comp = ComponentIR {
-form_intent: None,
+        form_intent: None,
         load_intent: None,
         name: "Counter".into(),
         props,
@@ -256,7 +256,7 @@ pub(crate) fn fixture_component_with_store() -> IRProgram {
         ..Default::default()
     };
     let comp = ComponentIR {
-form_intent: None,
+        form_intent: None,
         load_intent: None,
         name: "CounterWithStore".into(),
         props: FxHashMap::default(),

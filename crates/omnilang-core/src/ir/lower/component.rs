@@ -186,6 +186,9 @@ pub(super) fn lower_component(
     // pass 校验保留名冲突、codegen 生成对应实现（三目标各自惯用形态）。
     let mut form_intent: Option<FormIntentIR> = None;
     let mut load_intent: Option<LoadIntentIR> = None;
+    // V-F6 重复上报闸门：发现第二个即报，报完即止（恰好 1 条）。
+    let mut form_dup_reported = false;
+    let mut load_dup_reported = false;
     if let Some(v) = &comp.view {
         scan_view_intents(
             &v.children,
@@ -193,6 +196,8 @@ pub(super) fn lower_component(
             semantics,
             &mut form_intent,
             &mut load_intent,
+            &mut form_dup_reported,
+            &mut load_dup_reported,
         );
     }
 
@@ -298,20 +303,34 @@ pub(super) fn lower_component(
 }
 
 /// 遍历组件视图收集 @form / @load 意图（spec 2026-08-08 §4.1/§4.2）。
-/// 多个表单/加载意图时取第一个——重复检测（V-F6）属语义 pass 的职责。
+/// V-F6（每组件至多一个 @form/@load）在此扫描处上报：发现第二个即报，
+/// 报完即止（`*_dup_reported` 闸门保证恰好 1 条）；V-F1（@form 仅限
+/// form 元素）在 collect_form_intent 内上报。
 fn scan_view_intents(
     nodes: &[ViewNode],
     variant_map: &FxHashMap<String, String>,
     semantics: &mut SemanticResult,
     form_intent: &mut Option<FormIntentIR>,
     load_intent: &mut Option<LoadIntentIR>,
+    form_dup_reported: &mut bool,
+    load_dup_reported: &mut bool,
 ) {
     for node in nodes {
         match node {
             ViewNode::Element(el) => {
-                if form_intent.is_none() {
-                    if let Some(form) = collect_form_intent(el, variant_map, semantics) {
-                        *form_intent = Some(form);
+                if el.props.iter().any(|p| matches!(p, ElementProp::Form)) {
+                    if form_intent.is_none() {
+                        if let Some(form) = collect_form_intent(el, variant_map, semantics) {
+                            *form_intent = Some(form);
+                        }
+                    } else if !*form_dup_reported {
+                        // V-F6：组件内第二个 @form（非法 tag 未占槽位，不触发）
+                        semantics.diagnostics.push(crate::error::Diagnostic::error(
+                            crate::error::DiagnosticKind::E0006,
+                            "组件内 @form/@load 至多一个",
+                            &el.span,
+                        ));
+                        *form_dup_reported = true;
                     }
                 }
                 scan_view_intents(
@@ -320,35 +339,93 @@ fn scan_view_intents(
                     semantics,
                     form_intent,
                     load_intent,
+                    form_dup_reported,
+                    load_dup_reported,
                 );
             }
             ViewNode::IfDirective(ifd) => {
-                scan_view_intents(&ifd.body, variant_map, semantics, form_intent, load_intent);
+                scan_view_intents(
+                    &ifd.body,
+                    variant_map,
+                    semantics,
+                    form_intent,
+                    load_intent,
+                    form_dup_reported,
+                    load_dup_reported,
+                );
                 for (_, branch) in &ifd.else_ifs {
-                    scan_view_intents(branch, variant_map, semantics, form_intent, load_intent);
+                    scan_view_intents(
+                        branch,
+                        variant_map,
+                        semantics,
+                        form_intent,
+                        load_intent,
+                        form_dup_reported,
+                        load_dup_reported,
+                    );
                 }
                 if let Some(else_body) = &ifd.else_body {
-                    scan_view_intents(else_body, variant_map, semantics, form_intent, load_intent);
+                    scan_view_intents(
+                        else_body,
+                        variant_map,
+                        semantics,
+                        form_intent,
+                        load_intent,
+                        form_dup_reported,
+                        load_dup_reported,
+                    );
                 }
             }
             ViewNode::ForDirective(fd) => {
-                scan_view_intents(&fd.body, variant_map, semantics, form_intent, load_intent);
+                scan_view_intents(
+                    &fd.body,
+                    variant_map,
+                    semantics,
+                    form_intent,
+                    load_intent,
+                    form_dup_reported,
+                    load_dup_reported,
+                );
                 if let Some(empty) = &fd.empty_body {
-                    scan_view_intents(empty, variant_map, semantics, form_intent, load_intent);
+                    scan_view_intents(
+                        empty,
+                        variant_map,
+                        semantics,
+                        form_intent,
+                        load_intent,
+                        form_dup_reported,
+                        load_dup_reported,
+                    );
                 }
             }
             ViewNode::SlotDirective {
                 default_content, ..
             } => {
                 if let Some(fallback) = default_content {
-                    scan_view_intents(fallback, variant_map, semantics, form_intent, load_intent);
+                    scan_view_intents(
+                        fallback,
+                        variant_map,
+                        semantics,
+                        form_intent,
+                        load_intent,
+                        form_dup_reported,
+                        load_dup_reported,
+                    );
                 }
             }
-            ViewNode::LoadDirective { fn_name, .. } => {
+            ViewNode::LoadDirective { fn_name, span } => {
                 if load_intent.is_none() {
                     *load_intent = Some(LoadIntentIR {
                         fn_name: fn_name.clone(),
                     });
+                } else if !*load_dup_reported {
+                    // V-F6：组件内第二个 @load
+                    semantics.diagnostics.push(crate::error::Diagnostic::error(
+                        crate::error::DiagnosticKind::E0006,
+                        "组件内 @form/@load 至多一个",
+                        span,
+                    ));
+                    *load_dup_reported = true;
                 }
             }
             ViewNode::Text(_) | ViewNode::Interpolation(_) => {}
@@ -365,6 +442,16 @@ fn collect_form_intent(
     semantics: &mut SemanticResult,
 ) -> Option<FormIntentIR> {
     if !el.props.iter().any(|p| matches!(p, ElementProp::Form)) {
+        return None;
+    }
+    // V-F1：@form 只能在 <form> 元素上（非法 tag 报错且不占用组件唯一的
+    // @form 槽位——V-F6 重复检测不因非法元素误报）。
+    if el.tag != "form" {
+        semantics.diagnostics.push(crate::error::Diagnostic::error(
+            crate::error::DiagnosticKind::E0006,
+            "@form 只能用于 form 元素",
+            &el.span,
+        ));
         return None;
     }
     let submit_handler = el
@@ -699,6 +786,23 @@ mod tests {
         comp.clone()
     }
 
+    /// Like `lower_component_src`, but also returns the lowering diagnostics —
+    /// V-F1/V-F6 errors are emitted during scan_view_intents (semantic-diagnostic
+    /// sink), which the plain helper discards.
+    fn lower_component_diags(src: &str) -> (ComponentIR, Vec<crate::error::Diagnostic>) {
+        let tokens = tokenize(src);
+        let (program, _) = parse(tokens, src);
+        let mut semantics = analyze(&program);
+        let ir = crate::ir::lower(&program, &mut semantics, None);
+        let module = ir.modules.get("input.omni").expect("should have module");
+        let (_, comp) = module
+            .components
+            .iter()
+            .next()
+            .expect("should have a component");
+        (comp.clone(), semantics.diagnostics)
+    }
+
     #[test]
     fn lower_form_intent_collects_validated_fields() {
         let ir = lower_component_src(
@@ -723,5 +827,62 @@ mod tests {
     fn lower_load_directive_carries_fn_name() {
         let ir = lower_component_src("component App { fn f() {} view { @load={f} <div/> } }");
         assert_eq!(ir.load_intent.expect("load intent").fn_name, "f");
+    }
+
+    /// V-F1：@form 只能在 <form> 元素上 → error「@form 只能用于 form 元素」，
+    /// 且非法元素不占用组件唯一的 @form 槽位（form_intent 保持 None）。
+    #[test]
+    fn lower_form_rejects_non_form_tag() {
+        let (ir, diags) = lower_component_diags(
+            r#"component App {
+                fn submit() {}
+                view { <div @form @onSubmit={submit} /> }
+            }"#,
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.message.contains("@form 只能用于 form 元素")),
+            "V-F1 missing, got: {:?}",
+            diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+        );
+        assert!(
+            ir.form_intent.is_none(),
+            "invalid @form must not occupy the slot"
+        );
+    }
+
+    /// V-F6：组件内第二个 @form → error「组件内 @form/@load 至多一个」，
+    /// 报完即止（恰好 1 条）。
+    #[test]
+    fn lower_form_duplicate_reports_once() {
+        let (_, diags) = lower_component_diags(
+            r#"component App {
+                fn submit() {}
+                view {
+                    <form @form @onSubmit={submit} />
+                    <form @form @onSubmit={submit} />
+                }
+            }"#,
+        );
+        let count = diags
+            .iter()
+            .filter(|d| d.message.contains("组件内 @form/@load 至多一个"))
+            .count();
+        assert_eq!(count, 1, "V-F6 must report exactly once, got: {:?}", diags);
+    }
+
+    /// V-F6：组件内第二个 @load → error「组件内 @form/@load 至多一个」，
+    /// 报完即止（恰好 1 条）。
+    #[test]
+    fn lower_load_duplicate_reports_once() {
+        let (_, diags) = lower_component_diags(
+            "component App { fn f() {} view { @load={f} <div/> @load={f} <div/> } }",
+        );
+        let count = diags
+            .iter()
+            .filter(|d| d.message.contains("组件内 @form/@load 至多一个"))
+            .count();
+        assert_eq!(count, 1, "V-F6 must report exactly once, got: {:?}", diags);
     }
 }

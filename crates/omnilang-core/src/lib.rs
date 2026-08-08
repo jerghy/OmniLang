@@ -126,6 +126,10 @@ pub fn run_pipeline(source: &str) -> PipelineOutput {
     // `@onTotallyBogus={f}` still compiled "No issues found" (ai HIGH).
     crate::semantic::validate_event_names::validate_event_names(&ir, &mut diagnostics);
 
+    // Form/data tri-state validation (Domain A, Task 3) — consumes
+    // FormIntentIR/LoadIntentIR, checks V-F2~F8 (V-F1/V-F6 at lowering).
+    crate::semantic::validate_form_load::validate_form_load(&ir, &mut diagnostics);
+
     // Phase: lint rules (same 10 rules as `analyse_multi`, so single-file
     // paths — compile(), compile_omniview(), resolve_styles() — see the
     // same diagnostics as multi-file analysis). Lint warnings fold into

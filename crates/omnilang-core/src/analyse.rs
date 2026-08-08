@@ -509,6 +509,11 @@ pub fn analyse_multi(
     // binding apart from a typo'd DOM event).
     crate::semantic::validate_event_names::validate_event_names(&merged_ir, &mut diags);
 
+    // Phase 3f: Form/data tri-state validation (Domain A, Task 3) — consumes
+    // FormIntentIR/LoadIntentIR collected during lowering, checks V-F2~F8.
+    // V-F1/V-F6 are reported at the lowering scan (ir/lower/component.rs).
+    crate::semantic::validate_form_load::validate_form_load(&merged_ir, &mut diags);
+
     // Phase 4: Run lint rules against ASTs and merged IR
     let lint_diags = crate::semantic::lints::run_all(&programs, &merged_ir);
     let mut warnings: Vec<Diagnostic> = merge_warnings;
@@ -790,6 +795,11 @@ pub fn analyse_multi_cached(
     // (a per-file pass cannot tell an imported component's custom-event
     // binding apart from a typo'd DOM event).
     crate::semantic::validate_event_names::validate_event_names(&merged_ir, &mut diags);
+
+    // Phase 3f: Form/data tri-state validation (Domain A, Task 3) — consumes
+    // FormIntentIR/LoadIntentIR collected during lowering, checks V-F2~F8.
+    // V-F1/V-F6 are reported at the lowering scan (ir/lower/component.rs).
+    crate::semantic::validate_form_load::validate_form_load(&merged_ir, &mut diags);
 
     // Phase 4: Run lint rules against ASTs and merged IR
     let lint_diags = crate::semantic::lints::run_all(&all_programs, &merged_ir);
