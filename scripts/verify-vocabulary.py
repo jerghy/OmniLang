@@ -267,6 +267,13 @@ def audit():
                 f"    whitelist-only:  {sorted(set(exp_s) - set(got_s))}"
             )
 
+    def semantic_names(n):
+        """First-column words of the 语义事件名（DSL 表面） table of domain n
+        (or None when the domain is missing or the table is malformed)."""
+        if n not in sections:
+            return None
+        return first_column_rows(subsection(sections[n][1], "语义事件名（DSL 表面）") or "")
+
     # events (4.2): registry vocabulary == shared event table canonical names
     ev = vocab(1)
     if ev is not None:
@@ -276,12 +283,11 @@ def audit():
     # 发现 A（EVENT_NAME_SUGGESTIONS 含 4 个自身硬错误名 onClick/onTap/onMouseEnter/
     # onMouseLeave——建议可能把用户引到硬错误拼写）defer 阶段 4——此处不加
     # suggestions 防御断言（当前会红：建议表含自身硬错误名）。
-    if 1 in sections:
-        ev_sem = first_column_rows(subsection(sections[1][1], "语义事件名（DSL 表面）") or "")
-        if ev_sem is None:
-            fail("domain 事件: '### 语义事件名（DSL 表面）' missing or malformed (header + separator + ≥1 row, no empty first column)")
-        else:
-            assert_set("事件", ev_sem, rust_str_array(read_file(EVENT_TABLE_FILE), "SEMANTIC_EVENT_NAMES"), "语义事件名")
+    ev_sem = semantic_names(1)
+    if ev_sem is not None:
+        assert_set("事件", ev_sem, rust_str_array(read_file(EVENT_TABLE_FILE), "SEMANTIC_EVENT_NAMES"), "语义事件名")
+    elif 1 in sections:
+        fail("domain 事件: '### 语义事件名（DSL 表面）' missing or malformed (header + separator + ≥1 row, no empty first column)")
     ex_ev = excluded(1)
     if ev is not None and ex_ev is not None:
         overlap = sorted(set(ev) & set(ex_ev))
