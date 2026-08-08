@@ -26,12 +26,14 @@ import { SyntaxNode } from "./nodes/SyntaxNode";
 import { LoopNode } from "./nodes/LoopNode";
 import { LifecycleNode } from "./nodes/LifecycleNode";
 import { TryNode } from "./nodes/TryNode";
+import { GroupBox } from "./nodes/GroupBox";
 import { defaultSyntaxProps } from "../../../services/codegen/syntax-nodes";
 import { useFlowScope } from "../../../services/codegen/flow-scope-hook";
 import { collectLetVarsPerFn, findOwnerFnId } from "../../../services/codegen/fn-topology";
 import { CODE_TAGS, TAG_CN, type MenuItem } from "./flowConstants";
 import { computeLayeredLayout, estimateNodeSize } from "../../../services/codegen/flow-layout";
-import { validateGroupMembers, fnNameOf, GROUP_COLORS } from "../../../services/codegen/groups";
+import { validateGroupMembers, fnNameOf, GROUP_COLORS, computeGroupBoxes } from "../../../services/codegen/groups";
+import type { GroupBBox } from "../../../services/codegen/groups";
 import type { CodeFlowGroup } from "../../../core/types/project-json";
 import { NodeSearchMenu } from "./NodeSearchMenu";
 import { CodeBlockEditor } from "./CodeBlockEditor";
@@ -61,6 +63,7 @@ const nodeTypes = {
   "for-in": LoopNode,
   "try": TryNode,
   "lifecycle": LifecycleNode,
+  "group": GroupBox,
 };
 
 /** 连线用 ReactFlow 原生默认 edge（bezier 拓扑曲线）——原生渲染与跟随（移动/滑动自动重算），
@@ -75,6 +78,9 @@ function FlowCanvasInner() {
   // 完整元素（含 view 设计树）：布局写回必须基于全量（useCodeElements 仅 codeblock——
   // 见 handleAutoLayout 注释，Task 12 E2E CRITICAL）。
   const allElements = usePoiesisStore((s) => s.elements);
+  // 分组订阅（Task 4）：组操作（改色/折叠/删除）只经 store 写入，无组件订阅则
+  // 视觉不刷新（Zustand 引用比较）；组节点生成与 bbox 测量 effect 均消费此值。
+  const codeFlowGroups = usePoiesisStore((s) => s.codeFlowGroups);
   const wires = useWires();
   const addElement = usePoiesisStore((s) => s.addElement);
   const addWire = usePoiesisStore((s) => s.addWire);
@@ -222,8 +228,13 @@ function FlowCanvasInner() {
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   // 新建组的命名态（Task 4 GroupBox 消费：创建分组后进入改名态）。
-  // getter 弃名（TS6133）：仅 setter 在 handleCreateGroup 写入命名态，Task 4 渲染消费时恢复命名。
-  const [, setEditingGroupId] = useState<string | null>(null);
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
+
+  // 组几何缓存：groupId → 包围盒（展开态实时重算；折叠态沿用最后一次展开值——成员隐藏无 DOM）
+  const [groupBoxes, setGroupBoxes] = useState<Map<string, GroupBBox>>(new Map());
+  const lastGroupBoxesRef = useRef<Map<string, GroupBBox>>(new Map());
+  // 折叠组位置（Task 7 布局落点消费；Task 4 仅 getter——setter 由 Task 7 写入，弃名防 TS6133）
+  const [collapsedGroupPositions] = useState<Record<string, { x: number; y: number }>>({});
 
   // Preview node — shows the design canvas inside the flow when in codeflow mode.
   // position 为 state（非 store elements——它是伪节点）：布局按钮点击时把预览组件归位到
@@ -336,6 +347,39 @@ function FlowCanvasInner() {
     [elements],
   );
 
+  // ── 组包围盒测量（Task 4）──
+  // 受控模式下 RFNode.measured 恒缺（同布局测量），展开态组框尺寸须 DOM 实测成员节点
+  // （rect/zoom 换算画布单位）；折叠态沿用最后一次展开值（lastGroupBoxesRef 缓存——
+  // 折叠后成员几何不再变化，卡位置稳定依赖此缓存）。
+  useEffect(() => {
+    const allGroups = Object.values(codeFlowGroups ?? {}).flat();
+    if (allGroups.length === 0) {
+      // 仅在确有缓存/状态要清时复位——空态下每次都 new Map 会给依赖不稳定
+      // 的环境（测试 mock 每次渲染返回新 elements 引用）制造无限渲染循环
+      if (lastGroupBoxesRef.current.size > 0 || groupBoxes.size > 0) {
+        lastGroupBoxesRef.current = new Map();
+        setGroupBoxes(new Map());
+      }
+      return;
+    }
+    const vpEl = document.querySelector(".react-flow__viewport");
+    const vpMatch = vpEl ? getComputedStyle(vpEl).transform.match(/matrix\(([^)]+)\)/) : null;
+    const zoom = vpMatch ? Number(vpMatch[1].split(",")[0]) || 1 : 1;
+    const sizes = new Map<string, { width: number; height: number }>();
+    const activeGroups = allGroups.filter((g) => !g.collapsed);
+    for (const el of codeElements) {
+      const dom = document.querySelector(`[data-id="${el.id}"]`);
+      if (!dom) continue;
+      const r = dom.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) sizes.set(el.id, { width: r.width / zoom, height: r.height / zoom });
+    }
+    const next = computeGroupBoxes(activeGroups, codeElements, sizes);
+    if (next.size > 0) {
+      lastGroupBoxesRef.current = new Map([...lastGroupBoxesRef.current, ...next]);
+      setGroupBoxes(lastGroupBoxesRef.current);
+    }
+  }, [elements, codeElements, codeFlowGroups]);
+
   // 按 wire 拓扑推断每个 fn 的 let 变量（多 fn 隔离）：语法节点公式框候选数据源
   const letVarsByFn = useMemo(() => collectLetVarsPerFn(codeElements, wires), [codeElements, wires]);
 
@@ -363,6 +407,47 @@ function FlowCanvasInner() {
     setEditingGroupId(group.id);
     setNodeMenu(null);
   }, [selectedNodeIds, codeElements, wires]);
+
+  // ── Group ops（Task 4）──
+  // 组写入一律走 store.setCodeFlowGroups：patch 用 map-replace（不可变），
+  // 订阅 codeFlowGroups 保证改色/折叠/删除视觉即时刷新（Zustand 引用比较）。
+  const groupFnName = useCallback(
+    (g: CodeFlowGroup) => {
+      const ownerFnId = findOwnerFnId(g.memberIds[0] ?? "", codeElements, wires);
+      return ownerFnId ? fnNameOf(ownerFnId, codeElements) : "unnamed";
+    },
+    [codeElements, wires],
+  );
+
+  const patchGroup = useCallback(
+    (g: CodeFlowGroup, patch: Partial<CodeFlowGroup>) => {
+      const fnName = groupFnName(g);
+      const groups = usePoiesisStore.getState().codeFlowGroups[fnName] ?? [];
+      usePoiesisStore.getState().setCodeFlowGroups(
+        fnName,
+        groups.map((x) => (x.id === g.id ? { ...x, ...patch } : x)),
+      );
+    },
+    [groupFnName],
+  );
+
+  const removeGroup = useCallback(
+    (g: CodeFlowGroup) => {
+      const fnName = groupFnName(g);
+      const groups = usePoiesisStore.getState().codeFlowGroups[fnName] ?? [];
+      usePoiesisStore.getState().setCodeFlowGroups(
+        fnName,
+        groups.filter((x) => x.id !== g.id),
+      );
+      // 折叠态几何缓存同步移除（删组后防止缓存残留引用）
+      if (lastGroupBoxesRef.current.has(g.id)) {
+        const next = new Map(lastGroupBoxesRef.current);
+        next.delete(g.id);
+        lastGroupBoxesRef.current = next;
+      }
+    },
+    [groupFnName],
+  );
 
   const nodes: RFNode[] = useMemo(
     () =>
@@ -417,6 +502,45 @@ function FlowCanvasInner() {
       })),
     [codeElements, selectedNodeIds, setEditingNodeId, setProp, flowScope, letVarsByFn],
   );
+
+  // ── Group nodes（Task 4）──
+  // 展开态 = bbox 尺寸占位节点（GroupBox 内部绝对定位铺满）+ 标题栏交互；折叠态 = 紧凑组卡，
+  // 位置优先 Task 7 的 collapsedGroupPositions，其次沿用最后一次展开 bbox（缓存）。
+  // 数组首位渲染：组框在成员节点下层（z 序背景层），ReactFlow 按数组序覆盖。
+  // 成员节点不做过滤隐藏（Task 5 折叠成员过滤）。
+  const groupNodes: RFNode[] = [];
+  for (const g of Object.values(codeFlowGroups ?? {}).flat()) {
+    const bbox = groupBoxes.get(g.id);
+    let pos: { x: number; y: number } | undefined;
+    if (g.collapsed) {
+      pos = collapsedGroupPositions[g.id] ?? (bbox ? { x: bbox.x, y: bbox.y } : undefined);
+    } else if (bbox) {
+      pos = { x: bbox.x, y: bbox.y };
+    }
+    if (!pos) continue;
+    groupNodes.push({
+      id: g.id,
+      type: "group",
+      position: pos,
+      style: g.collapsed ? undefined : { width: bbox!.width, height: bbox!.height },
+      draggable: false,
+      selectable: false,
+      focusable: false,
+      className: "codeflow-group",
+      data: {
+        group: g,
+        editing: editingGroupId === g.id,
+        onRename: (name: string) => {
+          patchGroup(g, { name });
+          setEditingGroupId(null);
+        },
+        onColorChange: (color: string) => patchGroup(g, { color }),
+        onToggleCollapsed: () => patchGroup(g, { collapsed: !g.collapsed }),
+        onDelete: () => removeGroup(g),
+      },
+    });
+  }
+  const allNodesWithGroups = [...groupNodes, ...nodes];
 
   const edges = useMemo(
     () =>
@@ -514,8 +638,8 @@ function FlowCanvasInner() {
   }, [codeFlowElementId, previewOutput, previewPos]);
 
   const allNodes = useMemo(
-    () => (previewNode ? [...nodes, previewNode] : nodes),
-    [nodes, previewNode],
+    () => [...allNodesWithGroups, ...(previewNode ? [previewNode] : [])],
+    [allNodesWithGroups, previewNode],
   );
 
   // ── Editing element (for CodeBlockEditor) ──

@@ -1,0 +1,13 @@
+.box { position: absolute; inset: 0; border: 1px solid; border-radius: 8px; pointer-events: none; }
+/* 标题栏需要接收点击 → 单独恢复 pointer-events */
+.titleBar { pointer-events: auto; display: flex; align-items: center; gap: 6px; padding: 2px 8px; font-size: 12px; color: #334155; border-bottom: 1px solid rgba(0,0,0,0.06); cursor: default; }
+.name { font-weight: 600; }
+.card { position: absolute; display: flex; align-items: center; gap: 8px; padding: 4px 10px; border: 1px solid; border-left: 4px solid; border-radius: 6px; background: #fff; font-size: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+.foldBtn { border: none; background: none; cursor: pointer; font-size: 11px; color: #64748b; }
+.deleteBtn { border: none; background: none; cursor: pointer; font-size: 14px; color: #dc2626; }
+.colorWrap { position: relative; }
+.colorBtn { width: 14px; height: 14px; border: 1px solid rgba(0,0,0,0.2); border-radius: 50%; cursor: pointer; }
+.palette { position: absolute; top: 18px; left: 0; display: flex; gap: 4px; padding: 4px; background: #fff; border: 1px solid #e2e8f0; border-radius: 6px; z-index: 10; }
+.swatch { width: 16px; height: 16px; border: none; border-radius: 4px; cursor: pointer; }
+.cardMeta { color: #94a3b8; font-size: 11px; }
+.nameInput { width: 120px; }
