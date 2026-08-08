@@ -342,6 +342,8 @@ impl OmniViewGenerator {
                 .insert("formValid".to_string(), fval.clone());
             self.name_resolver.signal_names.insert(fval.clone());
             let _ = writeln!(self.js, "const {ferr} = __omni_signal(\"{ferr}\", {{}});");
+            // v0: submitting 语义未实现，恒为 false（与 React 端一致：
+            // react/component/mod.rs 发射 formSubmitting state 但从不写入）。
             let _ = writeln!(self.js, "const {fsub} = __omni_signal(\"{fsub}\", false);");
             let _ = writeln!(
                 self.js,
@@ -466,8 +468,8 @@ impl OmniViewGenerator {
                         "required" => {
                             let _ = writeln!(
                                 self.js,
-                                "  if (!values[\"{}\"]) {{ errs[\"{{}}\"] = \"此项必填\"; }}",
-                                field.name
+                                "  if (!values[\"{}\"]) {{ errs[\"{}\"] = \"此项必填\"; }}",
+                                field.name, field.name
                             );
                         }
                         "min" | "max" => {
@@ -493,8 +495,8 @@ impl OmniViewGenerator {
                             };
                             let _ = writeln!(
                                 self.js,
-                                "  if (values[\"{}\"] && (values[\"{}\"].length {op} {val})) {{ errs[\"{{}}\"] = \"{msg}\"; }}",
-                                field.name, field.name
+                                "  if (values[\"{}\"] && (values[\"{}\"].length {op} {val})) {{ errs[\"{}\"] = \"{msg}\"; }}",
+                                field.name, field.name, field.name
                             );
                         }
                         "pattern" => {
@@ -503,8 +505,8 @@ impl OmniViewGenerator {
                                 .unwrap_or_else(|| self.expr_to_js(&rule.value));
                             let _ = writeln!(
                                 self.js,
-                                "  if (values[\"{}\"] && !new RegExp({pat}).test(values[\"{}\"])) {{ errs[\"{{}}\"] = \"格式不正确\"; }}",
-                                field.name, field.name
+                                "  if (values[\"{}\"] && !new RegExp({pat}).test(values[\"{}\"])) {{ errs[\"{}\"] = \"格式不正确\"; }}",
+                                field.name, field.name, field.name
                             );
                         }
                         "format" => {
@@ -515,15 +517,15 @@ impl OmniViewGenerator {
                                 Some("email") => {
                                     let _ = writeln!(
                                         self.js,
-                                        "  if (values[\"{}\"] && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(values[\"{}\"])) {{ errs[\"{{}}\"] = \"邮箱格式不正确\"; }}",
-                                        field.name, field.name
+                                        "  if (values[\"{}\"] && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(values[\"{}\"])) {{ errs[\"{}\"] = \"邮箱格式不正确\"; }}",
+                                        field.name, field.name, field.name
                                     );
                                 }
                                 Some("url") => {
                                     let _ = writeln!(
                                         self.js,
-                                        "  if (values[\"{}\"] && !/^(https?:\\/\\/)?([\\w-]+\\.)+[\\w-]{{2,}}(\\/\\S*)?$/.test(values[\"{}\"])) {{ errs[\"{{}}\"] = \"URL 格式不正确\"; }}",
-                                        field.name, field.name
+                                        "  if (values[\"{}\"] && !/^(https?:\\/\\/)?([\\w-]+\\.)+[\\w-]{{2,}}(\\/\\S*)?$/.test(values[\"{}\"])) {{ errs[\"{}\"] = \"URL 格式不正确\"; }}",
+                                        field.name, field.name, field.name
                                     );
                                 }
                                 _ => {
@@ -536,8 +538,8 @@ impl OmniViewGenerator {
                                 let resolved = self.resolve_fn_name(rule_fn);
                                 let _ = writeln!(
                                     self.js,
-                                    "  const errMsg = {resolved}(values[\"{}\"]); if (errMsg) {{ errs[\"{{}}\"] = errMsg; }}",
-                                    field.name
+                                    "  const errMsg = {resolved}(values[\"{}\"]); if (errMsg) {{ errs[\"{}\"] = errMsg; }}",
+                                    field.name, field.name
                                 );
                             } else {
                                 let _ = writeln!(self.js, "  // custom: 动态规则跳过");

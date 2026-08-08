@@ -686,6 +686,17 @@ impl OmniViewGenerator {
         let pad = "  ".repeat(indent);
         let mut out = String::new();
 
+        // Native HTML5 constraint validation intercepts failed submits BEFORE
+        // the submit event fires — with required/pattern emitted as real attrs,
+        // validateForm (self-drawn errors) would never run on empty/invalid
+        // fields. Emit novalidate whenever @form semantics are active so the
+        // submit event always fires and formErrors gate/error containers are
+        // the single source of truth (Task 6 review Important #1).
+        let mut attrs = attrs.to_string();
+        if html_tag == "form" && self.scope.form_intent.is_some() && !attrs.contains("novalidate") {
+            attrs.push_str(" novalidate");
+        }
+
         // Self-closing tags (after motion/driven-by/states emit so animations are set up)
         let void_tags = [
             "br", "hr", "img", "input", "meta", "link", "area", "base", "col", "embed", "source",
@@ -696,7 +707,7 @@ impl OmniViewGenerator {
                 self.emit_element_css_only_capture(el, nid, html_tag, class_name_parts);
                 return String::new();
             }
-            let _ = writeln!(out, "{}<{}{} />", pad, html_tag, attrs);
+            let _ = writeln!(out, "{}<{}{} />", pad, html_tag, &attrs);
             // Emit any interpolation _effect() calls
             for effect in interp_effects {
                 self.js.push_str(effect);
@@ -714,7 +725,7 @@ impl OmniViewGenerator {
             }
             self.tree_pop(); // fragment has no wrapper, pop after children
         } else {
-            let _ = writeln!(out, "{}<{}{}>", pad, html_tag, attrs);
+            let _ = writeln!(out, "{}<{}{}>", pad, html_tag, &attrs);
 
             // Children
             for child in &el.children {

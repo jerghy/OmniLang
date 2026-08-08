@@ -2732,10 +2732,18 @@ component App {
         "submit listener must preventDefault. JS:\n{}",
         js
     );
-    // required 规则 → HTML5 属性
+    // required 规则 → HTML5 属性（保留给 a11y/UX 提示；强制校验走自绘）
     assert!(
         js.contains("required"),
         "required rule must land on the DOM element. JS:\n{}",
+        js
+    );
+    // @form 语义激活时 <form> 必须发射 novalidate —— 原生约束校验会在
+    // submit 事件前拦截空必填字段，validateForm/自绘错误将永不运行
+    // （评审 Important #1）。
+    assert!(
+        js.contains("<form data-nid=\"el-form-001\" novalidate>"),
+        "form with @form intent must emit novalidate. JS:\n{}",
         js
     );
     // 自绘错误：formErrors 信号 + 字段 aria 动态绑定
@@ -2754,10 +2762,23 @@ component App {
         "field must get aria-describedby binding. JS:\n{}",
         js
     );
-    // 提交门禁：校验函数存在且提交处理器经其放行（校验失败不发事件）
+    // 错误键写入的完整形态：errs 以字段名（非字面 "{}"）为键 —— 这是
+    // @if form.errors.name 错误容器与 aria 绑定的读取依据（评审 Critical #1）。
     assert!(
-        js.contains("validateForm"),
-        "validateForm fn must be emitted for the submit gate. JS:\n{}",
+        js.contains("errs[\"name\"] = \"此项必填\";"),
+        "error key must be the field name, full-line shape. JS:\n{}",
+        js
+    );
+    assert!(
+        js.contains("App_formErrors.value[\"name\"]"),
+        "error container must read form.errors.name from the formErrors signal. JS:\n{}",
+        js
+    );
+    // 提交门禁完整形态：submit 处理器必须包在 validateForm() 真值门内
+    // （校验失败 → 不发事件 → 错误自绘可见）。
+    assert!(
+        js.contains("if (App_validateForm()) { App_submit({}) };"),
+        "submit handler must be gated by validateForm. JS:\n{}",
         js
     );
 }
