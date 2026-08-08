@@ -91,6 +91,9 @@ pub(crate) fn is_lint_error(d: &crate::semantic::lints::LintDiagnostic) -> bool 
 ///    (ADR-073): the element must carry `@ref`, handlers must resolve to
 ///    component functions, and a handler takes at most one parameter (the
 ///    DragIntent event object `{ x, y, dx, dy, pointerId, startX, startY }`).
+/// 9. `validate_semantic_keys` — KeyEvent handler (onKeyDown/onKeyUp) 中
+///    `e.key == "X"` 的字符串字面量必须是语义键名（Enter/Escape/... 或单
+///    字母/单数字），否则 E0006 硬错误 + 最近合法建议（D2，Task 5）。
 ///
 /// Passes 3 and 4 mutate the IR (rewrite expression nodes); the rest are
 /// read-only. All diagnostics land in `diagnostics` in pass order.
@@ -167,6 +170,16 @@ pub(crate) fn run_ir_passes(ir_program: &mut IRProgram, diagnostics: &mut Vec<Di
     for module in ir_program.modules.values() {
         for component in module.components.values() {
             crate::semantic::validate_drag::validate_drag(component, diagnostics);
+        }
+    }
+
+    // Validate KeyEvent `e.key` semantic-key enum values (D2, Task 5):
+    // string literals compared against `e.key` in onKeyDown/onKeyUp
+    // handlers must be semantic key names (Enter/Escape/... or a single
+    // letter/digit), else error with the nearest legal suggestion.
+    for module in ir_program.modules.values() {
+        for component in module.components.values() {
+            crate::semantic::validate_semantic_keys::validate_semantic_keys(component, diagnostics);
         }
     }
 }
