@@ -81,7 +81,7 @@ component FormControlsDemo {
                     max="120"
                     step="1"
                     title="Enter your age (0-120)"
-                    @onChange={handleAgeChange}
+                    @onInput={handleAgeChange}
                 ></input>
                 <p class: SelectValue>Age: {age}</p>
             </div>
@@ -97,7 +97,7 @@ component FormControlsDemo {
                     max="100"
                     step="5"
                     title="Select a value (0-100, step 5)"
-                    @onChange={handleRangeChange}
+                    @onInput={handleRangeChange}
                 ></input>
                 <p class: SelectValue>Range: {rangeVal} / 100</p>
             </div>

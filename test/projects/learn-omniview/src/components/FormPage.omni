@@ -1,4 +1,4 @@
-// FormPage.omni - @onChange, @onSubmit, boolean attrs, hyphenated attrs, @onFocus/@onBlur, @onScroll
+// FormPage.omni - @onInput, @onSubmit, boolean attrs, hyphenated attrs, @onFocus/@onBlur, @onScroll
 // Demonstrates full form event handling, accessibility attributes, and data attributes
 
 import omniview;
@@ -61,9 +61,9 @@ component FormPage {
         <div class: LearnDesign.Card>
             <h2 class: LearnDesign.CardTitle>FormPage Demo</h2>
 
-            <!-- Form demonstrating @onSubmit, @onChange, boolean attrs, aria/data attrs -->
+            <!-- Form demonstrating @onSubmit, @onInput, boolean attrs, aria/data attrs -->
             <form class: Form @onSubmit={handleSubmit}>
-                <!-- Name field with @onFocus, @onBlur, @onChange, required, a11y block, data-testid -->
+                <!-- Name field with @onFocus, @onBlur, @onInput, required, a11y block, data-testid -->
                 <div class: Field>
                     <label class: Label for="name">Name</label>
                     <input
@@ -77,7 +77,7 @@ component FormPage {
                         data-type="text"
                         @onFocus={handleNameFocus}
                         @onBlur={handleNameBlur}
-                        @onChange={handleNameChange}
+                        @onInput={handleNameChange}
                     ></input>
                     @if nameError != "" {
                         <span class: ErrorText>{nameError}</span>
@@ -98,14 +98,14 @@ component FormPage {
                         data-type="email"
                         @onFocus={handleEmailFocus}
                         @onBlur={handleEmailBlur}
-                        @onChange={handleEmailChange}
+                        @onInput={handleEmailChange}
                     ></input>
                     @if emailError != "" {
                         <span class: ErrorText>{emailError}</span>
                     }
                 </div>
 
-                <!-- Message field with @onChange, @onScroll, readonly (conditional) -->
+                <!-- Message field with @onInput, @onScroll, readonly (conditional) -->
                 <div class: Field>
                     <label class: Label for="msg">Message</label>
                     <textarea

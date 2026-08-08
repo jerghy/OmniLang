@@ -31,8 +31,13 @@ export default tseslint.config(
       // param and the match codegen prefixes unused variant bindings with
       // `_` (`_data`) — the codegen's own convention for "unused by design".
       // argsIgnorePattern honors it for function args so the gate no longer
-      // flags them (task 2.11).
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+      // flags them (task 2.11). varsIgnorePattern extends the same `_`
+      // convention to LOCALS: the demo's @effect subscription marker
+      // `let _ = count;` (OmniView auto-tracking reads the body; the write-
+      // only local is deliberately unbound) compiles to `const _ = count;`
+      // — a `_`-prefixed local means "intentionally unused" here too
+      // (2026-08-08, Task 8).
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
     },
   },
 );

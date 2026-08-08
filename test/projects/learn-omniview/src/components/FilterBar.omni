@@ -30,7 +30,7 @@ component FilterBar {
     }
 
     // 搜索过滤由 @effect 承担：searchText 变化即写入 Store。
-    // @onChange 内不再读取 searchText（React 目标闭包捕获旧值——缺陷修复），
+    // @onInput 内不再读取 searchText（React 目标闭包捕获旧值——缺陷修复），
     // 只保留 changeCount 计数。
     // (searchText, setFilter) 显式依赖：React 目标 useEffect 依赖数组
     // 的来源（setFilter 为 slice 局部动作，exhaustive-deps 必需）；
@@ -47,13 +47,13 @@ component FilterBar {
 
     view {
         <div class: LearnDesign.Card>
-            <!-- 搜索输入 + @onChange 过滤 -->
+            <!-- 搜索输入 + @onInput 过滤 -->
             <div class: SearchRow>
                 <input
                     bind:value={searchText}
                     placeholder="Filter todos..."
                     class: SearchInput
-                    @onChange={() => {
+                    @onInput={() => {
                         // 过滤已移交 @effect（见组件体注释）——此处仅计数，
                         // 避免 React 目标闭包捕获旧 searchText 的失效读取
                         changeCount = changeCount + 1;

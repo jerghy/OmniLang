@@ -28,7 +28,20 @@
 # TS18048 4, TS7005 2, TS7034 1, TS2367 2; exhaustive-deps 91,
 # unused-identifiers 17, ES5-var 10, no-control-regex 2, no-explicit-any 1.
 # Current snapshot (task 5.6, 2026-08-05; re-measured 2026-08-06): tsc 72
-# errors + 4 eslint problems (all exempted). Burn-down: user struct/union
+# errors + 4 eslint problems (all exempted).
+# 2026-08-08 (Task 8 demo 迁移 + Task 4-7 编译器变更后重测): tsc 73 + eslint
+# 6 — 增量 3 项全部为既有漂移、非迁移引入（基线对照验证）：
+#   (1) SlotBox TS2339 4→5（Task 4 PointerEvent schema 扩展：emit 载荷全量
+#       字段 pressure/tiltX/tiltY/pointerType/pointerId 落 MouseEvent 合成
+#       事件；x/y 走 nativeEvent.offsetX/offsetY —— Task 4 Minor-3 登记项
+#       的 fixture 用点，见下）
+#   (2) Modal TS2322 1→2（08-07 b6bff980 demo 修复增加第二处 tabIndex="0"
+#       字符串字面量，React tabIndex: number）
+#   (3) SignalPatternsDemo eslint no-unused-vars（08-07 22c3b4b7 demo 增加
+#       @effect 订阅标记 `let _ = count;` → `const _ = count;` 局部）——由
+#       eslint.config.js varsIgnorePattern '^_' 覆盖（与既有 argsIgnorePattern
+#       同一 `_` 前缀约定），不占豁免条
+# Burn-down: user struct/union
 # types now emit
 # TS declarations inline (deferral #49) — Todo/ApiResult/Rating TS2304,
 # DataTable never[] TS2322/TS2339, MatchBreadthDemo TS2345 deleted below.
@@ -96,7 +109,7 @@ components/DataTable.tsx	TS7006	[T1.6] implicit-any fn/closure params	1	#67
 #           mismatches. The DataTable never[] class is GONE (task 5.3, #49):
 #           struct-typed signals emit typed useState generics.
 pages/DataSubmit.tsx	TS2322	[T1.6] Option-value mismatch (string vs number)	1	#73
-components/Modal.tsx	TS2322	[T1.6] Option-value mismatch (string vs number)	1	#73
+components/Modal.tsx	TS2322	[T1.6] Option-value mismatch (string vs number)	2	#73
 # REMOVED (task 2.5): the EventsDemo TS2322 was the non-synthetic
 #           onAnimationend/onTransitionend props — codegen now maps to
 #           React's synthetic set (react/utils.rs), so the props type-check.
@@ -132,7 +145,7 @@ components/ThemeCssVarsDemo.tsx	TS2353	[T1.3] CSS custom property rejected by Re
 #           The DataTable never[] class is GONE (task 5.3, #49 — RowItem rows
 #           are now typed RowItem[]).
 pages/ElementRefDemo.tsx	TS2339	[T3.3] event-data typing (EventTarget selection props)	5	#73
-pages/SlotBox.tsx	TS2339	[T3.3] event-data typing (EventTarget/MouseEvent)	4	#73
+pages/SlotBox.tsx	TS2339	[T3.3] event-data typing (EventTarget/MouseEvent)	5	#73
 components/EventsDemo.tsx	TS2339	[T3.3] event-data typing (EventTarget scrollTop)	1	#73
 # eslint — react-hooks + TS rules on generated code → Task 1.6
 # react-hooks/exhaustive-deps — missing/new-array deps (codegen dependency-
