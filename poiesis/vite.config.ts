@@ -21,12 +21,28 @@ export default defineConfig(async () => ({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          "vendor-core": ["react", "react-dom", "zustand", "sonner"],
-          "vendor-flow": ["@xyflow/react"],
-          "vendor-dnd": ["@dnd-kit/core", "@dnd-kit/utilities"],
-          "vendor-layout": ["dagre"],
-          "vendor-monaco": ["monaco-editor", "@monaco-editor/react"],
+        // vite 8 内置 rolldown：manualChunks 仅接受函数形式（对象形式报
+        // "Expected Function but received Object"）。函数形式按模块 id
+        // 归属 vendor 分块，语义与旧对象形式等价。
+        manualChunks(id: string): string | undefined {
+          if (
+            id.includes("/node_modules/react/") ||
+            id.includes("/node_modules/react-dom/") ||
+            id.includes("/node_modules/zustand/") ||
+            id.includes("/node_modules/sonner/")
+          ) {
+            return "vendor-core";
+          }
+          if (id.includes("/node_modules/@xyflow/react/")) return "vendor-flow";
+          if (id.includes("/node_modules/@dnd-kit/")) return "vendor-dnd";
+          if (id.includes("/node_modules/dagre/")) return "vendor-layout";
+          if (
+            id.includes("/node_modules/monaco-editor/") ||
+            id.includes("/node_modules/@monaco-editor/")
+          ) {
+            return "vendor-monaco";
+          }
+          return undefined;
         },
       },
     },
