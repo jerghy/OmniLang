@@ -7,6 +7,7 @@ import type { StoreDefinition } from "../../core/types/store";
 import { compileCodeFlowGraph } from "./graph-compiler";
 import { emitPidAnnotation } from "./annotation-registry";
 import { BOOLEAN_ATTRS } from "./boolean-attrs";
+import { semanticEventName } from "./event-name-map";
 
 // ── Value formatting ────────────────────────────────────────────────────────
 
@@ -666,14 +667,17 @@ export class SourceEmitter {
     }
 
     // ── Event bindings ──
+    // 发射侧防御映射（Task 4）：内存态残留的旧 DOM 拼写（onClick/onTap/
+    // onMouseEnter/onMouseLeave）在发射前收敛为语义名——Rust 阶段 1 已将其
+    // 列为编译期硬错误（E0006），与 event_names.rs 同步，门禁测试防漂移。
     if (style?.eventBindings) {
       for (const [evt, handler] of Object.entries(style.eventBindings)) {
-        parts.push(` @${evt}={${handler}}`);
+        parts.push(` @${semanticEventName(evt)}={${handler}}`);
       }
     } else {
       for (const [key, val] of Object.entries(elNode.props)) {
         if (key.startsWith("on") && typeof val === "string" && val.length > 0) {
-          parts.push(` @${key}={${val}}`);
+          parts.push(` @${semanticEventName(key)}={${val}}`);
         }
       }
     }

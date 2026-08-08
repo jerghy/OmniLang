@@ -17,14 +17,18 @@ interface EventsSectionProps {
 }
 
 /** Event groups for optgroup rendering in the event dropdown */
+// 语义化（Task 4）：旧 DOM 拼写 onClick/onMouseEnter/onMouseLeave 是编译期
+// 硬错误（E0006），可见选项收敛为语义名 onPress/onEnter/onLeave + 指针族。
+// 与 componentProtocol.ts UNIVERSAL_EVENTS / Rust event_names.rs 同步。
 const EVENT_GROUPS: Record<string, string[]> = {
-  "点击": ["onPress", "onClick", "onDoubleClick", "onContextMenu"],
+  "点击": ["onPress", "onDoubleClick", "onContextMenu"],
   "输入": ["onChange", "onInput"],
   "焦点": ["onFocus", "onBlur"],
   "键盘": ["onKeyDown", "onKeyUp"],
   "表单": ["onSubmit"],
   "滚动": ["onScroll"],
-  "鼠标": ["onMouseEnter", "onMouseLeave", "onMouseDown", "onMouseUp", "onMouseMove"],
+  "鼠标": ["onEnter", "onLeave", "onMouseDown", "onMouseUp", "onMouseMove"],
+  "指针": ["onPointerDown", "onPointerMove", "onPointerUp"],
   "拖拽": ["onDragStart", "onDragOver", "onDragEnd", "onDrop"],
   "触摸": ["onTouchStart", "onTouchEnd", "onTouchMove"],
   "滚轮": ["onWheel"],

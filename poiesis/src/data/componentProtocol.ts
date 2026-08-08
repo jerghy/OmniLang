@@ -41,16 +41,19 @@ export interface ComponentProtocolEntry {
 /**
  * OmniView 通用事件 — 所有组件都可以使用，无组件类型限制。
  *
- * 按 DOM 映射分类：点击 / 输入 / 焦点 / 键盘 / 表单 / 滚动 / 鼠标 / 拖拽 / 触摸 / 滚轮 / 媒体 / 动画 / 切换 / 剪贴板
+ * 按 DOM 映射分类：点击 / 输入 / 焦点 / 键盘 / 表单 / 滚动 / 鼠标 / 指针 / 拖拽 / 触摸 / 滚轮 / 媒体 / 动画 / 切换 / 剪贴板
  *
  * 注意：onCopy、onCut、onPaste 等虽然没有被显式列出，但编译器会在兜底规则中
  * strip "on" prefix 并转小写来匹配 DOM 事件。此处列出最常见的事件作为编辑器的可见选项。
+ *
+ * 语义化（Task 4）：阶段 1 语义事件意图化后，旧 DOM 拼写 onClick/onTap/
+ * onMouseEnter/onMouseLeave 已是编译期硬错误（E0006），编辑器的可见选项
+ * 收敛为语义名 onPress/onEnter/onLeave + 指针族 onPointer*。
+ * 与 crates/omnilang-core/src/codegen/shared/event_names.rs 同步，门禁测试防漂移。
  */
 export const UNIVERSAL_EVENTS: Record<string, EventMeta> = {
   // ── 点击 ──
   onPress: { id: "evt-universal-press-001", description: "点击/按压", payload: "MouseEvent" },
-  onClick: { id: "evt-universal-click-001", description: "点击", payload: "MouseEvent" },
-  onTap: { id: "evt-universal-tap-001", description: "点击(触摸)", payload: "TouchEvent" },
   onDoubleClick: { id: "evt-universal-dblclick-001", description: "双击", payload: "MouseEvent" },
   onContextMenu: { id: "evt-universal-contextmenu-001", description: "右键菜单", payload: "MouseEvent" },
   // ── 输入 ──
@@ -67,11 +70,15 @@ export const UNIVERSAL_EVENTS: Record<string, EventMeta> = {
   // ── 滚动 ──
   onScroll: { id: "evt-universal-scroll-001", description: "滚动", payload: "WheelEvent" },
   // ── 鼠标 ──
-  onMouseEnter: { id: "evt-universal-mouseenter-001", description: "鼠标进入", payload: null },
-  onMouseLeave: { id: "evt-universal-mouseleave-001", description: "鼠标离开", payload: null },
+  onEnter: { id: "evt-universal-enter-001", description: "鼠标进入（语义名）", payload: "MouseEvent" },
+  onLeave: { id: "evt-universal-leave-001", description: "鼠标离开（语义名）", payload: "MouseEvent" },
   onMouseDown: { id: "evt-universal-mousedown-001", description: "鼠标按下", payload: "MouseEvent" },
   onMouseUp: { id: "evt-universal-mouseup-001", description: "鼠标释放", payload: "MouseEvent" },
   onMouseMove: { id: "evt-universal-mousemove-001", description: "鼠标移动", payload: "MouseEvent" },
+  // ── 指针 ──
+  onPointerDown: { id: "evt-universal-pointerdown-001", description: "指针按下", payload: "PointerEvent" },
+  onPointerMove: { id: "evt-universal-pointermove-001", description: "指针移动", payload: "PointerEvent" },
+  onPointerUp: { id: "evt-universal-pointerup-001", description: "指针释放", payload: "PointerEvent" },
   // ── 拖拽 ──
   onDragStart: { id: "evt-universal-dragstart-001", description: "拖拽开始", payload: null },
   onDragOver: { id: "evt-universal-dragover-001", description: "拖拽悬停", payload: null },
@@ -319,3 +326,20 @@ export const COMPONENT_PROTOCOL: Record<string, ComponentProtocolEntry> = {
     children: true,
   },
 };
+
+/**
+ * 编辑器可见的全部事件名（去重、稳定排序）——通用事件 ∪ 各组件特殊事件。
+ * 事件意图化门禁测试（event-emission-wasm-validity.test.ts）以此为单一事实源：
+ * 每个名字都必须能通过真实 WASM 编译器零 Error（阶段 1 语义化后旧名是硬错误，
+ * 这里出现旧名即失败）。新增事件名必须同时入此表，否则门禁测试强制补上。
+ * （必须定义在 COMPONENT_PROTOCOL 之后——IIFE 内引用了它。）
+ */
+export const ALL_EDITOR_EVENT_NAMES: readonly string[] = (() => {
+  const names = new Set<string>(Object.keys(UNIVERSAL_EVENTS));
+  for (const entry of Object.values(COMPONENT_PROTOCOL)) {
+    for (const key of Object.keys(entry.events)) {
+      names.add(key);
+    }
+  }
+  return [...names].sort();
+})();
