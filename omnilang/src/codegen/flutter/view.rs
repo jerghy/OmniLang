@@ -19,9 +19,11 @@ use super::design::{class_factory_expr, decoration_fields_to_expr, merge_decorat
 use super::design::{resolve_class_decoration, resolve_variant_decoration, DecorationFields};
 use super::design_tokens::dart_string_literal;
 use super::expr::{
-    format_expr_ir_flutter, rewrite_stmt_store_accesses, rewrite_stmt_widget_refs,
-    rewrite_store_accesses, rewrite_widget_refs, watch_to_read_stmt, ClosureHoister,
+    format_expr_ir_flutter, format_expr_ir_flutter_ctx, rewrite_stmt_store_accesses,
+    rewrite_stmt_widget_refs, rewrite_store_accesses, rewrite_widget_refs, watch_to_read_stmt,
+    ClosureHoister,
 };
+use super::load_provider_name;
 use super::motion::{
     is_flutter_motion_element, motion_active_name, motion_ctrl_name, wrap_with_motion_widgets,
 };
@@ -110,6 +112,14 @@ pub(crate) struct ViewContext<'a> {
     /// setState); the State fields were renamed `_name` (bare names would be
     /// undeclared identifiers in Dart).
     pub(crate) direct_write_signals: &'a FxHashSet<String>,
+    /// Task 5 (@load): the hoisted AsyncValue local name
+    /// (`{fn}Async`) — builtin identifiers loading/error/data map to its
+    /// accessors. `None` when the component has no `@load`.
+    pub(crate) load_async_name: Option<String>,
+    /// Task 5 (@form): whether the component declares a `<form @form>` —
+    /// builtin `form.valid`/`form.errors`/`form.submitting` field reads map
+    /// to the reachability-gated locals.
+    pub(crate) form_present: bool,
 }
 
 impl ViewContext<'_> {
@@ -252,7 +262,15 @@ impl ViewContext<'_> {
         }
         let rewritten = rewrite_store_accesses(&expr, self.store_provider_map, self.ir);
         let rewritten = rewrite_widget_refs(&rewritten, self.widget_names, self.fn_renames);
-        format_expr_ir_flutter(&rewritten)
+        // Task 5: context-carrying format — @load builtins (loading/error/
+        // data) map to AsyncValue accessors, @form builtins (form.*) map to
+        // the reachability-gated locals.
+        format_expr_ir_flutter_ctx(
+            &rewritten,
+            self.direct_write_signals,
+            self.load_async_name.clone(),
+            self.form_present,
+        )
     }
 }
 
@@ -1670,7 +1688,10 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
         return wrap_a11y(el, decorated, ctx);
     }
     // Otherwise, fall through to HTML tag mapping
-    let widget = tag_to_flutter_widget(&el.tag);
+    // @form (Task 5): inside an @form component, `<input>` maps to
+    // `TextFormField` so bound fields get `validator` (Form validation only
+    // works on FormField descendants).
+    let widget = form_field_widget(ctx, el, tag_to_flutter_widget(&el.tag));
     let mut args: Vec<String> = Vec::new();
 
     // T5.7: motion-element ordinal — every element that will receive motion
@@ -2027,6 +2048,13 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
     // would collide on the single param; warn and drop).
     let mut key_wrap_body: Option<String> = None;
     for (name, handler) in &el.events {
+        // @form (Task 5): the `submit` event is the form-level submit intent
+        // — a Flutter Form has no submit callback; submission is intercepted
+        // on the type="submit" button's onPressed (validation gate). Consumed
+        // silently: warning on the canonical @form pairing is noise.
+        if el.tag == "form" && name == "submit" && ctx.form_present {
+            continue;
+        }
         let callback_name = event_to_flutter_callback(name);
         let direct_ok = widget_allows_event(widget, &callback_name);
         // Image.network's errorBuilder is the Flutter analogue of the DOM
@@ -2112,78 +2140,89 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
         let raw_var = if key_event { "event" } else { "e" };
         let body: Option<String> = match handler {
             EventHandlerIR::FnRef { r#ref, .. } => {
-                // Task 5.8: pass the handler by TEAR-OFF — `onChanged:
-                // syncMirror` — instead of `(event) { syncMirror({}); }`
-                // (an empty event-object literal was passed to every fn ref,
-                // producing extra_positional_arguments / type errors). Dart's
-                // function subtyping accepts both arities; the payload flows
-                // through the callback's own parameters. Field accesses on
-                // the event are dropped — warn when the ref's target fn uses
-                // them (unrepresentable through a tear-off).
-                if handler
-                    .used_fields()
-                    .as_ref()
-                    .is_some_and(|f| !f.is_empty())
-                {
-                    warn_dropped_event_fields(
-                        ctx,
-                        name,
-                        &callback_name,
-                        &format!("'{ref}'"),
-                        el.source_span,
-                    );
-                }
-                if ctx.widget_names.contains(r#ref) {
-                    if key_event {
-                        // A tear-off cannot satisfy (FocusNode, KeyEvent) →
-                        // KeyEventResult — wrap it in a call.
-                        Some(format!(
-                            "(node, event) {{ widget.{}(); return KeyEventResult.ignored; }}",
-                            r#ref
-                        ))
-                    } else {
-                        Some(format!("widget.{}", r#ref))
-                    }
+                // @load (Task 5): `retry` is the reserved retry ref on @load
+                // components — `ref.invalidate(provider)` re-runs the fetch
+                // and the FutureProvider re-arms loading/error/data.
+                if let Some(retry) = ctx.comp.load_intent.as_ref().and_then(|li| {
+                    (r#ref == "retry").then(|| {
+                        format!("() => ref.invalidate({})", load_provider_name(&li.fn_name))
+                    })
+                }) {
+                    Some(retry)
                 } else {
-                    let renamed = ctx
-                        .fn_renames
-                        .get(r#ref)
-                        .cloned()
-                        .unwrap_or_else(|| r#ref.clone());
-                    let zero_param = ctx.ref_is_zero_param_fn(r#ref);
-                    if is_void && ctx.ref_takes_params(r#ref) {
-                        // Task 3.6: a param-bearing fn CANNOT wire to a
-                        // 0-arity VoidCallback-family param — its tear-off
-                        // (`dynamic Function(dynamic)`) is not assignable to
-                        // `GestureTapCallback?` (argument_type_not_assignable;
-                        // Modal's `handleContentClick(e)` surfaced this on the
-                        // new tap wrapper) and the payload cannot flow INTO a
-                        // void callback either — honest degradation: warn and
-                        // drop (mirrors the direct-param path).
-                        ctx.warn_at(
-                            format!(
-                                "[flutter] event '{name}' → callback '{callback_name}' is a \
-                                 VoidCallback in Flutter (no event argument); handler \
-                                 '{ref}' takes an event parameter — dropped"
-                            ),
+                    // Task 5.8: pass the handler by TEAR-OFF — `onChanged:
+                    // syncMirror` — instead of `(event) { syncMirror({}); }`
+                    // (an empty event-object literal was passed to every fn ref,
+                    // producing extra_positional_arguments / type errors). Dart's
+                    // function subtyping accepts both arities; the payload flows
+                    // through the callback's own parameters. Field accesses on
+                    // the event are dropped — warn when the ref's target fn uses
+                    // them (unrepresentable through a tear-off).
+                    if handler
+                        .used_fields()
+                        .as_ref()
+                        .is_some_and(|f| !f.is_empty())
+                    {
+                        warn_dropped_event_fields(
+                            ctx,
+                            name,
+                            &callback_name,
+                            &format!("'{ref}'"),
                             el.source_span,
                         );
-                        None
-                    } else if !is_void && zero_param {
-                        // A 0-arg fn tear-off is not assignable to the
-                        // payload-bearing callback types (`ValueChanged<String>`)
-                        // — accept the event param and ignore it. Key events
-                        // additionally need the (node, event) signature and a
-                        // KeyEventResult return (C2b #3).
-                        Some(if key_event {
-                            format!(
+                    }
+                    if ctx.widget_names.contains(r#ref) {
+                        if key_event {
+                            // A tear-off cannot satisfy (FocusNode, KeyEvent) →
+                            // KeyEventResult — wrap it in a call.
+                            Some(format!(
+                                "(node, event) {{ widget.{}(); return KeyEventResult.ignored; }}",
+                                r#ref
+                            ))
+                        } else {
+                            Some(format!("widget.{}", r#ref))
+                        }
+                    } else {
+                        let renamed = ctx
+                            .fn_renames
+                            .get(r#ref)
+                            .cloned()
+                            .unwrap_or_else(|| r#ref.clone());
+                        let zero_param = ctx.ref_is_zero_param_fn(r#ref);
+                        if is_void && ctx.ref_takes_params(r#ref) {
+                            // Task 3.6: a param-bearing fn CANNOT wire to a
+                            // 0-arity VoidCallback-family param — its tear-off
+                            // (`dynamic Function(dynamic)`) is not assignable to
+                            // `GestureTapCallback?` (argument_type_not_assignable;
+                            // Modal's `handleContentClick(e)` surfaced this on the
+                            // new tap wrapper) and the payload cannot flow INTO a
+                            // void callback either — honest degradation: warn and
+                            // drop (mirrors the direct-param path).
+                            ctx.warn_at(
+                                format!(
+                                    "[flutter] event '{name}' → callback '{callback_name}' is a \
+                                 VoidCallback in Flutter (no event argument); handler \
+                                 '{ref}' takes an event parameter — dropped"
+                                ),
+                                el.source_span,
+                            );
+                            None
+                        } else if !is_void && zero_param {
+                            // A 0-arg fn tear-off is not assignable to the
+                            // payload-bearing callback types (`ValueChanged<String>`)
+                            // — accept the event param and ignore it. Key events
+                            // additionally need the (node, event) signature and a
+                            // KeyEventResult return (C2b #3).
+                            Some(if key_event {
+                                format!(
                                 "(node, event) {{ {renamed}(); return KeyEventResult.ignored; }}"
                             )
+                            } else {
+                                format!("(event) {{ {renamed}(); }}")
+                            })
                         } else {
-                            format!("(event) {{ {renamed}(); }}")
-                        })
-                    } else {
-                        Some(renamed.to_string())
+                            Some(renamed.to_string())
+                        }
                     }
                 }
             }
@@ -2238,9 +2277,11 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                         // (local final binding). Phase 3: carries the D1/D2
                         // set — handler mutations write `_name.value`.
                         let fmt = FlutterStmtFormatter {
-                            expr: super::r#ref::FlutterFormatExpr::new_with_direct_write(
+                            expr: super::r#ref::FlutterFormatExpr::new_with_context(
                                 Some(raw_var.to_string()),
                                 ctx.direct_write_signals,
+                                ctx.load_async_name.clone(),
+                                ctx.form_present,
                             ),
                             direct_write_signals: ctx.direct_write_signals.clone(),
                         };
@@ -2384,6 +2425,14 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
         if param.is_empty() {
             continue;
         }
+        // @form (Task 5): a bound field's validate: rules attach to the
+        // TextFormField's validator chain (errors surface via errorText).
+        // Runs BEFORE the controller_covers branch so a ref'd field still
+        // gets its validator even though value/onChanged move into the
+        // text controller listener.
+        if widget == "TextFormField" && bind_name == "value" {
+            form_validator_args(ctx, signal_ref, &mut args);
+        }
         // A ref'd TextField's bind:value is carried by the text controller
         // (needs_text → `controller:` param + guarded listener + sync), not
         // by a `value:` constructor arg — skip silently instead of warning.
@@ -2465,6 +2514,37 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
         args.push(format!("{}: {}", param, signal_ref.name));
     }
 
+    // @form (Task 5): the type="submit" button intercepts submission —
+    // `Form.validate()` gates the handler (errors already surfaced per-field
+    // via errorText). Runs BEFORE required_defaults so the `onPressed: null`
+    // default cannot steal the slot. An explicit onPressed (event or prop)
+    // always wins over the interception.
+    if widget == "ElevatedButton" && ctx.form_present {
+        let is_submit = match el.props.get("type") {
+            Some(ExprIR::LiteralExpr { value }) => value.as_str() == Some("submit"),
+            _ => false,
+        };
+        if is_submit {
+            if let Some(handler) =
+                ctx.comp.form_intent.as_ref().and_then(|f| {
+                    (!f.submit_handler.is_empty()).then_some(f.submit_handler.as_str())
+                })
+            {
+                let already = args.iter().any(|a| a.starts_with("onPressed:"));
+                if !already {
+                    let renamed = ctx
+                        .fn_renames
+                        .get(handler)
+                        .cloned()
+                        .unwrap_or_else(|| handler.to_string());
+                    args.push(format!(
+                        "onPressed: () {{ if (!_formKey.currentState!.validate()) return; {renamed}(); }}"
+                    ));
+                }
+            }
+        }
+    }
+
     // Required-parameter defaults: Flutter widgets with REQUIRED named
     // params emit a default when the .omni source provides none —
     // `ElevatedButton(child: ...)` without `onPressed:` is invalid Dart
@@ -2482,6 +2562,23 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
         let present = args.iter().any(|a| a.starts_with(&format!("{}:", param)));
         if !present {
             args.push(format!("{}: {}", param, default));
+        }
+    }
+
+    // @form (Task 5): the Form element carries the validation GlobalKey
+    // (the submit interception's validate() gate runs on it). If the author
+    // also pinned a `key:` prop, the slot is occupied — the GlobalKey is
+    // dropped with an honest warning (the validation gate breaks).
+    if widget == "Form" && ctx.form_present {
+        if !args.iter().any(|a| a.starts_with("key:")) {
+            args.push("key: _formKey".to_string());
+        } else {
+            ctx.warn_at(
+                format!(
+                    "[flutter] @form on '{widget}': the element's key slot is occupied by a key prop — the Form's GlobalKey is dropped (submit validation will not work)"
+                ),
+                el.source_span,
+            );
         }
     }
 
@@ -2975,6 +3072,120 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
     result
 }
 
+/// @form (Task 5): `<input>` inside an @form component maps to
+/// `TextFormField` so bound fields get `validator` — Form validation only
+/// works on FormField descendants.
+fn form_field_widget<'a>(ctx: &ViewContext<'_>, el: &ElementIR, base: &'a str) -> &'a str {
+    if el.tag == "input" && ctx.form_present {
+        "TextFormField"
+    } else {
+        base
+    }
+}
+
+/// Extract an integer literal from a validate: rule value (`min: 2`).
+fn rule_literal_int(rule: &ValidateRuleIR) -> Option<i64> {
+    match &rule.value {
+        ExprIR::LiteralExpr { value } => value.as_i64(),
+        _ => None,
+    }
+}
+
+/// Extract a string literal from a validate: rule value (`format: "email"`).
+fn rule_literal_str(rule: &ValidateRuleIR) -> Option<String> {
+    match &rule.value {
+        ExprIR::LiteralExpr { value } => value.as_str().map(str::to_string),
+        _ => None,
+    }
+}
+
+/// @form (Task 5): push `validator:` — the rule chain
+/// `(v) => cond1 ? 'msg1' : cond2 ? 'msg2' : TAIL` where TAIL is the custom
+/// component fn (when present) else `null` — plus `autovalidateMode:` onto a
+/// bound TextFormField's constructor args. Errors surface via errorText; the
+/// Form's validate() gate drives submit.
+fn form_validator_args(ctx: &ViewContext<'_>, signal_ref: &SignalRefIR, args: &mut Vec<String>) {
+    let Some(field) = ctx
+        .comp
+        .form_intent
+        .as_ref()
+        .and_then(|fi| fi.fields.iter().find(|f| f.name == signal_ref.name))
+    else {
+        return;
+    };
+    if field.rules.is_empty() {
+        return;
+    }
+    let mut checks: Vec<(String, String)> = Vec::new(); // (condition, message)
+    let mut custom_tail: Option<String> = None;
+    for rule in &field.rules {
+        match rule.name.as_str() {
+            "required" => {
+                checks.push(("v == null || v.isEmpty".to_string(), "此项必填".to_string()))
+            }
+            "min" => {
+                if let Some(n) = rule_literal_int(rule) {
+                    checks.push((
+                        format!("v != null && v.length < {n}"),
+                        format!("此项至少 {n} 个字符"),
+                    ));
+                }
+            }
+            "max" => {
+                if let Some(n) = rule_literal_int(rule) {
+                    checks.push((
+                        format!("v != null && v.length > {n}"),
+                        format!("此项最多 {n} 个字符"),
+                    ));
+                }
+            }
+            "format" | "pattern" => {
+                if let Some(p) = rule_literal_str(rule) {
+                    let msg = match p.as_str() {
+                        "email" => "邮箱格式不正确",
+                        "url" => "URL 格式不正确",
+                        _ => "格式不正确",
+                    };
+                    let escaped = p.replace('\'', "\\'");
+                    checks.push((
+                        format!("v != null && !RegExp(r'{escaped}').hasMatch(v)"),
+                        msg.to_string(),
+                    ));
+                }
+            }
+            // Any other rule name is a component fn — the custom validator
+            // becomes the chain's tail (returns null when valid).
+            other => {
+                let renamed = ctx
+                    .fn_renames
+                    .get(other)
+                    .cloned()
+                    .unwrap_or_else(|| other.to_string());
+                custom_tail = Some(format!("{renamed}(v)"));
+            }
+        }
+    }
+    // (v) => c1 ? 'm1' : c2 ? 'm2' : TAIL — TAIL is the custom fn when
+    // present, else `null` (a bare "required" chain ends in : null).
+    let mut validator = String::from("(v) => ");
+    for (i, (cond, msg)) in checks.iter().enumerate() {
+        if i > 0 {
+            validator.push_str(" : ");
+        }
+        validator.push_str(&format!("{cond} ? '{msg}'"));
+    }
+    if let Some(custom) = custom_tail {
+        if !checks.is_empty() {
+            validator.push_str(" : ");
+        }
+        validator.push_str(&custom);
+    } else if !checks.is_empty() {
+        validator.push_str(" : null");
+    }
+    args.push(format!("validator: {validator}"));
+    args.push("autovalidateMode: AutovalidateMode.onUserInteraction".to_string());
+}
+
 /// Append `(param, body)` to a wrapper's member list, creating the wrapper
 /// entry on first use (the wrapper is applied around the fully-rendered
 /// element by the caller).
@@ -3229,9 +3440,11 @@ fn format_key_handler_flutter(body: &BlockIR, ctx: &ViewContext) -> String {
         let s1 = watch_to_read_stmt(&s1);
         let s2 = rewrite_stmt_widget_refs(&s1, ctx.widget_names, ctx.fn_renames);
         let fmt = FlutterStmtFormatter {
-            expr: super::r#ref::FlutterFormatExpr::new_with_direct_write(
+            expr: super::r#ref::FlutterFormatExpr::new_with_context(
                 None,
                 ctx.direct_write_signals,
+                ctx.load_async_name.clone(),
+                ctx.form_present,
             ),
             direct_write_signals: ctx.direct_write_signals.clone(),
         };
@@ -3551,9 +3764,11 @@ fn format_inline_statements_flutter(body: &BlockIR, ctx: &ViewContext) -> String
         let s1 = watch_to_read_stmt(&s1);
         let s2 = rewrite_stmt_widget_refs(&s1, ctx.widget_names, ctx.fn_renames);
         let fmt = FlutterStmtFormatter {
-            expr: super::r#ref::FlutterFormatExpr::new_with_direct_write(
+            expr: super::r#ref::FlutterFormatExpr::new_with_context(
                 None,
                 ctx.direct_write_signals,
+                ctx.load_async_name.clone(),
+                ctx.form_present,
             ),
             direct_write_signals: ctx.direct_write_signals.clone(),
         };

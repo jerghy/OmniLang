@@ -197,6 +197,17 @@ pub trait FormatExpr {
         None
     }
 
+    /// Optional hook for LANGUAGE-LEVEL BUILTIN FIELD ACCESS — a field read
+    /// on a semantic builtin object (Task 5: `form.valid` / `form.errors`
+    /// / `form.submitting`). Backends whose runtime model maps these to
+    /// different shapes (React: signal accessors; Flutter: plain locals or
+    /// map lookups) override this to emit the mapped accessor. Default: no
+    /// rewrite, so the object is formatted by the ordinary path.
+    /// Fired in BOTH `FieldAccessExpr` and `OptionalChainExpr` arms.
+    fn format_special_field_access(&self, _object: &ExprIR, _field: &str) -> Option<String> {
+        None
+    }
+
     /// Store field access: read (`Store.items`) or action call
     /// (`Store.add(args)`). Backends that subscribe per field (React T3.3)
     /// override this to emit the slice local instead of the qualified name.
@@ -394,9 +405,16 @@ pub trait FormatExpr {
                 if let Some(mapped) = self.format_ref_op_field_access(object, field) {
                     return mapped;
                 }
+                // Language-level builtin field access (`form.valid` — Task 5).
+                if let Some(mapped) = self.format_special_field_access(object, field) {
+                    return mapped;
+                }
                 self.format_field_access(&self.format_expr(object), field)
             }
             ExprIR::OptionalChainExpr { object, field, .. } => {
+                if let Some(mapped) = self.format_special_field_access(object, field) {
+                    return mapped;
+                }
                 self.format_optional_chain(&self.format_expr(object), field)
             }
             ExprIR::BinaryOpExpr { op, left, right } => {

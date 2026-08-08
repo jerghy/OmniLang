@@ -511,7 +511,7 @@ impl FlutterCodegen {
         }) {
             w.emit("import 'package:flutter/services.dart';");
         }
-        if !comp.store_refs.is_empty() {
+        if !comp.store_refs.is_empty() || comp.load_intent.is_some() {
             w.emit("import 'package:flutter_riverpod/flutter_riverpod.dart';");
             w.emit("");
         }
@@ -673,8 +673,10 @@ impl FlutterCodegen {
 
         let state_name = format!("_{}State", name);
 
-        // Determine widget/state base classes
-        let (widget_base, state_base) = if comp.store_refs.is_empty() {
+        // Determine widget/state base classes — @load components watch a
+        // FutureProvider, so ConsumerState is required even without @store.
+        let (widget_base, state_base) = if comp.store_refs.is_empty() && comp.load_intent.is_none()
+        {
             ("StatefulWidget", "State")
         } else {
             ("ConsumerStatefulWidget", "ConsumerState")
@@ -870,6 +872,58 @@ impl FlutterCodegen {
             }
         }
         if !comp.signals.is_empty() {
+            w.emit("");
+        }
+
+        // @form (Task 5): one GlobalKey drives Form validation and submit
+        // interception. The `form.*` builtin signals degrade to reachability-
+        // gated constants below — the Flutter backend validates natively
+        // (validator → errorText), so the 语言面 signal reads compile but hold
+        // static values (see form_builtin_usage scan scope).
+        if comp.form_intent.is_some() {
+            w.emit("final _formKey = GlobalKey<FormState>();");
+            w.emit("");
+        }
+
+        // @load (Task 5): the FutureProvider owns the fetch lifecycle; the
+        // build method hoists `ref.watch(...)` into `{fn}Async` so loading/
+        // error/data map onto AsyncValue's tri-state.
+        let load_ret = comp.load_intent.as_ref().map(|li| {
+            comp.fns
+                .iter()
+                .find(|f| f.name == li.fn_name)
+                .and_then(|f| f.return_type.as_ref())
+                .map(super::dart::dart_type_ir)
+                .unwrap_or_else(|| "Object".to_string())
+        });
+        if let (Some(li), Some(ret)) = (&comp.load_intent, &load_ret) {
+            w.emit_fmt(format_args!(
+                "late final {} = FutureProvider<{}>((ref) async => {}());",
+                load_provider_name(&li.fn_name),
+                ret,
+                li.fn_name
+            ));
+            w.emit("");
+        }
+
+        // Reachability-gated `form.valid/errors/submitting` constants — only
+        // emitted when the view actually reads the builtin (else dart analyze
+        // flags them unused; form_builtin_usage scans props, semantic
+        // bindings, inline handlers at all depths, and interpolations).
+        let form_usage = form_builtin_usage(comp);
+        if form_usage.valid {
+            w.emit("static const formValid = true;");
+            w.emit("// 语言面信号保留 — Flutter 端校验经 errorText 展示");
+            w.emit("");
+        }
+        if form_usage.errors {
+            w.emit("static const formErrors = <String, String>{};");
+            w.emit("// 语言面信号保留 — Flutter 校验错误经 errorText 展示");
+            w.emit("");
+        }
+        if form_usage.submitting {
+            w.emit("static const formSubmitting = false;");
+            w.emit("// @load 三态经 FutureProvider — form.submitting 恒为 false");
             w.emit("");
         }
 
@@ -1411,6 +1465,19 @@ impl FlutterCodegen {
             w.emit("});");
         }
 
+        // @load (Task 5): hoisted AsyncValue read — `loading` maps to
+        // `.isLoading`, `error` to `.error`, `data` to `.valueOrNull` in the
+        // view tree (format_identifier override in ref.rs).
+        if let (Some(li), Some(ret)) = (&comp.load_intent, &load_ret) {
+            w.emit_fmt(format_args!(
+                "final AsyncValue<{}> {} = ref.watch({});",
+                ret,
+                load_async_local_name(&li.fn_name),
+                load_provider_name(&li.fn_name)
+            ));
+            w.emit("");
+        }
+
         if let Some(view) = view {
             let motions = ir
                 .modules
@@ -1453,6 +1520,12 @@ impl FlutterCodegen {
                 // never a silent drop.
                 errors: &mut view_errors,
                 direct_write: &direct_write_sets,
+                // Task 5: @load/@form context for view-tree builtin mapping.
+                load_async_name: comp
+                    .load_intent
+                    .as_ref()
+                    .map(|li| load_async_local_name(&li.fn_name)),
+                form_present: comp.form_intent.is_some(),
             };
             // Multi-node root fragments are wrapped in a Column —
             // `return Text('a'), Text('b');` would be invalid Dart
@@ -1798,12 +1871,30 @@ impl FlutterCodegen {
     }
 }
 
-/// Resolve the type of an @effect dependency: a component signal or computed.
-/// True when an @effect's didUpdateWidget condition collapses to `if (true)`
-/// (Task 5.8a): any dep that is neither a prop nor a component signal/computed
-/// (e.g. a store action like `setFilter`) forces the conservative re-run —
-/// and its prev-value snapshot fields are never read, so they must not be
-/// emitted (dart unused_field) nor assigned (undefined name).
+// Resolve the type of an @effect dependency: a component signal or computed.
+// True when an @effect's didUpdateWidget condition collapses to `if (true)`
+// (Task 5.8a): any dep that is neither a prop nor a component signal/computed
+// (e.g. a store action like `setFilter`) forces the conservative re-run —
+// and its prev-value snapshot fields are never read, so they must not be
+// emitted (dart unused_field) nor assigned (undefined name).
+// ── Task 5 (@load) naming —───────────────
+// The load fn `fetchTodos` becomes the State field
+// `final fetchTodosProvider = FutureProvider<...>((ref) async => fetchTodos());`
+// and the build hoists `final AsyncValue<...> fetchTodosAsync = ref.watch(...);`.
+// Both names are mechanical (fn name + suffix) so any @load fn maps
+// predictably; the async local is what builtins (loading/error/data) and the
+// retry handler reference.
+
+/// AsyncValue local name hoisted in build() (`{fn}Async`).
+pub(crate) fn load_async_local_name(fn_name: &str) -> String {
+    format!("{fn_name}Async")
+}
+
+/// FutureProvider State-field name (`{fn}Provider`).
+pub(crate) fn load_provider_name(fn_name: &str) -> String {
+    format!("{fn_name}Provider")
+}
+
 fn effect_collapses_to_true(comp: &ComponentIR, effect: &EffectIntent) -> bool {
     effect
         .deps

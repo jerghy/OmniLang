@@ -585,6 +585,8 @@ fn fmt_view_with_program_and_map<'a>(
         hoist_next: &mut hoist_next,
         lazy_context: false,
         comp_type_scope: &FxHashMap::default(),
+        load_async_name: None,
+        form_present: false,
     };
     let result = format_view_tree(node, &[], &mut ctx);
     (result, warnings)
@@ -624,6 +626,8 @@ fn fmt_view_in(
         hoist_next: &mut hoist_next,
         lazy_context: false,
         comp_type_scope: &FxHashMap::default(),
+        load_async_name: None,
+        form_present: false,
     };
     let result = format_view_tree(node, motions, &mut ctx);
     (result, warnings)
@@ -7888,6 +7892,8 @@ fn test_store_action_in_inline_handler_body() {
         hoist_next: &mut hoist_next,
         lazy_context: false,
         comp_type_scope: &FxHashMap::default(),
+        load_async_name: None,
+        form_present: false,
     };
     let expr = format_view_tree(&view, &[], &mut ctx);
     assert!(
@@ -8001,6 +8007,8 @@ fn test_store_action_method_call_form_in_handler() {
         hoist_next: &mut hoist_next,
         lazy_context: false,
         comp_type_scope: &FxHashMap::default(),
+        load_async_name: None,
+        form_present: false,
     };
     let expr = format_view_tree(&view, &[], &mut ctx);
     assert!(
@@ -8238,6 +8246,8 @@ fn test_ref_key_on_widget_and_controller_attachment() {
         hoist_next: &mut hoist_next,
         lazy_context: false,
         comp_type_scope: &FxHashMap::default(),
+        load_async_name: None,
+        form_present: false,
     };
     let view = ViewTree::Element(Box::new(el));
     let expr = format_view_tree(&view, &[], &mut ctx);
@@ -8286,6 +8296,8 @@ fn test_ref_key_on_widget_and_controller_attachment() {
         hoist_next: &mut hoist_next,
         lazy_context: false,
         comp_type_scope: &FxHashMap::default(),
+        load_async_name: None,
+        form_present: false,
     };
     let view2 = ViewTree::Element(Box::new(el2));
     let expr2 = format_view_tree(&view2, &[], &mut ctx2);
@@ -8329,6 +8341,8 @@ fn test_ref_key_on_widget_and_controller_attachment() {
         hoist_next: &mut hoist_next,
         lazy_context: false,
         comp_type_scope: &FxHashMap::default(),
+        load_async_name: None,
+        form_present: false,
     };
     let view3 = ViewTree::Element(Box::new(el3));
     let expr3 = format_view_tree(&view3, &[], &mut ctx3);
@@ -11547,6 +11561,236 @@ component DragBox {
     assert!(
         dart.contains("listenable: Listenable.merge([_dragX])"),
         "D1 member must be in the merge list, computed excluded, got:\n{}",
+        dart
+    );
+}
+
+// ═══════════════════════════════════════════════════════════
+// Task 5: @form Form+validator + @load FutureProvider/AsyncValue
+// ═══════════════════════════════════════════════════════════
+
+const FORM_SRC: &str = r#"
+component App {
+  signal name: string = "";
+  signal email: string = "";
+  fn submit(e) { }
+  view {
+    <form @form @onSubmit={submit}>
+      <input bind:value={name} validate:{required: true} />
+      <input bind:value={email} validate:{format: "email"} />
+      <button type="submit">Submit</button>
+      @if form.errors.name { <span id="err-name">{form.errors.name}</span> }
+    </form>
+  }
+}
+"#;
+
+const LOAD_SRC: &str = r#"
+component App {
+  fn fetchTodos() -> Array<String> { }
+  view {
+    @load={fetchTodos}
+    @if loading { <div>loading</div> }
+    @if error != "" { <div>{error}</div> }
+    @for item in data { <div>{item}</div> }
+  }
+}
+"#;
+
+#[test]
+fn flutter_form_emits_form_and_validators() {
+    let out = compile_flutter(FORM_SRC).expect("form fixture must compile");
+    let dart: String = out.files.values().cloned().collect::<Vec<_>>().join("\n");
+    assert!(
+        dart.contains("Form("),
+        "@form must emit a Form widget, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("TextFormField"),
+        "bound fields must emit TextFormField, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("validator:"),
+        "bound fields must carry a validator, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("errorText"),
+        "validator errors must be documented as Flutter-native errorText display, got:\n{}",
+        dart
+    );
+}
+
+#[test]
+fn flutter_load_emits_future_provider() {
+    let out = compile_flutter(LOAD_SRC).expect("load fixture must compile");
+    let dart: String = out.files.values().cloned().collect::<Vec<_>>().join("\n");
+    assert!(
+        dart.contains("FutureProvider"),
+        "@load must emit a FutureProvider, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("AsyncValue"),
+        "the three-state signal must be an AsyncValue, got:\n{}",
+        dart
+    );
+}
+
+/// validator 规则链：required → 空值拦截；format: "email" → 正则；
+/// 错误消息与 React 目标一致（跨目标一致）；validator 返回 String?。
+#[test]
+fn flutter_form_validator_rules_and_messages() {
+    let out = compile_flutter(FORM_SRC).expect("form fixture must compile");
+    let dart: String = out.files.values().cloned().collect::<Vec<_>>().join("\n");
+    assert!(
+        dart.contains("此项必填"),
+        "required must map to the shared 此项必填 message, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("邮箱格式不正确"),
+        "format: email must map to the shared 邮箱格式不正确 message, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("RegExp"),
+        "format/pattern rules must compile a RegExp, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("GlobalKey<FormState>"),
+        "the form must carry a GlobalKey<FormState>, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("autovalidateMode"),
+        "TextFormField must set AutovalidateMode explicitly, got:\n{}",
+        dart
+    );
+}
+
+/// submit 拦截：按钮 onPressed 前校验 `_formKey.currentState!.validate()`。
+#[test]
+fn flutter_form_submit_interception_guards_on_pressed() {
+    let out = compile_flutter(FORM_SRC).expect("form fixture must compile");
+    let dart: String = out.files.values().cloned().collect::<Vec<_>>().join("\n");
+    assert!(
+        dart.contains("if (!_formKey.currentState!.validate()) return;"),
+        "submit must be guarded by validate(), got:\n{}",
+        dart
+    );
+}
+
+/// 语言面表单信号（跨目标一致）：form.errors.name → formErrors["name"]；
+/// form.valid/form.submitting 引用时才发射（reachability-gated，避免
+/// 未使用局部警告）；form.errors 发射为常量空 map（Flutter 错误经
+/// errorText 展示）。
+#[test]
+fn flutter_form_builtin_signals_render_and_gate() {
+    let out = compile_flutter(FORM_SRC).expect("form fixture must compile");
+    let dart: String = out.files.values().cloned().collect::<Vec<_>>().join("\n");
+    assert!(
+        dart.contains("formErrors[\"name\"]"),
+        "form.errors.name must render formErrors[\"name\"], got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("formErrors"),
+        "form.errors must emit the formErrors map, got:\n{}",
+        dart
+    );
+
+    // reachability：无内建引用时不得发射常量（dart analyze unused warning 门禁）
+    let bare = compile_flutter(
+        r#"
+component App {
+  signal name: string = "";
+  fn submit(e) { }
+  view {
+    <form @form @onSubmit={submit}>
+      <input bind:value={name} validate:{required: true} />
+    </form>
+  }
+}
+"#,
+    )
+    .expect("bare form fixture must compile");
+    let bare_dart: String = bare.files.values().cloned().collect::<Vec<_>>().join("\n");
+    assert!(
+        !bare_dart.contains("formSubmitting"),
+        "formSubmitting must be reachability-gated (unused → absent), got:\n{}",
+        bare_dart
+    );
+}
+
+/// 三态接线：loading → .isLoading；error → (.error?.toString() ?? "")；
+/// data → .valueOrNull ?? const []；@if error != "" 必须整体括号化
+/// （Dart ?? 优先级低于 !=）。
+#[test]
+fn flutter_load_wires_three_states_and_provider() {
+    let out = compile_flutter(LOAD_SRC).expect("load fixture must compile");
+    let dart: String = out.files.values().cloned().collect::<Vec<_>>().join("\n");
+    assert!(
+        dart.contains(
+            "final fetchTodosProvider = FutureProvider<List<String>>((ref) async => fetchTodos());"
+        ),
+        "provider scaffold must wrap the load fn, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("fetchTodosAsync.isLoading"),
+        "loading builtin must map to AsyncValue.isLoading, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("(fetchTodosAsync.error?.toString() ?? \"\") != ''"),
+        "error builtin must map to a parenthesized error string, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("fetchTodosAsync.valueOrNull ?? const []"),
+        "data builtin must map to valueOrNull with an empty-list fallback, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("ref.watch(fetchTodosProvider)"),
+        "the build method must watch the provider, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("import 'package:flutter_riverpod/flutter_riverpod.dart';"),
+        "@load must pull in flutter_riverpod, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("ConsumerStatefulWidget"),
+        "ref access requires a Consumer stateful widget, got:\n{}",
+        dart
+    );
+}
+
+/// retry 回调别名 → ref.invalidate(fetchTodosProvider)（Flutter 端重试）。
+#[test]
+fn flutter_load_retry_maps_to_ref_invalidate() {
+    let out = compile_flutter(
+        r#"
+component App {
+  fn fetchTodos() -> Array<String> { }
+  view {
+    @load={fetchTodos}
+    <button @onPress={retry}>Retry</button>
+  }
+}
+"#,
+    )
+    .expect("retry fixture must compile");
+    let dart: String = out.files.values().cloned().collect::<Vec<_>>().join("\n");
+    assert!(
+        dart.contains("ref.invalidate(fetchTodosProvider)"),
+        "retry must invalidate the provider, got:\n{}",
         dart
     );
 }

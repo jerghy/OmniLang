@@ -692,6 +692,331 @@ fn scan_drag_bindings(node: &ViewTree, found: &mut bool) {
     }
 }
 
+/// Which `form.*` builtin signals the view actually reads (`form.valid`,
+/// `form.errors`, `form.submitting`). The Flutter backend degrades these to
+/// constants — validation errors surface through the native `errorText`
+/// pipeline instead — so constants are only emitted when referenced, else
+/// `dart analyze` flags them unused.
+///
+/// The scan covers exactly the expression contexts that receive the Flutter
+/// `form` mapping (`FlutterFormatExpr::new_with_context(.., form_present)`):
+/// element prop values, semantic bindings, inline handler bodies (all
+/// nesting depths — `format_stmt` recurses), interpolations. Component fn
+/// bodies / computeds / effects are formatted with the shared Dart formatter
+/// and stay out of scope (Task 5, YAGNI).
+pub(crate) struct FormBuiltinUsage {
+    pub valid: bool,
+    pub errors: bool,
+    pub submitting: bool,
+}
+
+pub(crate) fn form_builtin_usage(comp: &ComponentIR) -> FormBuiltinUsage {
+    let mut usage = FormBuiltinUsage {
+        valid: false,
+        errors: false,
+        submitting: false,
+    };
+    if let Some(view) = &comp.view {
+        scan_view_for_form_builtin(view, &mut usage);
+    }
+    usage
+}
+
+fn scan_view_for_form_builtin(node: &ViewTree, usage: &mut FormBuiltinUsage) {
+    if usage.valid && usage.errors && usage.submitting {
+        return;
+    }
+    match node {
+        ViewTree::Element(el) => {
+            for v in el.props.values() {
+                scan_expr_for_form_builtin(v, usage);
+            }
+            for v in el.semantic_bindings.values() {
+                scan_expr_for_form_builtin(v, usage);
+            }
+            for h in el.events.values() {
+                if let EventHandlerIR::InlineFn { body, .. } = h {
+                    scan_block_for_form_builtin(&body.statements, usage);
+                }
+            }
+            for child in &el.children {
+                scan_view_for_form_builtin(child, usage);
+            }
+        }
+        ViewTree::Conditional(cond) => {
+            for branch in &cond.branches {
+                scan_expr_for_form_builtin(&branch.condition, usage);
+                if let Some(ref body) = branch.body {
+                    scan_view_for_form_builtin(body, usage);
+                }
+            }
+            if let Some(ref fb) = cond.fallback {
+                scan_view_for_form_builtin(fb, usage);
+            }
+        }
+        ViewTree::ListRendering(list) => {
+            scan_expr_for_form_builtin(&list.iterable, usage);
+            if let Some(ref body) = list.body {
+                scan_view_for_form_builtin(body, usage);
+            }
+            if let Some(ref body) = list.empty_body {
+                scan_view_for_form_builtin(body, usage);
+            }
+        }
+        ViewTree::Fragment(children) => {
+            for c in children {
+                scan_view_for_form_builtin(c, usage);
+            }
+        }
+        ViewTree::Slot { fallback, .. } => {
+            for c in fallback {
+                scan_view_for_form_builtin(c, usage);
+            }
+        }
+        ViewTree::Interpolation(expr) => scan_expr_for_form_builtin(expr, usage),
+        ViewTree::Text(_) => {}
+        #[allow(unreachable_patterns)]
+        _ => {}
+    }
+}
+
+fn scan_block_for_form_builtin(statements: &[StatementIR], usage: &mut FormBuiltinUsage) {
+    for stmt in statements {
+        if usage.valid && usage.errors && usage.submitting {
+            return;
+        }
+        match stmt {
+            StatementIR::LetStmtIR { value: Some(v), .. } => {
+                scan_expr_for_form_builtin(v, usage);
+            }
+            StatementIR::ExprStmtIR { expr } => scan_expr_for_form_builtin(expr, usage),
+            StatementIR::ReturnStmtIR { value: Some(v), .. } => {
+                scan_expr_for_form_builtin(v, usage);
+            }
+            StatementIR::IfStmtIR {
+                condition,
+                then_body,
+                else_ifs,
+                else_body,
+            } => {
+                scan_expr_for_form_builtin(condition, usage);
+                scan_block_for_form_builtin(&then_body.statements, usage);
+                for (c, b) in else_ifs {
+                    scan_expr_for_form_builtin(c, usage);
+                    scan_block_for_form_builtin(&b.statements, usage);
+                }
+                if let Some(b) = else_body {
+                    scan_block_for_form_builtin(&b.statements, usage);
+                }
+            }
+            StatementIR::WhileStmtIR { condition, body } => {
+                scan_expr_for_form_builtin(condition, usage);
+                scan_block_for_form_builtin(&body.statements, usage);
+            }
+            StatementIR::ForInStmtIR { iterable, body, .. } => {
+                scan_expr_for_form_builtin(iterable, usage);
+                scan_block_for_form_builtin(&body.statements, usage);
+            }
+            StatementIR::MutationStmt { intent: Some(i) } => {
+                scan_mutation_for_form_builtin(i, usage);
+            }
+            StatementIR::EventEmitStmtIR { args, .. } => {
+                for a in args {
+                    scan_expr_for_form_builtin(a, usage);
+                }
+            }
+            StatementIR::BlockStmtIR { body } => {
+                scan_block_for_form_builtin(&body.statements, usage);
+            }
+            StatementIR::ThrowStmtIR { expr } => scan_expr_for_form_builtin(expr, usage),
+            StatementIR::TryCatchStmtIR {
+                try_body,
+                catch_body,
+                finally_body,
+                ..
+            } => {
+                scan_block_for_form_builtin(&try_body.statements, usage);
+                if let Some(b) = catch_body {
+                    scan_block_for_form_builtin(&b.statements, usage);
+                }
+                if let Some(b) = finally_body {
+                    scan_block_for_form_builtin(&b.statements, usage);
+                }
+            }
+            StatementIR::BreakStmtIR | StatementIR::ContinueStmtIR => {}
+            #[allow(unreachable_patterns)]
+            _ => {}
+        }
+    }
+}
+
+fn scan_mutation_for_form_builtin(intent: &MutationIntent, usage: &mut FormBuiltinUsage) {
+    match intent {
+        MutationIntent::DirectAssign { value: Some(v), .. } => {
+            scan_expr_for_form_builtin(v, usage);
+        }
+        MutationIntent::Increment {
+            amount: Some(v), ..
+        }
+        | MutationIntent::Decrement {
+            amount: Some(v), ..
+        }
+        | MutationIntent::Multiply {
+            amount: Some(v), ..
+        }
+        | MutationIntent::Divide {
+            amount: Some(v), ..
+        }
+        | MutationIntent::Modulo {
+            amount: Some(v), ..
+        } => scan_expr_for_form_builtin(v, usage),
+        MutationIntent::Push { item: Some(v), .. } => scan_expr_for_form_builtin(v, usage),
+        MutationIntent::Pop { .. } => {}
+        #[allow(unreachable_patterns)]
+        _ => {}
+    }
+}
+
+fn scan_expr_for_form_builtin(expr: &ExprIR, usage: &mut FormBuiltinUsage) {
+    if usage.valid && usage.errors && usage.submitting {
+        return;
+    }
+    match expr {
+        ExprIR::FieldAccessExpr { object, field } | ExprIR::OptionalChainExpr { object, field } => {
+            if is_form_identifier(object) {
+                record_form_builtin(field, usage);
+            } else {
+                scan_expr_for_form_builtin(object, usage);
+            }
+        }
+        ExprIR::CallExpr { name: _, args } => {
+            for a in args {
+                scan_expr_for_form_builtin(a, usage);
+            }
+        }
+        ExprIR::BinaryOpExpr { left, right, .. } => {
+            scan_expr_for_form_builtin(left, usage);
+            scan_expr_for_form_builtin(right, usage);
+        }
+        ExprIR::UnaryOpExpr { operand, .. } => scan_expr_for_form_builtin(operand, usage),
+        ExprIR::TernaryIR {
+            cond,
+            then_expr,
+            else_expr,
+        } => {
+            scan_expr_for_form_builtin(cond, usage);
+            scan_expr_for_form_builtin(then_expr, usage);
+            scan_expr_for_form_builtin(else_expr, usage);
+        }
+        ExprIR::ArrayExpr { elements } => {
+            for e in elements {
+                scan_expr_for_form_builtin(e, usage);
+            }
+        }
+        ExprIR::SpreadExpr { operand } => scan_expr_for_form_builtin(operand, usage),
+        ExprIR::StructExpr { fields, .. } => {
+            for (_, v) in fields {
+                scan_expr_for_form_builtin(v, usage);
+            }
+        }
+        ExprIR::StoreFieldAccessExpr { call_args, .. } => {
+            for a in call_args {
+                scan_expr_for_form_builtin(a, usage);
+            }
+        }
+        ExprIR::MethodCallExpr { object, args, .. } => {
+            scan_expr_for_form_builtin(object, usage);
+            for a in args {
+                scan_expr_for_form_builtin(a, usage);
+            }
+        }
+        ExprIR::BlockExpr { statements, tail } => {
+            scan_block_for_form_builtin(statements, usage);
+            scan_expr_for_form_builtin(tail, usage);
+        }
+        ExprIR::IndexExpr { object, index } => {
+            scan_expr_for_form_builtin(object, usage);
+            scan_expr_for_form_builtin(index, usage);
+        }
+        ExprIR::AwaitExpr { operand } => scan_expr_for_form_builtin(operand, usage),
+        ExprIR::ClosureExpr { body, .. } => scan_expr_for_form_builtin(body, usage),
+        ExprIR::VariantLiteral { fields, .. } => {
+            for (_, v) in fields {
+                scan_expr_for_form_builtin(v, usage);
+            }
+        }
+        ExprIR::MatchExpr { matched, arms } => {
+            scan_expr_for_form_builtin(matched, usage);
+            for arm in arms {
+                scan_block_for_form_builtin(&arm.body.statements, usage);
+            }
+        }
+        ExprIR::MapExpr { entries } => {
+            for (k, v) in entries {
+                scan_expr_for_form_builtin(k, usage);
+                scan_expr_for_form_builtin(v, usage);
+            }
+        }
+        ExprIR::ArrayMethod {
+            subject, predicate, ..
+        } => {
+            scan_expr_for_form_builtin(subject, usage);
+            scan_expr_for_form_builtin(predicate, usage);
+        }
+        ExprIR::RefOpExpr { op, .. } => {
+            scan_ref_op_for_form_builtin(op, usage);
+        }
+        ExprIR::LiteralExpr { .. } => {}
+        #[allow(unreachable_patterns)]
+        _ => {}
+    }
+}
+
+/// Scan `RefOpIR` child expressions (args like x/y/dx/dy/start/end/value)
+/// for form builtin identifiers.
+fn scan_ref_op_for_form_builtin(op: &RefOpIR, usage: &mut FormBuiltinUsage) {
+    match op {
+        RefOpIR::ScrollTo { x, y } => {
+            scan_opt_expr_for_form_builtin(x.as_deref(), usage);
+            scan_opt_expr_for_form_builtin(y.as_deref(), usage);
+        }
+        RefOpIR::ScrollBy { dx, dy } => {
+            scan_opt_expr_for_form_builtin(dx.as_deref(), usage);
+            scan_opt_expr_for_form_builtin(dy.as_deref(), usage);
+        }
+        RefOpIR::SetSelection { start, end } => {
+            scan_expr_for_form_builtin(start, usage);
+            scan_expr_for_form_builtin(end, usage);
+        }
+        // No-arg ops (Focus/Blur/Measure/Select/Value/CapturePointer/
+        // ReleasePointer) carry no child expressions.
+        _ => {}
+    }
+}
+
+fn scan_opt_expr_for_form_builtin(expr: Option<&ExprIR>, usage: &mut FormBuiltinUsage) {
+    if let Some(e) = expr {
+        scan_expr_for_form_builtin(e, usage);
+    }
+}
+
+fn is_form_identifier(expr: &ExprIR) -> bool {
+    matches!(
+        expr,
+        ExprIR::IdentifierExpr { name, .. } if name == "form"
+    )
+}
+
+fn record_form_builtin(field: &str, usage: &mut FormBuiltinUsage) {
+    match field {
+        "valid" => usage.valid = true,
+        "submitting" => usage.submitting = true,
+        // Any other field (incl. `errors` itself) resolves through
+        // `formErrors` in the Flutter formatter (ref.rs format_special_field_access).
+        _ => usage.errors = true,
+    }
+}
+
 /// The `_DragEvent` carrier class spec for a component (ADR-073, Fix round
 /// 2): which DragIntent fields the component's drag handlers actually read
 /// (union across every `@drag` / `@dragEnd` binding), and whether the class
@@ -1370,6 +1695,15 @@ pub(crate) struct FlutterFormatExpr {
     /// `_name`). Empty for paths without component context (lib fns, signal
     /// initial values in non-component files, view-tree expressions).
     pub(crate) direct_write_signals: FxHashSet<String>,
+    /// Task 5 (@load): when a `FutureProvider` name is set, the builtin
+    /// `loading` / `error` / `data` identifiers map to the AsyncValue
+    /// accessors (`todosAsync.isLoading`, ...). `None` outside component
+    /// view/event contexts.
+    pub(crate) load_async_name: Option<String>,
+    /// Task 5 (@form): when the component declares a `<form @form>`, the
+    /// builtin `form.valid` / `form.errors` / `form.submitting` field reads
+    /// map to the reachability-gated locals. `false` outside view contexts.
+    pub(crate) form_present: bool,
 }
 
 impl FlutterFormatExpr {
@@ -1377,6 +1711,8 @@ impl FlutterFormatExpr {
         Self {
             inner: DartFormatExpr { event_param_name },
             direct_write_signals: FxHashSet::default(),
+            load_async_name: None,
+            form_present: false,
         }
     }
 
@@ -1389,6 +1725,26 @@ impl FlutterFormatExpr {
         Self {
             inner: DartFormatExpr { event_param_name },
             direct_write_signals: direct_write_signals.clone(),
+            load_async_name: None,
+            form_present: false,
+        }
+    }
+
+    /// Task 5: context-carrying constructor for component view/event
+    /// expression formatting — carries the @load async local name and the
+    /// @form presence so builtins (loading/error/data, form.*) map to their
+    /// Flutter runtime shapes.
+    pub(crate) fn new_with_context(
+        event_param_name: Option<String>,
+        direct_write_signals: &FxHashSet<String>,
+        load_async_name: Option<String>,
+        form_present: bool,
+    ) -> Self {
+        Self {
+            inner: DartFormatExpr { event_param_name },
+            direct_write_signals: direct_write_signals.clone(),
+            load_async_name,
+            form_present,
         }
     }
 }
@@ -1413,12 +1769,66 @@ impl FormatExpr for FlutterFormatExpr {
     // Phase 3 (ADR-071 decision 2): a D1/D2 signal identifier resolves to
     // the ValueNotifier cell — `_name.value` (the State field was renamed
     // `_name`; bare `name` would be an undeclared identifier in Dart).
+    // Task 5 (@load): the builtin `loading` / `error` / `data` identifiers
+    // resolve to AsyncValue accessors on the hoisted watch local.
     // Everything else stays the Dart-family default (bare name).
     fn format_identifier(&self, name: &str) -> String {
+        if let Some(async_name) = &self.load_async_name {
+            match name {
+                // `@if loading` — loading is a Bool signal; `AsyncValue.isLoading`.
+                "loading" => return format!("{async_name}.isLoading"),
+                // `@if error != ""` — error is a String signal; AsyncValue
+                // surfaces `error` (Object?) — toString + null-coalesce. The
+                // parens are MANDATORY: Dart's `??` binds looser than `!=`.
+                "error" => return format!("({async_name}.error?.toString() ?? \"\")"),
+                // `@for item in data` — data is an Array signal; AsyncValue
+                // `valueOrNull` is List<T>? — null-coalesce to an empty list.
+                "data" => return format!("{async_name}.valueOrNull ?? const []"),
+                _ => {}
+            }
+        }
         if self.direct_write_signals.contains(name) {
             format!("_{}.value", name)
         } else {
             name.to_string()
+        }
+    }
+
+    // Task 5 (@form): the builtin `form.X` field reads map to the
+    // reachability-gated locals (formErrors / formValid / formSubmitting).
+    // The `errors` map is keyed by the `bind:value` field name — `name`
+    // (the LAST path segment of the bound signal, per FormFieldIR.name).
+    fn format_special_field_access(&self, object: &ExprIR, field: &str) -> Option<String> {
+        if !self.form_present {
+            return None;
+        }
+        if let ExprIR::IdentifierExpr { name, .. } = object {
+            if name == "form" {
+                return match field {
+                    "valid" => Some("formValid".to_string()),
+                    "submitting" => Some("formSubmitting".to_string()),
+                    "errors" => Some("formErrors".to_string()),
+                    other => Some(format!("formErrors[\"{other}\"]")),
+                };
+            }
+        }
+        // Nested chain `form.errors.<field>` (and `form?.errors.<field>` /
+        // `form.errors?.<field>`): a Dart Map has no `.field` member, so the
+        // index access `formErrors["<field>"]` is required. The inner object
+        // must be rooted at `form` — matching any `x?.errors` by field name
+        // would misfire on unrelated maps (same shape as react/expr.rs
+        // form_errors_index_access).
+        let (inner_obj, inner_field) = match object {
+            ExprIR::FieldAccessExpr { object, field }
+            | ExprIR::OptionalChainExpr { object, field } => (object.as_ref(), field.as_str()),
+            _ => return None,
+        };
+        if inner_field == "errors"
+            && matches!(inner_obj, ExprIR::IdentifierExpr { name, .. } if name == "form")
+        {
+            Some(format!("formErrors[\"{field}\"]"))
+        } else {
+            None
         }
     }
 

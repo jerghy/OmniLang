@@ -399,6 +399,27 @@ fn widget_param_whitelist(widget: &str) -> &'static [&'static str] {
             "textInputAction",
             "decoration",
         ],
+        // Task 5: form-bound inputs map to TextFormField — same surface as
+        // TextField plus `validator` (rule chain; errors surface natively via
+        // errorText) and `autovalidateMode` (validate on user interaction).
+        // The Form widget whitelist carries neither (verified against the
+        // SDK: Form has no autovalidateMode), so both live here.
+        "TextFormField" => &[
+            "key",
+            "onChanged",
+            "onSubmitted",
+            "controller",
+            "focusNode",
+            "obscureText",
+            "keyboardType",
+            "enabled",
+            "maxLines",
+            "maxLength",
+            "textInputAction",
+            "decoration",
+            "validator",
+            "autovalidateMode",
+        ],
         "Checkbox" => &["key", "value", "onChanged", "activeColor"],
         "Switch" => &["key", "value", "onChanged", "activeColor"],
         "Slider" => &["key", "value", "onChanged", "min", "max", "divisions"],
@@ -417,7 +438,7 @@ fn widget_event_whitelist(widget: &str) -> &'static [&'static str] {
     match widget {
         "ElevatedButton" | "TextButton" => &["onPressed", "onLongPress"],
         "IconButton" => &["onPressed", "onLongPress"],
-        "TextField" => &["onChanged", "onSubmitted", "onTap"],
+        "TextField" | "TextFormField" => &["onChanged", "onSubmitted", "onTap"],
         "Checkbox" | "Switch" | "Slider" | "DropdownButton" => &["onChanged"],
         _ => &[],
     }
@@ -516,6 +537,8 @@ pub(crate) fn widget_param_rename<'a>(widget: &str, param: &'a str) -> &'a str {
         ("Text", "semanticLabel") => "semanticsLabel",
         ("TextField", "rows") => "maxLines",
         ("TextField", "max") => "maxLength",
+        ("TextFormField", "rows") => "maxLines",
+        ("TextFormField", "max") => "maxLength",
         _ => param,
     }
 }
@@ -543,7 +566,7 @@ pub(crate) fn widget_param_wrapper(
             "color" => Some(("TextStyle", "color")),
             _ => None,
         },
-        "TextField" => match param {
+        "TextField" | "TextFormField" => match param {
             "hintText" => Some(("InputDecoration", "hintText")),
             "label" => Some(("InputDecoration", "labelText")),
             _ => None,
