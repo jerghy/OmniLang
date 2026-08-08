@@ -21,10 +21,10 @@
 
 **用户决策（2026-08-08 拍板）**：
 - 补缺方向：**方向 3 分阶段全补**（先机制级事件意图化，再功能设计级）
-- 事件意图化取向：**取向 B 增量登记**（首批 11 个语义事件，登记册逐事件标注状态，随语料需求渐进上移）
+- 事件意图化取向：**取向 B 增量登记**（首批 14 个语义事件，登记册逐事件标注状态，随语料需求渐进上移）
 - 新原则：**语义化即切换，不留旧残留**（见 §2 原则 8）
 - 阶段二范围：**四组全做**（表单+数据三态 / 反馈+模态 / 导航 / 响应式断点）
-- 实证载体：**重构 learn-omniview/src**（93 个 .omni 全量，见 §6）
+- 实证载体：**重构 learn-omniview/src**（102 个 .omni 全量，见 §6）
 
 ## 2. 设计原则
 
@@ -48,38 +48,40 @@
 | 语义事件 | 语义（编译器理解的意图） | 字段 schema | 三目标实现方向 |
 |---|---|---|---|
 | `@onPress` | 点按完成（press/tap 别名收编） | `{x, y}` 元素坐标 | React onClick / Flutter InkWell.onTap / OmniView click |
-| `@onInput` | 控件值变化（输入中） | `{value}` 当前值 | React onChange / Flutter onChanged / OmniView input |
-| `@onChange` | 选值变化（select/checkbox/radio） | `{value}` | React onChange / Flutter onChanged / OmniView change |
-| `@onSubmit` | 表单/输入提交 | `{value}` | React onSubmit / Flutter onSubmitted / OmniView submit |
-| `@onKeyDown` | 按键按下 | `{key: KeyName, ctrl, shift, alt, meta}` | React onKeyDown / Flutter KeyEvent / OmniView keydown |
+| `@onInput` | 控件值变化（输入中） | `{value, checked}` 当前值 | React onChange / Flutter onChanged / OmniView input |
+| `@onChange` | 选值变化（select/checkbox/radio） | `{value, checked}` | React onChange / Flutter onChanged / OmniView change |
+| `@onSubmit` | 表单/输入提交 | `{values}`（`{string: string}`，FormData 收集） | React onSubmit / Flutter onSubmitted / OmniView submit |
+| `@onKeyDown` | 按键按下 | `{key: KeyName, code, ctrl, shift, alt, meta}` | React onKeyDown / Flutter KeyEvent / OmniView keydown |
 | `@onKeyUp` | 按键抬起 | 同上 | 同上 |
 | `@onPointerDown/Move/Up` | 指针原始交互（低层；@drag 仍是高层意图） | `{x, y, pointerId, buttons}`（dx/dy 已 YAGNI 移除——@drag 覆盖增量语义，pointer 原始事件增量需跨事件快照状态、零消费者） | React pointer props / Flutter Listener / OmniView pointer 事件 |
-| `@onScroll` | 滚动位置/进度变化 | `{y, progress}` | React onScroll / Flutter NotificationListener / OmniView scroll |
-| `@onFocus` / `@onBlur` | 焦点进出 | `{}` | React onFocus/onBlur / Flutter FocusNode / OmniView focus/blur |
+| `@onScroll` | 滚动位置/进度变化 | `{x, y, progress}`（progress 0..1：scrollTop/(scrollHeight−clientHeight)，不可测 0 兜底） | React onScroll / Flutter NotificationListener / OmniView scroll |
+| `@onFocus` / `@onBlur` | 焦点进出 | `{value}` | React onFocus/onBlur / Flutter FocusNode / OmniView focus/blur |
 | `@onEnter` / `@onLeave` | 指针悬停进出 | `{x, y}` | React onMouseEnter/Leave / Flutter MouseRegion / OmniView mouseenter/leave |
+
+> schema 列为语义子集（可读性截断）；完整 schema = 编译器单一事实源（`ir/events.rs` `event_data_schema`，Task 9 核对基准），docs/omniview/07-events-and-bindings.md 详载。坐标基准：PointerEvent `x/y` = 元素局部坐标（offsetX/offsetY，D1）；ScrollEvent `x/y` = scrollLeft/scrollTop。
 
 ### 3.2 三个设计决策
 
 **D1 · 坐标基准 = 元素局部坐标**：`x/y` = 相对元素左上角（Flutter `localPosition` 天然一致；React 由 clientX − rect 换算；OmniView 由 offsetX）。`@drag` 的累计位移 schema 不变（拖拽语义的一部分）；pointer 事件的 `dx/dy` = 相对上一帧位移。
 
-**D2 · 语义 key 枚举化**：`key` 字段是语义键名（`"Enter"`/`"Escape"`/`"ArrowUp"`…），语义 pass 校验常量合法性 + 近邻建议（`"enter"` 拼错 → warning 建议 `"Enter"`）。`e.key` 字符串本身已跨平台一致，价值在验证而非重命名。
+**D2 · 语义 key 枚举化**：`key` 字段是语义键名（`"Enter"`/`"Escape"`/`"ArrowUp"`…；19 命名键 + 单字母/单数字，大小写敏感），语义 pass 校验常量合法性 + 近邻建议（`"enter"` 拼错 → E0006 硬错误 + 建议 `"Enter"`，V3 落地）。`e.key` 字符串本身已跨平台一致，价值在验证而非重命名。
 
 **D3 · schema 提取复用既有基建**：每个语义事件定义 schema（编译器单一事实源），codegen 按 `used_fields` 提取精确字段——复用 `@drag` 的 `emit_event_object` 管线（event_data + used_fields 既有机制），零新机制。
 
 ### 3.3 一步到位切换（原则 8 落地）
 
-首批 11 个语义事件落地的同时，以下旧名全部切换为硬诊断 + 迁移提示：
+首批 14 个语义事件落地的同时，以下旧名全部切换为硬诊断 + 迁移提示：
 
 | 语义事件（新） | 旧名 → 硬诊断 + 迁移提示 |
 |---|---|
-| `@onPress` | `@onClick`（含别名 `press/tap` 收编） |
-| `@onInput` | 输入框上 `@onChange` 旧用法 → 提示区分（`@onInput` 值变化 / `@onChange` 选值变化） |
-| `@onSubmit` | 旧 DOM 形状字段 → 提示 |
-| `@onKeyDown/Up` | `e.which` 等非语义字段 → 诊断 |
-| `@onPointerDown/Move/Up` | `e.clientX/e.pageX/e.offsetX/e.ctrlKey/…` → 提示改 `e.x/e.y/dx/dy/ctrl` |
-| `@onScroll` | `e.deltaY`（wheel 语义混用）→ 提示改 `e.y/e.progress` |
+| `@onPress` | `@onClick` / `@click` / 裸 `onClick`，**含别名 `@onTap`/`@tap`（canonical 同值 click，Task 2 实现事实）** → E0006 硬错误「事件名 "@x" 已弃用——使用 "@onPress"」。`@press` 是运动触发器指令（TokenKind::AtPress，非事件名）——不进事件校验，无切换语义 |
+| `@onInput` | `@onChange` **维持合法**（select/checkbox/radio 选值语义；change 与 input 是不同事件，非旧名关系，无编译器旧名诊断）；文本输入用点迁移至 `@onInput` 属 demo/文档指引（Task 8 语料判别） |
+| `@onSubmit` | `e.value` 等旧 DOM 形状字段 → E0006 无效字段硬错误（schema 仅 `values`——FormData 收集） |
+| `@onKeyDown/Up` | `e.which` 等非语义字段 → 无效字段硬错误 |
+| `@onPointerDown/Move/Up` | `e.clientX/e.clientY/e.pageX/e.offsetX/e.ctrlKey/…` → 无效字段硬错误（clientX/clientY/ctrlKey 带迁移提示「可改用 e.x/e.y（元素局部坐标）」「e.ctrl」）；**dx/dy 不存在**（YAGNI：@drag 覆盖增量语义） |
+| `@onScroll` | `e.deltaY`（wheel 语义混用）→ 无效字段硬错误（schema 仅 x/y/progress——scroll 语义为位置/进度非增量；`@wheel` 才有 deltaY） |
 | `@onFocus/@onBlur` | 名不变，仅 schema 化 |
-| `@onEnter/@onLeave` | `@onMouseEnter/@onMouseLeave` |
+| `@onEnter/@onLeave` | `@onMouseEnter`/`@mouseenter`/`@onMouseLeave`/`@mouseleave` → E0006 硬错误「事件名 "@x" 已弃用——使用 "@onEnter"/"@onLeave"」 |
 
 未被首批覆盖的 40 个 DOM 事件名（54 − 14 已语义化；`load/error/play/ended/copy/paste/dragstart/…`）维持透传 + Flutter 诊断，semantic-universe 域 3 逐事件标注「透传」状态；上移一个、切换一个，**不存在新旧双轨期**。
 
@@ -166,7 +168,7 @@
 
 ## 6. 阶段 3：重构 learn-omniview/src（实证载体）
 
-- 载体：`test/projects/learn-omniview/src`（93 个 .omni，9 标签页，20 pages + 57 components + 4 stores）
+- 载体：`test/projects/learn-omniview/src`（102 个 .omni，9 标签页，20 pages + 56 components + 4 stores + 18 lib + 4 root，Task 9 实测计数）
 - 目标：用新语法全量重构——① 覆盖验证（新语义事件/新功能域的真实使用）② demo 迁移（一步到位切换纪律）③ 缺漏迭代（重构中写不出来的界面 = 缺漏 → 追加设计或明确语言边界）
 - 已知重构点（实证预判）：
   - Modal 组件 → `@modal` 原语
@@ -206,7 +208,7 @@
 
 ## 10. 验收标准
 
-- [ ] 阶段 1：11 语义事件 + 旧名切换全落地，learn-omniview 事件用点零旧名
+- [ ] 阶段 1：14 语义事件 + 旧名切换全落地，learn-omniview 事件用点零旧名
 - [ ] 阶段 2：四域意图契约实现（各带 Validation 清单 + 三目标门禁）
 - [ ] 阶段 3：learn-omniview 全量重构完成，覆盖审计新域缺口 = 0，重构卡点清单闭环（追加设计 or 边界记录）
 - [ ] 阶段 4：docs/omniview 全量同步，docs-gate 零失实

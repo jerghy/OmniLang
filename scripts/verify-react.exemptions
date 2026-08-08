@@ -30,7 +30,12 @@
 # Current snapshot (task 5.6, 2026-08-05; re-measured 2026-08-06): tsc 72
 # errors + 4 eslint problems (all exempted).
 # 2026-08-08 (Task 8 demo 迁移 + Task 4-7 编译器变更后重测): tsc 73 + eslint
-# 6 — 增量 3 项全部为既有漂移、非迁移引入（基线对照验证）：
+# 5 — 增量 3 项全部为既有漂移、非迁移引入（基线对照验证；Task 9 Minor-1
+# 复核：有效豁免条目 24 = tsc 20 条（TS7006×7/TS2322×3/TS2345×4/TS2367×1/
+# TS2353×2/TS2339×3，cap 合计 75 ≥ 实测 73，余量 2 为 raised-cap 语义）
+# + eslint 4 条（exhaustive-deps/no-explicit-any/no-control-regex(2)/no-unused-vars，
+# cap 合计 5 = 实测 5）；SignalPatternsDemo no-unused-vars 由 config 覆盖、
+# 不占豁免条，故 eslint 实测 5 而非 6）：
 #   (1) SlotBox TS2339 4→5（Task 4 PointerEvent schema 扩展：emit 载荷全量
 #       字段 pressure/tiltX/tiltY/pointerType/pointerId 落 MouseEvent 合成
 #       事件；x/y 走 nativeEvent.offsetX/offsetY —— Task 4 Minor-3 登记项

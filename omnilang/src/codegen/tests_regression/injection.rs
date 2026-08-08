@@ -30,6 +30,17 @@
 //! and the static attribute-value shapes are REJECTED at compile time by
 //! the shared lowering gate (a compile error is the accepted safe outcome;
 //! see `omni_html_attribute_context_blocks_unquoted_handlers`).
+//!
+//! Task 9 (semantic-event-intent-phase1) additions: the `semantic-key`
+//! insertion point — KeyEvent schema field READS (`e.key`/`e.code`，新
+//! schema 字段名面) with the payload riding a handler string literal (the
+//! D2-validated `e.key == "…"` comparison surface is covered by the
+//! validate_semantic_keys tests instead, since non-key payloads would be
+//! rejected before reaching codegen) — and the
+//! `legacy_event_switch_messages_across_backends` pattern-missing assertion
+//! (exact E0006 switch message per backend for @onClick/@click/@onTap/@tap →
+//! @onPress and the mouseenter family → @onEnter/@onLeave; spec
+//! 2026-08-08 §3.3 切换表事实).
 
 use rustc_hash::FxHashMap;
 
@@ -826,6 +837,20 @@ fn event_src(payload: &str) -> String {
     )
 }
 
+/// KeyEvent 语义 schema 字段面（Task 9，spec §3.1 KeyEvent 行）：handler 内
+/// 读取 `e.key`/`e.code`（新 schema 字段名）并携带 payload 于字符串字面量——
+/// 字段提取机制按后端改写读取（JS `{raw}.key`/`{raw}.code`；Flutter
+/// `logicalKey.keyLabel`/`physicalKey.keyId`，Task 7 映射）。刻意不用
+/// `e.key == "…"` 比较：该面被 D2 语义键名枚举验证（validate_semantic_keys.rs）
+/// 拦截，非键名 payload 在到达 codegen 前即被拒绝——`e.code` 读取是未验证的
+/// schema 面（payload 在字符串字面量中流通），语义键名枚举面由 D2 验证测试
+/// 独立覆盖。
+fn semantic_key_src(payload: &str) -> String {
+    format!(
+        "component App {{\n    fn show(t) {{ return t }}\n    view {{\n        <div @onKeyDown={{(e) => {{ show(e.key); show(e.code); show(\"x{payload}\"); }}}}/>\n    }}\n}}\n"
+    )
+}
+
 /// Motion keyframe string values (security HIGH-3): `translateX`-style
 /// values flow from MotionBodyIR stops into the backend keyframe emissions.
 /// The React emitter inlines literal string values raw into
@@ -886,6 +911,10 @@ const POINTS: &[Point] = &[
     Point {
         name: "event",
         make_src: event_src,
+    },
+    Point {
+        name: "semantic-key",
+        make_src: semantic_key_src,
     },
     Point {
         name: "rawtext",
@@ -1000,6 +1029,49 @@ fn injection_payload_corpus() {
                 }
                 // else: a compile error is an acceptable safe outcome.
             }
+        }
+    }
+}
+
+/// Task 9 模式缺失断言——旧名切换消息跨后端固定：语义事件分级（原则 8）
+/// 的 E0006 硬错误消息是后端无关的共享语义层产物，但必须对每个后端全链路
+/// 可见（parse → semantic → diagnostics 不因目标差异而丢失/改写）。spec
+/// 2026-08-08 §3.3 切换表事实：@onClick/@click/@onTap/@tap → @onPress；
+/// @onMouseEnter/@mouseenter → @onEnter；@onMouseLeave → @onLeave。消息逐字
+/// 断言「事件名 "@x" 已弃用——使用 "@y"」（validate_event_names.rs error_diag
+/// 格式）。注：@press 是运动触发器指令（TokenKind::AtPress，parser 实证），
+/// 非事件名，不进事件校验——不在本表（spec §3.3 注记）。
+#[test]
+fn legacy_event_switch_messages_across_backends() {
+    // (attr 拼写, 消息中的旧名, 迁移目标语义事件)
+    let cases: &[(&str, &str, &str)] = &[
+        ("@onClick={f}", "onClick", "onPress"),
+        ("@click={f}", "click", "onPress"),
+        ("@onTap={f}", "onTap", "onPress"),
+        ("@tap={f}", "tap", "onPress"),
+        ("@onMouseEnter={f}", "onMouseEnter", "onEnter"),
+        ("@mouseenter={f}", "mouseenter", "onEnter"),
+        ("@onMouseLeave={f}", "onMouseLeave", "onLeave"),
+    ];
+    for (target, backend) in BACKENDS {
+        for (attr, legacy, semantic) in cases {
+            let source = format!(
+                "component App {{\n    fn f(e) {{}}\n    view {{\n        <div {attr} />\n    }}\n}}\n"
+            );
+            let result = compile_target(&source, *target);
+            let expected = format!("事件名 \"@{legacy}\" 已弃用——使用 \"@{semantic}\"");
+            assert!(
+                !result.success,
+                "[{backend}] `{attr}` 必须硬失败（旧名 {legacy} 已弃用），got: {:?}",
+                result.errors
+            );
+            assert!(
+                result.errors.iter().any(|d| {
+                    d.severity == crate::error::Severity::Error && d.message == expected
+                }),
+                "[{backend}] `{attr}` 必须逐字产生 {expected:?}，got: {:?}",
+                result.errors
+            );
         }
     }
 }

@@ -244,12 +244,17 @@ mod tests {
     /// 语义事件分级的旧名（@onClick/@onMouseEnter/@onMouseLeave）必须产生
     /// E0006 硬错误 + 中文迁移提示（use @onPress/@onEnter/@onLeave）。
     /// @ 前缀拼写、无 @ 拼写与裸 stem 拼写（@click）同规则命中（canonical 同值）。
+    /// Task 9: 别名拼写 @onTap/@tap 与 @onClick 同判旧名（canonical 同值
+    /// "click"）——spec 2026-08-08 §3.3 切换表事实（@press 是运动触发器
+    /// 指令 TokenKind::AtPress，非事件名，不进本校验——见 docs 注记）。
     #[test]
     fn legacy_event_names_hard_error_with_migration_hint() {
         let cases: &[(&str, &str, &str)] = &[
             ("@onClick={f}", "onClick", "onPress"),
             ("@click={f}", "click", "onPress"),
             ("onClick={f}", "onClick", "onPress"),
+            ("@onTap={f}", "onTap", "onPress"),
+            ("@tap={f}", "tap", "onPress"),
             ("@onMouseEnter={f}", "onMouseEnter", "onEnter"),
             ("@mouseenter={f}", "mouseenter", "onEnter"),
             ("@onMouseLeave={f}", "onMouseLeave", "onLeave"),

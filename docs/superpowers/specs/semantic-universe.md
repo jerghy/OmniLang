@@ -1,6 +1,6 @@
 # 语义全集（Semantic Universe）
 
-**日期**: 2026-08-07
+**日期**: 2026-08-08（域 3 事件行重分类：Task 9——14 语义化 + 40 透传 + 「语义化」列）
 **状态**: Active —— 设计 P3 机制（v3 修复计划 Phase 7，Task 7.2）
 **依据**: 设计文档 §2 原则 5（已实现范围 vs 设计记录显式区分）+ 白名单教训（19 属性白名单曾是「已实现集」——borderRadius/fontSize 上轮排除理由事实错误、v2 才补回，白名单随实现修正而变动；ArrayMethod 语义 pass 提升到所有后端但 floor 门缺失——3 后端 verbatim 零诊断，v3 Task 4.8 补 E_CODEGEN）
 **审计**: `scripts/verify-semantic-universe.py`（语义集条目 → 实现状态矩阵，docs-gate 同批）
@@ -144,64 +144,66 @@ CSS 动画语义域——**属性值从 A 到 B 平滑过渡**（CSS Transitions
 
 交互时机语义域——**用户与元素交互时触发处理器**（W3C UI Events / Pointer Events / Touch Events / CSS Animation & Transition Events，54 canonical 名，封闭）。语义词汇 = canonical 事件名本体（`onXxx` 拼写是平台形状，登记册 域 1 排除词汇）；DSL 表面 `@onXxx={...}`（或裸 `onXxx={...}`）。全集封闭：白名单外事件名 → 未知事件名 warning + 最近合法事件建议（Task 4.2）。
 
+语义化分类（Task 9，断言锚点 = `SEMANTIC_EVENT_NAMES` 常量，ADR-074 提取模式）：**首批 14 个语义事件标记「语义化」**——语义名（旧名硬错误 + 迁移提示）、schema、坐标基准（PointerEvent x/y 元素局部）、KeyEvent key 语义键名枚举（spec 2026-08-08 §3.1-§3.4，schema 列见各条目括号）；**其余 40 个标记「透传」**——DOM 语义维持 + Flutter 诊断（语义化即切换：旧名不进白名单，legacy_spelling 映射 → 硬错误）。
+
 ### 语义集条目
 
-| 语义集条目 | 语义 | 实现状态 | 诊断行为 |
-|-----------|------|---------|---------|
-| click | 单击 | 支持 | 无（全目标；Flutter onPressed/onTap 依组件） |
-| dblclick | 双击 | 支持 | 无（全目标；`map_event` 单表复用） |
-| longpress | 长按 | 部分 | **Flutter 便捷事件（onLongPress）；React/OmniView 无 DOM 对应——处理器名透传不触发** |
-| hover | 悬停 | 部分 | **Flutter MouseRegion.onHover 交付；React/OmniView 无 DOM 对应——处理器名透传不触发（v4：编译 warning + 跳过死处理器，见代码生成诚实降级）** |
-| change | 值变化提交 | 支持 | 无（全目标） |
-| input | 输入中 | 支持 | 无（全目标；Flutter onChanged） |
-| toggle | 切换 | 部分 | **Flutter onChanged 交付（checkbox 便捷形状）；React/OmniView 在 `<details>` 上交付（React onToggle 合成事件 / OmniView addEventListener("toggle")——details 条件性，Task 6.1b）；其他元素 v4：编译 warning + 跳过死处理器** |
-| submit | 表单提交 | 支持 | 无（全目标） |
-| focus | 获得焦点 | 支持 | 无（全目标） |
-| blur | 失去焦点 | 支持 | 无（全目标） |
-| select | 文本选择 | 支持 | 无（全目标） |
-| resize | 尺寸变化 | 部分 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
-| keydown | 键按下 | 支持 | 无（全目标；KeyEvent 稳定映射 keyCode/keyLabel） |
-| keyup | 键抬起 | 支持 | 无（全目标） |
-| keypress | 键按下（字符） | 部分 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
-| mouseenter | 指针进入（不冒泡） | 支持 | 无（全目标） |
-| mouseleave | 指针离开（不冒泡） | 支持 | 无（全目标） |
-| mousedown | 按下 | 部分 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
-| mouseup | 抬起 | 部分 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
-| mousemove | 移动 | 部分 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
-| mouseover | 指针进入（冒泡） | 部分 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
-| mouseout | 指针离开（冒泡） | 部分 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
-| pointerdown | 指针按下 | 部分 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
-| pointerup | 指针抬起 | 部分 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
-| pointermove | 指针移动 | 部分 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
-| pointercancel | 指针取消 | 部分 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
-| scroll | 滚动 | 支持 | 无（全目标） |
-| wheel | 滚轮 | 部分 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
-| touchstart | 触摸开始 | 部分 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
-| touchend | 触摸结束 | 部分 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
-| touchmove | 触摸移动 | 部分 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
-| touchcancel | 触摸取消 | 部分 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
-| contextmenu | 右键菜单 | 部分 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
-| drag | 拖拽 | 支持 | 无（全目标） |
-| dragstart | 拖拽开始 | 支持 | 无（全目标） |
-| dragend | 拖拽结束 | 支持 | 无（全目标） |
-| dragover | 拖拽悬停 | 支持 | 无（全目标） |
-| dragleave | 拖拽离开 | 部分 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
-| drop | 放置 | 支持 | 无（全目标） |
-| copy | 复制 | 部分 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
-| cut | 剪切 | 部分 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
-| paste | 粘贴 | 部分 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
-| play | 播放 | 部分 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
-| pause | 暂停 | 部分 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
-| ended | 播放结束 | 部分 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
-| load | 加载完成 | 部分 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
-| error | 加载错误 | 部分 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
-| animationstart | 动画开始 | 部分 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
-| animationend | 动画结束 | 部分 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
-| animationiteration | 动画迭代 | 部分 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
-| transitionend | 过渡结束 | 部分 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
-| transitionrun | 过渡运行 | 部分 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
-| transitionstart | 过渡开始 | 部分 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
-| transitioncancel | 过渡取消 | 部分 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
+| 语义集条目 | 语义 | 实现状态 | 语义化 | 诊断行为 |
+|-----------|------|---------|--------|---------|
+| click | 单击（press/tap 别名收编；schema：x/y 元素局部坐标 + button/pressure/tiltX/tiltY/pointerType/pointerId/buttons + alt/ctrl/shift/meta） | 支持 | 语义化 | 无（全目标；Flutter onPressed/onTap 依组件） |
+| dblclick | 双击 | 支持 | 透传 | 无（全目标；`map_event` 单表复用） |
+| longpress | 长按 | 部分 | 透传 | **Flutter 便捷事件（onLongPress）；React/OmniView 无 DOM 对应——处理器名透传不触发** |
+| hover | 悬停 | 部分 | 透传 | **Flutter MouseRegion.onHover 交付；React/OmniView 无 DOM 对应——处理器名透传不触发（v4：编译 warning + 跳过死处理器，见代码生成诚实降级）** |
+| change | 值变化提交（schema：value/checked） | 支持 | 语义化 | 无（全目标） |
+| input | 输入中（schema：value/checked） | 支持 | 语义化 | 无（全目标；Flutter onChanged） |
+| toggle | 切换 | 部分 | 透传 | **Flutter onChanged 交付（checkbox 便捷形状）；React/OmniView 在 `<details>` 上交付（React onToggle 合成事件 / OmniView addEventListener("toggle")——details 条件性，Task 6.1b）；其他元素 v4：编译 warning + 跳过死处理器** |
+| submit | 表单提交（schema：values——{string: string}） | 支持 | 语义化 | 无（全目标） |
+| focus | 获得焦点（schema：value） | 支持 | 语义化 | 无（全目标） |
+| blur | 失去焦点（schema：value） | 支持 | 语义化 | 无（全目标） |
+| select | 文本选择 | 支持 | 透传 | 无（全目标） |
+| resize | 尺寸变化 | 部分 | 透传 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
+| keydown | 键按下（schema：key/code + alt/ctrl/shift/meta；key 走语义键名枚举，spec §3.4） | 支持 | 语义化 | 无（全目标；KeyEvent 稳定映射 keyCode/keyLabel） |
+| keyup | 键抬起（schema 同 keydown） | 支持 | 语义化 | 无（全目标） |
+| keypress | 键按下（字符） | 部分 | 透传 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
+| mouseenter | 指针进入（不冒泡）（schema 同 click） | 支持 | 语义化 | 无（全目标） |
+| mouseleave | 指针离开（不冒泡）（schema 同 click） | 支持 | 语义化 | 无（全目标） |
+| mousedown | 按下 | 部分 | 透传 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
+| mouseup | 抬起 | 部分 | 透传 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
+| mousemove | 移动 | 部分 | 透传 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
+| mouseover | 指针进入（冒泡） | 部分 | 透传 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
+| mouseout | 指针离开（冒泡） | 部分 | 透传 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
+| pointerdown | 指针按下（schema 同 click） | 部分 | 语义化 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
+| pointerup | 指针抬起（schema 同 click） | 部分 | 语义化 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
+| pointermove | 指针移动（schema 同 click） | 部分 | 语义化 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
+| pointercancel | 指针取消 | 部分 | 透传 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
+| scroll | 滚动（schema：x/y（scrollLeft/scrollTop）+ progress 0..1） | 支持 | 语义化 | 无（全目标） |
+| wheel | 滚轮 | 部分 | 透传 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
+| touchstart | 触摸开始 | 部分 | 透传 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
+| touchend | 触摸结束 | 部分 | 透传 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
+| touchmove | 触摸移动 | 部分 | 透传 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
+| touchcancel | 触摸取消 | 部分 | 透传 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
+| contextmenu | 右键菜单 | 部分 | 透传 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
+| drag | 拖拽 | 支持 | 透传 | 无（全目标） |
+| dragstart | 拖拽开始 | 支持 | 透传 | 无（全目标） |
+| dragend | 拖拽结束 | 支持 | 透传 | 无（全目标） |
+| dragover | 拖拽悬停 | 支持 | 透传 | 无（全目标） |
+| dragleave | 拖拽离开 | 部分 | 透传 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
+| drop | 放置 | 支持 | 透传 | 无（全目标） |
+| copy | 复制 | 部分 | 透传 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
+| cut | 剪切 | 部分 | 透传 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
+| paste | 粘贴 | 部分 | 透传 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
+| play | 播放 | 部分 | 透传 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
+| pause | 暂停 | 部分 | 透传 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
+| ended | 播放结束 | 部分 | 透传 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
+| load | 加载完成 | 部分 | 透传 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
+| error | 加载错误 | 部分 | 透传 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
+| animationstart | 动画开始 | 部分 | 透传 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
+| animationend | 动画结束 | 部分 | 透传 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
+| animationiteration | 动画迭代 | 部分 | 透传 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
+| transitionend | 过渡结束 | 部分 | 透传 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
+| transitionrun | 过渡运行 | 部分 | 透传 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
+| transitionstart | 过渡开始 | 部分 | 透传 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
+| transitioncancel | 过渡取消 | 部分 | 透传 | **Flutter 未映射——[flutter] warning「not supported; skipped」（flutter/view.rs:1697-1723 诚实降级）；React/OmniView 依赖合成事件/DOM 对应（以目标为准）** |
 
 ### 已实现白名单
 
@@ -262,7 +264,7 @@ CSS 动画语义域——**属性值从 A 到 B 平滑过渡**（CSS Transitions
 | transitionstart | 同上 |
 | transitioncancel | 同上 |
 
-> 事件域语义集 = 已实现集（54 canonical 全支持，longpress 部分）：事件全集为封闭域（登记册 域 1 同载），无漂移空间——新增事件 = 语义集扩充，先登记本表 + 登记册再入编译器。
+> 事件域语义集 = 已实现集（54 canonical 全支持，longpress 部分）：事件全集为封闭域（登记册 域 1 同载），无漂移空间——新增事件 = 语义集扩充，先登记本表 + 登记册再入编译器。语义化分类（Task 9）：**14 语义化**（`SEMANTIC_EVENT_NAMES` 常量，门禁双向断言）+ **40 透传**（= 54 − 14；维持 DOM 语义 + Flutter 诊断）——新增语义事件必须在 `event_names.rs` 的 `SEMANTIC_EVENT_NAMES` 登记并同步本表分类，否则门禁失败。
 
 ---
 

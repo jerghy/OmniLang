@@ -104,6 +104,11 @@ REQUIRED_SUBSECTIONS = ("语义域定义", "语义集条目", "已实现白名�
 STATUS_COLUMN = "实现状态"
 DIAG_COLUMN = "诊断行为"
 STATUSES = {"支持", "部分", "未支持"}
+# Task 9: 域 3 事件行的语义化分类列——语义化（首批 14 语义事件）/ 透传（其余）。
+# 断言锚点 = SEMANTIC_EVENT_NAMES 常量（ADR-074 rust_str_array 提取模式），
+# 脚本不硬编码 14/40——语义化集合随编译器常量漂移时门禁失败。
+SEMANTIC_CLASS_COLUMN = "语义化"
+SEMANTIC_CLASSES = {"语义化", "透传"}
 
 # ── whitelist extraction (compiler ground truth) ─────────────────────────
 
@@ -113,9 +118,50 @@ def read_file(path):
 
 
 def event_canonical_names(text):
-    """Canonical event names from the shared event table — every
-    `... => Some("name")` match arm."""
-    return sorted(set(re.findall(r'=>\s*Some\("([^"]+)"\)', text)))
+    """Canonical event names from the shared event table — the
+    `=> Some("name")` match arms of `canonical_event_name`'s body.
+    Scoped to the fn body: `legacy_spelling`'s arms ("onPress" => Some("onClick"),
+    Task 2/3) are legacy-name mappings — those names are HARD-REJECTED, not
+    implemented whitelist members, so they must not be extracted (登记册零失实)."""
+    m = re.search(r'pub fn canonical_event_name.*?\{(.*?)\n\}', text, re.S)
+    if not m:
+        return None
+    return sorted(set(re.findall(r'=>\s*Some\("([^"]+)"\)', m.group(1))))
+
+
+def canonical_alias_map(text):
+    """canonical_event_name 别名表（event_names.rs）——每个 lowercase
+    `"stem" | … => Some("canonical")` 匹配臂的 stem → canonical（Task 9:
+    解析 SEMANTIC_EVENT_NAMES 的 onXxx → canonical；legacy_spelling 的
+    camelCase 臂 "onPress" 等不匹配 lowercase 模式，天然排除）。"""
+    return {
+        stem: canonical
+        for chain, canonical in re.findall(
+            r'((?:"[a-z]+"\s*\|\s*)*"[a-z]+")\s*=>\s*Some\("([a-z]+)"\)', text
+        )
+        for stem in re.findall(r'"([a-z]+)"', chain)
+    }
+
+
+def semantic_event_canonicals(text):
+    """首批语义事件（SEMANTIC_EVENT_NAMES 常量）经 canonical_event_name
+    别名表解析出的 canonical 集合——域 3「语义化」分类的编译器事实锚点
+    （ADR-074 先例：断言锚点 = 编译器常量，脚本不硬编码 14/40）。
+    提取失败返回 None（门禁必须失败，不静默放行）。"""
+    names = rust_str_array(text, "SEMANTIC_EVENT_NAMES")
+    if names is None:
+        return None
+    alias = canonical_alias_map(text)
+    if not alias:
+        return None
+    resolved = set()
+    for n in names:
+        stem = n[2:].lower() if n.startswith("on") else n.lower()
+        canonical = alias.get(stem)
+        if canonical is None:
+            return None
+        resolved.add(canonical)
+    return resolved
 
 
 def flutter_callback_names(text):
@@ -281,6 +327,24 @@ def event_rows(text):
     if si is None or di is None:
         return None
     return [(r[0], r[si], r[di]) for r in rows]
+
+
+def event_classification(text):
+    """域 3 语义集条目 (name, 语义化值) 对——Task 9 事件行分类列
+    （语义化/透传）。提取失败（缺列/缺小节/表畸形）返回 None。"""
+    sections = split_domains(text)
+    if 3 not in sections:
+        return None
+    sub = subsection(sections[3][1], "语义集条目")
+    if sub is None:
+        return None
+    headers, rows = table_rows(sub)
+    if headers is None or rows is None:
+        return None
+    ci = column_index(headers, SEMANTIC_CLASS_COLUMN)
+    if ci is None:
+        return None
+    return [(r[0], r[ci]) for r in rows]
 
 
 def check_event_claims(rows, mapped):
@@ -459,6 +523,38 @@ def audit():
             fail("事件: cannot cross-assert Flutter mapping (flutter/utils.rs callback map extraction failed)")
         else:
             problems.extend(check_event_claims(rows3, mapped))
+    # events (域 3, Task 9): 事件行语义化分类——「语义化」列 ∈ {语义化, 透传}；
+    # 语义化集合 == SEMANTIC_EVENT_NAMES 常量经 canonical_event_name 别名表
+    # 解析的 canonical 集合（ADR-074：断言锚点 = 编译器常量，不硬编码 14/40）；
+    # 透传集合 == 全集 − 语义化（54 行须全分类：14 语义化 + 40 透传无漂移）
+    cls3 = event_classification(universe)
+    if cls3 is None:
+        fail(
+            f"事件: domain 3 '### 语义集条目' must have '{SEMANTIC_CLASS_COLUMN}' column "
+            f"with values in {sorted(SEMANTIC_CLASSES)} (Task 9 分类列缺失)"
+        )
+    else:
+        invalid = sorted({(n, c) for n, c in cls3 if c not in SEMANTIC_CLASSES})
+        if invalid:
+            fail(f"事件: invalid {SEMANTIC_CLASS_COLUMN} values {invalid} (must be {sorted(SEMANTIC_CLASSES)})")
+        semantic_rows = {n for n, c in cls3 if c == "语义化"}
+        expected_semantic = semantic_event_canonicals(read_file(EVENT_TABLE_FILE))
+        if expected_semantic is None:
+            fail("事件: cannot resolve SEMANTIC_EVENT_NAMES through canonical_event_name (extraction failed)")
+        else:
+            if semantic_rows != expected_semantic:
+                fail(
+                    f"事件: {SEMANTIC_CLASS_COLUMN} 语义化集合 ≠ SEMANTIC_EVENT_NAMES 常量解析的 canonical 集合\n"
+                    f"    doc-only:      {sorted(semantic_rows - expected_semantic)}\n"
+                    f"    compiler-only: {sorted(expected_semantic - semantic_rows)}"
+                )
+            all_names = {n for n, _ in cls3}
+            passthrough_rows = {n for n, c in cls3 if c == "透传"}
+            if passthrough_rows != all_names - semantic_rows:
+                fail(
+                    f"事件: {SEMANTIC_CLASS_COLUMN} 透传集合 ≠ 全集 − 语义化 "
+                    f"（{len(all_names)} 行须全分类：语义化 + 透传 = 全集）"
+                )
 
     # RefOp (域 4): whitelist == RefOpIR variants (10, casefolded)
     wl4, en4 = whitelist(4), entries(4)

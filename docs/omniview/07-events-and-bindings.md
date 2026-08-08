@@ -21,7 +21,35 @@
 <button @onPress={(e) => { handleEvent(e); }}>Log</button>
 ```
 
-`@onPress` 和 `@onClick` 等价（都映射到 `click`），`@onPress` 是推荐写法。
+**语义化即切换**：首批 14 个语义事件名是唯一合法拼写——旧 DOM 拼写（`@onClick`/`@onTap`/`@onMouseEnter`/`@onMouseLeave` 等）产生**编译期硬错误 + 迁移提示**（`事件名 "@onClick" 已弃用——使用 "@onPress"`，E0006）。其余 40 个 DOM 事件名维持透传（见「事件类型参考」；semantic-universe 域 3 逐事件标注「语义化/透传」）。
+
+## 语义事件（首批 14 个）
+
+| 语义事件 | 语义 | 事件数据（schema） | 旧名 → 硬错误迁移 |
+|---------|------|------------------|------------------|
+| `@onPress` | 点按完成（press/tap 别名收编） | `x`, `y`（**元素局部坐标**）, `button`, `pressure`, `tiltX`, `tiltY`, `pointerType`, `pointerId`, `buttons`, `alt`, `ctrl`, `shift`, `meta` | `@onClick` / `@click` / `@onTap` / `@tap` → `@onPress` |
+| `@onInput` | 控件值变化（输入中） | `value`, `checked` | 文本输入旧 `@onChange` 用点 → `@onInput`（demo/文档指引；change 与 input 是不同事件，均合法，无编译器旧名诊断） |
+| `@onChange` | 选值变化（select/checkbox/radio） | `value`, `checked` | — |
+| `@onSubmit` | 表单/输入提交 | `values`（`{string: string}`，FormData 收集） | `e.value` 等 DOM 形状字段 → 无效字段硬错误（schema 仅 `values`） |
+| `@onKeyDown` | 键按下 | `key`（语义键名枚举，见下）, `code`, `alt`, `ctrl`, `shift`, `meta` | `e.which` 等非语义字段 → 无效字段硬错误 |
+| `@onKeyUp` | 键抬起 | 同上 | 同上 |
+| `@onPointerDown` / `@onPointerMove` / `@onPointerUp` | 指针原始交互 | 同 `@onPress` | `e.clientX`/`e.clientY`/`e.ctrlKey`/… → 无效字段硬错误 + 迁移提示（`e.x`/`e.y` 元素局部坐标、`e.ctrl`） |
+| `@onScroll` | 滚动位置/进度 | `x`（scrollLeft）, `y`（scrollTop）, `progress`（0..1） | `e.deltaY` → 无效字段硬错误（增量语义属 `@onWheel`） |
+| `@onFocus` / `@onBlur` | 焦点进出 | `value` | —（名不变，仅 schema 化） |
+| `@onEnter` / `@onLeave` | 指针悬停进出（不冒泡） | 同 `@onPress` | `@onMouseEnter` / `@mouseenter` / `@onMouseLeave` / `@mouseleave` → `@onEnter` / `@onLeave` |
+
+> **坐标基准**：`@onPress` / pointer / `@onEnter` / `@onLeave` 的 `x`/`y` = **元素局部坐标**（相对元素左上角，offsetX/offsetY）——非视口坐标（clientX/clientY 已随旧名弃用）；`@onScroll` 的 `x`/`y` = 元素内滚动位置（scrollLeft/scrollTop）。
+> **`@press`/`@hover`/`@focus`/`@enter`（不带 `on`）是动画触发器**，不是事件（见 [11-运动与动画](11-motion-animation.md)）；`@drag` / `@dragEnd` 是拖拽意图指令（见「拖拽意图指令」）。
+
+### 语义键名（e.key 枚举）
+
+`@onKeyDown` / `@onKeyUp` 的 `e.key` 比较字面量必须是语义键名——否则 E0006 硬错误 + 最近合法建议：
+
+| 分类 | 键名 |
+|------|------|
+| 功能键 | `Enter` `Escape` `Backspace` `Delete` `Tab` `CapsLock` `Shift` `Control` `Alt` `Meta` |
+| 导航键 | `ArrowUp` `ArrowDown` `ArrowLeft` `ArrowRight` `Home` `End` `PageUp` `PageDown` |
+| 空格/字符 | `Space` + 单字母 `A`-`Z` / 单数字 `0`-`9`（大小写敏感） |
 
 ## 事件数据（Event Data）
 
@@ -40,8 +68,8 @@ component EventsDemo {
     }
 
     fn handleMouse(e) {
-        x = e.x;             // e.clientX
-        y = e.y;             // e.clientY
+        x = e.x;             // 元素局部坐标（offsetX）——非视口坐标
+        y = e.y;             // 元素局部坐标（offsetY）
     }
 
     view {
@@ -65,21 +93,22 @@ component EventsDemo {
 
 | 事件 | 典型字段 | 说明 |
 |------|---------|------|
-| `@onPress` / `@onClick` | `x`, `y`, `button` | 点击 |
+| `@onPress` | `x`, `y`, `button`, `pressure`, `pointerType`, `pointerId`, `buttons` | 点按（语义事件；`@onClick`/`@onTap` 已弃用） |
 | `@onDoubleClick` | `x`, `y` | 双击 |
 | `@onContextMenu` | `x`, `y` | 右键菜单 |
-| `@onMouseEnter` / `@onMouseLeave` | — | 悬停进出 |
-| `@onMouseMove` | `x`, `y` | 鼠标移动 |
+| `@onEnter` / `@onLeave` | `x`, `y`（元素局部坐标） | 悬停进出（语义事件；`@onMouseEnter`/`@onMouseLeave` 已弃用） |
+| `@onPointerDown` / `@onPointerMove` / `@onPointerUp` | `x`, `y`, `button`, `pressure`, `pointerId`, `buttons` | 指针原始交互（语义事件） |
+| `@onMouseMove` | `x`, `y` | 鼠标移动（透传） |
 
 ### 输入/键盘
 
 | 事件 | 典型字段 |
 |------|---------|
-| `@onInput` | `value` |
+| `@onInput` | `value`, `checked` |
 | `@onChange` | `value`, `checked` |
-| `@onKeyUp` / `@onKeyDown` | `key`, `code` |
+| `@onKeyUp` / `@onKeyDown` | `key`（语义键名枚举）, `code` |
 | `@onFocus` / `@onBlur` | `value` |
-| `@onSubmit` | `values` |
+| `@onSubmit` | `values`（FormData 收集） |
 
 ### 剪贴板
 
@@ -124,7 +153,7 @@ component EventsDemo {
 | 事件 | 字段 |
 |------|------|
 | `@onWheel` | `deltaX`, `deltaY`, `deltaZ`, `x`, `y` |
-| `@onScroll` | `x`, `y` |
+| `@onScroll` | `x`, `y`, `progress`（0..1：scrollTop/(scrollHeight−clientHeight)，不可测 0 兜底） |
 
 ### 媒体
 
@@ -226,7 +255,7 @@ view {
 
 | 风格 | 示例 | 说明 |
 |------|------|------|
-| 标准 | `@onClick={handler}` | 显式命名事件（`@onEventName`，推荐） |
+| 标准 | `@onPress={handler}` | 语义事件名（`@onEventName`，推荐） |
 | 无 @ 前缀 | `onPress={handler}` | `onEventName` 形式同样被解析 |
 | 内联闭包 | `@onPress={() => { ... }}` | 直接写逻辑 |
 | Store action | `@onPress={TodoStore.add("x")}` | 调用 store 方法 |

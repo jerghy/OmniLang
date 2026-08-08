@@ -104,7 +104,7 @@ test.describe('OmniView React — 9 标签页验证', () => {
     test('01 - banner + capability grid render', async ({ page }) => {
       await switchToTab(page, 0);
       await visible(page, 'OmniLang Capability Showcase');
-      await visible(page, '96 源文件 · 4 主题 · 10 语义域 · 9 标签页');
+      await visible(page, '102 源文件 · 4 主题 · 10 语义域 · 9 标签页');
       for (const t of ['UI Components', 'Motion & Animation', 'Design & Theme', 'State & Signals', 'Language Features', 'Element Ref', 'Compiler Features', 'Design Tokens']) {
         await visible(page, t);
       }
@@ -446,8 +446,13 @@ test.describe('OmniView React — 9 标签页验证', () => {
       await box.scrollIntoViewIfNeeded();
       await box.hover();
       await page.mouse.down();
+      // @drag 意图语义（ADR-073）：按下 → 捕获 → 移动时回调 @drag → "dragging"
+      //（Task 8 迁移后「captured」状态文本已不存在；setPointerCapture 后
+      // 指针移出元素仍跟随，移动点取框内 +24 即可触发 onPointerMove）。
+      const bb = await box.boundingBox();
+      await page.mouse.move(bb!.x + bb!.width / 2 + 24, bb!.y + bb!.height / 2 + 24, { steps: 3 });
       await page.waitForTimeout(150);
-      await visible(page, /Pointer:\s*captured/);
+      await visible(page, /Pointer:\s*(captured|dragging)/);
       await page.mouse.up();
       await page.waitForTimeout(150);
       await visible(page, /Pointer:\s*released/);
