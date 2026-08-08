@@ -128,10 +128,17 @@ test.describe('OmniView React — 9 标签页验证', () => {
       await switchToTab(page, 1);
       await visible(page, 'ValidationInput Demo');
       await visible(page, 'Waiting for input');
-      await page.locator('input[placeholder*="valid"]').first().fill('valid@test.com');
+      // Task 8: demo now declares validate: { required, min, max, custom: noAtCheck } —
+      // noAtCheck rejects any text containing '@', so use a rule-passing value.
+      await page.locator('input[placeholder*="valid"]').first().fill('abc123');
       await clickBtn(page, 'Validate');
       await page.waitForTimeout(200);
       await visible(page, 'Result ready');
+      // Custom rule gate: '@'-containing input must be intercepted, not submitted.
+      await page.locator('input[placeholder*="valid"]').first().fill('a@b.com');
+      await clickBtn(page, 'Validate');
+      await page.waitForTimeout(200);
+      await visible(page, 'Email pattern not allowed in generic validation');
     });
 
     test('05 - Modal open/close (React bug A)', async ({ page }) => {
@@ -153,14 +160,37 @@ test.describe('OmniView React — 9 标签页验证', () => {
       await visible(page, 'Settings Tab');
     });
 
-    test('07 - FormPage validation state (React bug A)', async ({ page }) => {
+    test('07 - FormPage validation state (Task 8 @form behavior)', async ({ page }) => {
       await switchToTab(page, 1);
       await visible(page, 'FormPage Demo');
-      await visible(page, 'Form incomplete');
+      // ① Empty submit intercepted: required errors visible, submit handler
+      // not triggered (success text must stay hidden).
+      await clickBtn(page, 'Submit form');
+      await page.waitForTimeout(200);
+      await visible(page, '此项必填');
+      await visible(page, 'Please fix errors above');
+      await expect(page.getByText('Form submitted successfully')).toBeHidden();
+      // ② Invalid email format intercepted.
       await page.locator('input[placeholder="Your name"]').fill('Test');
+      await page.locator('input[placeholder*="email"]').first().fill('not-an-email');
+      await clickBtn(page, 'Submit form');
+      await page.waitForTimeout(200);
+      await visible(page, '邮箱格式不正确');
+      // ③ Valid submit passes through to the handler.
       await page.locator('input[placeholder*="email"]').first().fill('test@example.com');
       await page.waitForTimeout(200);
       await visible(page, 'Form is valid');
+      await clickBtn(page, 'Submit form');
+      await page.waitForTimeout(200);
+      await visible(page, 'Form submitted successfully');
+      // ④ Reset clears fields and the success state. The previous submit
+      // already cleared formErrors, so the status returns to pristine
+      // ("Fill in the form") and the conditional button to "Form incomplete".
+      await clickBtn(page, 'Reset form');
+      await page.waitForTimeout(200);
+      await visible(page, 'Fill in the form');
+      await visible(page, 'Form incomplete');
+      await expect(page.getByText('Form submitted successfully')).toBeHidden();
     });
 
     test('08 - FormControlsDemo select/checkbox (React bug A)', async ({ page }) => {
