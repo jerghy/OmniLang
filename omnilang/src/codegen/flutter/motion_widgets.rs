@@ -617,6 +617,16 @@ pub(crate) fn field_extract_flutter(
         // PointerEvent — from pointer event details (TapDownDetails, etc.)
         (EventDataKind::PointerEvent, "x") => format!("{}.localPosition.dx", raw),
         (EventDataKind::PointerEvent, "y") => format!("{}.localPosition.dy", raw),
+        // pointerId: Flutter names the unique pointer identifier `pointer`
+        // (NOT `pointerId`) — same DOM-pointerId semantics: unique among
+        // active pointers, reassigned after up.
+        (EventDataKind::PointerEvent, "pointerId") => format!(
+            "{}.pointer /* pointerId: unique pointer id (DOM 'pointerId' analogue) */",
+            raw
+        ),
+        // buttons: the PointerEvent buttons bitfield (PointerButtons
+        // constants) — exposed as-is.
+        (EventDataKind::PointerEvent, "buttons") => format!("{}.buttons", raw),
         (EventDataKind::PointerEvent, "button") => {
             format!("({}.buttons & 0x1 != 0 ? 0 : {}.buttons & 0x2 != 0 ? 2 : {}.buttons & 0x4 != 0 ? 1 : 0)", raw, raw, raw)
         }
@@ -734,19 +744,14 @@ pub(crate) fn field_extract_flutter(
         // ScrollEvent — from ScrollNotification
         (EventDataKind::ScrollEvent, "x") => format!("{}.metrics.pixels", raw),
         (EventDataKind::ScrollEvent, "y") => format!("{}.metrics.pixels", raw),
-        // progress: the real mapping (ScrollMetrics.extentBefore /
-        // maxScrollExtent, same source as x/y) is reachable but lands in
-        // Task 7 — until then degrade honestly with the schema's
-        // "unmeasurable → 0" fallback semantics (ADR-054, no silent stubs).
-        (EventDataKind::ScrollEvent, "progress") => {
-            warn_event_field_stub(
-                warnings,
-                kind,
-                field,
-                "real mapping (ScrollMetrics extentBefore/maxScrollExtent) lands in Task 7",
-            );
-            "0.0 /* progress: extentBefore/maxScrollExtent mapping lands in Task 7 */".to_string()
-        }
+        // progress: ScrollMetrics extentBefore / maxScrollExtent — the SAME
+        // metrics source as x/y. Unreachable extent (maxScrollExtent == 0,
+        // content fits — nothing to scroll) falls back to 0.0 per the
+        // schema's "unmeasurable → 0" semantics.
+        (EventDataKind::ScrollEvent, "progress") => format!(
+            "{}.metrics.maxScrollExtent == 0 ? 0.0 : {}.metrics.extentBefore / {}.metrics.maxScrollExtent",
+            raw, raw, raw
+        ),
 
         // InputEvent
         (EventDataKind::InputEvent, "value") => raw.to_string(),

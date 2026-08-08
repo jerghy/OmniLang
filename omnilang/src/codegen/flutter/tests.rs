@@ -4499,6 +4499,54 @@ component HoverDemo {
     );
 }
 
+/// Task 7: a MouseRegion-bound pointer handler (onHover) reading pointer
+/// fields extracts `pointerId`/`buttons` directly from the Flutter
+/// PointerEvent and derives x/y from localPosition (element-local
+/// coordinates — offsetX/offsetY analogue).
+#[test]
+fn flutter_pointer_event_extracts_pointer_id_and_buttons() {
+    let flutter = compile_flutter(
+        r#"
+component HoverDemo {
+    signal lastId: i32 = 0;
+    signal lastButtons: i32 = 0;
+    signal hoverX: f64 = 0.0;
+    view {
+        <div @onHover={(e) => { lastId = e.pointerId; lastButtons = e.buttons; hoverX = e.x; }}>x</div>
+    }
+}
+"#,
+    )
+    .expect("compile must succeed");
+    let out: String = flutter
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        out.contains("final pointerId = e.pointer"),
+        "pointerId must map to the PointerEvent.pointer property (Flutter's unique \
+         pointer id — the DOM pointerId analogue), got:\n{out}"
+    );
+    assert!(
+        out.contains("final buttons = e.buttons;"),
+        "buttons must map to the PointerEvent.buttons bitfield, got:\n{out}"
+    );
+    assert!(
+        out.contains("final x = e.localPosition.dx;"),
+        "x/y must derive from localPosition (element-local coordinates), got:\n{out}"
+    );
+    assert!(
+        !flutter
+            .warnings
+            .iter()
+            .any(|w| w.message.contains("pointerId") || w.message.contains("buttons")),
+        "real pointer-field mappings must not warn: {:?}",
+        flutter.warnings
+    );
+}
+
 /// Task C2b (#3): `@onFocus`/`@onBlur` on a TextField merge into ONE
 /// `Focus(onFocusChange:)` closure — the bool payload discriminates focus
 /// gain vs loss.
@@ -9411,28 +9459,63 @@ fn mapped_event_fields_do_not_warn() {
     }
 }
 
-/// Task 6: ScrollEvent.progress is schema-visible but its real Flutter
-/// mapping (ScrollMetrics extentBefore/maxScrollExtent) lands in Task 7 —
-/// until then the extraction must degrade honestly per ADR-054: warning
-/// naming field + kind, and a 0.0 placeholder matching the schema's
-/// "unmeasurable → 0" fallback semantics.
+/// Task 7: ScrollEvent.progress maps from ScrollMetrics — the SAME source
+/// as x/y (metrics.pixels): `extentBefore / maxScrollExtent` with a 0
+/// fallback when the extent is unreachable (maxScrollExtent == 0, content
+/// fits — no scrolling). Replaces the Task 6 degradation placeholder.
 #[test]
-fn scroll_progress_degrades_not_silent_until_task7() {
+fn scroll_progress_maps_from_scroll_metrics() {
     let (expr, warnings) = extract_with_warnings(&EventDataKind::ScrollEvent, "progress");
     assert!(
-        warnings
-            .iter()
-            .any(|w| w.message.contains("progress") && w.message.contains("ScrollEvent")),
-        "scroll progress stub must warn with field + kind, got: {:?}",
-        warnings
-    );
-    assert!(
-        expr.contains("/*") && expr.contains("*/"),
-        "degradation comment missing from generated code: {expr}"
+        expr.contains("extentBefore") && expr.contains("maxScrollExtent"),
+        "progress must map from ScrollMetrics extentBefore/maxScrollExtent, got: {expr}"
     );
     assert!(
         expr.contains("0.0"),
-        "placeholder must follow 'unmeasurable → 0' fallback semantics: {expr}"
+        "unreachable extent (maxScrollExtent == 0) must fall back to 0.0: {expr}"
+    );
+    assert!(
+        warnings.is_empty(),
+        "real mapping must not warn: {:?}",
+        warnings
+    );
+    assert!(
+        !expr.contains("/*"),
+        "real mapping must not carry a degradation comment: {expr}"
+    );
+}
+
+/// Task 7: PointerEvent.pointerId/buttons map directly from the Flutter
+/// PointerEvent. `pointer` is the unique pointer id (Flutter names the
+/// DOM-pointerId analogue `pointer`, NOT `pointerId` — the inline comment
+/// documents the naming difference, like the pointerType arm); `buttons`
+/// is the bitfield exposed as-is. x/y stay on localPosition (element-local
+/// coordinates).
+#[test]
+fn pointer_event_extracts_pointer_id_and_buttons() {
+    let (pid, pid_warnings) = extract_with_warnings(&EventDataKind::PointerEvent, "pointerId");
+    assert!(
+        pid.contains("e.pointer"),
+        "pointerId must map to PointerEvent.pointer (Flutter's unique pointer id), got: {pid}"
+    );
+    assert!(
+        pid_warnings.is_empty(),
+        "mapped pointerId must not warn: {:?}",
+        pid_warnings
+    );
+    let (btns, btns_warnings) = extract_with_warnings(&EventDataKind::PointerEvent, "buttons");
+    assert!(
+        btns.contains("e.buttons"),
+        "buttons must map to the PointerEvent.buttons bitfield, got: {btns}"
+    );
+    assert!(
+        btns_warnings.is_empty(),
+        "mapped buttons must not warn: {:?}",
+        btns_warnings
+    );
+    assert!(
+        !btns.contains("/*"),
+        "buttons (property name matches) must not carry a comment: {btns}"
     );
 }
 
