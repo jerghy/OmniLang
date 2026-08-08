@@ -32,6 +32,10 @@ export interface ProjectJson {
   /** Codeflow 节点画布位置，按元素 id（即 PID）记录——解析侧不生成 position，
    *  拖拽编辑的位置仅存于此独立字段（不动 codeFlowGraphs 的 v3 形状）。 */
   persistedPositions: Record<string, { x: number; y: number }>;
+
+  /** Code flow 分组（节点注释组合），键 = fn 名（与 codeFlowGraphs 对齐）。
+   *  独立顶层字段——不动 codeFlowGraphs 的 v3 形状（persistedPositions 先例）。 */
+  codeFlowGroups: Record<string, CodeFlowGroup[]>;
 }
 
 export interface NodeMeta {
@@ -140,4 +144,13 @@ export interface ComputedEntry {
   name: string;
   returnType: string;
   expression: string;
+}
+
+/** 代码流分组：成员为语句级节点 id（PID）。color 取自 GROUP_COLORS 8 色调色板。 */
+export interface CodeFlowGroup {
+  id: string;
+  name: string;
+  memberIds: string[];
+  color: string;
+  collapsed: boolean;
 }

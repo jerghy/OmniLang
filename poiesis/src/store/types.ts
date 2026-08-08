@@ -131,6 +131,10 @@ export interface PoiesisState {
    *  materializeFnGraphs 物化缺 position 的新元素时优先取此值，否则行布局兜底。 */
   persistedPositions: Record<string, { x: number; y: number }>;
 
+  /** Codeflow 分组缓存：fn 名 → 分组数组（从 project.json 读回，画布编辑时经 setCodeFlowGroups 写入）。 */
+  codeFlowGroups: Record<string, import("../core/types/project-json").CodeFlowGroup[]>;
+  setCodeFlowGroups: (fnName: string, groups: import("../core/types/project-json").CodeFlowGroup[]) => void;
+
   // ── Code tab（lib 文件）──
   libDefs: Record<string, import("../services/codegen/types").LibFileDef>;
   setLibDef: (filePath: string, def: import("../services/codegen/types").LibFileDef) => void;

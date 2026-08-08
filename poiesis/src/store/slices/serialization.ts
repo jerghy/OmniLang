@@ -30,6 +30,13 @@ export function createSerializationSlice(set: SetFn, get: GetFn) {
         // 节点位置独立收集：store.elements 是活动 tab 工作副本，其余 tab 画布在
         // tabData 槽（switchTab 时写入）——两处都扫，避免切 tab 后保存丢位置。
         persistedPositions: collectPersistedPositions(s.elements, s.tabData),
+        // 分组直写（键=fn 名，与 codeFlowGraphs 对齐）；空数组 fn 与空组（成员删光）不写入
+        // （空组无可见 UI 无法手动删——保存时自动清理，spec §8「空框保留」落地为 JSON 剔除）
+        codeFlowGroups: Object.fromEntries(
+          Object.entries(s.codeFlowGroups)
+            .map(([fnName, gs]) => [fnName, gs.filter((g) => g.memberIds.length > 0)] as const)
+            .filter(([, gs]) => gs.length > 0),
+        ),
       };
     },
 
@@ -52,6 +59,8 @@ export function createSerializationSlice(set: SetFn, get: GetFn) {
       codeFlowGraphs: {},
       // 位置缓存恢复：物化时消费（旧版 project.json 无此字段 → {} 回退行布局）。
       persistedPositions: json.persistedPositions || {},
+      // 分组缓存恢复：画布编辑时经 setCodeFlowGroups 写入（旧版 JSON 无字段 → {} 兜底）。
+      codeFlowGroups: json.codeFlowGroups || {},
       // componentDefs kept in runtime state, not persisted — loaded from .omni parsing
     })),
   };

@@ -55,6 +55,7 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
   codeFlowGraphs: {},
   lifecycleGraphs: {},
   persistedPositions: {},
+  codeFlowGroups: {},
   libDefs: {},
 
   // ── Actions (composed from slice factories) ──

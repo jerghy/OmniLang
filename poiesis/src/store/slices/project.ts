@@ -34,6 +34,8 @@ function createCleanState(): Partial<PoiesisState> {
     // 跨项目隔离：pid 可跨项目重复，重置时必须清空旧项目的位置缓存，
     // 否则新项目同名 pid 物化时套用旧项目坐标（与 nodeMeta/canvasStates 同源模式）
     persistedPositions: {},
+    // 跨项目隔离：分组缓存按 fn 名键，pid 可跨项目重复，重置时清空
+    codeFlowGroups: {},
     // 跨项目隔离：调试值（prop/signal/store 覆盖）不随项目存活
     debugValues: {},
     // 跨项目隔离：codeFlowGraphs 残留会经 materializeLibGraphs 的 action 补登扫描

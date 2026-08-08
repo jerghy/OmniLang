@@ -35,5 +35,7 @@ export function migrateV2ToV3(
     panels: (v2.panels as ProjectJson["panels"]) || { leftWidth: 240, rightWidth: 300 },
     codeFlowGraphs: (v2.codeFlowGraphs as unknown as Record<string, CodeFlowGraph>) || {},
     persistedPositions: (v2.persistedPositions as unknown as Record<string, { x: number; y: number }>) || {},
+    // 分组缓存 v2 无此字段（v3 新字段，画布编辑时经 setCodeFlowGroups 写入）→ 默认空
+    codeFlowGroups: (v2.codeFlowGroups as unknown as Record<string, import("../../core/types/project-json").CodeFlowGroup[]>) || {},
   };
 }

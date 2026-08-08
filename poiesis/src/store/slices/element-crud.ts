@@ -4,6 +4,7 @@ import type { PoiesisState } from "../types";
 import type { ElementData, ConditionalBlockData, ForBlockData, CodeblockElementData } from "../../core/types/element";
 import type { WireData } from "../../core/types/wire";
 import type { StyleProperty } from "../../core/types/style";
+import type { CodeFlowGroup } from "../../core/types/project-json";
 import { buildUndoUpdate } from "../undo-slice";
 import { createLogger } from "../../lib/utils/logger";
 
@@ -169,6 +170,11 @@ export function createElementCrudSlice(set: SetFn, get: GetFn) {
 
     setElementPosition: (id: string, pos: { x: number; y: number }) => set((s) => ({
       elements: s.elements.map(e => e.id === id ? { ...e, position: { ...pos } } as ElementData : e),
+      isDirty: true,
+    })),
+
+    setCodeFlowGroups: (fnName: string, groups: CodeFlowGroup[]) => set((s) => ({
+      codeFlowGroups: { ...s.codeFlowGroups, [fnName]: groups },
       isDirty: true,
     })),
 
