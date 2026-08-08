@@ -2267,6 +2267,17 @@ pub(super) fn format_expr_ir_tsx(expr: &ExprIR, ref_names: &FxHashSet<String>) -
     format_expr_ir_tsx_renamed(expr, ref_names, &FxHashMap::default())
 }
 
+/// Task 4 (@form 内建对象映射): `form.errors` / `form.valid` /
+/// `form.submitting` → 生成的 React state 标识符。非内建字段返回 `None`。
+fn form_builtin_field(field: &str) -> Option<&'static str> {
+    match field {
+        "errors" => Some("formErrors"),
+        "valid" => Some("formValid"),
+        "submitting" => Some("formSubmitting"),
+        _ => None,
+    }
+}
+
 /// Look up a store-field rename: key `"{store}.{field}"` → slice local name.
 /// Returns `Some(local)` when the store is subscribed per field (Task 3.3);
 /// `None` keeps the qualified `Store.field` form (whole-store mode).
@@ -2325,6 +2336,28 @@ pub(super) fn format_expr_ir_tsx_renamed_locals(
             }
         }
         ExprIR::FieldAccessExpr { object, field } => {
+            // Task 4 (@form 内建对象): `form.errors` / `form.valid` /
+            // `form.submitting` → 生成的 React state 标识符；嵌套
+            // `form.errors.<field>` → 索引访问 `formErrors["<field>"]`
+            // （校验错误按字段名收集，用户显式渲染 @if 错误）。
+            if let ExprIR::IdentifierExpr { name, .. } = object.as_ref() {
+                if name == "form" {
+                    if let Some(builtin) = form_builtin_field(field) {
+                        return builtin.to_string();
+                    }
+                }
+            }
+            if let ExprIR::FieldAccessExpr {
+                object: inner_obj,
+                field: inner_field,
+            } = object.as_ref()
+            {
+                if inner_field == "errors"
+                    && matches!(inner_obj.as_ref(), ExprIR::IdentifierExpr { name, .. } if name == "form")
+                {
+                    return format!("formErrors[\"{}\"]", field);
+                }
+            }
             // Store field read on a bare store ref (`TodoStore.items`) →
             // slice local, when subscribed per field.
             if let ExprIR::IdentifierExpr { name, .. } = object.as_ref() {
@@ -2344,6 +2377,13 @@ pub(super) fn format_expr_ir_tsx_renamed_locals(
             format!("{}.{}", obj_str, field)
         }
         ExprIR::OptionalChainExpr { object, field } => {
+            // Task 4 (@form 内建对象，可选链形态): `form?.errors` 等 →
+            // 生成的 React state 标识符（与 FieldAccessExpr 分支同构）。
+            if let ExprIR::IdentifierExpr { name: _, .. } = object.as_ref() {
+                if let Some(builtin) = form_builtin_field(field) {
+                    return builtin.to_string();
+                }
+            }
             // Store optional-chain read (`TodoStore?.items`) → slice local
             // (the `?.` is redundant once the field is sliced).
             if let ExprIR::IdentifierExpr { name, .. } = object.as_ref() {

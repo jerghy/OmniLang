@@ -8342,3 +8342,95 @@ component DragBox {
         content
     );
 }
+
+/// Task 4 (阶段 2 域 A): @form 受控表单 + 校验执行器 + a11y。
+/// 产物断言：formErrors/formValid/formSubmitting state、validateForm 执行器、
+/// onSubmit 包装（preventDefault + 校验失败拦截）、字段 aria-invalid/aria-describedby、
+/// required 规则落 DOM。
+#[test]
+fn react_form_emits_validation_and_a11y() {
+    let source = r#"
+component App {
+  signal name: String = ""
+  signal email: String = ""
+  fn submit(e) { }
+  view {
+    <form @form @onSubmit={submit}>
+      <input bind:value={name} validate:{required: true} />
+      <input bind:value={email} validate:{format: "email"} />
+      <button type="submit">Submit</button>
+    </form>
+  }
+}
+"#;
+    let out = compile_react_src(source);
+    assert!(
+        out.contains("formErrors"),
+        "formErrors state missing. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("formValid"),
+        "formValid 派生 state missing. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("formSubmitting"),
+        "formSubmitting state missing. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("validateForm"),
+        "validateForm 执行器 missing. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("aria-invalid"),
+        "字段 aria-invalid missing. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("aria-describedby"),
+        "字段 aria-describedby missing. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("e.preventDefault()"),
+        "提交拦截（preventDefault）missing. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("required"),
+        "required 规则落 DOM missing. Got:\n{}",
+        out
+    );
+}
+
+/// Task 4 (阶段 2 域 A): @load 数据三态（loading/error/data）+ useEffect 一次调用 +
+/// retry 回调别名。断言作用于代码生成脚手架（useState/useCallback/useEffect/retry）。
+#[test]
+fn react_load_emits_three_state_effect() {
+    let source = r#"
+component App {
+  fn fetchTodos() -> Array<String> { }
+  view {
+    @load={fetchTodos}
+    <div/>
+  }
+}
+"#;
+    let out = compile_react_src(source);
+    assert!(
+        out.contains("useEffect"),
+        "useEffect 触发 missing. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("loading"),
+        "loading state missing. Got:\n{}",
+        out
+    );
+    assert!(out.contains("error"), "error state missing. Got:\n{}", out);
+    assert!(out.contains("data"), "data state missing. Got:\n{}", out);
+    assert!(out.contains("retry"), "retry 回调 missing. Got:\n{}", out);
+}

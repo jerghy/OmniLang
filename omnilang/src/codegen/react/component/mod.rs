@@ -17,6 +17,7 @@ use super::{escape_js_ident, CodeWriter, ReactCodegen};
 use crate::codegen::react::motion;
 use crate::codegen::react::view;
 use crate::codegen::react::view::{component_instance_memoizable, PropFnMemoCtx};
+use crate::codegen::shared::types::{FormatType, JsTypeFormatter};
 use crate::ir::*;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
@@ -261,13 +262,21 @@ impl ReactCodegen {
             .map(|v| collect_wrapped_prop_fns(v, component_map, &fn_names))
             .unwrap_or_default();
         let mut hooks: Vec<String> = Vec::new();
-        if has_mutable_states {
+        // Task 4 (Phase 2 域 A): @form/@load 脚手架 emit useState/useCallback/
+        // useEffect——formErrors/formSubmitting state、load useCallback +
+        // 首次加载 useEffect。组件可仅含 @form/@load 而无用户信号/效应，
+        // 缺一个条件就会让发射的钩子 undeclared（TS2304）。
+        if has_mutable_states || comp.form_intent.is_some() || comp.load_intent.is_some() {
             hooks.push("useState".to_string());
         }
         if has_computeds {
             hooks.push("useMemo".to_string());
         }
-        if has_fn_form_computed || has_interactive_motion || !wrapped_prop_fns.is_empty() {
+        if has_fn_form_computed
+            || has_interactive_motion
+            || !wrapped_prop_fns.is_empty()
+            || comp.load_intent.is_some()
+        {
             hooks.push("useCallback".to_string());
         }
         if has_effects_or_lifecycles
@@ -279,6 +288,7 @@ impl ReactCodegen {
             // bindings) still needs the import, or the emitted `useEffect`
             // is undeclared (TS2304).
             || !direct_write_sets.b2_entries.is_empty()
+            || comp.load_intent.is_some()
         {
             hooks.push("useEffect".to_string());
         }
@@ -899,6 +909,183 @@ impl ReactCodegen {
             &store_field_renames,
             &user_types,
         );
+        // ── Task 4 (Phase 2 域 A, spec 2026-08-08 §4.1/§4.2) ──────────────
+        // @form 脚手架：受控校验三态 state + 字段值收集 + 校验执行器。
+        // @load 脚手架：数据三态 state + load 回调 + 挂载一次 useEffect。
+        if let Some(form) = &comp.form_intent {
+            w.emit("// @form (spec 2026-08-08 §4.1): 受控校验三态");
+            w.emit("const [formErrors, setFormErrors] = useState<Record<string, string>>({});");
+            w.emit("const [formSubmitting, setFormSubmitting] = useState(false);");
+            // formValid 由 formErrors 推导——不生成冗余 state
+            w.emit("const formValid = Object.keys(formErrors).length === 0;");
+            // 字段值来源：组件信号/切片 store → 简写标识符（state/slice
+            // 局部名与字段同名）；整 store 订阅 → 限定名 `Store.field`。
+            let mut value_sources: Vec<String> = Vec::new();
+            for field in &form.fields {
+                if comp.signals.iter().any(|s| s.name == field.name) {
+                    value_sources.push(field.name.clone());
+                    continue;
+                }
+                for (store_name, store) in &all_stores {
+                    if !store.signals.contains_key(&field.name) {
+                        continue;
+                    }
+                    let sliced = slice_fields
+                        .get(*store_name)
+                        .is_some_and(|fields| fields.signals.contains(&field.name));
+                    value_sources.push(if sliced {
+                        field.name.clone()
+                    } else {
+                        format!("{}: {}.{}", field.name, store_name, field.name)
+                    });
+                    break;
+                }
+            }
+            w.emit_fmt(format_args!(
+                "const formValues = {{ {} }};",
+                value_sources.join(", ")
+            ));
+            w.emit(
+                "function validateForm(values: Record<string, unknown>): Record<string, string> {",
+            );
+            w.indent();
+            w.emit("const errs: Record<string, string> = {};");
+            for field in &form.fields {
+                let fname = &field.name;
+                for rule in &field.rules {
+                    // 规则注释：规则名落产物（validate 登记册断言锚点）
+                    w.emit_fmt(format_args!("// @{}", rule.name));
+                    let literal = match &rule.value {
+                        ExprIR::LiteralExpr { value } => Some(value.to_string()),
+                        _ => None,
+                    };
+                    match rule.name.as_str() {
+                        "required" => {
+                            w.emit_fmt(format_args!(
+                                "if (!values[\"{fname}\"]) {{ errs[\"{fname}\"] = \"此项必填\"; }}"
+                            ));
+                        }
+                        "min" | "max" => {
+                            let val = literal.clone().unwrap_or_else(|| {
+                                expr::format_expr_ir_tsx(&rule.value, &FxHashSet::default())
+                            });
+                            let (op, msg) = if rule.name == "min" {
+                                (
+                                    "<",
+                                    literal
+                                        .map(|l| format!("长度至少为 {l}"))
+                                        .unwrap_or_else(|| "长度不符合要求".to_string()),
+                                )
+                            } else {
+                                (
+                                    ">",
+                                    literal
+                                        .map(|l| format!("长度最多为 {l}"))
+                                        .unwrap_or_else(|| "长度不符合要求".to_string()),
+                                )
+                            };
+                            w.emit_fmt(format_args!(
+                                "if (values[\"{fname}\"] && (values[\"{fname}\"] as string).length {op} {val}) {{ errs[\"{fname}\"] = \"{msg}\"; }}"
+                            ));
+                        }
+                        "pattern" => {
+                            let pat = literal.clone().unwrap_or_else(|| {
+                                expr::format_expr_ir_tsx(&rule.value, &FxHashSet::default())
+                            });
+                            w.emit_fmt(format_args!(
+                                "if (values[\"{fname}\"] && !new RegExp({pat}).test(values[\"{fname}\"] as string)) {{ errs[\"{fname}\"] = \"格式不正确\"; }}"
+                            ));
+                        }
+                        "format" => {
+                            // format 取值 v0 封闭集 email/url（V-F5 已校验）；
+                            // 动态取值无法静态判定 → 跳过
+                            let which = literal
+                                .as_deref()
+                                .and_then(|l| serde_json::from_str::<String>(l).ok());
+                            match which.as_deref() {
+                                Some("email") => {
+                                    w.emit_fmt(format_args!(
+                                        "if (values[\"{fname}\"] && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(values[\"{fname}\"] as string)) {{ errs[\"{fname}\"] = \"邮箱格式不正确\"; }}"
+                                    ));
+                                }
+                                Some("url") => {
+                                    w.emit_fmt(format_args!(
+                                        "if (values[\"{fname}\"] && !/^(https?:\\/\\/)?([\\w-]+\\.)+[\\w-]{{2,}}(\\/\\S*)?$/.test(values[\"{fname}\"] as string)) {{ errs[\"{fname}\"] = \"URL 格式不正确\"; }}"
+                                    ));
+                                }
+                                _ => {
+                                    w.emit("// format: 动态取值跳过");
+                                }
+                            }
+                        }
+                        "custom" => {
+                            if let ExprIR::IdentifierExpr { name, .. } = &rule.value {
+                                w.emit_fmt(format_args!(
+                                    "const errMsg = {name}(values[\"{fname}\"] as string); if (errMsg) {{ errs[\"{fname}\"] = errMsg; }}"
+                                ));
+                            } else {
+                                w.emit("// custom: 动态规则跳过");
+                            }
+                        }
+                        _ => {
+                            w.emit_fmt(format_args!(
+                                "// 未知规则 @{}（语义 pass 应已报错）",
+                                rule.name
+                            ));
+                        }
+                    }
+                }
+            }
+            w.emit("return errs;");
+            w.dedent();
+            w.emit("}");
+        }
+        if let Some(load) = &comp.load_intent {
+            w.emit("// @load (spec 2026-08-08 §4.2): 数据三态");
+            w.emit("const [loading, setLoading] = useState(true);");
+            w.emit("const [error, setError] = useState(\"\");");
+            // 元素类型来自 fn 返回 Array<X> 的 X（V-F7 保证 Array 形态）
+            let elem_ts = comp
+                .fns
+                .iter()
+                .find(|f| f.name == load.fn_name)
+                .and_then(|f| f.return_type.as_ref())
+                .and_then(|t| match &t.kind {
+                    TypeKind::Named { name } if name == "Array" && t.type_args.len() == 1 => {
+                        let arg = &t.type_args[0];
+                        Some(JsTypeFormatter.format_type(arg.kind.as_str(), &arg.type_args))
+                    }
+                    _ => None,
+                })
+                .unwrap_or_else(|| "unknown".to_string());
+            w.emit_fmt(format_args!(
+                "const [data, setData] = useState<{elem_ts}[]>([]);"
+            ));
+            w.emit("const load = useCallback(() => {");
+            w.indent();
+            w.emit("setLoading(true);");
+            w.emit("setError(\"\");");
+            // 同步 fn 包装 Promise.resolve().then(() => fn())（V-F7 无参保证）
+            let is_async = comp
+                .fns
+                .iter()
+                .find(|f| f.name == load.fn_name)
+                .is_some_and(|f| {
+                    f.is_async || f.body.statements.iter().any(effect::stmt_contains_await)
+                });
+            let call = if is_async {
+                format!("{}()", load.fn_name)
+            } else {
+                format!("Promise.resolve().then(() => {}())", load.fn_name)
+            };
+            w.emit_fmt(format_args!(
+                "{call}.then((r) => {{ setData(r); setLoading(false); }}).catch((e) => {{ setError(String(e)); setLoading(false); }});"
+            ));
+            w.dedent();
+            w.emit("}, []);");
+            w.emit("useEffect(() => { load(); }, [load]);");
+            w.emit("const retry = load;");
+        }
         state::gen_ref_hooks(
             &mut w,
             comp,

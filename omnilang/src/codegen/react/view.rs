@@ -522,6 +522,44 @@ pub(super) fn gen_view_node_tsx(
                         } else {
                             r#ref.clone()
                         };
+                        // Task 4 (@form, spec 2026-08-08 §4.1): 提交拦截——
+                        // form 元素的 @onSubmit 包装为 preventDefault + 校验
+                        // 执行器：校验失败不发事件（return 跳过原 handler），
+                        // DOM 默认提交被阻止。handler 实参形状与既有 setter
+                        // 分支对齐（0 参 fn 不传 e，TS2554 避免）。
+                        if html_tag == "form"
+                            && react_event == "onSubmit"
+                            && comp.form_intent.is_some()
+                        {
+                            let handler_call = if event_data.is_some() {
+                                let obj = emit_event_object_react(event_data, used_fields, "e");
+                                if obj == "{}" {
+                                    format!("{call}();")
+                                } else {
+                                    format!("{call}({obj});")
+                                }
+                            } else {
+                                // event_data 为 None 时按 fn 声明参数数保真
+                                // （0 参不传 e 避免 TS2554；1 参传 e 与
+                                // setter 分支对齐）。
+                                let n_params = comp
+                                    .fns
+                                    .iter()
+                                    .find(|f| f.name == r#ref.as_str())
+                                    .map(|f| f.params.len())
+                                    .unwrap_or(0);
+                                if n_params == 1 {
+                                    format!("{call}(e);")
+                                } else {
+                                    format!("{call}();")
+                                }
+                            };
+                            attrs.push(format!(
+                                "{}={{(e) => {{ e.preventDefault(); const errs = validateForm(formValues); if (Object.keys(errs).length > 0) {{ setFormErrors(errs); return; }} {} }}}}",
+                                react_event, handler_call
+                            ));
+                            continue;
+                        }
                         if let Some(setter_call) = binding_events_map.remove(&react_event) {
                             // v4 M3 (task 2.4): 与无 setter 分支的空事件特判
                             // 对齐——事件对象为空（0 参 fn 无消费字段）时不
@@ -855,6 +893,31 @@ pub(super) fn gen_view_node_tsx(
             // auto-fill so an explicit a11y label suppresses the placeholder
             // fallback (a duplicated aria-label would be invalid JSX).
             attrs.extend(a11y_react_attrs(el, ref_names, store_field_renames));
+
+            // Task 4 (@form, spec 2026-08-08 §4.1): 校验字段 aria 接线——
+            // bind:value/bind:checked 的字段若在 @form 校验清单
+            // （FormIntentIR.fields）中，发射 aria-invalid/aria-describedby。
+            // 错误文本容器由用户 @if={form.errors.<field>} 显式渲染，
+            // codegen 不自动生成错误 DOM（错误容器 id 约定 err-<field>）。
+            if let Some(form) = &comp.form_intent {
+                for (bind_name, signal_ref) in &el.bindings {
+                    if matches!(bind_name.as_str(), "value" | "checked") {
+                        let field = signal_ref
+                            .name
+                            .rsplit('.')
+                            .next()
+                            .unwrap_or(&signal_ref.name);
+                        if form.fields.iter().any(|f| f.name == field) {
+                            attrs.push(format!(
+                                "aria-invalid={{formErrors[\"{field}\"] ? true : undefined}}"
+                            ));
+                            attrs.push(format!(
+                                "aria-describedby={{formErrors[\"{field}\"] ? \"err-{field}\" : undefined}}"
+                            ));
+                        }
+                    }
+                }
+            }
 
             // Ensure <button> has explicit type to prevent accidental form submission
             if html_tag == "button" && !attrs.iter().any(|a| a.starts_with("type=")) {
