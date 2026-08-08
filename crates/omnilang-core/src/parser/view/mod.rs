@@ -572,7 +572,7 @@ impl<'a> Parser<'a> {
                     if matches!(self.peek_kind(), TokenKind::Eq) {
                         return Err(ParseError {
                             kind: None,
-                            message: "'@form' takes no value — use the bare attribute (spec 2026-08-08 §4.1)"
+                            message: "'@form' 不接受值——使用裸属性标记（spec 2026-08-08 §4.1）"
                                 .into(),
                             span: t.span,
                         });

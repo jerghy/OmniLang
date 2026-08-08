@@ -328,36 +328,34 @@ impl<'a> Parser<'a> {
                 // span recorded for diagnostics.
                 if name == "validate" {
                     self.advance(); // consume ':'
-                    self.expect_token(TokenKind::LBrace, "expected '{' after 'validate:'")?;
+                    self.expect_token(TokenKind::LBrace, "'validate:' 后缺少 '{'")?;
                     let mut rules = Vec::new();
-                    if !self.at(&TokenKind::RBrace) {
+                    if self.at(&TokenKind::RBrace) {
+                        // An empty validation block is meaningless — mirror
+                        // the a11y: empty-block hard error.
+                        let t = self.peek();
+                        return Err(ParseError {
+                            kind: None,
+                            message: "validate 块不能为空".into(),
+                            span: t.span,
+                        });
+                    }
+                    // `name: expr` pairs, comma-separated — a single loop keeps
+                    // the first and subsequent rules on the identical code path.
+                    loop {
                         let span = self.peek_span();
-                        let rule_name = self.expect_ident("expected validation rule name")?;
-                        self.expect_token(
-                            TokenKind::Colon,
-                            "expected ':' after validation rule name",
-                        )?;
+                        let rule_name = self.expect_ident("缺少校验规则名")?;
+                        self.expect_token(TokenKind::Colon, "校验规则名后缺少 ':'")?;
                         let value = self.parse_expr()?;
                         rules.push(ValidateRule {
                             name: rule_name,
                             value,
                             span,
                         });
-                        while self.at(&TokenKind::Comma) {
-                            self.advance();
-                            let span = self.peek_span();
-                            let rule_name = self.expect_ident("expected validation rule name")?;
-                            self.expect_token(
-                                TokenKind::Colon,
-                                "expected ':' after validation rule name",
-                            )?;
-                            let value = self.parse_expr()?;
-                            rules.push(ValidateRule {
-                                name: rule_name,
-                                value,
-                                span,
-                            });
+                        if !self.at(&TokenKind::Comma) {
+                            break;
                         }
+                        self.advance();
                     }
                     self.expect_token(TokenKind::RBrace, "expected '}'")?;
                     return Ok(ElementProp::Validate { rules });
@@ -1091,8 +1089,13 @@ mod form_load_tests {
             .clone()
     }
 
-    /// Find the first Element matching `tag`, recursing through the
-    /// view tree (children of form containers are nested inside them).
+    /// Parse a component source and return the collected parse diagnostics.
+    fn parse_and_diag(source: &str) -> Vec<ParseError> {
+        let tokens = tokenize(source);
+        let (_program, errors) = parse(tokens, source);
+        errors
+    }
+
     /// Find the first `Element` matching `tag`, recursing through the view
     /// tree (form children like `<input>` are nested inside `<form>`).
     fn find_element<'a>(nodes: &'a [ViewNode], tag: &str) -> &'a Element {
@@ -1184,6 +1187,48 @@ component App {
             ),
             "expected ViewNode::LoadDirective {{ fn_name: \"f\" }}, got: {:?}",
             children[0]
+        );
+    }
+
+    #[test]
+    fn at_form_with_value_errors() {
+        // @form is a bare intent marker — a value (e.g. @form="x") is a hard
+        // error with a design diagnostic (spec 2026-08-08 §4.1).
+        let src = r#"component App { view { <form @form="x" /> } }"#;
+        let diags = parse_and_diag(src);
+        assert!(
+            diags.iter().any(|d| d.message.contains("不接受值")),
+            "expected '@form' no-value diagnostic, got: {:?}",
+            diags
+        );
+    }
+
+    #[test]
+    fn at_load_malformed_falls_back_to_text() {
+        // A malformed @load (@load=foo without braces) is not a directive —
+        // the parser restores position and keeps it as text content,
+        // mirroring the @if/@for fallback.
+        let src = "component App { view { @load=foo <div /> } }";
+        let children = view_children(src);
+        assert!(
+            matches!(&children[0], ViewNode::Text(s) if s.contains("@load")),
+            "expected @load preserved as text, got: {:?}",
+            children[0]
+        );
+    }
+
+    #[test]
+    fn validate_empty_block_errors() {
+        // An empty validation block is meaningless — hard error, mirroring
+        // the a11y: empty-block diagnostic.
+        let src = "component App { view { <input validate: { } /> } }";
+        let diags = parse_and_diag(src);
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.message.contains("validate 块不能为空")),
+            "expected 'validate 块不能为空' diagnostic, got: {:?}",
+            diags
         );
     }
 }

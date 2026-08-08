@@ -101,10 +101,10 @@ impl<'a> Parser<'a> {
     pub(super) fn parse_load_directive(&mut self) -> Result<ViewNode, ParseError> {
         let span = self.peek_span();
         self.advance(); // '@load'
-        self.expect_token(TokenKind::Eq, "expected '=' after '@load'")?;
-        self.expect_token(TokenKind::LBrace, "expected '{' after '='")?;
-        let fn_name = self.expect_ident("expected function name inside @load={...}")?;
-        self.expect_token(TokenKind::RBrace, "expected '}' after @load function name")?;
+        self.expect_token(TokenKind::Eq, "'@load' 后缺少 '='")?;
+        self.expect_token(TokenKind::LBrace, "'=' 后缺少 '{'")?;
+        let fn_name = self.expect_ident("@load={...} 内缺少函数名")?;
+        self.expect_token(TokenKind::RBrace, "@load 函数名后缺少 '}'")?;
         Ok(ViewNode::LoadDirective { fn_name, span })
     }
 
