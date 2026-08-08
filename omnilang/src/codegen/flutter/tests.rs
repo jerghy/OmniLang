@@ -587,6 +587,7 @@ fn fmt_view_with_program_and_map<'a>(
         comp_type_scope: &FxHashMap::default(),
         load_async_name: None,
         form_present: false,
+        retry_expr: None,
     };
     let result = format_view_tree(node, &[], &mut ctx);
     (result, warnings)
@@ -628,6 +629,7 @@ fn fmt_view_in(
         comp_type_scope: &FxHashMap::default(),
         load_async_name: None,
         form_present: false,
+        retry_expr: None,
     };
     let result = format_view_tree(node, motions, &mut ctx);
     (result, warnings)
@@ -7894,6 +7896,7 @@ fn test_store_action_in_inline_handler_body() {
         comp_type_scope: &FxHashMap::default(),
         load_async_name: None,
         form_present: false,
+        retry_expr: None,
     };
     let expr = format_view_tree(&view, &[], &mut ctx);
     assert!(
@@ -8009,6 +8012,7 @@ fn test_store_action_method_call_form_in_handler() {
         comp_type_scope: &FxHashMap::default(),
         load_async_name: None,
         form_present: false,
+        retry_expr: None,
     };
     let expr = format_view_tree(&view, &[], &mut ctx);
     assert!(
@@ -8248,6 +8252,7 @@ fn test_ref_key_on_widget_and_controller_attachment() {
         comp_type_scope: &FxHashMap::default(),
         load_async_name: None,
         form_present: false,
+        retry_expr: None,
     };
     let view = ViewTree::Element(Box::new(el));
     let expr = format_view_tree(&view, &[], &mut ctx);
@@ -8298,6 +8303,7 @@ fn test_ref_key_on_widget_and_controller_attachment() {
         comp_type_scope: &FxHashMap::default(),
         load_async_name: None,
         form_present: false,
+        retry_expr: None,
     };
     let view2 = ViewTree::Element(Box::new(el2));
     let expr2 = format_view_tree(&view2, &[], &mut ctx2);
@@ -8343,6 +8349,7 @@ fn test_ref_key_on_widget_and_controller_attachment() {
         comp_type_scope: &FxHashMap::default(),
         load_async_name: None,
         form_present: false,
+        retry_expr: None,
     };
     let view3 = ViewTree::Element(Box::new(el3));
     let expr3 = format_view_tree(&view3, &[], &mut ctx3);
@@ -11611,14 +11618,13 @@ fn flutter_form_emits_form_and_validators() {
         "bound fields must emit TextFormField, got:\n{}",
         dart
     );
+    // The validator CHAIN must be a real `validator:` constructor arg —
+    // `validator: (v) => cond ? 'msg' : ...` — not a comment mentioning
+    // errorText. Errors surface Flutter-natively via errorText when the
+    // validator returns a non-null String.
     assert!(
-        dart.contains("validator:"),
-        "bound fields must carry a validator, got:\n{}",
-        dart
-    );
-    assert!(
-        dart.contains("errorText"),
-        "validator errors must be documented as Flutter-native errorText display, got:\n{}",
+        dart.contains("validator: (v) =>"),
+        "bound fields must carry a real validator chain, got:\n{}",
         dart
     );
 }
@@ -11655,9 +11661,17 @@ fn flutter_form_validator_rules_and_messages() {
         "format: email must map to the shared 邮箱格式不正确 message, got:\n{}",
         dart
     );
+    // format is a CLOSED name set — "email" must dispatch to the CONCRETE
+    // email regex, never the literal name-as-pattern (`RegExp(r'email')`
+    // would match the substring "email", not email addresses).
     assert!(
-        dart.contains("RegExp"),
-        "format/pattern rules must compile a RegExp, got:\n{}",
+        dart.contains(r"RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+')"),
+        "format: email must emit the concrete email regex, got:\n{}",
+        dart
+    );
+    assert!(
+        !dart.contains("RegExp(r'email')"),
+        "format names must never be emitted as literal patterns, got:\n{}",
         dart
     );
     assert!(
@@ -11791,6 +11805,31 @@ component App {
     assert!(
         dart.contains("ref.invalidate(fetchTodosProvider)"),
         "retry must invalidate the provider, got:\n{}",
+        dart
+    );
+}
+
+/// retry 表达式层：`retry()` 作为 CALL 出现在内联 handler 体内时发射
+/// 原始动作 `ref.invalidate(...);`（FnRef 是绑定层；表达式层经
+/// format_call 分派 — 共享 CallExpr 臂传原始名字，不能退化为裸标识符）。
+#[test]
+fn flutter_load_retry_call_in_inline_handler_maps_to_action() {
+    let out = compile_flutter(
+        r#"
+component App {
+  fn fetchTodos() -> Array<String> { }
+  view {
+    @load={fetchTodos}
+    <button @onPress={() => { retry(); }}>Retry</button>
+  }
+}
+"#,
+    )
+    .expect("retry call fixture must compile");
+    let dart: String = out.files.values().cloned().collect::<Vec<_>>().join("\n");
+    assert!(
+        dart.contains("ref.invalidate(fetchTodosProvider);"),
+        "retry() must emit the invalidate action in the handler body, got:\n{}",
         dart
     );
 }

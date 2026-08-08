@@ -1064,7 +1064,7 @@ impl FlutterCodegen {
                 }
                 if let ExprIR::BlockExpr { statements, .. } = &rewritten {
                     for stmt in statements {
-                        generate_statement_flutter_dw(&mut w, stmt, &direct_write_names);
+                        generate_statement_flutter_dw(&mut w, stmt, &direct_write_names, None);
                     }
                 }
                 w.dedent();
@@ -1223,13 +1223,13 @@ impl FlutterCodegen {
                         w.emit("() async {");
                         w.indent();
                         for stmt in &rewritten {
-                            generate_statement_flutter_dw(&mut w, stmt, &direct_write_names);
+                            generate_statement_flutter_dw(&mut w, stmt, &direct_write_names, None);
                         }
                         w.dedent();
                         w.emit("}();");
                     } else {
                         for stmt in &rewritten {
-                            generate_statement_flutter_dw(&mut w, stmt, &direct_write_names);
+                            generate_statement_flutter_dw(&mut w, stmt, &direct_write_names, None);
                         }
                     }
                 }
@@ -1329,7 +1329,7 @@ impl FlutterCodegen {
                         .collect();
                     stmt::truncate_after_pointer_capture(&mut rewritten);
                     for stmt in &rewritten {
-                        generate_statement_flutter_dw(&mut w, stmt, &direct_write_names);
+                        generate_statement_flutter_dw(&mut w, stmt, &direct_write_names, None);
                     }
                 }
             }
@@ -1423,7 +1423,7 @@ impl FlutterCodegen {
             }
             w.indent();
             for stmt in &rewritten {
-                generate_statement_flutter_dw(&mut w, stmt, &direct_write_names);
+                generate_statement_flutter_dw(&mut w, stmt, &direct_write_names, None);
             }
             // Snapshot non-prop deps for the didUpdateWidget comparison
             // (skipped entirely when the effect collapses to `if (true)` —
@@ -1526,6 +1526,13 @@ impl FlutterCodegen {
                     .as_ref()
                     .map(|li| load_async_local_name(&li.fn_name)),
                 form_present: comp.form_intent.is_some(),
+                // Task 5: the retry action — `retry` in ANY expression
+                // context (FnRef binding, value, call) resolves to
+                // `ref.invalidate({fn}Provider)`.
+                retry_expr: comp
+                    .load_intent
+                    .as_ref()
+                    .map(|li| format!("ref.invalidate({})", load_provider_name(&li.fn_name))),
             };
             // Multi-node root fragments are wrapped in a Column —
             // `return Text('a'), Text('b');` would be invalid Dart

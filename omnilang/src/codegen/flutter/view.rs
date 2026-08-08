@@ -23,7 +23,6 @@ use super::expr::{
     rewrite_stmt_widget_refs, rewrite_store_accesses, rewrite_widget_refs, watch_to_read_stmt,
     ClosureHoister,
 };
-use super::load_provider_name;
 use super::motion::{
     is_flutter_motion_element, motion_active_name, motion_ctrl_name, wrap_with_motion_widgets,
 };
@@ -120,6 +119,11 @@ pub(crate) struct ViewContext<'a> {
     /// builtin `form.valid`/`form.errors`/`form.submitting` field reads map
     /// to the reachability-gated locals.
     pub(crate) form_present: bool,
+    /// Task 5 (@load): the retry action expression
+    /// (`ref.invalidate(fetchTodosProvider)`) — `retry` in ANY expression
+    /// context (identifier value, call, or @onClick FnRef) resolves here.
+    /// `None` when the component has no `@load`.
+    pub(crate) retry_expr: Option<String>,
 }
 
 impl ViewContext<'_> {
@@ -264,12 +268,13 @@ impl ViewContext<'_> {
         let rewritten = rewrite_widget_refs(&rewritten, self.widget_names, self.fn_renames);
         // Task 5: context-carrying format — @load builtins (loading/error/
         // data) map to AsyncValue accessors, @form builtins (form.*) map to
-        // the reachability-gated locals.
+        // the reachability-gated locals, `retry` maps to the invalidate action.
         format_expr_ir_flutter_ctx(
             &rewritten,
             self.direct_write_signals,
             self.load_async_name.clone(),
             self.form_present,
+            self.retry_expr.clone(),
         )
     }
 }
@@ -2142,12 +2147,15 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
             EventHandlerIR::FnRef { r#ref, .. } => {
                 // @load (Task 5): `retry` is the reserved retry ref on @load
                 // components — `ref.invalidate(provider)` re-runs the fetch
-                // and the FutureProvider re-arms loading/error/data.
-                if let Some(retry) = ctx.comp.load_intent.as_ref().and_then(|li| {
-                    (r#ref == "retry").then(|| {
-                        format!("() => ref.invalidate({})", load_provider_name(&li.fn_name))
-                    })
-                }) {
+                // and the FutureProvider re-arms loading/error/data. The
+                // action expression lives on ctx.retry_expr (single source:
+                // FnRef binding, value form, and call form all resolve it).
+                if let Some(retry) = ctx
+                    .retry_expr
+                    .as_ref()
+                    .filter(|_| r#ref == "retry")
+                    .map(|retry| format!("() => {retry}"))
+                {
                     Some(retry)
                 } else {
                     // Task 5.8: pass the handler by TEAR-OFF — `onChanged:
@@ -2282,6 +2290,7 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                                 ctx.direct_write_signals,
                                 ctx.load_async_name.clone(),
                                 ctx.form_present,
+                                ctx.retry_expr.clone(),
                             ),
                             direct_write_signals: ctx.direct_write_signals.clone(),
                         };
@@ -2518,8 +2527,11 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
     // `Form.validate()` gates the handler (errors already surfaced per-field
     // via errorText). Runs BEFORE required_defaults so the `onPressed: null`
     // default cannot steal the slot. An explicit onPressed (event or prop)
-    // always wins over the interception.
-    if widget == "ElevatedButton" && ctx.form_present {
+    // always wins over the interception. Any of the three button widgets can
+    // carry type="submit" (button→ElevatedButton, a→TextButton, icon
+    // button→IconButton); a form with NO submit button loses the validate
+    // gate by design (v0 boundary — the handler fires ungated).
+    if matches!(widget, "ElevatedButton" | "TextButton" | "IconButton") && ctx.form_present {
         let is_submit = match el.props.get("type") {
             Some(ExprIR::LiteralExpr { value }) => value.as_str() == Some("submit"),
             _ => false,
@@ -3139,17 +3151,36 @@ fn form_validator_args(ctx: &ViewContext<'_>, signal_ref: &SignalRefIR, args: &m
                     ));
                 }
             }
-            "format" | "pattern" => {
+            // `format` is a CLOSED name set — dispatch on the name (mirrors
+            // the React backend): "email"/"url" map to concrete regexes; any
+            // other value is a dynamic expression or unknown name, skipped
+            // (a non-literal like `format: fmt` cannot be proven at compile
+            // time; the rule must be implemented as a custom validator).
+            "format" => {
                 if let Some(p) = rule_literal_str(rule) {
-                    let msg = match p.as_str() {
-                        "email" => "邮箱格式不正确",
-                        "url" => "URL 格式不正确",
-                        _ => "格式不正确",
-                    };
+                    match p.as_str() {
+                        "email" => checks.push((
+                            "v != null && !RegExp(r'^[^\\s@]+@[^\\s@]+\\.[^\\s@]+').hasMatch(v)"
+                                .to_string(),
+                            "邮箱格式不正确".to_string(),
+                        )),
+                        "url" => checks.push((
+                            "v != null && !RegExp(r'^(https?:\\/\\/)?([\\w-]+\\.)+[\\w-]{2,}(\\/\\S*)?').hasMatch(v)"
+                                .to_string(),
+                            "URL 格式不正确".to_string(),
+                        )),
+                        _ => {}
+                    }
+                }
+            }
+            // `pattern` takes the RAW pattern string — the user's regex is
+            // the rule (unlike `format`, where the name picks a built-in).
+            "pattern" => {
+                if let Some(p) = rule_literal_str(rule) {
                     let escaped = p.replace('\'', "\\'");
                     checks.push((
                         format!("v != null && !RegExp(r'{escaped}').hasMatch(v)"),
-                        msg.to_string(),
+                        "格式不正确".to_string(),
                     ));
                 }
             }
@@ -3445,6 +3476,7 @@ fn format_key_handler_flutter(body: &BlockIR, ctx: &ViewContext) -> String {
                 ctx.direct_write_signals,
                 ctx.load_async_name.clone(),
                 ctx.form_present,
+                ctx.retry_expr.clone(),
             ),
             direct_write_signals: ctx.direct_write_signals.clone(),
         };
@@ -3769,6 +3801,7 @@ fn format_inline_statements_flutter(body: &BlockIR, ctx: &ViewContext) -> String
                 ctx.direct_write_signals,
                 ctx.load_async_name.clone(),
                 ctx.form_present,
+                ctx.retry_expr.clone(),
             ),
             direct_write_signals: ctx.direct_write_signals.clone(),
         };
@@ -3803,7 +3836,9 @@ fn format_inline_handler_flutter(body: &BlockIR, ctx: &ViewContext) -> String {
     build_inline_handler(&rewritten, &config, |w, s| {
         // Phase 3: inline handler statements carry the D1/D2 set — handler
         // mutations write `_name.value` (no setState in the view tree).
-        generate_statement_flutter_dw(w, s, ctx.direct_write_signals)
+        // Task 5 review Minor #3: `retry()` statements in inline handlers
+        // resolve to the @load invalidate action (`ref.invalidate(...)`).
+        generate_statement_flutter_dw(w, s, ctx.direct_write_signals, ctx.retry_expr.clone())
     })
 }
 

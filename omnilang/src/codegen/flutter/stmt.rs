@@ -631,13 +631,25 @@ pub(crate) fn generate_statement_flutter(w: &mut CodeWriter, stmt: &StatementIR)
 /// form. Used for every statement emitted inside a component context
 /// (State methods, @mount/@unmount, effect bodies, computed fn-form bodies,
 /// inline handlers).
+///
+/// `retry_expr` (Task 5 review Minor #3): the `@load` retry action
+/// (`ref.invalidate(loadProvider)`) — inline-handler bodies pass it so
+/// statement-level `retry();` calls resolve to the action instead of a
+/// bare identifier. Callers without load context pass `None`.
 pub(crate) fn generate_statement_flutter_dw(
     w: &mut CodeWriter,
     stmt: &StatementIR,
     direct_write_signals: &FxHashSet<String>,
+    retry_expr: Option<String>,
 ) {
     let fmt = FlutterStmtFormatter {
-        expr: super::r#ref::FlutterFormatExpr::new_with_direct_write(None, direct_write_signals),
+        expr: super::r#ref::FlutterFormatExpr::new_with_context(
+            None,
+            direct_write_signals,
+            None,
+            false,
+            retry_expr,
+        ),
         direct_write_signals: direct_write_signals.clone(),
     };
     fmt.format_stmt(w, stmt);
@@ -896,7 +908,7 @@ pub(crate) fn generate_function_flutter_with(
         statements.len()
     };
     for stmt in &statements[..tail_count] {
-        generate_statement_flutter_dw(w, stmt, direct_write_signals);
+        generate_statement_flutter_dw(w, stmt, direct_write_signals, None);
     }
     if is_tail_expr {
         if let Some(StatementIR::ExprStmtIR { expr }) = statements.last() {
