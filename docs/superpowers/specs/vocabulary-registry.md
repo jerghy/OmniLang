@@ -366,7 +366,7 @@ DOM 命令式元素 API 的语义意图——**焦点 / 滚动 / 测量 / 选择
 | format | 闭集名 `FORMAT_VALUES`：email / url | 邮箱格式不正确 / URL 格式不正确 | 格式校验（闭集名字分派；其余值跳过 → 需 custom） |
 | min | 数字 | 长度至少为 N（Flutter 此项至少 n 个字符） | 最小长度 |
 | max | 数字 | 长度最多为 N（Flutter 此项最多 n 个字符） | 最大长度 |
-| pattern | 正则字符串 | RegExp 格式不正确 | 正则校验 |
+| pattern | 正则字符串 | 格式不正确 | 正则校验 |
 | custom | 组件 fn 名（v0 边界：无字面量自定义消息） | fn 返回消息 | 自定义校验 |
 
 ### 目标映射

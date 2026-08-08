@@ -127,9 +127,9 @@
 
 | # | 决策点 | 收口决策 |
 |---|---|---|
-| 1 | 字段校验声明形态 | **字段级 `validate: 规则` 属性**（`<input validate: required>`；规则闭集 6 名 = `VALIDATE_RULES`：required/format/min/max/pattern/custom；format 闭集名字分派 email/url，其余值跳过 → 需 custom） |
+| 1 | 字段校验声明形态 | **字段级 `validate: 规则` 属性**（`<input validate:{required: true}>`；规则闭集 6 名 = `VALIDATE_RULES`：required/format/min/max/pattern/custom；format 闭集名字分派 email/url，其余值跳过 → 需 custom） |
 | 2 | 错误展示接线 | **错误信号显式渲染**（`form.errors` + `@if form.errors.name` 用户显式渲染，React/OmniView）；**Flutter 例外**：错误经 `TextFormField.errorText` 自动展示，`form.errors` 发射为常量空 map——语言面跨目标一致保留、行为注记（semantic-universe 域 8 诊断行为列） |
-| 3 | `@load` 形态 | **视图级指令**：`@load loadData` 绑定组件 fn，mount 后自动装载；生成 `loading/error/data` 三信号 + `retry` 重试；至多一个 `@load` 每组件（与 `@form` 同） |
+| 3 | `@load` 形态 | **视图级指令**：`@load={fetchTodos}` 绑定组件 fn，mount 后自动装载；生成 `loading/error/data` 三信号 + `retry` 重试；至多一个 `@load` 每组件（与 `@form` 同） |
 | 4 | v0 范围边界 | `@load` **仅 Array 返回**（`{T}[]` 三目标形态）；`form.submitting` 恒 false（三目标声明但从不写入，语义 v0 未实现）；custom 仅组件 fn 名（无字面量自定义消息）；Flutter 无 submit 按钮场景 handler 无门禁直发（v0 边界） |
 | 5 | 语义验证 | 保留名冲突硬错误（formErrors/formValid/formSubmitting、loading/error/data/retry——`validate_form_load.rs` 保留名检查）；`@form`/`@load` 重复硬错误 |
 

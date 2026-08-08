@@ -36,7 +36,7 @@ component App {
 | format | 闭集名：`"email"` / `"url"` | 邮箱格式不正确 / URL 格式不正确 |
 | min | 数字 | 长度至少为 N |
 | max | 数字 | 长度最多为 N |
-| pattern | 正则字符串 | RegExp 格式不正确 |
+| pattern | 正则字符串 | 格式不正确 |
 | custom | 组件 fn 名（v0 边界：无字面量自定义消息） | fn 返回消息 |
 
 约束（违规 = 编译期硬错误）：
