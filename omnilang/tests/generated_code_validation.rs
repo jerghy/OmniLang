@@ -247,9 +247,6 @@ const REACT_TSCONFIG: &str = r#"{
 const FIXTURE_STRICT_ALLOWANCE: &[((&str, &str), usize)] = &[
     (("motion_drag/MotionDrag.tsx", "TS7006"), 15),
     (("animation/MotionCard.tsx", "TS7006"), 6),
-    (("control_flow/ListPage.tsx", "TS7005"), 3),
-    (("control_flow/ListPage.tsx", "TS7034"), 2),
-    (("control_flow/ListPage.tsx", "TS7006"), 2),
     (("motion_scroll/MotionScroll.tsx", "TS7006"), 2),
 ];
 
