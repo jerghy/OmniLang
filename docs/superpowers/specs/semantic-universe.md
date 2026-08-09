@@ -503,4 +503,4 @@ CSS 动画语义域——**属性值从 A 到 B 平滑过渡**（CSS Transitions
 | showToast 调用 | 内建函数表（语义函数分派）+ 三目标 codegen |
 | @modal/@skeleton/@errorBoundary | 元素指令语义化（语义层登记 + codegen 分派） |
 
-> 注：域 10 语法尚未落地（批次 1 Task 1-6 实施中）——白名单行编译器事实源随 Task 1-6 落地；本表为锚点账本，交叉断言以存在性检查承担（见 verify-semantic-universe.py 域 10 断言 Task 0）；**tooltip** 为留生态条目，不列入已实现白名单。
+> 注：域 10 语法已落地（批次 1 Task 1-6，2026-08-09/10）——交叉断言两层：存在性检查（Task 0）+ 编译器代码锚点账本（Task 7，见 verify-semantic-universe.py 域 10 断言；Flutter 锚点暂缺，Task 5 Flutter codegen 待落地）；**tooltip** 为留生态条目，不列入已实现白名单。
