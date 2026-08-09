@@ -396,3 +396,13 @@
   - **#85 a11y 动态可访问名称**（domain MEDIUM-1）——label/role 当前限字符串字面量；触发：「真实应用需要 i18n 动态 label」
   - **#86 React 动态 URL 运行时消毒**（security HIGH-1，用户 2026-08-06 范围裁定 defer）——React 原生阻断 javascript:/vbscript:（ReactDOM isJavaScriptProtocol），主向量已关闭；残余面 = data: URL + 非 React 目标。**触发：「真实用户输入流进 URL 绑定」或「Vue/Dioxus 生产使用」（届时按 Task 1.1/1.3 正文执行，含 sanitizeUrl helper + node 行为 harness）**。ADR-056 语料计数更新仍按 Task 0.1 执行
   - **#87 Vue/Dioxus 语义 floor 诊断**（systems HIGH-1，用户范围裁定 defer）——非目标后端；ADR-052:94 契约违约已记录（本行）。**触发：「vue/dioxus 真实生产使用」**——届时按 Task 4.1 正文执行（E_CODEGEN 门 + floor_matrix 行）；触发前不投资
+
+---
+
+## 2026-08-06 learn-omniview 语义展示补全轮（#88-#90 注册）
+
+**来源**：learn-omniview 展示项目语义覆盖补全轮（MapOperationsDemo 等新 demo）——Map 方法调用层边界实证（semantic-universe.md:137「未翻译操作在后端 verbatim」+ ArrayMethod 教训——floor 门 E_CODEGEN 于 v3 Task 4.8 补齐）。三缺口均零诊断（语法面合法、语义面运行期爆炸）——诚实降级原则要求登记触发条件，触发前不投资。
+
+- **#88 Map.insert 方法调用层未翻译臂**——`m.insert(k, v)`：react/expr.rs `translate_method_call` 与 Dart 族 `format_method_call` 均落默认臂逐字发射——JS `m.insert(...)` 运行时 TypeError + tsc TS2339；Dart `Map` 无 `insert` → analyze 错误；Python/Rust 同名异义（dict 无 insert / HashMap 无 insert）→ 无跨目标保证。**同族 #28（Map.set）**——修复方向：三后端方法表补翻译臂（`Object.assign`/spread 系）+ `parse_type_string` 泛型，或按 ArrayMethod 教训补 E_CODEGEN floor 门。**触发：「真实应用需要 Map 就地变更」**；当前惯用法 = 完整字面量重新赋值（MapOperationsDemo 已展示，demo 头部注释与 skill §9.5 同步）。*实测（2026-08-06 probe，omnic 0.2.0）：React 发射 `m.insert("c", "3")` verbatim（无 tsc 拦截——类型检查器对方法调用层无方法表）；Dart 发射 `m.insert('c', '3')` verbatim（Dart `Map` 无此方法 → analyze error）。两 target 均编译静默、运行即错*
+- **#89 @for 迭代 Map**——`@for item in m`：JS 族发射 `for (const item of <对象>)`，Map 字面量编译为普通对象、不可迭代 → 运行时 TypeError「not iterable」；Flutter 侧 Map 迭代产物为 MapEntry（与元素类型错配）。**触发：「真实应用需要 Map 遍历展示」**（届时设计键值对/值迭代的跨目标语义 + floor 门）；当前可读 Map 用 contains/get/len 组合（MapOperationsDemo 展示）。*实测（2026-08-06 probe）：React 发射 `__omni_iterable.length === 0` 守卫 + `__omni_iterable.map(...)`——普通对象 `.length` 为 undefined、`.map` 不存在 → 运行 TypeError；类型检查器不拦截（Map 类型在 view 迭代无校验）*
+- **#90 Map spread**——`[...m]`：普通对象不可迭代 → 运行时 TypeError；`{...m}` 对象上下文展开产物为普通对象（非 Map，键序/形状无跨目标保证）。**触发：「真实应用需要 Map 合并/复制」**（届时补 spread 翻译臂或禁止并诊断）。*实测（2026-08-06 probe）：类型检查器先行拦截——`let arr: Array<String> = [...m]` 报 E0010「cannot assign 'Array<Map<String, String>>' to 'Array<String>'」（spread 的 Map 操作数被推导为元素类型）——比运行时 TypeError 更早，静态层面已堵*

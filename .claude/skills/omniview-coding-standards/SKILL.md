@@ -628,7 +628,7 @@ omnic analyse                              # 静态分析
 - `println`/`print`
 - 结构体
 - 数组（`Array<T>`）：`len()`, `is_empty()`, `get(i)`, `push()`, `pop()`
-- 映射（`Map<K,V>`）：`len()`, `contains()`, `get()` `insert()`
+- 映射（`Map<K,V>`）：`len()`, `contains()`, `get()` —— **更新 = 完整字面量重新赋值**（`insert`/`set`/`spread`/`@for` 迭代 Map 尚未实现，见 deferral #28/#88-90；`m = { "k": v }` 或 `m = {}` 清空）
 - 块作用域 `{ }`
 - `if` 作为表达式：`let x = if cond { a } else { b };`
 - `while`, `for-in` 循环
