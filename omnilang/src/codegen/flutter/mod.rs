@@ -1502,7 +1502,7 @@ impl FlutterCodegen {
         }
 
         // @load (Task 5): hoisted AsyncValue read — `loading` maps to
-        // `.isLoading`, `error` to `.error`, `data` to `.valueOrNull` in the
+        // `.isLoading`, `error` to `.error`, `data` to `.asData?.value` in the
         // view tree (format_identifier override in ref.rs).
         if let (Some(li), Some(ret)) = (&comp.load_intent, &load_ret) {
             w.emit_fmt(format_args!(

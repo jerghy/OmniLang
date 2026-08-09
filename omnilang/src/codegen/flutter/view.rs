@@ -321,6 +321,11 @@ pub(crate) fn format_view_tree(
         ViewTree::Fragment(children) => children
             .iter()
             .map(|c| format_view_tree(c, motions, ctx))
+            // Empty fragments (e.g. the @load directive lowering to
+            // Fragment(vec![])) render to "" — skipping them avoids a
+            // dangling `, ` in the generated children list (dart analyze
+            // missing_identifier; LoadDemo.dart:27).
+            .filter(|s| !s.is_empty())
             .collect::<Vec<_>>()
             .join(", "),
         ViewTree::Slot { name, fallback, .. } => {
@@ -379,6 +384,15 @@ fn format_slot_content(
 /// must produce ONE widget expression: build() returns, ternary branches,
 /// and list item bodies.
 pub(crate) fn wrap_multi_widget(children: &[String]) -> String {
+    // F2: empty renderings (e.g. the `@load` directive lowering to
+    // `Fragment(vec![])`) produce "" — dropping them here avoids a dangling
+    // `, ` in the generated children list (dart analyze
+    // missing_identifier).
+    let children: Vec<&str> = children
+        .iter()
+        .map(|s| s.as_str())
+        .filter(|s| !s.is_empty())
+        .collect();
     format!(
         "Column(mainAxisSize: MainAxisSize.min, children: [{}])",
         children.join(", ")
@@ -2673,12 +2687,22 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
         }
     } else if el.children.len() == 1 {
         let child_str = format_view_tree(&el.children[0], motions, ctx);
-        args.push(format!("child: {}", child_str));
+        // F2: a single child that renders nothing (e.g. a lone `@load`
+        // directive → `Fragment(vec![])` → "") must not emit
+        // `child: ` — the element renders as an empty widget instead.
+        if !child_str.is_empty() {
+            args.push(format!("child: {}", child_str));
+        }
     } else {
         let children: Vec<String> = el
             .children
             .iter()
             .map(|c| format_view_tree(c, motions, ctx))
+            // F2: empty renderings (the `@load` directive lowering to
+            // `Fragment(vec![])`, or any directive expansion that produces
+            // nothing) must not dangle as `, ` in the children list (dart
+            // analyze missing_identifier; LoadDemo.omni div.Card).
+            .filter(|s| !s.is_empty())
             .collect();
         let children_arg = format!("children: [{}]", children.join(", "));
         if widget_allows_param(widget, "children") {

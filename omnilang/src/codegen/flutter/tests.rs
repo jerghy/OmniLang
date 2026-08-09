@@ -11741,7 +11741,7 @@ component App {
 }
 
 /// 三态接线：loading → .isLoading；error → (.error?.toString() ?? "")；
-/// data → .valueOrNull ?? const []；@if error != "" 必须整体括号化
+/// data → .asData?.value ?? const []；@if error != "" 必须整体括号化
 /// （Dart ?? 优先级低于 !=）。
 #[test]
 fn flutter_load_wires_three_states_and_provider() {
@@ -11765,8 +11765,8 @@ fn flutter_load_wires_three_states_and_provider() {
         dart
     );
     assert!(
-        dart.contains("fetchTodosAsync.valueOrNull ?? const []"),
-        "data builtin must map to valueOrNull with an empty-list fallback, got:\n{}",
+        dart.contains("fetchTodosAsync.asData?.value ?? const []"),
+        "data builtin must map to asData?.value with an empty-list fallback, got:\n{}",
         dart
     );
     assert!(

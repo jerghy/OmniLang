@@ -947,9 +947,7 @@ pub(super) fn gen_view_node_tsx(
                 // 保留（a11y 语义），校验职责由 validateForm 独占。JSX 布尔
                 // 属性缩写字面量即 noValidate={true}；用户显式声明
                 // noValidate 时防重复（JSX 不允许同名重复属性）。
-                if html_tag == "form"
-                    && !attrs.iter().any(|a| a.starts_with("noValidate"))
-                {
+                if html_tag == "form" && !attrs.iter().any(|a| a.starts_with("noValidate")) {
                     attrs.push("noValidate".to_string());
                 }
                 for (bind_name, signal_ref) in &el.bindings {

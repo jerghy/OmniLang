@@ -933,8 +933,14 @@ fn generate_statement_flutter_expr(
     direct_write_signals: &FxHashSet<String>,
     form_present: bool,
 ) -> String {
-    super::r#ref::FlutterFormatExpr::new_with_context(None, direct_write_signals, None, form_present, None)
-        .format_expr(expr)
+    super::r#ref::FlutterFormatExpr::new_with_context(
+        None,
+        direct_write_signals,
+        None,
+        form_present,
+        None,
+    )
+    .format_expr(expr)
 }
 
 /// Drop the statements that follow an unsupported pointer-capture ref-op:

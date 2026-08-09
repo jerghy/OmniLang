@@ -1813,8 +1813,9 @@ impl FormatExpr for FlutterFormatExpr {
                 // parens are MANDATORY: Dart's `??` binds looser than `!=`.
                 "error" => return format!("({async_name}.error?.toString() ?? \"\")"),
                 // `@for item in data` — data is an Array signal; AsyncValue
-                // `valueOrNull` is List<T>? — null-coalesce to an empty list.
-                "data" => return format!("{async_name}.valueOrNull ?? const []"),
+                // 3.x removed `valueOrNull` — `asData?.value` is List<T>?,
+                // null-coalesce to an empty list.
+                "data" => return format!("{async_name}.asData?.value ?? const []"),
                 _ => {}
             }
         }
