@@ -774,3 +774,35 @@ Task 0（登记先行）→ Task 1（语法面）→ Task 2（IR+lowering）→ 
 3. **spec §9 未决问题裁决后无阻塞项**：Flutter 桌面端 Esc = 平台 pop 行为承担；@skeleton 形状自适应/位置参数/error 对象暴露均不进 v0；V9 硬约束保持；dialog 关闭内容保留差异保持目标原生行为。
 4. **实现期风险**：showToast 为全新内建函数（仓库零先例）——内建函数表 + 调用点验证 + 三目标分派需参照 std/async 内建函数既有调用解析模式，Task 1 实施者定位；`@errorBoundary` token 最长匹配（@error + Boundary 切分）需 Task 1 确认；EventShorthand.omni 隐藏依赖断链风险由 Task 8 Step 3 消化（grep 已确认用点位）。
 5. **既有测试回归面**：新 token/指令/IR 字段的增量为 additive——但 ElementIR 加字段与 ts-rs 绑定、以及既有 golden 快照（react/flutter/omniview tests.rs snapshots）需全量回归，Task 2 Step 4 / Task 8 Step 6 承担。
+
+## 8. 批次收口清单（评审遗留登记）
+
+> Task 6（OmniView codegen）终审「有条件通过」——Important 缺陷（@errorBoundary 子节点绑定死寂）已修复并补回归测试；Minor 1（条件分支标题 aria-labelledby 悬空）已按裁决以代码注释说明限制。以下 Minor 2-5 依裁决记入本清单，随批次收口（Task 7/8）跟进或按已知限制存档（2026-08-09 登记）。
+
+### Minor 2（防御性加固，可 defer）：焦点循环边界（view/modal.rs 焦点陷阱 IIFE）
+
+- `[tabindex]:not([tabindex="-1"])` 只排除精确 `"-1"`（`tabindex="-2"` 等仍被选入 focusables）
+- 无 visibility/display 过滤（`display:none` 元素可被选入 focusables）
+- 空 focusables 时 Tab 逃出对话框
+- 未覆盖 contenteditable / iframe / 带 controls 的媒体元素
+- 定性：a11y 健壮性，非功能故障
+
+### Minor 3（防御性加固，可 defer）：escape_js_string 转义缺口（view/modal.rs / view/element.rs @errorBoundary 共用）
+
+- 现仅转义 `` \ `` / `"` / `\n`；JS 双引号字符串字面量中裸 `\r` / U+2028 / U+2029 是 SyntaxError
+- Windows CRLF 源若未经归一化，boundary 内容含裸 `\r` 会产出非法 JS
+- 已核实 parser 大概率已归一化（当前不可达）；兜底方案：`.replace('\r', "\\r")` 一行
+
+### Minor 4（非阻塞，可 defer）：toast 队列只 push 不移除（expr.rs TOAST_RUNTIME_JS）
+
+- `__omni_toastQueue.push(item)` 永不 shift，无界 toast 场景内存持续增长
+- `item.remove()` 后引用仍留在队列；超时回调里 shift 即可
+
+### Minor 5（非阻塞，随批次跟进）：测试缺口（tests.rs）
+
+- boundary 无交互子节点用例——恰为 Important 缺陷盲区，**已补**：`omniview_error_boundary_binds_children_after_content_install`（@onPress + 插值，断言绑定晚于内容安装）
+- 仍缺：toast 三种 kind 颜色/前缀未断言；@skeleton 只测 card 形状（text/line/circle 未测）；焦点循环首/末元素、shift+tab 边界未测
+
+### Low（已核实，保持现状）
+
+- @skeleton shape 白名单在语义层（V10 为 Error 级诊断），class 名拼接未转义属纵深防御范畴——当前不可达，保持白名单作为唯一防线。
