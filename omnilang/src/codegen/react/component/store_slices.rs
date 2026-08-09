@@ -528,6 +528,7 @@ fn collect_expr_shadowing_names(expr: &ExprIR, acc: &mut FxHashSet<String>) {
             collect_expr_shadowing_names(predicate, acc);
         }
         ExprIR::RefOpExpr { op, .. } => collect_ref_op_shadowing_names(op, acc),
+        ExprIR::BuiltinToastCall { msg, .. } => collect_expr_shadowing_names(msg, acc),
         ExprIR::IdentifierExpr { .. } | ExprIR::LiteralExpr { .. } => {}
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown ExprIR variant — update codegen for new variant"),
@@ -690,6 +691,7 @@ pub(crate) fn collect_expr_store_field_refs(
             collect_expr_store_field_refs(predicate, acc, bare);
         }
         ExprIR::RefOpExpr { op, .. } => collect_ref_op_store_field_refs(op, acc, bare),
+        ExprIR::BuiltinToastCall { msg, .. } => collect_expr_store_field_refs(msg, acc, bare),
         ExprIR::IdentifierExpr { name, .. } => {
             bare.insert(name.clone());
         }

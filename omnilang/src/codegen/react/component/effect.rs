@@ -851,6 +851,9 @@ impl<'a> EmittedRefCollector<'a> {
                 collect_ref_op_value_exprs(op, locals, reads, seen, self);
             }
             ExprIR::LiteralExpr { .. } => {}
+            ExprIR::BuiltinToastCall { msg, .. } => {
+                self.walk_expr(msg, locals, reads, seen);
+            }
             #[allow(unreachable_patterns)]
             _ => unreachable!("Unknown ExprIR variant — update codegen for new variant"),
         }
@@ -1082,6 +1085,7 @@ pub(super) fn expr_contains_await(expr: &ExprIR) -> bool {
         } => expr_contains_await(subject) || expr_contains_await(predicate),
         // Ref ops are synchronous DOM operations — no await inside.
         ExprIR::RefOpExpr { .. } => false,
+        ExprIR::BuiltinToastCall { msg, .. } => expr_contains_await(msg),
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown ExprIR variant — update codegen for new variant"),
     }

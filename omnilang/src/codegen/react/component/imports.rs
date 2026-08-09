@@ -49,6 +49,7 @@ pub(super) fn collect_component_imports(
     has_styles: bool,
     design_import_lines: &[String],
     has_memo_aliases: bool,
+    has_error_boundary: bool,
 ) -> ComponentImports {
     // ── Store hook imports ──────────────────────────────────
     let all_stores = ir.all_stores();
@@ -113,14 +114,18 @@ pub(super) fn collect_component_imports(
         })
         .collect();
 
-    // ── React default import (React.Fragment from @for / React.memo) ────
+    // ── React default import (React.Fragment from @for / React.memo /
+    // ErrorBoundary class) ──────────────────────────────────
     // `@for` renders `<React.Fragment key=...>` and task 2.8 emits
     // `React.memo(<Child>)` aliases at module scope — both require the
-    // React default import even when the component uses no hooks. Without
-    // it tsc reports TS2686 ("React refers to a UMD global") — the
-    // hook-driven import below used to be the only trigger.
-    let needs_react_default =
-        comp.view.as_ref().is_some_and(view_has_list_rendering) || has_memo_aliases;
+    // React default import even when the component uses no hooks. The
+    // @errorBoundary class definition extends `React.Component`, which
+    // likewise requires the default import. Without it tsc reports TS2686
+    // ("React refers to a UMD global") — the hook-driven import below used
+    // to be the only trigger.
+    let needs_react_default = comp.view.as_ref().is_some_and(view_has_list_rendering)
+        || has_memo_aliases
+        || has_error_boundary;
 
     ComponentImports {
         hooks,

@@ -37,9 +37,19 @@ impl ReactCodegen {
         direct_write_applies: &FxHashMap<String, Vec<String>>,
         motion_counter: &mut usize,
         prop_fn_ctx: &view::PropFnMemoCtx,
+        has_toast: bool,
     ) {
         w.emit("return (");
         w.indent();
+        // Task 4 (批次 1 反馈模态): the root-mounted ToastProvider wraps the
+        // whole return tree (spec §4.2 React — root mount). It hosts the
+        // toast container + signal list + timers; `toast()` calls anywhere in
+        // the component (fns/effects/computed bodies, inline events) feed the
+        // module-level queue it subscribes to.
+        if has_toast {
+            w.emit("<ToastProvider>");
+            w.indent();
+        }
         // `view` is the caller's materialized view: body-level `@slot`
         // declarations (ADR-053 D5) have already been converted into
         // `ViewTree::Slot` nodes carrying their fallbacks, so the slot
@@ -79,6 +89,10 @@ impl ReactCodegen {
             w.emit_fmt(format_args!("<h1>{{'{0}'}}</h1>", name));
             w.dedent();
             w.emit("</div>");
+        }
+        if has_toast {
+            w.dedent();
+            w.emit("</ToastProvider>");
         }
         w.dedent();
         w.emit(");");

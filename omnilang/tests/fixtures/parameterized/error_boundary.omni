@@ -1,0 +1,22 @@
+// error_boundary.omni — @errorBoundary + @slot fallback regression
+// (Task 4 F7): the fallback slot directive must render ONLY as the
+// ErrorBoundary `fallback` prop. It must be filtered out of the element
+// children loop — otherwise the slot is emitted a second time in a
+// JSX-children position as `{fallback ?? ...}`. The boundary is NOT the
+// component root (wrapped in a plain <div>): root-position slots would be
+// hoisted into the component's own props (declaring `fallback` and masking
+// the error as a compile-time TS2304 — while still double-rendering the
+// fallback UI at runtime); in the nested position `fallback` is an
+// undeclared identifier → TS2304.
+import omniview;
+
+component ErrFixture {
+  view {
+    <div>
+      <div @errorBoundary>
+        @slot fallback { <p>该区域加载失败</p> }
+        <div>正常内容</div>
+      </div>
+    </div>
+  }
+}

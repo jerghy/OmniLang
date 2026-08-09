@@ -1,0 +1,30 @@
+// modal_ref_motion.omni — @modal + user @ref + following motion element
+// regression (Task 4 F3): a plain (non-motion) @modal with a user @ref
+// must NOT consume the shared motion-element ref counter. The JSX side
+// skips the counter for user-ref modals, so the walk side must match —
+// otherwise the motion element after the modal gets `__el_1` from the
+// walk but `__el_0` in the JSX (`ref={__el_0Ref}` undeclared → TS2304).
+import omniview;
+
+@motion fadeIn {
+  from { opacity: 0, translateY: 20 }
+  to   { opacity: 1, translateY: 0 }
+  over: 400ms
+  easing: ease-out
+}
+
+component ModalRefMotionDemo {
+  ref dlg: HtmlElement;
+  signal isOpen: bool = false;
+  fn open() { isOpen = true }
+  fn close() { isOpen = false }
+  view {
+    <div>
+      <button @onPress={open}>打开</button>
+      <dialog @modal={isOpen} @ref={dlg}>
+        @slot body { <p>内容</p> }
+      </dialog>
+      <h1 @enter={fadeIn}>标题</h1>
+    </div>
+  }
+}

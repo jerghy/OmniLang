@@ -8588,3 +8588,404 @@ component App {
         out
     );
 }
+
+// ═══════════════════════════════════════════════════════════
+// 批次 1 反馈与模态（Task 4）：@modal / showToast / @skeleton /
+// @errorBoundary —— spec 2026-08-09-semantic-batch1-feedback-modal-design
+// §4 三目标映射表 React 形态（TDD RED → GREEN）
+// ═══════════════════════════════════════════════════════════
+
+/// @modal → 受控 `<dialog>`：open={isOpen} + useLayoutEffect 同步
+/// showModal()/close() + onCancel 拦截 + 遮罩点击 + role/aria-modal/
+/// aria-labelledby（spec §4.1 React 行）。
+#[test]
+fn react_modal_generates_controlled_dialog() {
+    let source = r#"
+component ModalDemo {
+  signal isOpen: bool = false
+  fn open() { isOpen = true }
+  fn close() { isOpen = false }
+  view {
+    <div>
+      <button @onPress={open}>打开</button>
+      <dialog @modal={isOpen}>
+        @slot header { <h1>确认删除</h1> }
+        @slot body { <p>此操作不可撤销。</p> }
+        @slot footer { <button @onPress={close}>取消</button> }
+      </dialog>
+    </div>
+  }
+}
+"#;
+    let out = compile_react_src(source);
+    assert!(
+        out.contains("open={isOpen}"),
+        "@modal 应生成受控 open={{isOpen}}. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("useLayoutEffect"),
+        "@modal 应生成 useLayoutEffect 同步原生 dialog 状态. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("showModal()"),
+        "打开分支应调用 showModal(). Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("close()"),
+        "关闭分支应调用 close(). Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("onCancel"),
+        "应生成 onCancel 拦截原生 cancel 事件（受控置位）. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("e.target ==="),
+        "遮罩点击应通过 e.target === ref.current 判定. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("role=\"dialog\""),
+        "打开态应生成 role=\"dialog\". Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("aria-modal=\"true\""),
+        "打开态应生成 aria-modal=\"true\". Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("aria-labelledby"),
+        "有标题时 aria-labelledby 应指向标题 id（V13 反向）. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("确认删除"),
+        "三命名槽内容应按文档序投影. Got:\n{}",
+        out
+    );
+}
+
+/// showToast → ToastProvider 根挂载 + 调用点 toast({ message, kind,
+/// duration }) + .omni-toast--{kind} 容器类（spec §4.2 React 行）。
+#[test]
+fn react_show_toast_generates_provider_and_call() {
+    let source = r#"
+component ToastDemo {
+  fn save() {
+    showToast("保存成功", { kind: "success" })
+  }
+  view {
+    <button @onPress={save}>保存</button>
+  }
+}
+"#;
+    let out = compile_react_src(source);
+    assert!(
+        out.contains("ToastProvider"),
+        "根挂载应自生成 ToastProvider. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("toast({ message: \"保存成功\", kind: \"success\""),
+        "调用点应生成 toast({{ message, kind }}). Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("omni-toast--success"),
+        "kind 应映射 .omni-toast--success 容器类. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("omni-toast"),
+        "应生成 .omni-toast 容器. Got:\n{}",
+        out
+    );
+}
+
+/// @skeleton → 占位元素 + 编译器生成 shimmer keyframes + 形状类
+/// （spec §4.3 React 行）。
+#[test]
+fn react_skeleton_generates_shimmer_placeholder() {
+    let source = r#"
+component SkeletonDemo {
+  fn f() -> Array<Int> { }
+  view {
+    @load={f}
+    @if loading {
+      <div @skeleton="card" />
+    } @else {
+      <div>内容</div>
+    }
+  }
+}
+"#;
+    let out = compile_react_src(source);
+    assert!(
+        out.contains("omni-skeleton--card"),
+        "@skeleton=\"card\" 应生成形状类 omni-skeleton--card. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("omni-skeleton"),
+        "应生成占位元素 omni-skeleton. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("@keyframes"),
+        "编译器应生成 shimmer keyframes（零依赖）. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("shimmer"),
+        "shimmer 动画应出现在生成的 CSS 中. Got:\n{}",
+        out
+    );
+}
+
+/// @errorBoundary → 自生成 ErrorBoundary class（getDerivedStateFromError +
+/// componentDidCatch）+ @slot fallback → 降级 UI（spec §4.4 React 行）。
+#[test]
+fn react_error_boundary_generates_class() {
+    let source = r#"
+component ErrDemo {
+  view {
+    <div @errorBoundary>
+      @slot fallback { <p>该区域加载失败</p> }
+      <div>内容</div>
+    </div>
+  }
+}
+"#;
+    let out = compile_react_src(source);
+    assert!(
+        out.contains("getDerivedStateFromError"),
+        "应生成 getDerivedStateFromError. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("componentDidCatch"),
+        "应生成 componentDidCatch. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("ErrorBoundary"),
+        "应生成 ErrorBoundary class 并在子树包裹. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("该区域加载失败"),
+        "fallback 槽内容应渲染为降级 UI. Got:\n{}",
+        out
+    );
+}
+
+/// F1（spec §2.1 rule 5）正向：dialog 内有 Heading 时，编译器在首个
+/// Heading 上生成 `id="omni-modal-title"` 并把 aria-labelledby 指向它
+/// （此前 id 从不生成——aria-labelledby 悬空引用）。
+#[test]
+fn react_modal_injects_title_id_for_labelledby() {
+    let source = r#"
+component ModalDemo {
+  signal isOpen: bool = false
+  fn open() { isOpen = true }
+  fn close() { isOpen = false }
+  view {
+    <div>
+      <button @onPress={open}>打开</button>
+      <dialog @modal={isOpen}>
+        @slot header { <h1>确认删除</h1> }
+        @slot body { <p>此操作不可撤销。</p> }
+      </dialog>
+    </div>
+  }
+}
+"#;
+    let out = compile_react_src(source);
+    assert!(
+        out.contains("id=\"omni-modal-title\""),
+        "有标题时应在首个 Heading 上生成 id=\"omni-modal-title\" (F1). Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("aria-labelledby=\"omni-modal-title\""),
+        "aria-labelledby 应指向生成的标题 id (F1). Got:\n{}",
+        out
+    );
+}
+
+/// F1 反向：dialog 内无 Heading 时不得发射 aria-labelledby（V13 已告警，
+/// 无标题可指向——悬空引用应整体省略）。
+#[test]
+fn react_modal_omits_labelledby_without_heading() {
+    let source = r#"
+component ModalDemo {
+  signal isOpen: bool = false
+  fn open() { isOpen = true }
+  view {
+    <div>
+      <button @onPress={open}>打开</button>
+      <dialog @modal={isOpen}>
+        @slot body { <p>内容</p> }
+      </dialog>
+    </div>
+  }
+}
+"#;
+    let out = compile_react_src(source);
+    assert!(
+        !out.contains("aria-labelledby"),
+        "无标题时不得发射 aria-labelledby (F1 反向). Got:\n{}",
+        out
+    );
+}
+
+/// F1（spec §2.1 rule 5）：用户显式 id 优先——注入不得覆盖
+/// 标题上已有的 `id`（此前 `props.insert` 无条件改写为
+/// omni-modal-title，与「用户 id 不被覆盖」的声明相悖）。
+#[test]
+fn react_modal_user_heading_id_wins_over_synthesized() {
+    let source = r#"
+component ModalDemo {
+  signal isOpen: bool = false
+  fn open() { isOpen = true }
+  fn close() { isOpen = false }
+  view {
+    <div>
+      <button @onPress={open}>打开</button>
+      <dialog @modal={isOpen}>
+        @slot header { <h1 id="hero">确认删除</h1> }
+        @slot body { <p>此操作不可撤销。</p> }
+      </dialog>
+    </div>
+  }
+}
+"#;
+    let out = compile_react_src(source);
+    assert!(
+        out.contains("id=\"hero\""),
+        "用户显式 id=\"hero\" 应原样保留，不被改写 (F1). Got:\n{}",
+        out
+    );
+    assert!(
+        !out.contains("id=\"omni-modal-title\""),
+        "已有用户 id 的标题不得被注入合成 id (F1). Got:\n{}",
+        out
+    );
+}
+
+/// F4（spec §2.1 rule 3）：匿名子内容兜底进 body 槽——必须渲染进
+/// <dialog> 内部（此前匿名子内容被整体丢弃，仅命名槽投影）。
+#[test]
+fn react_modal_renders_anonymous_children_into_dialog() {
+    let source = r#"
+component ModalDemo {
+  signal isOpen: bool = false
+  fn open() { isOpen = true }
+  view {
+    <div>
+      <button @onPress={open}>打开</button>
+      <dialog @modal={isOpen}>
+        @slot header { <h1>确认删除</h1> }
+        <p>匿名内容</p>
+      </dialog>
+    </div>
+  }
+}
+"#;
+    let out = compile_react_src(source);
+    let start = out
+        .find("<dialog")
+        .unwrap_or_else(|| panic!("应生成 <dialog>. Got:\n{out}"));
+    let end = out
+        .find("</dialog>")
+        .unwrap_or_else(|| panic!("应生成 </dialog>. Got:\n{out}"));
+    let dialog_region = &out[start..end];
+    assert!(
+        dialog_region.contains("匿名内容"),
+        "匿名子内容应渲染在 <dialog> 内部（兜底 body 槽）(F4). dialog 区域:\n{dialog_region}"
+    );
+}
+
+/// F5：@modal 的 open_signal 必须登记为读信号——仅经 @modal 引用的信号
+/// 也要拿到完整 useState 解构 `const [isOpen, setIsOpen]`（此前读端缺失
+/// → `const [, setIsOpen]` 写专用形态，JSX `open={isOpen}` 悬空引用）。
+#[test]
+fn react_modal_open_signal_counts_as_view_read() {
+    let source = r#"
+component ModalDemo {
+  signal isOpen: bool = false
+  fn open() { isOpen = true }
+  view {
+    <div>
+      <button @onPress={open}>打开</button>
+      <dialog @modal={isOpen}>
+        @slot body { <p>内容</p> }
+      </dialog>
+    </div>
+  }
+}
+"#;
+    let out = compile_react_src(source);
+    assert!(
+        out.contains("const [isOpen, setIsOpen]"),
+        "@modal 的 open_signal 应作为读信号登记（完整 useState 解构）(F5). Got:\n{}",
+        out
+    );
+}
+
+/// F6（spec §2.2）：duration: 0 = 不自动关闭——setTimeout 必须包在
+/// `if (ms !== 0)` 守卫内（此前 `0 ?? 3000` → 0ms 立即自关闭）。
+#[test]
+fn react_toast_duration_zero_disables_auto_close() {
+    let source = r#"
+component ToastDemo {
+  fn save() {
+    showToast("保存成功", { kind: "success" })
+  }
+  view {
+    <button @onPress={save}>保存</button>
+  }
+}
+"#;
+    let out = compile_react_src(source);
+    assert!(
+        out.contains("if (ms !== 0) {"),
+        "duration 0 不自动关闭：setTimeout 应受 `if (ms !== 0)` 守卫 (F6). Got:\n{}",
+        out
+    );
+}
+
+/// F7：@errorBoundary 的 fallback 槽指令必须从 children 循环中滤除——只以
+/// ErrorBoundary `fallback` prop 渲染一次（此前槽指令保留在 children 中，
+/// 同一内容在 `fallback={<p>…</p>}` 和 `{fallback ?? (<p>…</p>)}` 两处重复
+/// 发射，运行时双渲染）。注意 slot 指令会被收集进组件 props（
+/// collect_view_slots），`{fallback ?? …}` 解析到已声明的组件 prop——
+/// 编译期不报错，只能以结构断言（出现次数 == 1）抓取。
+#[test]
+fn react_error_boundary_fallback_emitted_once() {
+    let source = r#"
+component ErrFixture {
+  view {
+    <div>
+      <div @errorBoundary>
+        @slot fallback { <p>该区域加载失败</p> }
+        <div>正常内容</div>
+      </div>
+    </div>
+  }
+}
+"#;
+    let out = compile_react_src(source);
+    let count = out.matches("该区域加载失败").count();
+    assert_eq!(
+        count,
+        1,
+        "fallback 槽内容应恰好渲染一次（仅 fallback prop，children 循环须滤除槽指令）(F7). Got:\n{}",
+        out
+    );
+}

@@ -1177,6 +1177,9 @@ pub(super) fn expr_contains_call(expr: &ExprIR) -> bool {
         ExprIR::RefOpExpr { .. } | ExprIR::IdentifierExpr { .. } | ExprIR::LiteralExpr { .. } => {
             false
         }
+        // showToast lowers to a `toast(...)` call with visible side effects —
+        // treat like any other call so bare-statement emission keeps it.
+        ExprIR::BuiltinToastCall { msg, .. } => expr_contains_call(msg),
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown ExprIR variant — update codegen for new variant"),
     }
@@ -1644,6 +1647,7 @@ fn expr_contains_nested_target_mutation(expr: &ExprIR, target: &str) -> bool {
         }
         ExprIR::RefOpExpr { op, .. } => ref_op_contains_nested_target_mutation(op, target),
         ExprIR::IdentifierExpr { .. } | ExprIR::LiteralExpr { .. } => false,
+        ExprIR::BuiltinToastCall { msg, .. } => expr_contains_nested_target_mutation(msg, target),
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown ExprIR variant — update codegen for new variant"),
     }
@@ -1825,6 +1829,7 @@ fn expr_reads_identifier(expr: &ExprIR, target: &str) -> bool {
             subject, predicate, ..
         } => expr_reads_identifier(subject, target) || expr_reads_identifier(predicate, target),
         ExprIR::RefOpExpr { op, .. } => ref_op_reads_identifier(op, target),
+        ExprIR::BuiltinToastCall { msg, .. } => expr_reads_identifier(msg, target),
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown ExprIR variant — update codegen for new variant"),
     }
@@ -2058,6 +2063,7 @@ fn rename_expr_identifiers(expr: &mut ExprIR, from: &str, to: &str) {
             rename_expr_identifiers(predicate, from, to);
         }
         ExprIR::RefOpExpr { op, .. } => rename_ref_op_identifiers(op, from, to),
+        ExprIR::BuiltinToastCall { msg, .. } => rename_expr_identifiers(msg, from, to),
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown ExprIR variant — update codegen for new variant"),
     }

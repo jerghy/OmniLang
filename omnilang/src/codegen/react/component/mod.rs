@@ -69,6 +69,38 @@ impl ReactCodegen {
         let has_effects_or_lifecycles = !comp.effects.is_empty() || !comp.lifecycles.is_empty();
         let has_motion = view.is_some_and(effect::view_has_motion_or_effects);
         let has_semantic_bindings = view.is_some_and(state::view_has_semantic_bindings);
+        // Task 4 (反馈模态): the four builtin intents gate their emitted
+        // machinery. has_skeleton/has_error_boundary mirror the double-surface
+        // pattern of component_has_fade_conditional: the view tree AND
+        // body-level @slot fallbacks (which materialize into the view via
+        // ADR-053 D5, but a view-less component keeps them in comp.slots).
+        // (@modal has no top-level bool — modal_refs below is its single
+        // source of truth for both the hook gate and the effect emitter.)
+        // has_toast additionally scans fn/effect/lifecycle/computed bodies
+        // and inline event handlers for BuiltinToastCall.
+        let has_skeleton = view.is_some_and(super::motion::view_has_skeleton)
+            || comp
+                .slots
+                .iter()
+                .any(|s| s.fallback.iter().any(super::motion::view_has_skeleton));
+        let has_error_boundary = view.is_some_and(super::motion::view_has_error_boundary)
+            || comp.slots.iter().any(|s| {
+                s.fallback
+                    .iter()
+                    .any(super::motion::view_has_error_boundary)
+            });
+        let has_toast = comp_toast_uses(comp, view);
+
+        // Task 4 (@modal): single source of truth for the controlled-`<dialog>`
+        // machinery. Walked once over the effective view (the JSX emitter and
+        // the useLayoutEffect emitter both consume this same list, so the
+        // hook-import gate and the emission site can never diverge — a
+        // view-less component (pure slot container) materializes slot
+        // fallbacks but the JSX else branch renders no dialog, so the list is
+        // empty there and no hook is imported).
+        let modal_refs: Vec<(String, String)> = view
+            .map(|v| super::motion::walk_modal_elements(v, component_map))
+            .unwrap_or_default();
 
         // Motion elements without a user @ref get synthesized `__el_N` refs.
         // Collected here (DFS pre-order over motion elements) so useRef
@@ -266,7 +298,14 @@ impl ReactCodegen {
         // useEffect——formErrors/formSubmitting state、load useCallback +
         // 首次加载 useEffect。组件可仅含 @form/@load 而无用户信号/效应，
         // 缺一个条件就会让发射的钩子 undeclared（TS2304）。
-        if has_mutable_states || comp.form_intent.is_some() || comp.load_intent.is_some() {
+        // Task 4 (批次 1 反馈模态): has_toast 并入 useState（ToastProvider 内部
+        // 用 useState 维护 toast 列表）+ useEffect（定时器清理）条件——
+        // toast 容器组件与调用组件同文件，状态钩子必须存在。
+        if has_mutable_states
+            || comp.form_intent.is_some()
+            || comp.load_intent.is_some()
+            || has_toast
+        {
             hooks.push("useState".to_string());
         }
         if has_computeds {
@@ -289,8 +328,17 @@ impl ReactCodegen {
             // is undeclared (TS2304).
             || !direct_write_sets.b2_entries.is_empty()
             || comp.load_intent.is_some()
+            || has_toast
         {
             hooks.push("useEffect".to_string());
+        }
+        // @modal dialogs sync their native open state via useLayoutEffect —
+        // the effect emitter renders `showModal()`/`close()` after commit.
+        // Gated on modal_refs (the same list the effect emitter consumes):
+        // a view-less component emits no dialog JSX, so importing the hook
+        // would be an unused import (eslint no-unused-vars).
+        if !modal_refs.is_empty() {
+            hooks.push("useLayoutEffect".to_string());
         }
 
         // Ref declarations → useRef (user @refs + synthesized motion refs)
@@ -316,12 +364,17 @@ impl ReactCodegen {
         // The same predicate gates the CSS rules (gen_component_css), so the
         // import and the rules can never diverge.
         let has_if_fade = component_has_fade_conditional(comp);
+        // Task 4 (批次 1 反馈模态): toast 容器与 skeleton 占位都依赖 CSS-module
+        // 类名（omni-toast / omni-skeleton），故 has_toast/has_skeleton 也门控
+        // CSS import——与 gen_component_css 内的规则发射用同一谓词，不得发散。
         let has_styles = !local_style_classes.is_empty()
             || (!comp.styles.is_empty()
                 && local_style_classes
                     .iter()
                     .any(|c| comp.styles.iter().any(|s| &s.class_name == c)))
-            || has_if_fade;
+            || has_if_fade
+            || has_toast
+            || has_skeleton;
 
         // Props interface check — slot declarations also become props
         // (`children` for the unnamed slot, same-named props for named
@@ -486,6 +539,140 @@ impl ReactCodegen {
             w.emit("// (see the component body) and is removed on unmount.");
         }
 
+        // ── Toast system (showToast / Task 4) ──
+        // Module-scope, zero-dependency: a listener registry bridges the
+        // imperative `toast({...})` calls emitted for `showToast(...)` into
+        // the declarative ToastProvider's state. The queue keeps the item
+        // if the provider is unmounted; the mount effect syncs it on
+        // (re)mount. Each item self-dismisses after `duration` (default
+        // 3000ms) via a plain timer — no external toast library.
+        if has_toast {
+            w.emit("");
+            w.emit("// ── Toast system (showToast) ──");
+            w.emit("type __omni_ToastKind = \"info\" | \"success\" | \"error\";");
+            w.emit("interface __omni_ToastItem { id: number; message: string; kind: __omni_ToastKind; }");
+            w.emit("let __omni_toastId = 0;");
+            w.emit("let __omni_toastQueue: __omni_ToastItem[] = [];");
+            w.emit(
+                "let __omni_toastListener: ((items: __omni_ToastItem[]) => void) | null = null;",
+            );
+            w.emit("function toast({ message, kind, duration }: { message: string; kind?: __omni_ToastKind; duration?: number }) {");
+            w.indent();
+            w.emit("const id = ++__omni_toastId;");
+            w.emit("const item: __omni_ToastItem = { id, message, kind: kind ?? \"info\" };");
+            w.emit("__omni_toastQueue = [...__omni_toastQueue, item];");
+            w.emit("__omni_toastListener?.(__omni_toastQueue);");
+            w.emit("const ms = duration ?? 3000;");
+            // F6 (spec §2.2): `duration: 0` means "no auto-dismiss" — the
+            // timer must NOT be armed (`0 ?? 3000` is 0, so the toast would
+            // otherwise close instantly). The `?? 3000` default only fills in
+            // an ABSENT duration; an explicit 0 must be honored as-is.
+            w.emit("if (ms !== 0) {");
+            w.indent();
+            w.emit("setTimeout(() => {");
+            w.indent();
+            w.emit("__omni_toastQueue = __omni_toastQueue.filter((t) => t.id !== id);");
+            w.emit("__omni_toastListener?.(__omni_toastQueue);");
+            w.dedent();
+            w.emit("}, ms);");
+            w.dedent();
+            w.emit("}");
+            w.dedent();
+            w.emit("}");
+            w.emit("");
+            w.emit("function ToastProvider() {");
+            w.indent();
+            w.emit("const [toasts, setToasts] = useState<__omni_ToastItem[]>([]);");
+            w.emit("useEffect(() => {");
+            w.indent();
+            w.emit("__omni_toastListener = (items) => setToasts(items);");
+            w.emit("if (__omni_toastQueue.length > 0) setToasts(__omni_toastQueue);");
+            w.emit("return () => {");
+            w.indent();
+            w.emit("__omni_toastListener = null;");
+            w.dedent();
+            w.emit("};");
+            w.dedent();
+            w.emit("}, []);");
+            w.emit("return (");
+            w.indent();
+            w.emit("<div className={styles[\"omni-toast\"]} aria-live=\"polite\">");
+            w.indent();
+            w.emit("{toasts.map((t) => (");
+            w.indent();
+            w.emit(
+                "<div key={t.id} className={styles[\"omni-toast--\" + t.kind]} role=\"status\">",
+            );
+            w.indent();
+            w.emit("{t.message}");
+            w.dedent();
+            w.emit("</div>");
+            w.dedent();
+            w.emit("))}");
+            w.dedent();
+            w.emit("</div>");
+            w.dedent();
+            w.emit(");");
+            w.dedent();
+            w.emit("}");
+        }
+
+        // ── ErrorBoundary (@errorBoundary / Task 4) ──
+        // Self-generated class component: React semantics apply — it catches
+        // errors during rendering, in lifecycle methods, and in the
+        // constructors of the whole tree below it. It does NOT catch errors
+        // in event handlers, asynchronous code (setTimeout/requestAnimationFrame),
+        // server-side rendering, or errors thrown in the boundary itself —
+        // which matches the DSL's capture scope. Without a fallback slot the
+        // boundary renders nothing (semantic V12 warns on the omission).
+        // `&& view.is_some()`: a pure-slot container (comp.view = None) renders
+        // the `<div className={styles.container}>` fallback — the class would
+        // be emitted but unused, tripping eslint no-unused-vars.
+        if has_error_boundary && view.is_some() {
+            w.emit("");
+            w.emit("// ── ErrorBoundary (@errorBoundary) ──");
+            w.emit("// Capture scope (React semantics): render, lifecycle and constructor");
+            w.emit("// errors in the subtree. Event-handler and async errors are NOT");
+            w.emit("// caught — matching the DSL intent (semantic V12 warns when no");
+            w.emit("// fallback slot is declared; the boundary then renders null).");
+            w.emit("class ErrorBoundary extends React.Component<");
+            w.indent();
+            w.emit("{ fallback?: React.ReactNode; children?: React.ReactNode },");
+            w.emit("{ hasError: boolean }> {");
+            w.dedent();
+            w.indent();
+            w.emit(
+                "constructor(props: { fallback?: React.ReactNode; children?: React.ReactNode }) {",
+            );
+            w.indent();
+            w.emit("super(props);");
+            w.emit("this.state = { hasError: false };");
+            w.dedent();
+            w.emit("}");
+            w.emit("static getDerivedStateFromError(_error: Error) {");
+            w.indent();
+            w.emit("return { hasError: true };");
+            w.dedent();
+            w.emit("}");
+            w.emit("componentDidCatch(_error: Error, _info: unknown) {");
+            w.indent();
+            w.emit("// Boundary-local: no logging wired; the fallback UI is rendered instead.");
+            w.dedent();
+            w.emit("}");
+            w.emit("render() {");
+            w.indent();
+            w.emit("if (this.state.hasError) {");
+            w.indent();
+            w.emit("return this.props.fallback ?? null;");
+            w.dedent();
+            w.emit("}");
+            w.emit("return this.props.children;");
+            w.dedent();
+            w.emit("}");
+            w.dedent();
+            w.emit("}");
+        }
+
         // ── Library functions ──
         let mut used_fn_names: FxHashSet<String> = FxHashSet::default();
         for computed in &comp.computeds {
@@ -596,6 +783,7 @@ impl ReactCodegen {
             has_styles,
             &design_wiring.import_lines,
             !prop_fn_ctx.memo_children.is_empty(),
+            has_error_boundary && view.is_some(),
         );
         comp_imports.emit(&mut w, name, comp, has_props);
 
@@ -791,6 +979,12 @@ impl ReactCodegen {
         module_reserved_names.insert("_M".to_string());
         module_reserved_names.insert("__omni_activePointerId".to_string());
         module_reserved_names.insert("React".to_string());
+        // Task 4 module-scope machinery: a user symbol named `toast`,
+        // `ToastProvider` or `ErrorBoundary` would redeclare the hoisted
+        // helper bindings at module scope (SyntaxError) — reserve them.
+        module_reserved_names.insert("toast".to_string());
+        module_reserved_names.insert("ToastProvider".to_string());
+        module_reserved_names.insert("ErrorBoundary".to_string());
         module_reserved_names.extend(hooks.iter().cloned());
         if has_styles {
             module_reserved_names.insert("styles".to_string());
@@ -1154,6 +1348,23 @@ impl ReactCodegen {
             w.dedent();
             w.emit("}, []);");
         }
+        // Task 4 (@modal): controlled-`<dialog>` sync. The JSX emitter renders
+        // `open={openSig}` + `onCancel` + backdrop `onClick`; this effect keeps
+        // the native dialog state in lockstep after commit — `showModal()` on
+        // open, `close()` on close (spec §4.1 React: ref 同步 useLayoutEffect).
+        // Consumes modal_refs (same list the hook-import gate used), so the
+        // emitted hooks and this loop can never diverge.
+        for (ref_name, open_signal) in &modal_refs {
+            // F2: the ref binding is declared as `{name}Ref` (the user's
+            // `@ref` name or the synthesized `__el_{idx}` — both get the
+            // `Ref` suffix at declaration, `const {name}Ref = useRef(null)`),
+            // so the effect must reference `{name}Ref.current` — the bare
+            // DSL ref name (`dlg.current`) would be an undeclared identifier
+            // (TS2304).
+            w.emit_fmt(format_args!(
+                "useLayoutEffect(() => {{ if ({open_signal}) {{ {ref_name}Ref.current?.showModal(); }} else if ({ref_name}Ref.current?.open) {{ {ref_name}Ref.current?.close(); }} }}, [{open_signal}]);"
+            ));
+        }
         // Store alias → reactive fields (signals + getters) — the unmount
         // cleanup dep derivation distinguishes field reads from action calls
         // against this map (mirrors the semantic validate_effect_deps
@@ -1338,6 +1549,7 @@ impl ReactCodegen {
             &direct_write_applies,
             &mut motion_counter,
             &prop_fn_ctx,
+            has_toast,
         );
         w.dedent();
         w.emit("}");
@@ -1381,6 +1593,127 @@ impl ReactCodegen {
             w.dedent();
             w.emit("}");
         }
+        // Task 4 (批次 1 反馈模态): @skeleton shimmer placeholder + showToast
+        // 容器 (spec §4.2/§4.3)。谓词与 component/mod.rs 顶层的
+        // has_skeleton/has_toast 同源（view + body 槽 fallback 双面扫描），
+        // 与 has_styles 门控的 CSS-module import 保持同步——规则与引用
+        // 不得发散。@skeleton 组件生成了 `styles["omni-skeleton--{shape}"]`
+        // 引用、@toast 组件生成了 `styles["omni-toast--" + t.kind]` 引用，
+        // 若这里漏发规则则 CSS-module 返回 undefined（样式缺失而非编译错）。
+        let has_skeleton = component_has_skeleton(comp);
+        let has_toast_css = component_toast_uses_css(comp);
+        if has_skeleton {
+            // shimmer: 渐变扫光（编译器自带，零依赖）。类名与 keyframe 名同在
+            // CSS module 内引用，bundler 一致作用域化（fade 先例同款）。
+            w.emit("");
+            w.emit("/* @skeleton — compiler-generated shimmer placeholder (spec §4.3). */");
+            w.emit(".omni-skeleton {");
+            w.indent();
+            w.emit("position: relative;");
+            w.emit("overflow: hidden;");
+            w.emit("background-color: rgba(148, 148, 153, 0.18);");
+            w.emit("border-radius: 4px;");
+            w.dedent();
+            w.emit("}");
+            w.emit(".omni-skeleton--text {");
+            w.indent();
+            w.emit("height: 1em;");
+            w.dedent();
+            w.emit("}");
+            w.emit(".omni-skeleton--line {");
+            w.indent();
+            w.emit("height: 0.75em;");
+            w.dedent();
+            w.emit("}");
+            w.emit(".omni-skeleton--circle {");
+            w.indent();
+            w.emit("width: 3em;");
+            w.emit("height: 3em;");
+            w.emit("border-radius: 50%;");
+            w.dedent();
+            w.emit("}");
+            w.emit(".omni-skeleton--card {");
+            w.indent();
+            w.emit("height: 8em;");
+            w.emit("border-radius: 8px;");
+            w.dedent();
+            w.emit("}");
+            w.emit(".omni-skeleton::after {");
+            w.indent();
+            w.emit("content: \"\";");
+            w.emit("position: absolute;");
+            w.emit("inset: 0;");
+            w.emit("transform: translateX(-100%);");
+            w.emit(
+                "background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.45), transparent);",
+            );
+            w.emit("animation: omni-shimmer 1.5s infinite;");
+            w.dedent();
+            w.emit("}");
+            w.emit("@keyframes omni-shimmer {");
+            w.indent();
+            w.emit("100% { transform: translateX(100%); }");
+            w.dedent();
+            w.emit("}");
+            // prefers-reduced-motion: 静态占位即可（装饰性扫光无信息量）。
+            w.emit("@media (prefers-reduced-motion: reduce) {");
+            w.indent();
+            w.emit(".omni-skeleton::after {");
+            w.indent();
+            w.emit("animation: none;");
+            w.dedent();
+            w.emit("}");
+            w.dedent();
+            w.emit("}");
+        }
+        if has_toast_css {
+            // showToast: 堆叠容器 + 三类 kind 徽标（spec §4.2）。
+            // 容器 fixed 顶层堆叠（pointer-events: none 让点击穿透到页面）；
+            // 单条 toast 由 kind 类自持外观（JSX 只挂 kind 类）。
+            w.emit("");
+            w.emit("/* showToast — module-level queue + ToastProvider host (spec §4.2). */");
+            w.emit(".omni-toast {");
+            w.indent();
+            w.emit("position: fixed;");
+            w.emit("top: 16px;");
+            w.emit("left: 50%;");
+            w.emit("transform: translateX(-50%);");
+            w.emit("display: flex;");
+            w.emit("flex-direction: column;");
+            w.emit("align-items: center;");
+            w.emit("gap: 8px;");
+            w.emit("z-index: 9999;");
+            w.emit("pointer-events: none;");
+            w.dedent();
+            w.emit("}");
+            w.emit(".omni-toast--info {");
+            w.indent();
+            w.emit("padding: 8px 14px;");
+            w.emit("border-radius: 6px;");
+            w.emit("background-color: #eef4ff;");
+            w.emit("color: #1f6feb;");
+            w.emit("box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);");
+            w.dedent();
+            w.emit("}");
+            w.emit(".omni-toast--success {");
+            w.indent();
+            w.emit("padding: 8px 14px;");
+            w.emit("border-radius: 6px;");
+            w.emit("background-color: #e8f7ee;");
+            w.emit("color: #1a7f37;");
+            w.emit("box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);");
+            w.dedent();
+            w.emit("}");
+            w.emit(".omni-toast--error {");
+            w.indent();
+            w.emit("padding: 8px 14px;");
+            w.emit("border-radius: 6px;");
+            w.emit("background-color: #fdeeee;");
+            w.emit("color: #c0392b;");
+            w.emit("box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);");
+            w.dedent();
+            w.emit("}");
+        }
         w.into_string()
     }
 }
@@ -1405,6 +1738,39 @@ fn component_has_fade_conditional(comp: &ComponentIR) -> bool {
                 .iter()
                 .any(super::motion::view_has_fade_conditional)
         })
+}
+
+/// Whether the component renders any `@skeleton` placeholder — same
+/// double-surface scan as `component_has_fade_conditional` (view + body-slot
+/// fallbacks). Gates the shimmer keyframes + `.omni-skeleton` rules in
+/// `gen_component_css`; the JSX emitter's `styles["omni-skeleton--{shape}"]`
+/// reference is gated by the same-shaped predicate at the top of
+/// `gen_component_tsx` — the two cannot diverge.
+fn component_has_skeleton(comp: &ComponentIR) -> bool {
+    comp.view
+        .as_ref()
+        .is_some_and(super::motion::view_has_skeleton)
+        || comp
+            .slots
+            .iter()
+            .any(|s| s.fallback.iter().any(super::motion::view_has_skeleton))
+}
+
+/// Whether the component emits any `toast(...)` call — the `comp_toast_uses`
+/// scan (fns/effects/lifecycles/computeds + view) plus body-slot fallbacks
+/// (which the materialized view covers for view-carrying components, but a
+/// view-less component keeps purely in `comp.slots`). Gates the
+/// `.omni-toast` / `.omni-toast--{kind}` rules in `gen_component_css`; the
+/// ToastProvider + `toast()` helper are gated by `comp_toast_uses` at the top
+/// of `gen_component_tsx`. Superset direction is safe: the CSS rules may be
+/// emitted for a toast that never renders (view-less slot fallback), but the
+/// JSX reference is never left without its rule.
+fn component_toast_uses_css(comp: &ComponentIR) -> bool {
+    comp_toast_uses(comp, comp.view.as_ref())
+        || comp
+            .slots
+            .iter()
+            .any(|s| s.fallback.iter().any(view_has_toast_call))
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1714,6 +2080,98 @@ fn view_has_pointer_ops(node: &ViewTree) -> bool {
         ViewTree::Interpolation(expr) => expr_has_pointer_ops(expr),
         ViewTree::Slot { fallback, .. } => fallback.iter().any(view_has_pointer_ops),
         ViewTree::Fragment(children) => children.iter().any(view_has_pointer_ops),
+        ViewTree::Text(_) => false,
+        // ViewTree is #[non_exhaustive] — cross-crate matches need a wildcard.
+        #[allow(unreachable_patterns)]
+        _ => false,
+    }
+}
+
+/// True when the component emits any `showToast` builtin call — fns, effects,
+/// lifecycles, computeds, and inline event handlers in the view. Gates the
+/// module-scope `toast()` helper + `ToastProvider` emission and the provider
+/// wrapper around the JSX return (spec 2026-08-09 §4.2).
+///
+/// Unlike `component_uses_pointer_ops`, this scan rides the shared IR walker
+/// (`crate::ir::walk`), which descends into every statement/expression shape
+/// including block expressions and match arms — `BuiltinToastCall` nodes are
+/// surfaced exactly where the expr emitter will render `toast({...})`.
+fn comp_toast_uses(comp: &ComponentIR, view: Option<&ViewTree>) -> bool {
+    for f in &comp.fns {
+        if f.body.statements.iter().any(stmt_has_toast_call) {
+            return true;
+        }
+    }
+    for e in &comp.effects {
+        if e.body.statements.iter().any(stmt_has_toast_call) {
+            return true;
+        }
+    }
+    for lc in &comp.lifecycles {
+        if lc.body.statements.iter().any(stmt_has_toast_call) {
+            return true;
+        }
+    }
+    for c in &comp.computeds {
+        if expr_has_toast_call(&c.body) {
+            return true;
+        }
+    }
+    view.is_some_and(view_has_toast_call)
+}
+
+/// True when a statement subtree contains a `BuiltinToastCall`.
+fn stmt_has_toast_call(stmt: &StatementIR) -> bool {
+    let mut found = false;
+    crate::ir::walk::walk_stmt(stmt, &mut |expr| {
+        if matches!(expr, ExprIR::BuiltinToastCall { .. }) {
+            found = true;
+        }
+    });
+    found
+}
+
+/// True when an expression subtree contains a `BuiltinToastCall`.
+fn expr_has_toast_call(expr: &ExprIR) -> bool {
+    let mut found = false;
+    crate::ir::walk::walk_expr(expr, &mut |e| {
+        if matches!(e, ExprIR::BuiltinToastCall { .. }) {
+            found = true;
+        }
+    });
+    found
+}
+
+/// True when the view tree contains a `BuiltinToastCall` (inline event
+/// handlers only — `FnRef` handlers delegate to `comp.fns`, which
+/// `comp_toast_uses` scans at the top level).
+fn view_has_toast_call(node: &ViewTree) -> bool {
+    match node {
+        ViewTree::Element(el) => {
+            el.props.values().any(expr_has_toast_call)
+                || el.class_map_bindings.values().any(expr_has_toast_call)
+                || el.events.values().any(|handler| match handler {
+                    EventHandlerIR::InlineFn { body, .. } => {
+                        body.statements.iter().any(stmt_has_toast_call)
+                    }
+                    EventHandlerIR::StoreAction { .. } | EventHandlerIR::FnRef { .. } => false,
+                })
+                || el.children.iter().any(view_has_toast_call)
+        }
+        ViewTree::Conditional(cond) => {
+            cond.branches.iter().any(|b| {
+                expr_has_toast_call(&b.condition)
+                    || b.body.as_ref().is_some_and(view_has_toast_call)
+            }) || cond.fallback.as_ref().is_some_and(view_has_toast_call)
+        }
+        ViewTree::ListRendering(list) => {
+            expr_has_toast_call(&list.iterable)
+                || list.body.as_ref().is_some_and(view_has_toast_call)
+                || list.empty_body.as_ref().is_some_and(view_has_toast_call)
+        }
+        ViewTree::Interpolation(expr) => expr_has_toast_call(expr),
+        ViewTree::Slot { fallback, .. } => fallback.iter().any(view_has_toast_call),
+        ViewTree::Fragment(children) => children.iter().any(view_has_toast_call),
         ViewTree::Text(_) => false,
         // ViewTree is #[non_exhaustive] — cross-crate matches need a wildcard.
         #[allow(unreachable_patterns)]

@@ -734,6 +734,7 @@ fn collect_store_refs(
         ExprIR::RefOpExpr { op, .. } => {
             collect_ref_op_store_refs(op, all_stores, acc);
         }
+        ExprIR::BuiltinToastCall { msg, .. } => collect_store_refs(msg, all_stores, acc),
         ExprIR::IdentifierExpr { .. } | ExprIR::LiteralExpr { .. } => {}
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown ExprIR variant — update codegen for new variant"),

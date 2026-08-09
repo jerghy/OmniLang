@@ -75,6 +75,24 @@ fn walk_motion_elements_inner(
         ViewTree::Element(el) => {
             if let Some((_, idx)) = classify_motion_el(el, component_map, counter) {
                 visit(el, idx);
+            } else if el.modal.is_some() {
+                // @modal dialogs share the synthesized-ref namespace: they get
+                // a `__el_{idx}` ref (same ordinal counter as motion elements)
+                // so the JSX emitter and the effect emitter agree on names.
+                // F3: a modal carrying a USER `@ref` does NOT consume the
+                // shared counter — the JSX emitter uses the user's ref name
+                // in that case (its `ref_binding` wins), so the walk must
+                // mirror it or every motion element after the modal shifts
+                // by one ordinal (`__el_0` in JSX vs `__el_1` here →
+                // undeclared-ref TS2304). The element still gets visited so
+                // the useLayoutEffect sync emits; only the counter is skipped.
+                if el.ref_binding.is_none() {
+                    let idx = *counter;
+                    *counter += 1;
+                    visit(el, idx);
+                } else {
+                    visit(el, 0);
+                }
             }
             for child in &el.children {
                 walk_motion_elements_inner(child, component_map, counter, visit);
@@ -114,6 +132,30 @@ fn walk_motion_elements_inner(
     }
 }
 
+/// Collect `(ref_name, open_signal)` pairs for every `@modal` dialog in the
+/// view tree, in the same DFS pre-order the JSX emitter walks. Reuses
+/// [`walk_motion_elements`]: the shared traversal already visits every
+/// modal element (classify hit OR the modal-only branch), so the motion
+/// counter — and therefore every synthesized `__el_{idx}` ref name — agrees
+/// exactly with the JSX emitter and with `motion_internal_refs` (whose
+/// `useRef` declarations the modal `useLayoutEffect` references).
+pub(super) fn walk_modal_elements(
+    node: &ViewTree,
+    component_map: &FxHashMap<&str, &ComponentIR>,
+) -> Vec<(String, String)> {
+    let mut out = Vec::new();
+    walk_motion_elements(node, component_map, |el, idx| {
+        if let Some(modal) = &el.modal {
+            let ref_name = el
+                .ref_binding
+                .clone()
+                .unwrap_or_else(|| format!("__el_{}", idx));
+            out.push((ref_name, modal.open_signal.clone()));
+        }
+    });
+    out
+}
+
 /// Whether the view declares any `@if mode: "fade"` conditional — gates the
 /// CSS-module import: the fade rules (`.omni-if-fade` class + keyframes)
 /// live in the component's `.module.css`.
@@ -140,6 +182,57 @@ pub(super) fn view_has_fade_conditional(node: &ViewTree) -> bool {
         }
         ViewTree::Slot { fallback, .. } => fallback.iter().any(view_has_fade_conditional),
         ViewTree::Fragment(children) => children.iter().any(view_has_fade_conditional),
+        ViewTree::Text(_) | ViewTree::Interpolation(_) => false,
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
+    }
+}
+
+/// Whether the view tree contains any `@skeleton` placeholder — gates the
+/// shimmer keyframes emission (`.module.css`).
+pub(super) fn view_has_skeleton(node: &ViewTree) -> bool {
+    match node {
+        ViewTree::Element(el) => el.skeleton.is_some() || el.children.iter().any(view_has_skeleton),
+        ViewTree::Conditional(cond) => {
+            cond.branches
+                .iter()
+                .any(|b| b.body.as_ref().is_some_and(view_has_skeleton))
+                || cond.fallback.as_ref().is_some_and(view_has_skeleton)
+        }
+        ViewTree::ListRendering(list) => {
+            list.body.as_ref().is_some_and(view_has_skeleton)
+                || list.empty_body.as_ref().is_some_and(view_has_skeleton)
+        }
+        ViewTree::Slot { fallback, .. } => fallback.iter().any(view_has_skeleton),
+        ViewTree::Fragment(children) => children.iter().any(view_has_skeleton),
+        ViewTree::Text(_) | ViewTree::Interpolation(_) => false,
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
+    }
+}
+
+/// Whether the view tree contains any `@errorBoundary` wrapper — gates the
+/// emitted `ErrorBoundary` class and the `React` default import.
+pub(super) fn view_has_error_boundary(node: &ViewTree) -> bool {
+    match node {
+        ViewTree::Element(el) => {
+            el.error_boundary.is_some() || el.children.iter().any(view_has_error_boundary)
+        }
+        ViewTree::Conditional(cond) => {
+            cond.branches
+                .iter()
+                .any(|b| b.body.as_ref().is_some_and(view_has_error_boundary))
+                || cond.fallback.as_ref().is_some_and(view_has_error_boundary)
+        }
+        ViewTree::ListRendering(list) => {
+            list.body.as_ref().is_some_and(view_has_error_boundary)
+                || list
+                    .empty_body
+                    .as_ref()
+                    .is_some_and(view_has_error_boundary)
+        }
+        ViewTree::Slot { fallback, .. } => fallback.iter().any(view_has_error_boundary),
+        ViewTree::Fragment(children) => children.iter().any(view_has_error_boundary),
         ViewTree::Text(_) | ViewTree::Interpolation(_) => false,
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),

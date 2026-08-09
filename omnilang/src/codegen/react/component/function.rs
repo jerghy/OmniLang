@@ -680,6 +680,9 @@ fn collect_called_fns_from_expr(expr: &ExprIR, acc: &mut FxHashSet<String>) {
         ExprIR::IdentifierExpr { .. } | ExprIR::LiteralExpr { .. } => {}
         // Ref ops don't call functions — their args are value expressions.
         ExprIR::RefOpExpr { .. } => {}
+        // showToast's message may be a computed expression (e.g. string
+        // concatenation) containing function calls.
+        ExprIR::BuiltinToastCall { msg, .. } => collect_called_fns_from_expr(msg, acc),
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown ExprIR variant — update codegen for new variant"),
     }

@@ -79,6 +79,118 @@ fn type_ir_is_numeric(ty: &TypeIR) -> bool {
     }
 }
 
+// ── @modal title id (spec §2.1 rule 5) ────────────────────────────────
+// With a Heading present the compiler generates `id="omni-modal-title"` on
+// the first Heading element and points `aria-labelledby` at it; without a
+// Heading the attribute is omitted entirely (semantic V13 already warned).
+// The tag set mirrors validate_feedback_modal.rs's V13 collection.
+const MODAL_HEADING_TAGS: &[&str] = &["Heading", "Title", "h1", "h2", "h3", "h4", "h5", "h6"];
+
+/// Whether a subtree (slot fallbacks included) contains a heading element.
+fn subtree_has_heading(node: &ViewTree) -> bool {
+    match node {
+        ViewTree::Element(el) => {
+            MODAL_HEADING_TAGS.contains(&el.tag.as_str())
+                || el.children.iter().any(subtree_has_heading)
+        }
+        ViewTree::Slot { fallback, .. } => fallback.iter().any(subtree_has_heading),
+        ViewTree::Conditional(cond) => {
+            cond.branches
+                .iter()
+                .any(|b| b.body.as_ref().is_some_and(subtree_has_heading))
+                || cond.fallback.as_ref().is_some_and(subtree_has_heading)
+        }
+        ViewTree::ListRendering(list) => {
+            list.body.as_ref().is_some_and(subtree_has_heading)
+                || list.empty_body.as_ref().is_some_and(subtree_has_heading)
+        }
+        ViewTree::Fragment(children) => children.iter().any(subtree_has_heading),
+        ViewTree::Text(_) | ViewTree::Interpolation(_) => false,
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
+    }
+}
+
+/// Inject `id="omni-modal-title"` into the first heading element found in
+/// document order (spec §2.1 rule 5). Purely additive clone-transform: the
+/// caller passes `injected` across calls so only the FIRST heading gets the
+/// id. A pre-existing user `id` prop on that heading is left untouched —
+/// the user's explicit id wins over the synthesized one (idiomatic attr
+/// precedence; the semantic layer does not restrict modal-title ids).
+fn inject_modal_title_id(node: &ViewTree, injected: &mut bool) -> ViewTree {
+    if *injected {
+        return node.clone();
+    }
+    match node {
+        ViewTree::Element(el) => {
+            if MODAL_HEADING_TAGS.contains(&el.tag.as_str()) {
+                *injected = true;
+                let mut new_el = (**el).clone();
+                // F1 (spec §2.1 rule 5): a user-supplied `id` wins over the
+                // synthesized one — `insert` would silently overwrite it.
+                new_el
+                    .props
+                    .entry("id".to_string())
+                    .or_insert(ExprIR::LiteralExpr {
+                        value: serde_json::Value::String("omni-modal-title".to_string()),
+                    });
+                return ViewTree::Element(Box::new(new_el));
+            }
+            let children = el
+                .children
+                .iter()
+                .map(|c| inject_modal_title_id(c, injected))
+                .collect();
+            ViewTree::Element(Box::new(ElementIR {
+                children,
+                ..(**el).clone()
+            }))
+        }
+        ViewTree::Slot { name, fallback, .. } => ViewTree::Slot {
+            name: name.clone(),
+            fallback: fallback
+                .iter()
+                .map(|c| inject_modal_title_id(c, injected))
+                .collect(),
+        },
+        ViewTree::Conditional(cond) => ViewTree::Conditional(Box::new(ConditionalIntent {
+            branches: cond
+                .branches
+                .iter()
+                .map(|b| ConditionalBranch {
+                    body: b.body.as_ref().map(|v| inject_modal_title_id(v, injected)),
+                    ..b.clone()
+                })
+                .collect(),
+            fallback: cond
+                .fallback
+                .as_ref()
+                .map(|v| inject_modal_title_id(v, injected)),
+            transition_mode: cond.transition_mode.clone(),
+        })),
+        ViewTree::ListRendering(list) => ViewTree::ListRendering(Box::new(ListRenderingIntent {
+            body: list
+                .body
+                .as_ref()
+                .map(|v| inject_modal_title_id(v, injected)),
+            empty_body: list
+                .empty_body
+                .as_ref()
+                .map(|v| inject_modal_title_id(v, injected)),
+            ..(**list).clone()
+        })),
+        ViewTree::Fragment(children) => ViewTree::Fragment(
+            children
+                .iter()
+                .map(|c| inject_modal_title_id(c, injected))
+                .collect(),
+        ),
+        ViewTree::Text(_) | ViewTree::Interpolation(_) => node.clone(),
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn gen_view_node_tsx(
     w: &mut CodeWriter,
@@ -138,6 +250,248 @@ pub(super) fn gen_view_node_tsx(
                         in_jsx_children,
                     );
                 }
+                return;
+            }
+
+            // ── Task 4 (批次 1 反馈模态): @modal / @errorBoundary /
+            // @skeleton (spec §4 React 三目标映射) — each directive replaces
+            // the element's normal rendering entirely. All three can only
+            // appear on HTML elements (never `fragment` wrappers / component
+            // instances), so these branches run before the component-
+            // composition check.
+            if let Some(modal) = &el.modal {
+                // @modal → controlled `<dialog>` (spec §4.1 React verbatim):
+                // `open={sig}` is the single source of truth; the
+                // useLayoutEffect emitted in component/mod.rs syncs the
+                // native dialog via showModal()/close(); onCancel intercepts
+                // the native cancel event (preventDefault + controlled set)
+                // so it cannot desync the controlled state; the backdrop
+                // click is detected via `e.target === ref.current`;
+                // role="dialog" / aria-modal="true" / aria-labelledby carry
+                // the dialog semantics.
+                //
+                // The ref name must mirror motion::walk_motion_elements: a
+                // motion-carrying modal element is classified by
+                // classify_motion_el (which consumes the shared counter); a
+                // plain modal element is not a motion element and consumes
+                // the counter via the modal-only branch. Mirrored below so
+                // the synthesized `__el_{idx}` ref stays aligned with the
+                // useLayoutEffect emitter.
+                let modal_ref =
+                    match super::motion::classify_motion_el(el, component_map, motion_counter) {
+                        Some((ref_name, _)) => ref_name,
+                        None => el.ref_binding.clone().unwrap_or_else(|| {
+                            let idx = *motion_counter;
+                            *motion_counter += 1;
+                            format!("__el_{}", idx)
+                        }),
+                    };
+                let setter = format!("set{}", capitalize_first(&modal.open_signal));
+                // F1 (spec §2.1 rule 5): only with a Heading in the dialog
+                // content is `aria-labelledby` emitted — and it points at the
+                // synthesized `id="omni-modal-title"` the compiler places on
+                // the first Heading (see inject_modal_title_id below).
+                // Without a Heading the attribute is omitted entirely (the
+                // semantic V13 warning already fired; a dangling reference
+                // would be worse than none).
+                let has_heading = modal
+                    .slots
+                    .iter()
+                    .any(|slot| slot.fallback.iter().any(subtree_has_heading))
+                    || el.children.iter().any(subtree_has_heading);
+                let mut dlg_attrs = vec![
+                    format!("ref={{{}Ref}}", modal_ref),
+                    format!("open={{{}}}", modal.open_signal),
+                    format!(
+                        "onCancel={{(e) => {{ e.preventDefault(); {setter}(false); }}}}"
+                    ),
+                    format!(
+                        "onClick={{(e) => {{ if (e.target === {modal_ref}Ref.current) {setter}(false); }}}}"
+                    ),
+                    "role=\"dialog\"".to_string(),
+                    "aria-modal=\"true\"".to_string(),
+                ];
+                if has_heading {
+                    dlg_attrs.push("aria-labelledby=\"omni-modal-title\"".to_string());
+                }
+                w.emit("<dialog");
+                w.indent();
+                for attr in &dlg_attrs {
+                    w.emit(attr);
+                }
+                w.dedent();
+                w.emit(">");
+                // Named-slot content projects in document order; each slot's
+                // fallback content lands directly in the dialog body
+                // (spec §4.1: 内容为命名槽投影，匿名子内容兜底进 body 槽).
+                w.indent();
+                // F1: the first heading found in render order (named slots
+                // first, then the anonymous body content) carries the
+                // synthesized title id the aria-labelledby references.
+                let mut injected = false;
+                for slot in &modal.slots {
+                    for child in &slot.fallback {
+                        let node = if has_heading && !injected {
+                            inject_modal_title_id(child, &mut injected)
+                        } else {
+                            child.clone()
+                        };
+                        gen_view_node_tsx(
+                            w,
+                            &node,
+                            comp,
+                            component_map,
+                            design_ctx,
+                            signal_names,
+                            store_signal_owners,
+                            motion_names,
+                            ref_names,
+                            store_field_renames,
+                            pruned_signal_names,
+                            possibly_undefined,
+                            direct_write_signals,
+                            direct_write_applies,
+                            motion_counter,
+                            prop_fn_ctx,
+                            warnings,
+                            // dialog children are JSX children — expression
+                            // nodes need `{...}` containers
+                            true,
+                        );
+                    }
+                }
+                // F4 (spec §2.1 rule 3): anonymous children fall back into
+                // the body slot — render everything that is NOT a slot
+                // directive after the named-slot projections (the lowering
+                // keeps `@slot` directives in `el.children` as
+                // `ViewTree::Slot` nodes; those were just projected above
+                // and must not render twice).
+                for child in &el.children {
+                    if matches!(child, ViewTree::Slot { .. }) {
+                        continue;
+                    }
+                    let node = if has_heading && !injected {
+                        inject_modal_title_id(child, &mut injected)
+                    } else {
+                        child.clone()
+                    };
+                    gen_view_node_tsx(
+                        w,
+                        &node,
+                        comp,
+                        component_map,
+                        design_ctx,
+                        signal_names,
+                        store_signal_owners,
+                        motion_names,
+                        ref_names,
+                        store_field_renames,
+                        pruned_signal_names,
+                        possibly_undefined,
+                        direct_write_signals,
+                        direct_write_applies,
+                        motion_counter,
+                        prop_fn_ctx,
+                        warnings,
+                        // dialog children are JSX children
+                        true,
+                    );
+                }
+                w.dedent();
+                w.emit("</dialog>");
+                return;
+            }
+
+            if let Some(eb) = &el.error_boundary {
+                // @errorBoundary → wrap the element's children in the
+                // generated `ErrorBoundary` class (spec §4.4 React). The
+                // body-level `@slot fallback` (lowered into
+                // `error_boundary.fallback`) becomes the `fallback` prop;
+                // with no fallback the class renders `null` (semantic V12
+                // already warned).
+                w.emit("<ErrorBoundary");
+                if let Some(ref fb) = eb.fallback {
+                    w.emit(" fallback={");
+                    gen_branch_body_tsx(
+                        w,
+                        &ViewTree::Fragment(fb.fallback.clone()),
+                        comp,
+                        component_map,
+                        design_ctx,
+                        signal_names,
+                        store_signal_owners,
+                        motion_names,
+                        ref_names,
+                        store_field_renames,
+                        pruned_signal_names,
+                        possibly_undefined,
+                        direct_write_signals,
+                        direct_write_applies,
+                        motion_counter,
+                        prop_fn_ctx,
+                        warnings,
+                        // the fallback sits inside the `fallback={...}` JSX
+                        // expression — never a JSX-children position
+                        false,
+                    );
+                    w.emit("}");
+                }
+                w.emit(">");
+                w.indent();
+                for child in &el.children {
+                    // F7: the `@slot fallback` directive renders ONLY as the
+                    // `fallback` prop above — filter it out of the children
+                    // loop or the fallback UI is emitted a second time as
+                    // `{fallback ?? ...}` (a runtime double-render; it even
+                    // compiles clean when the slot name surfaces as a
+                    // component prop). Named-slot filters mirror the semantic
+                    // V14 duplicate-fallback detection pattern — only the
+                    // `fallback` slot is special here, other slots keep
+                    // rendering as ordinary children projections.
+                    if matches!(child, ViewTree::Slot { name: Some(n), .. } if n == "fallback") {
+                        continue;
+                    }
+                    gen_view_node_tsx(
+                        w,
+                        child,
+                        comp,
+                        component_map,
+                        design_ctx,
+                        signal_names,
+                        store_signal_owners,
+                        motion_names,
+                        ref_names,
+                        store_field_renames,
+                        pruned_signal_names,
+                        possibly_undefined,
+                        direct_write_signals,
+                        direct_write_applies,
+                        motion_counter,
+                        prop_fn_ctx,
+                        warnings,
+                        // ErrorBoundary children are JSX children
+                        true,
+                    );
+                }
+                w.dedent();
+                w.emit("</ErrorBoundary>");
+                return;
+            }
+
+            if let Some(skeleton) = &el.skeleton {
+                // @skeleton → placeholder element with the compiler-
+                // generated shimmer classes (spec §4.3 React): the base
+                // class plus the shape class (text/line/circle/card —
+                // default `text`, legality checked by semantic V10). The
+                // `omni-shimmer` keyframes and the class rules live in the
+                // component's .module.css (component::gen_component_css).
+                // The placeholder is self-closing — it carries no content.
+                let shape = skeleton.shape.as_deref().unwrap_or("text");
+                let skeleton_tag = to_react_tag(&el.tag);
+                w.emit_fmt(format_args!(
+                    "<{} className={{styles[\"omni-skeleton\"] + \" \" + styles[\"omni-skeleton--{shape}\"]}} />",
+                    skeleton_tag
+                ));
                 return;
             }
 

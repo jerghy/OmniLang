@@ -1,0 +1,22 @@
+// modal_ref.omni — @modal + user @ref regression (Task 4 F2): the
+// useLayoutEffect sync must reference the DECLARED ref binding
+// (`dlgRef.current` — `const dlgRef = useRef(null)`), not the bare
+// DSL ref name (`dlg.current`, which would be an undeclared identifier
+// → TS2304). Also exercises the plain-modal ref naming contract: a
+// user @ref wins over the synthesized `__el_N` ref.
+import omniview;
+
+component ModalRefDemo {
+  ref dlg: HtmlElement;
+  signal isOpen: bool = false;
+  fn open() { isOpen = true }
+  fn close() { isOpen = false }
+  view {
+    <div>
+      <button @onPress={open}>打开</button>
+      <dialog @modal={isOpen} @ref={dlg}>
+        @slot body { <p>内容</p> }
+      </dialog>
+    </div>
+  }
+}
