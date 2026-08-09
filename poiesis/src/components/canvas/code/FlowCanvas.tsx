@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback, useEffect, useRef } from "react";
+import { useMemo, useState, useCallback, useEffect, useRef, useId } from "react";
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -45,6 +45,26 @@ import styles from "./FlowCanvas.module.css";
 /** 预览伪节点 id：必须与 handleNodesChange 回写分支、previewNode id 一致（拖拽写回依赖此键），
  *  单点定义防漂移（曾因两处字面量 + 无回写导致拖不动回归）。 */
 const DESIGN_PREVIEW_ID = "design-preview";
+
+// ── 节点 measured 缓存（拖拽防闪烁，2026-08-09）──
+// 受控 ReactFlow 下 nodes prop 每次引用变化都会 setNodes → adoptUserNodes：节点对象
+// 身份变化时重建内部节点，measured 取自 userNode.measured——我们每帧重建节点对象（拖拽
+// 写回必需，身份复用会让 adoptUserNodes checkEquality 命中而内部节点位置不更新 → 拖不动），
+// 但只要对象携带 measured，重建后内部节点 measured 保留 → NodeWrapper 不再渲染
+// visibility:hidden（节点消失）→ ResizeObserver 不再反复测量 → 无每帧隐藏↔显示循环。
+// 修复前实测：拖拽期间组卡 52 次、fn 节点 36 次 visibility 切换 + error015 每帧警告 +
+// ResizeObserver loop 错误（~200/拖拽）。
+// measured 来源：React Flow 的 ResizeObserver 会发出 dimensions change（updateNodeInternals
+// → triggerNodeChanges），handleNodesChange 接收后写入本缓存；节点对象构建时读取。
+// 缓存放模块级（组件实例用 useId 键隔离、卸载 effect 清理）：react-compiler 规则禁止
+// 渲染期读写 useRef（Cannot access refs during render），模块级 Map 无此限制。
+interface NodeMeasured { width: number; height: number; }
+const nodeMeasuredCache = new Map<string, Map<string, NodeMeasured>>();
+// 模块级读取函数：react-compiler 无法内联分析模块 Map 的别名，直接 `cache.get(id)`
+// 会把返回值 taint 成疑似 ref（Cannot access refs during render 误报）；函数调用视为不透明。
+function getCachedMeasured(instanceId: string, id: string): NodeMeasured | undefined {
+  return nodeMeasuredCache.get(instanceId)?.get(id);
+}
 
 const nodeTypes = {
   "fn": FnNode,
@@ -317,15 +337,37 @@ function FlowCanvasInner() {
   // 注意：预览节点（design-preview）不在本处理器路径——它 draggable:false，
   // 拖拽由 DesignPreviewNode 自管（ref + transform 直改，松手经 onPreviewMove 提交），
   // ReactFlow 不会为它发出 position 变更（曾走这里回写导致真机拖拽闪烁，2026-08-06）。
+  // dimensions 变更（React Flow RO 测量结果）写入 measured 缓存：节点对象构建时携带
+  //（见 nodes useMemo），adoptUserNodes 重建内部节点时 measured 不丢失 → 拖拽不闪烁。
+  const cacheInstanceId = useId();
+  useEffect(() => () => {
+    nodeMeasuredCache.delete(cacheInstanceId);
+  }, [cacheInstanceId]);
+
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {
       for (const change of changes) {
+        if (change.type === "dimensions" && change.dimensions) {
+          let cache = nodeMeasuredCache.get(cacheInstanceId);
+          if (!cache) { cache = new Map(); nodeMeasuredCache.set(cacheInstanceId, cache); }
+          cache.set(change.id, { width: change.dimensions.width, height: change.dimensions.height });
+        }
+      }
+      // 组 id 集合（折叠态组卡可拖，spec §4）：组不在 store elements 中，
+      // position 写回 collapsedGroupPositions（组节点渲染优先取该落点）；
+      // 其余节点照旧回写 store（setElementPosition 无 undo 条目，每帧提交不污染撤销栈）。
+      const groupIds = new Set(Object.values(codeFlowGroups ?? {}).flat().map((g) => g.id));
+      for (const change of changes) {
         if (change.type === "position" && change.position) {
-          setElementPosition(change.id, change.position);
+          if (groupIds.has(change.id)) {
+            setCollapsedGroupPositions((prev) => ({ ...prev, [change.id]: change.position! }));
+          } else {
+            setElementPosition(change.id, change.position);
+          }
         }
       }
     },
-    [setElementPosition],
+    [setElementPosition, codeFlowGroups, cacheInstanceId],
   );
 
   // ── Node context menu handler ──
@@ -351,6 +393,10 @@ function FlowCanvasInner() {
   // 受控模式下 RFNode.measured 恒缺（同布局测量），展开态组框尺寸须 DOM 实测成员节点
   // （rect/zoom 换算画布单位）；折叠态沿用最后一次展开值（lastGroupBoxesRef 缓存——
   // 折叠后成员几何不再变化，卡位置稳定依赖此缓存）。
+  // 测量推迟到 requestAnimationFrame（真机 error009）：展开/折叠切换经 store 更新后，
+  // ReactFlow 内部节点渲染异步完成（zustand store 同步 + commit 后渲染），useEffect
+  // 同步测量拿不到刚恢复的成员节点 DOM → sizes 空 → bbox 永不写入 → 展开态组框被跳过。
+  // rAF 后 ReactFlow 渲染完成，测量稳定。cleanup 取消未执行的帧，避免陈旧闭包写回。
   useEffect(() => {
     const allGroups = Object.values(codeFlowGroups ?? {}).flat();
     if (allGroups.length === 0) {
@@ -362,22 +408,28 @@ function FlowCanvasInner() {
       }
       return;
     }
-    const vpEl = document.querySelector(".react-flow__viewport");
-    const vpMatch = vpEl ? getComputedStyle(vpEl).transform.match(/matrix\(([^)]+)\)/) : null;
-    const zoom = vpMatch ? Number(vpMatch[1].split(",")[0]) || 1 : 1;
-    const sizes = new Map<string, { width: number; height: number }>();
-    const activeGroups = allGroups.filter((g) => !g.collapsed);
-    for (const el of codeElements) {
-      const dom = document.querySelector(`[data-id="${el.id}"]`);
-      if (!dom) continue;
-      const r = dom.getBoundingClientRect();
-      if (r.width > 0 && r.height > 0) sizes.set(el.id, { width: r.width / zoom, height: r.height / zoom });
-    }
-    const next = computeGroupBoxes(activeGroups, codeElements, sizes);
-    if (next.size > 0) {
-      lastGroupBoxesRef.current = new Map([...lastGroupBoxesRef.current, ...next]);
-      setGroupBoxes(lastGroupBoxesRef.current);
-    }
+    const measure = () => {
+      const vpEl = document.querySelector(".react-flow__viewport");
+      const vpMatch = vpEl ? getComputedStyle(vpEl).transform.match(/matrix\(([^)]+)\)/) : null;
+      const zoom = vpMatch ? Number(vpMatch[1].split(",")[0]) || 1 : 1;
+      const sizes = new Map<string, { width: number; height: number }>();
+      const activeGroups = allGroups.filter((g) => !g.collapsed);
+      for (const el of codeElements) {
+        const dom = document.querySelector(`[data-id="${el.id}"]`);
+        if (!dom) continue;
+        const r = dom.getBoundingClientRect();
+        if (r.width > 0 && r.height > 0) sizes.set(el.id, { width: r.width / zoom, height: r.height / zoom });
+      }
+      const next = computeGroupBoxes(activeGroups, codeElements, sizes);
+      if (next.size > 0) {
+        lastGroupBoxesRef.current = new Map([...lastGroupBoxesRef.current, ...next]);
+        setGroupBoxes(lastGroupBoxesRef.current);
+      }
+    };
+    const rafId = typeof requestAnimationFrame === "function" ? requestAnimationFrame(measure) : 0;
+    return () => {
+      if (rafId && typeof cancelAnimationFrame === "function") cancelAnimationFrame(rafId);
+    };
   }, [elements, codeElements, codeFlowGroups]);
 
   // 按 wire 拓扑推断每个 fn 的 let 变量（多 fn 隔离）：语法节点公式框候选数据源
@@ -453,72 +505,91 @@ function FlowCanvasInner() {
           break;
         }
       }
-      // 折叠态几何缓存同步移除（删组后防止缓存残留引用）
-      if (lastGroupBoxesRef.current.has(g.id)) {
-        const next = new Map(lastGroupBoxesRef.current);
-        next.delete(g.id);
-        lastGroupBoxesRef.current = next;
-      }
     },
     [],
   );
+
+  // 删组后折叠态几何缓存同步移除（防缓存残留引用）。原在 removeGroup 内同步清理——
+  // react-compiler 规则禁止渲染期传递访问 ref 的回调（Cannot access refs during render），
+  // 移入 effect（effect 内访问 ref 合法，语义等价：组消失后下一轮渲染清理）。
+  useEffect(() => {
+    const liveIds = new Set(Object.values(codeFlowGroups ?? {}).flat().map((x) => x.id));
+    for (const id of [...lastGroupBoxesRef.current.keys()]) {
+      if (!liveIds.has(id)) {
+        const next = new Map(lastGroupBoxesRef.current);
+        next.delete(id);
+        lastGroupBoxesRef.current = next;
+      }
+    }
+  }, [codeFlowGroups]);
 
   const nodes: RFNode[] = useMemo(() => {
     // ── 折叠组：成员节点渲染层过滤（Task 5）──
     // 数据防线：只过滤渲染输出，store 元素不动——保存/代码生成永远用全量。
     const collapsedMemberIds = collectCollapsedMemberIds(Object.values(codeFlowGroups ?? {}).flat());
     const visibleElements = codeElements.filter((e) => !collapsedMemberIds.has(e.id));
-    return visibleElements.map((el) => ({
+    const out: RFNode[] = [];
+    for (const el of visibleElements) {
+      const data = {
+        label: TAG_CN[el.tag] || el.tag,
+        tag: el.tag,
+        props: el.props,
+        source: el.source,
+        fnName: el.props?.name as string,
+        params: el.props?.params as string,
+        branches: el.props?.branches as Array<{id:string;type:string;condition?:string;catchVar?:string}> | undefined,
+        returnExpr: el.source,
+        onCommitReturn: (expr: string) => setElementSource(el.id, expr),
+        description: el.props?.description as string | undefined,
+        // fn 无 source（CodeBlockEditor 打开即空白）：双击仅聚焦选中（FlowInspector 表单编辑参数）。
+        // loop 同 fn：props 为权威（LoopNode 画布静态渲染），双击不开 Monaco（与 SyntaxNode 同机制——
+        // 禁用点在数据层，SyntaxNode 组件内部无 onDoubleClick 覆盖）。
+        onDoubleClick: el.tag === "fn" || el.tag === "while" || el.tag === "for-in" ? undefined : () => setEditingNodeId(el.id),
+        onUpdateBranches: (branches: unknown) => {
+          setProp(el.id, "branches", branches);
+        },
+        onEditCondition: (branchId: string, condition: string) => {
+          const currentBranches = [...(el.props?.branches as Array<{id:string;type:string;condition:string}> || [])];
+          const idx = currentBranches.findIndex(b => b.id === branchId);
+          if (idx >= 0) {
+            currentBranches[idx] = { ...currentBranches[idx], condition };
+            setProp(el.id, "branches", currentBranches);
+          }
+        },
+        onEditCatchVar: (branchId: string, catchVar: string) => {
+          const currentBranches = [...(el.props?.branches as Array<{id:string;type:string;catchVar?:string}> || [])];
+          const idx = currentBranches.findIndex((b) => b.id === branchId);
+          if (idx >= 0) {
+            currentBranches[idx] = { ...currentBranches[idx], catchVar };
+            setProp(el.id, "branches", currentBranches);
+          }
+        },
+        ...(CODE_TAGS.has(el.tag) && el.tag !== "code-block" ? {
+          id: el.id,
+          scope: flowScope ?? undefined,
+          // 所属 fn 的 let 变量（wire 拓扑反推）：fn 节点自身也携带（不渲染公式框，无害）
+          letVars: letVarsByFn.get(findOwnerFnId(el.id, codeElements, wires) ?? "") ?? [],
+          onEditProp: (id: string, prop: string, value: unknown) => setProp(id, prop, value),
+        } : {}),
+      };
+      // 每帧重建节点对象（拖拽位置写回必需——对象身份复用会让 adoptUserNodes
+      // checkEquality 命中且内部节点位置不更新 → 拖不动）；measured 从缓存携带
+      //（handleNodesChange 接收 dimensions 变更写入）→ 重建后内部节点 measured 保留
+      // → NodeWrapper 不渲染 visibility:hidden → 拖拽无每帧闪烁。
+      const node: RFNode = {
         id: el.id,
         type: el.tag,
         position: el.position ?? { x: 0, y: 0 },
+        measured: getCachedMeasured(cacheInstanceId, el.id),
         selected: selectedNodeIds.includes(el.id),
         className: selectedNodeIds.includes(el.id) ? "flow-node-selected" : "",
-        data: {
-          label: TAG_CN[el.tag] || el.tag,
-          tag: el.tag,
-          props: el.props,
-          source: el.source,
-          fnName: el.props?.name as string,
-          params: el.props?.params as string,
-          branches: el.props?.branches as Array<{id:string;type:string;condition?:string;catchVar?:string}> | undefined,
-          returnExpr: el.source,
-          onCommitReturn: (expr: string) => setElementSource(el.id, expr),
-          description: el.props?.description as string | undefined,
-          // fn 无 source（CodeBlockEditor 打开即空白）：双击仅聚焦选中（FlowInspector 表单编辑参数）。
-          // loop 同 fn：props 为权威（LoopNode 画布静态渲染），双击不开 Monaco（与 SyntaxNode 同机制——
-          // 禁用点在数据层，SyntaxNode 组件内部无 onDoubleClick 覆盖）。
-          onDoubleClick: el.tag === "fn" || el.tag === "while" || el.tag === "for-in" ? undefined : () => setEditingNodeId(el.id),
-          onUpdateBranches: (branches: unknown) => {
-            setProp(el.id, "branches", branches);
-          },
-          onEditCondition: (branchId: string, condition: string) => {
-            const currentBranches = [...(el.props?.branches as Array<{id:string;type:string;condition:string}> || [])];
-            const idx = currentBranches.findIndex(b => b.id === branchId);
-            if (idx >= 0) {
-              currentBranches[idx] = { ...currentBranches[idx], condition };
-              setProp(el.id, "branches", currentBranches);
-            }
-          },
-          onEditCatchVar: (branchId: string, catchVar: string) => {
-            const currentBranches = [...(el.props?.branches as Array<{id:string;type:string;catchVar?:string}> || [])];
-            const idx = currentBranches.findIndex((b) => b.id === branchId);
-            if (idx >= 0) {
-              currentBranches[idx] = { ...currentBranches[idx], catchVar };
-              setProp(el.id, "branches", currentBranches);
-            }
-          },
-          ...(CODE_TAGS.has(el.tag) && el.tag !== "code-block" ? {
-            id: el.id,
-            scope: flowScope ?? undefined,
-            // 所属 fn 的 let 变量（wire 拓扑反推）：fn 节点自身也携带（不渲染公式框，无害）
-            letVars: letVarsByFn.get(findOwnerFnId(el.id, codeElements, wires) ?? "") ?? [],
-            onEditProp: (id: string, prop: string, value: unknown) => setProp(id, prop, value),
-          } : {}),
-        },
-      }));
+        data,
+      };
+      out.push(node);
+    }
+    return out;
     },
-    [codeElements, selectedNodeIds, setEditingNodeId, setProp, flowScope, letVarsByFn, codeFlowGroups],
+    [codeElements, selectedNodeIds, setEditingNodeId, setProp, flowScope, letVarsByFn, codeFlowGroups, wires, cacheInstanceId],
   );
 
   // ── Group nodes（Task 4）──
@@ -550,13 +621,19 @@ function FlowCanvasInner() {
     } else if (bbox) {
       pos = { x: bbox.x, y: bbox.y };
     }
+    // bbox 缺失（展开态测量未完成，rAF 前）→ pos undefined → 跳过渲染（组框无可靠落点）；
+    // style 仅在 bbox 存在时取宽高（守卫：展开态无 bbox 不得解引用）。
+    // 组节点同样每帧重建 + measured 携带（拖拽/折叠切换不闪烁，机制同 nodes useMemo）。
     if (!pos) continue;
+    const style = g.collapsed ? undefined : bbox ? { width: bbox.width, height: bbox.height } : undefined;
     out.push({
       id: g.id,
       type: "group",
       position: pos,
-      style: g.collapsed ? undefined : { width: bbox!.width, height: bbox!.height },
-      draggable: false,
+      style,
+      measured: getCachedMeasured(cacheInstanceId, g.id),
+      // 折叠态组卡可整体拖动（spec §4：折叠态改拖组卡）；展开态框不可拖（跟随成员，拖成员即可）
+      draggable: g.collapsed,
       selectable: false,
       focusable: false,
       className: "codeflow-group",
@@ -574,7 +651,7 @@ function FlowCanvasInner() {
     });
     }
     return out;
-  }, [codeFlowGroups, groupBoxes, collapsedGroupPositions, editingGroupId, patchGroup, removeGroup, groupFnName, codeElements]);
+  }, [codeFlowGroups, groupBoxes, collapsedGroupPositions, editingGroupId, patchGroup, removeGroup, groupFnName, codeElements, cacheInstanceId]);
   const allNodesWithGroups = [...groupNodes, ...nodes];
 
   const edges = useMemo(
