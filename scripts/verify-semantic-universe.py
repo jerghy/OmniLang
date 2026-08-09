@@ -104,6 +104,18 @@ REACT_COMPONENT_FILE = os.path.join(
 )
 FLUTTER_MOD_FILE = os.path.join(REPO_ROOT, "omnilang", "src", "codegen", "flutter", "mod.rs")
 OMNIVIEW_STORE_FILE = os.path.join(REPO_ROOT, "omnilang", "src", "codegen", "omniview", "store.rs")
+# 2026-08-10 Task 7（批次 1 反馈模态全量断言）：域 10 编译器事实源锚点文件——
+# 语义验证器 + React/OmniView codegen（Flutter 锚点暂缺，Task 5 待落地）
+FEEDBACK_MODAL_FILE = os.path.join(
+    REPO_ROOT, "crates", "omnilang-core", "src", "semantic", "validate_feedback_modal.rs"
+)
+OMNIVIEW_MODAL_FILE = os.path.join(
+    REPO_ROOT, "omnilang", "src", "codegen", "omniview", "view", "modal.rs"
+)
+OMNIVIEW_ELEMENT_FILE = os.path.join(
+    REPO_ROOT, "omnilang", "src", "codegen", "omniview", "view", "element.rs"
+)
+OMNIVIEW_EXPR_FILE = os.path.join(REPO_ROOT, "omnilang", "src", "codegen", "omniview", "expr.rs")
 
 # ── universe section contract ─────────────────────────────────────────────
 # Domain titles must contain the expected keyword (in order 1..9).
@@ -692,12 +704,14 @@ def audit():
             elif name not in dict(en9):
                 fail(f"数据三态: 缺失语义集条目 '{name}'")
 
-    # feedback & modal (域 10, 2026-08-09 Task 0): showToast/@modal/焦点陷阱/
-    # @skeleton/@errorBoundary/tooltip——机制级条目居多（指令名/内建函数名，无词法级
-    # 白名单常量），且本域语法尚未落地（Task 1-6 实施中），白名单交叉断言以存在性
-    # 检查承担（照域 8 机制级条目注记措辞风格，spec §5.1 锚点方案）：条目 6 行存在 +
-    # tooltip 状态 = 留生态（基线 §8 状态值域第四值，未落地故不进已实现白名单）+
-    # 已实现白名单 3 行存在
+    # feedback & modal (域 10, 2026-08-09 Task 0 登记 → 2026-08-10 Task 7 全量断言):
+    # showToast/@modal/焦点陷阱/@skeleton/@errorBoundary/tooltip——机制级条目居多
+    # （指令名/内建函数名，无词法级白名单常量），本域语法已随 Task 1-6 落地，故断言
+    # 两层：① 条目 6 行存在 + tooltip 状态 = 留生态（基线 §8 状态值域第四值，未落地
+    # 故不进已实现白名单）+ 已实现白名单 3 行存在（Task 0 存在性检查，保持）；
+    # ② 「支持/部分」条目逐项编译器代码锚点（照域 8/9 锚点账本模式）——语义验证器 +
+    # IR 变体 + React/OmniView codegen（Flutter 锚点暂缺：Task 5 Flutter codegen 待
+    # 落地，不设 Flutter 针）
     wl10, en10 = whitelist(10), entries(10)
     if en10 is None:
         fail("反馈模态: cannot cross-assert 语义集条目 (extraction failed)")
@@ -708,6 +722,34 @@ def audit():
                 fail(f"反馈模态: 缺失语义集条目 '{name}'")
         if en10_map.get("tooltip", "").split("（", 1)[0].strip() != "留生态":
             fail(f"反馈模态: tooltip 实现状态应 = 留生态（基线 §8 状态值域扩展），got '{en10_map.get('tooltip')}'")
+        # 锚点账本（②层，2026-08-10 Task 7）：支持/部分 条目 → 编译器事实源代码锚点。
+        # 事实源文件：语义验证器 validate_feedback_modal.rs（V1-V14 消息源）、IR 变体
+        # （ir/types.rs：BuiltinToastCall/ModalIntentIR/SkeletonBindingIR/
+        # ErrorBoundaryBindingIR）、React codegen（ToastProvider/showModal()/
+        # ErrorBoundary/omni-skeleton）、OmniView codegen（ensureToastContainer/
+        # omni-modal-mask/Focus trap/omni-skeleton/omni-error-boundary）。tooltip 为
+        # 留生态（未落地）——不设锚点，由下方 in ("支持", "部分") 守卫自动跳过。
+        feedback_src = read_file(FEEDBACK_MODAL_FILE)
+        ir_src = read_file(REFOP_IR_FILE)
+        react_src = read_file(REACT_COMPONENT_FILE)
+        omni_modal_src = read_file(OMNIVIEW_MODAL_FILE)
+        omni_elem_src = read_file(OMNIVIEW_ELEMENT_FILE)
+        omni_expr_src = read_file(OMNIVIEW_EXPR_FILE)
+        for name, needles in (
+            ("showToast", [("BuiltinToastCall", ir_src), ("ToastProvider", react_src),
+                           ("ensureToastContainer", omni_expr_src)]),
+            ("@modal", [("validate_feedback_modal", feedback_src), ("ModalIntentIR", ir_src),
+                        ("showModal", react_src), ("omni-modal-mask", omni_modal_src)]),
+            ("焦点陷阱", [("Focus trap", omni_modal_src)]),
+            ("@skeleton", [("SkeletonBindingIR", ir_src), ("omni-skeleton", react_src),
+                           ("omni-skeleton", omni_elem_src)]),
+            ("@errorBoundary", [("ErrorBoundaryBindingIR", ir_src), ("ErrorBoundary", react_src),
+                                ("omni-error-boundary", omni_elem_src)]),
+        ):
+            if en10_map.get(name) in ("支持", "部分"):
+                for needle, haystack in needles:
+                    if needle not in haystack:
+                        fail(f"反馈模态: '{name}' 声明 支持/部分 但编译器锚点 '{needle}' 缺失")
     if wl10 is None:
         fail("反馈模态: cannot cross-assert 已实现白名单 (extraction failed)")
     else:

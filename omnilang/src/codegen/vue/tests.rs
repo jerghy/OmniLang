@@ -244,6 +244,9 @@ mod tests {
                     semantic_bindings: FxHashMap::default(),
                     a11y: None,
                     drag_binding: None,
+                    modal: None,
+                    skeleton: None,
+                    error_boundary: None,
                 }))),
                 styles: vec![],
                 ..Default::default()
@@ -315,6 +318,9 @@ mod tests {
                     semantic_bindings: FxHashMap::default(),
                     a11y: None,
                     drag_binding: None,
+                    modal: None,
+                    skeleton: None,
+                    error_boundary: None,
                 }))),
                 styles: vec![],
                 ..Default::default()
@@ -1047,6 +1053,9 @@ mod tests {
             semantic_bindings: FxHashMap::default(),
             a11y: None,
             drag_binding: None,
+            modal: None,
+            skeleton: None,
+            error_boundary: None,
         };
         crate::codegen::vue::gen_template_node(&mut w, &ViewTree::Element(Box::new(el)), &fmt);
         let out = w.into_string();
@@ -1080,6 +1089,9 @@ mod tests {
             semantic_bindings: FxHashMap::default(),
             a11y: None,
             drag_binding: None,
+            modal: None,
+            skeleton: None,
+            error_boundary: None,
         };
         crate::codegen::vue::gen_template_node(&mut w, &ViewTree::Element(Box::new(el)), &fmt);
         let out = w.into_string();
@@ -1112,6 +1124,9 @@ mod tests {
             semantic_bindings: FxHashMap::default(),
             a11y: None,
             drag_binding: None,
+            modal: None,
+            skeleton: None,
+            error_boundary: None,
         };
         crate::codegen::vue::gen_template_node(&mut w, &ViewTree::Element(Box::new(el)), &fmt);
         let out = w.into_string();
@@ -1145,6 +1160,9 @@ mod tests {
             semantic_bindings: FxHashMap::default(),
             a11y: None,
             drag_binding: None,
+            modal: None,
+            skeleton: None,
+            error_boundary: None,
         };
         crate::codegen::vue::gen_template_node(&mut w, &ViewTree::Element(Box::new(el)), &fmt);
         let out = w.into_string();

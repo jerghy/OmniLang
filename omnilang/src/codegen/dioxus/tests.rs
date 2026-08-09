@@ -867,6 +867,9 @@ mod tests {
             semantic_bindings: FxHashMap::default(),
             a11y: None,
             drag_binding: None,
+            modal: None,
+            skeleton: None,
+            error_boundary: None,
         };
         crate::codegen::dioxus::gen_view_node_dioxus(
             &mut w,
@@ -903,6 +906,9 @@ mod tests {
             semantic_bindings: FxHashMap::default(),
             a11y: None,
             drag_binding: None,
+            modal: None,
+            skeleton: None,
+            error_boundary: None,
         };
         crate::codegen::dioxus::gen_view_node_dioxus(
             &mut w,
@@ -938,6 +944,9 @@ mod tests {
             semantic_bindings: FxHashMap::default(),
             a11y: None,
             drag_binding: None,
+            modal: None,
+            skeleton: None,
+            error_boundary: None,
         };
         crate::codegen::dioxus::gen_view_node_dioxus(
             &mut w,
@@ -974,6 +983,9 @@ mod tests {
             semantic_bindings: FxHashMap::default(),
             a11y: None,
             drag_binding: None,
+            modal: None,
+            skeleton: None,
+            error_boundary: None,
         };
         crate::codegen::dioxus::gen_view_node_dioxus(
             &mut w,

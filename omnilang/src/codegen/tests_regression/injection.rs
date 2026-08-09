@@ -50,6 +50,20 @@
 //! 保留名冲突」/「@load 仅支持 Array 返回（v0）」）是后端无关的共享语义层产物，
 //! 逐字断言其跨全部 5 后端全链路可见（parse → semantic → diagnostics 不因
 //! 目标差异而丢失/改写）。
+//!
+//! Task 7 (semantic-feedback-modal, 批次 1) additions: the
+//! `feedback_modal_semantic_messages_across_backends` assertion — the
+//! 反馈模态语义域诊断（spec 2026-08-09-semantic-batch1 §3 的 V1-V14：@modal
+//! 值非布尔信号/非 dialog 标签/裸 dialog/重复绑定/@for 内、showToast kind
+//! 非法/duration 负数/保留名、@skeleton 脱离 loading 分支/形状非法、
+//! @errorBoundary 重复绑定/无 fallback 警告/fallback 槽重复）是后端无关的
+//! 共享语义层产物，逐字断言其跨全部 5 后端全链路可见，且合法形态（三槽/
+//! 无槽/嵌套/@enter 组合/信号开闭、toast 四形态、skeleton 两形状、boundary
+//! 有/无 fallback）在全部后端 success 且无 Error 级诊断（V12/V13 为警告级，
+//! 不翻转 success——lib.rs success 判定仅看 Error 级）。注：语料仅逐字断言
+//! V12 警告通道；V13 消息由 validator 单元测试覆盖
+//! （validate_feedback_modal.rs:691-760），此处合法元组全含标题故 V13 路径
+//! 永不触发。
 
 use rustc_hash::FxHashMap;
 
@@ -1136,6 +1150,175 @@ fn form_load_semantic_messages_across_backends() {
                 result.errors
             );
         }
+    }
+}
+
+/// Task 7 (semantic-feedback-modal, 批次 1) regression — the 反馈模态语义域
+/// 诊断（spec 2026-08-09-semantic-batch1 §3 的 V1-V14）是后端无关的共享语义
+/// 层产物：逐字断言其跨全部 5 后端全链路可见（parse → semantic →
+/// diagnostics 不因目标差异而丢失/改写），且合法形态（三槽/无槽/嵌套/@enter
+/// 组合/信号开闭、toast 四形态、skeleton 两形状、boundary 有/无 fallback）
+/// 在全部后端 success 且无 Error 级诊断（V12/V13 为警告级，不翻转
+/// success——lib.rs success 判定仅看 Error 级）。注：语料仅逐字断言 V12
+/// 警告通道；V13 消息由 validator 单元测试覆盖
+/// （validate_feedback_modal.rs:691-760），此处合法元组全含标题故 V13 路径
+/// 永不触发。语料源逐字镜像
+/// validate_feedback_modal.rs 的 V1-V14 测试（组件名 Text/Button 替换为内建
+/// p/button——语料上下文无声明组件）。
+#[test]
+fn feedback_modal_semantic_messages_across_backends() {
+    // V1-V14 非法形态：13 元组，每元组 = (源, 逐字 V# 消息)。
+    let illegal: &[(&str, &str)] = &[
+        // V1 — "@modal" 的值必须是布尔信号
+        (
+            r#"component App { signal open: String = "x"; view { <dialog @modal={open} /> } }"#,
+            r#""@modal" 的值必须是布尔信号"#,
+        ),
+        // V2 — "@modal" 只能用于 dialog 元素
+        (
+            r#"component App { signal open: bool = false; view { <div @modal={open} /> } }"#,
+            r#""@modal" 只能用于 dialog 元素"#,
+        ),
+        // V3 — 裸 dialog（两种形态都禁）
+        (
+            r#"component App { view { <dialog>x</dialog> } }"#,
+            r#"dialog 元素必须绑定 "@modal""#,
+        ),
+        (
+            r#"component App { view { <dialog /> } }"#,
+            r#"dialog 元素必须绑定 "@modal""#,
+        ),
+        // V4 — 重复绑定 "@modal"
+        (
+            r#"component App { signal open: bool = false; view { <dialog @modal={open} @modal={open} /> } }"#,
+            r#"元素不能重复绑定 "@modal""#,
+        ),
+        // V5 — "@modal" 不能用在 @for 循环内
+        (
+            r#"component App { signal open: bool = false; signal items: Array<Int> = []; view { <div> @for item in items { <dialog @modal={open} /> } </div> } }"#,
+            r#""@modal" 不能用在 @for 循环内"#,
+        ),
+        // V6 — showToast 未知 kind
+        (
+            r#"component App { fn doToast() { showToast("x", { kind: "bogus" }) } view { <div/> } }"#,
+            r#"未知 toast 类型 "bogus"——合法类型: info/success/error"#,
+        ),
+        // V7 — showToast duration 负数
+        (
+            r#"component App { fn doToast() { showToast("x", { duration: -5 }) } view { <div/> } }"#,
+            r#""showToast" 的 duration 不能为负数"#,
+        ),
+        // V8 — showToast 保留名（组件声明位）
+        (
+            r#"component showToast { view { <div/> } }"#,
+            r#""showToast" 是内建语义函数，不能用作组件声明名"#,
+        ),
+        // V9 — "@skeleton" 脱离 @load 的 loading 分支
+        (
+            r#"component App { fn f() -> Array<Int> {} view { @load={f} <div @skeleton /> } }"#,
+            r#""@skeleton" 只能用在 @load 的 loading 分支内（@if loading）"#,
+        ),
+        // V10 — @skeleton 未知形状
+        (
+            r#"component App { fn f() -> Array<Int> {} view { @load={f} @if loading { <div @skeleton="bogus" /> } } }"#,
+            r#"未知骨架形状 "bogus"——合法形状: text/line/circle/card"#,
+        ),
+        // V11 — 重复绑定 "@errorBoundary"
+        (
+            r#"component App { view { <div @errorBoundary @errorBoundary /> } }"#,
+            r#"元素不能重复绑定 "@errorBoundary""#,
+        ),
+        // V14 — fallback 槽重复声明（Text→p 内建替换）
+        (
+            r#"component App { view { <div @errorBoundary> @slot fallback { <p>A</p> } @slot fallback { <p>B</p> } </div> } }"#,
+            r#""fallback" 槽重复声明——降级内容只能有一个"#,
+        ),
+    ];
+    for (target, backend) in BACKENDS {
+        for (source, expected) in illegal {
+            let result = compile_target(source, *target);
+            assert!(
+                !result.success,
+                "[{backend}] 语义硬错误必须使编译失败，got: {:?}",
+                result.errors
+            );
+            assert!(
+                result
+                    .errors
+                    .iter()
+                    .any(|d| d.severity == crate::error::Severity::Error && d.message == *expected),
+                "[{backend}] 必须逐字产生 {expected:?}，got: {:?}",
+                result.errors
+            );
+        }
+    }
+
+    // 合法形态：13 元组，全部后端 success 且无 Error 级诊断。
+    let legal: &[&str] = &[
+        // 三槽（header/body/footer 命名槽）
+        r#"component App { signal isOpen: bool = false; fn close() { isOpen = false } view { <dialog @modal={isOpen}> @slot header { <h1>确认删除</h1> } @slot body { <p>此操作不可撤销。</p> } @slot footer { <button @onPress={close}>取消</button> } </dialog> } }"#,
+        // 无槽（匿名 children 落入 body 槽）
+        r#"component App { signal open: bool = false; view { <dialog @modal={open}><h1>标题</h1></dialog> } }"#,
+        // 嵌套容器内
+        r#"component App { signal open: bool = false; fn close() { open = false } view { <div><dialog @modal={open}><h1>标题</h1><div><p>内容</p></div></dialog></div> } }"#,
+        // @enter 组合（spec §2.1 规范形）
+        r#"component App { @motion fadeIn { from { opacity: 0, translateY: 20 } to { opacity: 1, translateY: 0 } over: 400ms easing: ease-out } signal isOpen: bool = false; view { <dialog @modal={isOpen} @enter={fadeIn}><h1>标题</h1></dialog> } }"#,
+        // 信号开闭（fn 写回信号）
+        r#"component App { signal isOpen: bool = false; fn open() { isOpen = true } fn close() { isOpen = false } view { <button @onPress={open}>打开</button><dialog @modal={isOpen}><h1>标题</h1></dialog> } }"#,
+        // toast 默认 kind（省略 kind，仅 duration）
+        r#"component App { fn doToast() { showToast("保存成功", { duration: 100 }) } view { <div/> } }"#,
+        // toast 三 kind（spec §2.2 规范形）
+        r#"component App { fn save() { showToast("已保存", { kind: "info" }) showToast("保存成功", { kind: "success" }) showToast("保存失败", { kind: "error" }) } view { <div/> } }"#,
+        // toast duration 0 = 不自动关闭
+        r#"component App { fn doToast() { showToast("x", { duration: 0 }) } view { <div/> } }"#,
+        // toast 省略 options（单参）
+        r#"component App { fn doToast() { showToast("保存成功") } view { <div/> } }"#,
+        // skeleton 布尔形（@load loading 分支内）
+        r#"component App { fn f() -> Array<Int> {} view { @load={f} @if loading { <div @skeleton /> } } }"#,
+        // skeleton 形状形
+        r#"component App { fn f() -> Array<Int> {} view { @load={f} @if loading { <div @skeleton="card" /> } } }"#,
+        // errorBoundary 有 fallback 槽
+        r#"component App { view { <div @errorBoundary> @slot fallback { <p>加载失败</p> } </div> } }"#,
+        // errorBoundary 无 fallback 槽（V12 警告级，不翻转 success）
+        r#"component App { view { <div @errorBoundary /> } }"#,
+    ];
+    for (target, backend) in BACKENDS {
+        for source in legal {
+            let result = compile_target(source, *target);
+            assert!(
+                result.success,
+                "[{backend}] 合法形态必须编译成功，got: {:?}",
+                result.errors
+            );
+            assert!(
+                !result
+                    .errors
+                    .iter()
+                    .any(|d| d.severity == crate::error::Severity::Error),
+                "[{backend}] 合法形态不得有 Error 级诊断，got: {:?}",
+                result.errors
+            );
+        }
+    }
+
+    // V12 警告形态：success 保持 true，但必须产生逐字 Warning 级诊断。
+    let v12_source = r#"component App { view { <div @errorBoundary /> } }"#;
+    let v12_message = r#""@errorBoundary" 没有提供 fallback 槽——渲染失败时将显示空内容，建议添加 @slot fallback 降级内容"#;
+    for (target, backend) in BACKENDS {
+        let result = compile_target(v12_source, *target);
+        assert!(
+            result.success,
+            "[{backend}] V12 警告不得翻转 success，got: {:?}",
+            result.errors
+        );
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|d| d.severity == crate::error::Severity::Warning && d.message == v12_message),
+            "[{backend}] 必须逐字产生 V12 警告，got: {:?}",
+            result.errors
+        );
     }
 }
 

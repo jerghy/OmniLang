@@ -49,6 +49,15 @@ def usage(domain: str, name: str) -> int:
                 r"\b(?:controls|disabled|readonly|required|checked|selected|autofocus|multiple|loop|muted|async|defer|hidden|autocomplete|autoplay)\s*=",
                 demo_text,
             ))
+    if domain == "10":  # 反馈模态：语义集条目名带 @ 前缀（指令），showToast 为函数调用形态
+        if name == "showToast":
+            return len(re.findall(r"showToast\s*\(", demo_text))
+        if name in ("@modal", "焦点陷阱"):  # 焦点陷阱是 @modal 附随行为——随 @modal 使用展示
+            return len(re.findall(r"@modal\s*=", demo_text))
+        if name == "@skeleton":
+            return len(re.findall(r"@skeleton\b", demo_text))
+        if name == "@errorBoundary":
+            return len(re.findall(r"@errorBoundary\b", demo_text))
     return 0
 
 print("=" * 78)
@@ -65,7 +74,8 @@ for i in range(1, len(parts), 2):
             st = m.group(2).strip()
             if n and n not in ("语义集条目", "语义", "---") and set(n) - set("-: "):
                 rows.append((n, st))
-    sup = [(n, s) for n, s in rows if s in ("支持", "部分")]
+    # 状态列可能带括注（如 支持（v0：无手动关闭））——按「支持/部分」前缀归一
+    sup = [(n, s) for n, s in rows if s.split("（")[0].strip() in ("支持", "部分")]
     if not sup:
         print(f"\n── 域 {num}: （无支持/部分成员——表格未解析？共 {len(rows)} 行）")
         continue

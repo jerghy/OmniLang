@@ -8,7 +8,7 @@
 
 **刚接触 OmniLang？** 按顺序阅读 OmniView 语法参考——每章都建立在前一章的基础之上：
 
-### 📖 [→ OmniView 语法参考（16 篇）](omniview/README.md)
+### 📖 [→ OmniView 语法参考（17 篇）](omniview/README.md)
 
 | # | 章节 | 你将学到 |
 |---|------|---------|
@@ -29,7 +29,8 @@
 | 14 | [语法规范·核心语言](omniview/14-grammar-lang.md) | 形式化语法（BNF）：词法、类型、表达式、语句、顶层声明、模块系统 |
 | 15 | [语法规范·UI 框架](omniview/15-grammar-view.md) | 形式化语法（BNF）：组件、Store、视图模板、指令、样式、设计系统、动画 |
 | 16 | [表单与异步数据](omniview/16-forms-and-async-data.md) | `@form` 表单语义、`@load` 数据三态（loading/error/data/retry）、语言边界 |
-| 17 | [README 导航](omniview/README.md) | 全部文档导航（含工具开发者文档 regeneration-contract） |
+| 17 | [反馈与模态](omniview/17-feedback-and-modality.md) | `@modal` 模态对话框、`showToast` 命令式通知、`@skeleton` 加载占位、`@errorBoundary` 渲染降级 |
+| 18 | [README 导航](omniview/README.md) | 全部文档导航（含工具开发者文档 regeneration-contract） |
 
 ---
 
