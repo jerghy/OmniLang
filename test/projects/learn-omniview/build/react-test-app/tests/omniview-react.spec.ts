@@ -193,6 +193,23 @@ test.describe('OmniView React — 9 标签页验证', () => {
       await expect(page.getByText('Form submitted successfully')).toBeHidden();
     });
 
+    test('39 - LoadDemo @load 三态数据渲染 + retry（阶段 2 域 A @load demo）', async ({ page }) => {
+      await switchToTab(page, 1);
+      // @load 三态：数据路径（loading 为同步微任务，不断言）——@for data 渲染 3 项
+      const items = page.locator('[data-testid="load-item"]');
+      await expect(items).toHaveCount(3);
+      await expect(items.first()).toHaveText('项目 Alpha');
+      await expect(items.nth(1)).toHaveText('项目 Beta');
+      await expect(items.nth(2)).toHaveText('项目 Gamma');
+      // retry 回调存在且可点击（重跑 fetchItems，数据保持，页面无崩溃）
+      const retryBtn = page.getByTestId('load-retry-btn');
+      await expect(retryBtn).toBeVisible();
+      await retryBtn.click();
+      await expect(items).toHaveCount(3);
+      await expect(page.getByTestId('load-status')).toHaveCount(0);
+      await expectNoErrors(page, 'LoadDemo', async () => {});
+    });
+
     test('08 - FormControlsDemo select/checkbox (React bug A)', async ({ page }) => {
       await switchToTab(page, 1);
       // EventsDemo renders an earlier <select> whose options carry no
