@@ -3111,6 +3111,23 @@ fn rule_literal_str(rule: &ValidateRuleIR) -> Option<String> {
     }
 }
 
+/// Build the custom-validator tail for a `custom:` rule — the rule VALUE
+/// names the component fn (`custom: noLeadingSpace`), renamed via fn_renames
+/// when the wrapper renames it. Returns None for non-identifier values
+/// (dynamic rules cannot be proven at compile time; skipped, mirroring the
+/// React backend).
+fn custom_rule_tail(ctx: &ViewContext<'_>, rule: &ValidateRuleIR) -> Option<String> {
+    let ExprIR::IdentifierExpr { name, .. } = &rule.value else {
+        return None;
+    };
+    let renamed = ctx
+        .fn_renames
+        .get(name)
+        .cloned()
+        .unwrap_or_else(|| name.to_string());
+    Some(format!("{renamed}(v)"))
+}
+
 /// @form (Task 5): push `validator:` — the rule chain
 /// `(v) => cond1 ? 'msg1' : cond2 ? 'msg2' : TAIL` where TAIL is the custom
 /// component fn (when present) else `null` — plus `autovalidateMode:` onto a
@@ -3193,30 +3210,19 @@ fn form_validator_args(ctx: &ViewContext<'_>, signal_ref: &SignalRefIR, args: &m
                     ));
                 }
             }
-            // `custom` is a keyword rule — the component fn lives in the
-            // rule VALUE (e.g. `custom: noLeadingSpace`), mirroring the
-            // React backend. It becomes the chain's tail (returns null
-            // when valid).
-            "custom" => {
-                if let ExprIR::IdentifierExpr { name, .. } = &rule.value {
-                    let renamed = ctx
-                        .fn_renames
-                        .get(name)
-                        .cloned()
-                        .unwrap_or_else(|| name.to_string());
-                    custom_tail = Some(format!("{renamed}(v)"));
-                }
-            }
-            // Any other rule name is a component fn — the custom validator
+            // `custom` is the ONLY keyword rule treated as a custom
+            // component fn — the fn lives in the rule VALUE
+            // (`custom: noLeadingSpace`), mirroring the React backend. It
             // becomes the chain's tail (returns null when valid).
-            other => {
-                let renamed = ctx
-                    .fn_renames
-                    .get(other)
-                    .cloned()
-                    .unwrap_or_else(|| other.to_string());
-                custom_tail = Some(format!("{renamed}(v)"));
+            "custom" => {
+                custom_tail = custom_rule_tail(ctx, rule);
             }
+            // Any other rule name must have been rejected by the semantic
+            // pass (V-F4 whitelist) — emit nothing, mirroring the React
+            // backend's `_ =>` comment. Never treat an unknown rule name
+            // as a component fn call (R6: the previous catch-all silently
+            // emitted `other(v)` Dart for e.g. a typo'd rule name).
+            _ => {}
         }
     }
     // (v) => c1 ? 'm1' : c2 ? 'm2' : TAIL — TAIL is the custom fn when
@@ -3525,15 +3531,17 @@ fn format_key_handler_flutter(body: &BlockIR, ctx: &ViewContext) -> String {
 fn form_errors_bool_condition(cond: &ExprIR) -> Option<String> {
     // outer: form.errors.<field>  (field = the per-field error key)
     let (obj, field) = match cond {
-        ExprIR::FieldAccessExpr { object, field }
-        | ExprIR::OptionalChainExpr { object, field } => (object.as_ref(), field.as_str()),
+        ExprIR::FieldAccessExpr { object, field } | ExprIR::OptionalChainExpr { object, field } => {
+            (object.as_ref(), field.as_str())
+        }
         _ => return None,
     };
     // inner: form.errors (must be rooted at `form` — never match unrelated
     // maps, same guard as format_special_field_access)
     let (inner_obj, inner_field) = match obj {
-        ExprIR::FieldAccessExpr { object, field }
-        | ExprIR::OptionalChainExpr { object, field } => (object.as_ref(), field.as_str()),
+        ExprIR::FieldAccessExpr { object, field } | ExprIR::OptionalChainExpr { object, field } => {
+            (object.as_ref(), field.as_str())
+        }
         _ => return None,
     };
     if inner_field != "errors" {

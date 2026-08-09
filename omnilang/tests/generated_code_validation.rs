@@ -40,7 +40,9 @@
 //!   can walk up to `tests/node_modules`.
 //! - Flutter: a Flutter-bundled `dart` (needed for the `sdk: flutter`
 //!   dependency) plus network access to pub.dev so `dart pub get` can
-//!   resolve `flutter_riverpod`; failures there degrade to SKIP.
+//!   resolve `flutter_riverpod`. A missing dart degrades to SKIP; a FAILED
+//!   `dart pub get` FAILS the test (R8) — dart exists, so a non-zero exit is
+//!   a real dependency-resolution regression, not a toolchain absence.
 //!
 //! The Flutter backend is compiled only with `--features codegen-flutter`
 //! (integration tests cannot set features). Without the feature the compiler
@@ -210,6 +212,32 @@ fn print_output(label: &str, out: &Output) {
         "--- {label} stderr ---\n{}",
         String::from_utf8_lossy(&out.stderr)
     );
+}
+
+/// Run `dart pub get` in `out_dir`; a non-zero exit FAILS the test (R8).
+///
+/// The caller has already confirmed `dart` exists (`dart_command()` was
+/// Some), so a pub-get failure is a REAL dependency-resolution failure —
+/// unresolvable version, missing package, pubspec syntax, or pub.dev
+/// unreachable — NOT a toolchain-absence situation. Silently SKIPping it
+/// would hide codegen regressions that only surface at resolve time (e.g.
+/// the stdlib emitting an import whose package is not in `FLUTTER_PUBSPEC`).
+fn dart_pub_get(dart: &mut Command, out_dir: &Path, label: &str) {
+    dart.args(["pub", "get"]).current_dir(out_dir);
+    let out = run(dart);
+    if !out.status.success() {
+        print_output(label, &out);
+        panic!(
+            "`{label}` FAILED in {} — dart is present on this machine, so \
+             this is a real resolution failure (unresolvable version, \
+             missing package, bad pubspec, or pub.dev unreachable), not a \
+             missing toolchain. A SKIP here would silently hide codegen \
+             regressions that only surface at resolve time. Use the \
+             Flutter-bundled dart, keep pub.dev reachable, and check the \
+             pubspec matches the stdlib's emitted imports.",
+            out_dir.display()
+        );
+    }
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -588,18 +616,11 @@ fn flutter_output_compiles_with_dart_analyze() {
     std::fs::write(out_dir.join("analysis_options.yaml"), "# minimal\n").expect("write options");
 
     // `dart pub get` needs the Flutter SDK (sdk: flutter dep) and pub.dev
-    // access to resolve flutter_riverpod. If either is missing the test
-    // degrades to SKIP rather than failing on toolchain setup.
-    dart.args(["pub", "get"]).current_dir(&out_dir);
-    let pub_get = run(&mut dart);
-    if !pub_get.status.success() {
-        print_output("dart pub get", &pub_get);
-        eprintln!(
-            "SKIP: `dart pub get` failed — is dart the Flutter-bundled SDK, \
-             and is pub.dev reachable? (flutter_riverpod must resolve)"
-        );
-        return;
-    }
+    // access to resolve flutter_riverpod. A missing dart degrades to SKIP
+    // (checked above); a FAILED pub get FAILS the test (R8) — dart being
+    // present means a non-zero exit is a real resolution regression that a
+    // SKIP would silently mask.
+    dart_pub_get(&mut dart, &out_dir, "dart pub get");
 
     // EVERY generated .dart file must analyze clean — 0 errors AND
     // 0 warnings (Task 5.8a tightened the gate; unmapped semantic-DSL
@@ -814,16 +835,9 @@ fn match_variant_arms_flutter_compiles() {
         eprintln!("SKIP: dart not found on PATH");
         return;
     };
-    dart.args(["pub", "get"]).current_dir(&out_root);
-    let pub_get = run(&mut dart);
-    if !pub_get.status.success() {
-        print_output("dart pub get", &pub_get);
-        eprintln!(
-            "SKIP: `dart pub get` failed — is dart the Flutter-bundled SDK, \
-             and is pub.dev reachable? (flutter_riverpod must resolve)"
-        );
-        return;
-    }
+    // A failed pub get FAILS the test (R8) — dart is present, so a non-zero
+    // exit is a real resolution regression, not a missing toolchain.
+    dart_pub_get(&mut dart, &out_root, "dart pub get");
 
     let mut dart = dart_command().expect("dart still available");
     dart.args(["analyze"])
@@ -893,16 +907,10 @@ fn learn_omniview_flutter_output_passes_dart_analyze() {
     };
     let out_root = out.out_root;
 
-    dart.args(["pub", "get"]).current_dir(&out_root);
-    let pub_get = run(&mut dart);
-    if !pub_get.status.success() {
-        print_output("dart pub get", &pub_get);
-        eprintln!(
-            "SKIP: `dart pub get` failed — is dart the Flutter-bundled SDK, \
-             and is pub.dev reachable? (flutter_riverpod must resolve)"
-        );
-        return;
-    }
+    // A failed pub get FAILS the test (R8) — dart is present (checked
+    // above), so a non-zero exit is a real resolution regression, not a
+    // missing toolchain; a SKIP would silently mask it.
+    dart_pub_get(&mut dart, &out_root, "dart pub get");
 
     // EVERY generated .dart file of the showcase project must analyze
     // clean — 0 errors 0 warnings (Task 5.8a gate).
