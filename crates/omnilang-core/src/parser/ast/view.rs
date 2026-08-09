@@ -239,6 +239,27 @@ pub enum ElementProp {
         /// The @dragEnd={fn} release handler (bare function name, optional)
         on_drag_end: Option<String>,
     },
+    /// Modal dialog intent: `@modal={openSig}` on a `dialog` element (spec
+    /// 2026-08-09 §2.1). The value is the user-declared boolean open signal
+    /// (a read reference); focus trap / Esc / overlay-click close / a11y
+    /// attributes are compiler-built-in, user writes zero of that logic.
+    Modal {
+        /// The open-signal reference (`{isOpen}` → `VarRef("isOpen")`).
+        open_signal: Expr,
+    },
+    /// Skeleton placeholder intent: bare `@skeleton` or `@skeleton="shape"`
+    /// (spec 2026-08-09 §2.3). Only legal inside a `@load` loading branch —
+    /// the semantic layer enforces that hard constraint (V9).
+    Skeleton {
+        /// Shape name (`text`/`line`/`circle`/`card`), None for the default
+        /// `text`. Legality of the value is a semantic-layer check (V10),
+        /// not a parse-layer one.
+        shape: Option<String>,
+    },
+    /// Render-failure fallback intent: bare `@errorBoundary` (spec
+    /// 2026-08-09 §2.4). The fallback UI arrives via a body-level
+    /// `@slot fallback`; no value is accepted.
+    ErrorBoundary,
 }
 
 /// The `a11y: { ... }` block contents (design doc 域 10 BNF):

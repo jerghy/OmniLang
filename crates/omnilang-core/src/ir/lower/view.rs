@@ -847,7 +847,13 @@ fn lower_element(
             // @form is a bare marker and @validate rule values lower with
             // the form intent — Task 2 (FormIntentIR/ValidateRuleIR)
             // owns both; nothing to lower here yet.
-            ElementProp::Form | ElementProp::Validate { .. } => {}
+            // 批次 1 Task 1 占位——@modal/@skeleton/@errorBoundary 的
+            // ModalIR/槽材料化由 Task 2 接管（本批次仅语法面）。
+            ElementProp::Form
+            | ElementProp::Validate { .. }
+            | ElementProp::Modal { .. }
+            | ElementProp::Skeleton { .. }
+            | ElementProp::ErrorBoundary => {}
         }
     }
 

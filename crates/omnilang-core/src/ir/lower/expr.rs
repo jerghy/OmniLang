@@ -547,6 +547,10 @@ pub(crate) fn lower_expr(
                 value: serde_json::Value::Null,
             }
         }
+        // 批次 1 Task 1 占位——showToast 语义/IR 由 Task 2/3 接管
+        Expr::BuiltinToastCall { .. } => ExprIR::LiteralExpr {
+            value: serde_json::Value::Null,
+        },
     }
 }
 

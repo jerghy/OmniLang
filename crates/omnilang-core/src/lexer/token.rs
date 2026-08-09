@@ -73,6 +73,12 @@ pub enum TokenKind {
     AtForm,
     /// Data three-state intent: `@load={fn}` view directive (spec 2026-08-08 §4.1).
     AtLoad,
+    /// Modal dialog intent: `@modal={openSig}` on a `dialog` element (spec 2026-08-09 §2.1).
+    AtModal,
+    /// Skeleton placeholder intent: `@skeleton` / `@skeleton="shape"` in a loading branch (spec 2026-08-09 §2.3).
+    AtSkeleton,
+    /// Render-failure fallback intent: `@errorBoundary` on an element (spec 2026-08-09 §2.4).
+    AtErrorBoundary,
     AtMount,
     AtUnmount,
     AtEffect,

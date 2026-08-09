@@ -81,6 +81,10 @@ pub(super) fn at_keyword_to_token(kw: &str) -> Option<TokenKind> {
         // Form/data-three-state intent keywords (spec 2026-08-08 §4.1)
         "@form" => Some(TokenKind::AtForm),
         "@load" => Some(TokenKind::AtLoad),
+        // Feedback/modal intent keywords (spec 2026-08-09 §2.1/§2.3/§2.4)
+        "@modal" => Some(TokenKind::AtModal),
+        "@skeleton" => Some(TokenKind::AtSkeleton),
+        "@errorBoundary" => Some(TokenKind::AtErrorBoundary),
         "@mount" => Some(TokenKind::AtMount),
         "@unmount" => Some(TokenKind::AtUnmount),
         "@effect" => Some(TokenKind::AtEffect),

@@ -112,6 +112,8 @@ pub fn infer_expr_type(expr: &Expr, symbols: &SymbolTable, scope: usize) -> Sema
         Expr::IsCheck { .. } => SemanticType::Bool,
         Expr::NotYetImplemented { .. } => SemanticType::Any,
         Expr::Error { .. } => SemanticType::Any,
+        // 批次 1 Task 1 占位——showToast 无返回值；精确类型由 Task 3 接管
+        Expr::BuiltinToastCall { .. } => SemanticType::Any,
     }
 }
 

@@ -295,6 +295,13 @@ impl<'a> Parser<'a> {
     ) -> Result<Expr, ParseError> {
         if self.at(&TokenKind::LParen) {
             self.advance(); // consume '('
+                            // Builtin semantic function calls (spec 2026-08-09 §2.2) get a
+                            // dedicated AST node so each target compiler can generate its
+                            // platform notification shape (self-generated toast / SnackBar /
+                            // self-drawn) instead of a generic FuncCall.
+            if super::BUILTIN_FUNCTIONS.contains(&name.as_str()) {
+                return self.parse_show_toast_call(&name, span);
+            }
             let (args, close_end) = self.parse_call_args()?;
             Ok(Expr::FuncCall {
                 func: Box::new(Expr::VarRef(name.clone(), span)),
@@ -309,6 +316,116 @@ impl<'a> Parser<'a> {
         } else {
             Ok(Expr::VarRef(name, span))
         }
+    }
+
+    /// Parse the builtin `showToast(msg, { kind, duration })` call (spec
+    /// 2026-08-09 §2.2). The `(` has already been consumed by
+    /// `parse_ident_expr`; this parses through the closing `)`.
+    ///
+    /// Shape: `'showToast' '(' Expr ','? '{' kind? duration? '}'? ')'` — the
+    /// options object uses colon-param style. The parse layer captures the
+    /// call structurally only; value legality (V6/V7) and the reserved-name
+    /// check (V8) belong to the semantic layer. Unknown option keys and
+    /// duplicate keys are hard parse errors (they can never be legal).
+    fn parse_show_toast_call(&mut self, name: &str, span: Span) -> Result<Expr, ParseError> {
+        // First positional argument: the message (required by BNF).
+        let msg = Box::new(self.parse_expr()?);
+
+        // Optional trailing comma before the options object.
+        if self.at(&TokenKind::Comma) {
+            self.advance();
+        }
+
+        // Optional `{ kind?, duration? }` options object.
+        let mut kind = None;
+        let mut duration = None;
+        if self.at(&TokenKind::LBrace) {
+            self.advance();
+            while !self.at(&TokenKind::RBrace) {
+                // Snapshot the key token span *before* consuming it — every
+                // option-shape error below points precisely at the offending
+                // key (or at the token where '}' was expected).
+                let key_span = self.peek().span;
+                let key = match self.try_parse_ident() {
+                    Some(k) => k,
+                    None => {
+                        // EOF / ')' with no '}' in sight means the options
+                        // object lost its closing brace — report that, not a
+                        // bogus key error. Any other token is a malformed key.
+                        if self.at(&TokenKind::Eof) || self.at(&TokenKind::RParen) {
+                            return Err(ParseError {
+                                kind: None,
+                                message: format!("{} 选项对象未闭合——期望 '}}' 结束选项", name),
+                                span: key_span,
+                            });
+                        }
+                        return Err(ParseError {
+                            kind: None,
+                            message: format!("{} 选项键应为标识符——合法选项: kind/duration", name),
+                            span: key_span,
+                        });
+                    }
+                };
+                self.expect_close(TokenKind::Colon, "期望 ':' 后接 showToast 选项值")?;
+                let value = self.parse_expr()?;
+                match key.as_str() {
+                    "kind" => {
+                        if kind.is_some() {
+                            return Err(ParseError {
+                                kind: None,
+                                message: format!(
+                                    "showToast 选项 \"{}\" 重复声明——每个选项只能出现一次",
+                                    key
+                                ),
+                                span: key_span,
+                            });
+                        }
+                        kind = Some(Box::new(value));
+                    }
+                    "duration" => {
+                        if duration.is_some() {
+                            return Err(ParseError {
+                                kind: None,
+                                message: format!(
+                                    "showToast 选项 \"{}\" 重复声明——每个选项只能出现一次",
+                                    key
+                                ),
+                                span: key_span,
+                            });
+                        }
+                        duration = Some(Box::new(value));
+                    }
+                    other => {
+                        return Err(ParseError {
+                            kind: None,
+                            message: format!(
+                                "未知 showToast 选项 \"{}\"——合法选项: kind/duration",
+                                other
+                            ),
+                            span: key_span,
+                        });
+                    }
+                }
+                if self.at(&TokenKind::Comma) {
+                    self.advance();
+                }
+            }
+            self.expect_close(TokenKind::RBrace, "期望 '}' 闭合 showToast 选项")?;
+        }
+
+        let close_end = self.peek().span.end;
+        self.expect_close(TokenKind::RParen, "期望 ')' 闭合 showToast 调用")?;
+        Ok(Expr::BuiltinToastCall {
+            msg,
+            kind,
+            duration,
+            span: Span {
+                start: span.start,
+                end: close_end,
+                line: span.line,
+                col: span.col,
+            },
+        })
     }
 
     /// Convert an expression that is a VarRef or keyword ident to a string literal key.

@@ -168,6 +168,24 @@ pub enum Expr {
         type_name: String,
         span: Span,
     },
+
+    /// Builtin semantic function call: `showToast(msg, { kind, duration })`
+    /// (spec 2026-08-09 §2.2). Command-line "tell the user a transient
+    /// message" intent — each target compiler generates its own platform
+    /// notification shape (self-generated toast / Flutter SnackBar /
+    /// OmniView self-drawn). The parse layer captures the call structurally;
+    /// kind/duration legality (V6/V7) and the `showToast` reserved name
+    /// (V8) are semantic-layer checks.
+    BuiltinToastCall {
+        /// The message expression (first positional argument).
+        msg: Box<Expr>,
+        /// `kind: "info"|"success"|"error"` option value, if provided.
+        kind: Option<Box<Expr>>,
+        /// `duration: <number>` option value, if provided.
+        duration: Option<Box<Expr>>,
+        /// Full call span `showToast(...)`.
+        span: Span,
+    },
 }
 
 #[derive(Debug, Clone, Serialize)]

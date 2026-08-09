@@ -20,6 +20,14 @@ pub mod motion;
 pub mod prefix;
 pub mod template;
 
+/// Builtin semantic function names (spec 2026-08-09 §5.1 whitelist — the
+/// single compiler fact source for "which identifiers are reserved builtins").
+///
+/// `showToast(msg, { kind, duration })` is a global imperative builtin (spec
+/// 2026-08-09 §2.2): calling it compiles to a platform notification shape on
+/// each target. Users may not shadow it (V8, semantic layer).
+pub(crate) const BUILTIN_FUNCTIONS: &[&str] = &["showToast"];
+
 /// Binding power: (left_bp, right_bp). Higher = tighter.
 type Bp = u8;
 
@@ -328,5 +336,6 @@ pub fn span_of(expr: &Expr) -> &Span {
         Expr::SpreadExpr { span, .. } => span,
         Expr::NotYetImplemented { span, .. } => span,
         Expr::Error { span, .. } => span,
+        Expr::BuiltinToastCall { span, .. } => span,
     }
 }

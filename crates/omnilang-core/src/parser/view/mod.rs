@@ -591,6 +591,25 @@ impl<'a> Parser<'a> {
                         span: t.span,
                     });
                 }
+                // Modal dialog intent: `@modal={openSig}` on a `dialog`
+                // element (spec 2026-08-09 §2.1). Strict `{ IDENT }` value
+                // shape; focus trap / Esc / overlay-close / a11y are
+                // compiler-built-in (semantic layer, Task 3).
+                TokenKind::AtModal => {
+                    props.push(self.parse_modal_directive()?);
+                }
+                // Skeleton placeholder intent: bare `@skeleton` or
+                // `@skeleton="shape"` (spec 2026-08-09 §2.3). Only legal
+                // inside a `@load` loading branch — enforced semantically (V9).
+                TokenKind::AtSkeleton => {
+                    props.push(self.parse_skeleton_directive()?);
+                }
+                // Render-failure fallback intent: bare `@errorBoundary`
+                // (spec 2026-08-09 §2.4). Fallback UI arrives via body-level
+                // `@slot fallback`; no value accepted.
+                TokenKind::AtErrorBoundary => {
+                    props.push(self.parse_error_boundary_directive()?);
+                }
                 // Sub-attribute tokens (@paused, @in-view-once, @scroll-start,
                 // @drag-constraints, etc.) were removed per semantic-level DSL
                 // spec §3.2 — they are re-parsed as regular ident-based attrs in

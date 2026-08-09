@@ -216,7 +216,13 @@ fn walk_view_node(node: &ViewNode, diags: &mut Vec<LintDiagnostic>) {
                     // @form is a bare marker; @validate rule values are
                     // plain exprs — walked in Task 3's validate pass
                     // together with the rest of form handling.
-                    ElementProp::Form | ElementProp::Validate { .. } => {}
+                    // 批次 1 Task 1 占位——@modal/@skeleton/@errorBoundary
+                    // 无数组用法（Task 3 语义校验接管）。
+                    ElementProp::Form
+                    | ElementProp::Validate { .. }
+                    | ElementProp::Modal { .. }
+                    | ElementProp::Skeleton { .. }
+                    | ElementProp::ErrorBoundary => {}
                 }
             }
             for child in &el.children {
@@ -344,6 +350,22 @@ fn walk_expr(expr: &Expr, diags: &mut Vec<LintDiagnostic>) {
         Expr::IsCheck { .. } => {}
         Expr::SpreadExpr { operand, .. } => walk_expr(operand, diags),
         Expr::NotYetImplemented { .. } | Expr::Error { .. } => {}
+        // showToast 的 msg/kind/duration 是普通表达式——嵌套的弃用调用
+        // （如 showToast(array_filter(items, |x| x.done))）同样必须被捕获。
+        Expr::BuiltinToastCall {
+            msg,
+            kind,
+            duration,
+            ..
+        } => {
+            walk_expr(msg, diags);
+            if let Some(k) = kind {
+                walk_expr(k, diags);
+            }
+            if let Some(d) = duration {
+                walk_expr(d, diags);
+            }
+        }
     }
 }
 
@@ -531,5 +553,33 @@ mod tests {
         );
         let diags = DeprecatedArrayStdlib.check_ast(&program, "test.omni");
         assert_eq!(diags.len(), 2, "expected 2 warnings: {:?}", diags);
+    }
+
+    #[test]
+    fn warns_on_deprecated_call_nested_in_show_toast() {
+        // showToast args are ordinary expressions — a deprecated call
+        // nested in the message (or an option value) must be caught like
+        // any other call site.
+        let program = program_with_component_fn(
+            "run",
+            vec![Stmt::ExprStmt {
+                expr: Expr::BuiltinToastCall {
+                    msg: Box::new(call_expr_at(
+                        "array_filter",
+                        vec![ident("items"), closure_expr(ident("x.done"))],
+                        2,
+                        10,
+                    )),
+                    kind: None,
+                    duration: None,
+                    span: span(2, 1),
+                },
+                span: span(2, 1),
+            }],
+        );
+        let diags = DeprecatedArrayStdlib.check_ast(&program, "test.omni");
+        assert_eq!(diags.len(), 1, "expected 1 warning: {:?}", diags);
+        assert!(diags[0].message.contains("array_filter"));
+        assert_eq!(diags[0].line, 2);
     }
 }

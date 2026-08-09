@@ -801,6 +801,8 @@ pub(super) fn expr_contains_side_effect(expr: &Expr, signal_names: &FxHashSet<&s
         Expr::SpreadExpr { operand, .. } => expr_contains_side_effect(operand, signal_names),
         Expr::Literal(..) | Expr::VarRef(..) => false,
         Expr::Error { .. } => false,
+        // 批次 1 Task 1 占位——showToast 调用是副作用（纯函数净化应拒绝）
+        Expr::BuiltinToastCall { .. } => true,
     }
 }
 

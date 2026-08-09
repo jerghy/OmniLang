@@ -180,6 +180,21 @@ pub(super) fn collect_used_names_in_expr<'a>(expr: &'a Expr, used: &mut FxHashSe
         Expr::SpreadExpr { operand, .. } => collect_used_names_in_expr(operand, used),
         Expr::NotYetImplemented { .. } => {}
         Expr::Error { .. } => {}
+        // 批次 1 Task 1 占位——递归收集消息/选项表达式中的名字引用
+        Expr::BuiltinToastCall {
+            msg,
+            kind,
+            duration,
+            ..
+        } => {
+            collect_used_names_in_expr(msg, used);
+            if let Some(k) = kind {
+                collect_used_names_in_expr(k, used);
+            }
+            if let Some(d) = duration {
+                collect_used_names_in_expr(d, used);
+            }
+        }
     }
 }
 

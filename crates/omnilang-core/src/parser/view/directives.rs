@@ -108,6 +108,66 @@ impl<'a> Parser<'a> {
         Ok(ViewNode::LoadDirective { fn_name, span })
     }
 
+    /// Modal dialog intent: `@modal={openSig}` on a `dialog` element (spec
+    /// 2026-08-09 §2.1). Strict shape — `@modal` `=` `{` IDENT `}` —
+    /// mirrors the `@load` directive precedent: the value must be a bare
+    /// identifier reference (the user-declared boolean open signal), not an
+    /// arbitrary expression. Signal existence/type checks are semantic-layer
+    /// (V1/V4/V5).
+    pub(super) fn parse_modal_directive(&mut self) -> Result<ElementProp, ParseError> {
+        self.advance(); // '@modal'
+        self.expect_token(TokenKind::Eq, "'@modal' 后缺少 '='")?;
+        self.expect_token(TokenKind::LBrace, "'=' 后缺少 '{'")?;
+        let signal_span = self.peek_span();
+        let signal_name = self.expect_ident("@modal={...} 内缺少信号名")?;
+        self.expect_token(TokenKind::RBrace, "@modal 信号名后缺少 '}'")?;
+        Ok(ElementProp::Modal {
+            open_signal: Expr::VarRef(signal_name, signal_span),
+        })
+    }
+
+    /// Skeleton placeholder intent: bare `@skeleton` or `@skeleton="shape"`
+    /// (spec 2026-08-09 §2.3). The shape value, when present, must be a
+    /// string literal at parse time (mirroring `@skeleton="text"`);
+    /// shape-name legality (text/line/circle/card) is a semantic-layer
+    /// check (V10), as is the hard constraint that `@skeleton` only appears
+    /// inside a `@load` loading branch (V9).
+    pub(super) fn parse_skeleton_directive(&mut self) -> Result<ElementProp, ParseError> {
+        self.advance(); // '@skeleton'
+        if !matches!(self.peek_kind(), TokenKind::Eq) {
+            return Ok(ElementProp::Skeleton { shape: None });
+        }
+        self.advance(); // '='
+        let t = self.advance();
+        match t.kind {
+            TokenKind::StringLiteral(shape) => Ok(ElementProp::Skeleton { shape: Some(shape) }),
+            other => Err(ParseError {
+                kind: None,
+                message: format!(
+                    "'@skeleton' 的值必须是字符串——合法形状: text/line/circle/card，但得到 {:?}",
+                    other
+                ),
+                span: t.span,
+            }),
+        }
+    }
+
+    /// Render-failure fallback intent: bare `@errorBoundary` (spec
+    /// 2026-08-09 §2.4). Marks an element subtree whose render failures
+    /// fall back to the body-level `@slot fallback`; a value is not allowed
+    /// (same bare-attribute rule as `@form`).
+    pub(super) fn parse_error_boundary_directive(&mut self) -> Result<ElementProp, ParseError> {
+        let t = self.advance(); // '@errorBoundary'
+        if matches!(self.peek_kind(), TokenKind::Eq) {
+            return Err(ParseError {
+                kind: None,
+                message: "'@errorBoundary' 不接受值——使用裸属性标记（spec 2026-08-09 §2.4）".into(),
+                span: t.span,
+            });
+        }
+        Ok(ElementProp::ErrorBoundary)
+    }
+
     pub(super) fn parse_for_directive(&mut self) -> Result<ViewNode, ParseError> {
         self.advance(); // '@for'
         let item_name = self.expect_ident("expected item variable name")?;
@@ -547,5 +607,324 @@ component C {
             !errors.is_empty(),
             "malformed constraints must not parse, got no errors"
         );
+    }
+}
+
+#[cfg(test)]
+mod batch1_feedback_modal_tests {
+    use super::*;
+    use crate::lexer::tokenize;
+    use crate::parser::parse;
+
+    /// Parse a one-component view and return the element props of the first
+    /// (non-text) element child.
+    fn parse_first_element_props(source: &str) -> Vec<ElementProp> {
+        let tokens = tokenize(source);
+        let (program, errors) = parse(tokens, source);
+        assert!(
+            errors.is_empty(),
+            "unexpected parse errors: {:?}",
+            errors.iter().map(|e| e.message.clone()).collect::<Vec<_>>()
+        );
+        let module = program.modules.get("input.omni").unwrap();
+        let comp = &module.components[0];
+        let view = comp.view.as_ref().expect("component has view");
+        for node in &view.children {
+            if let ViewNode::Element(el) = node {
+                return el.props.clone();
+            }
+        }
+        panic!("no element found in: {}", source);
+    }
+
+    /// Parse a one-component module and return the expression-statement
+    /// exprs of the first function body (showToast call sites).
+    fn parse_first_fn_expr_stmts(source: &str) -> Vec<Expr> {
+        let tokens = tokenize(source);
+        let (program, errors) = parse(tokens, source);
+        assert!(
+            errors.is_empty(),
+            "unexpected parse errors: {:?}",
+            errors.iter().map(|e| e.message.clone()).collect::<Vec<_>>()
+        );
+        let module = program.modules.get("input.omni").unwrap();
+        let comp = &module.components[0];
+        let mut out = Vec::new();
+        for stmt in &comp.actions[0].body.stmts {
+            if let Stmt::ExprStmt { expr, .. } = stmt {
+                out.push(expr.clone());
+            }
+        }
+        // The final statement of a block is promoted to `trailing_expr`
+        // (stmt.rs parse_block) — include it so the last showToast call
+        // site is collected too.
+        if let Some(ref e) = comp.actions[0].body.trailing_expr {
+            out.push(e.as_ref().clone());
+        }
+        assert!(!out.is_empty(), "no expr statements found in: {}", source);
+        out
+    }
+
+    /// Parse a one-component module and return the collected parse-error
+    /// messages (negative-path tests — hard errors must be surfaced by the
+    /// parser, not silently recovered).
+    fn parse_error_messages(source: &str) -> Vec<String> {
+        let tokens = tokenize(source);
+        let (_program, errors) = parse(tokens, source);
+        errors.into_iter().map(|e| e.message).collect()
+    }
+
+    #[test]
+    fn error_boundary_with_value_is_hard_error() {
+        let msgs = parse_error_messages(
+            "component C {
+  view { <div @errorBoundary={x} /> }
+}",
+        );
+        assert!(
+            msgs.iter().any(|m| m.contains("@errorBoundary' 不接受值")),
+            "expected @errorBoundary value rejection, got: {:?}",
+            msgs
+        );
+    }
+
+    #[test]
+    fn skeleton_non_string_value_is_hard_error() {
+        let msgs = parse_error_messages(
+            "component C {
+  view { <div @skeleton=42 /> }
+}",
+        );
+        assert!(
+            msgs.iter()
+                .any(|m| m.contains("@skeleton' 的值必须是字符串")),
+            "expected @skeleton non-string rejection, got: {:?}",
+            msgs
+        );
+    }
+
+    #[test]
+    fn modal_missing_shape_parts_are_hard_errors() {
+        for (src, expected) in [
+            (
+                "component C {
+  view { <div @modal isOpen /> }
+}",
+                "'@modal' 后缺少 '='",
+            ),
+            (
+                "component C {
+  view { <dialog @modal={} /> }
+}",
+                "缺少信号名",
+            ),
+            (
+                "component C {
+  view { <dialog @modal={isOpen /> }
+}",
+                "缺少 '}'",
+            ),
+        ] {
+            let msgs = parse_error_messages(src);
+            assert!(
+                msgs.iter().any(|m| m.contains(expected)),
+                "expected {:?} for {:?}, got: {:?}",
+                expected,
+                src,
+                msgs
+            );
+        }
+    }
+
+    #[test]
+    fn show_toast_unknown_and_duplicate_option_keys_are_hard_errors() {
+        for (src, expected) in [
+            (
+                "component C {
+  action save() {
+    showToast(\"x\", { tone: \"error\" })
+  }
+  view { <div>x</div> }
+}",
+                "未知 showToast 选项 \"tone\"",
+            ),
+            (
+                "component C {
+  action save() {
+    showToast(\"x\", { kind: \"error\", kind: \"info\" })
+  }
+  view { <div>x</div> }
+}",
+                "重复声明",
+            ),
+        ] {
+            let msgs = parse_error_messages(src);
+            assert!(
+                msgs.iter().any(|m| m.contains(expected)),
+                "expected {:?} for {:?}, got: {:?}",
+                expected,
+                src,
+                msgs
+            );
+        }
+    }
+
+    #[test]
+    fn show_toast_unclosed_options_is_hard_error() {
+        // Options `{` opened but never closed — EOF and ')' fallbacks must
+        // report the missing '}', not a bogus option-key error.
+        for src in [
+            // True EOF fallback: the source ends while the options object
+            // is still open (no trailing '}' anywhere).
+            "component C {
+  action save() {
+    showToast(\"x\", { kind: \"error\"",
+            // ')' fallback: options open, then the call's closing paren
+            // arrives without the '}' — the options object is unclosed.
+            "component C {
+  action save() {
+    showToast(\"x\", { kind: \"error\" )
+  }
+  view { <div>x</div> }
+}",
+        ] {
+            let msgs = parse_error_messages(src);
+            assert!(
+                msgs.iter().any(|m| m.contains("选项对象未闭合")),
+                "expected unclosed-options error for {:?}, got: {:?}",
+                src,
+                msgs
+            );
+        }
+    }
+
+    #[test]
+    fn parse_modal_dialog_shape() {
+        // spec 2026-08-09 §2.1: ModalDirective := '@modal' '=' '{' Ident '}'
+        let props = parse_first_element_props(
+            "component C {
+  view { <dialog @modal={isOpen}><div>x</div></dialog> }
+}",
+        );
+        let modal = props
+            .iter()
+            .find_map(|p| match p {
+                ElementProp::Modal { open_signal } => Some(open_signal),
+                _ => None,
+            })
+            .expect("expected @modal prop");
+        assert!(
+            matches!(modal, Expr::VarRef(ref name, _) if name == "isOpen"),
+            "open_signal must be the identifier ref isOpen, got: {:?}",
+            modal
+        );
+    }
+
+    #[test]
+    fn parse_skeleton_directive_shapes() {
+        // spec 2026-08-09 §2.3: SkeletonDirective := '@skeleton'
+        // | '@skeleton' '=' StringLiteral
+        let props = parse_first_element_props(
+            "component C {
+  view { <div @skeleton /> }
+}",
+        );
+        assert!(
+            props
+                .iter()
+                .any(|p| matches!(p, ElementProp::Skeleton { shape: None })),
+            "bare @skeleton must parse with no shape, got: {:?}",
+            props
+        );
+
+        let props = parse_first_element_props(
+            "component C {
+  view { <div @skeleton=\"card\" /> }
+}",
+        );
+        assert!(
+            props.iter().any(|p| matches!(
+                p,
+                ElementProp::Skeleton {
+                    shape: Some(ref s)
+                } if s == "card"
+            )),
+            "@skeleton=\"card\" must parse shape Some(\"card\"), got: {:?}",
+            props
+        );
+    }
+
+    #[test]
+    fn parse_error_boundary_directive() {
+        // spec 2026-08-09 §2.4: ErrorBoundaryDirective := '@errorBoundary'
+        // (bare only); fallback slot flows through the view-level @slot.
+        let props = parse_first_element_props(
+            "component C {
+  view {
+    <div @errorBoundary>
+      @slot fallback { <Text>加载失败</Text> }
+      <UserProfile />
+    </div>
+  }
+}",
+        );
+        assert!(
+            props
+                .iter()
+                .any(|p| matches!(p, ElementProp::ErrorBoundary)),
+            "expected @errorBoundary prop, got: {:?}",
+            props
+        );
+    }
+
+    #[test]
+    fn parse_show_toast_builtin_call() {
+        // spec 2026-08-09 §2.2: ShowToastCall := 'showToast' '(' Expr ','?
+        // ToastOptions? ')' — parse layer captures structurally only.
+        let exprs = parse_first_fn_expr_stmts(
+            "component C {
+  action save() {
+    showToast(\"保存成功\")
+    showToast(\"网络不可用\", { kind: \"error\", duration: 0 })
+  }
+  view { <div>x</div> }
+}",
+        );
+        let Expr::BuiltinToastCall {
+            msg,
+            kind,
+            duration,
+            ..
+        } = &exprs[0]
+        else {
+            panic!("expected BuiltinToastCall, got: {:?}", exprs[0]);
+        };
+        assert!(matches!(
+            msg.as_ref(),
+            Expr::Literal(Literal::String(ref s), _) if s == "保存成功"
+        ));
+        assert!(kind.is_none() && duration.is_none(), "default options");
+
+        let Expr::BuiltinToastCall {
+            msg,
+            kind,
+            duration,
+            ..
+        } = &exprs[1]
+        else {
+            panic!("expected BuiltinToastCall, got: {:?}", exprs[1]);
+        };
+        assert!(matches!(
+            msg.as_ref(),
+            Expr::Literal(Literal::String(ref s), _) if s == "网络不可用"
+        ));
+        assert!(matches!(
+            kind.as_deref(),
+            Some(Expr::Literal(Literal::String(ref k), _)) if k == "error"
+        ));
+        assert!(matches!(
+            duration.as_deref(),
+            Some(Expr::Literal(Literal::Int(0), _))
+        ));
     }
 }

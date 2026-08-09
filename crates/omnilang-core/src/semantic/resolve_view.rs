@@ -89,7 +89,12 @@ impl SemanticAnalyzer {
                 | ElementProp::Variant { .. }
                 | ElementProp::Drag { .. }
                 | ElementProp::Form
-                | ElementProp::Validate { .. } => {}
+                | ElementProp::Validate { .. }
+                // 批次 1 Task 1 占位——@modal 信号存在性等语义由
+                // Task 3 validate_feedback_modal 接管，这里无需解析。
+                | ElementProp::Modal { .. }
+                | ElementProp::Skeleton { .. }
+                | ElementProp::ErrorBoundary => {}
             }
         }
         // Children of a component instantiation are consumer-side
