@@ -1,5 +1,6 @@
 ---
 source: omnilang/src/codegen/omniview/tests_regression/motion.rs
+assertion_line: 637
 expression: "&output"
 ---
 // === mount_js ===
@@ -72,8 +73,11 @@ expression: "&output"
   el.addEventListener('pointerup', (e) => {
    isDragging = false;
    el.releasePointerCapture(e.pointerId);
-   const progress = Math.abs(currentDelta) / maxExtent;
-   if (progress >= threshold && maxExtent > 0) {
+   // threshold is a PIXEL value (e.g. threshold: 8) — compare the
+                // raw drag distance, not the normalized 0..1 progress (a
+                // progress >= threshold comparison never fired: 0.8 < 8, so every
+                // drag reverted instead of playing the throw animation).
+                if (Math.abs(currentDelta) >= threshold && maxExtent > 0) {
     anim.play();
    } else {
     anim.reverse();

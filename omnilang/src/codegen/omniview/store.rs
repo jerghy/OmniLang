@@ -370,6 +370,12 @@ impl OmniViewGenerator {
                 .name_renames
                 .insert("data".to_string(), ldata.clone());
             self.name_resolver.signal_names.insert(ldata.clone());
+            // `retry` is the generated re-run callback (a function, not a
+            // signal): map the bare name so fn bodies / inline handlers can
+            // call it, but do NOT add to signal_names (no .value deref).
+            self.name_resolver
+                .name_renames
+                .insert("retry".to_string(), format!("{name}_retry"));
             let _ = writeln!(
                 self.js,
                 "const {lloading} = __omni_signal(\"{lloading}\", true);"

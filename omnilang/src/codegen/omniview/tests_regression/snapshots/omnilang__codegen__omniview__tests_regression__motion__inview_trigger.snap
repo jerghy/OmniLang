@@ -1,5 +1,6 @@
 ---
 source: omnilang/src/codegen/omniview/tests_regression/motion.rs
+assertion_line: 975
 expression: "&output"
 ---
 // === mount_js ===
@@ -13,17 +14,16 @@ expression: "&output"
   if (!__omni_animations.has("el-inview-001")) __omni_animations.set("el-inview-001", new Map());
   __omni_animations.get("el-inview-001").set("inView", anim);
   const threshold = 0.5;
+  const fire = function() {
+   anim.play();
+   if (true) { observer.disconnect(); }
+  };
   const observer = new IntersectionObserver((entries) => {
    entries.forEach(entry => {
-    if (entry.isIntersecting) {
-     anim.play();
-     if (true) {
-      observer.disconnect();
-     }
-    }
+    if (entry.isIntersecting) { fire(); }
    });
   }, { threshold: threshold });
   observer.observe(el);
   window.__omni_inview_observers = window.__omni_inview_observers || [];
-  __omni_inview_observers.push({ nid: "el-inview-001", observer: observer });
+  __omni_inview_observers.push({ nid: "el-inview-001", observer: observer, fire: fire });
 })();

@@ -122,7 +122,7 @@ function __omni_buildNidMap() {\n\
         // Sync mode (default): instant branch switching, @enter/@leave coexist in DOM
         self.js.push_str("__omni_effect(() => {\n");
         let _ = writeln!(self.js, "  const _nids = {};", nid_array);
-        self.js.push_str("  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? \"block\" : \"none\"; if (id === nid) { e.querySelectorAll('[data-nid]').forEach(function(c) { var a = __omni_animations.get(c.getAttribute('data-nid') + '_enter'); if (a) { a.cancel(); a.play(); } }); } else { e.querySelectorAll('[data-nid]').forEach(function(c) { __omni_cleanupElement(c.getAttribute('data-nid')); }); } } }); };\n");
+        self.js.push_str("  const _show = (nid) => { _nids.forEach(id => { const e = __omni_el(id); if (e) { e.style.display = (id === nid) ? \"block\" : \"none\"; if (id === nid) { e.querySelectorAll('[data-nid]').forEach(function(c) { var a = __omni_animations.get(c.getAttribute('data-nid') + '_enter'); if (a) { a.cancel(); a.play(); } __omni_checkInView(c.getAttribute('data-nid')); }); } else { e.querySelectorAll('[data-nid]').forEach(function(c) { __omni_cancelElement(c.getAttribute('data-nid')); }); } } }); };\n");
 
         // For each branch, build the if/else if chain
         for (i, (cond_js, branch_nid)) in conditions_js.iter().enumerate() {

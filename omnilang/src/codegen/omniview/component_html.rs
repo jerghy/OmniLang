@@ -40,6 +40,14 @@ impl OmniViewGenerator {
                 self.scope.current_component = child_comp.name.clone();
                 self.scope.form_intent = child_comp.form_intent.clone();
                 self.scope.load_intent = child_comp.load_intent.clone();
+                // @load/@form builtin reserved names (loading/error/data/retry,
+                // formErrors/formValid/formSubmitting) must resolve to the
+                // child's prefixed signals in the inlined view — the same
+                // registration generate_component does for top-level
+                // components. Without it, `@if loading` / `{error}` /
+                // `@for x in data` in a nested @load component emit bare
+                // identifiers and throw ReferenceError at runtime.
+                self.register_builtin_intent_names(child_comp.as_ref());
 
                 if self.scope.in_for_template {
                     // fn-typed props of the child must be callable in the
@@ -174,18 +182,18 @@ impl OmniViewGenerator {
                     }
                 }
 
-                // Merge parent signal renames into child scope so slot content
+                // Merge parent renames into child scope so slot content
                 // referencing parent signals (e.g. {count}) resolves to the
                 // parent's prefixed signal name (SignalPatternsDemo_count.value)
                 // rather than a bare `count` identifier.
                 for (name, prefixed) in &saved_scope.name_renames {
-                    if saved_scope.signal_names.contains(prefixed.as_str())
-                        && !self.name_resolver.name_renames.contains_key(name.as_str())
-                    {
-                        self.name_resolver.signal_names.insert(prefixed.clone());
+                    if !self.name_resolver.name_renames.contains_key(name.as_str()) {
                         self.name_resolver
                             .name_renames
                             .insert(name.clone(), prefixed.clone());
+                        if saved_scope.signal_names.contains(prefixed.as_str()) {
+                            self.name_resolver.signal_names.insert(prefixed.clone());
+                        }
                     }
                 }
 
@@ -380,6 +388,51 @@ impl OmniViewGenerator {
         }
         None
     }
+
+    /// Register the @load/@form builtin reserved names of a child component
+    /// (loading/error/data/retry, formErrors/formValid/formSubmitting) into
+    /// `name_renames`/`signal_names` so inlined-view expressions resolve them
+    /// to the child's prefixed signals (`Child_loading.value`), mirroring the
+    /// registration `generate_component` performs for top-level components.
+    ///
+    /// These names live in the semantic reserved-name table (validate_form_load)
+    /// and are NOT part of `ComponentIR.signals`, so the generic signal loop
+    /// above would silently skip them — leaving `@if loading` to lower to a
+    /// bare `loading` identifier that throws ReferenceError at runtime.
+    fn register_builtin_intent_names(&mut self, comp: &ComponentIR) {
+        if comp.load_intent.is_some() {
+            for (bare, kind) in [
+                ("loading", IntentReservedKind::Signal),
+                ("error", IntentReservedKind::Signal),
+                ("data", IntentReservedKind::Signal),
+                ("retry", IntentReservedKind::Fn),
+            ] {
+                let prefixed = format!("{}_{}", comp.name, bare);
+                self.name_resolver
+                    .name_renames
+                    .insert(bare.to_string(), prefixed.clone());
+                if matches!(kind, IntentReservedKind::Signal) {
+                    self.name_resolver.signal_names.insert(prefixed);
+                }
+            }
+        }
+        if comp.form_intent.is_some() {
+            for bare in ["formErrors", "formSubmitting", "formValid"] {
+                let prefixed = format!("{}_{}", comp.name, bare);
+                self.name_resolver
+                    .name_renames
+                    .insert(bare.to_string(), prefixed.clone());
+                self.name_resolver.signal_names.insert(prefixed);
+            }
+        }
+    }
+}
+
+/// Kind of an intent-reserved builtin name — signals read via `.value`,
+/// fns invoked as plain identifiers.
+enum IntentReservedKind {
+    Signal,
+    Fn,
 }
 
 /// Recursively maps parent children into <slot> elements in the view tree.

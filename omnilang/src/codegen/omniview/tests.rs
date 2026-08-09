@@ -2872,3 +2872,222 @@ component App {
         js
     );
 }
+
+/// 嵌套 @load 子组件：内联视图中 `@if loading` / `{error}` /
+/// `@for x in data` 必须解析为子组件前缀信号（Child_loading.value 等），
+/// 而不是裸标识符——裸名会在运行时抛 ReferenceError
+/// （Learn-omniView LoadDemo 在 UiComponents 页的实测回归）。
+#[test]
+fn omniview_nested_load_child_resolves_reserved_signals() {
+    let source = r#"
+component LoadChild {
+  fn fetchItems() -> Array<String> { return []; }
+  view {
+    @load={fetchItems}
+    @if loading { <p>loading</p> }
+    @if error != "" { <p>{error}</p> }
+    @for item in data { <li>{item}</li> }
+    <button @onPress={retry}>Retry</button>
+  }
+}
+
+component App {
+  view {
+    <LoadChild />
+  }
+}
+"#;
+    let result = crate::compile_omniview(source, false, false);
+    assert!(result.success, "compilation failed: {:?}", result.errors);
+    let js = result.files.expect("Expected JS output").js;
+    // @if condition reads the prefixed signal, not a bare identifier.
+    assert!(
+        js.contains("if (LoadChild_loading.value)"),
+        "@if loading must resolve to LoadChild_loading.value. JS:\n{}",
+        js
+    );
+    // Interpolation reads the prefixed error signal.
+    assert!(
+        js.contains("String(LoadChild_error.value)"),
+        "{{error}} must resolve to LoadChild_error.value. JS:\n{}",
+        js
+    );
+    // @for iterates the prefixed data signal (no `const data = data` TDZ).
+    assert!(
+        !js.contains("const data = data"),
+        "@for data must not self-reference. JS:\n{}",
+        js
+    );
+    // retry callback resolves to the prefixed fn.
+    assert!(
+        js.contains("LoadChild_retry("),
+        "retry must resolve to LoadChild_retry. JS:\n{}",
+        js
+    );
+}
+
+/// `bind:value` 在 `<select>` 上必须监听 `change` 事件——select 元素
+/// 不触发 `input` 事件，绑定到 input 会让选择永远无法写回信号
+/// （FormControlsDemo 实测回归：改选 option3 后 Value 仍显示 option2）。
+#[test]
+fn omniview_bind_value_on_select_uses_change_event() {
+    let source = r#"
+component App {
+  signal selected: String = "option2";
+  view {
+    <select bind:value={selected}>
+      <option value="option1">One</option>
+      <option value="option2">Two</option>
+      <option value="option3">Three</option>
+    </select>
+    <p>{selected}</p>
+  }
+}
+"#;
+    let result = crate::compile_omniview(source, false, false);
+    assert!(result.success, "compilation failed: {:?}", result.errors);
+    let js = result.files.expect("Expected JS output").js;
+    // The write-back listener must use "change" for select elements.
+    let bind_pos = js.find("App_selected").expect("signal decl must exist");
+    let listener_block = &js[bind_pos..];
+    let pos = listener_block
+        .find("addEventListener")
+        .expect("binding listener must exist");
+    let snippet = &listener_block[pos..pos + 120];
+    assert!(
+        snippet.contains("change"),
+        "select bind:value must listen to 'change', got:\n{}",
+        snippet
+    );
+    assert!(
+        !snippet.contains("\"input\""),
+        "select bind:value must NOT listen to 'input', got:\n{}",
+        snippet
+    );
+}
+
+/// 标签页/条件分支隐藏时，@if 的 _show 必须只 cancel 元素动画而保留
+/// 注册（__omni_cancelElement）——若删除注册（__omni_cleanupElement），
+/// 隐藏分支内的 @hover/@press/@focus 触发器在分支切回后永久失效
+/// （MotionDemo 在标签页切换后 hover/press 无动画的实测回归）。
+#[test]
+fn omniview_if_branch_hide_keeps_motion_registrations() {
+    let source = r#"
+@motion pulse {
+  to { scale: 1.05 }
+  over: 800ms
+  easing: ease-in-out
+  direction alternate
+  loop
+}
+
+component App {
+  signal activeTab: String = "overview";
+  view {
+    @if activeTab == "overview" { <div>Overview</div> }
+    @else { <div @hover={pulse}>Motion</div> }
+  }
+}
+"#;
+    let result = crate::compile_omniview(source, false, false);
+    assert!(result.success, "compilation failed: {:?}", result.errors);
+    let js = result.files.expect("Expected JS output").js;
+    // Runtime must provide the keep-registration cancel helper.
+    assert!(
+        js.contains("function __omni_cancelElement"),
+        "runtime must define __omni_cancelElement. JS head:\n{}",
+        &js[..js.len().min(3000)]
+    );
+    // The _show hidden-branch path must cancel, NOT fully clean up.
+    assert!(
+        js.contains("__omni_cancelElement(c.getAttribute('data-nid'))"),
+        "hidden branch must use __omni_cancelElement. JS:\n{}",
+        js
+    );
+    assert!(
+        !js.contains(
+            "else { e.querySelectorAll('[data-nid]').forEach(function(c) { __omni_cleanupElement(c.getAttribute('data-nid')); }); }"
+        ),
+        "hidden branch must NOT delete registrations via __omni_cleanupElement"
+    );
+}
+
+/// @drag 的 threshold 是像素阈值：pointerup 判断必须用原始拖拽距离
+/// （Math.abs(currentDelta) >= threshold），而不是归一化 progress——
+/// progress(0..1) 与像素 threshold 比较恒不成立，导致每次释放都走
+/// reverse() 回弹而非 play() 抛掷动画（MotionTriggersDemo 实测回归）。
+#[test]
+fn omniview_drag_threshold_compares_pixels_not_progress() {
+    let source = r#"
+@motion dragSlide {
+  from { translateX: 0 }
+  to   { translateX: 100 }
+  over: 300ms
+  easing: power2-out
+}
+
+component App {
+  view {
+    <div @drag-horizontal constraints: [-100, 100] elastic: 0.5 threshold: 8={dragSlide}>
+      <p>drag me</p>
+    </div>
+  }
+}
+"#;
+    let result = crate::compile_omniview(source, false, false);
+    assert!(result.success, "compilation failed: {:?}", result.errors);
+    let js = result.files.expect("Expected JS output").js;
+    assert!(
+        js.contains("if (Math.abs(currentDelta) >= threshold && maxExtent > 0)"),
+        "pointerup must compare pixel delta against pixel threshold. JS:\n{}",
+        js
+    );
+    assert!(
+        !js.contains("if (progress >= threshold && maxExtent > 0)"),
+        "normalized progress must not be compared to pixel threshold"
+    );
+}
+
+/// 父组件在子组件 slot 内容上绑定事件（@onPress={parentFn}）：handler
+/// 必须解析为父组件前缀（SignalPatternsDemo_toggleSlot），而不是子组件
+/// 前缀（SlotBox_toggleSlot——运行时 ReferenceError）。slot 内容语义上
+/// 属于父作用域（SignalPatternsDemo 命名插槽 Confirm 按钮实测回归）。
+#[test]
+fn omniview_slot_content_event_resolves_parent_handler() {
+    let source = r#"
+component SlotBox {
+  @slot footer
+  signal count: i32 = 0;
+  fn addOne() { count = count + 1; }
+  view {
+    <div>
+      <button @onPress={addOne}>+1</button>
+      {footer}
+    </div>
+  }
+}
+
+component App {
+  signal open: bool = false;
+  fn toggleSlot() { open = !open; }
+  view {
+    <SlotBox footer={<button @onPress={toggleSlot}>Confirm</button>} />
+  }
+}
+"#;
+    let result = crate::compile_omniview(source, false, false);
+    assert!(result.success, "compilation failed: {:?}", result.errors);
+    let js = result.files.expect("Expected JS output").js;
+    // The slot content's handler must resolve to the PARENT's fn.
+    assert!(
+        js.contains("App_toggleSlot(") && !js.contains("SlotBox_toggleSlot("),
+        "slot content handler must resolve to App_toggleSlot, got:\n{}",
+        js
+    );
+    // The child's own handler still resolves to the child's fn.
+    assert!(
+        js.contains("SlotBox_addOne("),
+        "child's own handler must resolve to SlotBox_addOne. JS:\n{}",
+        js
+    );
+}

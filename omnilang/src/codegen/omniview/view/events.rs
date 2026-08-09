@@ -261,7 +261,21 @@ impl OmniViewGenerator {
                         nid = nid, js_event = js_event, sp = sp, pd = pd, call = call
                     );
                 } else {
-                    let prefixed = format!("{}_{}", self.scope.current_component, r#ref);
+                    // Resolve through name_renames FIRST: slot content injected
+                    // into a child component (e.g. <SlotBox footer={<button
+                    // @onPress={toggleSlot}/>}>) belongs to the PARENT's scope,
+                    // but current_component is the child while the inlined view
+                    // is emitted — a bare `{comp}_{ref}` prefix would resolve
+                    // the parent's handler to a nonexistent child fn
+                    // (ReferenceError: SlotBox_toggleSlot). name_renames holds
+                    // the parent's fn mapping (toggleSlot →
+                    // SignalPatternsDemo_toggleSlot) at that point.
+                    let prefixed = self
+                        .name_resolver
+                        .name_renames
+                        .get(r#ref)
+                        .cloned()
+                        .unwrap_or_else(|| format!("{}_{}", self.scope.current_component, r#ref));
                     let event_obj =
                         emit_event_object(handler.event_data(), handler.used_fields(), "e");
                     let mut call = format!("{prefixed}({event_obj})");

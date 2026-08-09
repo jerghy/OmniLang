@@ -1,5 +1,6 @@
 ---
 source: omnilang/src/codegen/omniview/tests_regression/motion.rs
+assertion_line: 514
 expression: "&gen.js"
 ---
 // @focus trigger
@@ -9,7 +10,7 @@ expression: "&gen.js"
    const anim = __omni_motion_pulse(el, { trigger: "focus" });
    if (!__omni_animations.has("el-input-003")) __omni_animations.set("el-input-003", new Map());
    __omni_animations.get("el-input-003").set("focus", anim);
-   el.addEventListener("focusin", function() { __omni_animations.get("el-input-003")?.get("focus")?.play(); });
-   el.addEventListener("focusout", function() { __omni_animations.get("el-input-003")?.get("focus")?.reverse(); });
+   el.addEventListener("focusin", function() { var a = __omni_animations.get("el-input-003")?.get("focus"); if (a) { if (a.playState === "reversed") { a.reverse(); } else { a.play(); } } });
+   el.addEventListener("focusout", function() { var a = __omni_animations.get("el-input-003")?.get("focus"); if (a) { if (a.effect && a.effect.getTiming && a.effect.getTiming().iterations === Infinity) { a.pause(); } else { a.reverse(); } } });
   }
 })();

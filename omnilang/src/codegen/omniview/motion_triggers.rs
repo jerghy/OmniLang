@@ -97,19 +97,18 @@ impl OmniViewGenerator {
              \x20 if (!__omni_animations.has(\"{nid}\")) __omni_animations.set(\"{nid}\", new Map());\n\
              \x20 __omni_animations.get(\"{nid}\").set(\"{trigger}\", anim);\n\
              \x20 const threshold = {threshold};\n\
+             \x20 const fire = function() {{\n\
+             \x20\x20 anim.play();\n\
+             \x20\x20 if ({disconnect_js}) {{ observer.disconnect(); }}\n\
+             \x20 }};\n\
              \x20 const observer = new IntersectionObserver((entries) => {{\n\
              \x20\x20 entries.forEach(entry => {{\n\
-             \x20\x20\x20 if (entry.isIntersecting) {{\n\
-             \x20\x20\x20\x20 anim.play();\n\
-             \x20\x20\x20\x20 if ({disconnect_js}) {{\n\
-             \x20\x20\x20\x20\x20 observer.disconnect();\n\
-             \x20\x20\x20\x20 }}\n\
-             \x20\x20\x20 }}\n\
+             \x20\x20\x20 if (entry.isIntersecting) {{ fire(); }}\n\
              \x20\x20 }});\n\
              \x20 }}, {{ threshold: threshold }});\n\
              \x20 observer.observe(el);\n\
              \x20 window.__omni_inview_observers = window.__omni_inview_observers || [];\n\
-             \x20 __omni_inview_observers.push({{ nid: \"{nid}\", observer: observer }});\n\
+             \x20 __omni_inview_observers.push({{ nid: \"{nid}\", observer: observer, fire: fire }});\n\
              }})();",
             comment = comment,
             nid = nid,
@@ -403,8 +402,11 @@ impl OmniViewGenerator {
              \x20 el.addEventListener('pointerup', (e) => {{\n\
              \x20\x20 isDragging = false;\n\
              \x20\x20 el.releasePointerCapture(e.pointerId);\n\
-             \x20\x20 const progress = Math.abs(currentDelta) / maxExtent;\n\
-             \x20\x20 if (progress >= threshold && maxExtent > 0) {{\n\
+             \x20\x20 // threshold is a PIXEL value (e.g. threshold: 8) — compare the
+             \x20\x20 // raw drag distance, not the normalized 0..1 progress (a
+             \x20\x20 // progress >= threshold comparison never fired: 0.8 < 8, so every
+             \x20\x20 // drag reverted instead of playing the throw animation).
+             \x20\x20 if (Math.abs(currentDelta) >= threshold && maxExtent > 0) {{\n\
              \x20\x20\x20 anim.play();\n\
              \x20\x20 }} else {{\n\
              \x20\x20\x20 anim.reverse();\n\
@@ -467,8 +469,8 @@ impl OmniViewGenerator {
                     "// @hover trigger"
                 };
                 let extra = format!(
-                    "\x20\x20 el.addEventListener(\"mouseenter\", function() {{ __omni_animations.get(\"{nid}\")?.get(\"{trigger}\")?.play(); }});\n\
-                     \x20\x20 el.addEventListener(\"mouseleave\", function() {{ __omni_animations.get(\"{nid}\")?.get(\"{trigger}\")?.reverse(); }});\n",
+                    "\x20\x20 el.addEventListener(\"mouseenter\", function() {{ var a = __omni_animations.get(\"{nid}\")?.get(\"{trigger}\"); if (a) {{ if (a.playState === \"reversed\") {{ a.reverse(); }} else {{ a.play(); }} }} }});\n\
+                     \x20\x20 el.addEventListener(\"mouseleave\", function() {{ var a = __omni_animations.get(\"{nid}\")?.get(\"{trigger}\"); if (a) {{ if (a.effect && a.effect.getTiming && a.effect.getTiming().iterations === Infinity) {{ a.pause(); }} else {{ a.reverse(); }} }} }});\n",
                     nid = nid,
                     trigger = trigger_str,
                 );
@@ -487,8 +489,8 @@ impl OmniViewGenerator {
                     "// @press trigger"
                 };
                 let extra = format!(
-                    "\x20\x20 el.addEventListener(\"mousedown\", function() {{ __omni_animations.get(\"{nid}\")?.get(\"{trigger}\")?.play(); }});\n\
-                     \x20\x20 el.addEventListener(\"mouseup\", function() {{ __omni_animations.get(\"{nid}\")?.get(\"{trigger}\")?.reverse(); }});\n",
+                    "\x20\x20 el.addEventListener(\"mousedown\", function() {{ var a = __omni_animations.get(\"{nid}\")?.get(\"{trigger}\"); if (a) {{ if (a.playState === \"reversed\") {{ a.reverse(); }} else {{ a.play(); }} }} }});\n\
+                     \x20\x20 el.addEventListener(\"mouseup\", function() {{ var a = __omni_animations.get(\"{nid}\")?.get(\"{trigger}\"); if (a) {{ if (a.effect && a.effect.getTiming && a.effect.getTiming().iterations === Infinity) {{ a.pause(); }} else {{ a.reverse(); }} }} }});\n",
                     nid = nid,
                     trigger = trigger_str,
                 );
@@ -507,8 +509,8 @@ impl OmniViewGenerator {
                     "// @focus trigger"
                 };
                 let extra = format!(
-                    "\x20\x20 el.addEventListener(\"focusin\", function() {{ __omni_animations.get(\"{nid}\")?.get(\"{trigger}\")?.play(); }});\n\
-                     \x20\x20 el.addEventListener(\"focusout\", function() {{ __omni_animations.get(\"{nid}\")?.get(\"{trigger}\")?.reverse(); }});\n",
+                    "\x20\x20 el.addEventListener(\"focusin\", function() {{ var a = __omni_animations.get(\"{nid}\")?.get(\"{trigger}\"); if (a) {{ if (a.playState === \"reversed\") {{ a.reverse(); }} else {{ a.play(); }} }} }});\n\
+                     \x20\x20 el.addEventListener(\"focusout\", function() {{ var a = __omni_animations.get(\"{nid}\")?.get(\"{trigger}\"); if (a) {{ if (a.effect && a.effect.getTiming && a.effect.getTiming().iterations === Infinity) {{ a.pause(); }} else {{ a.reverse(); }} }} }});\n",
                     nid = nid,
                     trigger = trigger_str,
                 );

@@ -1,5 +1,6 @@
 ---
 source: omnilang/src/codegen/tests_regression/parameterized.rs
+assertion_line: 124
 expression: "& super :: super :: format_output(& output)"
 ---
 === index.html ===
@@ -211,6 +212,40 @@ function __omni_el(nid) {
 	}
 	function __omni_forToggleState(comp, name, rebindFn) {
 	  __omni_forSetState(comp, name, !__omni_forGetState(comp, name, false), rebindFn);
+	}
+	function __omni_checkInView(nid) {
+	  // Chrome does not deliver IntersectionObserver updates when an element
+	  // observed while hidden (display:none) becomes visible — the observer
+	  // simply never fires. The @if show path calls this for every element in
+	  // the branch being revealed, so @in-view triggers fire even after a tab
+	  // switch (regression: in-view animations dead on first tab visit).
+	  var arr = window.__omni_inview_observers;
+	  if (!arr) return;
+	  for (var i = 0; i < arr.length; i++) {
+	    if (arr[i].nid !== nid || typeof arr[i].fire !== 'function') continue;
+	    var el = __omni_el(nid);
+	    if (!el || el.offsetParent === null) continue;
+	    var r = el.getBoundingClientRect();
+	    var vw = window.innerWidth || document.documentElement.clientWidth;
+	    var vh = window.innerHeight || document.documentElement.clientHeight;
+	    if (r.bottom > 0 && r.top < vh && r.right > 0 && r.left < vw) {
+	      arr[i].fire();
+	    }
+	  }
+	}
+	function __omni_cancelElement(nid) {
+	  if (!nid) return;
+	  var anims = __omni_animations.get(nid);
+	  if (anims) {
+	    anims.forEach(function(anim) {
+	      try { anim.cancel(); } catch(_) {}
+	    });
+	    // KEEP the registration: the element is only hidden (display:none),
+	    // and its hover/press/focus trigger animations must still fire when
+	    // the branch becomes visible again. Deleting here would permanently
+	    // kill the triggers (regression: motion triggers dead after a tab
+	    // switch hides their branch).
+	  }
 	}
 	function __omni_cleanupElement(nid) {
 	  if (!nid) return;

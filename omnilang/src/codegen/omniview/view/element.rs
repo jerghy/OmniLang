@@ -417,6 +417,11 @@ impl OmniViewGenerator {
                 let _ = writeln!(self.js, "let {} = false;", guard_name);
                 let (event_name, dom_prop) = if prop_name == "checked" {
                     ("change", "checked")
+                } else if el.tag == "select" {
+                    // `<select>` fires only `change` (no `input` event) —
+                    // binding it to "input" would silently never write the
+                    // signal back on selection.
+                    ("change", "value")
                 } else {
                     ("input", "value")
                 };

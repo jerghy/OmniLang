@@ -1,5 +1,6 @@
 ---
 source: omnilang/src/codegen/omniview/tests_regression/motion.rs
+assertion_line: 473
 expression: "&gen.js"
 ---
 // @hover trigger
@@ -9,7 +10,7 @@ expression: "&gen.js"
    const anim = __omni_motion_scaleUp(el, { trigger: "hover" });
    if (!__omni_animations.has("el-btn-002")) __omni_animations.set("el-btn-002", new Map());
    __omni_animations.get("el-btn-002").set("hover", anim);
-   el.addEventListener("mouseenter", function() { __omni_animations.get("el-btn-002")?.get("hover")?.play(); });
-   el.addEventListener("mouseleave", function() { __omni_animations.get("el-btn-002")?.get("hover")?.reverse(); });
+   el.addEventListener("mouseenter", function() { var a = __omni_animations.get("el-btn-002")?.get("hover"); if (a) { if (a.playState === "reversed") { a.reverse(); } else { a.play(); } } });
+   el.addEventListener("mouseleave", function() { var a = __omni_animations.get("el-btn-002")?.get("hover"); if (a) { if (a.effect && a.effect.getTiming && a.effect.getTiming().iterations === Infinity) { a.pause(); } else { a.reverse(); } } });
   }
 })();
