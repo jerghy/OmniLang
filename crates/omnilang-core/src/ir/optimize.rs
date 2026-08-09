@@ -277,6 +277,21 @@ pub fn eliminate_dead_computeds(comp: &mut ComponentIR, module_motions: &[Motion
         collect_idents_from_motion_body(&motion.body, &mut used);
     }
 
+    // V-F8 preservation: computeds whose names collide with the @load/@form
+    // builtin reserved names must survive DCE — the semantic pass
+    // (validate_form_load, which runs after optimize) reports them as
+    // reserved-name conflicts even when they are otherwise unused.
+    if comp.load_intent.is_some() {
+        for reserved in ["loading", "error", "data", "retry"] {
+            used.insert(reserved.to_string());
+        }
+    }
+    if comp.form_intent.is_some() {
+        for reserved in ["formErrors", "formValid", "formSubmitting"] {
+            used.insert(reserved.to_string());
+        }
+    }
+
     let before = comp.computeds.len();
     comp.computeds.retain(|c| used.contains(&c.name));
     let removed = before - comp.computeds.len();
@@ -500,6 +515,31 @@ mod tests {
         eliminate_dead_computeds(&mut comp, &[]);
 
         assert_eq!(comp.computeds.len(), 0);
+    }
+
+    /// R4/V-F8: an unused computed whose name collides with the @load builtin
+    /// reserved names must survive DCE — the semantic pass
+    /// (validate_form_load, which runs after optimize) reports it as a
+    /// reserved-name conflict even when it is otherwise dead.
+    #[test]
+    fn reserved_load_computed_survives_dce() {
+        let mut comp = ComponentIR {
+            form_intent: None,
+            load_intent: Some(crate::ir::LoadIntentIR {
+                fn_name: "fetchData".to_string(),
+            }),
+            name: "TestComp".to_string(),
+            computeds: vec![int_computed("data")],
+            ..ComponentIR::default()
+        };
+
+        eliminate_dead_computeds(&mut comp, &[]);
+
+        assert_eq!(
+            comp.computeds.len(),
+            1,
+            "reserved @load computed must survive DCE"
+        );
     }
 
     // ── new tests: reference-site coverage ──

@@ -643,4 +643,23 @@ mod tests {
             diags
         );
     }
+
+    // ── @form validate rule reference sites (spec 2026-08-08 §4.1) ──────
+
+    /// R1: `validate: { custom: checkName }` — the rule value of a custom
+    /// validator names a component function (a real use). A fn referenced only
+    /// from a validate rule must not be reported as never called.
+    #[test]
+    fn test_fn_used_only_in_validate_rule_not_reported() {
+        let diags = lint_source(
+            "component App { fn checkName(s: String) -> String { s }              view { <form @form> <input bind:value={n} validate:{custom: checkName} /> </form> } }",
+        );
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.message.contains("'checkName'") && d.message.contains("never called")),
+            "fn referenced from a validate rule must not be reported uncalled, got: {:?}",
+            diags
+        );
+    }
 }

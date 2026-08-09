@@ -323,6 +323,18 @@ pub(super) fn collect_used_names_in_view_node<'a>(
                             used.insert(end.as_str());
                         }
                     }
+                    // `validate: { custom: checkName }` — the rule value of a
+                    // custom validator names a component function (spec
+                    // 2026-08-08 §4.1); builtin rule values (required/min/max
+                    // literals) never reference component functions, so only
+                    // VarRef values are collected.
+                    ElementProp::Validate { rules } => {
+                        for rule in rules {
+                            if let Expr::VarRef(name, _) = &rule.value {
+                                used.insert(name.as_str());
+                            }
+                        }
+                    }
                     // Remaining variants carry no signal-referencing
                     // expressions: ClassValue::StyleRef/StringLiteral (local
                     // style names) and Ref (element refs).

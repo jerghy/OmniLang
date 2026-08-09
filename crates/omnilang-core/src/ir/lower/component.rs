@@ -305,7 +305,8 @@ pub(super) fn lower_component(
 /// 遍历组件视图收集 @form / @load 意图（spec 2026-08-08 §4.1/§4.2）。
 /// V-F6（每组件至多一个 @form/@load）在此扫描处上报：发现第二个即报，
 /// 报完即止（`*_dup_reported` 闸门保证恰好 1 条）；V-F1（@form 仅限
-/// form 元素）在 collect_form_intent 内上报。
+/// form 元素）在 collect_form_intent 内上报（首槽位），重复分支若落在
+/// 非 form 元素上同样报 V-F1（R2：V-F1 优先于 V-F6）。
 fn scan_view_intents(
     nodes: &[ViewNode],
     variant_map: &FxHashMap<String, String>,
@@ -324,12 +325,22 @@ fn scan_view_intents(
                             *form_intent = Some(form);
                         }
                     } else if !*form_dup_reported {
-                        // V-F6：组件内第二个 @form（非法 tag 未占槽位，不触发）
-                        semantics.diagnostics.push(crate::error::Diagnostic::error(
-                            crate::error::DiagnosticKind::E0006,
-                            "组件内 @form/@load 至多一个",
-                            &el.span,
-                        ));
+                        // R2：V-F1 优先于 V-F6——第二个 @form 落在非 form 元素上
+                        // 报「@form 只能用于 form 元素」，否则报 V-F6 重复；两者
+                        // 均置闸门（恰好 1 条）。
+                        if el.tag != "form" {
+                            semantics.diagnostics.push(crate::error::Diagnostic::error(
+                                crate::error::DiagnosticKind::E0006,
+                                "@form 只能用于 form 元素",
+                                &el.span,
+                            ));
+                        } else {
+                            semantics.diagnostics.push(crate::error::Diagnostic::error(
+                                crate::error::DiagnosticKind::E0006,
+                                "组件内 @form/@load 至多一个",
+                                &el.span,
+                            ));
+                        }
                         *form_dup_reported = true;
                     }
                 }
@@ -870,6 +881,66 @@ mod tests {
             .filter(|d| d.message.contains("组件内 @form/@load 至多一个"))
             .count();
         assert_eq!(count, 1, "V-F6 must report exactly once, got: {:?}", diags);
+    }
+
+    /// R2：V-F1 优先于 V-F6——第一个 @form 占槽后，第二个 @form 落在非
+    /// form 元素上 → error「@form 只能用于 form 元素」（而非重复报 V-F6）。
+    #[test]
+    fn lower_form_dup_on_non_form_reports_vf1() {
+        let (_, diags) = lower_component_diags(
+            r#"component App {
+                fn submit() {}
+                view {
+                    <form @form @onSubmit={submit} />
+                    <div @form @onSubmit={submit} />
+                }
+            }"#,
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.message.contains("@form 只能用于 form 元素")),
+            "R2 V-F1 missing, got: {:?}",
+            diags.iter().map(|d| &d.message).collect::<Vec<_>>()
+        );
+        let vf6_count = diags
+            .iter()
+            .filter(|d| d.message.contains("组件内 @form/@load 至多一个"))
+            .count();
+        assert_eq!(
+            vf6_count, 0,
+            "R2 must not report V-F6 here, got: {:?}",
+            diags
+        );
+    }
+
+    /// R2：两个 @form 均在合法 form 元素上 → 仍报 V-F6（V-F1 不介入），
+    /// 报完即止（恰好 1 条）。
+    #[test]
+    fn lower_form_dup_on_form_reports_vf6() {
+        let (_, diags) = lower_component_diags(
+            r#"component App {
+                fn submit() {}
+                view {
+                    <form @form @onSubmit={submit} />
+                    <form @form @onSubmit={submit} />
+                }
+            }"#,
+        );
+        let vf6_count = diags
+            .iter()
+            .filter(|d| d.message.contains("组件内 @form/@load 至多一个"))
+            .count();
+        assert_eq!(
+            vf6_count, 1,
+            "V-F6 must report exactly once, got: {:?}",
+            diags
+        );
+        let vf1_count = diags
+            .iter()
+            .filter(|d| d.message.contains("@form 只能用于 form 元素"))
+            .count();
+        assert_eq!(vf1_count, 0, "V-F1 must not fire here, got: {:?}", diags);
     }
 
     /// V-F6：组件内第二个 @load → error「组件内 @form/@load 至多一个」，
