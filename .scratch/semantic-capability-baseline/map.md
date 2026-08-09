@@ -37,12 +37,18 @@
 - [03 — 能力全景实证：交互/国际化/性能/媒体](issues/03-capability-landscape-interaction-and-longtail.md) — 14 项全实证：进语言候选 6（拖拽重排 @for+reorder、基本手势 @swipe/@longPress/@pinch、剪贴板文本、文本翻译 @t——唯一三端 ICU 同语法基座、语言切换随 @t、列表虚拟化）；焦点陷阱随 @modal 进语言；快捷键低优先候选；留生态/不进语法 7（日期格式化、memo 编译器责任、懒加载跨目标不一致否决、canvas、文件上传、摄像头/录音）；清单补 4 遗漏项
 - [04 — 能力清单终稿（14 维定案）](issues/04-capability-list-final.md) — 14 维清单终稿定案：样式维加「深色模式」（已支持——design @themes 实证）；虚拟化/表单深化用户拍板后议（先成熟再谈）；相邻能力 12 项全入清单；状态图例 ✅/🔜/⏳/🏞
 - [05 — 边界裁决细则与语言完整性原则](issues/05-boundary-ruling-and-integrity-principles.md) — 裁决细则定稿：三判据判例 + 四段裁决模板；半实现信号=标 v0 边界随批次补齐；留生态=登记册状态值域扩展+文档指引；类型检查归 1F
+- [06 — 批次 1 域裁决：反馈与模态](issues/06-stage-scope-feedback-modal.md) — @modal+showToast 进语言（方向级）；焦点陷阱随 @modal；骨架屏随 @load；错误边界留生态（真人写法测试：Flutter 无组件级惯用法，@load error 已覆盖数据级）；tooltip 留生态；真人写法审计 3 细化点
+- [07 — 批次 2 域裁决：导航与路由](issues/07-stage-scope-navigation-routing.md) — 标准校准：前端功能跨框架通用、语料只影响排期、留生态收窄为机制语法面+编译器职责；域 C 全量进语言（切换/参数/返回/深链进 floor/守卫 v0 含/嵌套独立语法）
+- [08 — 批次 3 域裁决：响应式断点](issues/08-stage-scope-responsive-breakpoints.md) — bp() 逻辑断点+breakpoint token 进语言；@media 机制语法面透传+Flutter 映射策略批次细化；容器查询低优先候选
+- [09 — 批次 4 域裁决：数据与异步能力](issues/09-stage-scope-data-pagination.md) — @load 深化（多例/参数/Reset/分页/轮询/无限滚动触发）+ DataFetching 迁移定案；乐观更新远期；防抖节流 stdlib；缓存策略配置面留生态
+- [10 — 批次 5 域裁决：样式系统](issues/10-stage-scope-styling-selectors.md) — 选择器静默跳过缺陷修复定案（诊断先行）；复杂选择器机制语法面透传；深色模式/作用域已支持
+- [11 — 批次 6 域裁决：长尾能力](issues/11-stage-scope-longtail-capabilities.md)
+- [12 — 批次排序、验收形态与基线落盘](issues/12-stage-priority-and-acceptance.md) — 收口定案：批次排序 5 批次（反馈模态→域C→响应式+样式→数据→长尾归组）；验收=矩阵全绿+基准应用；冻结=收官冻结；基线 spec 落盘路径定；地图 12/12 清空 — 全量进语言归组：交互（重排/手势/剪贴板/快捷键）·i18n（@t ICU/@locale/格式化）·媒体（canvas/文件/摄像头）·生命周期（@effect 强化+1B 入册）；memo 编译器职责
 
 ## Not yet specified
 
-- **阶段 2 基准应用形态**——依赖能力基线定稿后能力边界清晰才可定义（验收形态决策先行于车票 12）
-- **各阶段详细语法设计**——批次裁决（06-11）后逐阶段在各自 spec 细化（showToast 签名/@modal 语法/@route 契约/分页形态…）
-- **冻结 ADR 条款细节**——基线 spec 定稿后起草（收官宣言 + 语法面冻结清单 + 硬规则）
+- **阶段 2 基准应用具体选择**——验收形态已定（矩阵全绿+基准应用）；具体应用在基线 spec 定稿后定义（ROADMAP 决策 14）
+- **冻结 ADR 条款定稿**——基线 spec 含冻结清单草案；收官时定稿（收官宣言 + 语法面冻结清单 + 硬规则）
 - **半实现信号处置清单**——裁决原则在车票 05，具体到 form.submitting/@load v0 边界的逐项清单随各批次
 - **新增语义域登记扩展方式**——verify-semantic-universe.py / verify-vocabulary.py 改造随各阶段 spec
 

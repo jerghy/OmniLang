@@ -1,7 +1,7 @@
 # 10 — 批次 5 域裁决：样式系统
 
 Type: grilling
-Status: open
+Status: resolved
 Blocked by: 04, 05
 
 ## Question
@@ -25,3 +25,17 @@ Blocked by: 04, 05
 ## 解析即
 
 决议记录 `## Answer` → `Status: resolved` → 地图 Decisions-so-far 追加一行 → 本批次即成为路线图一个阶段（后续独立 spec→plan→SDD）。
+
+## Answer
+
+**批次 5（样式系统）域裁决定案**（2026-08-09，校准后标准）。
+
+| 能力项 | 结论 | 处置 |
+|---|---|---|
+| **选择器静默跳过零诊断**（真实缺陷，style.rs ~:166） | 🔨 **缺陷修复定案：诊断先行**——parser 对不支持的剩余选择器部分（`input:checked + span`/兄弟/属性/:nth-child）发 **warning 硬诊断**（含选择器文本 + 截断说明）——诚实降级（ADR-054），绝不静默 | 最小修复 = 诊断；支持补齐（部分选择器语法）随语料需求再议 |
+| 复杂选择器语法面 | 🏞 机制语法面（CSS 透传——web 表达通道）；Flutter 端组件级样式（表达通道不同，非功能缺失）——注记 | 诊断修复后透传 |
+| 用户级 @media | 🏞 与批次 3（08）协调——bp() 为主通道，@media 透传 + Flutter 映射策略随 08 批次 spec | 见 08 |
+| 深色模式 | ✅ 已支持（design @themes + prefers-color-scheme 自动生成——10-design-system.md 实证） | 无动作 |
+| 样式作用域 | ✅ 已支持（组件级作用域——StyleEntry/design token） | 无动作 |
+
+**批次范围**：选择器诊断修复（最小修复）为主体；复杂选择器支持边界按语料渐进。本批次是缺陷修复驱动的小批次——可与 08（响应式）合并执行或独立，批次排序见 12。
