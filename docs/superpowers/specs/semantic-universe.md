@@ -473,3 +473,34 @@ CSS 动画语义域——**属性值从 A 到 B 平滑过渡**（CSS Transitions
 | retry | flutter `ref.invalidate({fn}Provider)`（mod.rs:1535）/ omniview `_retry`（store.rs:570）；react 复用 `load()`（`retry` → `load` 重命名，component/mod.rs:561） |
 
 > 注：域 9 无编译器词法级白名单常量（信号名非闭集词汇，仅保留名冲突检查），**白名单表为锚点账本**（代码锚点记录事实源，域 6 值绑定先例）；交叉断言以存在性检查承担（见 verify-semantic-universe.py 域 9 断言 Task 7）。
+
+---
+
+## 域 10: 反馈模态（feedback & modal）
+
+### 语义域定义
+
+反馈与模态意图语义域——**命令式短暂通知 + 模态对话框 + 加载占位 + 渲染降级**（`showToast` 内建语义函数 + `@modal`/`@skeleton`/`@errorBoundary` 元素指令）。语义词汇 = 意图与指令名（`showToast`/`@modal`/`@skeleton`/`@errorBoundary`——机制级条目，无编译器词法级白名单常量，事实源以代码锚点记录，白名单表作锚点账本，交叉断言以存在性检查承担；`焦点陷阱` 为 `@modal` 附随行为，不单独立法；`tooltip` 为留生态条目——设计意图成立但未落地）。全集封闭按本表（2026-08-09 登记，批次 1 登记先行 ADR-074）：未列反馈模态功能视为未登记。**v0 边界**：`showToast` 无手动关闭按钮、无位置参数（`duration: 0` Flutter 端以 SnackBarAction「关闭」降级）；`@modal` 无关闭动画（无 `@leave` 机制，打开动画由 `@enter` 复用覆盖）；`@skeleton` 形状自适应（真实数据行数推断占位条数）不进 v0；`@errorBoundary` fallback 槽不暴露错误对象。
+
+### 语义集条目
+
+| 语义集条目 | 语义 | 实现状态 | 诊断行为 |
+|-----------|------|---------|---------|
+| showToast | 命令式短暂通知内建函数（kind/duration/堆叠） | 支持（v0：无手动关闭、无位置参数） | kind/duration 非法硬错误（V6/V7）；保留名硬错误（V8） |
+| @modal | dialog 元素指令：open 信号控制 + 焦点陷阱/Esc/遮罩点击/a11y 编译器内建 | 支持（v0：无关闭动画） | 值非信号（V1）、非 dialog 标签（V2）、裸 dialog（V3）、重复（V4）、@for 内（V5）硬错误；无标题警告（V13） |
+| 焦点陷阱 | @modal 附随行为（不单独立法） | 支持（随 @modal 内建） | 随 @modal 诊断 |
+| @skeleton | @load loading 态占位形态（text/line/circle/card） | 支持 | 非 loading 分支硬错误（V9）；形状非法硬错误（V10） |
+| @errorBoundary | 子树渲染失败降级（@slot fallback） | 支持（Flutter 降级注记） | 重复硬错误（V11）；无 fallback 警告（V12）；fallback 重复硬错误（V14） |
+| tooltip | 属性级修饰（悬停/长按说明） | 留生态（基线 §8 状态值域扩展） | 语言边界注记 + 触发条件（§6） |
+
+> 注：**tooltip** 为留生态条目——属性级指令低优先（批次 5 交互归组评估）——React 无标准形态、触发模型跨目标差异大（悬停 vs 长按）、语义面窄（车票 06）；触发条件 = 真实语料高频 + React 端形态稳定后重评（spec §6）。
+
+### 已实现白名单
+
+| 条目 | 编译器事实源 |
+|------|-------------|
+| dialog 元素 | 元素解析透传通道（parser/view）+ @modal 语义处理器（本批次新增）；`to_html_tag` 透传 `<dialog>`（React） |
+| showToast 调用 | 内建函数表（语义函数分派）+ 三目标 codegen |
+| @modal/@skeleton/@errorBoundary | 元素指令语义化（语义层登记 + codegen 分派） |
+
+> 注：域 10 语法尚未落地（批次 1 Task 1-6 实施中）——白名单行编译器事实源随 Task 1-6 落地；本表为锚点账本，交叉断言以存在性检查承担（见 verify-semantic-universe.py 域 10 断言 Task 0）；**tooltip** 为留生态条目，不列入已实现白名单。

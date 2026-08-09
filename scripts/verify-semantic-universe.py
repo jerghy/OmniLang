@@ -117,13 +117,16 @@ DOMAIN_TITLES = {
     7: "元素指令",  # 2026-08-07: directives 域——drag/dragEnd/ref/语义绑定/style 动态绑定/布尔属性
     8: "表单",  # 2026-08-09: form 域——@form/validate 规则/内建信号（Task 7，阶段 2 域 A）
     9: "数据三态",  # 2026-08-09: @load 域——loading/error/data/retry（Task 7，阶段 2 域 A）
+    10: "反馈模态",  # 2026-08-09 Task 0: 反馈模态域——showToast/@modal/@skeleton/@errorBoundary（批次 1，登记先行 ADR-074）
 }
 # Required sub-section headers per domain.
 REQUIRED_SUBSECTIONS = ("语义域定义", "语义集条目", "已实现白名单")
 # The semantic-set entry table must have columns with these names.
 STATUS_COLUMN = "实现状态"
 DIAG_COLUMN = "诊断行为"
-STATUSES = {"支持", "部分", "未支持"}
+# 2026-08-09 Task 0: 第四状态「留生态」——基线 §8 状态值域扩展（ADR-074 登记先行，
+# 域 10 tooltip 条目 = 留生态：设计意图成立但未落地，不列入已实现白名单）。
+STATUSES = {"支持", "部分", "未支持", "留生态"}
 # Task 9: 域 3 事件行的语义化分类列——语义化（首批 14 语义事件）/ 透传（其余）。
 # 断言锚点 = SEMANTIC_EVENT_NAMES 常量（ADR-074 rust_str_array 提取模式），
 # 脚本不硬编码 14/40——语义化集合随编译器常量漂移时门禁失败。
@@ -278,7 +281,7 @@ def bnf_production_words(text, lhs):
 
 def split_domains(text):
     """`## 域 N: <title>` sections → {N: (title, body)}."""
-    parts = re.split(r'^## 域 (\d): ([^\n]+)', text, flags=re.M)
+    parts = re.split(r'^## 域 (\d+): ([^\n]+)', text, flags=re.M)
     sections = {}
     for i in range(1, len(parts), 3):
         sections[int(parts[i])] = (parts[i + 1], parts[i + 2])
@@ -401,7 +404,7 @@ def audit():
 
     universe = read_file(UNIVERSE_FILE)
     sections = split_domains(universe)
-    for n in range(1, 10):  # v4: 含域 6（值绑定，5.3 新建）——此前 range(1,6) 对域 6 空转；2026-08-07: 含域 7（元素指令与绑定）；2026-08-09: 含域 8（表单）/域 9（数据三态，Task 7）
+    for n in sorted(DOMAIN_TITLES):  # v4: 含域 6（值绑定，5.3 新建）——此前 range(1,6) 对域 6 空转；2026-08-07: 含域 7（元素指令与绑定）；2026-08-09: 含域 8（表单）/域 9（数据三态，Task 7）/域 10（反馈模态，Task 0）——sorted(DOMAIN_TITLES) 自维护
         if n not in sections:
             fail(f"domain {n} missing (expected '## 域 {n}: …{DOMAIN_TITLES[n]}…')")
             continue
@@ -431,7 +434,11 @@ def audit():
                 if len(entries) != len(set(entries)):
                     fail(f"domain {n} ({title}): duplicate 语义集条目 {sorted({w for w in entries if entries.count(w) > 1})}")
                 for row in rows:
-                    if row[si] not in STATUSES:
+                    # 2026-08-09 Task 0: 域 10 状态列带括号注记（「支持（v0：无手动关闭）」
+                    # 「留生态（基线 §8 状态值域扩展）」）——按「（」前基词校验，域 1-9 全为
+                    # 裸状态不受影响；括注内容由 per-domain 断言/文档本体承担。
+                    base = row[si].split("（", 1)[0].strip()
+                    if base not in STATUSES:
                         fail(f"domain {n} ({title}): entry '{row[0]}' status '{row[si]}' not in {sorted(STATUSES)}")
                     if not row[di].strip():
                         fail(f"domain {n} ({title}): entry '{row[0]}' missing 诊断行为")
@@ -684,6 +691,31 @@ def audit():
                         fail(f"数据三态: '{name}' 声明 支持/部分 但编译器锚点 '{needle}' 缺失")
             elif name not in dict(en9):
                 fail(f"数据三态: 缺失语义集条目 '{name}'")
+
+    # feedback & modal (域 10, 2026-08-09 Task 0): showToast/@modal/焦点陷阱/
+    # @skeleton/@errorBoundary/tooltip——机制级条目居多（指令名/内建函数名，无词法级
+    # 白名单常量），且本域语法尚未落地（Task 1-6 实施中），白名单交叉断言以存在性
+    # 检查承担（照域 8 机制级条目注记措辞风格，spec §5.1 锚点方案）：条目 6 行存在 +
+    # tooltip 状态 = 留生态（基线 §8 状态值域第四值，未落地故不进已实现白名单）+
+    # 已实现白名单 3 行存在
+    wl10, en10 = whitelist(10), entries(10)
+    if en10 is None:
+        fail("反馈模态: cannot cross-assert 语义集条目 (extraction failed)")
+    else:
+        en10_map = dict(en10)
+        for name in ("showToast", "@modal", "焦点陷阱", "@skeleton", "@errorBoundary", "tooltip"):
+            if name not in en10_map:
+                fail(f"反馈模态: 缺失语义集条目 '{name}'")
+        if en10_map.get("tooltip", "").split("（", 1)[0].strip() != "留生态":
+            fail(f"反馈模态: tooltip 实现状态应 = 留生态（基线 §8 状态值域扩展），got '{en10_map.get('tooltip')}'")
+    if wl10 is None:
+        fail("反馈模态: cannot cross-assert 已实现白名单 (extraction failed)")
+    else:
+        for name in ("dialog 元素", "showToast 调用", "@modal/@skeleton/@errorBoundary"):
+            if name not in wl10:
+                fail(f"反馈模态: 缺失已实现白名单行 '{name}'")
+        if "tooltip" in wl10:
+            fail("反馈模态: tooltip 为留生态条目（未落地），不得出现在已实现白名单")
 
     return problems
 

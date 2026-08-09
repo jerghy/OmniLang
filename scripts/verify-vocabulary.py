@@ -82,6 +82,7 @@ DOMAIN_TITLES = {
     4: "RefOp",
     5: "design token",
     6: "表单校验规则",  # 2026-08-09 Task 7: @form validate 规则域——VALIDATE_RULES 锚点
+    10: "反馈模态",  # 2026-08-09 Task 0: 反馈模态词汇域——@modal/showToast/@skeleton/@errorBoundary（批次 1，登记先行 ADR-074）
 }
 # Required sub-section headers per domain (the four entry fields).
 REQUIRED_SUBSECTIONS = ("来源域", "语义词汇", "目标映射", "排除词汇")
@@ -169,7 +170,7 @@ def bnf_production_words(text, lhs):
 
 def split_domains(text):
     """`## 域 N: <title>` sections → {N: (title, body)}."""
-    parts = re.split(r'^## 域 (\d): ([^\n]+)', text, flags=re.M)
+    parts = re.split(r'^## 域 (\d+): ([^\n]+)', text, flags=re.M)
     sections = {}
     for i in range(1, len(parts), 3):
         sections[int(parts[i])] = (parts[i + 1], parts[i + 2])
@@ -181,9 +182,9 @@ def subsection(body, header):
     return m.group(1) if m else None
 
 
-def first_column_rows(text):
-    """Rows of the first markdown table in `text` (header + separator row
-    excluded) → first-column cell values. Malformed tables return None."""
+def table_cell_rows(text):
+    """Cell lists of the first markdown table in `text` (header + separator
+    rows excluded). Malformed tables return None."""
     rows = []
     seen_header = False
     seen_separator = False
@@ -206,7 +207,25 @@ def first_column_rows(text):
     for cells in rows:
         if not cells[0]:
             return None
-    return [cells[0] for cells in rows]
+    return rows
+
+
+def first_column_rows(text):
+    """First-column cell values of the first markdown table in `text`."""
+    rows = table_cell_rows(text)
+    return None if rows is None else [cells[0] for cells in rows]
+
+
+def excluded_word_pairs(text):
+    """(word, owner) pairs of the 排除词汇 table — first-column excluded words
+    tied to their owning vocabulary via the 正确语义词汇 column. Needed for
+    域 10: 排除词汇 first-column entries are individual borrow words (dialog/
+    toast/…), not vocabulary names — per-vocab borrow-word assertions map
+    through the owner column."""
+    rows = table_cell_rows(text)
+    if rows is None or not rows or len(rows[0]) < 2:
+        return None
+    return [(cells[0], cells[-1]) for cells in rows]
 
 
 # ── audit ────────────────────────────────────────────────────────────────
@@ -223,7 +242,7 @@ def audit():
 
     registry = read_file(REGISTRY_FILE)
     sections = split_domains(registry)
-    for n in range(1, 7):  # 2026-08-09 Task 7: 含域 6（表单校验规则）
+    for n in sorted(DOMAIN_TITLES):  # 2026-08-09 Task 7: 含域 6（表单校验规则）；Task 0: 含域 10（反馈模态）——sorted(DOMAIN_TITLES) 自维护（登记册无域 7/8/9）
         if n not in sections:
             fail(f"domain {n} missing (expected '## 域 {n}: …{DOMAIN_TITLES[n]}…')")
             continue
@@ -367,6 +386,57 @@ def audit():
             overlap = sorted(set(v) & set(x))
             if overlap:
                 fail(f"domain {n} ({label}): 排除词汇 overlaps 语义词汇 (借词违规): {overlap}")
+
+    # 反馈模态 (域 10, 2026-08-09 Task 0): 机制级条目（批次 1 登记先行 ADR-074——
+    # 语法 Task 1-6 落地前无编译器白名单常量，交叉断言以存在性检查承担，照
+    # semantic-universe 域 10 锚点方案）。语义词汇为精确四元闭集；排除词汇
+    # 按 正确语义词汇 归属列映射到所属词汇（排除词汇表首列是逐借词而非词汇名）。
+    v10 = vocab(10)
+    if v10 is not None:
+        expected_vocab = ["@modal", "showToast", "@skeleton", "@errorBoundary"]
+        if sorted(v10) != sorted(expected_vocab):
+            fail(
+                f"domain 10 (反馈模态): 语义词汇 ≠ 批次 1 登记词汇\n"
+                f"    registry-only:   {sorted(set(v10) - set(expected_vocab))}\n"
+                f"    spec-only:       {sorted(set(expected_vocab) - set(v10))}"
+            )
+    if 10 in sections:
+        pairs = excluded_word_pairs(subsection(sections[10][1], "排除词汇"))
+        if pairs is None:
+            fail("domain 10 (反馈模态): '### 排除词汇' must be a well-formed table (header + separator + ≥1 row, no empty first column)")
+        else:
+            expected = {
+                "@modal": ["dialog", "showModal", "showDialog", "Modal", "ModalDialog"],
+                "showToast": ["toast", "SnackBar", "Toast", "Sonner", "ElMessage"],
+                "@skeleton": ["skeleton", "shimmer", "Shimmer"],
+                "@errorBoundary": ["ErrorBoundary", "error-boundary"],
+            }
+            owner_map = {}
+            for word, owner in pairs:
+                owner_map.setdefault(owner, []).append(word)
+            # owner 列拼写守卫（2026-08-09 硬化）：owner 键须与登记词汇精确一致——
+            # 否则拼错的 owner（如 @modalX）会让下方逐词断言静默跳过该行排除词。
+            if set(owner_map) != set(expected):
+                fail(
+                    f"domain 10 (反馈模态): 排除词汇 owner 列 ≠ 登记词汇（spec §5.2）\n"
+                    f"    registry-only:   {sorted(set(owner_map) - set(expected))}\n"
+                    f"    spec-only:       {sorted(set(expected) - set(owner_map))}"
+                )
+            else:
+                for vocab_word, words in expected.items():
+                    got = sorted(owner_map.get(vocab_word, []))
+                    if got != sorted(words):
+                        fail(
+                            f"domain 10 (反馈模态): {vocab_word} 的排除词汇 ≠ 批次 1 登记（spec §5.2）\n"
+                            f"    registry-only:   {sorted(set(got) - set(words))}\n"
+                            f"    spec-only:       {sorted(set(words) - set(got))}"
+                        )
+            # 借词违规由上方通用 loop 承担——但该 loop 只覆盖域 1-6，域 10
+            # 语义词汇（@modal 等）与排除词汇（dialog 等）天然不相交，显式断言以防登记回退。
+            if v10 is not None:
+                overlap = sorted(set(v10) & set(p[0] for p in pairs))
+                if overlap:
+                    fail(f"domain 10 (反馈模态): 排除词汇 overlaps 语义词汇 (借词违规): {overlap}")
     return problems
 
 

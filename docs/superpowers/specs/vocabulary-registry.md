@@ -6,7 +6,7 @@
 **审计**: `scripts/verify-vocabulary.py`（登记册 ↔ 编译器白名单交叉断言，docs-gate 同批）
 
 > 本登记册强制回答一个问题：**每个语义词汇的语义域是什么**（WAI-ARIA / DOM 事件 / CSS 属性 / …）。
-> 6 个封闭词汇域：事件 / a11y role / motion 属性 / RefOp / design token 类型 / 表单校验规则。
+> 7 个封闭词汇域：事件 / a11y role / motion 属性 / RefOp / design token 类型 / 表单校验规则 / 反馈模态。
 > **动因（设计 P1）**：a11y 域曾以 Flutter 旗标名（`textField`/`image`）为 role 词汇——出生即违反「语义纯度」原则（web 输出非法 `role="textField"`）；4.3 已修正词汇（Task 4.3 词汇 ARIA 化），本登记册使复发机制化：新域设计时「禁止借词」是硬规则，不是好习惯。
 
 ## 登记册结构（条目必含四字段）
@@ -387,6 +387,53 @@ DOM 命令式元素 API 的语义意图——**焦点 / 滚动 / 测量 / 选择
 | maxLength | HTML | 同上 | max |
 | email | HTML | `input[type=email]` 机制形状——`format:` 闭集值，非规则名 | format |
 | url | HTML | 同上 | format |
+
+---
+
+## 域 10: 反馈模态（feedback & modal）
+
+### 来源域
+
+反馈与模态意图语义域——**命令式短暂通知 + 模态对话框 + 加载占位 + 渲染降级**（批次 1 设计 spec §2，2026-08-09 登记先行 ADR-074）。本域为**机制级词汇**（无编译器词法级白名单常量——语义词汇是内建语义函数名/元素指令名，交叉断言以存在性检查承担，见 verify-vocabulary.py 域 10 断言 Task 0）：`showToast` 内建语义函数（命令式短暂通知）+ `@modal`/`@skeleton`/`@errorBoundary` 元素指令；`dialog` 元素为本域宿主元素（解析透传通道 + @modal 语义处理器接管）。**v0 边界**：`showToast` 无手动关闭按钮、无位置参数；`@modal` 无关闭动画（打开动画由 `@enter` 复用覆盖）；`@skeleton` 形状自适应不进 v0；`@errorBoundary` fallback 槽不暴露错误对象（spec §2/§9）。
+
+> 判定注记：`@modal` 绑定的 open 信号为编译器受控信号（唯一真源判定，不注册词汇）；`showToast` 生成的保留名判定同域 6 先例（formErrors/formValid/formSubmitting 为编译器保留名判定，非注册词汇——本批次 V8 属此类）。
+
+### 语义词汇
+
+| 语义词汇 | 值域 / 约束 | 说明 |
+|---------|------------|------|
+| @modal | 绑定 dialog 元素（双向校验）；值 = 用户布尔信号（读引用，受控形态——信号是唯一真源） | 焦点陷阱/Esc 关闭/遮罩点击关闭/`role="dialog"` + `aria-modal` a11y 编译器内建；V1-V5 硬错误 + V13 警告（spec §2.1/§3） |
+| showToast | `showToast(msg, { kind, duration })`——kind: "info"\|"success"\|"error"（默认 info）；duration ≥ 0（默认 3000，0 = 不自动关闭） | 内建语义函数——用户不得以同名声明 fn/store/信号/组件（V8 保留名硬错误）；V6/V7 硬错误（spec §2.2/§3） |
+| @skeleton | `@skeleton` 或 `@skeleton="text\|line\|circle\|card"`（默认 text） | 只能出现在 @load 的 loading 分支内（V9 硬错误）；形状非法 V10 硬错误（spec §2.3/§3） |
+| @errorBoundary | 无参元素指令 | 子树渲染失败降级（`@slot fallback` 至多一个——V14 硬错误）；重复 V11 硬错误 + 无 fallback V12 警告（spec §2.4/§3） |
+
+### 目标映射
+
+| 目标 | 生成形状 |
+|------|---------|
+| React | `@modal` → 受控 `<dialog>` + showModal() 同步；`showToast` → 自生成 toast 容器；`@skeleton` → 占位元素 + shimmer keyframes；`@errorBoundary` → 自生成 ErrorBoundary class |
+| Flutter | `@modal` → showDialog + FocusTraversalGroup；`showToast` → ScaffoldMessenger.showSnackBar；`@skeleton` → 静态占位（动画降级注记）；`@errorBoundary` → 空壳 + 数据级错误走 @load error 信号注记 |
+| OmniView | `@modal` → 自绘遮罩 + 焦点循环；`showToast` → 自绘 toast 容器；`@skeleton` → 同 React（CSS 动画）；`@errorBoundary` → try 兜底渲染 fallback 槽 |
+
+### 排除词汇
+
+| 排除词汇 | 平台 | 不得成为语义词汇的原因 | 正确语义词汇 |
+|----------|------|----------------------|-------------|
+| dialog | DOM | 原生元素名——@modal 的宿主元素（透传通道），非指令词汇 | @modal |
+| showModal | DOM | 原生 dialog 方法名——平台机制形状 | @modal |
+| showDialog | Flutter | showDialog 函数名——平台机制形状 | @modal |
+| Modal | React | Modal 组件名（Ant Design 等）——平台组件形状 | @modal |
+| ModalDialog | 组件库 | 组件命名形状 | @modal |
+| toast | 通用 | 通用词/组件名——showToast 语义词汇本体 | showToast |
+| SnackBar | Flutter | SnackBar 组件名——平台机制形状 | showToast |
+| Toast | 通用 | 通用词大写拼写 | showToast |
+| Sonner | 组件库 | Sonner 库名（引库路线）——自生成原始写法是合法子集，库名不借 | showToast |
+| ElMessage | 组件库 | Element Plus 通知 API 名——库 API 形状 | showToast |
+| skeleton | 通用 | 通用词——@skeleton 语义词汇本体 | @skeleton |
+| shimmer | 通用 | 占位动画效果名——编译器生成形态非词汇 | @skeleton |
+| Shimmer | 组件库 | shimmer 库名——引库路线 | @skeleton |
+| ErrorBoundary | React | React 错误边界组件名——平台组件形状 | @errorBoundary |
+| error-boundary | React | kebab-case 组件命名形状 | @errorBoundary |
 
 ---
 
