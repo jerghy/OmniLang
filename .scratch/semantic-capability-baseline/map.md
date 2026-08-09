@@ -35,6 +35,8 @@
 - [01 — 能力全景实证：数据/异步/路由](issues/01-capability-landscape-data-and-routing.md) — 16 项全实证：仅加载三态已进语言（域 9 @load 先例）；路由切换/参数/返回进语言（域 C 方向定）、深链进语言+降级边界（floor 界定核心）；守卫/嵌套/轮询/乐观为候选；分页/缓存/竞态/懒加载留生态
 - [02 — 能力全景实证：反馈/渲染/样式](issues/02-capability-landscape-feedback-and-style.md) — 14 项全实证：进语言候选 4（modal/dialog 双端原生对齐、toast 命令式意图、深色模式 token 扩展、错误边界弱候选取舍留批）；骨架屏作 @load 形态扩展；留生态 9（样式四能力 CSS 透传、tooltip/空状态/keep-alive 及性能类与 01 裁决一致）
 - [03 — 能力全景实证：交互/国际化/性能/媒体](issues/03-capability-landscape-interaction-and-longtail.md) — 14 项全实证：进语言候选 6（拖拽重排 @for+reorder、基本手势 @swipe/@longPress/@pinch、剪贴板文本、文本翻译 @t——唯一三端 ICU 同语法基座、语言切换随 @t、列表虚拟化）；焦点陷阱随 @modal 进语言；快捷键低优先候选；留生态/不进语法 7（日期格式化、memo 编译器责任、懒加载跨目标不一致否决、canvas、文件上传、摄像头/录音）；清单补 4 遗漏项
+- [04 — 能力清单终稿（14 维定案）](issues/04-capability-list-final.md) — 14 维清单终稿定案：样式维加「深色模式」（已支持——design @themes 实证）；虚拟化/表单深化用户拍板后议（先成熟再谈）；相邻能力 12 项全入清单；状态图例 ✅/🔜/⏳/🏞
+- [05 — 边界裁决细则与语言完整性原则](issues/05-boundary-ruling-and-integrity-principles.md) — 裁决细则定稿：三判据判例 + 四段裁决模板；半实现信号=标 v0 边界随批次补齐；留生态=登记册状态值域扩展+文档指引；类型检查归 1F
 
 ## Not yet specified
 
@@ -43,11 +45,10 @@
 - **冻结 ADR 条款细节**——基线 spec 定稿后起草（收官宣言 + 语法面冻结清单 + 硬规则）
 - **半实现信号处置清单**——裁决原则在车票 05，具体到 form.submitting/@load v0 边界的逐项清单随各批次
 - **新增语义域登记扩展方式**——verify-semantic-universe.py / verify-vocabulary.py 改造随各阶段 spec
-- **类型检查深化（V6 字段类型匹配 / IR type_ann 缺陷）**——与 1F 已知缺陷的关系待裁决细则讨论（可能入 05 或留各阶段）
 
 ## Out of scope
 
 - **编写体感优化**（样板减少/缩略语法/词法体感）——用户拍板：poiesis 是作者，手写体验不优先；语法可表达性才在范围
 - **后端/服务端能力**（数据库、鉴权服务端、实时同步服务）——前端 DSL 边界
 - **Vue/Dioxus 目标实现**——#87 触发制，维持 floor 诊断（ADR-052:94 契约）
-- **既有 1F 已知缺陷**（cache 性能 15.6×、跨文件验证空洞、C2 决策等）——归 ROADMAP 1F 检查点，不并入本努力（类型检查相关项见 fog）
+- **既有 1F 已知缺陷**（cache 性能 15.6×、跨文件验证空洞、C2 决策等）——归 ROADMAP 1F 检查点，不并入本努力（类型检查已裁归 1F，见车票 05）
