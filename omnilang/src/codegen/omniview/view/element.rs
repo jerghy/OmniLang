@@ -11,6 +11,7 @@ use std::fmt::Write;
 use super::super::utils::{escape_html, map_tag, parse_attr_template};
 use super::super::ElementTreeNode;
 use super::super::OmniViewGenerator;
+use super::modal::MODAL_HEADING_TAGS;
 use crate::codegen::sanitize::is_dangerous_url;
 use crate::ir::*;
 use crate::sourcemap::{SourceMapEntry, SourceSpan, TargetSpan, TargetSpanKind};
@@ -797,6 +798,57 @@ impl OmniViewGenerator {
         }
     }
 
+    /// Resolve an element's `id` prop for the editor's nid_map bookkeeping
+    /// (@modal shell, @skeleton placeholder, @errorBoundary shell). Mirrors
+    /// the inline-component extraction in `element_to_html` (user `id` wins,
+    /// else the auto nid).
+    fn resolve_design_id(&self, el: &ElementIR, nid: &str) -> String {
+        el.props
+            .get("id")
+            .and_then(|v| {
+                if let ExprIR::LiteralExpr { value } = v {
+                    value.as_str().map(|s| s.to_string())
+                } else {
+                    None
+                }
+            })
+            .unwrap_or_else(|| nid.to_string())
+    }
+
+    /// Escape a string for embedding as the CONTENT of a double-quoted JS
+    /// string literal. Used by the @errorBoundary try/catch runtime, which
+    /// reassigns `host.innerHTML` from deferred-JS strings (the deferred
+    /// buffer is emitted raw — no template-literal escaping — so the HTML
+    /// payloads must be escaped here, view/mod.rs `emit_dom_and_bindings`).
+    fn escape_js_string(s: &str) -> String {
+        s.replace('\\', "\\\\")
+            .replace('"', "\\\"")
+            .replace('\n', "\\n")
+    }
+
+    /// Emit the @skeleton shimmer CSS once per document (guarded by
+    /// `shimmer_css_emitted`): shape classes + a `::after` gradient sweep
+    /// animated by `@keyframes omni-shimmer`.
+    fn emit_shimmer_css(&mut self) {
+        if self.shimmer_css_emitted {
+            return;
+        }
+        self.shimmer_css_emitted = true;
+        self.css.push_str(
+            ".omni-skeleton { position: relative; overflow: hidden; \
+             background: rgba(0, 0, 0, 0.06); border-radius: 4px; }\n\
+             .omni-skeleton--text { height: 1em; }\n\
+             .omni-skeleton--line { height: 1em; margin-bottom: 0.5em; }\n\
+             .omni-skeleton--circle { border-radius: 50%; }\n\
+             .omni-skeleton--card { height: 120px; border-radius: 8px; }\n\
+             .omni-skeleton::after { content: \"\"; position: absolute; inset: 0; \
+             transform: translateX(-100%); \
+             background: linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent); \
+             animation: omni-shimmer 1.5s infinite; }\n\
+             @keyframes omni-shimmer { 100% { transform: translateX(100%); } }\n",
+        );
+    }
+
     /// Convert a single `ElementIR` node into its HTML representation.
     ///
     /// Generates the opening tag (with data-nid, static attrs, variant classes,
@@ -840,6 +892,16 @@ impl OmniViewGenerator {
                 el.tag
             ));
         }
+        // @modal interception: the element node has already been pushed onto
+        // the tree (tree_push in this function); emit_modal_shell emits the
+        // shell HTML itself and balances the tree with tree_pop. The shell is
+        // the element's real wrapper, so nid_map points at the shell div.
+        if let Some(modal) = &el.modal {
+            let design_id = self.resolve_design_id(el, &nid);
+            self.element_tags.insert(nid.clone(), "div".to_string());
+            self.nid_map.insert(nid.clone(), design_id);
+            return self.emit_modal_shell(el, &modal.open_signal, &modal.slots, indent, &nid);
+        }
         if let Some(inlined) = self.try_inline_component(el, indent, &nid, &pad) {
             // Record nid_map + element_tags for the component wrapper so the
             // editor can select custom components (not just their children).
@@ -860,7 +922,107 @@ impl OmniViewGenerator {
             return inlined;
         }
 
+        // @skeleton interception: a static placeholder div + one-shot shimmer
+        // CSS (spec §4.3). The element node was pushed on the tree by this
+        // function; pop it here (no children are rendered).
+        if let Some(skeleton) = &el.skeleton {
+            let shape = skeleton.shape.as_deref().unwrap_or("text");
+            let design_id = self.resolve_design_id(el, &nid);
+            self.element_tags.insert(nid.clone(), "div".to_string());
+            self.nid_map.insert(nid.clone(), design_id);
+            self.emit_shimmer_css();
+            self.tree_pop();
+            return format!(
+                "{}<div class=\"omni-skeleton omni-skeleton--{}\" data-nid=\"{}\"></div>\n",
+                pad, shape, nid
+            );
+        }
+
+        // @errorBoundary interception (spec §4.4): a static shell div whose
+        // content is installed by a deferred try/catch — if rendering the
+        // boundary content throws, the fallback slot HTML is installed
+        // instead; without a fallback the shell stays empty. The fallback
+        // slot must not double-emit (F7): it is skipped in the children loop
+        // and rendered only via `boundary.fallback`.
+        if let Some(boundary) = &el.error_boundary {
+            let design_id = self.resolve_design_id(el, &nid);
+            self.element_tags.insert(nid.clone(), "div".to_string());
+            self.nid_map.insert(nid.clone(), design_id);
+
+            // Ordering guarantee: the shell starts EMPTY in the static
+            // innerHTML, so child bindings (event listeners, interpolation
+            // effects) must NOT be emitted before the content is installed —
+            // at runtime they would run against the empty shell, `__omni_el`
+            // would be null, and the `if (el)` guard would discard them
+            // forever (dead listeners / empty interpolations). Capture all
+            // child + fallback bindings into a temp buffer via the same
+            // `std::mem::swap` idiom as `emit_view`, install the content
+            // first (try/catch IIFE), THEN append the captured bindings:
+            // runtime order = 先装内容、后绑事件.
+            let mut child_deferred = String::new();
+            std::mem::swap(&mut self.js, &mut child_deferred);
+
+            let mut content = String::new();
+            for child in &el.children {
+                if matches!(child, ViewTree::Slot { name: Some(n), .. } if n == "fallback") {
+                    continue;
+                }
+                content.push_str(&self.view_to_html(child, indent + 1));
+            }
+            let fallback_html = boundary
+                .fallback
+                .as_ref()
+                .map(|fb| {
+                    fb.fallback
+                        .iter()
+                        .map(|c| self.view_to_html(c, indent + 1))
+                        .collect::<String>()
+                })
+                .unwrap_or_default();
+            // Restore self.js — all child/fallback bindings now live in child_deferred.
+            std::mem::swap(&mut self.js, &mut child_deferred);
+
+            let content_escaped = Self::escape_js_string(&content);
+            let fallback_escaped = Self::escape_js_string(&fallback_html);
+            self.js.push_str(&format!(
+                "(function() {{ var host = __omni_el(\"{nid}\"); if (!host) return; \
+                 var content = \"{content_escaped}\"; var fallback = \"{fallback_escaped}\"; \
+                 try {{ host.innerHTML = content; }} catch (e) {{ host.innerHTML = fallback; }} }})();\n",
+                nid = nid,
+                content_escaped = content_escaped,
+                fallback_escaped = fallback_escaped,
+            ));
+            // Bindings execute AFTER the content is installed. If the content
+            // install succeeded, the fallback branch's bindings no-op via the
+            // `if (el)` guard (its elements don't exist); if it threw and the
+            // fallback was installed instead, the fallback bindings are live.
+            self.js.push_str(&child_deferred);
+            self.tree_pop();
+            return format!(
+                "{}<div class=\"omni-error-boundary\" data-nid=\"{}\"></div>\n",
+                pad, nid
+            );
+        }
+
         let (mut attrs, class_name_parts) = self.emit_element_props(el, &nid);
+
+        // F1 (spec §2.1 rule 5): while inside a @modal dialog, the first
+        // Heading-class element receives the compiler-generated title id that
+        // `aria-labelledby="omni-modal-title"` points at. The flag is set by
+        // emit_modal_shell when the dialog contains a heading, and reset once
+        // consumed (or after the dialog — see the shell's defensive reset).
+        // Known limitation: this check is element-local and cannot see
+        // conditional-branch ancestry. If the only heading sits inside a
+        // branch that is statically skipped in css_only (canvas) mode, the
+        // flag is never consumed and `aria-labelledby="omni-modal-title"`
+        // dangles until a later heading appears. Live mode is unaffected
+        // (all @if branches are statically in the DOM, display-toggled).
+        if self.pending_modal_title_id && MODAL_HEADING_TAGS.contains(&el.tag.as_str()) {
+            self.pending_modal_title_id = false;
+            if !el.props.contains_key("id") {
+                let _ = write!(attrs, " id=\"omni-modal-title\"");
+            }
+        }
 
         // Emit merged class attribute if any class names accumulated
         if !class_name_parts.is_empty() {

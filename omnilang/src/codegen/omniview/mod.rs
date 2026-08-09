@@ -232,6 +232,10 @@ pub fn generate(
         scroll_handler_emitted: false,
         ref_nid_map: Vec::new(),
         ref_nid_set: FxHashSet::default(),
+        pending_modal_title_id: false,
+        shimmer_css_emitted: false,
+        modal_css_emitted: false,
+        toast_runtime_emitted: false,
     };
 
     // In css_only mode, skip ALL JS emission — we only need CSS + element mappings.
@@ -629,6 +633,21 @@ struct OmniViewGenerator {
     /// Duplicate-detection set for ref names — only checked in debug builds.
     /// The semantic validator catches duplicates before codegen; this is defense-in-depth.
     pub ref_nid_set: FxHashSet<String>,
+    /// When set, the next Heading-class element emitted gets the compiler
+    /// generated modal title id (`id="omni-modal-title"`) and the flag is
+    /// cleared. Set while emitting a @modal shell whose children contain a
+    /// heading (the dialog's `aria-labelledby` target), spec 2026-08-09 §4.1.
+    pending_modal_title_id: bool,
+    /// Whether the @skeleton shimmer keyframes have been emitted into the
+    /// CSS buffer — emitted exactly once per document (spec 2026-08-09 §4.3).
+    shimmer_css_emitted: bool,
+    /// Whether the @modal shell CSS has been emitted into the CSS buffer —
+    /// emitted exactly once per document (spec 2026-08-09 §4.1 自绘遮罩).
+    modal_css_emitted: bool,
+    /// Whether the global showToast runtime (`.omni-toast` container +
+    /// `__omni_toast` queue) has been emitted — exactly once per document
+    /// (spec 2026-08-09 §4.2 全局自绘容器).
+    toast_runtime_emitted: bool,
 }
 
 /// A parsed part of an attribute template value with {word} placeholders.

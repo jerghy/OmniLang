@@ -3,6 +3,53 @@ use super::OmniViewGenerator;
 use crate::codegen::{sanitize_css_value, try_format_stdlib_call, Target};
 use crate::ir::*;
 
+/// Toast runtime JS (spec §4.2 OmniView row, verbatim requirements):
+/// global self-drawn `.omni-toast` container + `__omni_toastQueue` list +
+/// timers (default 3000ms auto-dismiss, `if (ms !== 0)` guard for
+/// `duration: 0` = no auto-close) + kind three-color classes
+/// `.omni-toast--{kind}` + `aria-live="polite"` + `document.body.appendChild`.
+const TOAST_RUNTIME_JS: &str = "\
+(function () {
+  if (window.__omni_toast) return;
+  var _toastContainer = null;
+  function ensureToastContainer() {
+    if (!_toastContainer) {
+      _toastContainer = document.querySelector(\".omni-toast\");
+      if (!_toastContainer) {
+        _toastContainer = document.createElement(\"div\");
+        _toastContainer.className = \"omni-toast\";
+        _toastContainer.setAttribute(\"aria-live\", \"polite\");
+        document.body.appendChild(_toastContainer);
+      }
+    }
+    return _toastContainer;
+  }
+  window.__omni_toastQueue = [];
+  window.__omni_toast = function (message, kind, duration) {
+    var ms = duration ?? 3000;
+    var item = document.createElement(\"div\");
+    item.className = \"omni-toast-item omni-toast--\" + (kind || \"info\");
+    item.textContent = String(message);
+    ensureToastContainer().appendChild(item);
+    window.__omni_toastQueue.push(item);
+    if (ms !== 0) {
+      setTimeout(function () { item.remove(); }, ms);
+    }
+  };
+})();
+";
+
+/// Minimal positioning + kind color classes for the self-drawn toast.
+/// Emitted once per document together with `TOAST_RUNTIME_JS`.
+const TOAST_CSS: &str = "\
+.omni-toast { position: fixed; right: 16px; bottom: 16px; z-index: 2000; display: flex; \
+flex-direction: column; gap: 8px; max-width: 320px; }\n\
+.omni-toast-item { padding: 10px 14px; border-radius: 6px; background: #333; color: #fff; \
+box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2); }\n\
+.omni-toast--info { background: #2563eb; }\n\
+.omni-toast--success { background: #16a34a; }\n\
+.omni-toast--error { background: #dc2626; }\n";
+
 /// True when the prop type is a function (`fn(String) -> String`), lowered
 /// by `lower_type` to `TypeKind::Named { name: "function" }`.
 pub(super) fn is_fn_type(ty: &TypeIR) -> bool {
@@ -462,9 +509,64 @@ impl OmniViewGenerator {
                 }
             }
             ExprIR::RefOpExpr { ref_name, op } => self.format_ref_op(ref_name, op),
+            // showToast 自绘全局容器调用（spec §4.2 OmniView row）：惰性创建
+            // `.omni-toast` 容器（aria-live 播报）+ `__omni_toastQueue` 队列 +
+            // 定时器（默认 3000ms 自动消失，duration 0 不自动关闭——`ms !== 0`
+            // 守卫，F6 语义，与 react/component/mod.rs 一致）。运行时由
+            // emit_toast_runtime_once 每文档注入一次。
+            ExprIR::BuiltinToastCall {
+                msg,
+                kind,
+                duration,
+            } => {
+                self.emit_toast_runtime_once();
+                let msg_js = self.expr_to_js(msg);
+                let kind_str = match kind {
+                    Some(ToastKindIR::Info) => "info",
+                    Some(ToastKindIR::Success) => "success",
+                    Some(ToastKindIR::Error) => "error",
+                    // V6 已硬错误拒绝 Unknown——到达 codegen 即语义违约；
+                    // 原样透传保持诚实（与 core shared/expr.rs 一致）。
+                    Some(ToastKindIR::Unknown(raw)) => raw.as_str(),
+                    None => "info",
+                };
+                let mut call = format!("__omni_toast({msg_js}, \"{kind_str}\"");
+                if let Some(d) = duration {
+                    call = format!("{call}, {d}");
+                }
+                call.push(')');
+                call
+            }
             #[allow(unreachable_patterns)]
             _ => unreachable!("Unknown ExprIR variant — update codegen for new variant"),
         }
+    }
+
+    // ══════════════════════════════════════════════════════
+    // showToast runtime (spec §4.2)
+    // ══════════════════════════════════════════════════════
+
+    /// Emit the global self-drawn toast runtime once per document: a
+    /// lazily-created `.omni-toast` container with `aria-live="polite"`
+    /// appended to `document.body`, the `__omni_toastQueue` list, and the
+    /// `__omni_toast(message, kind, duration)` helper. Duration defaults to
+    /// 3000ms; an explicit `duration: 0` disables auto-close (`if (ms !== 0)`
+    /// guard). Kind maps onto the three-color modifier classes
+    /// `.omni-toast--{info|success|error}`. The whole runtime is wrapped in
+    /// an IIFE guarded by `window.__omni_toast` because top-level deferred JS
+    /// accumulates across the whole document and must stay collision-free.
+    fn emit_toast_runtime_once(&mut self) {
+        if self.toast_runtime_emitted {
+            return;
+        }
+        self.toast_runtime_emitted = true;
+        self.css.push_str(TOAST_CSS);
+        // Emit into the deferred buffer, NOT self.js: the call site formats
+        // mid-function-body, and pushing here would land the runtime INSIDE
+        // the enclosing function. all_deferred_js runs at top level after DOM
+        // insertion and before mount lifecycle handlers — exactly where the
+        // lazily-created body container belongs.
+        self.all_deferred_js.push_str(TOAST_RUNTIME_JS);
     }
 
     /// Format a semantic ref operation (`ref.focus()`, `ref.scrollTo(x, y)`, …)

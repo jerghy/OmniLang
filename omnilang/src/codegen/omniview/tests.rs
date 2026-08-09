@@ -3091,3 +3091,375 @@ component App {
         js
     );
 }
+
+// ═══════════════════════════════════════════════════════════════
+// 批次 1：@modal / showToast / @skeleton / @errorBoundary（Task 6）
+// ═══════════════════════════════════════════════════════════════
+
+/// @modal 自绘遮罩：.omni-modal-mask + .omni-modal-dialog 容器、role/aria
+/// 属性、编译器生成的 tabindex 焦点循环（Tab/Shift+Tab 不逃逸——三端中唯一
+/// 需手写焦点逻辑的目标）、Esc 与遮罩点击关闭（信号受控置位）、三个命名槽 +
+/// 匿名内容投影（各恰好一次，防双重发射）。
+#[test]
+fn omniview_modal_generates_self_drawn_overlay_with_focus_trap() {
+    let source = r#"
+component App {
+  signal isOpen: bool = false;
+  fn open() { isOpen = true; }
+  fn close() { isOpen = false; }
+  view {
+    <div>
+      <button @onPress={open}>打开</button>
+      <dialog @modal={isOpen}>
+        @slot header { <h1>确认删除</h1> }
+        @slot body { <p>此操作不可撤销。</p> }
+        @slot footer { <button @onPress={close}>取消</button> }
+        <p>匿名内容</p>
+      </dialog>
+    </div>
+  }
+}
+"#;
+    let result = crate::compile_omniview(source, false, false);
+    assert!(result.success, "compilation failed: {:?}", result.errors);
+    let js = result
+        .files
+        .as_ref()
+        .expect("Expected JS output")
+        .js
+        .clone();
+    let html = result
+        .files
+        .as_ref()
+        .expect("Expected HTML output")
+        .html
+        .clone();
+    // 自绘遮罩 + 对话框容器（常驻 DOM，display 由信号 effect 切换）
+    assert!(
+        html.contains("omni-modal-mask"),
+        "mask container missing. HTML:\n{}",
+        html
+    );
+    assert!(
+        html.contains("omni-modal-dialog"),
+        "dialog container missing. HTML:\n{}",
+        html
+    );
+    assert!(
+        html.contains("tabindex=\"-1\""),
+        "dialog must be programmatically focusable via tabindex=-1. HTML:\n{}",
+        html
+    );
+    // a11y：role/aria-modal + 标题 id 注入（Heading 类元素自生成 id 供 lablledby）
+    assert!(
+        html.contains("role=\"dialog\""),
+        "role=dialog missing. HTML:\n{}",
+        html
+    );
+    assert!(
+        html.contains("aria-modal=\"true\""),
+        "aria-modal=true missing. HTML:\n{}",
+        html
+    );
+    assert!(
+        html.contains("aria-labelledby=\"omni-modal-title\"")
+            && html.contains("id=\"omni-modal-title\""),
+        "title id + aria-labelledby wiring missing. HTML:\n{}",
+        html
+    );
+    // 焦点循环：编译器生成 Tab/Shift+Tab 环绕（不逃逸）
+    assert!(
+        js.contains("e.key === \"Tab\"") && js.contains("shiftKey"),
+        "focus trap must handle Tab/Shift+Tab. JS:\n{}",
+        js
+    );
+    assert!(
+        js.contains("document.activeElement") && js.contains("preventDefault()"),
+        "focus trap must prevent wrap-around escape. JS:\n{}",
+        js
+    );
+    // Esc 关闭 + 遮罩点击关闭：均走信号受控置位
+    assert!(
+        js.contains("e.key === \"Escape\""),
+        "Esc handler missing. JS:\n{}",
+        js
+    );
+    assert!(
+        js.contains("e.target === mask"),
+        "mask click handler missing. JS:\n{}",
+        js
+    );
+    assert!(
+        js.contains("App_isOpen"),
+        "open signal read/write missing. JS:\n{}",
+        js
+    );
+    assert!(
+        js.matches(".set(false)").count() >= 2,
+        "Esc + mask click must both set the signal to false. JS:\n{}",
+        js
+    );
+    // 三槽 + 匿名内容投影：各恰好一次（防双重发射结构断言）
+    assert_eq!(
+        html.matches("确认删除").count(),
+        1,
+        "header slot must render exactly once. HTML:\n{}",
+        html
+    );
+    assert_eq!(
+        html.matches("此操作不可撤销。").count(),
+        1,
+        "body slot must render exactly once. HTML:\n{}",
+        html
+    );
+    assert_eq!(
+        html.matches("取消").count(),
+        1,
+        "footer slot must render exactly once. HTML:\n{}",
+        html
+    );
+    assert_eq!(
+        html.matches("匿名内容").count(),
+        1,
+        "anonymous content must render exactly once (into body slot). HTML:\n{}",
+        html
+    );
+}
+
+/// showToast 自绘全局容器：惰性创建 + aria-live 播报 + 信号列表（队列）+
+/// 定时器（默认 3000ms 自动消失，duration 0 不自动关闭）+ kind 三色样式类。
+#[test]
+fn omniview_show_toast_generates_global_container() {
+    let source = r#"
+component App {
+  fn save() { showToast("保存成功", { kind: "success" }); }
+  view {
+    <button @onPress={save}>保存</button>
+  }
+}
+"#;
+    let result = crate::compile_omniview(source, false, false);
+    assert!(result.success, "compilation failed: {:?}", result.errors);
+    let js = result
+        .files
+        .as_ref()
+        .expect("Expected JS output")
+        .js
+        .clone();
+    // 全局挂载 toast 容器（惰性创建 + aria-live 播报）
+    assert!(
+        js.contains(".omni-toast"),
+        "toast container class missing. JS:\n{}",
+        js
+    );
+    assert!(
+        js.contains("aria-live"),
+        "toast container must be aria-live. JS:\n{}",
+        js
+    );
+    assert!(
+        js.contains("document.body.appendChild"),
+        "toast container must mount on body. JS:\n{}",
+        js
+    );
+    // 信号列表（队列）+ 定时器：默认 3000ms 自动消失
+    assert!(
+        js.contains("__omni_toastQueue"),
+        "toast queue missing. JS:\n{}",
+        js
+    );
+    assert!(
+        js.contains("setTimeout") && js.contains("3000"),
+        "toast auto-close timer (3000ms) missing. JS:\n{}",
+        js
+    );
+    // duration 0 = 不自动关闭（if (ms !== 0) 守卫）
+    assert!(
+        js.contains("ms !== 0"),
+        "duration 0 must disable auto-close. JS:\n{}",
+        js
+    );
+    // kind 三色样式类 + 调用点
+    assert!(
+        js.contains("omni-toast--"),
+        "kind-based modifier class missing. JS:\n{}",
+        js
+    );
+    assert!(
+        js.contains("保存成功"),
+        "toast call message missing. JS:\n{}",
+        js
+    );
+}
+
+/// @skeleton 占位 + shimmer 动画（web 通道 CSS）：@load loading 分支内的
+/// 占位 div 带形状修饰类，CSS 含 shimmer keyframes。
+#[test]
+fn omniview_skeleton_generates_shimmer_placeholder() {
+    let source = r#"
+component App {
+  fn f() -> Array<Int> { }
+  view {
+    @load={f}
+    @if loading {
+      <div @skeleton="card" />
+    } @else {
+      <div>内容</div>
+    }
+  }
+}
+"#;
+    let result = crate::compile_omniview(source, false, false);
+    assert!(result.success, "compilation failed: {:?}", result.errors);
+    let html = result
+        .files
+        .as_ref()
+        .expect("Expected HTML output")
+        .html
+        .clone();
+    let css = result
+        .files
+        .as_ref()
+        .expect("Expected CSS output")
+        .css
+        .clone();
+    // 占位元素 + 形状修饰类
+    assert!(
+        html.contains("omni-skeleton") && html.contains("omni-skeleton--card"),
+        "skeleton placeholder with shape class missing. HTML:\n{}",
+        html
+    );
+    // shimmer 动画（web 通道 CSS keyframes）
+    assert!(
+        css.contains("@keyframes") && css.contains("shimmer"),
+        "shimmer keyframes missing. CSS:\n{}",
+        css
+    );
+}
+
+/// @errorBoundary try 兜底渲染 fallback 槽（ErrorHandlingDemo 先例形态）：
+/// 静态 html 只含空 wrapper，children/fallback 各在注入字符串中恰好一次
+/// （防双重发射结构断言）。
+#[test]
+fn omniview_error_boundary_generates_try_fallback() {
+    let source = r#"
+component App {
+  view {
+    <div @errorBoundary>
+      @slot fallback { <p>该区域加载失败</p> }
+      <div>内容</div>
+    </div>
+  }
+}
+"#;
+    let result = crate::compile_omniview(source, false, false);
+    assert!(result.success, "compilation failed: {:?}", result.errors);
+    let js = result
+        .files
+        .as_ref()
+        .expect("Expected JS output")
+        .js
+        .clone();
+    let html = result
+        .files
+        .as_ref()
+        .expect("Expected HTML output")
+        .html
+        .clone();
+    // 边界 wrapper 存在（静态 html 空壳）
+    assert!(
+        html.contains("omni-error-boundary"),
+        "error boundary wrapper missing. HTML:\n{}",
+        html
+    );
+    // try 兜底渲染形态
+    assert!(
+        js.contains("try {") && js.contains("catch") && js.contains("innerHTML"),
+        "try/catch fallback injection missing. JS:\n{}",
+        js
+    );
+    // children 与 fallback 各恰好一次（防双重发射——只经注入字符串渲染）
+    let fallback_count =
+        js.matches("该区域加载失败").count() + html.matches("该区域加载失败").count();
+    let children_count = js.matches("内容").count() + html.matches("内容").count();
+    assert_eq!(
+        fallback_count, 1,
+        "fallback content must render exactly once. JS:\n{}\nHTML:\n{}",
+        js, html
+    );
+    assert_eq!(
+        children_count, 1,
+        "children content must render exactly once. JS:\n{}\nHTML:\n{}",
+        js, html
+    );
+}
+
+/// @errorBoundary 子节点绑定顺序回归（审查修复）：boundary 空壳由延迟
+/// try/catch IIFE 装内容，子节点的绑定（@onPress 监听、插值 effect）必须
+/// 在内容装入**之后**发射——否则运行时绑定先跑，`__omni_el(子nid)` 为
+/// null，`if (el)` 守卫永远丢弃绑定（监听死寂 / 插值恒空）。
+/// 判别性断言：js 中安装 IIFE 的索引 < 插值 effect 索引 且 < click 监听索引，
+/// 且各绑定恰好出现一次（swap 捕获不得双重发射）。
+#[test]
+fn omniview_error_boundary_binds_children_after_content_install() {
+    let source = r#"
+component App {
+  prop count: i32 = 0
+  fn save() { }
+  view {
+    <div @errorBoundary>
+      @slot fallback { <p>该区域加载失败</p> }
+      <div>计数 {count} <button @onPress={save}>保存</button></div>
+    </div>
+  }
+}
+"#;
+    let result = crate::compile_omniview(source, false, false);
+    assert!(result.success, "compilation failed: {:?}", result.errors);
+    let js = result
+        .files
+        .as_ref()
+        .expect("Expected JS output")
+        .js
+        .clone();
+    // 内容安装 IIFE 必须存在（find 失败即报错）
+    let install = js
+        .find("host.innerHTML = content")
+        .unwrap_or_else(|| panic!("content install IIFE missing. JS:\n{}", js));
+    // 插值 effect 与 @onPress click 监听各恰好一次
+    assert_eq!(
+        js.matches("String(App_count.value)").count(),
+        1,
+        "interpolation effect must appear exactly once. JS:\n{}",
+        js
+    );
+    assert_eq!(
+        js.matches("el.addEventListener(\"click\"").count(),
+        1,
+        "click binding must appear exactly once. JS:\n{}",
+        js
+    );
+    let interp = js
+        .find("String(App_count.value)")
+        .unwrap_or_else(|| panic!("interpolation effect missing. JS:\n{}", js));
+    let click = js
+        .find("el.addEventListener(\"click\"")
+        .unwrap_or_else(|| panic!("click binding missing. JS:\n{}", js));
+    // 判别性顺序断言：先装内容、后绑事件
+    assert!(
+        install < interp,
+        "interpolation binding must be emitted AFTER content install \
+         (install idx {} >= interp idx {}). JS:\n{}",
+        install,
+        interp,
+        js
+    );
+    assert!(
+        install < click,
+        "click binding must be emitted AFTER content install \
+         (install idx {} >= click idx {}). JS:\n{}",
+        install,
+        click,
+        js
+    );
+}

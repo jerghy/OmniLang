@@ -30,6 +30,7 @@
 mod condition;
 pub(super) mod element;
 mod events;
+mod modal;
 pub(super) mod style;
 
 // Re-exports so sibling modules in `codegen::omniview` can still access
