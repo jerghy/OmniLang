@@ -756,7 +756,29 @@ impl FlutterCodegen {
             w.indent();
             w.emit("super.key,");
             for prop_name in comp.props.keys() {
-                w.emit_fmt(format_args!("required this.{},", prop_name));
+                // A prop WITH a default (`prop total: i32 = 0`) becomes an
+                // OPTIONAL named param with a const default — `required`
+                // forced every caller to pass the value (StatsPanel total
+                // crashed callers that relied on the default). Non-literal
+                // defaults (no const Dart equivalent in a const ctor) stay
+                // required with an honest warning.
+                match comp.prop_defaults.get(prop_name) {
+                    Some(ExprIR::LiteralExpr { .. }) => {
+                        let default_expr =
+                            format_expr_ir_flutter(comp.prop_defaults.get(prop_name).unwrap());
+                        w.emit_fmt(format_args!("this.{prop_name} = {default_expr},"));
+                    }
+                    Some(_) => {
+                        w.emit_fmt(format_args!(
+                            "// [omni] prop '{prop_name}' default is not a const \
+                             literal; emitted as required (no Dart const-ctor default)"
+                        ));
+                        w.emit_fmt(format_args!("required this.{},", prop_name));
+                    }
+                    None => {
+                        w.emit_fmt(format_args!("required this.{},", prop_name));
+                    }
+                }
             }
             for event in &comp.events {
                 w.emit_fmt(format_args!("this.{},", event.name));
@@ -987,7 +1009,8 @@ impl FlutterCodegen {
         // motions the component's view actually references are declared.
         for usage in &motion_usage {
             for (motion_name, _) in &usage.motions {
-                let Some(motion) = find_module_motion(ir, motion_name) else {
+                let Some(motion) = find_module_motion(ir, motion_name, comp.source_file.as_deref())
+                else {
                     continue;
                 };
                 let ctrl_name = motion_ctrl_name(motion_name, usage.idx);
@@ -1070,6 +1093,7 @@ impl FlutterCodegen {
                             &direct_write_names,
                             comp.form_intent.is_some(),
                             None,
+                            &FxHashSet::default(),
                         );
                     }
                 }
@@ -1113,7 +1137,9 @@ impl FlutterCodegen {
             let mut diag_seen: FxHashSet<String> = FxHashSet::default();
             for usage in &motion_usage {
                 for (motion_name, has_enter) in &usage.motions {
-                    let Some(motion) = find_module_motion(ir, motion_name) else {
+                    let Some(motion) =
+                        find_module_motion(ir, motion_name, comp.source_file.as_deref())
+                    else {
                         continue;
                     };
                     let ctrl_name = motion_ctrl_name(motion_name, usage.idx);
@@ -1235,6 +1261,7 @@ impl FlutterCodegen {
                                 &direct_write_names,
                                 comp.form_intent.is_some(),
                                 None,
+                                &FxHashSet::default(),
                             );
                         }
                         w.dedent();
@@ -1247,6 +1274,7 @@ impl FlutterCodegen {
                                 &direct_write_names,
                                 comp.form_intent.is_some(),
                                 None,
+                                &FxHashSet::default(),
                             );
                         }
                     }
@@ -1299,19 +1327,28 @@ impl FlutterCodegen {
                         };
                         conditions.push(format!("_prev{} != {}", dep, rhs));
                     } else {
-                        // Unresolvable dep — conservatively re-run
-                        conditions.push("true".to_string());
+                        // Unresolvable dep (store action/field): it cannot be
+                        // compared in didUpdateWidget, and must NOT collapse the
+                        // guard to `if (true)` — an always-true guard re-ran the
+                        // effect on every rebuild, overwriting store state
+                        // (FilterBar @effect (searchText, setFilter): setFilter
+                        // clobbered TodoStore.lastAction on unrelated rebuilds).
+                        // Skip it; the resolvable deps still drive the guard.
                     }
                 }
                 if conditions.is_empty() {
-                    continue; // no deps — runs once in initState only
-                }
-                // Task 5.8a: a single unresolvable dep already makes the
-                // whole condition always-true — `if (true || ...)` flagged
-                // the right operand as dead_code in dart analyze
-                // (NotificationsPanel:43). Collapse to `if (true)`.
-                if conditions.iter().any(|c| c == "true") {
-                    conditions = vec!["true".to_string()];
+                    // No resolvable deps — runs once in initState only, unless
+                    // deps were declared but ALL are unresolvable: a
+                    // conservative re-run on every rebuild is the only
+                    // Flutter-side sync point for a store-only effect.
+                    if !effect.deps.is_empty() {
+                        w.emit("if (true) {");
+                        w.indent();
+                        w.emit_fmt(format_args!("_runEffect_{}();", i));
+                        w.dedent();
+                        w.emit("}");
+                    }
+                    continue;
                 }
                 w.emit_fmt(format_args!("if ({}) {{", conditions.join(" || ")));
                 w.indent();
@@ -1353,6 +1390,7 @@ impl FlutterCodegen {
                             &direct_write_names,
                             comp.form_intent.is_some(),
                             None,
+                            &FxHashSet::default(),
                         );
                     }
                 }
@@ -1360,7 +1398,7 @@ impl FlutterCodegen {
             // Dispose the per-element motion AnimationControllers (T5.7)
             for usage in &motion_usage {
                 for (motion_name, _) in &usage.motions {
-                    if find_module_motion(ir, motion_name).is_none() {
+                    if find_module_motion(ir, motion_name, comp.source_file.as_deref()).is_none() {
                         continue;
                     }
                     let ctrl_name = motion_ctrl_name(motion_name, usage.idx);
@@ -1459,6 +1497,7 @@ impl FlutterCodegen {
                     &direct_write_names,
                     comp.form_intent.is_some(),
                     None,
+                    &FxHashSet::default(),
                 );
             }
             // Snapshot non-prop deps for the didUpdateWidget comparison
@@ -1938,11 +1977,15 @@ pub(crate) fn load_provider_name(fn_name: &str) -> String {
     format!("{fn_name}Provider")
 }
 
+/// Whether an effect has NO resolvable dependency (every dep is a store
+/// action/field or other unresolvable reference). Such an effect cannot be
+/// guarded in `didUpdateWidget` — a conservative `if (true)` re-run is the
+/// only Flutter-side sync point — and it never snapshots prev fields.
 fn effect_collapses_to_true(comp: &ComponentIR, effect: &EffectIntent) -> bool {
     effect
         .deps
         .iter()
-        .any(|d| !comp.props.contains_key(d) && find_dep_type(comp, d).is_none())
+        .all(|d| !comp.props.contains_key(d) && find_dep_type(comp, d).is_none())
 }
 
 fn find_dep_type<'a>(comp: &'a ComponentIR, dep: &str) -> Option<&'a TypeIR> {

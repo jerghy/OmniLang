@@ -151,13 +151,27 @@ pub(crate) fn motion_active_name(motion: &str, idx: usize) -> String {
     format!("_{}Active_{}", motion, idx)
 }
 
-/// Find a module-level motion by name (all modules — motions are module
-/// scoped and components reference them by name).
-pub(crate) fn find_module_motion<'a>(ir: &'a IRProgram, name: &str) -> Option<&'a MotionIntent> {
-    ir.modules
-        .values()
-        .flat_map(|m| &m.motions)
-        .find(|m| m.name == name)
+/// Find a module-level motion by name. Motions are FILE-scoped: two files may
+/// each define `@motion dragSlideY` with different keyframes
+/// (KeyframeAnimationDemo translateY 60 vs MotionTriggersDemo translateY 100
+/// — the flat name index resolved non-deterministically to one of them).
+/// Prefer the motion declared in the requesting component's own file, then
+/// fall back to any module (inline-hoisted motions carry no file).
+pub(crate) fn find_module_motion<'a>(
+    ir: &'a IRProgram,
+    name: &str,
+    source_file: Option<&str>,
+) -> Option<&'a MotionIntent> {
+    let all: Vec<&'a MotionIntent> = ir.modules.values().flat_map(|m| &m.motions).collect();
+    if let Some(sf) = source_file {
+        if let Some(m) = all
+            .iter()
+            .find(|m| m.name == name && m.source_file.as_deref() == Some(sf))
+        {
+            return Some(m);
+        }
+    }
+    all.into_iter().find(|m| m.name == name)
 }
 
 // ═══════════════════════════════════════════════════════════════════

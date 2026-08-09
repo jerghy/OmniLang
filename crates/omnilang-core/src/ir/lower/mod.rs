@@ -577,7 +577,9 @@ component Greet {
                 assert_eq!(el.tag, "div");
                 assert_eq!(el.children.len(), 2);
                 match &el.children[0] {
-                    ViewTree::Text(t) => assert_eq!(t, "Hello"),
+                    // Trailing space before `{name}` is preserved (DOM whitespace
+                    // folding keeps it: "Hello {name}" renders "Hello World").
+                    ViewTree::Text(t) => assert_eq!(t, "Hello "),
                     other => panic!("expected Text child, got {:?}", other),
                 }
                 match &el.children[1] {

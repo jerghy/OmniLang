@@ -4,6 +4,7 @@
 
 use super::capitalize_first;
 use crate::ir::ExprIR;
+use crate::ir::TypeKind;
 
 /// Lowercase the first character of a string ("TodoStore" → "todoStore").
 pub(crate) fn lower_first(s: &str) -> String {
@@ -84,6 +85,20 @@ fn flutter_callback_for_canonical(canonical: &str) -> String {
         // names had no widget param and dropped with a warning).
         "mouseenter" => "onEnter".into(),
         "mouseleave" => "onExit".into(),
+        // Pointer-family events map onto Flutter's Listener callbacks —
+        // mousedown/up/move are the DOM names for the same pointer
+        // semantics (EventSpectrumDemo), wheel arrives via onPointerSignal.
+        "mousedown" => "onPointerDown".into(),
+        "mouseup" => "onPointerUp".into(),
+        "mousemove" => "onPointerMove".into(),
+        "pointerdown" => "onPointerDown".into(),
+        "pointerup" => "onPointerUp".into(),
+        "pointermove" => "onPointerMove".into(),
+        "pointercancel" => "onPointerCancel".into(),
+        "wheel" => "onPointerSignal".into(),
+        "touchstart" => "onPointerDown".into(),
+        "touchmove" => "onPointerMove".into(),
+        "touchend" => "onPointerUp".into(),
         "scroll" => "onScroll".into(),
         "drag" | "dragstart" => "onDragStart".into(),
         "dragend" => "onDragEnd".into(),
@@ -152,12 +167,19 @@ pub(crate) fn binding_to_flutter_param(bind_name: &str) -> &str {
 /// `ValueChanged<bool?>`: the nullable `v` cannot be assigned to the bool
 /// signal directly, so the unreachable null case falls back to the current
 /// value (`v ?? signal`).
-pub(crate) fn bind_value_write_back(widget: &str, signal: &str) -> String {
+pub(crate) fn bind_value_write_back(
+    widget: &str,
+    signal: &str,
+    signal_type: Option<&TypeKind>,
+) -> String {
     if matches!(widget, "Checkbox" | "Switch" | "DropdownButton") {
         format!(
             "(v) {{ setState(() {{ {} = v ?? {}; }}); }}",
             signal, signal
         )
+    } else if widget == "Slider" && signal_type == Some(&TypeKind::Int) {
+        // Slider's payload is double — an `i32` signal converts back.
+        format!("(v) {{ setState(() {{ {} = v.toInt(); }}); }}", signal)
     } else {
         format!("(v) {{ setState(() {{ {signal} = v; }}); }}")
     }
@@ -465,6 +487,12 @@ pub(crate) enum EventWrapperKind {
     /// `Focus(onKeyEvent: ...)` — keydown/keyup under the Flutter contract
     /// `KeyEventResult Function(FocusNode, KeyEvent)`.
     KeyEvent,
+    /// `Listener(<param>: ...)` — pointer-family raw events (pointer
+    /// down/up/move/cancel, wheel via onPointerSignal).
+    Listener(&'static str),
+    /// `NotificationListener<ScrollNotification>` — scroll events
+    /// (FormPage's @onScroll was previously dropped entirely).
+    ScrollNotif,
 }
 
 /// Task 3.6 + C2b (#3): event callbacks that NO widget whitelist accepts.
@@ -490,6 +518,15 @@ pub(crate) fn generic_event_wrapper_callback(callback: &str) -> Option<EventWrap
         "onBlur" => Some(EventWrapperKind::FocusChange("blur")),
         // Task C2b (#3): key events → Focus(onKeyEvent:).
         "onKeyDown" | "onKeyUp" => Some(EventWrapperKind::KeyEvent),
+        // Pointer-family events → Listener (raw pointer callbacks — the
+        // events were previously dropped: no widget whitelist entry, no
+        // wrapper; EventSpectrumDemo lost 13 mouse/pointer/touch handlers).
+        "onPointerDown" => Some(EventWrapperKind::Listener("onPointerDown")),
+        "onPointerUp" => Some(EventWrapperKind::Listener("onPointerUp")),
+        "onPointerMove" => Some(EventWrapperKind::Listener("onPointerMove")),
+        "onPointerCancel" => Some(EventWrapperKind::Listener("onPointerCancel")),
+        "onPointerSignal" => Some(EventWrapperKind::Listener("onPointerSignal")),
+        "onScroll" => Some(EventWrapperKind::ScrollNotif),
         _ => None,
     }
 }
@@ -640,6 +677,11 @@ fn convert_string_prop_value(widget: &str, param: &str, s: &str) -> Option<Strin
     match param {
         "fontWeight" => font_weight_to_dart(s),
         "fontSize" => css_length_to_dart_double(s),
+        // Slider's min/max are doubles — `<input type="range" min="0"
+        // max="100">` lowered the attributes as String literals, emitting
+        // `Slider(min: '0', max: '100')` (argument_type_not_assignable).
+        // `{:.1}` keeps the `.0` so the literal is a double, not an int.
+        "min" | "max" if widget == "Slider" => s.parse::<f64>().ok().map(|n| format!("{:.1}", n)),
         "color" | "backgroundColor" => css_color_to_dart(s),
         "textAlign" => match s.trim() {
             "left" => Some("TextAlign.left".into()),

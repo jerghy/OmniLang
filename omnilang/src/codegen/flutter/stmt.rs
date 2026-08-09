@@ -44,6 +44,11 @@ pub(crate) struct FlutterStmtFormatter<F: FormatExpr> {
     /// whole-tree rebuild). Filled from the shared classification at
     /// construction sites with component context; empty elsewhere.
     pub(crate) direct_write_signals: FxHashSet<String>,
+    /// fn-local variable names (params + `let mut` bindings). Mutations on a
+    /// local emit a plain assignment — NO setState: locals aren't reactive,
+    /// and setState during build crashes ("setState() called during build",
+    /// ValidationInput's while-loop counters invoked from build).
+    pub(crate) local_names: FxHashSet<String>,
 }
 
 impl<F: FormatExpr> FormatStmt for FlutterStmtFormatter<F> {
@@ -205,6 +210,10 @@ impl<F: FormatExpr> FormatStmt for FlutterStmtFormatter<F> {
             MutationIntent::Push { item, .. } => item.as_deref().is_some_and(expr_emits_await),
             _ => false,
         };
+        // A fn-local target (param / `let mut` binding) must NOT setState —
+        // locals aren't reactive, and setState during build crashes
+        // (ValidationInput's while-loop counters called from build).
+        let is_local = mutation_target_name(intent).is_some_and(|t| self.local_names.contains(t));
         if value_has_await {
             // DirectAssign: hoist the await before the setState closure.
             if let MutationIntent::DirectAssign {
@@ -219,7 +228,11 @@ impl<F: FormatExpr> FormatStmt for FlutterStmtFormatter<F> {
                 // (duplicate_definition, Task 5.8).
                 let tmp = format!("__{}", target.name);
                 w.emit_fmt(format_args!("var {tmp} = {formatted};"));
-                w.emit_fmt(format_args!("setState(() {{ {} = {tmp}; }});", target.name));
+                if is_local {
+                    w.emit_fmt(format_args!("{} = {tmp};", target.name));
+                } else {
+                    w.emit_fmt(format_args!("setState(() {{ {} = {tmp}; }});", target.name));
+                }
                 return;
             }
             // Unhoistable shape (compound ops with await in the amount) —
@@ -261,10 +274,13 @@ impl<F: FormatExpr> FormatStmt for FlutterStmtFormatter<F> {
         // Standard path — emitted inline (a trait-ufcs call would
         // dispatch back to this override: infinite recursion). Mirrors the
         // shared default: setState-wrapped mutation via the language hooks.
+        // fn-locals skip the wrapper (plain assignment).
         let semi = if self.needs_semicolon() { ";" } else { "" };
-        if let Some(prefix) = self.mutation_stmt_prefix() {
-            w.emit(prefix);
-            w.indent();
+        if !is_local {
+            if let Some(prefix) = self.mutation_stmt_prefix() {
+                w.emit(prefix);
+                w.indent();
+            }
         }
         match intent {
             MutationIntent::DirectAssign { target, value, .. } => {
@@ -336,9 +352,11 @@ impl<F: FormatExpr> FormatStmt for FlutterStmtFormatter<F> {
             #[allow(unreachable_patterns)]
             _ => {}
         }
-        if let Some(suffix) = self.mutation_stmt_suffix() {
-            w.dedent();
-            w.emit(suffix);
+        if !is_local {
+            if let Some(suffix) = self.mutation_stmt_suffix() {
+                w.dedent();
+                w.emit(suffix);
+            }
         }
     }
 }
@@ -348,6 +366,46 @@ impl<F: FormatExpr> FormatStmt for FlutterStmtFormatter<F> {
 /// async method signatures and the mount-body async wrapper (Task 5.8).
 pub(crate) fn stmt_block_emits_await(statements: &[StatementIR]) -> bool {
     statements.iter().any(stmt_emits_await)
+}
+
+/// Collect fn-local variable names declared inside a statement list
+/// (`let` bindings, `@for` iteration vars — params are added by the caller).
+/// Mutations on these emit plain assignments (no setState): a local is not
+/// reactive, and setState during build throws (ValidationInput's
+/// while-loop counters invoked from `build`).
+pub(crate) fn collect_stmt_locals(statements: &[StatementIR], out: &mut FxHashSet<String>) {
+    for stmt in statements {
+        match stmt {
+            StatementIR::LetStmtIR { name, .. } => {
+                out.insert(name.clone());
+            }
+            StatementIR::IfStmtIR {
+                then_body,
+                else_ifs,
+                else_body,
+                ..
+            } => {
+                collect_stmt_locals(&then_body.statements, out);
+                for (_, body) in else_ifs {
+                    collect_stmt_locals(&body.statements, out);
+                }
+                if let Some(body) = else_body {
+                    collect_stmt_locals(&body.statements, out);
+                }
+            }
+            StatementIR::WhileStmtIR { body, .. } => {
+                collect_stmt_locals(&body.statements, out);
+            }
+            StatementIR::ForInStmtIR { var_name, body, .. } => {
+                out.insert(var_name.clone());
+                collect_stmt_locals(&body.statements, out);
+            }
+            StatementIR::BlockStmtIR { body } => {
+                collect_stmt_locals(&body.statements, out);
+            }
+            _ => {}
+        }
+    }
 }
 
 fn stmt_emits_await(stmt: &StatementIR) -> bool {
@@ -621,6 +679,7 @@ pub(crate) fn generate_statement_flutter(w: &mut CodeWriter, stmt: &StatementIR)
     let fmt = FlutterStmtFormatter {
         expr: super::r#ref::FlutterFormatExpr::new(None),
         direct_write_signals: FxHashSet::default(),
+        local_names: FxHashSet::default(),
     };
     fmt.format_stmt(w, stmt);
 }
@@ -642,6 +701,7 @@ pub(crate) fn generate_statement_flutter_dw(
     direct_write_signals: &FxHashSet<String>,
     form_present: bool,
     retry_expr: Option<String>,
+    local_names: &FxHashSet<String>,
 ) {
     let fmt = FlutterStmtFormatter {
         expr: super::r#ref::FlutterFormatExpr::new_with_context(
@@ -652,6 +712,7 @@ pub(crate) fn generate_statement_flutter_dw(
             retry_expr,
         ),
         direct_write_signals: direct_write_signals.clone(),
+        local_names: local_names.clone(),
     };
     fmt.format_stmt(w, stmt);
 }
@@ -909,8 +970,22 @@ pub(crate) fn generate_function_flutter_with(
     } else {
         statements.len()
     };
+    // fn-locals: params + nested `let`/loop bindings — mutations on these
+    // emit plain assignment (no setState; see FlutterStmtFormatter::local_names).
+    let mut local_names = FxHashSet::default();
+    for p in &func.params {
+        local_names.insert(p.name.clone());
+    }
+    collect_stmt_locals(statements, &mut local_names);
     for stmt in &statements[..tail_count] {
-        generate_statement_flutter_dw(w, stmt, direct_write_signals, form_present, None);
+        generate_statement_flutter_dw(
+            w,
+            stmt,
+            direct_write_signals,
+            form_present,
+            None,
+            &local_names,
+        );
     }
     if is_tail_expr {
         if let Some(StatementIR::ExprStmtIR { expr }) = statements.last() {

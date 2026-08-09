@@ -15,8 +15,11 @@ use serde_json::Value;
 
 use super::capitalize_first;
 use super::design::DesignResolver;
-use super::design::{class_factory_expr, decoration_fields_to_expr, merge_decoration_fields};
-use super::design::{resolve_class_decoration, resolve_variant_decoration, DecorationFields};
+use super::design::{
+    class_factory_expr, decoration_fields_to_expr, merge_decoration_fields,
+    resolve_class_decoration, resolve_variant_decoration, DecorationFields,
+};
+use super::design_classes::resolve_style_rule_decoration;
 use super::design_tokens::dart_string_literal;
 use super::expr::{
     format_expr_ir_flutter, format_expr_ir_flutter_ctx, rewrite_stmt_store_accesses,
@@ -842,6 +845,10 @@ fn css_prop_to_flutter_param(prop: &str) -> Option<&'static str> {
         "width" => Some("width"),
         "height" => Some("height"),
         "color" => Some("color"),
+        // CSS shorthand `background` (the form OmniView demos write)
+        // maps like background-color: Container's `color` IS its
+        // background; on Text the wrapper routes it into the TextStyle.
+        "background" => Some("color"),
         "background-color" => Some("color"),
         _ => None,
     }
@@ -860,6 +867,35 @@ fn resolve_static_class(
     ctx: &mut ViewContext,
 ) -> Option<(DecorationFields, Option<String>)> {
     let Some((design, class)) = ctx.design.class_owner(name) else {
+        // Component-local style-block class (`.themeCard` / `.active` in the
+        // component's own `style { }`) — not declared by any design block.
+        // Resolve it from `comp.styles` so `class:` and `class: { name: cond }`
+        // bindings on local classes emit real decorations (previously every
+        // local class was dropped with the "not declared by any design block"
+        // warning — ThemeSwitcher cards, DynamicTokens preset buttons).
+        // Compound selectors (`.themeCard.active`) also match their tail
+        // class: `class: { themeCard: true, active: cond }` binds `active` to
+        // the combined rule, whose fields layer on while the condition holds.
+        if let Some(rule) = ctx.comp.styles.iter().find(|s| {
+            !s.is_tag_selector
+                && (s.class_name == name || s.class_name.ends_with(&format!(".{name}")))
+        }) {
+            let (fields, skipped) = resolve_style_rule_decoration(ctx.design.any_design(), rule);
+            warn_design_skipped(ctx, &format!("class '{name}'"), skipped, span);
+            if fields.is_empty() {
+                ctx.warn_at(
+                    format!(
+                        "[flutter] component-local class '{name}' has no \
+                         decoration-mappable properties; skipped"
+                    ),
+                    span,
+                );
+                return None;
+            }
+            // Local classes have no `AppDesign.<class>()` factory — the
+            // decoration is composed inline from the fields.
+            return Some((fields, None));
+        }
         ctx.warn_at(
             format!(
                 "[flutter] class '{name}' is not declared by any design block; \
@@ -1958,6 +1994,16 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                 // the wrapper merges with the props' TextStyle members).
                 if let Some((wrapper, member)) = widget_param_wrapper(widget, param) {
                     if param == "color" {
+                        // CSS `background` on a text element is a BACKGROUND
+                        // color — route it to TextStyle.backgroundColor;
+                        // `color` stays the text color. Without this the two
+                        // props collided on one `color:` member
+                        // (TextStyle(color: bg, color: fg) — duplicate arg).
+                        let member = if css_prop == "background" {
+                            "backgroundColor"
+                        } else {
+                            member
+                        };
                         if let Some(color_expr) = css_color_to_dart(css_val_str) {
                             match wrapped.iter_mut().find(|(w, _)| *w == wrapper) {
                                 Some((_, members)) => {
@@ -2012,6 +2058,14 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                 }
                 Some("color") => {
                     // C5: CSS colors → Dart Color literals (#ff0000 → Color(0xFFFF0000))
+                    // A non-text widget's `color:` slot IS its background —
+                    // when both `background` and `color` (DOM foreground,
+                    // no Container equivalent) appear, `background` owns
+                    // the slot deterministically (map iteration order is
+                    // unstable).
+                    if css_prop == "color" && obj.contains_key("background") {
+                        continue;
+                    }
                     match css_color_to_dart(css_val_str) {
                         Some(color_expr) => args.push(format!("color: {}", color_expr)),
                         None => ctx.warn_at(
@@ -2307,6 +2361,7 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                                 ctx.retry_expr.clone(),
                             ),
                             direct_write_signals: ctx.direct_write_signals.clone(),
+                            local_names: FxHashSet::default(),
                         };
                         fmt.format_stmt(&mut hw, &s2);
                     }
@@ -2376,6 +2431,47 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
             }
             Some(EventWrapperKind::MouseRegion(param)) => {
                 wrap_push(&mut wrap_args, "MouseRegion", param, &body);
+            }
+            Some(EventWrapperKind::Listener(param)) => {
+                // Listener callbacks take an event arg — a bare `() { ... }`
+                // closure is `void Function()`, which is NOT assignable to
+                // `PointerDownEventListener` (Dart subtyping is contravariant
+                // in parameters). Rewrap no-arg closures with `(event)`; a
+                // tear-off gets invoked inside the closure.
+                wrap_push(
+                    &mut wrap_args,
+                    "Listener",
+                    param,
+                    &listener_callback_body(&body, ctx.comp),
+                );
+            }
+            Some(EventWrapperKind::ScrollNotif) => {
+                // NotificationListener's onNotification returns bool —
+                // convert the void handler into
+                // `(notification) { <stmts> return false; }`. Closures have
+                // their statements extracted; tear-offs are invoked with the
+                // notification when the fn takes an argument
+                // (EventsDemo's handleScroll(e)).
+                let trimmed = body.trim();
+                let inner = if trimmed.starts_with('(') && trimmed.ends_with('}') {
+                    closure_body(trimmed).to_string()
+                } else if ctx
+                    .comp
+                    .fns
+                    .iter()
+                    .any(|f| f.name == trimmed && !f.params.is_empty())
+                {
+                    format!("{trimmed}(notification);")
+                } else {
+                    format!("{trimmed}();")
+                };
+                let notif_body = format!("(notification) {{ {inner} return false; }}");
+                wrap_push(
+                    &mut wrap_args,
+                    "NotificationListener<ScrollNotification>",
+                    "onNotification",
+                    &notif_body,
+                );
             }
             Some(EventWrapperKind::FocusChange(_)) => {
                 // handled above — bodies must be statements, not closures
@@ -2496,13 +2592,18 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
         let write_back_type_ok = signal.is_some_and(|s| match widget {
             "TextField" => matches!(s.r#type.kind, TypeKind::String),
             "Checkbox" | "Switch" => matches!(s.r#type.kind, TypeKind::Bool),
-            "Slider" => matches!(s.r#type.kind, TypeKind::Float),
+            "Slider" => {
+                matches!(s.r#type.kind, TypeKind::Float | TypeKind::Int)
+            }
             _ => true, // DropdownButton's callback is T? — any bare signal type writes back
         });
-        let write_back_eligible =
-            bind_name == "value" && write_back_type_ok && widget_allows_param(widget, "onChanged");
-        let write_back =
-            write_back_eligible.then(|| bind_value_write_back(widget, &signal_ref.name));
+        let signal_kind = signal.map(|s| s.r#type.kind.clone());
+        let write_back_eligible = (bind_name == "value"
+            || (bind_name == "checked" && matches!(widget, "Checkbox" | "Switch")))
+            && write_back_type_ok
+            && widget_allows_param(widget, "onChanged");
+        let write_back = write_back_eligible
+            .then(|| bind_value_write_back(widget, &signal_ref.name, signal_kind.as_ref()));
         if !widget_allows_param(widget, param) {
             if let Some(cb) = write_back {
                 if already_has_on_changed {
@@ -2534,7 +2635,17 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                 args.push(format!("onChanged: {cb}"));
             }
         }
-        args.push(format!("{}: {}", param, signal_ref.name));
+        // Slider's value is double — an `i32` signal converts at the read
+        // site (`value: (rangeVal).toDouble()`), mirroring the write-back's
+        // `.toInt()` (FormControlsDemo rangeVal: i32).
+        let value_arg = if widget == "Slider"
+            && signal.is_some_and(|s| matches!(s.r#type.kind, TypeKind::Int))
+        {
+            format!("({}).toDouble()", signal_ref.name)
+        } else {
+            signal_ref.name.clone()
+        };
+        args.push(format!("{}: {}", param, value_arg));
     }
 
     // @form (Task 5): the type="submit" button intercepts submission —
@@ -2728,6 +2839,14 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
     } else {
         widget
     };
+    // Text requires the positional `data` argument — an element with NO
+    // text children but other args (`<span style: {...} />` → args carry
+    // the TextStyle) must still pass `''`: `Text(style: TextStyle(...))`
+    // is invalid Dart (1 positional expected). The args-less case is
+    // handled by the `Text('')` fallback below.
+    if render_widget == "Text" && el.children.is_empty() && !args.is_empty() {
+        args.insert(0, "''".to_string());
+    }
     let inner = if args.is_empty() {
         // Task 5.8: an empty element mapped to Text (`<span/>` with style
         // only) emitted `Text()` — Text requires its positional `data`
@@ -3055,7 +3174,14 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
     let result = if wrap_args.is_empty() {
         result
     } else {
-        const WRAP_ORDER: [&str; 4] = ["Tooltip", "Focus", "MouseRegion", "GestureDetector"];
+        const WRAP_ORDER: [&str; 6] = [
+            "Tooltip",
+            "Focus",
+            "MouseRegion",
+            "Listener",
+            "NotificationListener<ScrollNotification>",
+            "GestureDetector",
+        ];
         let mut sorted: Vec<_> = wrap_args.into_iter().collect();
         sorted.sort_by_key(|(w, _)| {
             WRAP_ORDER
@@ -3112,11 +3238,23 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
 /// `TextFormField` so bound fields get `validator` — Form validation only
 /// works on FormField descendants.
 fn form_field_widget<'a>(ctx: &ViewContext<'_>, el: &ElementIR, base: &'a str) -> &'a str {
-    if el.tag == "input" && ctx.form_present {
-        "TextFormField"
-    } else {
-        base
+    if el.tag == "input" {
+        // `type` selects the control widget — `<input type="checkbox">`
+        // previously mapped to TextField (wrong control, bind:checked
+        // dropped); range maps to Slider.
+        if let Some(ExprIR::LiteralExpr { value }) = el.props.get("type") {
+            match value.as_str() {
+                Some("checkbox") => return "Checkbox",
+                Some("range") => return "Slider",
+                Some("radio") => return "Radio",
+                _ => {}
+            }
+        }
+        if ctx.form_present {
+            return "TextFormField";
+        }
     }
+    base
 }
 
 /// Extract an integer literal from a validate: rule value (`min: 2`).
@@ -3268,6 +3406,47 @@ fn form_validator_args(ctx: &ViewContext<'_>, signal_ref: &SignalRefIR, args: &m
     }
     args.push(format!("validator: {validator}"));
     args.push("autovalidateMode: AutovalidateMode.onUserInteraction".to_string());
+}
+
+/// Extract the statement block of a formatted handler closure (`() { X }`,
+/// `(event) { X }`) — returns the inner statements. Non-closures (tear-offs)
+/// are returned unchanged.
+fn closure_body(body: &str) -> &str {
+    let trimmed = body.trim();
+    match trimmed.find('{') {
+        Some(idx) if trimmed.ends_with('}') => trimmed[idx + 1..]
+            .trim_end()
+            .strip_suffix('}')
+            .unwrap_or(trimmed),
+        _ => trimmed,
+    }
+}
+
+/// Rewrap a handler body for a Listener callback (pointer events): the
+/// callback takes an event argument, so a no-arg closure `() { X }` becomes
+/// `(event) { X }` (`void Function()` is not assignable to
+/// `PointerDownEventListener` — contravariant parameters), an already-arged
+/// closure is kept, and a bare tear-off is invoked with the event when the
+/// component fn takes a parameter (`handleWheel(e)` → `handleWheel(event)`)
+/// or with no args otherwise.
+fn listener_callback_body(body: &str, comp: &ComponentIR) -> String {
+    let trimmed = body.trim();
+    if trimmed.starts_with('(') && trimmed.ends_with('}') {
+        if trimmed.starts_with("() {") {
+            let inner = closure_body(trimmed);
+            format!("(event) {{ {} }}", inner)
+        } else {
+            trimmed.to_string()
+        }
+    } else if comp
+        .fns
+        .iter()
+        .any(|f| f.name == trimmed && !f.params.is_empty())
+    {
+        format!("(event) {{ {trimmed}(event); }}")
+    } else {
+        format!("(event) {{ {trimmed}(); }}")
+    }
 }
 
 /// Append `(param, body)` to a wrapper's member list, creating the wrapper
@@ -3532,6 +3711,7 @@ fn format_key_handler_flutter(body: &BlockIR, ctx: &ViewContext) -> String {
                 ctx.retry_expr.clone(),
             ),
             direct_write_signals: ctx.direct_write_signals.clone(),
+            local_names: FxHashSet::default(),
         };
         fmt.format_stmt(&mut hw, &s2);
     }
@@ -3897,6 +4077,7 @@ fn format_inline_statements_flutter(body: &BlockIR, ctx: &ViewContext) -> String
                 ctx.retry_expr.clone(),
             ),
             direct_write_signals: ctx.direct_write_signals.clone(),
+            local_names: FxHashSet::default(),
         };
         fmt.format_stmt(&mut hw, &s2);
     }
@@ -3937,6 +4118,7 @@ fn format_inline_handler_flutter(body: &BlockIR, ctx: &ViewContext) -> String {
             ctx.direct_write_signals,
             ctx.form_present,
             ctx.retry_expr.clone(),
+            &FxHashSet::default(),
         )
     })
 }

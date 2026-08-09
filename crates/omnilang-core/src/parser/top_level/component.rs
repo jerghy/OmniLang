@@ -155,11 +155,22 @@ impl<'a> Parser<'a> {
                     if *self.peek_kind() == TokenKind::Semicolon {
                         self.advance();
                     }
-                    // Store as a signal-like declaration for now
+                    // Store as a signal-like declaration for now, with the
+                    // literal's type inferred from the value — `"auto"` fell
+                    // through to `dynamic` in Dart (`dynamic MAX_ITEMS = 10;`
+                    // instead of `int MAX_ITEMS = 10;`). Arrays keep "auto".
+                    let inferred = match &value {
+                        Expr::Literal(Literal::Int(_), _) => "i32".into(),
+                        Expr::Literal(Literal::Float(_), _) => "f64".into(),
+                        Expr::Literal(Literal::String(_), _) => "String".into(),
+                        Expr::Literal(Literal::Bool(_), _) => "bool".into(),
+                        Expr::Literal(Literal::Null, _) => "String?".into(),
+                        _ => "auto".into(),
+                    };
                     signals.push(SignalDecl {
                         name,
                         type_ann: TypeAnnotation::Named {
-                            name: "auto".into(),
+                            name: inferred,
                             type_args: vec![],
                             span: Span {
                                 start: 0,

@@ -515,11 +515,38 @@ pub trait FormatExpr {
                 &self.format_expr(predicate),
             ),
             ExprIR::RefOpExpr { ref_name, op } => self.format_ref_op(ref_name, op),
-            // 批次 1 Task 2 编译穷尽性占位：showToast 的目标代码由
-            // Task 4（React）/5（Flutter）/6（OmniView）codegen 实现并
-            // 替换本 arm。显式占位标记不可误认为产物，语料注入
-            // （Task 8）之前不会到达本 formatter。
-            ExprIR::BuiltinToastCall { .. } => "<builtin:showToast>".to_string(),
+            // showToast 目标分发（批次 1 Task 4）：React 生成真实的
+            // `toast({ message, kind, duration })` 调用（配对的
+            // ToastProvider 由组件代码生成器产出，见 react/component/
+            // mod.rs）；其他目标保持 Task 2 显式占位——Flutter（Task 5）
+            // 与 OmniView（Task 6）后续替换各自分支，JS/Dart/Rust 族
+            // 没有 Provider 机制，占位符保证"响亮失败"而非运行时裸奔。
+            ExprIR::BuiltinToastCall {
+                msg,
+                kind,
+                duration,
+            } => {
+                if self.codegen_target() == Target::React {
+                    let mut parts = vec![format!("message: {}", self.format_expr(msg))];
+                    if let Some(k) = kind {
+                        let kind_str = match k {
+                            ToastKindIR::Info => "info",
+                            ToastKindIR::Success => "success",
+                            ToastKindIR::Error => "error",
+                            // V6 已硬错误拒绝 Unknown——到达 codegen 即语义
+                            // 违约；原样透传保持诚实（与枚举注释一致）。
+                            ToastKindIR::Unknown(raw) => raw.as_str(),
+                        };
+                        parts.push(format!("kind: \"{kind_str}\""));
+                    }
+                    if let Some(d) = duration {
+                        parts.push(format!("duration: {d}"));
+                    }
+                    format!("toast({{ {} }})", parts.join(", "))
+                } else {
+                    "<builtin:showToast>".to_string()
+                }
+            }
         }
     }
 }
@@ -1050,8 +1077,17 @@ impl FormatExpr for DartFormatExpr {
         format!("{type_name}({fields})")
     }
 
+    /// Map-literal keys keep their formatted expression verbatim: a string
+    /// key already carries Dart quotes (`'dev'`), numbers/bools are unquoted
+    /// (`90`, `true`). The default `format_struct_field` wraps non-`"`-quoted
+    /// keys in double quotes (JSON style), which double-quotes Dart strings
+    /// into `"'dev'"` and breaks `map["dev"]` lookups at runtime.
+    fn format_struct_field(&self, key: &str, value: &str) -> String {
+        format!("{key}: {value}")
+    }
+
     /// Struct-literal keys become Dart named-constructor parameters —
-    /// unquoted `name: value` (map literals keep the JSON-quoted form).
+    /// unquoted `name: value` (map literals keep the formatted form).
     fn format_struct_field_named(&self, key: &str, value: &str) -> String {
         let key = key.trim_matches('"');
         format!("{key}: {value}")

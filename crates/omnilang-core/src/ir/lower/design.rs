@@ -129,13 +129,27 @@ fn resolve_value(value: &DesignValue, _tokens: &FxHashMap<String, TokenIR>) -> S
     match value {
         DesignValue::Literal(s) => s.clone(),
         DesignValue::TokenRef(name) => resolve_token_ref(name),
-        DesignValue::Mixed(parts) => parts
-            .iter()
-            .map(|part| match part {
-                DesignValuePart::Text(s) => s.clone(),
-                DesignValuePart::Token(name) => resolve_token_ref(name),
-            })
-            .collect(),
+        DesignValue::Mixed(parts) => {
+            let mut out = String::new();
+            for part in parts {
+                match part {
+                    DesignValuePart::Text(s) => out.push_str(s),
+                    DesignValuePart::Token(name) => {
+                        // Unquoted literal text ("1px solid") was trimmed at
+                        // parse time — restore the space before an inline
+                        // token() ref so the CSS compound reads
+                        // `1px solid var(--x)` (quoted text keeps its own
+                        // trailing space; a compound without the space
+                        // fails css_border_to_dart and the border is dropped).
+                        if !out.is_empty() && !out.ends_with(char::is_whitespace) {
+                            out.push(' ');
+                        }
+                        out.push_str(&resolve_token_ref(name));
+                    }
+                }
+            }
+            out
+        }
     }
 }
 

@@ -15,10 +15,13 @@ use super::design_tokens::{
     css_prop_to_camel, css_shadow_to_dart, dart_string_literal, design_color_expr,
     escape_dart_ident, resolve_css_vars, token_shadow_is_list, whole_var_token_ref,
 };
+use super::utils::css_color_to_dart;
 use super::utils::lower_first;
 use crate::codegen::CodeWriter;
 use crate::ir::design::*;
+use crate::ir::ExprIR;
 use crate::ir::IRProgram;
+use crate::ir::StyleRuleIR;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 
@@ -139,6 +142,92 @@ pub(crate) fn resolve_class_decoration(
                     out.insert("boxShadow", expr);
                 } else {
                     skipped.push((prop.clone(), value.clone()));
+                }
+            }
+            _ => {}
+        }
+    }
+    (out, skipped)
+}
+
+/// Decoration-mappable fields of a COMPONENT-LOCAL style-block rule
+/// (`.themeCard { ... }` inside a component's own `style { }`). Mirrors
+/// [`resolve_class_decoration`] with the same token plumbing — component
+/// style blocks may reference design tokens via `var(--surface)` (they are
+/// NOT lowered to DesignValue, but the resolved values keep the var()
+/// spelling). `design` resolves those var() refs (any design works); `None`
+/// falls back to literal-only conversion. This powers `class:` and
+/// `class: { name: cond }` bindings on component-local classes
+/// (ThemeSwitcher's `.themeCard`/`.active`, DynamicTokens' `.PresetBtn`).
+pub(crate) fn resolve_style_rule_decoration(
+    design: Option<&DesignIR>,
+    rule: &StyleRuleIR,
+) -> (DecorationFields, Vec<(String, String)>) {
+    let mut out = DecorationFields::default();
+    let mut skipped: Vec<(String, String)> = Vec::new();
+    for (prop, expr) in &rule.properties {
+        // StyleRuleIR values lower to string literals; anything else (a
+        // dynamic expr) has no static decoration value.
+        let ExprIR::LiteralExpr { value } = expr else {
+            continue;
+        };
+        let Some(value) = value.as_str() else {
+            continue;
+        };
+        match css_prop_to_camel(prop).as_str() {
+            "background" | "backgroundColor" => {
+                let expr = design
+                    .and_then(|d| design_color_expr(d, value))
+                    .or_else(|| css_color_to_dart(value));
+                if let Some(expr) = expr {
+                    out.entry("color").or_insert(expr);
+                } else {
+                    skipped.push((prop.clone(), value.to_string()));
+                }
+            }
+            "borderRadius" => {
+                let expr = design
+                    .and_then(|d| design_border_radius_expr(d, value))
+                    .or_else(|| css_border_radius_to_dart(value));
+                if let Some(expr) = expr {
+                    out.insert("borderRadius", expr);
+                } else {
+                    skipped.push((prop.clone(), value.to_string()));
+                }
+            }
+            "border" => {
+                if value.trim() == "none" {
+                    continue;
+                }
+                let expr = design
+                    .and_then(|d| design_border_expr(d, value))
+                    .or_else(|| css_border_to_dart(value));
+                if let Some(expr) = expr {
+                    out.insert("border", expr);
+                } else {
+                    skipped.push((prop.clone(), value.to_string()));
+                }
+            }
+            "boxShadow" => {
+                if value.trim() == "none" {
+                    continue;
+                }
+                let expr: Option<String> =
+                    design
+                        .and_then(|d| design_box_shadow_expr(d, value))
+                        .or_else(|| {
+                            css_shadow_to_dart(value).map(|(is_list, e)| {
+                                if is_list {
+                                    e
+                                } else {
+                                    format!("[{}]", e)
+                                }
+                            })
+                        });
+                if let Some(expr) = expr {
+                    out.insert("boxShadow", expr);
+                } else {
+                    skipped.push((prop.clone(), value.to_string()));
                 }
             }
             _ => {}
@@ -350,6 +439,12 @@ impl<'a> DesignResolver<'a> {
     /// declares it.
     pub(crate) fn class_owner(&self, class_name: &str) -> Option<(&'a DesignIR, &'a ClassIR)> {
         self.class_owner.get(class_name).copied()
+    }
+
+    /// Any design block — used to resolve `var(--token)` refs inside
+    /// component-local style rules (which have no design owner of their own).
+    pub(crate) fn any_design(&self) -> Option<&'a DesignIR> {
+        self.design_by_name.values().next().copied()
     }
 
     /// A design by block name.

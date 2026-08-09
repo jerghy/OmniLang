@@ -1956,6 +1956,10 @@ impl FormatExpr for FlutterFormatExpr {
         self.inner.format_struct(type_name, fields)
     }
 
+    fn format_struct_field(&self, key: &str, value: &str) -> String {
+        self.inner.format_struct_field(key, value)
+    }
+
     fn format_struct_field_named(&self, key: &str, value: &str) -> String {
         self.inner.format_struct_field_named(key, value)
     }

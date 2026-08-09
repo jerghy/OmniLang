@@ -127,67 +127,69 @@ impl<'a> Parser<'a> {
                             self.pos = saved_pos;
                             self.depth = saved_depth;
                             let mut text = String::from("{");
+                            // Gap tracking: `{ light, dark }` lost its spaces
+                            // (lexer skips whitespace; each branch pushed the
+                            // token text only) — restore one space per gap.
+                            let mut prev_end: Option<usize> = None;
                             while !self.at(&TokenKind::RBrace) && !self.at(&TokenKind::Eof) {
+                                let t_span = self.peek_span();
+                                if let Some(prev) = prev_end {
+                                    if t_span.start > prev {
+                                        text.push(' ');
+                                    }
+                                }
                                 match self.peek_kind().clone() {
                                     TokenKind::StringLiteral(s) => {
                                         text.push_str(&s);
-                                        self.advance();
                                     }
                                     TokenKind::IntLiteral(n) => {
                                         text.push_str(&n.to_string());
-                                        self.advance();
                                     }
                                     TokenKind::FloatLiteral(n) => {
                                         text.push_str(&n.to_string());
-                                        self.advance();
                                     }
                                     TokenKind::Semicolon => {
                                         text.push(';');
-                                        self.advance();
                                     }
                                     TokenKind::Comma => {
                                         text.push(',');
-                                        self.advance();
                                     }
                                     TokenKind::Dot => {
                                         text.push('.');
-                                        self.advance();
                                     }
                                     TokenKind::LParen => {
                                         text.push('(');
-                                        self.advance();
                                     }
                                     TokenKind::RParen => {
                                         text.push(')');
-                                        self.advance();
                                     }
                                     TokenKind::LBrace => {
                                         text.push('{');
-                                        self.advance();
                                     }
                                     TokenKind::Eq => {
                                         text.push('=');
-                                        self.advance();
                                     }
                                     TokenKind::Colon => {
                                         text.push(':');
-                                        self.advance();
                                     }
                                     TokenKind::Plus => {
                                         text.push('+');
-                                        self.advance();
                                     }
                                     TokenKind::Minus => {
                                         text.push('-');
-                                        self.advance();
                                     }
                                     TokenKind::Star => {
                                         text.push('*');
-                                        self.advance();
                                     }
                                     TokenKind::Slash => {
                                         text.push('/');
-                                        self.advance();
+                                    }
+                                    TokenKind::Ident(s) => {
+                                        // `@themes { light, dark, ... }` —
+                                        // failed-interpolation text keeps its
+                                        // identifiers (previously dropped —
+                                        // ThemeSourceDemo rendered `{,,,}`).
+                                        text.push_str(&s);
                                     }
                                     _ => {
                                         if let Some(name) =
@@ -197,9 +199,10 @@ impl<'a> Parser<'a> {
                                         {
                                             text.push_str(name);
                                         }
-                                        self.advance();
                                     }
                                 }
+                                prev_end = Some(t_span.end);
+                                self.advance();
                             }
                             if self.at(&TokenKind::RBrace) {
                                 text.push('}');
@@ -719,20 +722,78 @@ impl<'a> Parser<'a> {
                     // Collect consecutive text tokens (Idents, colons, etc.) into one Text node.
                     // Reconstruct whitespace between tokens by checking span byte gaps: if token
                     // N+1 starts after token N ends, the lexer skipped whitespace — insert a space.
+                    // Interpolations and child elements break the run; DOM whitespace collapsing
+                    // (CSS) applies to the recovered gaps:
+                    //   - gaps inside the run (inline) fold to a single space;
+                    //   - gaps at node start/end that contain a newline (formatted indentation)
+                    //     are removed, mirroring line-start/line-end stripping.
+                    // The first gap is measured against the previously-consumed token (`}` of an
+                    // interpolation, `>` of a child element), so `{a} b` / `</span> tail` keep
+                    // their inline space while `<div>\n    text` loses the indentation.
                     _ if is_text_token(self.peek_kind()) => {
+                        let gap_has_newline = |start: usize, prev: usize| -> bool {
+                            self.source
+                                .get(prev..start)
+                                .is_some_and(|s| s.contains('\n'))
+                        };
                         let mut text = String::new();
                         let mut prev_end: Option<usize> = None;
+                        let mut first_gap = true;
                         while is_text_token(self.peek_kind()) {
+                            // First iteration: the gap baseline is the token before
+                            // the run (captured before `advance` moves pos past it).
+                            let run_prev_end = if prev_end.is_none() {
+                                self.tokens
+                                    .get(self.pos.wrapping_sub(1))
+                                    .map(|pt| pt.span.end)
+                            } else {
+                                None
+                            };
                             let t = self.advance();
-                            if let Some(prev) = prev_end {
-                                if t.span.start > prev {
+                            let gap_prev: Option<usize> = match prev_end {
+                                Some(prev) if t.span.start > prev => Some(prev),
+                                None => run_prev_end.filter(|&pe| t.span.start > pe),
+                                _ => None,
+                            };
+                            if let Some(prev) = gap_prev {
+                                let is_line_start =
+                                    first_gap && gap_has_newline(t.span.start, prev);
+                                if !is_line_start {
                                     text.push(' ');
                                 }
                             }
-                            text.push_str(&token_text(&t.kind));
+                            // Numeric tokens keep their SOURCE spelling: `#000000`
+                            // lexes as Hash + IntLiteral(0), and `0.to_string()`
+                            // truncates the hex zeros (ThemeSourceDemo rendered
+                            // `--surface: #0;`). Span slicing preserves `000000`.
+                            match &t.kind {
+                                TokenKind::IntLiteral(_) | TokenKind::FloatLiteral(_) => {
+                                    if let Some(spelling) =
+                                        self.source.get(t.span.start..t.span.end)
+                                    {
+                                        text.push_str(spelling);
+                                    } else {
+                                        text.push_str(&token_text(&t.kind));
+                                    }
+                                }
+                                _ => text.push_str(&token_text(&t.kind)),
+                            }
                             prev_end = Some(t.span.end);
+                            first_gap = false;
                         }
+                        // Run may end before an interpolation/child (`| {b}`, `text <b>`):
+                        // fold an inline gap into the text node, strip a newline gap
+                        // (line-end collapsing).
                         if !text.is_empty() {
+                            if let Some(next) = self.tokens.get(self.pos) {
+                                if let Some(prev) = prev_end {
+                                    if next.span.start > prev
+                                        && !gap_has_newline(next.span.start, prev)
+                                    {
+                                        text.push(' ');
+                                    }
+                                }
+                            }
                             children.push(ViewNode::Text(text));
                         }
                     }
