@@ -258,6 +258,9 @@ mod tests {
             semantic_bindings: FxHashMap::default(),
             a11y: None,
             drag_binding: None,
+            modal: None,
+            skeleton: None,
+            error_boundary: None,
         }
     }
 
@@ -475,6 +478,9 @@ mod tests {
                     semantic_bindings: FxHashMap::default(),
                     a11y: None,
                     drag_binding: None,
+                    modal: None,
+                    skeleton: None,
+                    error_boundary: None,
                 }))),
                 empty_body: None,
                 scroll_hint: false,

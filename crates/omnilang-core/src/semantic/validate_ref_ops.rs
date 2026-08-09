@@ -462,6 +462,7 @@ fn walk_expr_mut(expr: &mut ExprIR, ctx: &mut RefOpCtx) {
             walk_expr_mut(predicate, ctx);
         }
         ExprIR::RefOpExpr { op, .. } => walk_ref_op_children_mut(op, ctx),
+        ExprIR::BuiltinToastCall { msg, .. } => walk_expr_mut(msg, ctx),
     }
 }
 
@@ -1276,6 +1277,9 @@ mod tests {
             semantic_bindings: rustc_hash::FxHashMap::default(),
             a11y: None,
             drag_binding: None,
+            modal: None,
+            skeleton: None,
+            error_boundary: None,
         })));
         let diags = run_pass(&mut comp);
         assert!(diags.is_empty(), "expected no diagnostics: {:?}", diags);
@@ -1338,6 +1342,9 @@ mod tests {
             semantic_bindings: rustc_hash::FxHashMap::default(),
             a11y: None,
             drag_binding: None,
+            modal: None,
+            skeleton: None,
+            error_boundary: None,
         })));
         let diags = run_pass(&mut comp);
         assert_eq!(diags.len(), 1);

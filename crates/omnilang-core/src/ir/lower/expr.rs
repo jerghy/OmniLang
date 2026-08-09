@@ -547,10 +547,61 @@ pub(crate) fn lower_expr(
                 value: serde_json::Value::Null,
             }
         }
-        // 批次 1 Task 1 占位——showToast 语义/IR 由 Task 2/3 接管
-        Expr::BuiltinToastCall { .. } => ExprIR::LiteralExpr {
-            value: serde_json::Value::Null,
-        },
+        Expr::BuiltinToastCall {
+            msg,
+            kind,
+            duration,
+            span,
+        } => {
+            // 批次 1 域 10 §2.2 规则 3: showToast 只能出现在事件处理器或
+            // 任意函数体内。组件声明处（signal 初始化等）直接硬错误——
+            // 诊断经 lib.rs has_errors 门阻断 codegen，IR 降级为惰性
+            // Null 哨兵（与 Task 1 占位形态一致）。
+            if !semantics.in_execution_body {
+                semantics.diagnostics.push(crate::error::Diagnostic::error(
+                    crate::error::DiagnosticKind::E0006,
+                    "showToast 只能在事件处理器或函数体内使用（spec 2026-08-09 §2.2 规则 3）",
+                    span,
+                ));
+                return ExprIR::LiteralExpr {
+                    value: serde_json::Value::Null,
+                };
+            }
+            let msg = lower_expr(msg, variant_map, event_fields, semantics);
+            // kind: 合法字面量映射为类型化变体；未知字面量原样保留
+            // （语义层 V6 需要原始文本报告「未知 toast 类型 "warn"」）；
+            // 非字面量（动态形式）以空串标记「kind 存在但非法」，与
+            // 完全缺失的 None 区分（V6 对动态形式同样硬错误）。
+            let kind = kind.as_ref().map(|k| match &**k {
+                Expr::Literal(Literal::String(s), _) => match s.as_str() {
+                    "info" => ToastKindIR::Info,
+                    "success" => ToastKindIR::Success,
+                    "error" => ToastKindIR::Error,
+                    _ => ToastKindIR::Unknown(s.clone()),
+                },
+                _ => ToastKindIR::Unknown(String::new()),
+            });
+            // duration: 整数字面量保留为 i64；`duration: -5` 解析为
+            // Neg(Int(5))，取负后同样保留——负值原样到达语义层供 V7
+            // 报告。非字面量/非整数视同缺省（None）。
+            let duration = duration.as_ref().and_then(|d| match &**d {
+                Expr::Literal(Literal::Int(n), _) => Some(*n as i64),
+                Expr::UnaryOp {
+                    op: UnaryOpKind::Neg,
+                    operand,
+                    ..
+                } => match &**operand {
+                    Expr::Literal(Literal::Int(n), _) => Some((*n as i64).wrapping_neg()),
+                    _ => None,
+                },
+                _ => None,
+            });
+            ExprIR::BuiltinToastCall {
+                msg: Box::new(msg),
+                kind,
+                duration,
+            }
+        }
     }
 }
 
@@ -889,5 +940,89 @@ pub(super) fn lower_expr_to_json_from_ir(
             serde_json::Value::Object(map)
         }
         other => serde_json::Value::String(format!("{:?}", other)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lexer::Span;
+
+    fn span() -> Span {
+        Span {
+            start: 0,
+            end: 0,
+            line: 1,
+            col: 1,
+        }
+    }
+
+    #[test]
+    fn lower_show_toast_call_expr() {
+        // 批次 1 域 10: showToast(msg, { kind, duration }) lowers into
+        // ExprIR::BuiltinToastCall — the message is a regular expression
+        // (BNF allows `showToast("Hello " + name)`), the kind literal maps
+        // to a typed ToastKindIR, and an absent duration stays None.
+        let expr = Expr::BuiltinToastCall {
+            msg: Box::new(Expr::Literal(Literal::String("保存成功".into()), span())),
+            kind: Some(Box::new(Expr::Literal(
+                Literal::String("success".into()),
+                span(),
+            ))),
+            duration: None,
+            span: span(),
+        };
+        // Legal call site: inside a function/action/handler body.
+        let mut semantics = SemanticResult {
+            in_execution_body: true,
+            ..Default::default()
+        };
+        let ir = lower_expr(&expr, &FxHashMap::default(), None, &mut semantics);
+        match ir {
+            ExprIR::BuiltinToastCall {
+                msg,
+                kind,
+                duration,
+            } => {
+                assert!(matches!(kind, Some(ToastKindIR::Success)));
+                assert!(duration.is_none());
+                match *msg {
+                    ExprIR::LiteralExpr { value } => {
+                        assert_eq!(value, serde_json::json!("保存成功"))
+                    }
+                    other => panic!("unexpected msg IR: {:?}", other),
+                }
+            }
+            other => panic!("expected BuiltinToastCall, got {:?}", other),
+        }
+        assert!(semantics.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn lower_show_toast_call_outside_execution_body_reports_error() {
+        // spec 2026-08-09 §2.2 规则 3: showToast 只能出现在事件处理器或
+        // 任意函数体内——组件声明处（signal 初始化等）直接硬错误。
+        let expr = Expr::BuiltinToastCall {
+            msg: Box::new(Expr::Literal(Literal::String("hi".into()), span())),
+            kind: None,
+            duration: None,
+            span: span(),
+        };
+        // Illegal call site: component declaration level (default marker off).
+        let mut semantics = SemanticResult::default();
+        let ir = lower_expr(&expr, &FxHashMap::default(), None, &mut semantics);
+        // The hard error blocks codegen (lib.rs has_errors gate); the IR
+        // degrades to the inert Null sentinel like the Task 1 placeholder.
+        assert!(matches!(
+            ir,
+            ExprIR::LiteralExpr {
+                value: serde_json::Value::Null
+            }
+        ));
+        assert_eq!(semantics.diagnostics.len(), 1);
+        assert!(matches!(
+            semantics.diagnostics[0].kind,
+            crate::error::DiagnosticKind::E0006
+        ));
     }
 }

@@ -60,9 +60,17 @@ pub(super) fn lower_component(
         .lifecycles
         .iter()
         .filter(|lc| matches!(lc.kind, ParserLifecycleKind::Effect))
-        .map(|lc| EffectIntent {
-            deps: lc.deps.clone(),
-            body: lower_block(&lc.body, variant_map, None, semantics),
+        .map(|lc| {
+            // 批次 1 执行体标记（spec §2.2 规则 3）：effect 体是 showToast
+            // 的合法调用处，lowering 期间置位，结束后恢复。
+            let prev_in_execution_body = semantics.in_execution_body;
+            semantics.in_execution_body = true;
+            let body = lower_block(&lc.body, variant_map, None, semantics);
+            semantics.in_execution_body = prev_in_execution_body;
+            EffectIntent {
+                deps: lc.deps.clone(),
+                body,
+            }
         })
         .collect();
 
@@ -78,7 +86,15 @@ pub(super) fn lower_component(
                     "Effect lifecycle should not reach codegen; filtered into comp.effects during IR lowering"
                 ),
             },
-            body: lower_block(&lc.body, variant_map, None, semantics),
+            body: {
+                // 批次 1 执行体标记：生命周期体（mount/unmount）是 showToast
+                // 的合法调用处。
+                let prev_in_execution_body = semantics.in_execution_body;
+                semantics.in_execution_body = true;
+                let body = lower_block(&lc.body, variant_map, None, semantics);
+                semantics.in_execution_body = prev_in_execution_body;
+                body
+            },
         })
         .collect();
 
@@ -87,6 +103,11 @@ pub(super) fn lower_component(
         .iter()
         .map(|f| {
             semantics.symbols.push_scope(&format!("fn:{}", f.name));
+            // 批次 1 执行体标记：函数体是 showToast 的合法调用处。
+            let prev_in_execution_body = semantics.in_execution_body;
+            semantics.in_execution_body = true;
+            let body = lower_block(&f.body, variant_map, None, semantics);
+            semantics.in_execution_body = prev_in_execution_body;
             let result = FunctionIR {
                 name: f.name.clone(),
                 visibility: Visibility::Private,
@@ -99,7 +120,7 @@ pub(super) fn lower_component(
                     })
                     .collect(),
                 return_type: f.return_type.as_ref().map(lower_type),
-                body: lower_block(&f.body, variant_map, None, semantics),
+                body,
                 is_async: f.is_async,
                 source_span: Some(f.span),
             };
@@ -110,6 +131,11 @@ pub(super) fn lower_component(
     // Also include component actions as regular functions
     for a in &comp.actions {
         semantics.symbols.push_scope(&format!("fn:{}", a.name));
+        // 批次 1 执行体标记：action 体是 showToast 的合法调用处。
+        let prev_in_execution_body = semantics.in_execution_body;
+        semantics.in_execution_body = true;
+        let body = lower_block(&a.body, variant_map, None, semantics);
+        semantics.in_execution_body = prev_in_execution_body;
         fns.push(FunctionIR {
             name: a.name.clone(),
             visibility: Visibility::Private,
@@ -122,7 +148,7 @@ pub(super) fn lower_component(
                 })
                 .collect(),
             return_type: a.return_type.as_ref().map(lower_type),
-            body: lower_block(&a.body, variant_map, None, semantics),
+            body,
             is_async: a.is_async,
             source_span: Some(a.span),
         });
@@ -666,6 +692,11 @@ pub(super) fn lower_store(
         .iter()
         .map(|action| {
             semantics.symbols.push_scope(&format!("fn:{}", action.name));
+            // 批次 1 执行体标记：store action 体是 showToast 的合法调用处。
+            let prev_in_execution_body = semantics.in_execution_body;
+            semantics.in_execution_body = true;
+            let body = lower_block(&action.body, variant_map, None, semantics);
+            semantics.in_execution_body = prev_in_execution_body;
             let mut result = FunctionIR {
                 name: action.name.clone(),
                 visibility: Visibility::Public,
@@ -678,7 +709,7 @@ pub(super) fn lower_store(
                     })
                     .collect(),
                 return_type: action.return_type.as_ref().map(lower_type),
-                body: lower_block(&action.body, variant_map, None, semantics),
+                body,
                 is_async: action.is_async,
                 source_span: Some(action.span),
             };

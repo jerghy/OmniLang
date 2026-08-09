@@ -245,6 +245,9 @@ mod tests {
             motion: None,
             a11y: None,
             drag_binding: None,
+            modal: None,
+            skeleton: None,
+            error_boundary: None,
         }
     }
 

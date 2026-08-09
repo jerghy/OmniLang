@@ -222,6 +222,9 @@ mod tests {
             semantic_bindings: FxHashMap::default(),
             a11y: None,
             drag_binding: None,
+            modal: None,
+            skeleton: None,
+            error_boundary: None,
         })));
         let ir = make_test_ir_with_view("Form", view);
 
@@ -274,6 +277,9 @@ mod tests {
             semantic_bindings: FxHashMap::default(),
             a11y: None,
             drag_binding: None,
+            modal: None,
+            skeleton: None,
+            error_boundary: None,
         })));
         let ir = make_test_ir_with_view("Form", view);
 
@@ -315,6 +321,9 @@ mod tests {
             semantic_bindings: FxHashMap::default(),
             a11y: None,
             drag_binding: None,
+            modal: None,
+            skeleton: None,
+            error_boundary: None,
         })));
         make_test_ir_with_view(comp_name, view)
     }
@@ -402,6 +411,9 @@ mod tests {
             semantic_bindings: FxHashMap::default(),
             a11y: None,
             drag_binding: None,
+            modal: None,
+            skeleton: None,
+            error_boundary: None,
         })));
         let ir = make_test_ir_with_view("Widget", view);
 

@@ -137,6 +137,7 @@ mod tests {
             dependencies: FxHashMap::default(),
             diagnostics: Vec::new(),
             event_param_name: None,
+            in_execution_body: false,
         };
         let ir = crate::ir::lower(&program, &mut semantics, None);
         let main_module = ir.modules.get("input.omni").unwrap();
@@ -156,6 +157,7 @@ mod tests {
             dependencies: FxHashMap::default(),
             diagnostics: Vec::new(),
             event_param_name: None,
+            in_execution_body: false,
         };
         let ir = crate::ir::lower(&program, &mut semantics, None);
         let main_module = ir.modules.get("input.omni").unwrap();

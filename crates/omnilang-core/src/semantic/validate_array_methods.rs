@@ -338,6 +338,7 @@ fn walk_expr_mut(expr: &mut ExprIR, ctx: &mut ArrayMethodCtx) {
                 walk_expr_mut(arg, ctx);
             }
         }
+        ExprIR::BuiltinToastCall { msg, .. } => walk_expr_mut(msg, ctx),
         ExprIR::ArrayExpr { elements } => {
             for elem in elements {
                 walk_expr_mut(elem, ctx);

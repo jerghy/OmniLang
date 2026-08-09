@@ -33,6 +33,7 @@ pub fn walk_expr(expr: &ExprIR, f: &mut impl FnMut(&ExprIR)) {
                 walk_expr(arg, f);
             }
         }
+        ExprIR::BuiltinToastCall { msg, .. } => walk_expr(msg, f),
         ExprIR::MethodCallExpr { object, args, .. } => {
             walk_expr(object, f);
             for arg in args {

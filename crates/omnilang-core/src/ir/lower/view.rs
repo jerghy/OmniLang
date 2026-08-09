@@ -500,6 +500,18 @@ fn lower_element(
     // inserted into the element's children — codegen consumes the projection
     // from the consumer position exactly like a view-level `@slot name {...}`.
     let mut slot_projections: Vec<ViewTree> = Vec::new();
+    // 批次 1 反馈模态绑定（域 10，spec 2026-08-08）：@modal/@skeleton/
+    // @errorBoundary 的记录局部。open_signal 恒为信号名——解析器在
+    // directives.rs 强制 `@modal={IDENT}` 形状（ElementProp::Modal 的
+    // open_signal 只可能是 Expr::VarRef）；@errorBoundary 的命名槽
+    // `@slot fallback` 在 children 收尾扫描中提取。
+    let mut modal_open_signal: Option<String> = None;
+    let mut skeleton_shape: Option<String> = None;
+    // 裸 `@skeleton`（无 shape，默认 text）与「无 @skeleton 属性」必须可区分：
+    // shape 为 None 是合法有语义的 IR 值（SkeletonBindingIR 文档），故单独记
+    // 出现标记，禁止用 Option::map 把裸 @skeleton 折叠成 None。
+    let mut has_skeleton = false;
+    let mut has_error_boundary = false;
 
     for prop in &el.props {
         match prop {
@@ -544,10 +556,15 @@ fn lower_element(
                             // Save and set event param name so lower_expr can detect field access
                             let prev_param = semantics.event_param_name.take();
                             semantics.event_param_name = Some(event_param.to_string());
+                            // 批次 1 执行体标记（spec §2.2 规则 3）：内联事件处理器
+                            // 是 showToast 的合法调用处，lowering 期间置位，结束后恢复。
+                            let prev_in_execution_body = semantics.in_execution_body;
+                            semantics.in_execution_body = true;
                             let block_ir =
                                 lower_block(body, variant_map, Some(&mut event_fields), semantics);
                             // Restore previous event param name
                             semantics.event_param_name = prev_param;
+                            semantics.in_execution_body = prev_in_execution_body;
 
                             EventHandlerIR::InlineFn {
                                 body: block_ir,
@@ -558,8 +575,14 @@ fn lower_element(
                                 needs_stop_propagation: needs_sp,
                             }
                         } else {
+                            // 批次 1 执行体标记：同 if 分支——事件处理器体是
+                            // showToast 的合法调用处。
+                            let prev_in_execution_body = semantics.in_execution_body;
+                            semantics.in_execution_body = true;
+                            let body_ir = lower_block(body, variant_map, None, semantics);
+                            semantics.in_execution_body = prev_in_execution_body;
                             EventHandlerIR::InlineFn {
-                                body: lower_block(body, variant_map, None, semantics),
+                                body: body_ir,
                                 params: params.iter().map(|p| p.name.clone()).collect(),
                                 event_data: None,
                                 used_fields: None,
@@ -847,13 +870,33 @@ fn lower_element(
             // @form is a bare marker and @validate rule values lower with
             // the form intent — Task 2 (FormIntentIR/ValidateRuleIR)
             // owns both; nothing to lower here yet.
-            // 批次 1 Task 1 占位——@modal/@skeleton/@errorBoundary 的
-            // ModalIR/槽材料化由 Task 2 接管（本批次仅语法面）。
-            ElementProp::Form
-            | ElementProp::Validate { .. }
-            | ElementProp::Modal { .. }
-            | ElementProp::Skeleton { .. }
-            | ElementProp::ErrorBoundary => {}
+            ElementProp::Form | ElementProp::Validate { .. } => {}
+            // 批次 1 反馈模态（域 10，spec 2026-08-08）：@modal 记录开启信号
+            // 名（解析器保证 open_signal 恒为 VarRef——directives.rs 强制
+            // `@modal={IDENT}`，非 VarRef 分支为不可达防御）；@skeleton 记录
+            // 原始形状字符串（含非法值——语义层 V10 依原始串报
+            // 「未知骨架形状 "x"」，故此处不做白名单）；@errorBoundary 置标记，
+            // fallback 槽在 children 收尾扫描中提取。
+            ElementProp::Modal { open_signal } => {
+                match open_signal {
+                    Expr::VarRef(name, _) => modal_open_signal = Some(name.clone()),
+                    // 解析器强制 VarRef，此处不可达；保留分支以免误吞未来形状。
+                    other => {
+                        semantics.diagnostics.push(Diagnostic::error(
+                            DiagnosticKind::E0006,
+                            &format!("@modal 的开启信号必须是标识符引用：{:?}", other),
+                            &el.span,
+                        ));
+                    }
+                }
+            }
+            ElementProp::Skeleton { shape } => {
+                has_skeleton = true;
+                skeleton_shape = shape.clone();
+            }
+            ElementProp::ErrorBoundary => {
+                has_error_boundary = true;
+            }
         }
     }
 
@@ -885,6 +928,52 @@ fn lower_element(
     // Slot projections are appended after regular children — codegen looks
     // them up by slot name, so relative order does not affect projection.
     children.extend(slot_projections);
+
+    // 批次 1 反馈模态（域 10，spec 2026-08-09 §2.1）：children 收尾扫描。
+    // @modal 的全部 `@slot` 声明（命名槽 + 匿名槽，按文档序）收集进
+    // ModalIntentIR.slots；@errorBoundary 的 `@slot fallback` 收集进
+    // ErrorBoundaryBindingIR.fallback（无 fallback 槽 → None，语义层 V12
+    // 据此告警，不在 lowering 时报错）。槽指令仍保留在 children 中作为
+    // ViewTree::Slot（既有渲染机制原样运行），此处仅为绑定 IR 建立同名
+    // 投影供语义验证与 codegen 消费——两处内容一致，无重复渲染风险。
+    let modal: Option<ModalIntentIR> = modal_open_signal.map(|open_signal| {
+        let slots = el
+            .children
+            .iter()
+            .filter_map(|c| match c {
+                ViewNode::SlotDirective {
+                    name,
+                    default_content,
+                } => Some(SlotDeclShape {
+                    name,
+                    default_content,
+                }),
+                _ => None,
+            })
+            .map(|shape| lower_slot_common(&shape, variant_map, semantics, fns, signal_like_names))
+            .collect();
+        ModalIntentIR { open_signal, slots }
+    });
+    let error_boundary: Option<ErrorBoundaryBindingIR> = if has_error_boundary {
+        let fallback = el
+            .children
+            .iter()
+            .filter_map(|c| match c {
+                ViewNode::SlotDirective {
+                    name,
+                    default_content,
+                } if name.as_deref() == Some("fallback") => Some(SlotDeclShape {
+                    name,
+                    default_content,
+                }),
+                _ => None,
+            })
+            .next()
+            .map(|shape| lower_slot_common(&shape, variant_map, semantics, fns, signal_like_names));
+        Some(ErrorBoundaryBindingIR { fallback })
+    } else {
+        None
+    };
 
     ViewTree::Element(Box::new(ElementIR {
         tag: el.tag.clone(),
@@ -918,6 +1007,15 @@ fn lower_element(
         semantic_bindings: semantic_bindings.unwrap_or_default(),
         a11y,
         drag_binding,
+        modal,
+        skeleton: if has_skeleton {
+            Some(SkeletonBindingIR {
+                shape: skeleton_shape,
+            })
+        } else {
+            None
+        },
+        error_boundary,
     }))
 }
 
@@ -1228,6 +1326,9 @@ fn make_fragment_element(children: Vec<ViewTree>, construction_kind: Constructio
         semantic_bindings: FxHashMap::default(),
         a11y: None,
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     }))
 }
 
@@ -1258,6 +1359,7 @@ mod tests {
             dependencies: FxHashMap::default(),
             diagnostics: vec![],
             event_param_name: None,
+            in_execution_body: false,
         };
         let result = lower_element(
             &el,
@@ -1276,6 +1378,196 @@ mod tests {
                 assert!(
                     !el_ir.props.contains_key("data-ref"),
                     "no data-ref prop should be emitted"
+                );
+            }
+            _ => panic!("Expected ViewTree::Element"),
+        }
+    }
+
+    #[test]
+    fn lower_modal_intent_captures_open_signal_and_slots() {
+        // @modal={isOpen} lowers into ElementIR.modal (批次 1 域 10): the
+        // open-signal reference is captured verbatim and named slot
+        // children are collected as modal slots for the dialog shell.
+        let span = Span {
+            start: 0,
+            end: 0,
+            line: 1,
+            col: 1,
+        };
+        let el = Element {
+            tag: "dialog".into(),
+            props: vec![ElementProp::Modal {
+                open_signal: Expr::VarRef("isOpen".into(), span),
+            }],
+            children: vec![
+                ViewNode::SlotDirective {
+                    name: Some("header".into()),
+                    default_content: None,
+                },
+                ViewNode::SlotDirective {
+                    name: Some("body".into()),
+                    default_content: None,
+                },
+            ],
+            self_closing: false,
+            span,
+        };
+        let mut semantics = SemanticResult {
+            symbols: SymbolTable::default(),
+            dependencies: FxHashMap::default(),
+            diagnostics: vec![],
+            event_param_name: None,
+            in_execution_body: false,
+        };
+        let result = lower_element(
+            &el,
+            &FxHashMap::default(),
+            &mut semantics,
+            &[],
+            &FxHashSet::default(),
+        );
+        match result {
+            ViewTree::Element(el_ir) => {
+                let modal = el_ir
+                    .modal
+                    .as_ref()
+                    .expect("modal binding should be set from ElementProp::Modal");
+                assert_eq!(
+                    modal.open_signal, "isOpen",
+                    "open_signal should capture the @modal signal reference"
+                );
+                let slot_names: Vec<Option<&str>> =
+                    modal.slots.iter().map(|s| s.name.as_deref()).collect();
+                assert!(
+                    slot_names.contains(&Some("header")),
+                    "modal slots must include header, got {:?}",
+                    slot_names
+                );
+                assert!(
+                    slot_names.contains(&Some("body")),
+                    "modal slots must include body, got {:?}",
+                    slot_names
+                );
+            }
+            _ => panic!("Expected ViewTree::Element"),
+        }
+    }
+
+    #[test]
+    fn lower_skeleton_and_error_boundary_bindings() {
+        // @skeleton="card" lowers into ElementIR.skeleton with the raw
+        // shape string; @errorBoundary collects the named "fallback" slot
+        // as its fallback content (批次 1 域 10).
+        let span = Span {
+            start: 0,
+            end: 0,
+            line: 1,
+            col: 1,
+        };
+        let skeleton_el = Element {
+            tag: "div".into(),
+            props: vec![ElementProp::Skeleton {
+                shape: Some("card".into()),
+            }],
+            children: vec![],
+            self_closing: true,
+            span,
+        };
+        let boundary_el = Element {
+            tag: "div".into(),
+            props: vec![ElementProp::ErrorBoundary],
+            children: vec![ViewNode::SlotDirective {
+                name: Some("fallback".into()),
+                default_content: None,
+            }],
+            self_closing: false,
+            span,
+        };
+        let mut semantics = SemanticResult {
+            symbols: SymbolTable::default(),
+            dependencies: FxHashMap::default(),
+            diagnostics: vec![],
+            event_param_name: None,
+            in_execution_body: false,
+        };
+        let result = lower_element(
+            &skeleton_el,
+            &FxHashMap::default(),
+            &mut semantics,
+            &[],
+            &FxHashSet::default(),
+        );
+        match result {
+            ViewTree::Element(el_ir) => {
+                let skeleton = el_ir
+                    .skeleton
+                    .as_ref()
+                    .expect("skeleton binding should be set from ElementProp::Skeleton");
+                assert_eq!(
+                    skeleton.shape.as_deref(),
+                    Some("card"),
+                    "skeleton shape should preserve the raw @skeleton value"
+                );
+            }
+            _ => panic!("Expected ViewTree::Element"),
+        }
+        let result = lower_element(
+            &boundary_el,
+            &FxHashMap::default(),
+            &mut semantics,
+            &[],
+            &FxHashSet::default(),
+        );
+        match result {
+            ViewTree::Element(el_ir) => {
+                let boundary = el_ir
+                    .error_boundary
+                    .as_ref()
+                    .expect("error_boundary should be set from ElementProp::ErrorBoundary");
+                let fallback = boundary
+                    .fallback
+                    .as_ref()
+                    .expect("fallback slot should be captured for @errorBoundary");
+                assert_eq!(
+                    fallback.name.as_deref(),
+                    Some("fallback"),
+                    "fallback slot name must be preserved"
+                );
+                // 无 @skeleton 属性的元素必须保持 skeleton: None——与下方
+                // 裸 @skeleton（shape: None）严格区分。
+                assert!(
+                    el_ir.skeleton.is_none(),
+                    "element without @skeleton must not carry a skeleton binding"
+                );
+            }
+            _ => panic!("Expected ViewTree::Element"),
+        }
+        // 裸 @skeleton（无 shape 参数）→ Some(SkeletonBindingIR { shape: None })：
+        // shape: None 表示默认 text 形状，是合法有语义的 IR 值，不得被静默丢弃。
+        let bare_skeleton_el = Element {
+            tag: "div".into(),
+            props: vec![ElementProp::Skeleton { shape: None }],
+            children: vec![],
+            self_closing: true,
+            span,
+        };
+        let result = lower_element(
+            &bare_skeleton_el,
+            &FxHashMap::default(),
+            &mut semantics,
+            &[],
+            &FxHashSet::default(),
+        );
+        match result {
+            ViewTree::Element(el_ir) => {
+                let skeleton = el_ir
+                    .skeleton
+                    .as_ref()
+                    .expect("bare @skeleton must still set a skeleton binding");
+                assert!(
+                    skeleton.shape.is_none(),
+                    "bare @skeleton must lower to shape: None (default text)"
                 );
             }
             _ => panic!("Expected ViewTree::Element"),
@@ -1308,6 +1600,7 @@ mod tests {
             dependencies: FxHashMap::default(),
             diagnostics: vec![],
             event_param_name: None,
+            in_execution_body: false,
         };
         let result = lower_element(
             &el,
@@ -1362,6 +1655,7 @@ mod tests {
             dependencies: FxHashMap::default(),
             diagnostics: vec![],
             event_param_name: None,
+            in_execution_body: false,
         };
         let result = lower_element(
             &el,
@@ -1401,6 +1695,7 @@ mod tests {
             dependencies: FxHashMap::default(),
             diagnostics: vec![],
             event_param_name: None,
+            in_execution_body: false,
         };
         let ir = crate::ir::lower(&program, &mut semantics, None);
         let module = ir.modules.get("input.omni").expect("should have module");
@@ -1582,6 +1877,7 @@ component MultiRoot {
             dependencies: FxHashMap::default(),
             diagnostics: vec![],
             event_param_name: None,
+            in_execution_body: false,
         };
         let ir = crate::ir::lower(&program, &mut semantics, None);
         let module = ir.modules.get("input.omni").expect("module");
@@ -1626,6 +1922,7 @@ component MultiRoot {
             dependencies: FxHashMap::default(),
             diagnostics: vec![],
             event_param_name: None,
+            in_execution_body: false,
         };
         let tree = lower_element(
             &el,
@@ -1760,6 +2057,7 @@ component MultiRoot {
             dependencies: FxHashMap::default(),
             diagnostics: vec![],
             event_param_name: None,
+            in_execution_body: false,
         };
         let _tree = lower_element(
             &el,
@@ -1801,6 +2099,7 @@ component MultiRoot {
             dependencies: FxHashMap::default(),
             diagnostics: vec![],
             event_param_name: None,
+            in_execution_body: false,
         };
         let fns = vec![FunctionIR {
             name: "move".into(),

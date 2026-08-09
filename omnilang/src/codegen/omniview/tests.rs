@@ -26,6 +26,9 @@ fn make_element(tag: &str) -> ElementIR {
         semantic_bindings: FxHashMap::default(),
         a11y: None,
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     }
 }
 

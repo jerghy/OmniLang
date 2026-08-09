@@ -245,6 +245,41 @@ pub enum ExprIR {
         ref_name: String,
         op: RefOpIR,
     },
+    /// Builtin semantic function call: `showToast(msg, { kind, duration })`
+    /// (spec 2026-08-09 §2.2). Lowered from `Expr::BuiltinToastCall`; the
+    /// message is a regular expression (BNF allows `showToast("Hello " + name)`),
+    /// the kind literal maps to a typed [`ToastKindIR`], and the duration is an
+    /// i64 so negative values survive for semantic validation (V7). Call-site
+    /// legality (event handler / function body only) is enforced at lowering
+    /// time via `SemanticResult::in_execution_body` (spec §2.2 规则 3).
+    BuiltinToastCall {
+        /// The message expression (first positional argument).
+        msg: Box<ExprIR>,
+        /// `kind: "info"|"success"|"error"` option value, if provided.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        kind: Option<ToastKindIR>,
+        /// `duration: <number>` option value, if provided (i64 — negative
+        /// values preserved verbatim for semantic validation).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        duration: Option<i64>,
+    },
+}
+
+/// The `kind` option of a `showToast` call (spec 2026-08-09 §2.2).
+///
+/// Unknown string values are preserved verbatim (not rejected at lowering) —
+/// the semantic pass (V6) is the authority on legal kinds, and needs the raw
+/// value to report 「未知 toast 类型 "warn"」 with the exact user text.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ToastKindIR {
+    Info,
+    Success,
+    Error,
+    /// A kind value that is not the literal `"info"`/`"success"`/`"error"`
+    /// string — either an unknown literal (V6 hard-errors) or a non-literal
+    /// expression (V6 hard-errors on the dynamic form). Distinct from
+    /// `None` (kind option absent entirely).
+    Unknown(String),
 }
 
 impl ExprIR {
@@ -690,6 +725,49 @@ pub struct DragBindingIR {
     pub on_drag_end: Option<EventHandlerIR>,
 }
 
+/// `@modal={openSig}` modal-dialog intent (spec 2026-08-09 §2.1) — populated
+/// during view lowering from `ElementProp::Modal`. The open signal is captured
+/// as a read reference by name; focus trap / Esc / overlay-click close / a11y
+/// attributes are compiler-built-in (the user writes zero of that logic).
+/// Named slot children (`header={...}`, `body={...}`) become modal slots.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModalIntentIR {
+    /// The user-declared boolean open signal name (read reference).
+    pub open_signal: String,
+    /// Named content slots for the dialog shell, in source order. The
+    /// default/unnamed slot (`@slot default`) projects the element's
+    /// remaining children.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub slots: Vec<SlotDeclIR>,
+}
+
+/// `@skeleton` / `@skeleton="shape"` skeleton placeholder intent (spec
+/// 2026-08-09 §2.3) — populated during view lowering from
+/// `ElementProp::Skeleton`. Only legal inside a `@load` loading branch
+/// (semantic layer enforces that, V9). The shape string is preserved verbatim
+/// so the semantic pass can report 「未知骨架形状 "table"」 with the exact
+/// user text (V10).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SkeletonBindingIR {
+    /// Shape name (`text`/`line`/`circle`/`card`), `None` for the default
+    /// `text`. Legality of the value is a semantic-layer check (V10), not a
+    /// lowering-time one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shape: Option<String>,
+}
+
+/// `@errorBoundary` render-failure fallback intent (spec 2026-08-09 §2.4) —
+/// populated during view lowering from `ElementProp::ErrorBoundary`. The
+/// fallback UI arrives via a body-level `@slot fallback`; a missing fallback
+/// slot is a semantic-layer warning (V12), not a lowering-time error.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ErrorBoundaryBindingIR {
+    /// The fallback content from the body-level `@slot fallback` — `None`
+    /// when the author declared no fallback (semantic pass warns, V12).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fallback: Option<SlotDeclIR>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ElementIR {
     pub tag: String,
@@ -736,6 +814,24 @@ pub struct ElementIR {
     /// Tasks 8-10 wire capture per target).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub drag_binding: Option<DragBindingIR>,
+    /// `@modal={openSig}` modal-dialog intent (spec 2026-08-09 §2.1) —
+    /// populated during view lowering from `ElementProp::Modal`, validated by
+    /// `semantic/validate_feedback_modal`, consumed by codegen backends
+    /// (React dialog / Flutter showDialog / OmniView modal shell).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub modal: Option<ModalIntentIR>,
+    /// `@skeleton` / `@skeleton="shape"` skeleton placeholder intent (spec
+    /// 2026-08-09 §2.3) — populated during view lowering from
+    /// `ElementProp::Skeleton`, validated by
+    /// `semantic/validate_feedback_modal`, consumed by codegen backends.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub skeleton: Option<SkeletonBindingIR>,
+    /// `@errorBoundary` render-failure fallback intent (spec 2026-08-09
+    /// §2.4) — populated during view lowering from
+    /// `ElementProp::ErrorBoundary`, validated by
+    /// `semantic/validate_feedback_modal`, consumed by codegen backends.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error_boundary: Option<ErrorBoundaryBindingIR>,
 }
 
 impl ElementIR {

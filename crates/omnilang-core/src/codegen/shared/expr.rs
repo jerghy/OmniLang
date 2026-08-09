@@ -515,6 +515,11 @@ pub trait FormatExpr {
                 &self.format_expr(predicate),
             ),
             ExprIR::RefOpExpr { ref_name, op } => self.format_ref_op(ref_name, op),
+            // 批次 1 Task 2 编译穷尽性占位：showToast 的目标代码由
+            // Task 4（React）/5（Flutter）/6（OmniView）codegen 实现并
+            // 替换本 arm。显式占位标记不可误认为产物，语料注入
+            // （Task 8）之前不会到达本 formatter。
+            ExprIR::BuiltinToastCall { .. } => "<builtin:showToast>".to_string(),
         }
     }
 }

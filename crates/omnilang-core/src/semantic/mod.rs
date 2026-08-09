@@ -67,6 +67,13 @@ pub struct SemanticResult {
     /// Event handler parameter name, set during lowering of event handler bodies.
     /// Used by lower_expr to detect e.field event data access.
     pub event_param_name: Option<String>,
+    /// True while lowering an execution body — an event handler, a component
+    /// fn/action/lifecycle body, or a store action body. `lower_expr` reads
+    /// it to enforce the `showToast` call-site rule (spec 2026-08-09 §2.2
+    /// 规则 3: 事件处理器、任意函数体——不在组件声明处使用). Lowering sets it
+    /// around `lower_block` at every body-lowering site; `SemanticResult::default()`
+    /// keeps it false everywhere else (component declaration level).
+    pub in_execution_body: bool,
 }
 
 /// Run all semantic analysis passes on the parsed program.
@@ -147,6 +154,9 @@ impl SemanticAnalyzer {
             dependencies: std::mem::take(&mut self.dependencies),
             diagnostics: std::mem::take(&mut self.diagnostics),
             event_param_name: None,
+            // Declaration-level by default; the resolver sets it around
+            // fn/action/lifecycle body lowering.
+            in_execution_body: false,
         }
     }
 }

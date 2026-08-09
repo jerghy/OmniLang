@@ -399,6 +399,9 @@ fn test_motion_trigger_enter_named() {
         semantic_bindings: FxHashMap::default(),
         a11y: None,
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     };
     gen.emit_motion_triggers_for_element("el-div-001", &el);
 
@@ -461,6 +464,9 @@ fn test_motion_trigger_hover_named() {
         semantic_bindings: FxHashMap::default(),
         a11y: None,
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     };
     gen.emit_motion_triggers_for_element("el-btn-002", &el);
 
@@ -499,6 +505,9 @@ fn test_motion_trigger_focus_named() {
         semantic_bindings: FxHashMap::default(),
         a11y: None,
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     };
     gen.emit_motion_triggers_for_element("el-input-003", &el);
 
@@ -551,6 +560,9 @@ fn test_scroll_trigger() {
         semantic_bindings: FxHashMap::default(),
         a11y: None,
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     };
     gen.emit_motion_triggers_for_element("el-scroll-001", &el);
     let output = format!(
@@ -609,6 +621,9 @@ fn test_drag_trigger() {
         semantic_bindings: FxHashMap::default(),
         a11y: None,
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     };
     gen.emit_motion_triggers_for_element("el-drag-001", &el);
     let output = format!(
@@ -694,6 +709,9 @@ fn test_drag_trigger_no_constraints_derived_extent() {
         semantic_bindings: FxHashMap::default(),
         a11y: None,
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     };
     gen.emit_motion_triggers_for_element("el-drag-002", &el);
     let output = format!(
@@ -784,6 +802,9 @@ fn test_drag_trigger_no_translate_falls_back_unbounded() {
         semantic_bindings: FxHashMap::default(),
         a11y: None,
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     };
     gen.emit_motion_triggers_for_element("el-drag-003", &el);
     let output = format!(
@@ -876,6 +897,9 @@ fn test_drag_trigger_inline_motion_derived_extent() {
         semantic_bindings: FxHashMap::default(),
         a11y: None,
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     };
     gen.emit_motion_triggers_for_element("el-drag-004", &el);
     let output = format!(
@@ -935,6 +959,9 @@ fn test_inview_trigger() {
         semantic_bindings: FxHashMap::default(),
         a11y: None,
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     };
     gen.emit_motion_triggers_for_element("el-inview-001", &el);
     let output = format!(
@@ -981,6 +1008,9 @@ fn test_driven_by() {
         semantic_bindings: FxHashMap::default(),
         a11y: None,
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     };
     gen.emit_motion_triggers_for_element("el-driven-001", &el);
     let output = format!(

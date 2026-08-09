@@ -783,6 +783,9 @@ fn test_format_element_empty() {
         semantic_bindings: FxHashMap::default(),
         a11y: None,
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     };
     let (expr, _) = fmt_view(&ViewTree::Element(Box::new(el)));
     assert_eq!(expr, "Container()");
@@ -806,6 +809,9 @@ fn test_format_element_with_text_child() {
         semantic_bindings: FxHashMap::default(),
         a11y: None,
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     };
     let (expr, _) = fmt_view(&ViewTree::Element(Box::new(el)));
     assert_eq!(expr, "Container(child: const Text('Hello'))");
@@ -885,6 +891,9 @@ fn test_drag_widget_derives_extent_from_keyframes() {
         semantic_bindings: FxHashMap::default(),
         a11y: None,
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     };
     let (expr, _) = fmt_view_with_motions(&ViewTree::Element(Box::new(el)), &motions);
     assert!(
@@ -971,6 +980,9 @@ fn test_drag_widget_without_translate_falls_back_unbounded() {
         semantic_bindings: FxHashMap::default(),
         a11y: None,
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     };
     let (expr, warnings) = fmt_view_with_motions(&ViewTree::Element(Box::new(el)), &motions);
     assert!(
@@ -1018,6 +1030,9 @@ fn test_format_element_with_multiple_children() {
         semantic_bindings: FxHashMap::default(),
         a11y: None,
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     };
     let (expr, _) = fmt_view(&ViewTree::Element(Box::new(el)));
     assert_eq!(
@@ -1049,6 +1064,9 @@ fn test_format_element_div_multiple_children_wraps_column() {
         semantic_bindings: FxHashMap::default(),
         a11y: None,
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     };
     let (expr, _) = fmt_view(&ViewTree::Element(Box::new(el)));
     assert_eq!(
@@ -1087,6 +1105,9 @@ fn test_format_element_with_event() {
         semantic_bindings: FxHashMap::default(),
         a11y: None,
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     };
     let (expr, _) = fmt_view(&ViewTree::Element(Box::new(el)));
     assert!(expr.contains("ElevatedButton("));
@@ -1130,6 +1151,9 @@ fn test_format_element_void_callback_fn_ref_warns_on_dropped_event_fields() {
         semantic_bindings: FxHashMap::default(),
         a11y: None,
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     };
     let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
     // Task 5.8: FnRef handlers pass by tear-off — a 0-arg fn is assignable
@@ -1414,6 +1438,9 @@ fn test_format_element_with_class_map_bindings_warns_unknown_class() {
         semantic_bindings: FxHashMap::default(),
         a11y: None,
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     };
     let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
     assert_eq!(
@@ -1459,6 +1486,9 @@ fn test_format_element_with_class_map_bindings_static_true_warns_unknown_class()
         semantic_bindings: FxHashMap::default(),
         a11y: None,
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     };
     let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
     // Static true class bindings resolve like static classes; an unknown
@@ -1498,6 +1528,9 @@ fn test_format_element_with_class_map_bindings_static_false() {
         semantic_bindings: FxHashMap::default(),
         a11y: None,
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     };
     let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
     // Static false class bindings are skipped entirely — no warning either.
@@ -1535,6 +1568,9 @@ fn test_format_element_with_class_map_bindings_and_child_warns_unknown_class() {
         semantic_bindings: FxHashMap::default(),
         a11y: None,
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     };
     let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
     // An unresolvable dynamic class leaves the element unwrapped (warned) —
@@ -1585,6 +1621,9 @@ fn el_with_class(classes: &str) -> ElementIR {
         semantic_bindings: FxHashMap::default(),
         a11y: None,
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     }
 }
 
@@ -1825,6 +1864,9 @@ fn test_design_class_on_component_element_wraps_in_decoration() {
         semantic_bindings: FxHashMap::default(),
         a11y: None,
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     };
     let ir = design_test_program();
     let my_card = ComponentIR {
@@ -2585,6 +2627,9 @@ fn test_motion_enter_controller_init() {
         semantic_bindings: FxHashMap::default(),
         a11y: None,
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     };
 
     let view = ViewTree::Element(Box::new(el));
@@ -2881,6 +2926,9 @@ fn test_motion_inline_body_handling() {
         semantic_bindings: FxHashMap::default(),
         a11y: None,
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     };
 
     let view = ViewTree::Element(Box::new(el));
@@ -4106,6 +4154,9 @@ fn test_motion_pipeline_warnings_and_playback() {
         semantic_bindings: FxHashMap::default(),
         a11y: None,
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     };
 
     let view = ViewTree::Element(Box::new(el));
@@ -6031,6 +6082,9 @@ fn enter_motion_in_slot_fallback_is_found() {
         semantic_bindings: FxHashMap::default(),
         a11y: None,
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     };
     let view = ViewTree::Slot {
         name: None,
@@ -7087,6 +7141,9 @@ fn test_inline_style_hex_color_emits_color_literal() {
         semantic_bindings: FxHashMap::default(),
         a11y: None,
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     };
     let (expr, _warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
     assert!(
@@ -7116,6 +7173,9 @@ fn test_inline_style_unsupported_color_warns() {
         semantic_bindings: FxHashMap::default(),
         a11y: None,
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     };
     let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
     assert!(
@@ -7159,6 +7219,9 @@ fn test_unmapped_prop_warns_and_is_skipped() {
         semantic_bindings: FxHashMap::default(),
         a11y: None,
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     };
     let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
     assert_eq!(
@@ -7209,6 +7272,9 @@ fn test_class_prop_unknown_class_warns_and_skips() {
         semantic_bindings: style,
         a11y: None,
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     };
     let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
     assert_eq!(expr, "Container()");
@@ -7271,6 +7337,9 @@ fn test_event_not_supported_on_widget_warns() {
         semantic_bindings: FxHashMap::default(),
         a11y: None,
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     };
     let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
     assert_eq!(
@@ -7304,6 +7373,9 @@ fn test_event_not_supported_on_widget_warns() {
         semantic_bindings: FxHashMap::default(),
         a11y: None,
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     };
     let (expr2, warnings2) = fmt_view(&ViewTree::Element(Box::new(el2)));
     assert_eq!(
@@ -7351,6 +7423,9 @@ fn test_event_on_button_is_allowed() {
         semantic_bindings: FxHashMap::default(),
         a11y: None,
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     };
     let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
     assert!(
@@ -7407,6 +7482,9 @@ fn test_text_style_props_wrapped_in_text_style() {
         semantic_bindings: FxHashMap::default(),
         a11y: None,
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     };
     let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
     // fontSize/fontWeight are TextStyle members — merged into a single style: arg,
@@ -7461,6 +7539,9 @@ fn props_el(tag: &str, props: Vec<(&str, ExprIR)>) -> ElementIR {
         semantic_bindings: FxHashMap::default(),
         a11y: None,
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     }
 }
 
@@ -7735,6 +7816,9 @@ fn test_text_semantics_label_rename() {
         semantic_bindings: FxHashMap::default(),
         a11y: None,
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     };
     let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
     assert!(
@@ -7779,6 +7863,9 @@ fn test_text_field_placeholder_wrapped_in_decoration() {
         semantic_bindings: FxHashMap::default(),
         a11y: None,
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     };
     let (expr, warnings) = fmt_view(&ViewTree::Element(Box::new(el)));
     assert!(
@@ -7858,6 +7945,9 @@ fn test_store_action_in_inline_handler_body() {
         semantic_bindings: FxHashMap::default(),
         a11y: None,
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     };
     let view = ViewTree::Element(Box::new(el));
     let ir = make_ir_with_stores(
@@ -7974,6 +8064,9 @@ fn test_store_action_method_call_form_in_handler() {
         semantic_bindings: FxHashMap::default(),
         a11y: None,
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     };
     let view = ViewTree::Element(Box::new(el));
     let ir = make_ir_with_stores(
@@ -8083,6 +8176,9 @@ fn ref_el(tag: &str, ref_binding: Option<&str>, semantic: &[(&str, ExprIR)]) -> 
             .collect(),
         a11y: None,
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     }
 }
 
@@ -8388,6 +8484,9 @@ fn test_a11y_unmappable_role_warns_and_comments() {
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     };
     let view = ViewTree::Element(Box::new(el));
     let comp = ref_component("A11yDemo", &[], vec![], vec![], Some(view));
@@ -8466,6 +8565,9 @@ fn test_a11y_label_dollar_escaped_and_role_comment_sanitized() {
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     };
     let view = ViewTree::Element(Box::new(el));
     let comp = ref_component("A11yInjectionDemo", &[], vec![], vec![], Some(view));
@@ -8616,6 +8718,9 @@ fn test_a11y_label_alt_collision_non_image_dedupes() {
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     };
     let view = ViewTree::Element(Box::new(el));
     let comp = ref_component("A11yDemo", &[], vec![], vec![], Some(view));
@@ -8689,6 +8794,9 @@ fn test_a11y_alt_alone_non_image_degrades_to_label() {
         ref_binding: None,
         semantic_bindings: FxHashMap::default(),
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     };
     let view = ViewTree::Element(Box::new(el));
     let comp = ref_component("A11yDemo", &[], vec![], vec![], Some(view));
@@ -8750,6 +8858,9 @@ fn test_bind_value_ref_text_field_two_way() {
         motion: None,
         a11y: None,
         drag_binding: None,
+        modal: None,
+        skeleton: None,
+        error_boundary: None,
     };
     let view = ViewTree::Element(Box::new(el_input));
     let signals = vec![SignalIntent {

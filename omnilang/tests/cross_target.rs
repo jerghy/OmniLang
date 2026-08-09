@@ -70,6 +70,7 @@ fn compile_source(source: &str, target: Target) -> omnilang::codegen::CompileOut
         dependencies: FxHashMap::default(),
         diagnostics: vec![],
         event_param_name: None,
+        in_execution_body: false,
     };
     let ir = lower(&program, &mut semantics, None);
     let source_files: FxHashMap<String, String> =
