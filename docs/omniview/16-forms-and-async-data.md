@@ -46,9 +46,12 @@ component App {
 - **规则值类型合法**（`validate:{format: "email"}`；闭集外值如 `"tel"` → 硬错误，需 custom）。
 - `custom` 规则值为**组件 fn 名**（存在 + 单参 + 返回 String）。
 
+> **行为注记（trim）**：validate 规则作用于字段**原始值**（不做 trim）——`validate:{min: 3}` 对 `"ab "`（含尾空格）按长度 3 判定**通过**；迁移前的 `string_trim` 手写校验会拒绝。需要 trim 语义时在 custom 规则内自行处理（如先 `string_trim` 再判空）。
+
 ### 错误显式渲染与禁用提交态
 
 - **错误信号显式渲染**：`form.errors` + `@if form.errors.name` 由用户显式渲染（React / OmniView）。
+- **`err-{field}` id 约定（行为注记）**：React / OmniView 端生成的 `aria-describedby` 引用 `err-{field}`——用户显式渲染错误容器时需写 `id="err-{field}"` 与之匹配（例：`<span id="err-name">{form.errors.name}</span>`）；Flutter 端不适用（错误经 `errorText` 原生展示）。
 - **Flutter 例外（行为差异注记）**：错误经 `TextFormField.errorText` **自动展示**，语言面 `form.errors` 发射为**常量空 map**——语言面跨目标一致保留，行为差异注记于 semantic-universe 域 8。
 - **禁用提交态 v0 形态**：编译器生成 `form.submitting` 信号（v0 恒 false），按钮禁用由用户显式写 `disabled={form.submitting}`——**v0 不做自动按钮接线**。
 
