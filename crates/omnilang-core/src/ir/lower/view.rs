@@ -879,7 +879,18 @@ fn lower_element(
             // fallback 槽在 children 收尾扫描中提取。
             ElementProp::Modal { open_signal } => {
                 match open_signal {
-                    Expr::VarRef(name, _) => modal_open_signal = Some(name.clone()),
+                    Expr::VarRef(name, _) => {
+                        // 批次 1 反馈模态 V4：重复 @modal 在语义层不可见
+                        // （prop 循环 last-wins），由 lowering 报告。
+                        if modal_open_signal.is_some() {
+                            semantics.diagnostics.push(Diagnostic::error(
+                                DiagnosticKind::E0006,
+                                "元素不能重复绑定 \"@modal\"",
+                                &el.span,
+                            ));
+                        }
+                        modal_open_signal = Some(name.clone());
+                    }
                     // 解析器强制 VarRef，此处不可达；保留分支以免误吞未来形状。
                     other => {
                         semantics.diagnostics.push(Diagnostic::error(
@@ -895,6 +906,15 @@ fn lower_element(
                 skeleton_shape = shape.clone();
             }
             ElementProp::ErrorBoundary => {
+                // 批次 1 反馈模态 V11：重复 @errorBoundary 在语义层不可见
+                // （布尔折叠），由 lowering 报告。
+                if has_error_boundary {
+                    semantics.diagnostics.push(Diagnostic::error(
+                        DiagnosticKind::E0006,
+                        "元素不能重复绑定 \"@errorBoundary\"",
+                        &el.span,
+                    ));
+                }
                 has_error_boundary = true;
             }
         }

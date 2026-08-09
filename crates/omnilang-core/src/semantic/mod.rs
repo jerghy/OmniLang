@@ -27,6 +27,7 @@ pub mod validate_array_methods;
 pub mod validate_drag;
 pub mod validate_effect_deps;
 pub mod validate_event_names;
+pub mod validate_feedback_modal;
 pub mod validate_form_load;
 pub mod validate_props;
 pub mod validate_ref_ops;

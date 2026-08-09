@@ -130,6 +130,11 @@ pub fn run_pipeline(source: &str) -> PipelineOutput {
     // FormIntentIR/LoadIntentIR, checks V-F2~F8 (V-F1/V-F6 at lowering).
     crate::semantic::validate_form_load::validate_form_load(&ir, &mut diagnostics);
 
+    // Feedback-modal validation (batch 1, domain 10) — consumes
+    // ModalIntentIR/SkeletonBindingIR/ErrorBoundaryBindingIR, checks V1-V14
+    // (V4/V11 duplicate bindings are reported at lowering).
+    crate::semantic::validate_feedback_modal::validate_feedback_modal(&ir, &mut diagnostics);
+
     // Phase: lint rules (same 10 rules as `analyse_multi`, so single-file
     // paths — compile(), compile_omniview(), resolve_styles() — see the
     // same diagnostics as multi-file analysis). Lint warnings fold into

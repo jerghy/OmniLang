@@ -348,6 +348,9 @@ pub(super) fn expr_ir_contains_store_mutation(
             expr_ir_contains_store_mutation(subject, store_signals)
                 || expr_ir_contains_store_mutation(predicate, store_signals)
         }
+        // 批次 1 反馈模态（域 10）：showToast 的 msg 参数可引用 store 字段
+        // （如 showToast({ kind: "error", msg: store.msg })）——继续下钻。
+        ExprIR::BuiltinToastCall { msg, .. } => expr_ir_contains_store_mutation(msg, store_signals),
         _ => false,
     }
 }

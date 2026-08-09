@@ -514,6 +514,11 @@ pub fn analyse_multi(
     // V-F1/V-F6 are reported at the lowering scan (ir/lower/component.rs).
     crate::semantic::validate_form_load::validate_form_load(&merged_ir, &mut diags);
 
+    // Phase 3f2: Feedback-modal validation (batch 1, domain 10) — consumes
+    // ModalIntentIR/SkeletonBindingIR/ErrorBoundaryBindingIR, checks V1-V14
+    // (V4/V11 duplicate bindings are reported at lowering).
+    crate::semantic::validate_feedback_modal::validate_feedback_modal(&merged_ir, &mut diags);
+
     // Phase 4: Run lint rules against ASTs and merged IR
     let lint_diags = crate::semantic::lints::run_all(&programs, &merged_ir);
     let mut warnings: Vec<Diagnostic> = merge_warnings;
@@ -800,6 +805,11 @@ pub fn analyse_multi_cached(
     // FormIntentIR/LoadIntentIR collected during lowering, checks V-F2~F8.
     // V-F1/V-F6 are reported at the lowering scan (ir/lower/component.rs).
     crate::semantic::validate_form_load::validate_form_load(&merged_ir, &mut diags);
+
+    // Phase 3f2: Feedback-modal validation (batch 1, domain 10) — consumes
+    // ModalIntentIR/SkeletonBindingIR/ErrorBoundaryBindingIR, checks V1-V14
+    // (V4/V11 duplicate bindings are reported at lowering).
+    crate::semantic::validate_feedback_modal::validate_feedback_modal(&merged_ir, &mut diags);
 
     // Phase 4: Run lint rules against ASTs and merged IR
     let lint_diags = crate::semantic::lints::run_all(&all_programs, &merged_ir);
