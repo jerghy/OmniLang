@@ -225,6 +225,24 @@ component ThemedPage {
 
 支持 N 个主题（不仅限 light/dark）。详见 [10-设计系统](10-design-system.md)。
 
+## 用户级 @media（批次 3）
+
+style 块内可书写 CSS 媒体查询（条件文本透传不解析）：
+
+```omni
+style {
+    .card { padding: 16; }
+    @media (min-width: 768px) {
+        .card { padding: 32; }
+    }
+}
+```
+
+- web 目标（React/OmniView）原样输出 `@media (...) { ... }`（透传通道）；与上方「设计系统主题变量」第 3 层（`@themes` 生成的 `prefers-color-scheme`）互不冲突——语法层 vs 输出层分离
+- Flutter 目标降级跳过（W-302 warning，构建不失败）——响应式意图请用 `bp()` 表达（跨目标主通道）
+- 遇 `@container` 为硬错误 E-404（低优先候选未实施）
+- 选择器含暂不支持部分（兄弟 `+`/`~`、子 `>`、属性 `[attr]`、带参伪类等）时发 W-301 warning（构建不失败）——绝不静默截断，诚实降级（ADR-054）
+
 ## 设计系统引用
 
 优先使用设计系统类，组件 style 块只保留特有样式：

@@ -485,6 +485,37 @@ DOM 命令式元素 API 的语义意图——**焦点 / 滚动 / 测量 / 选择
 
 ---
 
+## 域 8: 响应式（responsive）
+
+### 来源域
+
+域 12 响应式（semantic-universe 域 12）——**命名断点声明 + 断点条件表达式 + 媒体查询透传**（批次 3 设计 spec §2.1/§2.2，2026-08-11 登记先行 ADR-074；域 7 已被导航占用，响应式取域 8——两文档编号体系独立）。本域为**机制级词汇**（无编译器词法级白名单常量——bp 是表达式函数形态、breakpoint 是声明关键字，交叉断言以存在性检查承担，照域 10/7 先例）：`breakpoint` 断点声明（design 块）+ `bp("name")` 断点条件表达式（min-width 语义）。**v0 边界**（批次 3 spec §2/§6）：bp() 参数须为字符串字面量（编译期静态查表，动态参数 E-405）；未声明断点名 E-401 硬错误；断点名与同块 token/class/variant 名互斥（E-402）；值 ≤ 0 硬错误（E-403）。
+
+> 判定注记：`@media`/`@container` 为机制透传关键字（CSS 原生词汇），不登记为语义词汇（at-rule 形态面；语义集条目见 semantic-universe 域 12）。
+
+### 语义词汇
+
+| 语义词汇 | 值域 / 约束 | 说明 |
+|---------|------------|------|
+| bp | `bp("name")`——参数须为字符串字面量；语义 = min-width（视口宽度 ≥ 断点值） | 内建断点条件表达式——`@if bp("md")` / `{}` 绑定 / 三元均可；编译期静态查表 |
+| breakpoint | `breakpoint <名>: <无单位正整数>;`（design 块内声明） | 命名断点数值声明——`breakpoint md: 768;` |
+
+### 目标映射
+
+| 目标 | 生成形状 |
+|------|---------|
+| React | `const bp_768 = useMediaQuery('(min-width: 768px)')`（本地 SSR-safe hook）+ `__design/breakpoints.ts` BP 常量表 |
+| Flutter | `MediaQuery.sizeOf(context).width >= 768`（表达式）+ `static const bpMd = 768.0;`（design.dart 常量） |
+| OmniView | `matchMedia('(min-width: 768px)').matches`（内联表达式，无常量文件） |
+
+### 排除词汇
+
+| 排除词汇 | 平台 | 不得成为语义词汇的原因 | 正确语义词汇 |
+|----------|------|----------------------|-------------|
+| useMediaQuery | React | react-use/MUI 事实标准 hook 名——库 API 名（禁止借词） | bp |
+
+---
+
 ## 维护约定
 
 - 编译器白名单变更（新增事件 canonical 名 / a11y 角色 / 动画属性 / RefOp / token 类型 / 表单校验规则）必须同步本登记册**同 commit**——`scripts/verify-vocabulary.py` 双向断言使漂移即门禁失败（与 docs-gate 对设计文档的强制力同级）。

@@ -422,6 +422,20 @@ learn-omniview 项目演示了完整的 4 主题系统。关键集成点：
 
 每个颜色令牌提供 4 个主题值。非颜色令牌（间距、圆角等）不随主题变化。
 
+### breakpoint 断点声明（批次 3）
+
+design 块内专用声明，产出编译期断点常量表供 `bp()` 条件表达式引用：
+
+```
+breakpoint sm: 640;
+breakpoint md: 768;
+breakpoint lg: 1024;
+```
+
+- 值 = 无单位正数，语义为 CSS px（`min-width` 语义，与 Tailwind `theme.screens` 同构）
+- 无主题覆盖（与既有非 color token 一致）；断点名与同块 token/class/variant 名互斥（E-402 硬错误）
+- 三目标生成：React `__design/breakpoints.ts` BP 常量表 + useMediaQuery、Flutter `static const bpSm = 640.0` + MediaQuery.sizeOf、OmniView matchMedia 内联
+
 ### ThemeStore（信号层）
 
 ```omni

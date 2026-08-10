@@ -536,3 +536,52 @@ CSS 动画语义域——**属性值从 A 到 B 平滑过渡**（CSS Transitions
 | OmniView hash 路由 | `omnilang/src/codegen/omniview/router.rs`：`__omni_routes`（:152 嵌套渲染）/hashchange 监听（:237） |
 
 > 注：域 11 语法已落地（批次 2 Task 2-8，2026-08-09/10）——交叉断言两层：语义集条目实现状态断言（8 条目全部「支持」）+ 编译器代码锚点账本断言（见 verify-semantic-universe.py 域 11 断言，对照域 8/9 锚点模式）；navigate/back 保留名与既有保留名表无重（showToast/formErrors/formValid/formSubmitting/loading/error/data/retry）；全工程 @route 注册表为编译器 import 图遍历（跨文件收集，支撑 V14/W2）。
+
+---
+
+## 域 12: 响应式（responsive）
+
+### 语义域定义
+
+视口级响应式能力——命名断点声明 + 断点条件表达式 + 媒体查询透传。语义词汇 = 意图与表达式名（`breakpoint` 声明关键字 + `bp()` 断点条件表达式——机制级条目，无编译器词法级白名单常量，事实源以代码锚点记录，白名单表作锚点账本，交叉断言以存在性检查承担；`@media`/`@container` 为机制透传关键字（CSS 原生词汇），不登记为语义词汇）。全集封闭按本表（2026-08-11 登记，批次 3 登记先行 ADR-074）：未列响应式功能视为未登记。**v0 边界**（批次 3 spec §2/§6）：`bp()` 参数须为字符串字面量（编译期静态查表，动态参数 E-405）；断点名与同块 token/class/variant 互斥（E-402）；断点值须为正数（E-403）；`@media` 块 Flutter 目标降级（W-302）；`@container` 查询块未实施（E-404 硬错误 + 指引）。
+
+### 语义集条目
+
+| 条目 | 语义 | 实现状态 | 诊断行为 |
+|------|------|----------|----------|
+| breakpoint 声明 | 命名断点数值表（design 块） | 支持（批次 3） | 值 ≤ 0 → E-403；同块重名 → E-402 |
+| bp() 条件 | 视口宽度 ≥ 断点值 | 支持（批次 3） | 未声明引用 → E-401；非字面量参数 → E-405 |
+| 选择器诊断 | 未支持选择器部分 → W-301 警告（诚实降级非阻断） | 支持（批次 3） | 兄弟/子/属性/带参伪类等 → W-301 |
+| @media 块 | 媒体查询样式（web 透传） | 部分（web 生效 / Flutter 降级 W-302） | Flutter 目标 → W-302 |
+| @container 块 | 容器查询（查询侧） | 未支持（低优先候选） | 遇之 → E-404 硬错误 + 指引 |
+| 深色模式 | @themes → prefers-color-scheme 生成物 | 支持（既有，无动作） | — |
+
+### 已实现白名单
+
+| 条目 | 编译器事实源锚点 |
+|------|------------------|
+| breakpoint 声明 | parser design 块 breakpoint_decl 识别；语义层断点常量表产出 |
+| bp() 条件 | 语义层 validate_breakpoints 查表；codegen 三目标锚点（React useMediaQuery / Flutter MediaQuery.sizeOf / OmniView matchMedia） |
+| @media 块 | parser media_block 识别 + web codegen 透传输出 |
+| 选择器诊断 | analyse validate_style_selectors pass 发射 W-301 |
+| 深色模式 | design codegen prefers-color-scheme 生成物 |
+
+> 注：域 12 语法随批次 3 T2-T8 落地——交叉断言两层：语义集条目实现状态断言（含「选择器诊断」行——spec/plan 白名单表含此行而语义集条目缺失，执行时修正补齐，防孤儿白名单）+ 编译器代码锚点账本断言（见 verify-semantic-universe.py 域 12 断言；T1 登记阶段锚点 pending-red 文档化，T8 完成全绿收口）。
+
+---
+
+## 域 14: 样式（styling）——留生态登记行
+
+### 语义域定义
+
+样式选择器表达与容器级自适应——**复杂选择器（机制语法面）、@container 查询块（候选）、@media 块（域 12 同载）**。本域为语言边界登记行（基线 §8 治理——未进语言项诚实记录，绝不静默，均有明确诊断或注记）：深色模式 / 样式作用域（@themes + 组件级作用域）已支持（车票 10 无动作），不入本表。全集封闭按本表（2026-08-11 登记，批次 3 登记先行 ADR-074）。
+
+### 语义集条目
+
+| 条目 | 语义 | 实现状态 | 语言边界注记（触发条件 + 目标生态映射指引） |
+|------|------|----------|---------------------------------------------|
+| 复杂选择器（兄弟/子/属性/带参伪类/伪元素/选择器列表） | 样式选择器表达 | 留生态 | 机制语法面（CSS 透传通道）；Flutter 以组件级样式表达同等意图（表达通道差异，非功能缺失）；诊断先行已落地（W-301）；支持补齐触发条件 = 语料需求 |
+| @container 查询块 | 容器级自适应 | 留生态（候选） | 低优先候选；web @container / Flutter LayoutBuilder；触发条件 = 组件级自适应样式语料出现 |
+| @media 块 | 视口级媒体查询 | 部分（域 12 同载） | web 透传生效；Flutter 降级（W-302）→ 增强候选 |
+
+> 注：域 14 为单表登记行（无独立「已实现白名单」——本域条目均为未进语言项或跨域同载）；状态值域含「留生态」（基线 §8 状态值域扩展，域 10 tooltip 先例）——校验见 verify-semantic-universe.py 域 14 专项块。

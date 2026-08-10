@@ -79,6 +79,17 @@ ROUTE_PARSER_FILE = os.path.join(
     REPO_ROOT, "crates", "omnilang-core", "src", "parser", "top_level", "route.rs"
 )
 EXPR_MOD_FILE = os.path.join(REPO_ROOT, "crates", "omnilang-core", "src", "parser", "expr", "mod.rs")
+# 2026-08-11 批次 3 Task 1（登记先行）：域 8 响应式词汇锚点文件——语义层
+# （analyse.rs validate_breakpoints 查表）+ design IR（ir/design.rs breakpoints
+# 常量表）+ 三目标 codegen（React useMediaQuery / Flutter MediaQuery.sizeOf /
+# OmniView matchMedia）。
+ANALYSE_FILE = os.path.join(REPO_ROOT, "crates", "omnilang-core", "src", "analyse.rs")
+DESIGN_IR_FILE = os.path.join(REPO_ROOT, "crates", "omnilang-core", "src", "ir", "design.rs")
+REACT_COMPONENT_FILE = os.path.join(
+    REPO_ROOT, "omnilang", "src", "codegen", "react", "component", "mod.rs"
+)
+FLUTTER_MOD_FILE = os.path.join(REPO_ROOT, "omnilang", "src", "codegen", "flutter", "mod.rs")
+OMNIVIEW_EXPR_FILE = os.path.join(REPO_ROOT, "omnilang", "src", "codegen", "omniview", "expr.rs")
 
 # ── registry section contract ────────────────────────────────────────────
 # Domain titles must contain the expected keyword (in order 1..6).
@@ -90,6 +101,7 @@ DOMAIN_TITLES = {
     5: "design token",
     6: "表单校验规则",  # 2026-08-09 Task 7: @form validate 规则域——VALIDATE_RULES 锚点
     7: "导航",  # 2026-08-10 批次 2 Task 1: 导航词汇域——@route/@layout/@query/navigate/back（登记先行 ADR-074）
+    8: "响应式",  # 2026-08-11 批次 3 Task 1: 响应式词汇域——bp/breakpoint（登记先行 ADR-074；域 7 已被导航占用，响应式取域 8，两文档编号体系独立）
     10: "反馈模态",  # 2026-08-09 Task 0: 反馈模态词汇域——@modal/showToast/@skeleton/@errorBoundary（批次 1，登记先行 ADR-074）
 }
 # Required sub-section headers per domain (the four entry fields).
@@ -250,7 +262,7 @@ def audit():
 
     registry = read_file(REGISTRY_FILE)
     sections = split_domains(registry)
-    for n in sorted(DOMAIN_TITLES):  # 2026-08-09 Task 7: 含域 6（表单校验规则）；Task 0: 含域 10（反馈模态）——sorted(DOMAIN_TITLES) 自维护（登记册无域 7/8/9）
+    for n in sorted(DOMAIN_TITLES):  # 2026-08-09 Task 7: 含域 6（表单校验规则）；Task 0: 含域 10（反馈模态）；批次 2/3: 含域 7（导航）/域 8（响应式）——sorted(DOMAIN_TITLES) 自维护
         if n not in sections:
             fail(f"domain {n} missing (expected '## 域 {n}: …{DOMAIN_TITLES[n]}…')")
             continue
@@ -540,6 +552,56 @@ def audit():
         overlap = sorted(all_vocab & nav_excluded)
         if overlap:
             fail(f"全部域: 导航排除词汇成为语义词汇 (借词违规): {overlap}")
+
+    # 响应式 (域 8, 2026-08-11 批次 3 Task 1 登记先行): 机制级词汇（bp 内建断点
+    # 条件表达式 + breakpoint 断点声明关键字——语法未落地无编译器白名单常量，交叉
+    # 断言以存在性检查承担，照域 10/7 先例）。语义词汇为精确二元闭集（spec §5.3）；
+    # 排除词汇含 useMediaQuery（React 借词禁——语义词汇不得为合成事件名/旗标名/
+    # 库 API 名）。四字段（来源域/语义词汇/目标映射/排除词汇）由通用 REQUIRED_
+    # SUBSECTIONS 循环承担。词汇锚点 = analyse.rs（validate_breakpoints）+ 三目标
+    # codegen（useMediaQuery/MediaQuery.sizeOf/matchMedia）——T5-T8 落地后转绿，
+    # T1 阶段为 pending-red（文档化预期，同 semantic-universe 域 12）。
+    v8 = vocab(8)
+    if v8 is not None:
+        expected_vocab = ["bp", "breakpoint"]
+        if sorted(v8) != sorted(expected_vocab):
+            fail(
+                f"domain 8 (响应式): 语义词汇 ≠ 批次 3 登记词汇（spec §5.3）\n"
+                f"    registry-only:   {sorted(set(v8) - set(expected_vocab))}\n"
+                f"    spec-only:       {sorted(set(expected_vocab) - set(v8))}"
+            )
+    if 8 in sections:
+        ex8 = excluded(8)
+        if ex8 is None:
+            fail("domain 8 (响应式): '### 排除词汇' must be a well-formed table (header + separator + ≥1 row, no empty first column)")
+        else:
+            if "useMediaQuery" not in ex8:
+                fail("domain 8 (响应式): 排除词汇应包含 useMediaQuery（React 借词禁）")
+            if v8 is not None:
+                overlap = sorted(set(v8) & set(ex8))
+                if overlap:
+                    fail(f"domain 8 (响应式): 排除词汇 overlaps 语义词汇 (借词违规): {overlap}")
+        # 词汇锚点断言（照域 7 先例——机制级词汇无词法级白名单常量，对编译器
+        # 事实源做关键符号 grep）。bp 为表达式函数形态（语义层 validate_breakpoints
+        # 查表 + 三目标 codegen 分派）；breakpoint 为声明关键字（parser design 块 +
+        # DesignIR.breakpoints 常量表）。
+        analyse_src = read_file(ANALYSE_FILE)
+        design_parser_src = read_file(DESIGN_PARSER_FILE)
+        design_ir_src = read_file(DESIGN_IR_FILE)
+        react_src = read_file(REACT_COMPONENT_FILE)
+        flutter_src = read_file(FLUTTER_MOD_FILE)
+        omni_expr_src = read_file(OMNIVIEW_EXPR_FILE)
+        for vocab_word, haystack, needles in (
+            ("bp", analyse_src, ["validate_breakpoints"]),
+            ("bp", react_src, ["useMediaQuery"]),
+            ("bp", flutter_src, ["MediaQuery.sizeOf"]),
+            ("bp", omni_expr_src, ["matchMedia"]),
+            ("breakpoint", design_parser_src, ["breakpoint"]),
+            ("breakpoint", design_ir_src, ["breakpoints"]),
+        ):
+            for needle in needles:
+                if needle not in haystack:
+                    fail(f"domain 8 (响应式): 词汇 '{vocab_word}' 编译器锚点 '{needle}' 缺失")
     return problems
 
 

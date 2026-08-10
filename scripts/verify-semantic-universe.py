@@ -133,6 +133,17 @@ VALIDATE_ROUTE_FILE = os.path.join(
 REACT_ROUTER_FILE = os.path.join(REPO_ROOT, "omnilang", "src", "codegen", "react", "router.rs")
 FLUTTER_ROUTER_FILE = os.path.join(REPO_ROOT, "omnilang", "src", "codegen", "flutter", "router.rs")
 OMNIVIEW_ROUTER_FILE = os.path.join(REPO_ROOT, "omnilang", "src", "codegen", "omniview", "router.rs")
+# 2026-08-11 批次 3 Task 1（登记先行 ADR-074）：域 12 响应式编译器事实源锚点文件——
+# design IR（ir/design.rs breakpoints 常量表）+ style 解析器（parser/view/style.rs
+# AtMedia/@media 块）+ 分析管线（analyse.rs validate_breakpoints/validate_style_selectors）
+# + 三目标 codegen 锚点（React useMediaQuery helper / Flutter MediaQuery.sizeOf /
+# OmniView matchMedia 表达式）。锚点账本见 audit() 域 12 块；T2-T8 落地前为
+# pending-red（文档化预期，禁以提前实现语法转绿）。
+DESIGN_IR_FILE = os.path.join(REPO_ROOT, "crates", "omnilang-core", "src", "ir", "design.rs")
+ANALYSE_FILE = os.path.join(REPO_ROOT, "crates", "omnilang-core", "src", "analyse.rs")
+STYLE_PARSER_FILE = os.path.join(
+    REPO_ROOT, "crates", "omnilang-core", "src", "parser", "view", "style.rs"
+)
 
 # ── universe section contract ─────────────────────────────────────────────
 # Domain titles must contain the expected keyword (in order 1..9).
@@ -148,6 +159,8 @@ DOMAIN_TITLES = {
     9: "数据三态",  # 2026-08-09: @load 域——loading/error/data/retry（Task 7，阶段 2 域 A）
     10: "反馈模态",  # 2026-08-09 Task 0: 反馈模态域——showToast/@modal/@skeleton/@errorBoundary（批次 1，登记先行 ADR-074）
     11: "导航",  # 2026-08-10 批次 2 Task 1: 导航域——@route/@layout/@query/navigate/back（登记先行 ADR-074）
+    12: "响应式",  # 2026-08-11 批次 3 Task 1: 响应式域——breakpoint 声明/bp() 条件/@media 块/@container 块/深色模式（登记先行 ADR-074）
+    # 域 14 为单表留生态登记行（无三子节结构）——不走通用循环，见 audit() 域 14 专项块
 }
 # Required sub-section headers per domain.
 REQUIRED_SUBSECTIONS = ("语义域定义", "语义集条目", "已实现白名单")
@@ -872,6 +885,78 @@ def audit():
                      "OmniView hash 路由"):
             if name not in wl11:
                 fail(f"导航: 缺失已实现白名单行 '{name}'")
+
+    # responsive (域 12, 2026-08-11 批次 3 Task 1 登记先行): 机制级条目居多
+    # （breakpoint 声明关键字 + bp() 表达式函数形态——无词法级白名单常量，语法随
+    # T2-T8 落地）。断言两层：① 语义集条目 6 行存在（含「选择器诊断」——spec/plan
+    # 白名单表含此行但语义集条目缺失，执行时修正补齐，assert_matrix 防孤儿白名单）
+    # + 白名单 5 行存在；② 「支持/部分」条目逐项编译器代码锚点账本（照域 8/9 先例）。
+    # ⚠️ T1 阶段锚点未落地 = pending-red（文档化预期，计划 T1 Step 5 注记）；T5/T6/T8
+    # 落地后转绿。禁以提前实现语法转绿。
+    wl12, en12 = whitelist(12), entries(12)
+    if en12 is None:
+        fail("响应式: cannot cross-assert 语义集条目 (extraction failed)")
+    else:
+        en12_map = dict(en12)
+        for name in ("breakpoint 声明", "bp() 条件", "选择器诊断", "@media 块", "@container 块", "深色模式"):
+            if name not in en12_map:
+                fail(f"响应式: 缺失语义集条目 '{name}'")
+        design_parser_src = read_file(DESIGN_PARSER_FILE)
+        design_ir_src = read_file(DESIGN_IR_FILE)
+        analyse_src = read_file(ANALYSE_FILE)
+        style_parser_src = read_file(STYLE_PARSER_FILE)
+        lower_comp_src = read_file(LOWER_COMPONENT_FILE)
+        react_src = read_file(REACT_COMPONENT_FILE)
+        flutter_src = read_file(FLUTTER_MOD_FILE)
+        omni_expr_src = read_file(OMNIVIEW_EXPR_FILE)
+        for name, needles in (
+            ("breakpoint 声明", [("breakpoint", design_parser_src), ("breakpoints", design_ir_src)]),
+            ("bp() 条件", [("validate_breakpoints", analyse_src), ("useMediaQuery", react_src),
+                          ("MediaQuery.sizeOf", flutter_src), ("matchMedia", omni_expr_src)]),
+            ("选择器诊断", [("validate_style_selectors", analyse_src), ("unsupported_selector", lower_comp_src)]),
+            ("@media 块", [("AtMedia", style_parser_src), ("@media", react_src),
+                          ("media_blocks", flutter_src)]),
+            ("深色模式", [("prefers-color-scheme", react_src)]),
+        ):
+            # 状态列带括号注记（「支持（批次 3）」）——按「（」前基词判定（域 14 基词
+            # 校验同模式；域 10 锚点断言用裸 in ("支持","部分") 会静默跳过，此处不做）。
+            if en12_map.get(name, "").split("（", 1)[0].strip() in ("支持", "部分"):
+                for needle, haystack in needles:
+                    if needle not in haystack:
+                        fail(f"响应式: '{name}' 声明 {en12_map[name]} 但编译器锚点 '{needle}' 缺失")
+    if wl12 is None:
+        fail("响应式: cannot cross-assert 已实现白名单 (extraction failed)")
+    else:
+        for name in ("breakpoint 声明", "bp() 条件", "@media 块", "选择器诊断", "深色模式"):
+            if name not in wl12:
+                fail(f"响应式: 缺失已实现白名单行 '{name}'")
+
+    # styling (域 14, 2026-08-11 批次 3 Task 1): 单表留生态登记行（无三子节结构——
+    # 不走通用 REQUIRED_SUBSECTIONS 循环，专项校验）。状态值域 ∈ STATUSES（含
+    # 第四值「留生态」，基线 §8 状态值域扩展）；三行已知状态断言防登记回退。
+    if 14 in sections:
+        headers14, rows14 = table_rows(sections[14][1])
+        if headers14 is None or rows14 is None:
+            fail("域 14: 留生态登记表必须为良构表格（header + separator + ≥1 行，首列非空）")
+        else:
+            si14 = column_index(headers14, STATUS_COLUMN)
+            if si14 is None:
+                fail(f"域 14: 表格必须含 '{STATUS_COLUMN}' 列（got {headers14}）")
+            else:
+                for row in rows14:
+                    base = row[si14].split("（", 1)[0].strip()
+                    if base not in STATUSES:
+                        fail(f"域 14: 条目 '{row[0]}' 状态 '{row[si14]}' 不在 {sorted(STATUSES)}")
+                en14_map = {r[0]: r[si14] for r in rows14}
+                for name, expected in (
+                    ("复杂选择器（兄弟/子/属性/带参伪类/伪元素/选择器列表）", "留生态"),
+                    ("@container 查询块", "留生态（候选）"),
+                    ("@media 块", "部分（域 12 同载）"),  # spec §5.2 原文（含跨域注记）
+                ):
+                    if name not in en14_map:
+                        fail(f"域 14: 缺失登记行 '{name}'")
+                    elif en14_map[name] != expected:
+                        fail(f"域 14: '{name}' 状态应 = '{expected}'，got '{en14_map[name]}'")
 
     return problems
 
