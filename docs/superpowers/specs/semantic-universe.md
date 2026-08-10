@@ -504,3 +504,35 @@ CSS 动画语义域——**属性值从 A 到 B 平滑过渡**（CSS Transitions
 | @modal/@skeleton/@errorBoundary | 元素指令语义化（语义层登记 + codegen 分派） |
 
 > 注：域 10 语法已落地（批次 1 Task 1-6，2026-08-09/10）——交叉断言两层：存在性检查（Task 0）+ 编译器代码锚点账本（Task 7，见 verify-semantic-universe.py 域 10 断言；Flutter 锚点暂缺，Task 5 Flutter codegen 待落地）；**tooltip** 为留生态条目，不列入已实现白名单。
+
+## 域 11: 导航（navigation）
+
+### 语义域定义
+
+导航路由意图语义域——**页面切换、路径/查询参数、返回、深链/URL 同步、守卫、嵌套布局、懒加载**（`@route`/`@layout`/`@query` 组件级指令 + `navigate`/`back` 内建语义函数）。语义词汇 = 指令与内建函数名（机制级条目：`guard:`/`redirect:`/`lazy:` 为属性级参数不单独立法）。全集封闭按本表（2026-08-10 登记，批次 2 登记先行 ADR-074）：未列导航功能视为未登记。**v0 边界**（基线 §5 裁决）：动态守卫目标/通配符 404/滚动恢复/预取不进语言；页面组件（`@route`）与布局组件（`@layout`）互斥（V3）；路径参数注入 prop 名为编译器保留名判定（随路径声明动态产生，非登记词汇）；`navigate`/`back` 为保留名（V13 硬错误）。
+
+### 语义集条目
+
+| 语义集条目 | 语义 | 实现状态 | 诊断行为 |
+|-----------|------|---------|---------|
+| @route 页面声明 | 组件声明为路由页面（路径 + 参数段） | 未支持（2026-08-10 批次 2 实施） | V1-V6（位置/路径/重复/参数段语法）硬错误 |
+| 路径参数 prop 注入 | `:id` 段注入为 String prop | 未支持（2026-08-10 批次 2 实施） | V7（同名类型冲突）硬错误 |
+| @query 查询参数 | 声明查询参数注入 prop | 未支持（2026-08-10 批次 2 实施） | V8（与路径参数同名）硬错误 |
+| guard 守卫 | 布尔条件 + 重定向目标 | 未支持（2026-08-10 批次 2 实施） | V9/V11（引用校验/配对）硬错误 |
+| @layout 嵌套布局 | 布局组件 + @slot 子页面出口 | 未支持（2026-08-10 批次 2 实施） | V3/V10（互斥/无出口）硬错误 |
+| navigate 内建函数 | 应用内跳转（params/query） | 未支持（2026-08-10 批次 2 实施） | V12/W1/W2（路径形态/静态校验） |
+| back 内建函数 | 返回上一页 | 未支持（2026-08-10 批次 2 实施） | V13（保留名）硬错误 |
+| lazy 懒加载 | 页面按需加载（编译器职责优先） | 未支持（2026-08-10 批次 2 实施） | 无（属性扩展点） |
+
+### 已实现白名单
+
+| 条目 | 编译器事实源（预期锚点） |
+|------|-------------|
+| @route/@layout/@query 解析 | `crates/omnilang-core/src/parser/top_level/route.rs`（新） |
+| guard/lazy/redirect 校验 | `crates/omnilang-core/src/ir/lower/route.rs`（新）+ V1-V13 校验位 |
+| navigate/back 语义函数 | `crates/omnilang-core/src/parser/expr/`（内建调用登记） |
+| React 路由接线 | `omnilang/src/codegen/react/router.rs`（新：createBrowserRouter/loader/Suspense 发射） |
+| Flutter GoRouter 接线 | `omnilang/src/codegen/flutter/router.rs`（新：GoRoute/redirect/ShellRoute 发射） |
+| OmniView hash 路由 | `omnilang/src/codegen/omniview/router.rs`（新：hashchange/守卫/嵌套渲染） |
+
+> 注：域 11 语法未落地（批次 2 实施中，2026-08-10 登记先行）——白名单锚点为预期事实源，锚点文件建成后由批次 2 Task 9 回填「支持」并加入编译器代码锚点断言；全工程 @route 注册表为编译器 import 图遍历（跨文件收集，支撑 W2）。
