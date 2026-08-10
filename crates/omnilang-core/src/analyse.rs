@@ -98,12 +98,6 @@ pub(crate) fn is_lint_error(d: &crate::semantic::lints::LintDiagnostic) -> bool 
 /// Passes 3 and 4 mutate the IR (rewrite expression nodes); the rest are
 /// read-only. All diagnostics land in `diagnostics` in pass order.
 pub(crate) fn run_ir_passes(ir_program: &mut IRProgram, diagnostics: &mut Vec<Diagnostic>) {
-    // Validate required props at component call sites
-    let prop_errors = crate::semantic::validate_props::validate_required_props(ir_program);
-    for err in prop_errors {
-        diagnostics.push(err);
-    }
-
     // Validate ref declarations and bindings
     let ref_errors = crate::semantic::validate_refs::validate_refs(ir_program);
     for err in ref_errors {
@@ -194,6 +188,13 @@ pub(crate) fn run_ir_passes(ir_program: &mut IRProgram, diagnostics: &mut Vec<Di
 pub(crate) fn run_program_passes(ir: &mut IRProgram, diagnostics: &mut Vec<Diagnostic>) {
     // Phase 3c: IR optimization passes
     crate::ir::optimize::optimize(ir);
+
+    // Validate required props at component call sites — runs on the merged
+    // IR so cross-file instantiations (import { X } from "./b") see the
+    // declaring component's props; a per-file run silently skipped them
+    // (E0011 must fire for cross-file call sites too).
+    let prop_errors = crate::semantic::validate_props::validate_required_props(ir);
+    diagnostics.extend(prop_errors);
 
     // Phase 3d: Program-level theme validation (@themes ↔ @theme pairing,
     // design D1). Runs on the merged IR so cross-file pairing is visible;
@@ -964,5 +965,81 @@ component App {
             single.diagnostics
         );
         assert_eq!(single_ev, multi_ev, "两条管线的事件名诊断必须一致");
+    }
+
+    /// 跨文件 required-prop：a.omni 引用 b.omni 声明的组件且缺 required prop
+    /// 时必须报 E0011——per-file 运行时 component_map 看不见另一文件的声明，
+    /// 曾静默编译成功（评审 HIGH-1，实证复现）。
+    #[test]
+    fn cross_file_required_prop_errors() {
+        let lib_src = r#"import omniview;
+
+component Button {
+  prop title: String;
+
+  view {
+    <button>{title}</button>
+  }
+}
+"#;
+        let app_src = r#"import omniview;
+import { Button } from "./b";
+
+component App {
+  view {
+    <Button />
+  }
+}
+"#;
+        let mut sources: FxHashMap<String, String> = FxHashMap::default();
+        sources.insert("a.omni".to_string(), app_src.to_string());
+        sources.insert("b.omni".to_string(), lib_src.to_string());
+        let path_mapping = crate::path_mapping::derive_path_mapping(&sources);
+
+        let out = analyse_multi(&sources, &path_mapping);
+        assert!(
+            out.diagnostics
+                .iter()
+                .any(|d| d.message.contains("required prop 'title'")),
+            "跨文件缺失 required prop 必须报 E0011，got: {:?}",
+            out.diagnostics
+        );
+        assert!(
+            !out.success,
+            "跨文件缺 required prop 时 success 必须为 false"
+        );
+    }
+
+    /// 同文件对照（回归保护）：单文件内缺 required prop 仍报 E0011。
+    #[test]
+    fn same_file_required_prop_still_errors() {
+        let src = r#"import omniview;
+
+component Button {
+  prop title: String;
+
+  view {
+    <button>{title}</button>
+  }
+}
+
+component App {
+  view {
+    <Button />
+  }
+}
+"#;
+        let mut sources: FxHashMap<String, String> = FxHashMap::default();
+        sources.insert("same.omni".to_string(), src.to_string());
+        let path_mapping = crate::path_mapping::derive_path_mapping(&sources);
+
+        let out = analyse_multi(&sources, &path_mapping);
+        assert!(
+            out.diagnostics
+                .iter()
+                .any(|d| d.message.contains("required prop 'title'")),
+            "同文件缺失 required prop 必须报 E0011，got: {:?}",
+            out.diagnostics
+        );
     }
 }

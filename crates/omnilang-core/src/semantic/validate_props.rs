@@ -199,17 +199,19 @@ fn warning_diag(component: &ComponentIR, span: Option<Span>, message: String) ->
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lexer::tokenize;
-    use crate::parser::parse;
-    use crate::semantic::analyze;
 
-    /// Helper: compile source and return all diagnostics (parse + analysis + lowering + prop validation).
+    /// Helper: compile source and return all diagnostics (parse + semantic
+    /// analysis + lowering + program-level IR passes). Routes through
+    /// `analyse_multi` with one synthetic file (same convention as
+    /// `validate_semantic_bindings::analyse_src`) so required-prop validation
+    /// — moved to `run_program_passes` on the merged IR (E0011 must fire for
+    /// cross-file call sites too) — is exercised.
     fn compile_to_diagnostics(source: &str) -> Vec<Diagnostic> {
-        let tokens = tokenize(source);
-        let (program, _) = parse(tokens, source);
-        let mut semantics = analyze(&program);
-        let _ir = crate::ir::lower(&program, &mut semantics, None);
-        semantics.diagnostics
+        let mut sources = FxHashMap::default();
+        sources.insert("test.omni".to_string(), source.to_string());
+        let path_mapping = FxHashMap::default();
+        let output = crate::analyse::analyse_multi(&sources, &path_mapping);
+        output.diagnostics
     }
 
     fn collect_prop_errors(diagnostics: &[Diagnostic]) -> Vec<&Diagnostic> {
