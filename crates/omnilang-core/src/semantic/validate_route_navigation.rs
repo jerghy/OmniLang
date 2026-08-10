@@ -724,4 +724,354 @@ mod tests {
             hit.unwrap()
         );
     }
+
+    // ============================================================
+    // 批次 2 注入语料（spec §7 层 5）：路由语法 12 元组，每元组一正一负。
+    // 用例名为 compiler test corpus 风格（test_corpus_*），断言要点照
+    // V1-V14 任务测试模式——正例断言无对应规则错误，负例断言点名消息。
+    // ============================================================
+
+    /// 元组 1：@route 静态路径——`/todos`（正）vs 非 `/` 开头（负，V2 解析错误）。
+    #[test]
+    fn test_corpus_route_static_path() {
+        let pos = compile_diags(
+            r#"component App {
+                @route "/todos";
+                view { <div/> }
+            }"#,
+        );
+        assert!(
+            pos.is_empty(),
+            "static @route must compile clean, got: {:?}",
+            pos
+        );
+
+        let neg = compile_diags(
+            r#"component App {
+                @route "todos";
+                view { <div/> }
+            }"#,
+        );
+        assert!(
+            neg.iter().any(|d| d.message.contains("必须以 `/` 开头且非空")),
+            "expected V2 path-prefix error, got: {:?}",
+            neg
+        );
+    }
+
+    /// 元组 2：@route 路径参数段——`:id`（正）vs 非法段（负，V5 解析错误）。
+    #[test]
+    fn test_corpus_route_path_param() {
+        let pos = compile_diags(
+            r#"component App {
+                @route "/todos/:id";
+                view { <div/> }
+            }"#,
+        );
+        assert!(
+            pos.is_empty(),
+            "param @route must compile clean, got: {:?}",
+            pos
+        );
+
+        let neg = compile_diags(
+            r#"component App {
+                @route "/todos/:1x";
+                view { <div/> }
+            }"#,
+        );
+        assert!(
+            neg.iter().any(|d| d.message.contains("路径参数段 ':1x' 非法")),
+            "expected V5 illegal-param error, got: {:?}",
+            neg
+        );
+    }
+
+    /// 元组 3：@route guard——合法签名（正）vs fn 缺失（负，V9）。
+    #[test]
+    fn test_corpus_route_guard() {
+        let pos = compile_diags(
+            r#"component App {
+                fn isAdmin() -> Bool { return true; }
+                @route "/admin" guard: isAdmin;
+                view { <div/> }
+            }"#,
+        );
+        assert!(
+            !pos.iter().any(|d| d.message.contains("未找到或签名不是")),
+            "valid guard must pass, got: {:?}",
+            pos
+        );
+
+        let neg = compile_diags(
+            r#"component App {
+                @route "/admin" guard: isAdmin;
+                view { <div/> }
+            }"#,
+        );
+        assert!(
+            neg.iter().any(|d| d.message.contains("未找到或签名不是")),
+            "expected V9 missing-guard error, got: {:?}",
+            neg
+        );
+    }
+
+    /// 元组 4：@route lazy——布尔字面量（正）vs 非布尔（负，解析错误）。
+    #[test]
+    fn test_corpus_route_lazy() {
+        let pos = compile_diags(
+            r#"component App {
+                @route "/heavy" lazy: true;
+                view { <div/> }
+            }"#,
+        );
+        assert!(
+            !pos.iter().any(|d| d.message.contains("lazy 属性必须是 true/false")),
+            "lazy: true must pass, got: {:?}",
+            pos
+        );
+
+        let neg = compile_diags(
+            r#"component App {
+                @route "/heavy" lazy: 42;
+                view { <div/> }
+            }"#,
+        );
+        assert!(
+            neg.iter().any(|d| d.message.contains("lazy 属性必须是 true/false")),
+            "expected lazy type error, got: {:?}",
+            neg
+        );
+    }
+
+    /// 元组 5：@layout——含 `<@slot/>`（正）vs 缺失（负，V10）。
+    #[test]
+    fn test_corpus_layout_slot() {
+        let pos = compile_diags(
+            r#"component App {
+                @layout "/admin";
+                view { @slot default }
+            }"#,
+        );
+        assert!(
+            !pos.iter().any(|d| d.message.contains("未包含 `<@slot/>`")),
+            "layout with slot must pass, got: {:?}",
+            pos
+        );
+
+        let neg = compile_diags(
+            r#"component App {
+                @layout "/admin";
+                view { <div/> }
+            }"#,
+        );
+        assert!(
+            neg.iter().any(|d| d.message.contains("未包含 `<@slot/>`")),
+            "expected V10 missing-slot error, got: {:?}",
+            neg
+        );
+    }
+
+    /// 元组 6：@query——与路径参数不同名（正）vs 同名冲突（负，V8）。
+    #[test]
+    fn test_corpus_query_params() {
+        let pos = compile_diags(
+            r#"component App {
+                @route "/todos";
+                @query filter: String = "all";
+                view { <div/> }
+            }"#,
+        );
+        assert!(
+            !pos.iter().any(|d| d.message.contains("同名冲突")),
+            "distinct query param must pass, got: {:?}",
+            pos
+        );
+
+        let neg = compile_diags(
+            r#"component App {
+                @route "/todos/:filter";
+                @query filter: String = "all";
+                view { <div/> }
+            }"#,
+        );
+        assert!(
+            neg.iter().any(|d| d.message.contains("同名冲突")),
+            "expected V8 query/path name conflict, got: {:?}",
+            neg
+        );
+    }
+
+    /// 元组 7：navigate 字面量路径——应用内路径（正）vs 外部链接（负，V12）。
+    #[test]
+    fn test_corpus_navigate_literal() {
+        let pos = compile_diags(
+            r#"component App {
+                fn go() { navigate("/todos"); }
+                view { <div/> }
+            }"#,
+        );
+        assert!(
+            !pos.iter().any(|d| d.message.contains("只接受应用内路径")),
+            "in-app literal path must pass, got: {:?}",
+            pos
+        );
+
+        let neg = compile_diags(
+            r#"component App {
+                fn go() { navigate("https://x.com"); }
+                view { <div/> }
+            }"#,
+        );
+        let hit = neg.iter().find(|d| d.message.contains("只接受应用内路径"));
+        assert!(hit.is_some(), "expected V12 external-path error, got: {:?}", neg);
+        assert!(hit.unwrap().message.contains("<a href>"), "V12 must suggest <a href>");
+    }
+
+    /// 元组 8：navigate + params 选项——字面量路径（正）vs 动态路径（负，W1 警告）。
+    #[test]
+    fn test_corpus_navigate_params() {
+        let pos = compile_all_diags(
+            r#"component App {
+                fn go() { navigate("/todos/:id", { params: { id: "42" } }); }
+                view { <div/> }
+            }"#,
+        );
+        assert!(
+            !pos.iter().any(|d| d.message.contains("动态表达式")),
+            "literal path with params must pass, got: {:?}",
+            pos
+        );
+
+        let neg = compile_all_diags(
+            r#"component App {
+                signal page: String = "/a";
+                fn go() { navigate(page, { params: { id: "42" } }); }
+                view { <div/> }
+            }"#,
+        );
+        let hit = neg.iter().find(|d| d.message.contains("动态表达式"));
+        assert!(hit.is_some(), "expected W1 dynamic-path warning, got: {:?}", neg);
+        assert!(
+            matches!(hit.unwrap().severity, Severity::Warning),
+            "W1 must be a warning, got: {:?}",
+            hit.unwrap()
+        );
+    }
+
+    /// 元组 9：navigate + query 选项——字面量路径（正）vs 空/非 `/` 字面量（负，V12）。
+    #[test]
+    fn test_corpus_navigate_query() {
+        let pos = compile_diags(
+            r#"component App {
+                fn go() { navigate("/todos", { query: { filter: "all" } }); }
+                view { <div/> }
+            }"#,
+        );
+        assert!(
+            !pos.iter().any(|d| d.message.contains("只接受应用内路径")),
+            "literal path with query must pass, got: {:?}",
+            pos
+        );
+
+        let neg = compile_diags(
+            r#"component App {
+                fn go() { navigate("", { query: { filter: "all" } }); }
+                view { <div/> }
+            }"#,
+        );
+        assert!(
+            neg.iter().any(|d| d.message.contains("只接受应用内路径")),
+            "empty literal path must fail V12, got: {:?}",
+            neg
+        );
+    }
+
+    /// 元组 10：back 内建——调用（正）vs 成员名占用（负，V13）。
+    #[test]
+    fn test_corpus_back_builtin() {
+        let pos = compile_diags(
+            r#"component App {
+                fn go() { back(); }
+                view { <div/> }
+            }"#,
+        );
+        assert!(
+            !pos.iter().any(|d| d.message.contains("保留名")),
+            "back() call must pass, got: {:?}",
+            pos
+        );
+
+        let neg = compile_diags(
+            r#"component App {
+                signal back: String = "";
+                view { <div/> }
+            }"#,
+        );
+        assert!(
+            neg.iter().any(|d| d.message.contains("保留名")),
+            "expected V13 reserved-name error, got: {:?}",
+            neg
+        );
+    }
+
+    /// 元组 11：路径参数注入引用——显式 String prop + 视图 `{id}` 插值（正）
+    /// vs 非 String 同名成员（负，V7）。
+    #[test]
+    fn test_corpus_param_injection_reference() {
+        let pos = compile_diags(
+            r#"component App {
+                prop id: String;
+                @route "/todos/:id";
+                view { <div>{id}</div> }
+            }"#,
+        );
+        assert!(
+            !pos.iter().any(|d| d.message.contains("类型不兼容")),
+            "String prop + injected param must pass, got: {:?}",
+            pos
+        );
+
+        let neg = compile_diags(
+            r#"component App {
+                signal id: Bool = false;
+                @route "/todos/:id";
+                view { <div>{id}</div> }
+            }"#,
+        );
+        assert!(
+            neg.iter().any(|d| d.message.contains("类型不兼容")),
+            "expected V7 type-conflict error, got: {:?}",
+            neg
+        );
+    }
+
+    /// 元组 12：守卫失败重定向——guard + redirect 配对（正）vs 无 guard（负，V11）。
+    #[test]
+    fn test_corpus_guard_redirect() {
+        let pos = compile_diags(
+            r#"component App {
+                fn isAdmin() -> Bool { return true; }
+                @route "/admin" guard: isAdmin redirect: "/login";
+                view { <div/> }
+            }"#,
+        );
+        assert!(
+            !pos.iter().any(|d| d.message.contains("必须与 `guard:` 配对")),
+            "guard + redirect must pass, got: {:?}",
+            pos
+        );
+
+        let neg = compile_diags(
+            r#"component App {
+                @route "/admin" redirect: "/login";
+                view { <div/> }
+            }"#,
+        );
+        assert!(
+            neg.iter().any(|d| d.message.contains("必须与 `guard:` 配对")),
+            "expected V11 redirect-without-guard error, got: {:?}",
+            neg
+        );
+    }
 }
