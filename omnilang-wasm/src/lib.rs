@@ -671,15 +671,23 @@ impl OmniCompiler {
             let full = omnilang::compile_omniview_full(source, editor_mode, debug_mode);
             to_js_value(&full)
         } else {
-            // Multi-file: use compile_multi_internal with structured result
-            let result = omnilang::compile_multi_internal(
-                self.sources.clone(),
-                omnilang::codegen::Target::OmniView,
-                omnilang::path_mapping::derive_path_mapping(&self.sources),
-                editor_mode,
-                debug_mode,
-                None,
-            );
+            // Multi-file: route through the incremental cache — the uncached
+            // compile_multi_internal paid full cold analysis per call
+            // (review performance MEDIUM; 150ms debug-window double-compile
+            // pathology). The thread-local ANALYSIS_CACHE is the same
+            // backing store the module-level compile_multi_to_omniview uses.
+            let result = ANALYSIS_CACHE.with(|cache| {
+                let mut cache = cache.borrow_mut();
+                omnilang::compile_multi_internal_cached(
+                    self.sources.clone(),
+                    omnilang::codegen::Target::OmniView,
+                    omnilang::path_mapping::derive_path_mapping(&self.sources),
+                    editor_mode,
+                    debug_mode,
+                    None,
+                    &mut cache,
+                )
+            });
             to_js_value(&result)
         };
         self.cached_compile_result = Some((editor_mode, debug_mode, result_js.clone()));
@@ -1191,5 +1199,29 @@ mod tests {
         assert_diagnostic_json_shape(&errors[0]);
         assert_eq!(errors[0]["code"], "E_WASM");
         assert_eq!(errors[0]["message"], "boom");
+    }
+
+    /// 评审 performance MEDIUM：多文件 compile_to_omniview 曾绕过增量缓存
+    /// 走全冷 analyse_multi——断言两次连续调用（同 sources）结果一致且
+    /// 第二次经 cached 路径不崩溃（结果级缓存已覆盖等价性；此测试防
+    /// 接线回归——改回未缓存分支时结果仍一致但失去增量，故以编译
+    /// 通过 + 结果一致为守卫）。
+    #[wasm_bindgen_test]
+    fn test_multi_file_compile_to_omniview_consistency() {
+        let mut c = OmniCompiler::new();
+        c.upsert_source(
+            "a.omni".into(),
+            "component A { view { <div>a</div> } }".into(),
+        );
+        c.upsert_source(
+            "b.omni".into(),
+            "component B { view { <div>b</div> } }".into(),
+        );
+        let r1 = c.compile_to_omniview(false, false);
+        let r2 = c.compile_to_omniview(false, false);
+        let v1: serde_json::Value = serde_wasm_bindgen::from_value(r1).unwrap();
+        let v2: serde_json::Value = serde_wasm_bindgen::from_value(r2).unwrap();
+        assert!(v1["success"].as_bool().unwrap(), "多文件编译必须成功: {v1}");
+        assert_eq!(v1["files"], v2["files"], "两次多文件编译结果必须一致");
     }
 }
