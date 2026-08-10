@@ -272,6 +272,14 @@ pub struct CachedFile {
 /// with hit rate for typical project sizes.
 pub const MAX_CACHE_ENTRIES: usize = 50;
 
+/// Cache capacity: the LRU must never evict below the project's own file
+/// count — a bound under the project size turns the cache into a churn
+/// generator (measured 15.6× regression at 102 files, review performance
+/// HIGH; the deliberate memory cap intent is preserved above the floor).
+fn cache_capacity(file_count: usize) -> usize {
+    MAX_CACHE_ENTRIES.max(file_count)
+}
+
 /// Incremental compilation cache that avoids re-parsing/re-analyzing unchanged files.
 #[derive(Serialize, Deserialize)]
 pub struct IncrementalCache {
@@ -722,7 +730,8 @@ pub fn analyse_multi_cached(
                 cache.insertion_order.retain(|p| p != path);
                 cache.insertion_order.push(path.clone());
                 // Evict oldest entries if cache exceeds capacity
-                while cache.insertion_order.len() > MAX_CACHE_ENTRIES {
+                let capacity = cache_capacity(sources.len());
+                while cache.insertion_order.len() > capacity {
                     if let Some(oldest) = cache.insertion_order.first().cloned() {
                         cache.entries.remove(&oldest);
                         cache.insertion_order.remove(0);
@@ -1042,4 +1051,15 @@ component App {
             out.diagnostics
         );
     }
+}
+
+/// 评审 performance HIGH：MAX_CACHE_ENTRIES=50 低于旗舰项目 102 文件——
+/// 每击键逐出最旧条目，下击键付全量重解析（实测 15.6× 回归）。
+/// 容量必须不低于项目文件数。
+#[test]
+fn cache_capacity_scales_with_project_size() {
+    assert_eq!(cache_capacity(10), MAX_CACHE_ENTRIES, "小项目用常量上限");
+    assert_eq!(cache_capacity(50), 50);
+    assert_eq!(cache_capacity(102), 102, "旗舰项目 102 文件不得逐出");
+    assert_eq!(cache_capacity(500), 500);
 }
