@@ -110,30 +110,10 @@ pub fn run_pipeline(source: &str) -> PipelineOutput {
     // Re-collect diagnostics emitted during lowering (validate_required_props,
     // validate_refs, validate_ref_ops, design validation).
     diagnostics.extend(std::mem::take(&mut semantics.diagnostics));
-    crate::ir::optimize::optimize(&mut ir);
-
-    // Program-level theme validation (@themes ↔ @theme pairing, design D1).
-    // Runs on the full IR so cross-file pairing (design.omni +
-    // ThemeStore.omni) is visible; also populates DesignIR.theme_signal.
-    crate::semantic::validate_theme::validate_theme(&mut ir, &mut diagnostics);
-
-    // Event-name validation (Task 4.2, D-B) — unknown event names warn with
-    // the nearest legal suggestion. Registered here too (single-file scope:
-    // custom `event` declarations and component tags visible in this
-    // program), so compile(), compile_omniview(), compile_omniview_full()
-    // and resolve_styles() — the WASM-exported paths — see the same
-    // diagnostics as multi-file analysis. Without this, a single-file
-    // `@onTotallyBogus={f}` still compiled "No issues found" (ai HIGH).
-    crate::semantic::validate_event_names::validate_event_names(&ir, &mut diagnostics);
-
-    // Form/data tri-state validation (Domain A, Task 3) — consumes
-    // FormIntentIR/LoadIntentIR, checks V-F2~F8 (V-F1/V-F6 at lowering).
-    crate::semantic::validate_form_load::validate_form_load(&ir, &mut diagnostics);
-
-    // Feedback-modal validation (batch 1, domain 10) — consumes
-    // ModalIntentIR/SkeletonBindingIR/ErrorBoundaryBindingIR, checks V1-V14
-    // (V4/V11 duplicate bindings are reported at lowering).
-    crate::semantic::validate_feedback_modal::validate_feedback_modal(&ir, &mut diagnostics);
+    // Program-level passes (optimize + theme/event/form/feedback-modal
+    // validation) — sequence owned by analyse::run_program_passes so
+    // single-file and multi-file paths see identical diagnostics.
+    crate::analyse::run_program_passes(&mut ir, &mut diagnostics);
 
     // Phase: lint rules (same 10 rules as `analyse_multi`, so single-file
     // paths — compile(), compile_omniview(), resolve_styles() — see the

@@ -184,6 +184,40 @@ pub(crate) fn run_ir_passes(ir_program: &mut IRProgram, diagnostics: &mut Vec<Di
     }
 }
 
+/// Program-level passes on the merged IR. Owned by this one function so
+/// every pipeline entry point — single-file `run_pipeline`, multi-file
+/// `analyse_multi`, cached `analyse_multi_cached` — sees identical
+/// diagnostics in identical order. A pass added here reaches all paths;
+/// a pass hand-appended at one call site silently diverges (historical
+/// incident: validate_event_names was retroactively added to run_pipeline
+/// after single-file paths shipped missing diagnostics).
+pub(crate) fn run_program_passes(ir: &mut IRProgram, diagnostics: &mut Vec<Diagnostic>) {
+    // Phase 3c: IR optimization passes
+    crate::ir::optimize::optimize(ir);
+
+    // Phase 3d: Program-level theme validation (@themes ↔ @theme pairing,
+    // design D1). Runs on the merged IR so cross-file pairing is visible;
+    // also populates DesignIR.theme_signal for every design.
+    crate::semantic::validate_theme::validate_theme(ir, diagnostics);
+
+    // Phase 3e: Event-name validation (Task 4.2, D-B) — unknown event names
+    // warn with the nearest legal suggestion. Runs on the merged IR so
+    // cross-file custom `event` declarations and component tags are visible
+    // (a per-file pass cannot tell an imported component's custom-event
+    // binding apart from a typo'd DOM event).
+    crate::semantic::validate_event_names::validate_event_names(ir, diagnostics);
+
+    // Phase 3f: Form/data tri-state validation (Domain A, Task 3) — consumes
+    // FormIntentIR/LoadIntentIR collected during lowering, checks V-F2~F8.
+    // V-F1/V-F6 are reported at the lowering scan (ir/lower/component.rs).
+    crate::semantic::validate_form_load::validate_form_load(ir, diagnostics);
+
+    // Phase 3f2: Feedback-modal validation (batch 1, domain 10) — consumes
+    // ModalIntentIR/SkeletonBindingIR/ErrorBoundaryBindingIR, checks V1-V14
+    // (V4/V11 duplicate bindings are reported at lowering).
+    crate::semantic::validate_feedback_modal::validate_feedback_modal(ir, diagnostics);
+}
+
 /// Fast non-cryptographic hash for content comparison.
 ///
 /// `FxHasher` (rustc-hash) is roughly 2-3x faster than `DefaultHasher`
@@ -494,30 +528,9 @@ pub fn analyse_multi(
         merge_file_ir_into(&mut merged_ir, &path, &mut ir_program, &mut merge_warnings);
     }
 
-    // Phase 3c: IR optimization passes
-    crate::ir::optimize::optimize(&mut merged_ir);
-
-    // Phase 3d: Program-level theme validation (@themes ↔ @theme pairing,
-    // design D1). Runs on the merged IR so cross-file pairing is visible;
-    // also populates DesignIR.theme_signal for every design.
-    crate::semantic::validate_theme::validate_theme(&mut merged_ir, &mut diags);
-
-    // Phase 3e: Event-name validation (Task 4.2, D-B) — unknown event names
-    // warn with the nearest legal suggestion. Runs on the merged IR so
-    // cross-file custom `event` declarations and component tags are visible
-    // (a per-file pass cannot tell an imported component's custom-event
-    // binding apart from a typo'd DOM event).
-    crate::semantic::validate_event_names::validate_event_names(&merged_ir, &mut diags);
-
-    // Phase 3f: Form/data tri-state validation (Domain A, Task 3) — consumes
-    // FormIntentIR/LoadIntentIR collected during lowering, checks V-F2~F8.
-    // V-F1/V-F6 are reported at the lowering scan (ir/lower/component.rs).
-    crate::semantic::validate_form_load::validate_form_load(&merged_ir, &mut diags);
-
-    // Phase 3f2: Feedback-modal validation (batch 1, domain 10) — consumes
-    // ModalIntentIR/SkeletonBindingIR/ErrorBoundaryBindingIR, checks V1-V14
-    // (V4/V11 duplicate bindings are reported at lowering).
-    crate::semantic::validate_feedback_modal::validate_feedback_modal(&merged_ir, &mut diags);
+    // Phase 3c-3f2: program-level passes on the merged IR (sequence owned
+    // by run_program_passes — see its doc comment).
+    run_program_passes(&mut merged_ir, &mut diags);
 
     // Phase 4: Run lint rules against ASTs and merged IR
     let lint_diags = crate::semantic::lints::run_all(&programs, &merged_ir);
@@ -786,30 +799,9 @@ pub fn analyse_multi_cached(
         merge_file_ir_into(&mut merged_ir, &path, &mut ir, &mut merge_warnings);
     }
 
-    // Phase 3c: IR optimization passes
-    crate::ir::optimize::optimize(&mut merged_ir);
-
-    // Phase 3d: Program-level theme validation (@themes ↔ @theme pairing,
-    // design D1). Runs on the merged IR so cross-file pairing is visible;
-    // also populates DesignIR.theme_signal for every design.
-    crate::semantic::validate_theme::validate_theme(&mut merged_ir, &mut diags);
-
-    // Phase 3e: Event-name validation (Task 4.2, D-B) — unknown event names
-    // warn with the nearest legal suggestion. Runs on the merged IR so
-    // cross-file custom `event` declarations and component tags are visible
-    // (a per-file pass cannot tell an imported component's custom-event
-    // binding apart from a typo'd DOM event).
-    crate::semantic::validate_event_names::validate_event_names(&merged_ir, &mut diags);
-
-    // Phase 3f: Form/data tri-state validation (Domain A, Task 3) — consumes
-    // FormIntentIR/LoadIntentIR collected during lowering, checks V-F2~F8.
-    // V-F1/V-F6 are reported at the lowering scan (ir/lower/component.rs).
-    crate::semantic::validate_form_load::validate_form_load(&merged_ir, &mut diags);
-
-    // Phase 3f2: Feedback-modal validation (batch 1, domain 10) — consumes
-    // ModalIntentIR/SkeletonBindingIR/ErrorBoundaryBindingIR, checks V1-V14
-    // (V4/V11 duplicate bindings are reported at lowering).
-    crate::semantic::validate_feedback_modal::validate_feedback_modal(&merged_ir, &mut diags);
+    // Phase 3c-3f2: program-level passes on the merged IR (sequence owned
+    // by run_program_passes — see its doc comment).
+    run_program_passes(&mut merged_ir, &mut diags);
 
     // Phase 4: Run lint rules against ASTs and merged IR
     let lint_diags = crate::semantic::lints::run_all(&all_programs, &merged_ir);
@@ -836,6 +828,7 @@ pub fn analyse_multi_cached(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::run_pipeline;
 
     /// Regression: cache hits must not drop diagnostics of unchanged files.
     ///
@@ -924,5 +917,52 @@ mod tests {
             "parse diag dropped on cache hit, run 2 got: {:?}",
             out2.diagnostics
         );
+    }
+
+    /// 管线对等：单文件 run_pipeline 与多文件 analyse_multi 必须产出
+    /// (kind, message) 相同的程序级诊断（历史缺陷：validate_event_names
+    /// 曾漏接线单文件路径，单文件 @onTotallyBogus 静默 "No issues found"）。
+    ///
+    /// 注：本测试在提取前即为 GREEN——两条管线已在三处编排点运行同一
+    /// 5-pass 序列（validate_event_names 历史缺口已在 lib.rs 修复），任何
+    /// 程序级诊断场景都无法让二者分叉（@onTotallyBogus 与 @theme 缺
+    /// @themes 两个场景均已实证）。因此本测试作为绿色回归护栏：防止
+    /// 未来任何一处编排点漏接/重复程序级 pass（即历史事故类别）。
+    #[test]
+    fn pipeline_parity_program_level_diagnostics() {
+        let src = r#"import omniview;
+
+component App {
+    view {
+        <div @onTotallyBogus={f}></div>
+    }
+    fn f() {}
+}
+"#;
+
+        // 单文件路径
+        let single = run_pipeline(src);
+        // 多文件路径（同一源码作唯一文件）
+        let mut sources: FxHashMap<String, String> = FxHashMap::default();
+        sources.insert("main.omni".to_string(), src.to_string());
+        let path_mapping = crate::path_mapping::derive_path_mapping(&sources);
+        let multi = analyse_multi(&sources, &path_mapping);
+
+        // 事件名诊断 kind 为 E0006（error.rs:97，validate_event_names.rs:203 实证）
+        let ev = |ds: &[Diagnostic]| -> Vec<(String, String)> {
+            ds.iter()
+                .filter(|d| d.kind == DiagnosticKind::E0006)
+                .map(|d| (format!("{:?}", d.kind), d.message.clone()))
+                .collect()
+        };
+
+        let single_ev = ev(&single.diagnostics);
+        let multi_ev = ev(&multi.diagnostics);
+        assert!(
+            !single_ev.is_empty(),
+            "单文件路径必须产出 E0006 事件名诊断，got: {:?}",
+            single.diagnostics
+        );
+        assert_eq!(single_ev, multi_ev, "两条管线的事件名诊断必须一致");
     }
 }
