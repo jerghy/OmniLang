@@ -128,6 +128,9 @@ mod tests {
         ComponentIR {
             form_intent: None,
             load_intent: None,
+            route_intent: None,
+            layout_intent: None,
+            query_params: vec![],
             name: name.to_string(),
             refs: ref_names
                 .iter()
@@ -298,6 +301,9 @@ mod tests {
         let comp = ComponentIR {
             form_intent: None,
             load_intent: None,
+            route_intent: None,
+            layout_intent: None,
+            query_params: vec![],
             fns: vec![crate::ir::logic::FunctionIR {
                 name: "move".into(),
                 visibility: Visibility::Private,
@@ -333,6 +339,9 @@ mod tests {
         let comp = ComponentIR {
             form_intent: None,
             load_intent: None,
+            route_intent: None,
+            layout_intent: None,
+            query_params: vec![],
             name: "TestComp".into(),
             refs: vec![],
             view: Some(ViewTree::ListRendering(Box::new(ListRenderingIntent {

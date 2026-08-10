@@ -3,6 +3,7 @@
 //! Includes: `lower_component`, `lower_store`, `lower_type`.
 
 use super::expr::{annotate_typed_struct_literals, lower_expr};
+use super::route::{collect_layout_intent, collect_query_params, collect_route_intent};
 use super::stmt::lower_block;
 use super::view::{lower_slot_common, lower_view_block, SlotDeclShape};
 use crate::ir::logic::*;
@@ -227,6 +228,13 @@ pub(super) fn lower_component(
         );
     }
 
+    // 导航/路由意图（spec 2026-08-09 §2.1/§2.4/§2.5/§2.6/§2.8）——组件级
+    // @route/@layout/@query 声明，直接读 ComponentDef 字段（route.rs）。
+    // V4 重复路由上报是语义 pass 的事，lowering 确定性取第一条。
+    let route_intent = collect_route_intent(comp);
+    let layout_intent = collect_layout_intent(comp);
+    let query_params = collect_query_params(comp, variant_map, semantics);
+
     let styles: Vec<StyleRuleIR> = comp
         .styles
         .iter()
@@ -324,6 +332,9 @@ pub(super) fn lower_component(
         styles,
         form_intent,
         load_intent,
+        route_intent,
+        layout_intent,
+        query_params,
         source_span: Some(comp.span),
     }
 }
@@ -986,5 +997,144 @@ mod tests {
             .filter(|d| d.message.contains("组件内 @form/@load 至多一个"))
             .count();
         assert_eq!(count, 1, "V-F6 must report exactly once, got: {:?}", diags);
+    }
+
+    // ── 导航/路由意图（批次 2：@route/@layout/@query，spec 2026-08-09）──
+
+    /// T3：组件级 `@route "/todos/:id" guard: isAdmin lazy: true redirect: "/login";`
+    /// 降级为 ComponentIR.route_intent，五个字段逐项相等。lowering 确定性取
+    /// 第一条声明（V4 重复上报是语义 pass 的事）。
+    #[test]
+    fn test_lower_route_intent() {
+        let ir = lower_component_src(
+            r#"component App {
+                fn isAdmin() -> Bool { return true; }
+                @route "/todos/:id" guard: isAdmin lazy: true redirect: "/login";
+                view { <div/> }
+            }"#,
+        );
+        let route = ir.route_intent.expect("route intent");
+        assert_eq!(route.path, "/todos/:id");
+        assert_eq!(route.params, vec!["id".to_string()]);
+        assert_eq!(route.guard.as_deref(), Some("isAdmin"));
+        assert_eq!(route.lazy, Some(true));
+        assert_eq!(route.redirect.as_deref(), Some("/login"));
+    }
+
+    /// T3：组件级 `@layout "/admin";` 降级为 ComponentIR.layout_intent
+    /// Some{prefix:"/admin"}（无 @layout 的组件为 None）。
+    #[test]
+    fn test_lower_layout_intent() {
+        let ir = lower_component_src(
+            r#"component App {
+                @layout "/admin";
+                view { <div/> }
+            }"#,
+        );
+        let layout = ir.layout_intent.expect("layout intent");
+        assert_eq!(layout.prefix, "/admin");
+    }
+
+    /// T3：组件级 `@query filter: String = "all";` 降级为 query_params 项——
+    /// name/ty 来自类型注解（String→TypeKind::String），default 表达式经常规
+    /// 表达式降级管线（字面量保持字面量）。
+    #[test]
+    fn test_lower_query_params() {
+        let ir = lower_component_src(
+            r#"component App {
+                @query filter: String = "all";
+                view { <div/> }
+            }"#,
+        );
+        assert_eq!(ir.query_params.len(), 1);
+        let q = &ir.query_params[0];
+        assert_eq!(q.name, "filter");
+        assert_eq!(q.ty.kind, TypeKind::String);
+        let default = q.default.as_ref().expect("query default");
+        assert!(matches!(
+            default,
+            ExprIR::LiteralExpr { value } if value == "all"
+        ));
+    }
+
+    /// T3：navigate/back 不引入新的 IR 表达式变体——内联事件处理体中的
+    /// navigate(...)/back() 调用降级为常规 ExprIR::CallExpr（callee 名 +
+    /// 参数结构完整保留）：navigate 两个参数（路径字面量 + MapExpr 参数表），
+    /// back 零参数。codegen 按 callee 名分派。
+    #[test]
+    fn test_lower_navigate_back_roundtrip() {
+        let ir = lower_component_src(
+            r#"component App {
+                view {
+                    <button @onPress={() => {
+                        navigate("/todos/:id", { params: { id: item } });
+                        back()
+                    }}>Go</button>
+                }
+            }"#,
+        );
+        let el = match ir.view.as_ref().expect("view") {
+            ViewTree::Element(el) => el,
+            other => panic!("expected Element, got {:?}", other),
+        };
+        let handler = el.events.get("onPress").expect("onPress handler").clone();
+        let stmts = match handler {
+            EventHandlerIR::InlineFn { body, .. } => body.statements,
+            other => panic!("expected inline fn, got {:?}", other),
+        };
+        let calls: Vec<(String, usize)> = stmts
+            .iter()
+            .filter_map(|s| match s {
+                StatementIR::ExprStmtIR {
+                    expr: ExprIR::CallExpr { name, args },
+                } => Some((name.clone(), args.len())),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(calls.len(), 2, "expected navigate + back, got {:?}", calls);
+        let (nav_name, nav_arity) = &calls[0];
+        assert_eq!(nav_name, "navigate");
+        assert_eq!(*nav_arity, 2, "navigate must carry path + options map");
+        let (back_name, back_arity) = &calls[1];
+        assert_eq!(back_name, "back");
+        assert_eq!(*back_arity, 0);
+
+        // 参数结构：args[0] = 路径字面量；args[1] = MapExpr{ params: MapExpr{ id: item } }
+        let handler2 = el.events.get("onPress").expect("onPress handler").clone();
+        let body = match handler2 {
+            EventHandlerIR::InlineFn { body, .. } => body,
+            _ => unreachable!(),
+        };
+        let nav_args = body
+            .statements
+            .iter()
+            .filter_map(|s| match s {
+                StatementIR::ExprStmtIR {
+                    expr: ExprIR::CallExpr { name, args },
+                } if name == "navigate" => Some(args),
+                _ => None,
+            })
+            .next()
+            .expect("navigate call");
+        assert!(matches!(
+            &nav_args[0],
+            ExprIR::LiteralExpr { value } if value == "/todos/:id"
+        ));
+        let options = match &nav_args[1] {
+            ExprIR::MapExpr { entries } => entries,
+            other => panic!("expected MapExpr options, got {:?}", other),
+        };
+        assert_eq!(options.len(), 1);
+        assert!(matches!(&options[0].0, ExprIR::LiteralExpr { value } if value == "params"));
+        let params_map = match &options[0].1 {
+            ExprIR::MapExpr { entries } => entries,
+            other => panic!("expected MapExpr params, got {:?}", other),
+        };
+        assert_eq!(params_map.len(), 1);
+        assert!(matches!(&params_map[0].0, ExprIR::LiteralExpr { value } if value == "id"));
+        assert!(matches!(
+            &params_map[0].1,
+            ExprIR::IdentifierExpr { name, .. } if name == "item"
+        ));
     }
 }

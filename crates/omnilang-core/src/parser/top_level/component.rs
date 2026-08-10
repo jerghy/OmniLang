@@ -230,9 +230,11 @@ impl<'a> Parser<'a> {
                 TokenKind::AtLayout => {
                     // V3 (route/layout mutual exclusion) is a semantic-layer
                     // error — the parser keeps both so the diagnostic can
-                    // name them; Option holds at most one @layout (a second
-                    // one overwrites: also a semantic-layer concern, spec §3
-                    // has no rule for duplicate @layout, the first wins).
+                    // name them; Option holds at most one @layout — a second
+                    // declaration overwrites the first (parse-time last-wins;
+                    // spec §3 has no rule for duplicate @layout, so the
+                    // semantic layer reports nothing and lowering sees the
+                    // last declaration).
                     layout = Some(self.parse_layout_decl()?);
                 }
                 TokenKind::AtQuery => queries.push(self.parse_query_decl()?),

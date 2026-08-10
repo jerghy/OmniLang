@@ -1047,6 +1047,41 @@ pub struct LoadIntentIR {
     pub fn_name: String,
 }
 
+/// 路由意图（spec 2026-08-09 §2.1/§2.5/§2.8）——组件级 `@route "/todos/:id" guard: isAdmin lazy: true redirect: "/login";`。
+/// 每个组件至多一个（V4 重复是语义层错误，parser 保留全部声明以便诊断点名两条路径，
+/// lowering 确定性取第一条）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RouteIntentIR {
+    /// 声明的路径——恒以 `/` 开头（V2 解析错误）。
+    pub path: String,
+    /// 从路径提取的 `:id` 参数段，按声明顺序（`"/todos/:id"` → `["id"]`）。
+    /// 以 String props 注入（C2）。
+    pub params: Vec<String>,
+    /// `guard: fnName`——组件 fn `() -> Bool` 的路由保护引用（V9 语义校验）。
+    pub guard: Option<String>,
+    /// `lazy: true|false`——路由级懒加载（C8）。
+    pub lazy: Option<bool>,
+    /// `redirect: "/path"`——guard 失败重定向目标（V11 配对）。
+    pub redirect: Option<String>,
+}
+
+/// 布局意图（spec 2026-08-09 §2.6）——组件级 `@layout "/admin";`。
+/// 与 route_intent 互斥（V3，语义层错误）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LayoutIntentIR {
+    /// 声明的布局前缀——恒以 `/` 开头（V2 解析错误）。
+    pub prefix: String,
+}
+
+/// 查询参数声明（spec 2026-08-09 §2.4）——组件级 `@query filter: String = "all";`。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QueryParamIR {
+    pub name: String,
+    pub ty: TypeIR,
+    /// 默认值表达式——`@query filter: String;` 无默认值时是 None。
+    pub default: Option<ExprIR>,
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ComponentIR {
     pub name: String,
@@ -1087,6 +1122,17 @@ pub struct ComponentIR {
     /// 数据三态意图（spec 2026-08-08 §4.2）——@load 绑定的组件 fn。
     #[serde(default)]
     pub load_intent: Option<LoadIntentIR>,
+    /// 路由意图（spec 2026-08-09 §2.1/§2.5/§2.8）——组件级 @route 声明。
+    /// 组件至多一个路由；`None` 表示该组件不是路由页。
+    #[serde(default)]
+    pub route_intent: Option<RouteIntentIR>,
+    /// 布局意图（spec 2026-08-09 §2.6）——组件级 @layout 声明。
+    /// 与 route_intent 互斥（V3，语义层错误）。
+    #[serde(default)]
+    pub layout_intent: Option<LayoutIntentIR>,
+    /// 查询参数声明（spec 2026-08-09 §2.4）——组件级 @query 声明列表。
+    #[serde(default)]
+    pub query_params: Vec<QueryParamIR>,
     /// Source location in .omni file
     #[serde(default)]
     pub source_span: Option<Span>,

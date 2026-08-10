@@ -274,6 +274,9 @@ mod tests {
         ComponentIR {
             form_intent: None,
             load_intent: None,
+            route_intent: None,
+            layout_intent: None,
+            query_params: vec![],
             name: name.to_string(),
             refs: ref_names
                 .iter()
@@ -332,6 +335,9 @@ mod tests {
         let comp = ComponentIR {
             form_intent: None,
             load_intent: None,
+            route_intent: None,
+            layout_intent: None,
+            query_params: vec![],
             name: "Test".to_string(),
             refs: vec![RefDeclIR {
                 element_tag: None,
@@ -391,6 +397,9 @@ mod tests {
         let comp = ComponentIR {
             form_intent: None,
             load_intent: None,
+            route_intent: None,
+            layout_intent: None,
+            query_params: vec![],
             name: "Test".to_string(),
             refs: vec![
                 RefDeclIR {
@@ -450,6 +459,9 @@ mod tests {
         let comp = ComponentIR {
             form_intent: None,
             load_intent: None,
+            route_intent: None,
+            layout_intent: None,
+            query_params: vec![],
             name: "TestComp".into(),
             refs: vec![RefDeclIR {
                 element_tag: None,

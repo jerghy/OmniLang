@@ -9,6 +9,7 @@ pub(crate) mod design;
 mod expr;
 mod lower_inline_motions;
 mod motion;
+mod route;
 mod stmt;
 mod view;
 

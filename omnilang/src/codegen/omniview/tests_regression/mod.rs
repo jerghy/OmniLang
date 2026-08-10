@@ -25,6 +25,9 @@ fn computed_references_prop_with_default() {
     let comp = ComponentIR {
         form_intent: None,
         load_intent: None,
+        route_intent: None,
+        layout_intent: None,
+        query_params: vec![],
         name: "Counter".into(),
         source_file: None,
         props: FxHashMap::from_iter([(

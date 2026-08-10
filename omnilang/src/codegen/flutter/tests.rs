@@ -506,6 +506,9 @@ fn dummy_comp() -> ComponentIR {
     ComponentIR {
         form_intent: None,
         load_intent: None,
+        route_intent: None,
+        layout_intent: None,
+        query_params: vec![],
         name: "Dummy".into(),
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
@@ -1872,6 +1875,9 @@ fn test_design_class_on_component_element_wraps_in_decoration() {
     let my_card = ComponentIR {
         form_intent: None,
         load_intent: None,
+        route_intent: None,
+        layout_intent: None,
+        query_params: vec![],
         name: "MyCard".into(),
         view: None,
         ..Default::default()
@@ -2009,6 +2015,9 @@ fn test_empty_component() {
         ComponentIR {
             form_intent: None,
             load_intent: None,
+            route_intent: None,
+            layout_intent: None,
+            query_params: vec![],
             name: "App".into(),
             props: FxHashMap::default(),
             prop_defaults: FxHashMap::default(),
@@ -2069,6 +2078,9 @@ fn test_component_with_state() {
         ComponentIR {
             form_intent: None,
             load_intent: None,
+            route_intent: None,
+            layout_intent: None,
+            query_params: vec![],
             name: "Counter".into(),
             props: FxHashMap::default(),
             prop_defaults: FxHashMap::default(),
@@ -2152,6 +2164,9 @@ fn test_component_with_props() {
         ComponentIR {
             form_intent: None,
             load_intent: None,
+            route_intent: None,
+            layout_intent: None,
+            query_params: vec![],
             name: "Greeting".into(),
             props,
             prop_defaults: FxHashMap::default(),
@@ -2206,6 +2221,9 @@ fn test_component_with_mount_lifecycle() {
         ComponentIR {
             form_intent: None,
             load_intent: None,
+            route_intent: None,
+            layout_intent: None,
+            query_params: vec![],
             name: "App".into(),
             props: FxHashMap::default(),
             prop_defaults: FxHashMap::default(),
@@ -2260,6 +2278,9 @@ fn test_component_with_unmount_lifecycle() {
         ComponentIR {
             form_intent: None,
             load_intent: None,
+            route_intent: None,
+            layout_intent: None,
+            query_params: vec![],
             name: "App".into(),
             props: FxHashMap::default(),
             prop_defaults: FxHashMap::default(),
@@ -2640,6 +2661,9 @@ fn test_motion_enter_controller_init() {
         ComponentIR {
             form_intent: None,
             load_intent: None,
+            route_intent: None,
+            layout_intent: None,
+            query_params: vec![],
             name: "App".into(),
             view: Some(view),
             ..Default::default()
@@ -2939,6 +2963,9 @@ fn test_motion_inline_body_handling() {
         ComponentIR {
             form_intent: None,
             load_intent: None,
+            route_intent: None,
+            layout_intent: None,
+            query_params: vec![],
             name: "App".into(),
             view: Some(view),
             ..Default::default()
@@ -4166,6 +4193,9 @@ fn test_motion_pipeline_warnings_and_playback() {
         ComponentIR {
             form_intent: None,
             load_intent: None,
+            route_intent: None,
+            layout_intent: None,
+            query_params: vec![],
             name: "App".into(),
             view: Some(view),
             ..Default::default()
@@ -4346,6 +4376,9 @@ fn test_full_pipeline_component() {
     let comp = ComponentIR {
         form_intent: None,
         load_intent: None,
+        route_intent: None,
+        layout_intent: None,
+        query_params: vec![],
         name: "App".into(),
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
@@ -4454,6 +4487,9 @@ fn test_full_pipeline_component_with_store_ref() {
     let comp = ComponentIR {
         form_intent: None,
         load_intent: None,
+        route_intent: None,
+        layout_intent: None,
+        query_params: vec![],
         name: "App".into(),
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
@@ -6168,6 +6204,9 @@ fn test_effect_emits_real_method_and_lifecycle_wiring() {
         ComponentIR {
             form_intent: None,
             load_intent: None,
+            route_intent: None,
+            layout_intent: None,
+            query_params: vec![],
             name: "App".into(),
             props,
             prop_defaults: FxHashMap::default(),
@@ -6288,6 +6327,9 @@ fn test_effect_unresolvable_dep_skips_dead_prev_fields() {
         ComponentIR {
             form_intent: None,
             load_intent: None,
+            route_intent: None,
+            layout_intent: None,
+            query_params: vec![],
             name: "App".into(),
             props: FxHashMap::default(),
             prop_defaults: FxHashMap::default(),
@@ -6364,6 +6406,9 @@ fn test_component_constructor_includes_class_name() {
         ComponentIR {
             form_intent: None,
             load_intent: None,
+            route_intent: None,
+            layout_intent: None,
+            query_params: vec![],
             name: "Greeting".into(),
             props,
             prop_defaults: FxHashMap::default(),
@@ -6469,6 +6514,9 @@ fn test_view_store_field_read_uses_ref_watch() {
         ComponentIR {
             form_intent: None,
             load_intent: None,
+            route_intent: None,
+            layout_intent: None,
+            query_params: vec![],
             name: "FilterBar".into(),
             store_refs: vec!["TodoStore".into()],
             view: Some(view),
@@ -8193,6 +8241,9 @@ fn ref_component(
     ComponentIR {
         form_intent: None,
         load_intent: None,
+        route_intent: None,
+        layout_intent: None,
+        query_params: vec![],
         name: name.into(),
         refs: refs
             .iter()
