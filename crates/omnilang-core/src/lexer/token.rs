@@ -64,6 +64,12 @@ pub enum TokenKind {
     Getter,
     Design,
     AtStore,
+    /// Route intent: `@route "/todos/:id"` component-level directive (spec 2026-08-09 §2.1).
+    AtRoute,
+    /// Layout intent: `@layout "/admin"` component-level directive (spec 2026-08-09 §2.6).
+    AtLayout,
+    /// Query-parameter intent: `@query filter: String = "all"` component-level directive (spec 2026-08-09 §2.4).
+    AtQuery,
     AtIf,
     AtElse,
     AtFor,

@@ -73,6 +73,10 @@ pub(super) fn ident_to_keyword(ident: &str) -> Option<TokenKind> {
 pub(super) fn at_keyword_to_token(kw: &str) -> Option<TokenKind> {
     match kw {
         "@store" => Some(TokenKind::AtStore),
+        // Navigation intent keywords (spec 2026-08-09 §2.1/§2.4/§2.6)
+        "@route" => Some(TokenKind::AtRoute),
+        "@layout" => Some(TokenKind::AtLayout),
+        "@query" => Some(TokenKind::AtQuery),
         "@if" => Some(TokenKind::AtIf),
         "@else" => Some(TokenKind::AtElse),
         "@for" => Some(TokenKind::AtFor),

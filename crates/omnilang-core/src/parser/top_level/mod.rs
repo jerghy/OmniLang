@@ -5,6 +5,7 @@ pub mod design;
 pub mod function;
 pub mod module;
 pub mod motion;
+pub mod route;
 pub mod store;
 pub mod struct_def;
 pub mod timeline;
@@ -139,6 +140,18 @@ impl<'a> Parser<'a> {
                                     .push(self.parse_type_alias(Visibility::Private)?);
                             }
                         }
+                    }
+                    // V1: navigation directives are component-top-level only
+                    // (spec §3) — a bare one at file scope is a parse error.
+                    TokenKind::AtRoute | TokenKind::AtLayout | TokenKind::AtQuery => {
+                        let t = self.advance();
+                        return Err(ParseError {
+                            kind: None,
+                            message:
+                                "`@route`/`@layout`/`@query` 只能声明在组件顶层块内（与 prop/event/fn 同级）"
+                                    .to_string(),
+                            span: t.span,
+                        });
                     }
                     TokenKind::Const => {
                         self.advance(); // 'const'

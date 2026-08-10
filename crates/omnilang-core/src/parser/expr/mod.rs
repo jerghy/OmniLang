@@ -25,8 +25,11 @@ pub mod template;
 ///
 /// `showToast(msg, { kind, duration })` is a global imperative builtin (spec
 /// 2026-08-09 §2.2): calling it compiles to a platform notification shape on
-/// each target. Users may not shadow it (V8, semantic layer).
-pub(crate) const BUILTIN_FUNCTIONS: &[&str] = &["showToast"];
+/// each target. `navigate(path, { params, query })` / `back()` are the
+/// navigation builtins (spec 2026-08-09 §2.3): they compile to the target's
+/// navigation API (useNavigate / context.push / hash update). Users may not
+/// shadow any of them (V8/V13, semantic layer).
+pub(crate) const BUILTIN_FUNCTIONS: &[&str] = &["showToast", "navigate", "back"];
 
 /// Binding power: (left_bp, right_bp). Higher = tighter.
 type Bp = u8;

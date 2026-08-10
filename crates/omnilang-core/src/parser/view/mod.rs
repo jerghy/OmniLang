@@ -84,6 +84,18 @@ impl<'a> Parser<'a> {
                     default_content: slot.default_content,
                 })
             }
+            // V1: navigation directives are component-top-level only (spec
+            // §3) — inside a view they are a hard parse error, not text.
+            TokenKind::AtRoute | TokenKind::AtLayout | TokenKind::AtQuery => {
+                let t = self.advance();
+                Err(ParseError {
+                    kind: None,
+                    message:
+                        "`@route`/`@layout`/`@query` 只能声明在组件顶层块内（与 prop/event/fn 同级）"
+                            .to_string(),
+                    span: t.span,
+                })
+            }
             TokenKind::StringLiteral(s) => {
                 let text = s.clone();
                 self.advance();

@@ -299,9 +299,14 @@ impl<'a> Parser<'a> {
                             // dedicated AST node so each target compiler can generate its
                             // platform notification shape (self-generated toast / SnackBar /
                             // self-drawn) instead of a generic FuncCall.
-            if super::BUILTIN_FUNCTIONS.contains(&name.as_str()) {
+            if super::BUILTIN_FUNCTIONS.contains(&name.as_str()) && name == "showToast" {
                 return self.parse_show_toast_call(&name, span);
             }
+            // navigate/back (spec 2026-08-09 §2.3) stay generic FuncCalls —
+            // the options object `{ params, query }` parses as a MapLiteral
+            // argument and survives the IR round-trip; the semantic layer
+            // validates (V12/W1) and each target compiler dispatches on the
+            // callee name. They are reserved names (V13) via BUILTIN_FUNCTIONS.
             let (args, close_end) = self.parse_call_args()?;
             Ok(Expr::FuncCall {
                 func: Box::new(Expr::VarRef(name.clone(), span)),
@@ -611,6 +616,91 @@ mod tests {
                 assert!(matches!(else_expr.as_ref(), Expr::StructLiteral { .. }));
             }
             other => panic!("expected ternary, got: {:?}", other),
+        }
+    }
+
+    // ════════════════════════════════════════════════════════
+    // Navigation builtins (spec 2026-08-09 §2.3): navigate(path, {params,
+    // query}) / back() parse as generic FuncCalls — the options object keeps
+    // its MapLiteral shape (keys become string literals via
+    // key_to_string_literal) so the IR round-trip preserves the structure;
+    // semantic validation (V12/W1) and target dispatch come later.
+    // ════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_parse_navigate_call() {
+        let ast = parse_expr(r#"navigate("/todos/:id", { params: { id: item } })"#)
+            .expect("navigate call must parse");
+        match ast {
+            Expr::FuncCall { func, args, .. } => {
+                assert!(
+                    matches!(func.as_ref(), Expr::VarRef(name, _) if name == "navigate"),
+                    "callee must be navigate, got: {:?}",
+                    func
+                );
+                assert_eq!(args.len(), 2, "path + options object");
+                assert!(
+                    matches!(&args[0], Expr::Literal(Literal::String(p), _) if p == "/todos/:id"),
+                    "first arg must be the path literal, got: {:?}",
+                    args[0]
+                );
+                // options: { params: { id: item } } — MapLiteral with the
+                // params key stringified, value another MapLiteral.
+                match &args[1] {
+                    Expr::MapLiteral { entries, .. } => {
+                        assert_eq!(entries.len(), 1);
+                        assert!(
+                            matches!(&entries[0].0, Expr::Literal(Literal::String(k), _) if k == "params"),
+                            "options key must be 'params', got: {:?}",
+                            entries[0].0
+                        );
+                        assert!(
+                            matches!(&entries[0].1, Expr::MapLiteral { .. }),
+                            "params value must be a map, got: {:?}",
+                            entries[0].1
+                        );
+                    }
+                    other => panic!("expected MapLiteral options, got: {:?}", other),
+                }
+            }
+            other => panic!("expected FuncCall, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_parse_navigate_query_option() {
+        let ast = parse_expr(r#"navigate("/todos", { query: { filter: "all" } })"#).unwrap();
+        match ast {
+            Expr::FuncCall { args, .. } => {
+                assert_eq!(args.len(), 2);
+                match &args[1] {
+                    Expr::MapLiteral { entries, .. } => {
+                        assert!(
+                            matches!(&entries[0].0, Expr::Literal(Literal::String(k), _) if k == "query"),
+                            "options key must be 'query', got: {:?}",
+                            entries[0].0
+                        );
+                    }
+                    other => panic!("expected MapLiteral options, got: {:?}", other),
+                }
+            }
+            other => panic!("expected FuncCall, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_parse_back_call() {
+        let ast = parse_expr("back()").expect("back call must parse");
+        match ast {
+            Expr::FuncCall { func, args, .. } => {
+                assert!(
+                    matches!(func.as_ref(), Expr::VarRef(name, _) if name == "back"),
+                    "callee must be back, got: {:?}",
+                    func
+                );
+                assert!(args.is_empty(), "back() takes no arguments");
+            }
+            other => panic!("expected FuncCall, got: {:?}", other),
         }
     }
 }

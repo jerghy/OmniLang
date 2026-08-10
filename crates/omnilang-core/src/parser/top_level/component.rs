@@ -28,6 +28,9 @@ impl<'a> Parser<'a> {
         let mut slots: Vec<SlotDecl> = Vec::new();
         let mut view: Option<ViewBlock> = None;
         let mut styles = Vec::new();
+        let mut route_decls = Vec::new();
+        let mut layout: Option<LayoutDecl> = None;
+        let mut queries = Vec::new();
 
         while *self.peek_kind() != TokenKind::RBrace && *self.peek_kind() != TokenKind::Eof {
             match self.peek_kind() {
@@ -92,6 +95,18 @@ impl<'a> Parser<'a> {
                                         kind: None,
                                         message: "store 内 fn 成员不允许；用 getter 或 action"
                                             .into(),
+                                        span: self.peek_span(),
+                                    });
+                                }
+                                // V1: navigation directives are component-top-level
+                                // only (spec §3) — store bodies are not component
+                                // top-level blocks.
+                                TokenKind::AtRoute | TokenKind::AtLayout | TokenKind::AtQuery => {
+                                    return Err(ParseError {
+                                        kind: None,
+                                        message:
+                                            "`@route`/`@layout`/`@query` 只能声明在组件顶层块内（与 prop/event/fn 同级）"
+                                                .to_string(),
                                         span: self.peek_span(),
                                     });
                                 }
@@ -211,6 +226,16 @@ impl<'a> Parser<'a> {
                     let motion = self.parse_motion_def()?;
                     motions.push(motion);
                 }
+                TokenKind::AtRoute => route_decls.push(self.parse_route_decl()?),
+                TokenKind::AtLayout => {
+                    // V3 (route/layout mutual exclusion) is a semantic-layer
+                    // error — the parser keeps both so the diagnostic can
+                    // name them; Option holds at most one @layout (a second
+                    // one overwrites: also a semantic-layer concern, spec §3
+                    // has no rule for duplicate @layout, the first wins).
+                    layout = Some(self.parse_layout_decl()?);
+                }
+                TokenKind::AtQuery => queries.push(self.parse_query_decl()?),
                 TokenKind::AtSlot => {
                     // Body-level slot declaration (ADR-053 D5):
                     // `@slot name: Type { fallback }` — same syntax as the
@@ -251,6 +276,9 @@ impl<'a> Parser<'a> {
             slots,
             view,
             styles,
+            route_decls,
+            layout,
+            queries,
             span: Span {
                 start: start.start,
                 end: end.end,

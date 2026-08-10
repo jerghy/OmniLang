@@ -42,6 +42,58 @@ pub struct ComponentDef {
     pub slots: Vec<SlotDecl>,
     pub view: Option<ViewBlock>,
     pub styles: Vec<StyleRule>,
+    /// Component-level route declarations (`@route "/path"`). At most one per
+    /// component is legal (V4 duplicate is a semantic-layer error whose
+    /// message names both paths, so the parser keeps every declaration).
+    #[serde(default)]
+    pub route_decls: Vec<RouteDecl>,
+    /// Component-level layout declaration (`@layout "/prefix"`) — exclusive
+    /// with route_decls (V3, semantic layer).
+    #[serde(default)]
+    pub layout: Option<LayoutDecl>,
+    /// Component-level query-parameter declarations (`@query name: Type = default`).
+    #[serde(default)]
+    pub queries: Vec<QueryDecl>,
+    pub span: Span,
+}
+
+/// Component-level route declaration: `@route "/todos/:id" guard: isAdmin lazy: true redirect: "/login";`
+/// (spec 2026-08-09 §2.1/§2.5/§2.8).
+#[derive(Debug, Clone, Serialize)]
+pub struct RouteDecl {
+    /// The declared path — always starts with `/` (V2 parse error otherwise).
+    pub path: String,
+    /// `:id` path segments extracted from the path, in declaration order
+    /// (`"/todos/:id"` → `["id"]`). Injected as String props (C2).
+    pub params: Vec<String>,
+    /// `guard: fnName` — component fn `() -> Bool` referenced for route
+    /// protection (V9 semantic validation).
+    pub guard: Option<String>,
+    /// `lazy: true|false` — route-level lazy loading (C8).
+    pub lazy: Option<bool>,
+    /// `redirect: "/path"` — guard-failure redirect target (V11 pairing).
+    pub redirect: Option<String>,
+    /// Source span of the whole declaration.
+    pub span: Span,
+}
+
+/// Component-level layout declaration: `@layout "/admin";` (spec 2026-08-09 §2.6).
+#[derive(Debug, Clone, Serialize)]
+pub struct LayoutDecl {
+    /// The declared prefix — always starts with `/` (V2 parse error otherwise).
+    pub prefix: String,
+    /// Source span of the whole declaration.
+    pub span: Span,
+}
+
+/// Component-level query-parameter declaration: `@query filter: String = "all";`
+/// (spec 2026-08-09 §2.4).
+#[derive(Debug, Clone, Serialize)]
+pub struct QueryDecl {
+    pub name: String,
+    pub type_ann: TypeAnnotation,
+    pub default: Option<Expr>,
+    /// Source span of the whole declaration.
     pub span: Span,
 }
 
