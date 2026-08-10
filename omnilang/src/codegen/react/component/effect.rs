@@ -74,6 +74,7 @@ impl ReactCodegen {
                         possibly_undefined,
                         direct_write_signals,
                         direct_write_applies,
+                        Some(&self.warnings),
                     );
                 }
                 w.dedent();
@@ -95,6 +96,7 @@ impl ReactCodegen {
                         possibly_undefined,
                         direct_write_signals,
                         direct_write_applies,
+                        Some(&self.warnings),
                     );
                 }
                 w.dedent();
@@ -124,6 +126,7 @@ impl ReactCodegen {
                                 possibly_undefined,
                                 direct_write_signals,
                                 direct_write_applies,
+                                Some(&self.warnings),
                             );
                         }
                         w.dedent();
@@ -145,6 +148,7 @@ impl ReactCodegen {
                                 possibly_undefined,
                                 direct_write_signals,
                                 direct_write_applies,
+                                Some(&self.warnings),
                             );
                         }
                         w.dedent();
@@ -173,6 +177,7 @@ impl ReactCodegen {
                             possibly_undefined,
                             direct_write_signals,
                             direct_write_applies,
+                            Some(&self.warnings),
                         );
                     }
                     if body_has_await {
@@ -229,6 +234,7 @@ impl ReactCodegen {
                                 possibly_undefined,
                                 direct_write_signals,
                                 direct_write_applies,
+                                Some(&self.warnings),
                             );
                         }
                         w.dedent();
@@ -250,6 +256,7 @@ impl ReactCodegen {
                                 possibly_undefined,
                                 direct_write_signals,
                                 direct_write_applies,
+                                Some(&self.warnings),
                             );
                         }
                         w.dedent();

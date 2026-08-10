@@ -8,6 +8,7 @@ use crate::codegen::CodeWriter;
 use crate::ir::*;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
+use std::sync::Mutex;
 
 /// Generate useMemo / useCallback hooks for all @computed declarations.
 /// `hoisted_signals` (perf M3) are module-scope consts — never reactive —
@@ -27,6 +28,7 @@ pub(super) fn gen_computed_values(
     possibly_undefined: &FxHashSet<String>,
     direct_write_signals: &FxHashSet<String>,
     direct_write_applies: &FxHashMap<String, Vec<String>>,
+    warnings: Option<&Mutex<Vec<String>>>,
 ) {
     for computed in &comp.computeds {
         let mut deps_list: Vec<String> = Vec::new();
@@ -105,6 +107,7 @@ pub(super) fn gen_computed_values(
                     possibly_undefined,
                     direct_write_signals,
                     direct_write_applies,
+                    warnings,
                 );
             }
             // Render tail as return value if non-null

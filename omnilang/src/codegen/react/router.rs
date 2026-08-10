@@ -359,71 +359,106 @@ fn emit_router(w: &mut CodeWriter, routed: &[RoutedComp], layouts: &[&RoutedComp
         }
         emit_route_entry(w, r);
     }
+    // Top-level layouts: absolute-path entries. Nested layouts (those
+    // owned by another layout) are emitted recursively inside their
+    // owner's `children` — never flattened here.
     let mut layout_order = layouts.to_vec();
     layout_order.sort_by(|a, b| a.name.cmp(b.name));
     for l in layout_order {
-        emit_layout_entry(w, l, routed);
+        if owning_layout(l, layouts).is_some() {
+            continue;
+        }
+        emit_layout_entry(w, l, routed, layouts, &format!("path: '{}'", prefix_of(l)));
     }
     w.dedent();
     w.emit("]);");
     w.emit("");
 }
 
-/// The layout owning a route, if any (longest matching prefix wins —
-/// `layouts` is already sorted prefix-length-descending).
+/// The layout owning a route or nested layout, if any (longest matching
+/// prefix wins — `layouts` is already sorted prefix-length-descending).
+/// `full` is the route's path, or the layout's own prefix for layouts.
+/// A layout never owns itself (review fix, Important #2): without the
+/// self-exclusion a layout would land in its own `children` list; the
+/// equality branch stays reachable for ROUTES — a route whose full path
+/// equals the layout prefix is owned as an `index: true` child.
 fn owning_layout<'a>(r: &RoutedComp, layouts: &[&'a RoutedComp<'a>]) -> Option<&'a RoutedComp<'a>> {
-    let full = r.path.as_deref()?;
+    let full = r.path.as_deref().unwrap_or_else(|| prefix_of(r));
     layouts.iter().copied().find(|l| {
+        let is_self = r.path.is_none() && l.name == r.name;
         let prefix = prefix_of(l);
-        full == prefix || full.starts_with(&format!("{prefix}/"))
+        !is_self && (full == prefix || full.starts_with(&format!("{prefix}/")))
     })
 }
 
-/// Children of a layout: routes whose full path starts with the layout
-/// prefix (name-sorted for determinism).
+/// Children of a layout: routes AND nested layouts whose full path lives
+/// under the layout prefix AND whose owning layout is THIS layout
+/// (review fix, Important #2 — prefix-only filtering would duplicate a
+/// route into every layout whose prefix it shares, e.g. `/admin` +
+/// `/admin/console`; the ownership check keeps each child in exactly one
+/// `children` list). Name-sorted for determinism.
 fn layout_children<'a>(
     layout: &RoutedComp,
     routed: &'a [RoutedComp<'a>],
+    layouts: &[&'a RoutedComp<'a>],
 ) -> Vec<&'a RoutedComp<'a>> {
     let prefix = prefix_of(layout);
     let mut children: Vec<&RoutedComp> = routed
         .iter()
         .filter(|r| {
-            let Some(full) = r.path.as_deref() else {
-                return false;
-            };
-            full == prefix || full.starts_with(&format!("{prefix}/"))
+            let full = r.path.as_deref().unwrap_or_else(|| prefix_of(r));
+            let under = full == prefix || full.starts_with(&format!("{prefix}/"));
+            under && matches!(owning_layout(r, layouts), Some(o) if o.name == layout.name)
         })
         .collect();
     children.sort_by(|a, b| a.name.cmp(b.name));
     children
 }
 
-fn emit_layout_entry(w: &mut CodeWriter, l: &RoutedComp, routed: &[RoutedComp]) {
+/// Emit one layout entry — routes as leaf children, NESTED layouts
+/// recursively (review fix, Important #2: nested layouts were previously
+/// flattened to the top level, losing the inner layout's shell). `path_line`
+/// carries the position-relative path: `path: '/admin'` at the top level,
+/// `path: 'console'` inside the `/admin` layout.
+fn emit_layout_entry(
+    w: &mut CodeWriter,
+    l: &RoutedComp,
+    routed: &[RoutedComp],
+    layouts: &[&RoutedComp],
+    path_line: &str,
+) {
     let prefix = prefix_of(l);
-    let children = layout_children(l, routed);
+    let children = layout_children(l, routed, layouts);
     if children.is_empty() {
         w.emit_fmt(format_args!(
-            "{{ path: '{prefix}', element: {} }},",
+            "{{ {path_line}, element: {} }},",
             element_for(l)
         ));
         return;
     }
     w.emit("{");
     w.indent();
-    w.emit_fmt(format_args!("path: '{prefix}',"));
+    w.emit_fmt(format_args!("{path_line},"));
     w.emit_fmt(format_args!("element: {},", element_for(l)));
     w.emit("children: [");
     w.indent();
     for c in children {
+        if c.path.is_none() {
+            // Nested layout — recurse with the position-relative path.
+            let rel = prefix_of(c)
+                .strip_prefix(&format!("{prefix}/"))
+                .unwrap_or_else(|| prefix_of(c));
+            emit_layout_entry(w, c, routed, layouts, &format!("path: '{rel}'"));
+            continue;
+        }
         let rest = c.path.as_deref().unwrap_or("");
-        let path_line = if rest == prefix {
+        let child_line = if rest == prefix {
             "index: true".to_string()
         } else {
             let rel = rest.strip_prefix(&format!("{prefix}/")).unwrap_or(rest);
             format!("path: '{rel}'")
         };
-        emit_entry_body(w, c, &path_line);
+        emit_entry_body(w, c, &child_line);
     }
     w.dedent();
     w.emit("],");
@@ -484,10 +519,19 @@ fn element_for(r: &RoutedComp) -> String {
     }
 }
 
-/// Guard loader shape (spec §4.2): `loader: () => (isAuthorized() ? null :
-/// redirect('/login'))`; with route params the loader doubles as the param
-/// source — `loader: ({ params }) => (isAuthorized() ? params :
-/// redirect('/login'))`.
+/// Loader shape (spec §4.2):
+///
+/// - guard + no params → `loader: () => (isAuthorized() ? null :
+///   redirect('/login'))`
+/// - guard + params → `loader: ({ params }) => (isAuthorized() ? params :
+///   redirect('/login'))` — the loader doubles as the param source
+/// - NO guard + params → `loader: ({ params }) => params` (review fix,
+///   Critical #1): the route wrapper calls `useLoaderData()` to inject
+///   params, and a route without a loader returns `undefined` at runtime —
+///   the cast would then feed undefined into the props. Mirroring the lazy
+///   path (`gen_lazy_module_exports` no-guard branch emits `return params;`)
+///   the loader passes the params through untouched.
+/// - no guard + no params → None (no loader needed).
 ///
 /// Lazy routes never get a loader here: the guard function lives in the lazy
 /// module, so App.tsx has no name to reference (honest-tsc gate: TS2304);
@@ -497,21 +541,21 @@ fn loader_for(r: &RoutedComp) -> Option<String> {
     if r.lazy {
         return None;
     }
-    let guard = r.guard.as_deref()?;
     let redirect = r.redirect.as_deref().unwrap_or("/");
     let args = if r.params.is_empty() {
         "()"
     } else {
         "({ params })"
     };
-    if r.params.is_empty() {
-        Some(format!(
+    match r.guard.as_deref() {
+        Some(guard) if r.params.is_empty() => Some(format!(
             "loader: {args} => ({guard}() ? null : redirect('{redirect}'))"
-        ))
-    } else {
-        Some(format!(
+        )),
+        Some(guard) => Some(format!(
             "loader: {args} => ({guard}() ? params : redirect('{redirect}'))"
-        ))
+        )),
+        None if !r.params.is_empty() => Some(format!("loader: {args} => params")),
+        None => None,
     }
 }
 

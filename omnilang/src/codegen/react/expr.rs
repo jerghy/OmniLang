@@ -14,13 +14,14 @@ use crate::codegen::{
 use crate::ir::*;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
+use std::sync::Mutex;
 
 /// React TSX expression formatter.
 ///
 /// Uses JS-family syntax with `translate_builtin_call` for stdlib calls
 /// and `translate_method_call` for method dispatch.
 #[derive(Clone)]
-pub(crate) struct ReactFormatExpr {
+pub(crate) struct ReactFormatExpr<'a> {
     pub ref_names: FxHashSet<String>,
     /// Identifier → replacement map (e.g. store signal `count` → `state.count`
     /// inside Zustand action bodies). Applied at identifier level only — string
@@ -40,6 +41,14 @@ pub(crate) struct ReactFormatExpr {
     /// optional-call form `f?.(...)` for these; local fns/lib fns are
     /// always defined and stay bare `f(...)` (no noise).
     pub possibly_undefined: FxHashSet<String>,
+    /// Review fix (Important #3): honest-degradation channel (ADR-054) for
+    /// expression-position emissions that cannot be rendered faithfully —
+    /// e.g. `navigate(dynamicPath, { query })` where the path is a runtime
+    /// expression: the options are dropped (they can only be inlined into a
+    /// literal path) and a warning is pushed instead of emitting broken TS.
+    /// `None` at wrapper-function sites (no component context); component
+    /// sites pass `Some(&self.warnings)`.
+    pub warnings: Option<&'a Mutex<Vec<String>>>,
 }
 
 /// Extract a map-entry KEY as a plain string. After lowering, `{ params:
@@ -75,7 +84,7 @@ fn build_navigate_arg(
     path: &str,
     params: &FxHashMap<String, &ExprIR>,
     query: &[(String, &ExprIR)],
-    fmt: &ReactFormatExpr,
+    fmt: &ReactFormatExpr<'_>,
 ) -> String {
     // 1) Path pieces: (is_literal, text) pairs — literal chunks and value
     //    expressions interleaved.
@@ -150,7 +159,7 @@ fn build_navigate_arg(
     rendered.join(" + ")
 }
 
-impl FormatExpr for ReactFormatExpr {
+impl<'a> FormatExpr for ReactFormatExpr<'a> {
     fn json_config(&self) -> &JsonFormatConfig {
         &JSON_REACT
     }
@@ -189,6 +198,9 @@ impl FormatExpr for ReactFormatExpr {
                 // (no corpus instances; the computed-block body path uses
                 // generate_statement_tsx, which carries the set).
                 possibly_undefined: FxHashSet::default(),
+                // Review fix (Important #3): keep the warning channel
+                // flowing through expression-position blocks.
+                warnings: self.warnings,
             },
             signal_names: FxHashSet::default(),
             store_signal_owners: FxHashMap::default(),
@@ -292,8 +304,12 @@ impl FormatExpr for ReactFormatExpr {
     /// and wrong runtime semantics. Translate to flat template
     /// concatenations: `navigate("/todos/:id", { params: { id: item } })`
     /// → `navigate("/todos/" + item)`, `back()` → `navigate(-1)`.
-    /// Dynamic (non-literal) paths fall through to the default emission —
-    /// `navigate` still receives the expression at runtime.
+    /// Dynamic (non-literal) paths with a params/query option map cannot be
+    /// inlined (W1 makes dynamic paths legal) — emitting the MapExpr as a
+    /// plain argument would be a TS2353 type error, so the options are
+    /// dropped and a CodegenWarning pushed (honest degradation, ADR-054:
+    /// never silent, never broken). A dynamic path WITHOUT options still
+    /// falls through to the default emission — `navigate(expr)` is valid TS.
     fn format_call_with_ir(
         &self,
         name: &str,
@@ -308,6 +324,17 @@ impl FormatExpr for ReactFormatExpr {
         }
         let path = match &args[0] {
             ExprIR::LiteralExpr { value } if value.is_string() => value.as_str()?,
+            _ if matches!(args.get(1), Some(ExprIR::MapExpr { .. })) => {
+                // Dynamic path + options — options cannot be inlined into a
+                // runtime expression; drop them and warn (honest degradation).
+                if let Some(warnings) = self.warnings {
+                    warnings.lock().unwrap().push(
+                        "navigate 的动态路径无法内联 params/query 选项——选项已丢弃，仅保留路径调用（诚实降级，ADR-054）"
+                            .into(),
+                    );
+                }
+                return Some(format!("navigate({})", arg_strs[0]));
+            }
             _ => return None,
         };
         // Optional second arg: option MapExpr — `{ params: {...}, query:
@@ -608,7 +635,7 @@ impl FormatExpr for ReactFormatExpr {
 /// source call are included in the options object.
 fn format_ref_scroll(
     base: &str,
-    fmt: &ReactFormatExpr,
+    fmt: &ReactFormatExpr<'_>,
     x: Option<&ExprIR>,
     y: Option<&ExprIR>,
 ) -> String {
@@ -625,7 +652,7 @@ fn format_ref_scroll(
 /// Format `ref.scrollBy({ left: dx, top: dy })` — relative scroll delta.
 fn format_ref_scroll_by(
     base: &str,
-    fmt: &ReactFormatExpr,
+    fmt: &ReactFormatExpr<'_>,
     dx: Option<&ExprIR>,
     dy: Option<&ExprIR>,
 ) -> String {
@@ -644,8 +671,8 @@ fn format_ref_scroll_by(
 /// Uses `signal_names` to determine mutation strategy (setter calls vs direct
 /// assignment) and `store_signal_owners` (store signal name → store ref name)
 /// so store-signal mutations emit `useStoreName.setState(...)` (C7).
-pub(super) struct ReactStmtFormatter {
-    pub expr: ReactFormatExpr,
+pub(super) struct ReactStmtFormatter<'a> {
+    pub expr: ReactFormatExpr<'a>,
     pub signal_names: FxHashSet<String>,
     /// Maps store signal names to their owning store ref (e.g. `count` → `AppStore`).
     pub store_signal_owners: FxHashMap<String, String>,
@@ -662,8 +689,8 @@ pub(super) struct ReactStmtFormatter {
     pub direct_write_applies: FxHashMap<String, Vec<String>>,
 }
 
-impl FormatStmt for ReactStmtFormatter {
-    type ExprFormatter = ReactFormatExpr;
+impl<'a> FormatStmt for ReactStmtFormatter<'a> {
+    type ExprFormatter = ReactFormatExpr<'a>;
 
     fn expr_fmt(&self) -> &Self::ExprFormatter {
         &self.expr
@@ -879,7 +906,7 @@ macro_rules! compound_op {
     }};
 }
 
-impl ReactStmtFormatter {
+impl<'a> ReactStmtFormatter<'a> {
     /// Format compound mutations (Increment, Decrement, Push, Pop, etc.).
     /// Store signals (via `store_signal_owners`) emit `useStoreName.setState(...)`,
     /// component signals emit setter calls, everything else is a bare assignment.
@@ -2297,6 +2324,7 @@ pub(super) fn generate_statement_tsx(
     possibly_undefined: &FxHashSet<String>,
     direct_write_signals: &FxHashSet<String>,
     direct_write_applies: &FxHashMap<String, Vec<String>>,
+    warnings: Option<&Mutex<Vec<String>>>,
 ) {
     // Task 2.11 — write-only signal mutation DCE: the signal's state hook
     // was skipped (its value is never consumed), so a setter call here
@@ -2325,7 +2353,13 @@ pub(super) fn generate_statement_tsx(
             if pruned_signal_names.contains(target) && !is_owner_field_write {
                 if let Some(v) = mutation_value_expr(intent) {
                     if expr_contains_call(v) {
-                        let line = format_expr_ir_tsx_renamed(v, ref_names, renames);
+                        let line = format_expr_ir_tsx_renamed_locals(
+                            v,
+                            ref_names,
+                            renames,
+                            &FxHashSet::default(),
+                            warnings,
+                        );
                         w.emit_fmt(format_args!("{};", line));
                     }
                 }
@@ -2371,7 +2405,15 @@ pub(super) fn generate_statement_tsx(
                         "array_push" => {
                             let item = args
                                 .get(1)
-                                .map(|e| format_expr_ir_tsx_renamed(e, ref_names, renames))
+                                .map(|e| {
+                                    format_expr_ir_tsx_renamed_locals(
+                                        e,
+                                        ref_names,
+                                        renames,
+                                        &FxHashSet::default(),
+                                        warnings,
+                                    )
+                                })
                                 .unwrap_or_else(|| "undefined".into());
                             w.emit_fmt(format_args!(
                                 "{}Ref.current = [...{}Ref.current, {}];",
@@ -2401,7 +2443,15 @@ pub(super) fn generate_statement_tsx(
                             // item becomes the slice local, review MEDIUM-1).
                             let item = args
                                 .get(1)
-                                .map(|e| format_expr_ir_tsx_renamed(e, ref_names, renames))
+                                .map(|e| {
+                                    format_expr_ir_tsx_renamed_locals(
+                                        e,
+                                        ref_names,
+                                        renames,
+                                        &FxHashSet::default(),
+                                        warnings,
+                                    )
+                                })
                                 .unwrap_or_else(|| "undefined".into());
                             if let Some(owner) = store_signal_owners.get(target_name.as_str()) {
                                 w.emit_fmt(format_args!(
@@ -2441,6 +2491,7 @@ pub(super) fn generate_statement_tsx(
             renames: renames.clone(),
             param_names: FxHashSet::default(),
             possibly_undefined: possibly_undefined.clone(),
+            warnings,
         },
         signal_names: signal_names.clone(),
         store_signal_owners: store_signal_owners.clone(),
@@ -2513,7 +2564,13 @@ pub(super) fn format_expr_ir_tsx_renamed(
     ref_names: &FxHashSet<String>,
     renames: &FxHashMap<String, String>,
 ) -> String {
-    format_expr_ir_tsx_renamed_locals(expr, ref_names, renames, &FxHashSet::default())
+    format_expr_ir_tsx_renamed_locals(
+        expr,
+        ref_names,
+        renames,
+        &FxHashSet::default(),
+        None, // wrapper site — no component context, no warning channel
+    )
 }
 
 /// Same as [`format_expr_ir_tsx_renamed`], plus a set of identifiers that
@@ -2528,6 +2585,7 @@ pub(super) fn format_expr_ir_tsx_renamed_locals(
     ref_names: &FxHashSet<String>,
     renames: &FxHashMap<String, String>,
     param_names: &FxHashSet<String>,
+    warnings: Option<&Mutex<Vec<String>>>,
 ) -> String {
     match expr {
         ExprIR::IdentifierExpr { name, .. } => {
@@ -2543,6 +2601,7 @@ pub(super) fn format_expr_ir_tsx_renamed_locals(
                     // bare (no corpus instances; statement contexts carry
                     // the set via generate_statement_tsx).
                     possibly_undefined: FxHashSet::default(),
+                    warnings,
                 }
                 .format_identifier(name)
             }
@@ -2569,8 +2628,13 @@ pub(super) fn format_expr_ir_tsx_renamed_locals(
                     return local;
                 }
             }
-            let mut obj_str =
-                format_expr_ir_tsx_renamed_locals(object, ref_names, renames, param_names);
+            let mut obj_str = format_expr_ir_tsx_renamed_locals(
+                object,
+                ref_names,
+                renames,
+                param_names,
+                warnings,
+            );
             // Ref-op result field access (`ref.measure().y`): ref-op outputs
             // carry `?? fallback` and member access binds tighter than `??` —
             // parenthesize or the field reads the fallback literal (same
@@ -2609,6 +2673,7 @@ pub(super) fn format_expr_ir_tsx_renamed_locals(
                 renames: renames.clone(),
                 param_names: param_names.clone(),
                 possibly_undefined: FxHashSet::default(),
+                warnings,
             }
             .format_expr(expr)
         }
@@ -2625,17 +2690,30 @@ pub(super) fn format_expr_ir_tsx_renamed_locals(
                     let args_str: Vec<String> = args
                         .iter()
                         .map(|a| {
-                            format_expr_ir_tsx_renamed_locals(a, ref_names, renames, param_names)
+                            format_expr_ir_tsx_renamed_locals(
+                                a,
+                                ref_names,
+                                renames,
+                                param_names,
+                                warnings,
+                            )
                         })
                         .collect();
                     return format!("{}({})", local, args_str.join(", "));
                 }
             }
-            let obj_str =
-                format_expr_ir_tsx_renamed_locals(object, ref_names, renames, param_names);
+            let obj_str = format_expr_ir_tsx_renamed_locals(
+                object,
+                ref_names,
+                renames,
+                param_names,
+                warnings,
+            );
             let args_str: Vec<String> = args
                 .iter()
-                .map(|a| format_expr_ir_tsx_renamed_locals(a, ref_names, renames, param_names))
+                .map(|a| {
+                    format_expr_ir_tsx_renamed_locals(a, ref_names, renames, param_names, warnings)
+                })
                 .collect();
             translate_method_call(&obj_str, method, &args_str, Some(object.as_ref()))
         }
@@ -2647,15 +2725,26 @@ pub(super) fn format_expr_ir_tsx_renamed_locals(
             // Array language methods must apply the same identifier renames
             // (Zustand action bodies: store signals → state.<name>) inside
             // both the subject and the predicate before formatting.
-            let subj_str =
-                format_expr_ir_tsx_renamed_locals(subject, ref_names, renames, param_names);
-            let pred_str =
-                format_expr_ir_tsx_renamed_locals(predicate, ref_names, renames, param_names);
+            let subj_str = format_expr_ir_tsx_renamed_locals(
+                subject,
+                ref_names,
+                renames,
+                param_names,
+                warnings,
+            );
+            let pred_str = format_expr_ir_tsx_renamed_locals(
+                predicate,
+                ref_names,
+                renames,
+                param_names,
+                warnings,
+            );
             ReactFormatExpr {
                 ref_names: ref_names.clone(),
                 renames: renames.clone(),
                 param_names: param_names.clone(),
                 possibly_undefined: FxHashSet::default(),
+                warnings,
             }
             .format_array_method(method, &subj_str, &pred_str)
         }
@@ -2664,6 +2753,7 @@ pub(super) fn format_expr_ir_tsx_renamed_locals(
             renames: renames.clone(),
             param_names: param_names.clone(),
             possibly_undefined: FxHashSet::default(),
+            warnings,
         }
         .format_expr(expr),
     }

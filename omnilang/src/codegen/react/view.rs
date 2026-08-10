@@ -601,6 +601,7 @@ pub(super) fn gen_view_node_tsx(
                                 possibly_undefined,
                                 direct_write_signals,
                                 direct_write_applies,
+                                Some(warnings),
                             );
                             comp_attrs.push(format!("{}={{{}}}", jsx_event, handler_str));
                         }
@@ -1034,6 +1035,7 @@ pub(super) fn gen_view_node_tsx(
                                     possibly_undefined,
                                     direct_write_signals,
                                     direct_write_applies,
+                                    Some(warnings),
                                 );
                             }
                             let content = merged_hw.into_string();
@@ -1081,6 +1083,7 @@ pub(super) fn gen_view_node_tsx(
                                         possibly_undefined,
                                         direct_write_signals,
                                         direct_write_applies,
+                                        Some(warnings),
                                     );
                                 }
                                 let content = merged_hw.into_string();
@@ -1122,6 +1125,7 @@ pub(super) fn gen_view_node_tsx(
                                     possibly_undefined,
                                     direct_write_signals,
                                     direct_write_applies,
+                                    Some(warnings),
                                 );
                                 attrs.push(format!("{}={{{}}}", react_event, handler_str));
                             }
@@ -2246,6 +2250,7 @@ fn format_inline_handler(
     possibly_undefined: &FxHashSet<String>,
     direct_write_signals: &FxHashSet<String>,
     direct_write_applies: &FxHashMap<String, Vec<String>>,
+    warnings: Option<&Mutex<Vec<String>>>,
 ) -> String {
     // Generate the body content first to check which params are actually used
     // (v4 H1, task 2.1: 写后读线程化——改写语句列表，无写后读时原样返回).
@@ -2263,6 +2268,7 @@ fn format_inline_handler(
             possibly_undefined,
             direct_write_signals,
             direct_write_applies,
+            warnings,
         );
     }
     let body_content = body_w.into_string();
@@ -2307,6 +2313,7 @@ fn format_inline_handler(
             possibly_undefined,
             direct_write_signals,
             direct_write_applies,
+            warnings,
         )
     })
 }

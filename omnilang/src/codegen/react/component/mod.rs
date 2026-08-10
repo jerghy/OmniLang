@@ -937,6 +937,7 @@ impl ReactCodegen {
                             &FxHashSet::default(),
                             &FxHashSet::default(),
                             &FxHashMap::default(),
+                            Some(&self.warnings),
                         );
                         continue;
                     }
@@ -955,6 +956,7 @@ impl ReactCodegen {
                     &FxHashSet::default(),
                     &FxHashSet::default(),
                     &FxHashMap::default(),
+                    Some(&self.warnings),
                 );
             }
             let mut body_str = body_w.into_string();
@@ -1534,6 +1536,7 @@ impl ReactCodegen {
             &possibly_undefined_handlers,
             &direct_write_names,
             &direct_write_applies,
+            Some(&self.warnings),
         );
         // Phase 1 (Task 4): B2 direct-write effects. Placed AFTER the
         // computeds (not next to gen_semantic_binding_effects): a B2 entry

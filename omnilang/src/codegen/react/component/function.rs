@@ -12,6 +12,7 @@ use crate::codegen::CodeWriter;
 use crate::ir::*;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
+use std::sync::Mutex;
 
 impl ReactCodegen {
     /// Generate component-local function declarations (fn → const fn = (...) => {...}).
@@ -56,6 +57,7 @@ impl ReactCodegen {
                 possibly_undefined,
                 direct_write_signals,
                 direct_write_applies,
+                Some(&self.warnings),
             );
         }
         if !comp.fns.is_empty() {
@@ -104,6 +106,7 @@ impl ReactCodegen {
             possibly_undefined,
             direct_write_signals,
             direct_write_applies,
+            Some(&self.warnings),
         );
         w.emit("");
     }
@@ -128,6 +131,7 @@ fn emit_fn_const(
     possibly_undefined: &FxHashSet<String>,
     direct_write_signals: &FxHashSet<String>,
     direct_write_applies: &FxHashMap<String, Vec<String>>,
+    warnings: Option<&Mutex<Vec<String>>>,
 ) {
     let param_names: Vec<(String, bool)> = fun
         .params
@@ -174,6 +178,7 @@ fn emit_fn_const(
                     possibly_undefined,
                     direct_write_signals,
                     direct_write_applies,
+                    warnings,
                 );
                 continue;
             }
@@ -189,6 +194,7 @@ fn emit_fn_const(
             possibly_undefined,
             direct_write_signals,
             direct_write_applies,
+            warnings,
         );
     }
     // Build setter renames for states whose setters conflict with function names
@@ -253,6 +259,7 @@ pub(super) fn emit_fn_tail_return(
     possibly_undefined: &FxHashSet<String>,
     direct_write_signals: &FxHashSet<String>,
     direct_write_applies: &FxHashMap<String, Vec<String>>,
+    warnings: Option<&Mutex<Vec<String>>>,
 ) {
     let mut tmp = crate::codegen::CodeWriter::new();
     expr::generate_statement_tsx(
@@ -266,6 +273,7 @@ pub(super) fn emit_fn_tail_return(
         possibly_undefined,
         direct_write_signals,
         direct_write_applies,
+        warnings,
     );
     let line = tmp.into_string();
     let line = line.trim_end_matches(['\n', '\r']);

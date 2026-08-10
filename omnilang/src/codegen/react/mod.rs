@@ -432,6 +432,7 @@ impl ReactCodegen {
                 &store_signal_names,
                 &store_getter_names,
                 set_fn,
+                Some(&self.warnings),
             );
             w.dedent();
             w.emit("};");
@@ -462,6 +463,7 @@ impl ReactCodegen {
                 &store_signal_names,
                 &store_getter_names,
                 set_fn,
+                Some(&self.warnings),
             );
 
             w.dedent();
@@ -626,6 +628,7 @@ fn emit_store_actions(
     store_signal_names: &FxHashSet<String>,
     store_getter_names: &FxHashSet<String>,
     set_fn: &str,
+    warnings: Option<&Mutex<Vec<String>>>,
 ) {
     for action in &store.actions {
         let params: Vec<String> = action
@@ -653,6 +656,7 @@ fn emit_store_actions(
             action_renames,
             &param_names,
             set_fn,
+            warnings,
         );
         w.dedent();
         w.emit("},");
@@ -670,6 +674,7 @@ fn gen_zustand_action_stmt(
     renames: &FxHashMap<String, String>,
     param_names: &FxHashSet<String>,
     set_fn: &str,
+    warnings: Option<&Mutex<Vec<String>>>,
 ) {
     /// Format an expression with the store rename map applied — action
     /// param names stay bare (fn_locals pattern, maintainability HIGH-1).
@@ -677,17 +682,24 @@ fn gen_zustand_action_stmt(
         expr: &ExprIR,
         renames: &FxHashMap<String, String>,
         param_names: &FxHashSet<String>,
+        warnings: Option<&Mutex<Vec<String>>>,
     ) -> String {
-        expr::format_expr_ir_tsx_renamed_locals(expr, &FxHashSet::default(), renames, param_names)
+        expr::format_expr_ir_tsx_renamed_locals(
+            expr,
+            &FxHashSet::default(),
+            renames,
+            param_names,
+            warnings,
+        )
     }
     match stmt {
         StatementIR::MutationStmt { intent } => {
             if let Some(intent) = intent {
-                format_zustand_mutation(w, intent, renames, param_names, set_fn);
+                format_zustand_mutation(w, intent, renames, param_names, set_fn, warnings);
             }
         }
         StatementIR::ExprStmtIR { expr } => {
-            let line = fmt_expr(expr, renames, param_names);
+            let line = fmt_expr(expr, renames, param_names, warnings);
             w.emit_fmt(format_args!("{};", line));
         }
         StatementIR::LetStmtIR {
@@ -698,7 +710,7 @@ fn gen_zustand_action_stmt(
         } => {
             let rhs = value
                 .as_ref()
-                .map(|v| fmt_expr(v, renames, param_names))
+                .map(|v| fmt_expr(v, renames, param_names, warnings))
                 .unwrap_or_else(|| "null".into());
             // Task 5.1 (deferral #36): `is_mut` decides the keyword — `let`
             // for reassigned bindings, `const` for immutable ones.
@@ -711,7 +723,7 @@ fn gen_zustand_action_stmt(
             else_ifs,
             else_body,
         } => {
-            let cond = fmt_expr(condition, renames, param_names);
+            let cond = fmt_expr(condition, renames, param_names, warnings);
             w.emit_fmt(format_args!("if ({}) {{", cond));
             w.indent();
             gen_zustand_action_stmts_inner(
@@ -721,10 +733,11 @@ fn gen_zustand_action_stmt(
                 param_names,
                 false,
                 set_fn,
+                warnings,
             );
             w.dedent();
             for (elif_cond, elif_body) in else_ifs {
-                let elif = fmt_expr(elif_cond, renames, param_names);
+                let elif = fmt_expr(elif_cond, renames, param_names, warnings);
                 w.emit_fmt(format_args!("}} else if ({}) {{", elif));
                 w.indent();
                 gen_zustand_action_stmts_inner(
@@ -734,6 +747,7 @@ fn gen_zustand_action_stmt(
                     param_names,
                     false,
                     set_fn,
+                    warnings,
                 );
                 w.dedent();
             }
@@ -747,6 +761,7 @@ fn gen_zustand_action_stmt(
                     param_names,
                     false,
                     set_fn,
+                    warnings,
                 );
                 w.dedent();
             }
@@ -755,12 +770,12 @@ fn gen_zustand_action_stmt(
         StatementIR::ReturnStmtIR { value } => {
             let v = value
                 .as_ref()
-                .map(|v| fmt_expr(v, renames, param_names))
+                .map(|v| fmt_expr(v, renames, param_names, warnings))
                 .unwrap_or_else(|| "null".into());
             w.emit_fmt(format_args!("return {};", v));
         }
         StatementIR::WhileStmtIR { condition, body } => {
-            let cond = fmt_expr(condition, renames, param_names);
+            let cond = fmt_expr(condition, renames, param_names, warnings);
             w.emit_fmt(format_args!("while ({}) {{", cond));
             w.indent();
             gen_zustand_action_stmts_inner(
@@ -770,6 +785,7 @@ fn gen_zustand_action_stmt(
                 param_names,
                 false,
                 set_fn,
+                warnings,
             );
             w.dedent();
             w.emit("}");
@@ -779,7 +795,7 @@ fn gen_zustand_action_stmt(
             iterable,
             body,
         } => {
-            let iter = fmt_expr(iterable, renames, param_names);
+            let iter = fmt_expr(iterable, renames, param_names, warnings);
             w.emit_fmt(format_args!("for (const {} of {}) {{", var_name, iter));
             w.indent();
             gen_zustand_action_stmts_inner(
@@ -789,6 +805,7 @@ fn gen_zustand_action_stmt(
                 param_names,
                 false,
                 set_fn,
+                warnings,
             );
             w.dedent();
             w.emit("}");
@@ -803,12 +820,13 @@ fn gen_zustand_action_stmt(
                 param_names,
                 false,
                 set_fn,
+                warnings,
             );
             w.dedent();
             w.emit("}");
         }
         StatementIR::ThrowStmtIR { expr } => {
-            let e = fmt_expr(expr, renames, param_names);
+            let e = fmt_expr(expr, renames, param_names, warnings);
             w.emit_fmt(format_args!("throw {};", e));
         }
         StatementIR::TryCatchStmtIR {
@@ -826,6 +844,7 @@ fn gen_zustand_action_stmt(
                 param_names,
                 false,
                 set_fn,
+                warnings,
             );
             w.dedent();
             if let Some(ref cv) = catch_var {
@@ -842,6 +861,7 @@ fn gen_zustand_action_stmt(
                     param_names,
                     false,
                     set_fn,
+                    warnings,
                 );
                 w.dedent();
             }
@@ -855,6 +875,7 @@ fn gen_zustand_action_stmt(
                     param_names,
                     false,
                     set_fn,
+                    warnings,
                 );
                 w.dedent();
             }
@@ -866,7 +887,7 @@ fn gen_zustand_action_stmt(
             } else {
                 let formatted: Vec<String> = args
                     .iter()
-                    .map(|a| fmt_expr(a, renames, param_names))
+                    .map(|a| fmt_expr(a, renames, param_names, warnings))
                     .collect();
                 format!("({})", formatted.join(", "))
             };
@@ -1198,8 +1219,9 @@ fn gen_zustand_action_stmts(
     renames: &FxHashMap<String, String>,
     param_names: &FxHashSet<String>,
     set_fn: &str,
+    warnings: Option<&Mutex<Vec<String>>>,
 ) {
-    gen_zustand_action_stmts_inner(w, stmts, renames, param_names, true, set_fn);
+    gen_zustand_action_stmts_inner(w, stmts, renames, param_names, true, set_fn, warnings);
 }
 
 /// Inner statement loop. `tail_returns` is true ONLY for the top-level
@@ -1218,6 +1240,7 @@ fn gen_zustand_action_stmts_inner(
     param_names: &FxHashSet<String>,
     tail_returns: bool,
     set_fn: &str,
+    warnings: Option<&Mutex<Vec<String>>>,
 ) {
     let mut i = 0;
     while i < stmts.len() {
@@ -1225,7 +1248,9 @@ fn gen_zustand_action_stmts_inner(
             intent: Some(intent),
         } = &stmts[i]
         {
-            if let Some(first_part) = format_zustand_mutation_part(intent, renames, param_names) {
+            if let Some(first_part) =
+                format_zustand_mutation_part(intent, renames, param_names, warnings)
+            {
                 let mut parts: Vec<String> = vec![first_part];
                 let mut targets: FxHashSet<String> = FxHashSet::default();
                 targets.insert(mutation_target_name(intent));
@@ -1236,7 +1261,8 @@ fn gen_zustand_action_stmts_inner(
                         if targets.contains(&next_target) {
                             break;
                         }
-                        if let Some(part) = format_zustand_mutation_part(next, renames, param_names)
+                        if let Some(part) =
+                            format_zustand_mutation_part(next, renames, param_names, warnings)
                         {
                             targets.insert(next_target);
                             parts.push(part);
@@ -1258,13 +1284,14 @@ fn gen_zustand_action_stmts_inner(
                     &FxHashSet::default(),
                     renames,
                     param_names,
+                    warnings,
                 );
                 w.emit_fmt(format_args!("return {};", line));
                 i += 1;
                 continue;
             }
         }
-        gen_zustand_action_stmt(w, &stmts[i], renames, param_names, set_fn);
+        gen_zustand_action_stmt(w, &stmts[i], renames, param_names, set_fn, warnings);
         i += 1;
     }
 }
@@ -1308,9 +1335,16 @@ fn format_zustand_mutation_part(
     intent: &MutationIntent,
     renames: &FxHashMap<String, String>,
     param_names: &FxHashSet<String>,
+    warnings: Option<&Mutex<Vec<String>>>,
 ) -> Option<String> {
     let fmt = |e: &ExprIR| {
-        expr::format_expr_ir_tsx_renamed_locals(e, &FxHashSet::default(), renames, param_names)
+        expr::format_expr_ir_tsx_renamed_locals(
+            e,
+            &FxHashSet::default(),
+            renames,
+            param_names,
+            warnings,
+        )
     };
     let (target, value_str) = match intent {
         MutationIntent::DirectAssign { target, value, .. } => {
@@ -1407,6 +1441,7 @@ fn format_zustand_mutation(
     renames: &FxHashMap<String, String>,
     param_names: &FxHashSet<String>,
     set_fn: &str,
+    warnings: Option<&Mutex<Vec<String>>>,
 ) {
     match intent {
         MutationIntent::DirectAssign { target, value, .. } => {
@@ -1418,6 +1453,7 @@ fn format_zustand_mutation(
                         &FxHashSet::default(),
                         renames,
                         param_names,
+                        warnings,
                     )
                 })
                 .unwrap_or_else(|| "null".into());
@@ -1437,6 +1473,7 @@ fn format_zustand_mutation(
                         &FxHashSet::default(),
                         renames,
                         param_names,
+                        warnings,
                     )
                 })
                 .unwrap_or_else(|| "0".into());
@@ -1459,6 +1496,7 @@ fn format_zustand_mutation(
                         &FxHashSet::default(),
                         renames,
                         param_names,
+                        warnings,
                     )
                 })
                 .unwrap_or_else(|| "0".into());
@@ -1481,6 +1519,7 @@ fn format_zustand_mutation(
                         &FxHashSet::default(),
                         renames,
                         param_names,
+                        warnings,
                     )
                 })
                 .unwrap_or_else(|| "undefined".into());
@@ -1520,6 +1559,7 @@ fn format_zustand_mutation(
                         &FxHashSet::default(),
                         renames,
                         param_names,
+                        warnings,
                     )
                 })
                 .unwrap_or_else(|| "1".into());
@@ -1542,6 +1582,7 @@ fn format_zustand_mutation(
                         &FxHashSet::default(),
                         renames,
                         param_names,
+                        warnings,
                     )
                 })
                 .unwrap_or_else(|| "1".into());
@@ -1564,6 +1605,7 @@ fn format_zustand_mutation(
                         &FxHashSet::default(),
                         renames,
                         param_names,
+                        warnings,
                     )
                 })
                 .unwrap_or_else(|| "1".into());

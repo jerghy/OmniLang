@@ -373,6 +373,7 @@ fn test_tsx_stmt_let() {
         &FxHashSet::default(),
         &FxHashSet::default(),
         &FxHashMap::default(),
+        None,
     );
     assert_eq!(w.into_string(), "const x = 42;\n");
 }
@@ -399,6 +400,7 @@ fn test_tsx_stmt_let_mut() {
         &FxHashSet::default(),
         &FxHashSet::default(),
         &FxHashMap::default(),
+        None,
     );
     assert_eq!(w.into_string(), "let x = 42;\n");
 }
@@ -423,6 +425,7 @@ fn test_tsx_stmt_return() {
         &FxHashSet::default(),
         &FxHashSet::default(),
         &FxHashMap::default(),
+        None,
     );
     assert_eq!(w.into_string(), "return result;\n");
 }
@@ -453,6 +456,7 @@ fn test_tsx_stmt_mutation_increment_local() {
         &FxHashSet::default(),
         &FxHashSet::default(),
         &FxHashMap::default(),
+        None,
     );
     assert_eq!(w.into_string(), "count = count + 1;\n");
 }
@@ -485,6 +489,7 @@ fn test_tsx_stmt_mutation_increment_signal() {
         &FxHashSet::default(),
         &FxHashSet::default(),
         &FxHashMap::default(),
+        None,
     );
     assert_eq!(w.into_string(), "setCount(prev => prev + 1);\n");
 }
@@ -516,6 +521,7 @@ fn test_tsx_stmt_mutation_assign_local() {
         &FxHashSet::default(),
         &FxHashSet::default(),
         &FxHashMap::default(),
+        None,
     );
     assert_eq!(w.into_string(), "name = \"alice\";\n");
 }
@@ -549,6 +555,7 @@ fn test_tsx_stmt_mutation_assign_store() {
         &FxHashSet::default(),
         &FxHashSet::default(),
         &FxHashMap::default(),
+        None,
     );
     assert_eq!(w.into_string(), "name = \"alice\";\n");
 }
@@ -589,6 +596,7 @@ fn test_tsx_stmt_mutation_assign_signal_self_read_functional_updater() {
         &FxHashSet::default(),
         &FxHashSet::default(),
         &FxHashMap::default(),
+        None,
     );
     assert_eq!(w.into_string(), "setCount((c) => c + 1);\n");
 }
@@ -620,6 +628,7 @@ fn test_tsx_stmt_mutation_assign_signal_external_value_keeps_direct() {
         &FxHashSet::default(),
         &FxHashSet::default(),
         &FxHashMap::default(),
+        None,
     );
     assert_eq!(w.into_string(), "setCount(step);\n");
 }
@@ -677,6 +686,7 @@ fn test_tsx_stmt_mutation_assign_signal_self_read_struct_literal_wrapped() {
         &FxHashSet::default(),
         &FxHashSet::default(),
         &FxHashMap::default(),
+        None,
     );
     assert_eq!(
         w.into_string(),
@@ -722,6 +732,7 @@ fn test_tsx_stmt_mutation_assign_store_signal_self_read_functional() {
         &FxHashSet::default(),
         &FxHashSet::default(),
         &FxHashMap::default(),
+        None,
     );
     assert_eq!(
         w.into_string(),
@@ -765,6 +776,7 @@ fn test_pruned_signal_dce_never_swallows_store_field_mutation() {
         &FxHashSet::default(),
         &FxHashSet::default(),
         &FxHashMap::default(),
+        None,
     );
     assert_eq!(
         w.into_string(),
@@ -809,6 +821,7 @@ fn test_pruned_component_write_not_misrouted_to_store_by_collision() {
         &FxHashSet::default(),
         &FxHashSet::default(),
         &FxHashMap::default(),
+        None,
     );
     assert_eq!(
         w.into_string(),
@@ -847,6 +860,7 @@ fn test_bare_store_field_array_push_emits_store_set_state() {
         &FxHashSet::default(),
         &FxHashSet::default(),
         &FxHashMap::default(),
+        None,
     );
     assert_eq!(
         w.into_string(),
@@ -887,6 +901,7 @@ fn test_pruned_component_array_push_not_misrouted_to_store_by_collision() {
         &FxHashSet::default(),
         &FxHashSet::default(),
         &FxHashMap::default(),
+        None,
     );
     assert_eq!(
         w.into_string(),
@@ -998,6 +1013,7 @@ fn test_tsx_stmt_mutation_assign_signal_updater_param_avoids_collision() {
         &FxHashSet::default(),
         &FxHashSet::default(),
         &FxHashMap::default(),
+        None,
     );
     assert_eq!(w.into_string(), "setCount((c1) => c1 + c);\n");
 }
@@ -1034,6 +1050,7 @@ fn test_tsx_stmt_if() {
         &FxHashSet::default(),
         &FxHashSet::default(),
         &FxHashMap::default(),
+        None,
     );
     let out = w.into_string();
     assert!(out.contains("if (cond) {"));
@@ -7783,6 +7800,7 @@ fn test_direct_write_array_push_store_collision_stays_store() {
         &FxHashSet::default(),
         &direct,
         &FxHashMap::default(),
+        None,
     );
     assert_eq!(
         w.into_string(),
@@ -7827,6 +7845,7 @@ fn test_direct_write_compound_mutation_writes_ref_and_apply() {
         &FxHashSet::default(),
         &direct,
         &applies,
+        None,
     );
     assert_eq!(
         w.into_string(),
@@ -9376,6 +9395,11 @@ component TodoPage {
         "路由表须挂包装器（非裸组件）. Got:\n{}",
         out
     );
+    assert!(
+        out.contains("loader: ({ params }) => params"),
+        "无 guard 参数路由必须补发 params loader（否则 useLoaderData 运行时崩 TypeError）. Got:\n{}",
+        out
+    );
     // 组件侧：Props 接口声明 + 解构
     assert!(
         out.contains("interface TodoPageProps {") && out.contains("  id: string;"),
@@ -9476,6 +9500,7 @@ component ListPage {
     @for item in items {
       <button @onPress={() => {
         navigate("/todos/:id", { params: { id: item } });
+        navigate("/todos", { query: { filter: "all" } });
         back()
       }}>Go {item}</button>
     }
@@ -9484,6 +9509,10 @@ component ListPage {
 component TodoPage {
   @route "/todos/:id";
   view { <div>Todo {id}</div> }
+}
+component TodosPage {
+  @route "/todos";
+  view { <div>All todos</div> }
 }
 "#;
     let out = compile_react_src(source);
@@ -9505,6 +9534,11 @@ component TodoPage {
     assert!(
         out.contains("navigate(\"/todos/\" + item)"),
         "路径参数占位须替换为表达式拼接. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("navigate(\"/todos?filter=all\")"),
+        "字面量路径 + query 选项须合并为查询串. Got:\n{}",
         out
     );
 }
