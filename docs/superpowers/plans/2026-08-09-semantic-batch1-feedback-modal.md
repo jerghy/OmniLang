@@ -806,3 +806,40 @@ Task 0（登记先行）→ Task 1（语法面）→ Task 2（IR+lowering）→ 
 ### Low（已核实，保持现状）
 
 - @skeleton shape 白名单在语义层（V10 为 Error 级诊断），class 名拼接未转义属纵深防御范畴——当前不可达，保持白名单作为唯一防线。
+
+---
+
+### Task 1（语法面）Minor 6-9（2026-08-09 登记）
+
+- **Minor 6**：showToast 选项值用 `expect_close` 的 `—— found ...` 英文后缀（错误消息语言未完全统一）
+- **Minor 7**：`parse_show_toast_call` 中 `name` 参数仅在错误路径使用（消息内联 name 而非按函数区分）
+- **Minor 8**：`@modal`/`@load` 等在 view 解析失败后恢复路径未覆盖（`@modal` 出现在正文中的回退行为无测试）
+- **Minor 9**：`ElementProp::Modal` 的 open_signal 用 `Expr::VarRef` 而非语义层信号引用类型（保持解析器层一致性取舍）
+
+### Task 2（IR）Minor 2（2026-08-09 登记）
+
+- u64→i64 回绕边界：`Literal::Int(n) as i64` 对 > i64::MAX 字面量回绕 + `wrapping_neg` 翻正（如 `-18446744073709551615` → 1）——V7 是最终裁决者，实际不可达，仅记录
+
+### Task 3（语义验证）Minor 2-7（2026-08-09 登记）
+
+- **Minor 2**：模块注释「五处声明位」vs 实现六处（inline_stores 未列入）——一行注释修正
+- **Minor 3**：V8 测试只覆盖 signal/fn/component 3 处声明位，computeds/store_refs/inline_stores 3 处未测
+- **Minor 4**：error_diag/warning_diag 第三份逐字拷贝（validate_event_names → validate_form_load → validate_feedback_modal）——后续批次建议提取共享 helper
+- **Minor 5**：expr_refs_loading 按名匹配边缘（用户自声明 loading 信号 → V9 假阴）——窄边缘，计划内可接受
+- **Minor 6**：subtree_has_heading 对每个子节点独立 re-walk（效率微项）
+- **Minor 7**：V13 测试对同一输入调用两次 crate::compile（效率微项）
+
+### Task 4（React codegen）遗留（2026-08-09/10 登记）
+
+- **labelledby 悬空**：用户标题自带 id 时 aria-labelledby 仍指向合成 omni-modal-title（id 未被注入，悬空引用）——如需回退指向用户 id 后续单独裁决
+- **ToastProvider children**（Task 5 交叉发现，已修复跟进）：`function ToastProvider()` 零参数不渲染 `{children}`——@types/react 19 TS2559（曾由 allowance 掩盖）+ 功能吞视图；修复 = 接收 children 参数 + body 渲染 + allowance 自过期删除
+
+### Task 5（Flutter codegen）审查遗留（2026-08-09/10 登记）
+
+- **I1（记录不阻塞）**：`_modalShown` 单共享 bool——同组件两个 @modal 时 B 的降沿可能 pop 掉 A（「关闭全部」场景）。spec/plan 均未约束多模态/组件（V4 只禁同元素重复、V5 禁 @for 内）；迁移语料单模态。修复方向：per-dialog 幂等键（信号或 route 身份）替代共享 bool
+- **M2**：flutter/view.rs 3976 行（+172）——预存结构性债，format_element 是未来拆分点
+- **M4**：addPostFrameCallback 每次重建重注册（轮询无操作，一次触发，可忽略）——一行注释防评审疑问
+
+### Task 7（登记收口）Minor 2（2026-08-09 登记）
+
+- 焦点陷阱与 @modal 共用 `@modal\s*=` 计数致审计展示重复——可在 shown 列表去重或并入豁免
