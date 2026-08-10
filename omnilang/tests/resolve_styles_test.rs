@@ -113,3 +113,33 @@ component main {
         result.warnings
     );
 }
+
+/// 评审 systems-architect MEDIUM-1：画布 success 曾把 warnings 计入——
+/// B2 后未知属性动态绑定产生 warning，同一输入 CLI 构建成功而画布
+/// 显示失败。success 必须只按 errors 门控（与编译路径一致）。
+#[cfg(feature = "codegen-omniview")]
+#[test]
+fn test_resolve_styles_warning_does_not_flip_success() {
+    // 裸未知属性 + 动态值 → B2 warning（unknown attribute 'foo'），
+    // 但无 error——画布必须报 success。
+    let source = r#"import omniview;
+
+component App {
+  signal count: i32 = 0;
+  view {
+    <div foo={count}></div>
+  }
+}
+"#;
+    let result = omnilang::resolve_styles(source);
+    assert!(
+        !result.warnings.is_empty(),
+        "fixture 必须产生 warning（未知属性动态绑定），got: {:?}",
+        result.warnings
+    );
+    assert!(
+        result.success,
+        "仅 warning 无 error 时画布 success 必须为 true，warnings: {:?}",
+        result.warnings
+    );
+}

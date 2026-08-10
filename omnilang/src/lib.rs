@@ -182,7 +182,10 @@ pub fn resolve_styles(source: &str) -> StyleResolveResult {
         codegen::omniview::generate(&pipeline.ir, true, /* css_only= */ true, false);
 
     StyleResolveResult {
-        success: !pipeline.has_errors && gen_output.warnings.is_empty(),
+        // success 只按 errors 门控——warnings 非失败性（CLI 同语义），
+        // B2 后未知属性动态绑定产生 warning，计入会使画布与 CLI 分歧
+        // （评审 MEDIUM-1）。warnings 经下方字段透出供展示。
+        success: !pipeline.has_errors,
         design_css: gen_output.css,
         component_css: gen_output.per_component_css,
         element_classes: gen_output.element_classes,
@@ -214,10 +217,10 @@ pub fn resolve_styles_multi(
         Some(ir) => {
             let output = codegen::omniview::generate(&ir, true, /* css_only= */ true, false);
             StyleResolveResult {
+                // 同 resolve_styles：只按 errors 门控（评审 MEDIUM-1）。
                 success: errors
                     .iter()
-                    .all(|d| d.severity != crate::error::Severity::Error)
-                    && output.warnings.is_empty(),
+                    .all(|d| d.severity != crate::error::Severity::Error),
                 design_css: output.css,
                 component_css: output.per_component_css,
                 element_classes: output.element_classes,
