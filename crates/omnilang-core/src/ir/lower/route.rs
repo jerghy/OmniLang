@@ -23,6 +23,8 @@ use rustc_hash::FxHashMap;
 pub(super) fn collect_route_intent(comp: &ComponentDef) -> Option<RouteIntentIR> {
     comp.route_decls.first().map(|r| RouteIntentIR {
         path: r.path.clone(),
+        // 保留全部声明路径供 V4 语义校验点名（decl_paths[0] == path）。
+        decl_paths: comp.route_decls.iter().map(|d| d.path.clone()).collect(),
         params: r.params.clone(),
         guard: r.guard.clone(),
         lazy: r.lazy,

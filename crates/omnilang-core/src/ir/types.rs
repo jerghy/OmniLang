@@ -1054,6 +1054,10 @@ pub struct LoadIntentIR {
 pub struct RouteIntentIR {
     /// 声明的路径——恒以 `/` 开头（V2 解析错误）。
     pub path: String,
+    /// 全部 `@route` 声明路径（按声明顺序）——V4 重复声明错误需要点名两条
+    /// 路径，而 `path` 只保留第一条。恒有 `decl_paths[0] == path`。
+    #[serde(default)]
+    pub decl_paths: Vec<String>,
     /// 从路径提取的 `:id` 参数段，按声明顺序（`"/todos/:id"` → `["id"]`）。
     /// 以 String props 注入（C2）。
     pub params: Vec<String>,
