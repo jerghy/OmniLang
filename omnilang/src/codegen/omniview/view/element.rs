@@ -29,7 +29,9 @@ const HTML_BOOLEAN_ATTRS: &[&str] = &[
     "muted",
     "async",
     "defer",
-    "open", // 2026-08-07 B2: <details> 布尔属性——此前落入 data-* fallback 静默丢弃
+    "open",     // 2026-08-07 B2: <details> 布尔属性——此前落入 data-* fallback 静默丢弃
+    "hidden",   // 2026-08-10: 最常见的可见性切换——此前落 data-* fallback 不工作（评审 MEDIUM-2）
+    "autoplay", // 2026-08-10: 媒体自动播放（parser 关键字已有，codegen 缺失——评审 MEDIUM-2）
 ];
 const HTML_URL_ATTRS: &[&str] = &["href", "src", "srcset", "action", "formaction", "poster"];
 
@@ -129,11 +131,11 @@ impl OmniViewGenerator {
                 | "pattern" | "selected" | "for" | "action" | "method" | "enctype" | "accept"
                 | "controls" | "width" | "height" | "coords" | "shape" | "media" | "srcset"
                 | "sizes" | "target" | "rel" | "lang" | "dir" | "datetime" | "cite" | "list"
-                | "loop" | "muted" | "open" | "poster" | "preload" | "tabindex" | "role"
-                | "content" | "charset" | "http-equiv" | "property" | "itemprop"
-                | "crossorigin" | "integrity" | "referrerpolicy" | "loading" | "decoding"
-                | "async" | "defer" | "nonce" | "download" | "draggable" | "spellcheck"
-                | "contenteditable" | "translate" | "autocapitalize" | "capture" => {
+                | "loop" | "muted" | "open" | "hidden" | "autoplay" | "poster" | "preload"
+                | "tabindex" | "role" | "content" | "charset" | "http-equiv" | "property"
+                | "itemprop" | "crossorigin" | "integrity" | "referrerpolicy" | "loading"
+                | "decoding" | "async" | "defer" | "nonce" | "download" | "draggable"
+                | "spellcheck" | "contenteditable" | "translate" | "autocapitalize" | "capture" => {
                     let val_str = self.expr_to_static_str(value);
                     // Known boolean attributes with value "true" — emit bare attribute name
                     let is_boolean_attr = HTML_BOOLEAN_ATTRS.contains(&name.as_str());

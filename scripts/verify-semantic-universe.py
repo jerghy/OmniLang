@@ -240,6 +240,17 @@ def boolean_attr_keywords(text):
     return sorted(set(re.findall(r'Some\("([a-z]+)"\)', m.group(1))))
 
 
+def known_attr_words(text):
+    """已知属性白名单 match arm（element.rs emit_element_props）内的引号名。
+
+    限定范围：`"id" | "placeholder"` 起至 `"capture" => {` 止——白名单是 match
+    arm 非数组常量，无法用 rust_str_array 提取（该 arm 是 match 首臂，无前导 `|`）。"""
+    m = re.search(r'"id" \| "placeholder".*?"capture" => \{', text, re.S)
+    if not m:
+        return set()
+    return set(re.findall(r'"([a-z-]+)"', m.group(0)))
+
+
 def array_method_words(text):
     """Words of the `const ARRAY_METHODS: [&str; N] = ["a", "b", ...];`."""
     m = re.search(r'ARRAY_METHODS[^=]*=\s*\[(.*?)\]', text, re.S)
@@ -647,6 +658,17 @@ def audit():
             keywords = boolean_attr_keywords(element_src)
             if keywords is None or not keywords:
                 fail("directives: 布尔属性 declared 支持 but peek_is_boolean_attr_keyword has no keywords")
+            # 2026-08-10 升级（评审 MEDIUM-2）：存在性断言不足以捕获双源漂移——
+            # parser 关键字 ⊆ codegen 布尔集 ∪ 已知属性白名单，否则新关键字可
+            # 静默落入 data-* fallback（B2 bug 类：hidden 曾因此不工作）。
+            omni_elem_src = read_file(OMNIVIEW_ELEMENT_FILE)
+            codegen_bool = set(rust_str_array(omni_elem_src, "HTML_BOOLEAN_ATTRS") or [])
+            missing = set(keywords) - codegen_bool - known_attr_words(omni_elem_src)
+            if missing:
+                fail(
+                    "directives: parser 布尔关键字不在 codegen HTML_BOOLEAN_ATTRS ∪ 已知属性白名单: "
+                    + ", ".join(sorted(missing))
+                )
 
     # form (域 8, 2026-08-09 Task 7): 词法级规则名 == VALIDATE_RULES 双向断言；
     # 机制级条目（@form/formErrors/formValid/formSubmitting）走存在性断言

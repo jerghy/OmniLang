@@ -895,3 +895,30 @@ gen_semantic_dsl_tests!(
     assert_a11y_react,
     assert_a11y_flutter
 );
+
+/// 评审 systems-architect MEDIUM-2：`hidden` 是最常见的可见性切换模式，
+/// 但不在 HTML_BOOLEAN_ATTRS/已知属性白名单——曾落 `_ =>` fallback 发射
+/// 静态 `data-hidden="{sig}"`（属性不工作，B2 bug 类活跃实例）。布尔属性
+/// 必须走 DOM property 分支（`el.hidden = !!(...)` effect）。
+#[test]
+fn dynamic_hidden_emits_dom_property_effect() {
+    let src = r#"import omniview;
+
+component App {
+  signal open: bool = false;
+  view {
+    <div hidden={open}></div>
+  }
+}
+"#;
+    let files = compile_source_fixture(src, crate::codegen::Target::OmniView);
+    let js = files.get("index.js").cloned().unwrap_or_default();
+    assert!(
+        js.contains("el.hidden = !!"),
+        "hidden 动态绑定必须生成 el.hidden = !!() effect, got:\n{js}"
+    );
+    assert!(
+        !js.contains("data-hidden"),
+        "hidden 不得落 data-* fallback, got:\n{js}"
+    );
+}
