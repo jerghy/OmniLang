@@ -7,10 +7,12 @@
 
 import { useMemo } from "react";
 import { usePoiesisStore } from "../../../store";
-import type { CodeblockElementData } from "../../../core/types/element";
+import type { CodeblockElementData, ElementData } from "../../../core/types/element";
+import type { CodeFlowGroup } from "../../../core/types/project-json";
 import { formatSyntaxNode, type SyntaxNodeProps } from "../../../services/codegen/syntax-nodes";
 import { validateSyntaxProps, buildFormulaSource, type FlowScope } from "../../../services/codegen/flow-scope";
 import { useFlowScope } from "../../../services/codegen/flow-scope-hook";
+import { findGroupById, patchGroupById, removeGroupById, GROUP_COLORS } from "../../../services/codegen/groups";
 import { NodeTextField } from "./fields/NodeField";
 import { NodeFormulaField } from "./fields/NodeFormulaField";
 import { TAG_CN } from "./flowConstants";
@@ -127,6 +129,8 @@ interface Props {
 export function FlowInspector({ selectedNodeIds }: Props) {
   const elements = usePoiesisStore((s) => s.elements);
   const setProp = usePoiesisStore((s) => s.setProp);
+  const codeFlowGroups = usePoiesisStore((s) => s.codeFlowGroups);
+  const setCodeFlowGroups = usePoiesisStore((s) => s.setCodeFlowGroups);
   const activeTabId = usePoiesisStore((s) => s.designPage.activeTabId);
   const openTabs = usePoiesisStore((s) => s.designPage.openTabs);
   const activeTab = openTabs.find((t) => t.id === activeTabId);
@@ -151,6 +155,21 @@ export function FlowInspector({ selectedNodeIds }: Props) {
           Select a node to edit
         </div>
       </div>
+    );
+  }
+
+  // 分组框被点击（组 id 不在 elements 中）：右侧面板承担分组编辑
+  // （组名即注释 = 功能描写；成员/折叠/颜色/删除全操作）。
+  const groupHit = findGroupById(codeFlowGroups, selectedNodeIds[0]);
+  if (groupHit) {
+    return (
+      <GroupInspector
+        fnName={groupHit.fnName}
+        group={groupHit.group}
+        groups={codeFlowGroups}
+        elements={elements}
+        setCodeFlowGroups={setCodeFlowGroups}
+      />
     );
   }
 
@@ -474,6 +493,95 @@ function LifecycleForm({ el, setProp }: FnInspectorProps) {
             placeholder="a,b" onChange={(e) => setProp(el.id, "deps", e.target.value)} />
         </div>
       )}
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────
+// 分组面板（点击分组框后右侧面板：组名即注释=功能描写，可编辑）
+// ────────────────────────────────────────────
+// 组定位一律以组 id 全键扫描（findGroupById）——成员断链后 fn 键不可信（终审 I-1）。
+// 所有变更经 patchGroupById/removeGroupById 不可变构建后 setCodeFlowGroups 写回。
+
+function GroupInspector({ fnName, group, groups, elements, setCodeFlowGroups }: {
+  fnName: string;
+  group: CodeFlowGroup;
+  groups: Record<string, CodeFlowGroup[]>;
+  elements: ElementData[];
+  setCodeFlowGroups: (fnName: string, groups: CodeFlowGroup[]) => void;
+}) {
+  const applyPatch = (patch: Partial<CodeFlowGroup>) => {
+    const next = patchGroupById(groups, group.id, patch);
+    const hit = findGroupById(next, group.id);
+    if (hit) setCodeFlowGroups(hit.fnName, hit.fnName === fnName ? next[fnName] : next[hit.fnName]);
+  };
+
+  const handleDelete = () => {
+    const next = removeGroupById(groups, group.id);
+    // 删除可能影响任意键（含空键剔除）——对所有涉及键整体替换
+    for (const key of new Set([...Object.keys(groups), ...Object.keys(next)])) {
+      setCodeFlowGroups(key, next[key] ?? []);
+    }
+  };
+
+  const members = group.memberIds.map((mid) => {
+    const m = elements.find((e) => e.id === mid);
+    if (!m) return mid;
+    if (m.nodeType === "codeblock") {
+      const name = (m.props as { name?: unknown } | undefined)?.name;
+      return `${TAG_CN[m.tag] ?? m.tag}${name ? ` · ${String(name)}` : ""}`;
+    }
+    return m.id;
+  });
+
+  return (
+    <div style={S.panel}>
+      <div style={S.header}>📦 分组 · {fnName}</div>
+      <div style={S.field}>
+        <div style={S.label}>组名（功能描写）</div>
+        <NodeTextField
+          value={group.name}
+          onCommit={(v) => applyPatch({ name: v })}
+          placeholder="分组名"
+          ariaLabel="分组名"
+        />
+        <div style={HINT_STYLE}>保存后作为代码注释输出：// ── 组名 ──</div>
+      </div>
+      <div style={S.field}>
+        <div style={S.label}>成员（{group.memberIds.length}）</div>
+        {members.map((m) => (
+          <div key={m} style={{ fontSize: "var(--ol-font-size-11)", color: "var(--ol-text-secondary)", marginTop: 2 }}>{m}</div>
+        ))}
+      </div>
+      <div style={S.field}>
+        <div style={S.label}>状态</div>
+        <button type="button" style={S.btn} onClick={() => applyPatch({ collapsed: !group.collapsed })}>
+          {group.collapsed ? "展开" : "折叠"}
+        </button>
+      </div>
+      <div style={S.field}>
+        <div style={S.label}>颜色</div>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {GROUP_COLORS.map((c) => (
+            <button
+              key={c}
+              type="button"
+              aria-label={`颜色 ${c}`}
+              onClick={() => applyPatch({ color: c })}
+              style={{
+                width: 18, height: 18, borderRadius: "50%", border: group.color === c ? "2px solid var(--ol-text)" : "1px solid var(--ol-border)",
+                background: c, cursor: "pointer", padding: 0,
+              }}
+            />
+          ))}
+        </div>
+      </div>
+      <div style={S.field}>
+        <button type="button" aria-label="删除分组" onClick={handleDelete} style={{ ...S.btn, color: "var(--ol-color-danger)" }}>
+          删除分组
+        </button>
+        <div style={HINT_STYLE}>仅删除分组与注释，节点保留</div>
+      </div>
     </div>
   );
 }

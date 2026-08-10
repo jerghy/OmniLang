@@ -45,13 +45,21 @@ const { mockSetProp, mockState, storeListeners, resetMockState } = vi.hoisted(()
       source: "",
     },
   ];
+  const defaultGroups = () => ({
+    increment: [{ id: "g1", name: "初始化", memberIds: ["l1", "w1"], color: "#6366f1", collapsed: false }],
+  });
   const mockState = {
     elements: [] as unknown[],
+    codeFlowGroups: {} as Record<string, unknown[]>,
     setProp: (id: string, prop: string, value: unknown) => {
       mockSetProp(id, prop, value);
       mockState.elements = (
         mockState.elements as Array<{ id: string; props?: Record<string, unknown> }>
       ).map((e) => (e.id === id ? { ...e, props: { ...(e.props ?? {}), [prop]: value } } : e));
+      storeListeners.forEach((l) => l());
+    },
+    setCodeFlowGroups: (fnName: string, groups: unknown[]) => {
+      mockState.codeFlowGroups = { ...mockState.codeFlowGroups, [fnName]: groups };
       storeListeners.forEach((l) => l());
     },
     setElementSource: () => {},
@@ -63,6 +71,7 @@ const { mockSetProp, mockState, storeListeners, resetMockState } = vi.hoisted(()
   };
   const resetMockState = () => {
     mockState.elements = defaultElements();
+    mockState.codeFlowGroups = defaultGroups();
     mockState.designPage = { activeTabId: "t1", openTabs: [] };
   };
   return { mockSetProp, mockState, storeListeners, resetMockState };
@@ -204,5 +213,44 @@ describe("FlowInspector FnInspector pub/declKind/async 表单", () => {
     expect(usePoiesisStore.getState().elements.find(
       (e): e is CodeblockElementData => e.id === "fn_x" && e.nodeType === "codeblock",
     )!.props?.pub).toBe(true);
+  });
+});
+
+describe("FlowInspector 分组面板（点击分组框后显示组信息并可编辑）", () => {
+  it("选中组 id 时渲染组名、成员列表、折叠与删除操作", () => {
+    render(<FlowInspector selectedNodeIds={["g1"]} />);
+    expect((screen.getByLabelText("分组名") as HTMLInputElement).value).toBe("初始化");
+    expect(screen.getByText(/变量声明 · x/)).toBeTruthy(); // 成员：tag 中文 + 变量名
+    expect(screen.getByText(/循环/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /折叠|展开/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /删除分组/ })).toBeTruthy();
+  });
+
+  it("改名：NodeTextField 提交走 setCodeFlowGroups（组名=功能描写注释）", () => {
+    render(<FlowInspector selectedNodeIds={["g1"]} />);
+    const input = screen.getByLabelText("分组名") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "校验逻辑" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    const groups = usePoiesisStore.getState().codeFlowGroups as Record<string, Array<{ id: string; name: string }>>;
+    expect(groups.increment[0].name).toBe("校验逻辑");
+  });
+
+  it("折叠/展开切换走 setCodeFlowGroups（collapsed 翻转）", () => {
+    render(<FlowInspector selectedNodeIds={["g1"]} />);
+    fireEvent.click(screen.getByRole("button", { name: /折叠|展开/ }));
+    const groups = usePoiesisStore.getState().codeFlowGroups as Record<string, Array<{ id: string; collapsed: boolean }>>;
+    expect(groups.increment[0].collapsed).toBe(true);
+  });
+
+  it("删除分组：移除该组且保留节点", () => {
+    render(<FlowInspector selectedNodeIds={["g1"]} />);
+    fireEvent.click(screen.getByRole("button", { name: /删除分组/ }));
+    const groups = usePoiesisStore.getState().codeFlowGroups as Record<string, unknown[]>;
+    expect(Object.values(groups).flat()).toHaveLength(0);
+  });
+
+  it("组 id 不存在时显示 Node not found（不崩溃）", () => {
+    render(<FlowInspector selectedNodeIds={["ghost"]} />);
+    expect(screen.getByText("Node not found")).toBeTruthy();
   });
 });

@@ -116,3 +116,44 @@ export function buildFlowEdges(wires: WireData[], groups: CodeFlowGroup[]): Edge
   }
   return out;
 }
+
+/** 全键扫描定位组：返回所在 fn 键名与组对象；找不到返回 null。
+ *  FlowInspector 分组面板与 FlowCanvas 全键操作共用（成员断链后 fn 键不可信，
+ *  定位一律以组 id 为准）。 */
+export function findGroupById(
+  groups: Record<string, CodeFlowGroup[]>,
+  groupId: string,
+): { fnName: string; group: CodeFlowGroup } | null {
+  for (const fnName of Object.keys(groups)) {
+    const g = groups[fnName].find((x) => x.id === groupId);
+    if (g) return { fnName, group: g };
+  }
+  return null;
+}
+
+/** 不可变 patch：按组 id 全键扫描替换，返回新 groups 对象（整体替换某 fn 键的
+ *  setCodeFlowGroups 消费；未命中时返回等价新对象，不修改输入）。 */
+export function patchGroupById(
+  groups: Record<string, CodeFlowGroup[]>,
+  groupId: string,
+  patch: Partial<CodeFlowGroup>,
+): Record<string, CodeFlowGroup[]> {
+  const out: Record<string, CodeFlowGroup[]> = {};
+  for (const fnName of Object.keys(groups)) {
+    out[fnName] = groups[fnName].map((x) => (x.id === groupId ? { ...x, ...patch } : x));
+  }
+  return out;
+}
+
+/** 不可变 remove：按组 id 全键扫描删除，空数组键剔除（toProjectJson 保存侧同款清理语义）。 */
+export function removeGroupById(
+  groups: Record<string, CodeFlowGroup[]>,
+  groupId: string,
+): Record<string, CodeFlowGroup[]> {
+  const out: Record<string, CodeFlowGroup[]> = {};
+  for (const fnName of Object.keys(groups)) {
+    const filtered = groups[fnName].filter((x) => x.id !== groupId);
+    if (filtered.length > 0) out[fnName] = filtered;
+  }
+  return out;
+}

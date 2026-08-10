@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { GROUP_COLORS, validateGroupMembers, fnNameOf, computeGroupBoxes, collectCollapsedMemberIds, buildFlowEdges } from "../groups";
+import { GROUP_COLORS, validateGroupMembers, fnNameOf, computeGroupBoxes, collectCollapsedMemberIds, buildFlowEdges, findGroupById, patchGroupById, removeGroupById } from "../groups";
 import type { CodeblockElementData } from "../../../core/types/element";
 import type { WireData } from "../../../core/types/wire";
 import type { CodeFlowGroup } from "../../../core/types/project-json";
@@ -101,4 +101,37 @@ it("buildFlowEdges：无折叠组时原样透传（含 type: default）", () => 
     { id: "w1", fromId: "fn1", fromPort: "flow-out", toId: "cb1", toPort: "flow-in" },
   ], []);
   expect(edges).toEqual([{ id: "w1", type: "default", source: "fn1", target: "cb1", sourceHandle: "flow-out", targetHandle: "flow-in" }]);
+});
+
+// 组定位与不可变更新（FlowInspector 分组面板 + FlowCanvas 全键扫描共用）
+describe("findGroupById / patchGroupById / removeGroupById", () => {
+  const REC: Record<string, CodeFlowGroup[]> = {
+    increment: [{ id: "g1", name: "初始化", memberIds: ["cb1", "cb2"], color: "#6366f1", collapsed: false }],
+    empty: [],
+  };
+
+  it("findGroupById：跨键定位组并返回所属 fn 键", () => {
+    expect(findGroupById(REC, "g1")).toEqual({ fnName: "increment", group: REC.increment[0] });
+  });
+
+  it("findGroupById：找不到返回 null", () => {
+    expect(findGroupById(REC, "nope")).toBeNull();
+  });
+
+  it("patchGroupById：按 id 替换字段，其他键与组原样保留", () => {
+    const next = patchGroupById(REC, "g1", { name: "校验逻辑", collapsed: true });
+    expect(next.increment[0]).toMatchObject({ id: "g1", name: "校验逻辑", collapsed: true });
+    expect(next.increment[0].memberIds).toEqual(["cb1", "cb2"]); // 未 patch 字段保留
+    expect(next.empty).toEqual([]);
+  });
+
+  it("patchGroupById：未命中 id 时原样返回（不可变）", () => {
+    const next = patchGroupById(REC, "nope", { name: "x" });
+    expect(next).toEqual(REC);
+  });
+
+  it("removeGroupById：删除组，空数组键剔除", () => {
+    const next = removeGroupById(REC, "g1");
+    expect(next).toEqual({});
+  });
 });
