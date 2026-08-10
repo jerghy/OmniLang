@@ -21,6 +21,7 @@
 
 import omniview;
 import { LearnDesign } from "../design";
+import { async_sleep } from "std/async";
 
 // ── Scrubbing 动画（@drag-* 语法糖）：手势进度映射到 keyframe 范围 ──
 @motion dragX300 {
@@ -74,6 +75,26 @@ component ElementRefDemo {
     signal rangeText: String = "0123456789";
     signal rangeStatus: String = "—";
     signal shouldFocus: Bool = false;       // 驱动 focus={shouldFocus} 绑定
+
+    // ── 滑块高频拖动：transition 实时跟随 ──
+    // design.omni 的 SizeBox 带 transition: all 300ms——Expand/Reset 等
+    // 低频按钮路径的过渡合理；但滑块拖动是连续高频修改，每个中间值都被
+    // 300ms 平滑化（实测视觉滞后 ~290ms），感觉"不实时"。@onInput 把
+    // transition 信号置 "none"（style 绑定直写禁用过渡——ref.style 直写
+    // 被 ADR-070 契约禁止，style 绑定是声明式通道），停止拖动 200ms 后
+    // 恢复（seq 计数防止旧 async 恢复抢先）。
+    signal sliderTransition: String = "";
+    signal sliderSeq: i32 = 0;
+
+    action onSliderInput() async {
+        sliderSeq = sliderSeq + 1;
+        let mySeq = sliderSeq;
+        sliderTransition = "none";
+        await async_sleep(200);
+        if sliderSeq == mySeq {
+            sliderTransition = "";
+        }
+    }
     signal sigFocusStatus: String = "focus=false";
     signal pointerActive: Bool = false;     // 指针捕获中的视觉状态
     signal pointerStatus: String = "free";
@@ -403,10 +424,10 @@ component ElementRefDemo {
             </p>
             <div class: DemoRow>
                 <div @ref={sizeBox} class: SizeBox
-                    style: { width: boxWidthNum, height: boxHeightNum }>
+                    style: { width: boxWidthNum, height: boxHeightNum, transition: sliderTransition }>
                     <p>resize via style binding</p>
                 </div>
-                <input type="range" min="120" max="400" bind:value={boxWidthNum} class: DemoRange />
+                <input type="range" min="120" max="400" bind:value={boxWidthNum} class: DemoRange @onInput={onSliderInput} />
                 <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={querySize}>
                     Query Size
                 </button>
