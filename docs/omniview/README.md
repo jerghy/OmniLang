@@ -45,6 +45,7 @@ OmniView 是 OmniLang 语言的 UI 框架层，用于构建响应式 Web 应用�
 | [13-项目结构与模块](13-project-structure.md) | 文件组织、`import`/`export`、`pub` 可见性、模块系统 |
 | [16-表单与异步数据](16-forms-and-async-data.md) | `@form` 表单语义（字段校验/错误显式渲染/提交门禁）、`@load` 数据三态（loading/error/data/retry） |
 | [17-反馈与模态](17-feedback-and-modality.md) | `@modal` 模态对话框、`showToast` 命令式通知、`@skeleton` 加载占位、`@errorBoundary` 渲染降级 |
+| [18-导航与路由](18-navigation-and-routing.md) | `@route` 页面声明、`@layout` 嵌套布局、`@query` 查询参数、`navigate`/`back` 页面跳转、三目标路由表映射 |
 
 ### 第五部分：语法规范（面向工具开发者）
 
