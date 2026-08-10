@@ -120,13 +120,14 @@ pub(super) fn emit_router_js(
         }
     }
 
-    // Guard presence check: the guard must be a component fn or a public
-    // module fn — otherwise the emitted identifier would be undefined at
-    // runtime. Missing guards degrade to `null` with an honest warning.
+    // Guard presence check: the guard must be a fn of the routed component
+    // itself — the emitted table references `{Comp}_{guard}` (component fns are
+    // IIFE-local hoisted declarations); a module-level fn would emit an
+    // identifier that does not exist (V9 already rejects module-level guards).
+    // Missing guards degrade to `null` with an honest warning.
     for r in &mut routed {
         if let Some(g) = r.guard.clone() {
-            let exists = r.comp.fns.iter().any(|f| f.name == g)
-                || ir.all_functions().iter().any(|f| f.name == g);
+            let exists = r.comp.fns.iter().any(|f| f.name == g);
             if !exists {
                 warnings.push(format!(
                     "OmniView: 路由 `{}` 的守卫 fn `{g}` 未定义——守卫降级为 null（不拦截）",
@@ -332,7 +333,10 @@ const __omni_apply = () => {
   }
   for (let i = 0; i < __omni_routes.length; i++) {
     const e = __omni_routes[i];
-    if (e.isLayout) continue;
+    // NOTE: layout containers must participate in this loop — they are emitted
+    // `style="display:none"` like every route container, and this loop is the
+    // only display switch. `chain.indexOf(e.pattern)` covers layouts: layouts
+    // in the matched chain get `display:""`, others stay hidden.
     const el = document.querySelector('[data-omni-route="' + e.pattern + '"]');
     if (!el) continue;
     el.style.display = chain.indexOf(e.pattern) >= 0 ? "" : "none";

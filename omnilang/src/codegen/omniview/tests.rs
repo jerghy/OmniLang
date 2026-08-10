@@ -3889,6 +3889,21 @@ fn test_omniview_nested_layout_render() {
         "slot appendChild missing. JS:\n{}",
         js
     );
+    // 回归断言（评审 Important #1）：布局容器必须参与 display 切换循环——
+    // 布局容器与普通路由页同样以 `display:none` 发射，而该循环是全 runtime
+    // 唯一显示开关；`chain.indexOf(e.pattern) >= 0` 已正确覆盖布局
+    // （命中链 → ""，未命中 → none），循环不得跳过 isLayout 条目，
+    // 否则布局 chrome + slot 子页整体永久不可见。
+    assert!(
+        js.contains("el.style.display = chain.indexOf(e.pattern) >= 0 ? \"\" : \"none\";"),
+        "display toggle must switch layout containers via pattern chain. JS:\n{}",
+        js
+    );
+    assert!(
+        !js.contains("if (e.isLayout) continue;"),
+        "display loop must not skip layout containers. JS:\n{}",
+        js
+    );
     // 视图：布局与子页面均为隐藏路由容器，布局含真实 <slot>
     assert!(
         output.html.contains("data-omni-route=\"/admin\"")
