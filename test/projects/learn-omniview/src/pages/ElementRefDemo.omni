@@ -100,30 +100,42 @@ component ElementRefDemo {
     signal sliderTransition: String = "";
     signal sliderSeq: i32 = 0;
 
-    // ── 电脑触控板手势 → 显示区增量控制 ──
+    // ── 电脑触控板手势 → 显示区增量控制（滑动 + 两指缩放） ──
     // 左边区域是纯事件接收区：电脑物理触控板双指滑动（或鼠标滚轮）在
-    // 浏览器产生 wheel 事件，deltaX/deltaY 即手势增量——手指/滚轮滑动
-    // N 像素，右侧元素同方向移动 N 像素。preventDefault 阻止页面滚动
-    // （触控板手势只驱动元素）；deltaMode=1（行模式，部分系统）换算像素。
+    // 浏览器产生 wheel 事件，deltaX/deltaY 即手势增量——滑动 N 像素，
+    // 右侧元素同方向移动 N 像素。两指捏合缩放：浏览器映射为 Ctrl+wheel
+    // （ctrlKey=true，deltaY 为缩放增量，Chrome 标准行为）——deltaY>0
+    // 捏合缩小、deltaY<0 张开放大。preventDefault 阻止页面滚动/缩放；
+    // deltaMode=1（行模式）换算像素。
     signal stageX: f64 = 100;               // 显示区元素位置（px，中心起始）
     signal stageY: f64 = 60;
+    signal stageScale: f64 = 1;             // 两指缩放倍率（clamp 0.5-2.5）
     signal padDeltaX: f64 = 0;              // 累计手势增量（显示用）
     signal padDeltaY: f64 = 0;
-    computed stageTransform: String = "translate(" + stageX.to_string() + "px, " + stageY.to_string() + "px)";
+    computed stageTransform: String = "translate(" + stageX.to_string() + "px, " + stageY.to_string() + "px) scale(" + stageScale.to_string() + ")";
 
     fn onPadWheel(e) {
         e.preventDefault();
         let scale = if e.deltaMode == 1 { 16.0 } else { 1.0 };
-        let dx = e.deltaX * scale;
-        let dy = e.deltaY * scale;
-        padDeltaX = padDeltaX + dx;
-        padDeltaY = padDeltaY + dy;
-        stageX = stageX + dx;
-        stageY = stageY + dy;
-        if stageX < 0 { stageX = 0; }
-        if stageX > 200 { stageX = 200; }
-        if stageY < 0 { stageY = 0; }
-        if stageY > 120 { stageY = 120; }
+        // 两指捏合（Ctrl+wheel）：缩放增量驱动倍率
+        if e.ctrl {
+            let zoom = 1 - e.deltaY / 200;
+            stageScale = stageScale * zoom;
+            if stageScale < 0.5 { stageScale = 0.5; }
+            if stageScale > 2.5 { stageScale = 2.5; }
+        } else {
+            // 双指滑动 / 滚轮：位移增量
+            let dx = e.deltaX * scale;
+            let dy = e.deltaY * scale;
+            padDeltaX = padDeltaX + dx;
+            padDeltaY = padDeltaY + dy;
+            stageX = stageX + dx;
+            stageY = stageY + dy;
+            if stageX < 0 { stageX = 0; }
+            if stageX > 200 { stageX = 200; }
+            if stageY < 0 { stageY = 0; }
+            if stageY > 120 { stageY = 120; }
+        }
     }
 
     action onSliderInput() async {
@@ -557,8 +569,8 @@ component ElementRefDemo {
             <h4 class: LearnDesign.SectionTitle>触控板手势 → 显示区联动 (wheel delta 增量)</h4>
             <p class: LearnDesign.Hint>
                 直接用电脑物理触控板：在左侧区域上方双指滑动（或鼠标滚轮），
-                wheel 事件的 deltaX/deltaY 增量驱动右侧元素同方向移动——
-                元素从显示区中心起始，clamp 在区内。
+                deltaX/deltaY 增量驱动右侧元素同方向移动；双指捏合（Ctrl+wheel
+                映射）缩放元素倍率。元素从显示区中心起始，clamp 在区内。
             </p>
             <div class: PadDemo>
                 <div
@@ -573,7 +585,7 @@ component ElementRefDemo {
                 </div>
             </div>
             <p class: SizeStatus>
-                Δ ({padDeltaX}, {padDeltaY}) · 元素位置 {stageTransform}
+                Δ ({padDeltaX}, {padDeltaY}) · 缩放 ×{stageScale} · {stageTransform}
             </p>
 
             <!-- ═══ 多 ref 联动 ═══ -->
