@@ -817,10 +817,37 @@ impl OmniViewGenerator {
     // Style → CSS
     // ══════════════════════════════════════════════════════
 
+    /// Resolve `token(name)` references in a CSS value to `var(--name)`.
+    ///
+    /// Component style blocks lower `token(x)` as a plain ident string
+    /// (only design-block classes get token-ref resolution at lowering
+    /// time); without this pass the raw `token(...)` leaks into the CSS
+    /// and the declaration is dead. Replaces every occurrence, including
+    /// values embedded in lists (`1px solid token(primary)`).
+    fn resolve_token_refs(&self, value: &str) -> String {
+        if !value.contains("token(") {
+            return value.to_string();
+        }
+        let mut out = String::with_capacity(value.len());
+        let mut rest = value;
+        while let Some(start) = rest.find("token(") {
+            out.push_str(&rest[..start]);
+            let after = &rest[start + "token(".len()..];
+            let end = after.find(')').unwrap_or(after.len());
+            let name = after[..end].trim();
+            out.push_str("var(--");
+            out.push_str(name);
+            out.push(')');
+            rest = &after[end + 1..];
+        }
+        out.push_str(rest);
+        out
+    }
+
     pub(super) fn expr_to_css(&self, expr: &ExprIR) -> String {
         match expr {
             ExprIR::LiteralExpr { value } => match value {
-                serde_json::Value::String(s) => sanitize_css_value(s),
+                serde_json::Value::String(s) => self.resolve_token_refs(&sanitize_css_value(s)),
                 // Emit number as-is; dimensions carry their unit as strings from IR.
                 // Strip trailing ".0" from integer-valued floats (serde_json stores as f64).
                 serde_json::Value::Number(n) => {

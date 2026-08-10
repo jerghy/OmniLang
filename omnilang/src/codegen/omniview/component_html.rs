@@ -311,7 +311,8 @@ impl OmniViewGenerator {
                 if self.scope.in_for_template && !el.events.is_empty() {
                     let parent_comp = self.scope.current_component.clone();
                     for (event_name, handler) in &el.events {
-                        let js_event = map_event(event_name);
+                        // 组件实例事件经 CustomEvent('change') 传播——change 不合并进 input。
+                        let js_event = map_event(event_name, &el.tag, true);
                         if let EventHandlerIR::FnRef { r#ref, .. } = handler {
                             let fn_key = format!("{}_{}", parent_comp, r#ref);
                             let _ = write!(emit_attrs, " data-emit-{}=\"fn:{}\"", js_event, fn_key);
@@ -368,7 +369,8 @@ impl OmniViewGenerator {
 
                     // Emit event bindings for the component element
                     for (event_name, handler) in &el.events {
-                        let js_event = map_event(event_name);
+                        // 组件实例事件经 CustomEvent('change') 传播——change 不合并进 input。
+                        let js_event = map_event(event_name, &el.tag, true);
                         let pd = if handler.needs_prevent_default() || js_event == "submit" {
                             " e.preventDefault();"
                         } else {

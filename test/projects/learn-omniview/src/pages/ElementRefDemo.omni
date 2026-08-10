@@ -102,7 +102,9 @@ component ElementRefDemo {
     // 绑定自动驱动元素滚动；.scrollBy(0, 100) 增量滚动与 .scrollTo(0, y)
     // 定点跳转保持命令式（与绑定互补）。
     fn scrollToTop() {
-        scrollTarget = 0;
+        // 命令式跳转（scrollTarget 已是 0 时响应式绑定不重触发——
+        // 信号值未变 effect 不运行，命令式 scrollBy 造成的偏移无法复位）
+        scrollArea.scrollTo(0, 0);
         scrollPos = "top";
     }
     fn scrollToBottom() {

@@ -16,6 +16,14 @@ component Modal {
     signal isHovering: bool = false;
     signal lastAction: String = "";
 
+    // 打开时聚焦 overlay：Escape 的 @onKeyDown 需要焦点元素才能接收
+    // keydown——不聚焦则用户按 Escape 无效（keydown 只发给焦点元素）。
+    ref overlayEl: HtmlElement;
+    @effect(isOpen) {
+        let _ = isOpen;
+        if isOpen { overlayEl.focus(); }
+    }
+
     fn open() { isOpen = true; lastAction = "opened"; }
     fn close() { isOpen = false; lastAction = "closed"; }
     fn handleKeyDown(e) { if e.key == "Escape" { close() } }
@@ -36,6 +44,7 @@ component Modal {
                 <div
                     class: { Overlay: true }
                     tabindex="0"
+                    @ref={overlayEl}
                     @onKeyDown={handleKeyDown}
                     @onPress={handleOverlayClick}
                 >

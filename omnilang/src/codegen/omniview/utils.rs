@@ -32,10 +32,18 @@ pub(super) fn map_tag(tag: &str) -> String {
 /// DOM event. The only backend-specific rule left here is the documented
 /// merge of `change` into the `input` DOM event (per-keystroke semantics,
 /// matching React's onChange shim for text fields).
-pub(crate) fn map_event(name: &str) -> String {
+///
+/// `tag` 为归一化后的 HTML 标签（map_tag 结果，如 "select"）；`is_component`
+/// 表示目标是否为组件实例元素。两个例外保留 `change`：
+/// - `<select>`：其 input 事件先于 bind:value 写回用的 change 触发，handler
+///   绑定 input 会读到写回前的旧信号值；
+/// - 组件实例：emit 侧 dispatch 名 = 去 on 前缀（CustomEvent('change')），
+///   监听 input 永不匹配（组件级 onChange 静默失效）。
+pub(crate) fn map_event(name: &str, tag: &str, is_component: bool) -> String {
     match crate::codegen::shared::event::canonical_event_name(name) {
         // The DOM event is `dblclick` — naive on-prefix lowering gives
         // `doubleclick`, which never fires (historical drift bug).
+        Some("change") if tag == "select" || is_component => "change".into(),
         Some("change") => "input".into(),
         Some(canonical) => canonical.to_string(),
         None if name.starts_with("on") => name[2..].to_lowercase(),

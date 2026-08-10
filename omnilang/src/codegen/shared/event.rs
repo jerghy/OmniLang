@@ -86,7 +86,7 @@ mod tests {
             #[cfg(feature = "codegen-omniview")]
             {
                 let outputs: std::collections::BTreeSet<String> =
-                    spellings.iter().map(|s| map_event(s)).collect();
+                    spellings.iter().map(|s| map_event(s, "", false)).collect();
                 assert_eq!(
                     outputs.len(),
                     1,

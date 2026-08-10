@@ -41,7 +41,7 @@ impl OmniViewGenerator {
                 self.warnings.push(w);
                 continue;
             }
-            let js_event = map_event(event_name);
+            let js_event = map_event(event_name, &html_tag, false);
             if self.scope.in_for_template {
                 // Inside @for template: emit data-event-* attributes for delegation.
                 // The @for container gets a single delegated listener that reads these.
