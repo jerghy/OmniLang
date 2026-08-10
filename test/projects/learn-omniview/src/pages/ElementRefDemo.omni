@@ -100,33 +100,50 @@ component ElementRefDemo {
     signal sliderTransition: String = "";
     signal sliderSeq: i32 = 0;
 
-    // ── 触控板 → 显示区联动 ──
-    // 左侧触控板按住滑动：pointer 事件的 x/y 是元素局部坐标
-    // （offsetX/offsetY，见 field_extract_js），归一化到 0-1 后经
-    // style 绑定驱动右侧显示区元素 transform（直写通道实时跟随）。
-    signal padX: f64 = 0.5;                 // 归一化 0-1（初始居中）
-    signal padY: f64 = 0.5;
-    signal padActive: bool = false;
-    computed padXPercent: String = (padX * 100).to_string() + "%";
-    computed padYPercent: String = (padY * 100).to_string() + "%";
-    computed stageX: f64 = padX * 200;      // 显示区元素位移范围（px）
-    computed stageY: f64 = padY * 120;
+    // ── 触控板手势 → 显示区增量控制 ──
+    // 真实触控板语义：手指按下后滑动是增量手势（delta 累积），不是指针
+    // 位置映射——手指在触控板上滑 N 像素，右侧元素向同方向移动 N 像素。
+    // 元素从显示区中心起始，clamp 在区内；move 处理器只做增量运算
+    // （不调用 measure，无强制 layout，高频直写零开销）。
+    signal stageX: f64 = 100;               // 显示区元素位置（px，中心起始）
+    signal stageY: f64 = 60;
+    signal padDragging: bool = false;
+    signal padDX: f64 = 0;                  // 手势累计位移（相对按下点）
+    signal padDY: f64 = 0;
+    signal padDownX: f64 = 110;             // 按下点（触控板局部 px）
+    signal padDownY: f64 = 75;
+    signal lastClientX: f64 = 0;            // 增量计算的上一指针位置
+    signal lastClientY: f64 = 0;
     computed stageTransform: String = "translate(" + stageX.to_string() + "px, " + stageY.to_string() + "px)";
+    computed padDotLeft: String = (padDownX + padDX).to_string() + "px";
+    computed padDotTop: String = (padDownY + padDY).to_string() + "px";
 
-    fn onPadDown() { padActive = true; }
-    fn onPadUp() { padActive = false; }
-    fn onPadMove(e) {
-        // 视口坐标 + measure() 换算元素局部位置（offsetX 在部分触摸实现
-        // 下不可靠——clientX/clientY 全设备可用）
+    fn onPadDown(e) {
+        padDragging = true;
+        padDX = 0;
+        padDY = 0;
+        lastClientX = e.clientX;
+        lastClientY = e.clientY;
         let rect = padBoard.measure();
-        let mut nx = (e.clientX - rect.x) / rect.width;
-        let mut ny = (e.clientY - rect.y) / rect.height;
-        if nx < 0 { nx = 0; }
-        if nx > 1 { nx = 1; }
-        if ny < 0 { ny = 0; }
-        if ny > 1 { ny = 1; }
-        padX = nx;
-        padY = ny;
+        padDownX = e.clientX - rect.x;
+        padDownY = e.clientY - rect.y;
+    }
+    fn onPadUp() { padDragging = false; }
+    fn onPadMove(e) {
+        if padDragging {
+            let dx = e.clientX - lastClientX;
+            let dy = e.clientY - lastClientY;
+            lastClientX = e.clientX;
+            lastClientY = e.clientY;
+            padDX = padDX + dx;
+            padDY = padDY + dy;
+            stageX = stageX + dx;
+            stageY = stageY + dy;
+            if stageX < 0 { stageX = 0; }
+            if stageX > 200 { stageX = 200; }
+            if stageY < 0 { stageY = 0; }
+            if stageY > 120 { stageY = 120; }
+        }
     }
 
     action onSliderInput() async {
@@ -556,13 +573,12 @@ component ElementRefDemo {
                 Radius: {boxRadiusPx} · Opacity: {boxOpacityNum}% · FontSize: {boxFontPx} · Letter: {boxLetterPx} · Padding: {boxPadPx} · Color: {boxBgCss}
             </p>
 
-            <!-- ═══ 触控板 → 显示区联动 ═══ -->
-            <h4 class: LearnDesign.SectionTitle>触控板操控 → 显示区联动 (pointer + style 绑定)</h4>
+            <!-- ═══ 触控板手势 → 显示区联动 ═══ -->
+            <h4 class: LearnDesign.SectionTitle>触控板手势 → 显示区联动 (增量滑动)</h4>
             <p class: LearnDesign.Hint>
-                左侧触控板按住滑动：pointer 事件的 clientX/clientY 视口坐标经
-                padBoard.measure() 换算元素局部位置（跨设备可靠），归一化后经
-                style 绑定驱动右侧显示区元素 transform——直写通道实时跟随，
-                触控板上的指示点同步位置。
+                左侧触控板按住并滑动：增量手势（手指滑 N 像素，右侧元素同方向
+                移动 N 像素）——真实触控板语义，非指针位置映射。元素从显示区
+                中心起始，clamp 在区内；触控板上的指示点显示手势位移（相对按下点）。
             </p>
             <div class: PadDemo>
                 <div
@@ -573,7 +589,7 @@ component ElementRefDemo {
                     @onPointerUp={onPadUp}
                     @onPointerCancel={onPadUp}
                 >
-                    <span class: PadDot style: { left: padXPercent, top: padYPercent }></span>
+                    <span class: PadDot style: { left: padDotLeft, top: padDotTop }></span>
                     <p class: PadHint>触控板（按住滑动）</p>
                 </div>
                 <div class: PadStage>
@@ -581,7 +597,7 @@ component ElementRefDemo {
                 </div>
             </div>
             <p class: SizeStatus>
-                Pad: ({padX}, {padY}){if padActive { " · 拖动中" } else { "" }} · Stage: {stageTransform}
+                {if padDragging { "手势滑动中 · " } else { "" }}位移 ({padDX}, {padDY}) · 元素位置 {stageTransform}
             </p>
 
             <!-- ═══ 多 ref 联动 ═══ -->
