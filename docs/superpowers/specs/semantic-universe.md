@@ -515,24 +515,24 @@ CSS 动画语义域——**属性值从 A 到 B 平滑过渡**（CSS Transitions
 
 | 语义集条目 | 语义 | 实现状态 | 诊断行为 |
 |-----------|------|---------|---------|
-| @route 页面声明 | 组件声明为路由页面（路径 + 参数段） | 未支持（2026-08-10 批次 2 实施） | V1-V6（位置/路径/重复/参数段语法）硬错误 |
-| 路径参数 prop 注入 | `:id` 段注入为 String prop | 未支持（2026-08-10 批次 2 实施） | V7（同名类型冲突）硬错误 |
-| @query 查询参数 | 声明查询参数注入 prop | 未支持（2026-08-10 批次 2 实施） | V8（与路径参数同名）硬错误 |
-| guard 守卫 | 布尔条件 + 重定向目标 | 未支持（2026-08-10 批次 2 实施） | V9/V11（引用校验/配对）硬错误 |
-| @layout 嵌套布局 | 布局组件 + @slot 子页面出口 | 未支持（2026-08-10 批次 2 实施） | V3/V10（互斥/无出口）硬错误 |
-| navigate 内建函数 | 应用内跳转（params/query） | 未支持（2026-08-10 批次 2 实施） | V12/W1/W2（路径形态/静态校验） |
-| back 内建函数 | 返回上一页 | 未支持（2026-08-10 批次 2 实施） | V13（保留名）硬错误 |
-| lazy 懒加载 | 页面按需加载（编译器职责优先） | 未支持（2026-08-10 批次 2 实施） | 无（属性扩展点） |
+| @route 页面声明 | 组件声明为路由页面（路径 + 参数段） | 支持（V1/V2/V5 解析期 + V3/V4/V6 语义期，三目标接线） | V1（组件顶级限定）/V2（路径非 `/` 开头）/V5（参数段非法）解析期硬错误；V3（与 @layout 互斥）/V4（重复声明点名双路径）/V6（参数段重名）语义期硬错误 |
+| 路径参数 prop 注入 | `:id` 段注入为 String prop | 支持（V7 校验 + 三目标 codegen） | V7（注入参数名与显式 prop/signal/event/fn 同名且类型不兼容）硬错误 |
+| @query 查询参数 | 声明查询参数注入 prop | 支持（V8 校验 + 三目标 codegen） | V8（与路径参数同名）硬错误 |
+| guard 守卫 | 布尔条件 + 重定向目标 | 支持（V9/V11 校验 + 三目标接线） | V9（fn 引用存在性 + `() -> Bool` 签名）/V11（`redirect:` 与 `guard:` 配对）硬错误 |
+| @layout 嵌套布局 | 布局组件 + @slot 子页面出口 | 支持（V3/V10 校验 + 三目标接线） | V3（与 @route 互斥）/V10（视图含 `<@slot/>` 出口）硬错误 |
+| navigate 内建函数 | 应用内跳转（params/query） | 支持（V12/W1 语义期 + V14/W2 注册表 + 三目标接线） | V12（首参须字面量且非 `/` 开头）硬错误；W1（动态首参）警告；W2（未注册路径）跨文件注册表警告 |
+| back 内建函数 | 返回上一页 | 支持（V13 校验 + 三目标接线） | V13（组件成员名与保留名 navigate/back 冲突）硬错误 |
+| lazy 懒加载 | 页面按需加载（编译器职责优先） | 支持（React Suspense.lazy 发射；Flutter 移动端 no-op + 注记） | 无（属性扩展点）——Flutter 移动端降级注记（spec §7 层 5 floor 差异） |
 
 ### 已实现白名单
 
-| 条目 | 编译器事实源（预期锚点） |
+| 条目 | 编译器事实源 |
 |------|-------------|
-| @route/@layout/@query 解析 | `crates/omnilang-core/src/parser/top_level/route.rs`（新） |
-| guard/lazy/redirect 校验 | `crates/omnilang-core/src/ir/lower/route.rs`（新）+ V1-V13 校验位 |
-| navigate/back 语义函数 | `crates/omnilang-core/src/parser/expr/`（内建调用登记） |
-| React 路由接线 | `omnilang/src/codegen/react/router.rs`（新：createBrowserRouter/loader/Suspense 发射） |
-| Flutter GoRouter 接线 | `omnilang/src/codegen/flutter/router.rs`（新：GoRoute/redirect/ShellRoute 发射） |
-| OmniView hash 路由 | `omnilang/src/codegen/omniview/router.rs`（新：hashchange/守卫/嵌套渲染） |
+| @route/@layout/@query 解析 | `crates/omnilang-core/src/parser/top_level/route.rs`：`parse_route_decl`（:19）/`parse_layout_decl`（:114）/`parse_query_decl`（:154）/`parse_path_params`（:188） |
+| guard/lazy/redirect 校验 | `crates/omnilang-core/src/semantic/validate_route_navigation.rs`：`ROUTE_VALIDATE_RULES`（:30，V3-V13+W1）+ `validate_route_navigation`（:41）；跨文件注册表 `crates/omnilang-core/src/validate.rs` Phase 5（V14/W2） |
+| navigate/back 语义函数 | `crates/omnilang-core/src/parser/expr/mod.rs`：`BUILTIN_FUNCTIONS`（:32，`"navigate"`/`"back"` 登记）+ `NAVIGATE_RESERVED`（validate_route_navigation.rs:35，V13 冲突集） |
+| React 路由接线 | `omnilang/src/codegen/react/router.rs`：`createBrowserRouter`（:351 发射）/`lazy_for`（:573 Suspense.lazy） |
+| Flutter GoRouter 接线 | `omnilang/src/codegen/flutter/router.rs`：`GoRoute`/redirect/ShellRoute 发射；移动端懒加载 no-op 注记（:329-331） |
+| OmniView hash 路由 | `omnilang/src/codegen/omniview/router.rs`：`__omni_routes`（:152 嵌套渲染）/hashchange 监听（:237） |
 
-> 注：域 11 语法未落地（批次 2 实施中，2026-08-10 登记先行）——白名单锚点为预期事实源，锚点文件建成后由批次 2 Task 9 回填「支持」并加入编译器代码锚点断言；全工程 @route 注册表为编译器 import 图遍历（跨文件收集，支撑 W2）。
+> 注：域 11 语法已落地（批次 2 Task 2-8，2026-08-09/10）——交叉断言两层：语义集条目实现状态断言（8 条目全部「支持」）+ 编译器代码锚点账本断言（见 verify-semantic-universe.py 域 11 断言，对照域 8/9 锚点模式）；navigate/back 保留名与既有保留名表无重（showToast/formErrors/formValid/formSubmitting/loading/error/data/retry）；全工程 @route 注册表为编译器 import 图遍历（跨文件收集，支撑 V14/W2）。

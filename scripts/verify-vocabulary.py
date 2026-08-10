@@ -72,6 +72,13 @@ BNF_SPEC_FILE = os.path.join(
 VALIDATE_FORM_FILE = os.path.join(
     REPO_ROOT, "crates", "omnilang-core", "src", "semantic", "validate_form_load.rs"
 )
+# 2026-08-11 Task 9（批次 2 导航路由）：域 7 导航词汇锚点文件——解析器
+# （parser/top_level/route.rs，@route/@layout/@query 语法 + V2/V5 校验）+ 内建
+# 函数登记（parser/expr/mod.rs BUILTIN_FUNCTIONS 内含 navigate/back）。
+ROUTE_PARSER_FILE = os.path.join(
+    REPO_ROOT, "crates", "omnilang-core", "src", "parser", "top_level", "route.rs"
+)
+EXPR_MOD_FILE = os.path.join(REPO_ROOT, "crates", "omnilang-core", "src", "parser", "expr", "mod.rs")
 
 # ── registry section contract ────────────────────────────────────────────
 # Domain titles must contain the expected keyword (in order 1..6).
@@ -490,6 +497,49 @@ def audit():
                 overlap = sorted(set(v7) & set(p[0] for p in pairs))
                 if overlap:
                     fail(f"domain 7 (导航): 排除词汇 overlaps 语义词汇 (借词违规): {overlap}")
+            # 词汇锚点断言（Task 9, 照 bnf_doc_subset 先例 :324——「文档 ⊆ 代码」
+            # 存在性检查）：域 7 是机制级词汇（无词法级白名单常量），@ 前缀词
+            # 无法用引号词正则提取，改为对编译器事实源做关键符号 grep。锚点文件 =
+            # parser/top_level/route.rs（@route/@layout/@query 语法 + V2/V5 校验）
+            # + parser/expr/mod.rs（BUILTIN_FUNCTIONS 登记 navigate/back）。
+            route_parser_src = read_file(ROUTE_PARSER_FILE)
+            expr_src = read_file(EXPR_MOD_FILE)
+            for vocab_word, haystack, needles in (
+                ("@route", route_parser_src, ["parse_route_decl"]),
+                ("@layout", route_parser_src, ["parse_layout_decl"]),
+                ("@query", route_parser_src, ["parse_query_decl"]),
+                ("navigate", expr_src, ['"navigate"']),
+                ("back", expr_src, ['"back"']),
+            ):
+                for needle in needles:
+                    if needle not in haystack:
+                        fail(f"domain 7 (导航): 词汇 '{vocab_word}' 编译器锚点 '{needle}' 缺失")
+
+    # 导航排除词汇全局禁借断言（Task 9 测试点）：域 7 的 15 个目标端词
+    # （path/route/Routes/GoRoute/Outlet/ShellRoute/Layout/query/searchParams/push/
+    # go/useNavigate/Navigate/pop/back()）不得成为任何域的语义词汇——域 1-6 由上方
+    # 通用 loop 承担（域内自查）、域 7/10 有局部断言，此处做跨域强化（遍历全部登记
+    # 域）。排除词汇集合自维护：直接从域 7 排除词汇表（pairs）提取而非硬编码，
+    # 但下方仍显式断言 15 词闭集以防登记回退。
+    if 7 in sections and pairs is not None:
+        nav_excluded = {word for word, owner in pairs}
+        expected_excluded = {"path", "route", "Routes", "GoRoute", "Outlet", "ShellRoute",
+                             "Layout", "query", "searchParams", "push", "go",
+                             "useNavigate", "Navigate", "pop", "back()"}
+        if nav_excluded != expected_excluded:
+            fail(
+                f"domain 7 (导航): 排除词汇全集 ≠ Task 9 登记 15 词（spec §5.2）\n"
+                f"    registry-only:   {sorted(nav_excluded - expected_excluded)}\n"
+                f"    spec-only:       {sorted(expected_excluded - nav_excluded)}"
+            )
+        all_vocab = set()
+        for n in sorted(sections):
+            v = vocab(n)
+            if v is not None:
+                all_vocab |= set(v)
+        overlap = sorted(all_vocab & nav_excluded)
+        if overlap:
+            fail(f"全部域: 导航排除词汇成为语义词汇 (借词违规): {overlap}")
     return problems
 
 

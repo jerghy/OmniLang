@@ -116,6 +116,23 @@ OMNIVIEW_ELEMENT_FILE = os.path.join(
     REPO_ROOT, "omnilang", "src", "codegen", "omniview", "view", "element.rs"
 )
 OMNIVIEW_EXPR_FILE = os.path.join(REPO_ROOT, "omnilang", "src", "codegen", "omniview", "expr.rs")
+# 2026-08-11 Task 9（批次 2 导航路由全量断言）：域 11 编译器事实源锚点文件——
+# 解析器（parser/top_level/route.rs）+ IR lowering（ir/lower/route.rs）+ 内建
+# 函数登记（parser/expr/mod.rs）+ 语义验证器（semantic/validate_route_navigation.rs）
+# + 三目标 codegen（react/flutter/omniview router.rs）。锚点账本见 audit() 域 11 块。
+ROUTE_PARSER_FILE = os.path.join(
+    REPO_ROOT, "crates", "omnilang-core", "src", "parser", "top_level", "route.rs"
+)
+LOWER_ROUTE_FILE = os.path.join(
+    REPO_ROOT, "crates", "omnilang-core", "src", "ir", "lower", "route.rs"
+)
+EXPR_MOD_FILE = os.path.join(REPO_ROOT, "crates", "omnilang-core", "src", "parser", "expr", "mod.rs")
+VALIDATE_ROUTE_FILE = os.path.join(
+    REPO_ROOT, "crates", "omnilang-core", "src", "semantic", "validate_route_navigation.rs"
+)
+REACT_ROUTER_FILE = os.path.join(REPO_ROOT, "omnilang", "src", "codegen", "react", "router.rs")
+FLUTTER_ROUTER_FILE = os.path.join(REPO_ROOT, "omnilang", "src", "codegen", "flutter", "router.rs")
+OMNIVIEW_ROUTER_FILE = os.path.join(REPO_ROOT, "omnilang", "src", "codegen", "omniview", "router.rs")
 
 # ── universe section contract ─────────────────────────────────────────────
 # Domain titles must contain the expected keyword (in order 1..9).
@@ -784,11 +801,15 @@ def audit():
 
     # navigation (域 11, 2026-08-10 批次 2 Task 1 登记 → Task 9 回填): 机制级条目
     # （组件级指令 @route/@layout/@query + 内建函数 navigate/back + 路径参数注入/
-    # guard/lazy——无词法级白名单常量；语法未落地故全部「未支持」）。本任务只做
-    # 条目存在性断言（8 条，照域 10 ①层先例）；白名单锚点断言（存在性 + 编译器
-    # 代码锚点）在批次 2 Task 9 加入——锚点文件 parser/top_level/route.rs 等届时
-    # 才存在，通用结构断言已校验状态列值（未支持 ∈ STATUSES）与四子节。
-    en11 = entries(11)
+    # guard/lazy——无词法级白名单常量，语法已随批次 2 Task 2-8 落地）。本任务断言
+    # 两层（照域 8/9 锚点账本先例 + 域 10 ①层存在性先例）：① 语义集条目 8 行存在
+    # + 实现状态 = 支持 + 已实现白名单 6 行存在；② 「支持/部分」条目逐项编译器
+    # 代码锚点账本——解析器（parse_route_decl/parse_layout_decl/parse_query_decl/
+    # parse_path_params）、IR lowering（collect_route_intent/collect_layout_intent/
+    # collect_query_params）、内建函数登记（BUILTIN_FUNCTIONS 内 navigate/back）、
+    # 语义验证器（ROUTE_VALIDATE_RULES/NAVIGATE_RESERVED）、三目标 codegen
+    # （createBrowserRouter/lazy_for、GoRoute、__omni_routes）。
+    wl11, en11 = whitelist(11), entries(11)
     if en11 is None:
         fail("导航: cannot cross-assert 语义集条目 (extraction failed)")
     else:
@@ -797,8 +818,60 @@ def audit():
                      "@layout 嵌套布局", "navigate 内建函数", "back 内建函数", "lazy 懒加载"):
             if name not in en11_map:
                 fail(f"导航: 缺失语义集条目 '{name}'")
-        if any(s.split("（", 1)[0].strip() != "未支持" for s in en11_map.values()):
-            fail("导航: 批次 2 登记阶段全部条目实现状态必须 = 未支持（Task 9 回填前）")
+            elif en11_map[name].split("（", 1)[0].strip() != "支持":
+                fail(f"导航: '{name}' 实现状态应 = 支持（批次 2 已落地），got '{en11_map[name]}'")
+        # 保留名无重断言（Task 9 测试点 test_registry_no_reserved_name_collision）：
+        # navigate/back（V13 保留名）∩ 既有编译器保留名 = ∅。既有保留名事实源 =
+        # 内建语义函数 showToast（validate_feedback_modal.rs V8 保留名判定）+ 表单
+        # 数据三态内建信号（formErrors/formValid/formSubmitting/loading/error/data/
+        # retry，V-F8 @form/@load 保留名判定）。
+        existing_reserved = {"showToast", "formErrors", "formValid", "formSubmitting",
+                             "loading", "error", "data", "retry"}
+        nav_reserved = {"navigate", "back"}
+        overlap = sorted(nav_reserved & existing_reserved)
+        if overlap:
+            fail(f"导航: 保留名 navigate/back 与既有保留名表冲突: {overlap}")
+        # 锚点账本（②层）：「支持/部分」条目 → 编译器事实源代码锚点（照域 8/9
+        # needle-ledger 模式——针在 haystack 中的存在性检查）。
+        route_parser_src = read_file(ROUTE_PARSER_FILE)
+        lower_route_src = read_file(LOWER_ROUTE_FILE)
+        expr_src = read_file(EXPR_MOD_FILE)
+        validate_route_src = read_file(VALIDATE_ROUTE_FILE)
+        react_router_src = read_file(REACT_ROUTER_FILE)
+        flutter_router_src = read_file(FLUTTER_ROUTER_FILE)
+        omniview_router_src = read_file(OMNIVIEW_ROUTER_FILE)
+        for name, needles in (
+            ("@route 页面声明", [("parse_route_decl", route_parser_src),
+                                 ("collect_route_intent", lower_route_src)]),
+            ("路径参数 prop 注入", [("parse_path_params", route_parser_src),
+                                    ("params", lower_route_src)]),
+            ("@query 查询参数", [("parse_query_decl", route_parser_src),
+                                 ("collect_query_params", lower_route_src)]),
+            ("guard 守卫", [("guard", route_parser_src),
+                            ("ROUTE_VALIDATE_RULES", validate_route_src)]),
+            ("@layout 嵌套布局", [("parse_layout_decl", route_parser_src),
+                                  ("collect_layout_intent", lower_route_src)]),
+            ("navigate 内建函数", [('"navigate"', expr_src),
+                                   ("createBrowserRouter", react_router_src),
+                                   ("GoRoute", flutter_router_src),
+                                   ("__omni_routes", omniview_router_src)]),
+            ("back 内建函数", [('"back"', expr_src),
+                               ("NAVIGATE_RESERVED", validate_route_src)]),
+            ("lazy 懒加载", [("lazy", route_parser_src),
+                             ("lazy_for", react_router_src)]),
+        ):
+            if en11_map.get(name) in ("支持", "部分"):
+                for needle, haystack in needles:
+                    if needle not in haystack:
+                        fail(f"导航: '{name}' 声明 {en11_map[name]} 但编译器锚点 '{needle}' 缺失")
+    if wl11 is None:
+        fail("导航: cannot cross-assert 已实现白名单 (extraction failed)")
+    else:
+        for name in ("@route/@layout/@query 解析", "guard/lazy/redirect 校验",
+                     "navigate/back 语义函数", "React 路由接线", "Flutter GoRouter 接线",
+                     "OmniView hash 路由"):
+            if name not in wl11:
+                fail(f"导航: 缺失已实现白名单行 '{name}'")
 
     return problems
 
