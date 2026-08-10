@@ -69,6 +69,17 @@ component ElementRefDemo {
     signal boxHeightNum: f64 = 80;          // 按钮驱动的 style 值（数值）
     computed boxWidthPx: String = boxWidthNum.to_string() + "px";   // 派生 px 显示串
     computed boxHeightPx: String = boxHeightNum.to_string() + "px"; // 派生 px 显示串
+    // ── 多属性样式绑定（滑块驱动，全部经 style 绑定直写通道） ──
+    signal boxRadiusNum: f64 = 12;          // 圆角
+    signal boxOpacityNum: f64 = 100;        // 透明度（滑块 0-100，computed 转 CSS 0-1）
+    signal boxFontNum: f64 = 14;            // 字号
+    signal boxLetterNum: f64 = 0;           // 字距
+    signal boxPadNum: f64 = 0;              // 内边距
+    computed boxRadiusPx: String = boxRadiusNum.to_string() + "px";
+    computed boxFontPx: String = boxFontNum.to_string() + "px";
+    computed boxLetterPx: String = boxLetterNum.to_string() + "px";
+    computed boxPadPx: String = boxPadNum.to_string() + "px";
+    computed boxOpacityCss: f64 = boxOpacityNum / 100;   // 滑块 0-100 → CSS 0-1
     signal mirrorText: String = "";
     signal selectText: String = "0123456789 全选演示文本";
     signal selectStatus: String = "—";
@@ -199,13 +210,25 @@ component ElementRefDemo {
     // OmniView el.style.setProperty 直接 DOM 写。
     // 绑定数值信号（f64）——Flutter 的 width/height 参数是 double，String
     // px 值无法映射（编译期诊断）；px 显示串由 computed 派生（boxWidthPx）。
+    // Expand / Reset：多属性同帧变化（按钮低频路径保留 300ms 过渡动画，
+    // 滑块高频路径的 transition 由 onSliderInput 拖动中禁用）。
     fn expandBox() {
-        boxWidthNum = 300;
-        boxHeightNum = 120;
+        boxWidthNum = 320;
+        boxHeightNum = 130;
+        boxRadiusNum = 32;
+        boxOpacityNum = 65;
+        boxFontNum = 20;
+        boxLetterNum = 3;
+        boxPadNum = 20;
     }
     fn resetBox() {
         boxWidthNum = 200;
         boxHeightNum = 80;
+        boxRadiusNum = 12;
+        boxOpacityNum = 100;
+        boxFontNum = 14;
+        boxLetterNum = 0;
+        boxPadNum = 0;
     }
 
     // ── 多 ref 联动（输入 → 镜像） ──
@@ -424,10 +447,18 @@ component ElementRefDemo {
             </p>
             <div class: DemoRow>
                 <div @ref={sizeBox} class: SizeBox
-                    style: { width: boxWidthNum, height: boxHeightNum, transition: sliderTransition }>
+                    style: {
+                        width: boxWidthNum,
+                        height: boxHeightNum,
+                        borderRadius: boxRadiusNum,
+                        opacity: boxOpacityCss,
+                        fontSize: boxFontNum,
+                        letterSpacing: boxLetterNum,
+                        padding: boxPadNum,
+                        transition: sliderTransition
+                    }>
                     <p>resize via style binding</p>
                 </div>
-                <input type="range" min="120" max="400" bind:value={boxWidthNum} class: DemoRange @onInput={onSliderInput} />
                 <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={querySize}>
                     Query Size
                 </button>
@@ -440,8 +471,50 @@ component ElementRefDemo {
                 <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={resetBox}>
                     Reset
                 </button>
-                <span class: StatusText>Width: {boxWidthPx} · 实测: {boxWidth}px · Height: {boxHeightPx} · 实测: {boxHeight}px</span>
             </div>
+
+            <!-- 多属性滑块：每个属性一个 range，全部经 style 绑定直写通道高频更新 -->
+            <div class: SliderGrid>
+                <div class: SliderRow>
+                    <span class: SliderLabel>Width</span>
+                    <input type="range" min="120" max="400" bind:value={boxWidthNum} class: DemoRange @onInput={onSliderInput} />
+                    <span class: SliderValue>{boxWidthPx}</span>
+                </div>
+                <div class: SliderRow>
+                    <span class: SliderLabel>Height</span>
+                    <input type="range" min="60" max="220" bind:value={boxHeightNum} class: DemoRange @onInput={onSliderInput} />
+                    <span class: SliderValue>{boxHeightPx}</span>
+                </div>
+                <div class: SliderRow>
+                    <span class: SliderLabel>Radius</span>
+                    <input type="range" min="0" max="48" bind:value={boxRadiusNum} class: DemoRange @onInput={onSliderInput} />
+                    <span class: SliderValue>{boxRadiusPx}</span>
+                </div>
+                <div class: SliderRow>
+                    <span class: SliderLabel>Opacity</span>
+                    <input type="range" min="20" max="100" bind:value={boxOpacityNum} class: DemoRange @onInput={onSliderInput} />
+                    <span class: SliderValue>{boxOpacityNum}</span>
+                </div>
+                <div class: SliderRow>
+                    <span class: SliderLabel>FontSize</span>
+                    <input type="range" min="12" max="32" bind:value={boxFontNum} class: DemoRange @onInput={onSliderInput} />
+                    <span class: SliderValue>{boxFontPx}</span>
+                </div>
+                <div class: SliderRow>
+                    <span class: SliderLabel>LetterSpacing</span>
+                    <input type="range" min="0" max="6" bind:value={boxLetterNum} class: DemoRange @onInput={onSliderInput} />
+                    <span class: SliderValue>{boxLetterPx}</span>
+                </div>
+                <div class: SliderRow>
+                    <span class: SliderLabel>Padding</span>
+                    <input type="range" min="0" max="32" bind:value={boxPadNum} class: DemoRange @onInput={onSliderInput} />
+                    <span class: SliderValue>{boxPadPx}</span>
+                </div>
+            </div>
+            <p class: SizeStatus>
+                Width: {boxWidthPx} · 实测: {boxWidth}px · Height: {boxHeightPx} · 实测: {boxHeight}px ·
+                Radius: {boxRadiusPx} · Opacity: {boxOpacityNum}% · FontSize: {boxFontPx} · Letter: {boxLetterPx} · Padding: {boxPadPx}
+            </p>
 
             <!-- ═══ 多 ref 联动 ═══ -->
             <h4 class: LearnDesign.SectionTitle>多 ref 联动 (.value)</h4>
@@ -520,6 +593,12 @@ component ElementRefDemo {
     }
 
     style {
+        .SliderGrid { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; padding: 12px; background: var(--surfaceSubtle); border-radius: 8px; }
+        .SliderRow { display: flex; align-items: center; gap: 10px; }
+        .SliderLabel { width: 96px; font-size: 12px; font-weight: 600; color: var(--textSecondary); flex: 0 0 auto; }
+        .SliderRow input[type="range"] { flex: 1; min-width: 0; }
+        .SliderValue { width: 56px; font-size: 12px; font-family: monospace; color: var(--textSecondary); text-align: right; flex: 0 0 auto; }
+        .SizeStatus { margin-top: 10px; font-size: 12px; color: var(--textSecondary); }
         .SizeBox p { font-size: var(--fontSizeXs); color: white; margin: 0; }
         .Pointerbox p { font-size: var(--fontSizeXs); color: var(--textSecondary); margin: 0; }
         .PointerCaptured p { color: white; }
