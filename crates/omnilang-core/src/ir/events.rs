@@ -88,9 +88,13 @@ pub fn event_data_schema(kind: &EventDataKind) -> Vec<EventFieldDef> {
     match kind {
         EventDataKind::PointerEvent => vec![
             // x/y = element-local coordinates (offsetX/offsetY, D1) —
-            // NOT viewport coordinates (clientX/clientY).
+            // NOT viewport coordinates (clientX/clientY). clientX/clientY
+            // 为视口坐标（部分触摸实现 offsetX 不可靠时用 measure() 换算
+            // 元素局部位置）。
             f("x", EventFieldType::Float),
             f("y", EventFieldType::Float),
+            f("clientX", EventFieldType::Float),
+            f("clientY", EventFieldType::Float),
             f("button", EventFieldType::Int),
             f("pressure", EventFieldType::Float),
             f("tiltX", EventFieldType::Float),

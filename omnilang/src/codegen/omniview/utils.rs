@@ -147,6 +147,24 @@ pub(super) fn map_binary_op(op: &BinaryOpIR) -> &str {
     }
 }
 
+/// JS 操作符优先级（数值越大越先结合）。BinaryOpExpr 生成时用
+/// expr_to_js_binary_child 按此加括号——嵌套表达式必须保持源码语义。
+#[must_use]
+pub(super) fn binary_op_precedence(op: &BinaryOpIR) -> u8 {
+    use BinaryOpIR::*;
+    match op {
+        Mul | Div | Mod => 6,
+        Add | Sub => 5,
+        Lt | Gt | LtEq | GtEq => 4,
+        Eq | Neq => 3,
+        And => 2,
+        Or => 1,
+        // ?? 在 JS 中不能与 &&/|| 无括号混用（SyntaxError）；赋值类操作符
+        // 不会出现在表达式上下文，给最低优先级保守处理。
+        NullishCoalesce | Assign | AddAssign | SubAssign | MulAssign | DivAssign | ModAssign => 0,
+    }
+}
+
 /// Convert CamelCase to kebab-case for custom element tags.
 pub(super) fn to_kebab(s: &str) -> String {
     crate::codegen::camel_to_separated(s, '-')

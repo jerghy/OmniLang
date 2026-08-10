@@ -1,4 +1,4 @@
-use super::utils::{map_binary_op, serde_value_to_js};
+use super::utils::{binary_op_precedence, map_binary_op, serde_value_to_js};
 use super::OmniViewGenerator;
 use crate::codegen::{sanitize_css_value, try_format_stdlib_call, Target};
 use crate::ir::*;
@@ -136,9 +136,14 @@ impl OmniViewGenerator {
                 }
             }
             ExprIR::BinaryOpExpr { op, left, right } => {
-                let l = self.expr_to_js(left);
-                let r = self.expr_to_js(right);
                 let js_op = map_binary_op(op);
+                let prec = binary_op_precedence(op);
+                // 括号保护：子表达式优先级低于父操作符（或右子相等——
+                // JS 左结合会改变语义，如 a - (b - c) 不能输出 a - b - c）
+                // 时必须加括号，否则嵌套表达式优先级错乱
+                // （(a - b) / c 曾编译成 a - b / c）。
+                let l = self.expr_to_js_binary_child(left, prec, false);
+                let r = self.expr_to_js_binary_child(right, prec, true);
                 format!("{} {} {}", l, js_op, r)
             }
             ExprIR::UnaryOpExpr { op, operand } => {
@@ -816,6 +821,26 @@ impl OmniViewGenerator {
     // ══════════════════════════════════════════════════════
     // Style → CSS
     // ══════════════════════════════════════════════════════
+
+    /// 二元子表达式按优先级/结合性决定是否加括号。
+    ///
+    /// - 左子：子优先级 < 父优先级 → 括号（相等时左结合一致，无需）
+    /// - 右子：子优先级 <= 父优先级 → 括号（JS 二元操作符左结合，相等
+    ///   优先级时 `a - (b - c)` 输出成 `a - b - c` 会改变语义）
+    fn expr_to_js_binary_child(&mut self, expr: &ExprIR, parent_prec: u8, is_right: bool) -> String {
+        if let ExprIR::BinaryOpExpr { op, .. } = expr {
+            let child_prec = binary_op_precedence(op);
+            let need_paren = if is_right {
+                child_prec <= parent_prec
+            } else {
+                child_prec < parent_prec
+            };
+            if need_paren {
+                return format!("({})", self.expr_to_js(expr));
+            }
+        }
+        self.expr_to_js(expr)
+    }
 
     /// Resolve `token(name)` references in a CSS value to `var(--name)`.
     ///

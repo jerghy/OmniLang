@@ -18,8 +18,12 @@ pub fn field_extract_js(kind: &EventDataKind, field: &str, raw: &str) -> (String
     match (kind, field) {
         // PointerEvent — x/y are ELEMENT-LOCAL coordinates (offsetX/offsetY,
         // D1 coordinate-basis change), not viewport (clientX/clientY).
+        // clientX/clientY：视口坐标——offsetX 在部分触摸实现下不可靠
+        // （undefined/0），需要元素局部位置时用 clientX - measure().x。
         (EventDataKind::PointerEvent, "x") => (format!("{}.offsetX", raw), "0".into()),
         (EventDataKind::PointerEvent, "y") => (format!("{}.offsetY", raw), "0".into()),
+        (EventDataKind::PointerEvent, "clientX") => (format!("{}.clientX", raw), "0".into()),
+        (EventDataKind::PointerEvent, "clientY") => (format!("{}.clientY", raw), "0".into()),
         (EventDataKind::PointerEvent, "button") => (format!("{}.button", raw), "0".into()),
         (EventDataKind::PointerEvent, "pressure") => (format!("{}.pressure", raw), "0".into()),
         (EventDataKind::PointerEvent, "tiltX") => (format!("{}.tiltX", raw), "0".into()),

@@ -56,6 +56,7 @@ component ElementRefDemo {
     ref focusSigInput: Element;
     ref pointerBox: Element;
     ref dragBox: Element;
+    ref padBoard: Element;
 
     // ── 本地信号 ──
     signal focusStatus: String = "not focused";
@@ -98,6 +99,35 @@ component ElementRefDemo {
     // 恢复（seq 计数防止旧 async 恢复抢先）。
     signal sliderTransition: String = "";
     signal sliderSeq: i32 = 0;
+
+    // ── 触控板 → 显示区联动 ──
+    // 左侧触控板按住滑动：pointer 事件的 x/y 是元素局部坐标
+    // （offsetX/offsetY，见 field_extract_js），归一化到 0-1 后经
+    // style 绑定驱动右侧显示区元素 transform（直写通道实时跟随）。
+    signal padX: f64 = 0.5;                 // 归一化 0-1（初始居中）
+    signal padY: f64 = 0.5;
+    signal padActive: bool = false;
+    computed padXPercent: String = (padX * 100).to_string() + "%";
+    computed padYPercent: String = (padY * 100).to_string() + "%";
+    computed stageX: f64 = padX * 200;      // 显示区元素位移范围（px）
+    computed stageY: f64 = padY * 120;
+    computed stageTransform: String = "translate(" + stageX.to_string() + "px, " + stageY.to_string() + "px)";
+
+    fn onPadDown() { padActive = true; }
+    fn onPadUp() { padActive = false; }
+    fn onPadMove(e) {
+        // 视口坐标 + measure() 换算元素局部位置（offsetX 在部分触摸实现
+        // 下不可靠——clientX/clientY 全设备可用）
+        let rect = padBoard.measure();
+        let mut nx = (e.clientX - rect.x) / rect.width;
+        let mut ny = (e.clientY - rect.y) / rect.height;
+        if nx < 0 { nx = 0; }
+        if nx > 1 { nx = 1; }
+        if ny < 0 { ny = 0; }
+        if ny > 1 { ny = 1; }
+        padX = nx;
+        padY = ny;
+    }
 
     action onSliderInput() async {
         sliderSeq = sliderSeq + 1;
@@ -526,6 +556,34 @@ component ElementRefDemo {
                 Radius: {boxRadiusPx} · Opacity: {boxOpacityNum}% · FontSize: {boxFontPx} · Letter: {boxLetterPx} · Padding: {boxPadPx} · Color: {boxBgCss}
             </p>
 
+            <!-- ═══ 触控板 → 显示区联动 ═══ -->
+            <h4 class: LearnDesign.SectionTitle>触控板操控 → 显示区联动 (pointer + style 绑定)</h4>
+            <p class: LearnDesign.Hint>
+                左侧触控板按住滑动：pointer 事件的 clientX/clientY 视口坐标经
+                padBoard.measure() 换算元素局部位置（跨设备可靠），归一化后经
+                style 绑定驱动右侧显示区元素 transform——直写通道实时跟随，
+                触控板上的指示点同步位置。
+            </p>
+            <div class: PadDemo>
+                <div
+                    class: PadBoard
+                    @ref={padBoard}
+                    @onPointerDown={onPadDown}
+                    @onPointerMove={onPadMove}
+                    @onPointerUp={onPadUp}
+                    @onPointerCancel={onPadUp}
+                >
+                    <span class: PadDot style: { left: padXPercent, top: padYPercent }></span>
+                    <p class: PadHint>触控板（按住滑动）</p>
+                </div>
+                <div class: PadStage>
+                    <span class: StageDot style: { transform: stageTransform }></span>
+                </div>
+            </div>
+            <p class: SizeStatus>
+                Pad: ({padX}, {padY}){if padActive { " · 拖动中" } else { "" }} · Stage: {stageTransform}
+            </p>
+
             <!-- ═══ 多 ref 联动 ═══ -->
             <h4 class: LearnDesign.SectionTitle>多 ref 联动 (.value)</h4>
             <div class: DemoRow>
@@ -612,6 +670,13 @@ component ElementRefDemo {
         // font-size: inherit——否则 p 的显式字号规则覆盖 sizeBox 的
         // inline font-size 绑定（fontSize 滑块拖动 p 文字不变）
         .SizeBox p { font-size: inherit; color: white; margin: 0; }
+        // 触控板 → 显示区联动
+        .PadDemo { display: flex; gap: 16px; margin-top: 12px; align-items: flex-start; }
+        .PadBoard { position: relative; width: 220px; height: 150px; background: var(--surfaceSubtle); border: 1px dashed var(--border); border-radius: 10px; cursor: crosshair; touch-action: none; overflow: hidden; }
+        .PadDot { position: absolute; width: 14px; height: 14px; border-radius: 50%; background: var(--primary); transform: translate(-50%, -50%); pointer-events: none; }
+        .PadHint { position: absolute; bottom: 8px; left: 0; right: 0; text-align: center; font-size: 11px; color: var(--textSecondary); margin: 0; pointer-events: none; }
+        .PadStage { position: relative; width: 260px; height: 150px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+        .StageDot { position: absolute; top: 0; left: 0; width: 36px; height: 36px; border-radius: 50%; background: var(--accent); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2); pointer-events: none; }
         .Pointerbox p { font-size: var(--fontSizeXs); color: var(--textSecondary); margin: 0; }
         .PointerCaptured p { color: white; }
         .DragBox p { font-size: var(--fontSizeXs); color: var(--textSecondary); margin: 0; }
