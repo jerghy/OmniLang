@@ -261,12 +261,18 @@ pub(super) fn gen_view_node_tsx(
             // composition check.
             if let Some(modal) = &el.modal {
                 // @modal → controlled `<dialog>` (spec §4.1 React verbatim):
-                // `open={sig}` is the single source of truth; the
-                // useLayoutEffect emitted in component/mod.rs syncs the
-                // native dialog via showModal()/close(); onCancel intercepts
-                // the native cancel event (preventDefault + controlled set)
-                // so it cannot desync the controlled state; the backdrop
-                // click is detected via `e.target === ref.current`;
+                // the useLayoutEffect emitted in component/mod.rs (showModal()
+                // /close()) is the single source of truth for the native
+                // dialog state — the JSX deliberately carries NO `open`
+                // attribute. Emitting `open={sig}` would open the dialog
+                // NON-modally first, making showModal() throw ("already open
+                // as a non-modal dialog"), and React 19 unmounts the whole
+                // root on that error; showModal() itself sets the native
+                // open attribute, so `dialog[open]` and `:modal` both match,
+                // and the layout effect runs before paint (no flash).
+                // onCancel intercepts the native cancel event (preventDefault
+                // + controlled set) so it cannot desync the controlled state;
+                // the backdrop click is detected via `e.target === ref.current`;
                 // role="dialog" / aria-modal="true" / aria-labelledby carry
                 // the dialog semantics.
                 //
@@ -301,7 +307,6 @@ pub(super) fn gen_view_node_tsx(
                     || el.children.iter().any(subtree_has_heading);
                 let mut dlg_attrs = vec![
                     format!("ref={{{}Ref}}", modal_ref),
-                    format!("open={{{}}}", modal.open_signal),
                     format!(
                         "onCancel={{(e) => {{ e.preventDefault(); {setter}(false); }}}}"
                     ),

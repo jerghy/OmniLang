@@ -164,49 +164,6 @@ fn collect_view_child_components_inner(
     }
 }
 
-/// Returns true if the view tree declares any slot (`@slot`). Consumer-side
-/// projections (slots inside a child component's children) do not count —
-/// they are content passed to another component, not declarations.
-pub(crate) fn view_has_slots(
-    node: &ViewTree,
-    component_map: &FxHashMap<&str, &ComponentIR>,
-) -> bool {
-    match node {
-        ViewTree::Slot { .. } => true,
-        ViewTree::Element(el) => {
-            if component_map.contains_key(el.tag.as_str()) && el.tag != "fragment" {
-                // Children of a component instantiation are projections.
-                false
-            } else {
-                el.children.iter().any(|c| view_has_slots(c, component_map))
-            }
-        }
-        ViewTree::Conditional(cond) => {
-            cond.branches.iter().any(|b| {
-                b.body
-                    .as_ref()
-                    .is_some_and(|v| view_has_slots(v, component_map))
-            }) || cond
-                .fallback
-                .as_ref()
-                .is_some_and(|v| view_has_slots(v, component_map))
-        }
-        ViewTree::ListRendering(list) => {
-            list.body
-                .as_ref()
-                .is_some_and(|v| view_has_slots(v, component_map))
-                || list
-                    .empty_body
-                    .as_ref()
-                    .is_some_and(|v| view_has_slots(v, component_map))
-        }
-        ViewTree::Fragment(children) => children.iter().any(|c| view_has_slots(c, component_map)),
-        ViewTree::Text(_) | ViewTree::Interpolation(_) => false,
-        #[allow(unreachable_patterns)]
-        _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
-    }
-}
-
 /// Collect slot declarations (names) from a view tree.
 /// Used to type slot props (`children` / named) in the component TS
 /// interface. Slots inside a child component's children are consumer-side
@@ -230,6 +187,37 @@ pub(crate) fn collect_view_slots(
                 return;
             }
             for child in &el.children {
+                // Directive-consumed slots never project as `{name ?? ...}`
+                // (no props emitted at the JSX call site):
+                //   · @modal — the modal arm renders ALL direct slot
+                //     fallbacks inline and skips slot children entirely;
+                //   · @errorBoundary — only the `fallback` slot is rendered
+                //     inline; OTHER named slots still project normally and
+                //     must keep collecting.
+                let consumed = match child {
+                    ViewTree::Slot { .. } if el.modal.is_some() => true,
+                    ViewTree::Slot { name: Some(n), .. }
+                        if el.error_boundary.is_some() && n == "fallback" =>
+                    {
+                        true
+                    }
+                    _ => false,
+                };
+                if consumed {
+                    // The consumed slot's OWN name never projects as a prop
+                    // (the modal / errorBoundary arms render its fallback
+                    // inline), but the fallback content is still emitted via
+                    // gen_view_node_tsx — nested @slot directives inside the
+                    // fallback project normally and their props must stay
+                    // declared, or the generated TSX references an undeclared
+                    // prop (TS2304/TS2339).
+                    if let ViewTree::Slot { fallback, .. } = child {
+                        for nested in fallback {
+                            collect_view_slots(nested, component_map, acc);
+                        }
+                    }
+                    continue;
+                }
                 collect_view_slots(child, component_map, acc);
             }
         }

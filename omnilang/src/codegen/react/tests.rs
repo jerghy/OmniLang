@@ -8595,9 +8595,11 @@ component App {
 // §4 三目标映射表 React 形态（TDD RED → GREEN）
 // ═══════════════════════════════════════════════════════════
 
-/// @modal → 受控 `<dialog>`：open={isOpen} + useLayoutEffect 同步
-/// showModal()/close() + onCancel 拦截 + 遮罩点击 + role/aria-modal/
-/// aria-labelledby（spec §4.1 React 行）。
+/// @modal → 受控 `<dialog>`：JSX 不携带 open 属性，useLayoutEffect
+/// 同步 showModal()/close() 为原生状态唯一真源 + onCancel 拦截 +
+/// 遮罩点击 + role/aria-modal/aria-labelledby（spec §4.1 React 行）。
+/// 注意：绝不可在 JSX 发射 open={sig}——先以非模态打开会使
+/// showModal() 抛错（React 19 卸载整个根）。
 #[test]
 fn react_modal_generates_controlled_dialog() {
     let source = r#"
@@ -8619,8 +8621,9 @@ component ModalDemo {
 "#;
     let out = compile_react_src(source);
     assert!(
-        out.contains("open={isOpen}"),
-        "@modal 应生成受控 open={{isOpen}}. Got:\n{}",
+        !out.contains("open={isOpen}"),
+        "@modal JSX 不得生成 open={{isOpen}}（会先以非模态打开、使 showModal() 抛错并卸载整个根）；\n\
+         原生 dialog 状态仅由 useLayoutEffect 的 showModal()/close() 驱动. Got:\n{}",
         out
     );
     assert!(
@@ -8948,7 +8951,8 @@ component ModalDemo {
 
 /// F5：@modal 的 open_signal 必须登记为读信号——仅经 @modal 引用的信号
 /// 也要拿到完整 useState 解构 `const [isOpen, setIsOpen]`（此前读端缺失
-/// → `const [, setIsOpen]` 写专用形态，JSX `open={isOpen}` 悬空引用）。
+/// → `const [, setIsOpen]` 写专用形态，同步 effect 的 `if (isOpen)`
+/// 读引用悬空 TS2552）。
 #[test]
 fn react_modal_open_signal_counts_as_view_read() {
     let source = r#"
@@ -8991,6 +8995,149 @@ component ToastDemo {
     assert!(
         out.contains("if (ms !== 0) {"),
         "duration 0 不自动关闭：setTimeout 应受 `if (ms !== 0)` 守卫 (F6). Got:\n{}",
+        out
+    );
+}
+
+/// @modal 内联槽不投影（fix A）：@modal 臂内联渲染所有直接子槽的 fallback
+/// 且跳过槽子节点——槽名不得再进入 TS 接口（此前 collect_view_slots 收集
+/// 指令消费的槽名 → imports.rs 发射死 `header?: ReactNode` 等 prop，
+/// eslint no-unused-vars ×3；模态回归 = 槽名投影但无 prop 可投）。
+#[test]
+fn react_modal_inline_slots_emit_no_slot_props() {
+    let source = r#"
+component ModalDemo {
+  signal isOpen: bool = false
+  fn open() { isOpen = true }
+  fn close() { isOpen = false }
+  view {
+    <div>
+      <button @onPress={open}>打开</button>
+      <dialog @modal={isOpen}>
+        @slot header { <h1>确认删除</h1> }
+        @slot body { <p>此操作不可撤销。</p> }
+        @slot footer { <button @onPress={close}>取消</button> }
+      </dialog>
+    </div>
+  }
+}
+"#;
+    let out = compile_react_src(source);
+    for prop in ["header", "body", "footer"] {
+        assert!(
+            !out.contains(&format!("{prop}?: ReactNode")),
+            "@modal 直接子槽 {prop} 被指令消费（内联渲染），不得发射死槽 prop (fix A). Got:\n{}",
+            out
+        );
+    }
+    assert!(
+        out.contains("确认删除"),
+        "槽 fallback 内容仍应内联渲染 (fix A 不回退). Got:\n{}",
+        out
+    );
+}
+
+/// @errorBoundary fallback 槽不投影（fix A）：`fallback` 槽由
+/// ErrorBoundary fallback prop 内联消费；其余命名槽（如 note）照常
+/// 投影并必须保留 prop 声明。
+#[test]
+fn react_error_boundary_fallback_slot_omitted_other_slots_kept() {
+    let source = r#"
+component ErrDemo {
+  signal showNote: bool = false
+  view {
+    <div @errorBoundary>
+      @slot fallback { <p>该区域加载失败</p> }
+      @slot note { <p>提示：重试一次</p> }
+      <div>内容</div>
+    </div>
+  }
+}
+"#;
+    let out = compile_react_src(source);
+    assert!(
+        !out.contains("fallback?: ReactNode"),
+        "@errorBoundary 的 fallback 槽被内联消费，不得发射死 fallback prop (fix A). Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("note?: ReactNode"),
+        "非 fallback 命名槽（note）照常投影，prop 声明必须保留 (fix A). Got:\n{}",
+        out
+    );
+}
+
+/// 嵌套投影回归修复：consumed 槽（@modal 全部直接子槽 / @errorBoundary
+/// 的 fallback 槽）只跳过自身名字投影，仍须递归进其 fallback——fallback
+/// 内容经 gen_view_node_tsx 内联渲染（modal 臂 view.rs:344 / errorBoundary
+/// 臂 view.rs:420），其中嵌套的 @slot 经投影臂发射 `{nested ?? (…)}` 引用
+/// 组件 prop；若 collect_view_slots 整树 continue 跳过，该 prop 未进
+/// slot_infos → Props 接口未声明 → 生成 TSX TS2304/TS2339 编译失败
+/// （合法输入：parser 允许嵌套槽，V1-V14 语义检查无嵌套槽拒绝）。
+#[test]
+fn react_modal_consumed_slot_fallback_nested_slot_prop_declared() {
+    let source = r#"
+component ModalNestedDemo {
+  signal isOpen: bool = false
+  fn open() { isOpen = true }
+  fn close() { isOpen = false }
+  view {
+    <div>
+      <button @onPress={open}>打开</button>
+      <dialog @modal={isOpen}>
+        @slot header {
+          <h1>@slot eyebrow { <span>确认</span> } 确认删除</h1>
+        }
+        @slot body { <p>此操作不可撤销。</p> }
+      </dialog>
+    </div>
+  }
+}
+"#;
+    let out = compile_react_src(source);
+    assert!(
+        !out.contains("header?: ReactNode"),
+        "consumed 槽自身名字不得投影为 prop (fix A). Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("eyebrow?: ReactNode"),
+        "fallback 内嵌套 @slot 仍投影，prop 必须声明（嵌套投影回归修复）. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("eyebrow ??"),
+        "嵌套槽投影 `{{eyebrow ?? (…)}}` 应发射，其 prop 引用已声明. Got:\n{}",
+        out
+    );
+}
+
+/// @errorBoundary 的 fallback 槽内嵌套 @slot 同源回归：consumed fallback
+/// 槽内容经 `fallback={…}` 内联渲染，嵌套槽投影引用的 prop 必须已声明。
+#[test]
+fn react_error_boundary_consumed_fallback_nested_slot_prop_declared() {
+    let source = r#"
+component ErrNestedDemo {
+  view {
+    <div>
+      <div @errorBoundary>
+        @slot fallback {
+          <div>@slot retryHint { <span>请稍后重试</span> } 加载失败</div>
+        }
+      </div>
+    </div>
+  }
+}
+"#;
+    let out = compile_react_src(source);
+    assert!(
+        !out.contains("fallback?: ReactNode"),
+        "consumed fallback 槽自身名字不得投影为 prop (fix A). Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("retryHint?: ReactNode"),
+        "fallback 内嵌套 @slot 仍投影，prop 必须声明（嵌套投影回归修复）. Got:\n{}",
         out
     );
 }

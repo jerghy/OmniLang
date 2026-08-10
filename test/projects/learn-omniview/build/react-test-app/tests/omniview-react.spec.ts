@@ -222,12 +222,10 @@ test.describe('OmniView React — 9 标签页验证', () => {
       await visible(page, /Status:\s*Checked/);
     });
 
-    test('09 - NotificationsPanel add (React bug A)', async ({ page }) => {
+    test('09 - showToast 通知（Task 8a: NotificationsPanel → showToast 迁移）', async ({ page }) => {
       await switchToTab(page, 1);
-      await visible(page, 'No notifications');
-      await clickBtn(page, 'Add');
-      await page.waitForTimeout(300);
-      await visible(page, 'Total:');
+      await clickBtn(page, 'success 通知');
+      await visible(page, '保存成功');
     });
 
     test('10 - A11yDemo img alt (React bug A)', async ({ page }) => {

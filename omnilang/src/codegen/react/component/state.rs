@@ -832,13 +832,14 @@ fn collect_view_read_signals_inner(node: &ViewTree, acc: &mut FxHashSet<String>)
             if let Some(ref style_json) = el.inline_style {
                 collect_inline_style_signals(style_json, acc);
             }
-            // @modal emits `open={open_signal}` inside the JSX — a signal
-            // referenced ONLY there (F5: no other read in the view) must
-            // still count toward the useState decision, or the generated
-            // code destructures setter-only (`const [, setIsOpen]`) and the
-            // `open={isOpen}` reference is undeclared (TS2552). A qualified
-            // `Store.sig` target also feeds the store-ref root so the
-            // `useStore()` hook is generated.
+            // @modal's sync useLayoutEffect reads `{open_signal}` (showModal()
+            // gate) — a signal referenced ONLY there (F5: no other read in
+            // the view) must still count toward the useState decision, or
+            // the generated code destructures setter-only
+            // (`const [, setIsOpen]`) and the effect's `if ({open_signal})`
+            // reference is undeclared (TS2552). A qualified `Store.sig`
+            // target also feeds the store-ref root so the `useStore()` hook
+            // is generated.
             if let Some(ref modal) = el.modal {
                 acc.insert(modal.open_signal.clone());
                 if let Some((root, _)) = modal.open_signal.split_once('.') {

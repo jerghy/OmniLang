@@ -74,27 +74,24 @@ pub(super) fn collect_component_imports(
         }
     }
 
-    // ── ReactNode type import — needed for slot props (typed `ReactNode` in
-    // the Props interface) AND for the module-scope ToastProvider signature
-    // (`{ children: ReactNode }`, Task 4 follow-up: has_toast). The named
-    // type import must exist whenever the view declares any slot (body-level
-    // declarations or view-level directives) or the component mounts the
-    // toast system. ──
-    let mut hooks = hooks.to_vec();
-    if (has_toast
-        || !comp.slots.is_empty()
-        || comp
-            .view
-            .as_ref()
-            .is_some_and(|v| jsx::view_has_slots(v, component_map)))
-        && !hooks.iter().any(|h| h == "ReactNode")
-    {
-        hooks.push("ReactNode".to_string());
-    }
     // Slot declarations — body-level `@slot` declarations (ADR-053 D5)
     // first, then view-level directives (consumer-side projections are
-    // excluded).
+    // excluded). Directive-consumed slots (@modal arm renders ALL direct
+    // slot fallbacks inline; @errorBoundary renders only `fallback` inline)
+    // are skipped — see jsx::collect_view_slots — so slot_infos is exactly
+    // the set of slots that EMIT `ReactNode`-typed props.
     let slot_infos = jsx::component_declared_slots(comp, component_map);
+
+    // ── ReactNode type import — needed for emitted slot props (typed
+    // `ReactNode` in the Props interface) AND for the module-scope
+    // ToastProvider signature (`{ children: ReactNode }`, Task 4 follow-up:
+    // has_toast). Condition on slot_infos (NOT view_has_slots — a view that
+    // declares only directive-consumed slots emits no slot props, and a
+    // dangling `ReactNode` import fails eslint no-unused-vars). ──
+    let mut hooks = hooks.to_vec();
+    if (has_toast || !slot_infos.is_empty()) && !hooks.iter().any(|h| h == "ReactNode") {
+        hooks.push("ReactNode".to_string());
+    }
 
     // ── Child component imports ─────────────────────────────
     let child_comps: FxHashSet<String> = if let Some(ref view) = comp.view {

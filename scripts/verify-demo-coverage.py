@@ -49,6 +49,26 @@ def usage(domain: str, name: str) -> int:
                 r"\b(?:controls|disabled|readonly|required|checked|selected|autofocus|multiple|loop|muted|async|defer|hidden|autocomplete|autoplay)\s*=",
                 demo_text,
             ))
+    if domain == "8":  # 表单：@form 指令 + validate 键 + 表单状态
+        if name == "@form":
+            return len(re.findall(r"@form\b", demo_text))
+        if name in ("required", "format", "min", "max", "pattern", "custom"):
+            # validate: { required: true, ... } 键形式 + 裸属性形式（布尔属性，无 = 值）
+            return len(re.findall(rf"\b{re.escape(name)}\s*:", demo_text)) + len(
+                re.findall(rf"(?m)^\s*{re.escape(name)}\s*$", demo_text)
+            )
+        if name in ("formErrors", "formValid", "formSubmitting"):
+            # DSL 表层拼写为 form.errors / form.valid / form.submitting
+            # （非内单词大写的 formErrors）——按表层形态匹配（同域 10 约定）
+            surface = {"formErrors": "errors", "formValid": "valid", "formSubmitting": "submitting"}[name]
+            return len(re.findall(rf"form\.{re.escape(surface)}\b", demo_text))
+    if domain == "9":  # 数据加载：@load 指令 + loading/error/data 三态 + 重试
+        if name == "@load":
+            return len(re.findall(r"@load\s*=", demo_text))
+        if name == "data":
+            return len(re.findall(r"data\b(?!-)", demo_text))  # (?!-) 排除 data-testid/data-type 等
+        if name in ("loading", "error", "retry"):
+            return len(re.findall(rf"\b{re.escape(name)}\b", demo_text))
     if domain == "10":  # 反馈模态：语义集条目名带 @ 前缀（指令），showToast 为函数调用形态
         if name == "showToast":
             return len(re.findall(r"showToast\s*\(", demo_text))

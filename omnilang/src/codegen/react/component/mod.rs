@@ -629,62 +629,6 @@ impl ReactCodegen {
             w.emit("}");
         }
 
-        // ── ErrorBoundary (@errorBoundary / Task 4) ──
-        // Self-generated class component: React semantics apply — it catches
-        // errors during rendering, in lifecycle methods, and in the
-        // constructors of the whole tree below it. It does NOT catch errors
-        // in event handlers, asynchronous code (setTimeout/requestAnimationFrame),
-        // server-side rendering, or errors thrown in the boundary itself —
-        // which matches the DSL's capture scope. Without a fallback slot the
-        // boundary renders nothing (semantic V12 warns on the omission).
-        // `&& view.is_some()`: a pure-slot container (comp.view = None) renders
-        // the `<div className={styles.container}>` fallback — the class would
-        // be emitted but unused, tripping eslint no-unused-vars.
-        if has_error_boundary && view.is_some() {
-            w.emit("");
-            w.emit("// ── ErrorBoundary (@errorBoundary) ──");
-            w.emit("// Capture scope (React semantics): render, lifecycle and constructor");
-            w.emit("// errors in the subtree. Event-handler and async errors are NOT");
-            w.emit("// caught — matching the DSL intent (semantic V12 warns when no");
-            w.emit("// fallback slot is declared; the boundary then renders null).");
-            w.emit("class ErrorBoundary extends React.Component<");
-            w.indent();
-            w.emit("{ fallback?: React.ReactNode; children?: React.ReactNode },");
-            w.emit("{ hasError: boolean }> {");
-            w.dedent();
-            w.indent();
-            w.emit(
-                "constructor(props: { fallback?: React.ReactNode; children?: React.ReactNode }) {",
-            );
-            w.indent();
-            w.emit("super(props);");
-            w.emit("this.state = { hasError: false };");
-            w.dedent();
-            w.emit("}");
-            w.emit("static getDerivedStateFromError(_error: Error) {");
-            w.indent();
-            w.emit("return { hasError: true };");
-            w.dedent();
-            w.emit("}");
-            w.emit("componentDidCatch(_error: Error, _info: unknown) {");
-            w.indent();
-            w.emit("// Boundary-local: no logging wired; the fallback UI is rendered instead.");
-            w.dedent();
-            w.emit("}");
-            w.emit("render() {");
-            w.indent();
-            w.emit("if (this.state.hasError) {");
-            w.indent();
-            w.emit("return this.props.fallback ?? null;");
-            w.dedent();
-            w.emit("}");
-            w.emit("return this.props.children;");
-            w.dedent();
-            w.emit("}");
-            w.dedent();
-            w.emit("}");
-        }
-
         // ── Library functions ──
         let mut used_fn_names: FxHashSet<String> = FxHashSet::default();
         for computed in &comp.computeds {
@@ -801,6 +745,70 @@ impl ReactCodegen {
             has_toast,
         );
         comp_imports.emit(&mut w, name, comp, has_props);
+
+        // ── ErrorBoundary (@errorBoundary / Task 4) ──
+        // Emitted AFTER the imports: the class extends React.Component at
+        // module-init time, and vite dev's CJS-interop transform rewrites
+        // `import React` into a const assigned at the import's source position
+        // (NOT hoisted) — a class before the import would hit the TDZ
+        // (`Cannot access 'React' before initialization`) and kill the whole
+        // app. The class depends only on has_error_boundary (computed above),
+        // while the imports depend on prop_fn_ctx — hence this ordering.
+        //
+        // React semantics: the boundary catches errors during rendering, in
+        // lifecycle methods, and in the constructors of the whole tree below
+        // it. It does NOT catch errors in event handlers, asynchronous code
+        // (setTimeout/requestAnimationFrame), server-side rendering, or errors
+        // thrown in the boundary itself — which matches the DSL's capture
+        // scope. Without a fallback slot the boundary renders nothing
+        // (semantic V12 warns on the omission).
+        // `&& view.is_some()`: a pure-slot container (comp.view = None) renders
+        // the `<div className={styles.container}>` fallback — the class would
+        // be emitted but unused, tripping eslint no-unused-vars.
+        if has_error_boundary && view.is_some() {
+            w.emit("");
+            w.emit("// ── ErrorBoundary (@errorBoundary) ──");
+            w.emit("// Capture scope (React semantics): render, lifecycle and constructor");
+            w.emit("// errors in the subtree. Event-handler and async errors are NOT");
+            w.emit("// caught — matching the DSL intent (semantic V12 warns when no");
+            w.emit("// fallback slot is declared; the boundary then renders null).");
+            w.emit("class ErrorBoundary extends React.Component<");
+            w.indent();
+            w.emit("{ fallback?: React.ReactNode; children?: React.ReactNode },");
+            w.emit("{ hasError: boolean }> {");
+            w.dedent();
+            w.indent();
+            w.emit(
+                "constructor(props: { fallback?: React.ReactNode; children?: React.ReactNode }) {",
+            );
+            w.indent();
+            w.emit("super(props);");
+            w.emit("this.state = { hasError: false };");
+            w.dedent();
+            w.emit("}");
+            w.emit("static getDerivedStateFromError(_error: Error) {");
+            w.indent();
+            w.emit("return { hasError: true };");
+            w.dedent();
+            w.emit("}");
+            w.emit("componentDidCatch(_error: Error, _info: unknown) {");
+            w.indent();
+            w.emit("// Boundary-local: no logging wired; the fallback UI is rendered instead.");
+            w.dedent();
+            w.emit("}");
+            w.emit("render() {");
+            w.indent();
+            w.emit("if (this.state.hasError) {");
+            w.indent();
+            w.emit("return this.props.fallback ?? null;");
+            w.dedent();
+            w.emit("}");
+            w.emit("return this.props.children;");
+            w.dedent();
+            w.emit("}");
+            w.dedent();
+            w.emit("}");
+        }
 
         // ── Phase 1: sanitizeCss helper (apply 直写值特例) ──
         // apply 值含 $concat/$call/$field（动态拼接用户可控字符串）时，与
@@ -1364,8 +1372,10 @@ impl ReactCodegen {
             w.emit("}, []);");
         }
         // Task 4 (@modal): controlled-`<dialog>` sync. The JSX emitter renders
-        // `open={openSig}` + `onCancel` + backdrop `onClick`; this effect keeps
-        // the native dialog state in lockstep after commit — `showModal()` on
+        // `ref` + `onCancel` + backdrop `onClick` (NO `open` attribute — see
+        // view.rs @modal comment: `open={sig}` would open the dialog
+        // non-modally and make showModal() throw); this effect is the single
+        // source of truth for the native dialog state — `showModal()` on
         // open, `close()` on close (spec §4.1 React: ref 同步 useLayoutEffect).
         // Consumes modal_refs (same list the hook-import gate used), so the
         // emitted hooks and this loop can never diverge.

@@ -74,7 +74,6 @@ pages/ElementRefDemo.tsx	TS7006	[T1.6] implicit-any fn/closure params (motion he
 pages/MotionTriggersDemo.tsx	TS7006	[T1.6] implicit-any fn/closure params (motion helpers)	11	#67
 pages/KeyframeAnimationDemo.tsx	TS7006	[T1.6] implicit-any fn/closure params (motion helpers)	11	#67
 components/StdLibShowcase.tsx	TS7006	[T1.6] implicit-any fn/closure params	2	#67
-components/Modal.tsx	TS7006	[T1.6] implicit-any fn/closure params	2	#67
 components/EventsDemo.tsx	TS7006	[T1.6] implicit-any fn/closure params	2	#67
 components/DataTable.tsx	TS7006	[T1.6] implicit-any fn/closure params	1	#67
 # TS7005/TS7034 — REMOVED (task 2.2): the frozen `const items = []` locals
@@ -114,7 +113,6 @@ components/DataTable.tsx	TS7006	[T1.6] implicit-any fn/closure params	1	#67
 #           mismatches. The DataTable never[] class is GONE (task 5.3, #49):
 #           struct-typed signals emit typed useState generics.
 pages/DataSubmit.tsx	TS2322	[T1.6] Option-value mismatch (string vs number)	1	#73
-components/Modal.tsx	TS2322	[T1.6] Option-value mismatch (string vs number)	2	#73
 # REMOVED (task 2.5): the EventsDemo TS2322 was the non-synthetic
 #           onAnimationend/onTransitionend props — codegen now maps to
 #           React's synthetic set (react/utils.rs), so the props type-check.
