@@ -865,15 +865,22 @@ impl OmniViewGenerator {
             if self.scope.load_intent.is_some() {
                 fn_entries.push(format!("retry: {name}_retry"));
             }
-            let fns_str = if fn_entries.is_empty() {
-                String::new()
-            } else {
-                format!(",\n    fns: {{ {} }}", fn_entries.join(", "))
-            };
+            // Build the factory return fields as a comma-joined list so the
+            // emitted object literal stays syntactically valid whether or not
+            // fns are present. (Regression: the template used to hardcode a
+            // comma after `signals: { ... }` while fns_str also started with
+            // one — a component with fns emitted `signals: { ... },,` and a
+            // missing comma before teardown, so the whole script failed to
+            // parse and the debug window rendered blank.)
+            let mut factory_fields = vec![format!("signals: {{ {} }}", signal_entries_str)];
+            if !fn_entries.is_empty() {
+                factory_fields.push(format!("fns: {{ {} }}", fn_entries.join(", ")));
+            }
+            let fields_str = factory_fields.join(",\n    ");
 
             let _ = write!(self.js,
-                "  return {{\n    signals: {{ {} }},{}\n    teardown: function() {{\n      var root = document.querySelector('[data-component=\"{}\"]');\n      if (root) root.remove();\n    }}\n  }};\n}})();\n",
-                signal_entries_str, fns_str, name
+                "  return {{\n    {},\n    teardown: function() {{\n      var root = document.querySelector('[data-component=\"{}\"]');\n      if (root) root.remove();\n    }}\n  }};\n}})();\n",
+                fields_str, name
             );
         }
 

@@ -355,8 +355,19 @@ impl OmniViewGenerator {
                     // prop storage instead of all sharing one module-level signal.
                     // Signal const declarations were already emitted by the
                     // prop_defaults mapping above, BEFORE view_to_html.
+                    //
+                    // Only wire props the child actually declares (has a
+                    // default for): the per-instance signal exists exactly for
+                    // `prop_defaults` keys, so wiring anything else (e.g. an
+                    // undeclared global attribute like `id`) would emit
+                    // `__omni_subs.get("Child_prop_el_...").set(...)` on a
+                    // signal that was never declared — a runtime TypeError
+                    // that killed the whole app render in the debug window.
                     let instance_suffix = format!("_{}", nid.replace("-", "_"));
                     for (prop_name, prop_value) in &el.props {
+                        if !child_comp.prop_defaults.contains_key(prop_name) {
+                            continue;
+                        }
                         let js_value = self.expr_to_js(prop_value);
                         let child_prefixed =
                             format!("{}_{}{}", child_comp_name, prop_name, instance_suffix);

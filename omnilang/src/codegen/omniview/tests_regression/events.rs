@@ -540,6 +540,106 @@ component Main {
     );
 }
 
+/// editor_mode factory return object must be syntactically valid JS when the
+/// component exposes fns. Regression: the factory template hardcodes a comma
+/// after `signals: { ... }` while fns_str brings its own leading comma → the
+/// return object came out as `signals: { count: Main_count },,` (double comma
+/// → SyntaxError, the whole script fails to parse, debug window renders
+/// blank) and the fns line was missing its trailing comma before teardown.
+#[test]
+fn fnref_factory_return_object_syntax_valid_with_fns() {
+    let js = compile_js_editor(
+        r#"
+component Main {
+    signal count: i32 = 0;
+    fn doIt() { count = count + 1; }
+    view {
+        <button @onPress={doIt}>Go</button>
+    }
+}
+"#,
+    );
+
+    let expected = "  return {\n    signals: { Main_count: Main_count },\n    fns: { doIt: Main_doIt },\n    teardown: function() {";
+    assert!(
+        js.contains(expected),
+        "factory return must be syntactically valid with signals + fns. Expected:\n{}\nJS:\n{}",
+        expected,
+        js
+    );
+    assert!(
+        !js.contains(",,"),
+        "factory return must not contain a double comma. JS:\n{}",
+        js
+    );
+}
+
+/// Component elements must not wire props the child never declared.
+/// Regression (88520e5e): the per-instance prop-signal rewrite only declares
+/// signals for the child's `prop_defaults`, but the wiring-effect loop still
+/// emitted `__omni_subs.get("Child_prop_el_...").set(...)` for ANY prop
+/// passed at the call site — including undeclared global attributes like
+/// `id`. The signal never existed, so such a component threw
+/// "TypeError: Cannot read properties of undefined (reading 'set')" at
+/// runtime and the app render died in the debug window.
+#[test]
+fn component_element_skips_undeclared_props() {
+    let js = compile_js_editor(
+        r#"
+component Main {
+    view {
+        <MyCard id="inst-1" />
+    }
+}
+
+component MyCard {
+    view {
+        <p>Hello</p>
+    }
+}
+"#,
+    );
+
+    assert!(
+        !js.contains("MyCard_id_el_"),
+        "undeclared prop must not produce a per-instance signal reference. JS:\n{}",
+        js
+    );
+    assert!(
+        !js.contains("__omni_subs.get(\"MyCard_id"),
+        "undeclared prop must not be wired to a signal. JS:\n{}",
+        js
+    );
+}
+
+/// Declared props must still be wired to their per-instance signals — the
+/// undeclared-prop guard must not accidentally skip legitimate prop wiring.
+#[test]
+fn component_element_wires_declared_props() {
+    let js = compile_js_editor(
+        r#"
+component Main {
+    view {
+        <MyCard title="Hello" />
+    }
+}
+
+component MyCard {
+    prop title: String = "default";
+    view {
+        <p>{title}</p>
+    }
+}
+"#,
+    );
+
+    assert!(
+        js.contains("__omni_subs.get(\"MyCard_title_el_MyCard_"),
+        "declared prop must be wired to its per-instance signal. JS:\n{}",
+        js
+    );
+}
+
 /// Non-editor mode keeps the direct prefixed call (fns are top-level there,
 /// no factory indirection needed).
 #[test]

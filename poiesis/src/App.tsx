@@ -393,6 +393,15 @@ async function loadOmniFiles(): Promise<void> {
       },
     });
 
+    // F1 物化补洞：main 文件的 fn 图在加载时即合并进 elements/wires，而非仅
+    // codeflow 画布可见时（DesignPage 的 materializeFnGraphs effect）。source
+    // 再生（useDebugCompile/useWasmCompile → generateOmniFiles）从 s.elements
+    // 读 fn codeblock 节点——若从未打开过 main 画布，再生出的 main.omni 丢失
+    // 全部 fn 声明：`@onPress={fn}` 绑定照常编译但工厂无 fns map，调试窗口/
+    // 预览点击报 "Cannot read properties of undefined (reading 'fn')"。
+    // 物化幂等（pid 去重、无 isDirty/undo），重复调用安全。
+    usePoiesisStore.getState().materializeFnGraphs("main");
+
   }
 }
 
