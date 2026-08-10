@@ -2,6 +2,7 @@
 // Import collection and emission for React component .tsx files
 // ═══════════════════════════════════════════════════════════
 
+use crate::codegen::react::router::has_injected_query;
 use crate::codegen::shared::types::{FormatType, JsTypeFormatter};
 use crate::codegen::CodeWriter;
 use crate::ir::*;
@@ -32,6 +33,10 @@ pub(super) struct ComponentImports {
     /// Slot declarations (names) that become `ReactNode`-typed props in the
     /// Props interface. Consumer-side projections are excluded.
     pub slot_infos: Vec<Option<String>>,
+    /// react-router symbols imported from the unified v7 package: `Outlet`
+    /// (layout components render it at the unnamed-slot position) and
+    /// `useNavigate` (components calling navigate/back).
+    pub react_router_imports: Vec<String>,
 }
 
 /// Collect all import data needed by the component.
@@ -51,6 +56,7 @@ pub(super) fn collect_component_imports(
     has_memo_aliases: bool,
     has_error_boundary: bool,
     has_toast: bool,
+    uses_navigation: bool,
 ) -> ComponentImports {
     // ── Store hook imports ──────────────────────────────────
     let all_stores = ir.all_stores();
@@ -80,7 +86,15 @@ pub(super) fn collect_component_imports(
     // slot fallbacks inline; @errorBoundary renders only `fallback` inline)
     // are skipped — see jsx::collect_view_slots — so slot_infos is exactly
     // the set of slots that EMIT `ReactNode`-typed props.
-    let slot_infos = jsx::component_declared_slots(comp, component_map);
+    //
+    // Task 6 (批次 2 导航路由): a LAYOUT's unnamed slot is excluded — the
+    // router mounts nested routes through `<Outlet />` at that position
+    // (view.rs Slot arm), so the layout neither destructures nor accepts a
+    // `children` prop. Named slots of a layout are unaffected.
+    let slot_infos: Vec<Option<String>> = jsx::component_declared_slots(comp, component_map)
+        .into_iter()
+        .filter(|s| !(comp.layout_intent.is_some() && s.is_none()))
+        .collect();
 
     // ── ReactNode type import — needed for emitted slot props (typed
     // `ReactNode` in the Props interface) AND for the module-scope
@@ -129,6 +143,46 @@ pub(super) fn collect_component_imports(
         || has_memo_aliases
         || has_error_boundary;
 
+    // ── react-router imports (Task 6, 批次 2 导航路由) ─────
+    // Layout components render `<Outlet />` at the unnamed-slot position;
+    // components calling navigate/back translate through `useNavigate()`.
+    // Lazy routes with params/guard/query emit `XLoader`/`XLazy` module
+    // exports (router.rs::gen_lazy_module_exports) whose hook calls and
+    // redirect references resolve inside the component's OWN module — those
+    // symbols must be imported here even though App.tsx never sees them.
+    // Only actually-used symbols are imported (unused imports fail the
+    // template's eslint no-unused-vars gate).
+    let is_lazy_route = comp
+        .route_intent
+        .as_ref()
+        .is_some_and(|r| r.lazy.unwrap_or(false));
+    let mut react_router_imports = Vec::new();
+    if comp.layout_intent.is_some() {
+        react_router_imports.push("Outlet".to_string());
+    }
+    if uses_navigation {
+        react_router_imports.push("useNavigate".to_string());
+    }
+    if is_lazy_route {
+        if comp
+            .route_intent
+            .as_ref()
+            .is_some_and(|r| !r.params.is_empty())
+        {
+            react_router_imports.push("useLoaderData".to_string());
+        }
+        if comp
+            .route_intent
+            .as_ref()
+            .is_some_and(|r| r.guard.is_some())
+        {
+            react_router_imports.push("redirect".to_string());
+        }
+        if has_injected_query(comp) {
+            react_router_imports.push("useSearchParams".to_string());
+        }
+    }
+
     ComponentImports {
         hooks,
         needs_react_default,
@@ -137,6 +191,7 @@ pub(super) fn collect_component_imports(
         child_import_lines,
         design_import_lines: design_import_lines.to_vec(),
         slot_infos,
+        react_router_imports,
     }
 }
 
@@ -204,6 +259,18 @@ impl ComponentImports {
                 };
                 w.emit_fmt(format_args!("  {}{}: {};", prop_name, optional, ts_type));
             }
+            // Task 6 (批次 2 导航路由): @route 路径参数与 @query 查询参数
+            // 也是 Props 成员。路径参数恒存在（路由段必填，非可选）；查询
+            // 参数可缺省（URL 未携带时 router 包装器回退默认值或 undefined）。
+            if let Some(route) = &comp.route_intent {
+                for p in &route.params {
+                    w.emit_fmt(format_args!("  {}: string;", p));
+                }
+            }
+            for q in &comp.query_params {
+                let ts_type = JsTypeFormatter.format_type(q.ty.kind.as_str(), &q.ty.type_args);
+                w.emit_fmt(format_args!("  {}?: {};", q.name, ts_type));
+            }
             for event in &comp.events {
                 let ts_type = if event.param_type.is_empty() {
                     "unknown"
@@ -245,6 +312,13 @@ impl ComponentImports {
         }
 
         // ── 5-6: Store / child imports ─────────────────────
+        // ── 5a: react-router imports (Task 6) ──────────────
+        if !self.react_router_imports.is_empty() {
+            w.emit_fmt(format_args!(
+                "import {{ {} }} from 'react-router';",
+                self.react_router_imports.join(", ")
+            ));
+        }
         for line in &self.store_hook_lines {
             w.emit(line);
         }
@@ -257,7 +331,8 @@ impl ComponentImports {
         }
 
         // Blank line after store/child/design imports
-        if !self.store_hook_lines.is_empty()
+        if !self.react_router_imports.is_empty()
+            || !self.store_hook_lines.is_empty()
             || !self.child_import_lines.is_empty()
             || !self.design_import_lines.is_empty()
         {

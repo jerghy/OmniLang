@@ -18,6 +18,7 @@ pub(super) mod component;
 pub(super) mod design;
 pub(super) mod expr;
 pub(super) mod motion;
+pub(super) mod router;
 #[cfg(test)]
 pub(super) mod tests;
 pub(super) mod types;
@@ -62,6 +63,10 @@ impl Codegen for ReactCodegen {
         // (DesignIR.source_file), so multiple design blocks in one .omni
         // file share a single set of outputs.
         output.files.extend(design::gen_design_files(ir));
+        // Router entry `App.tsx` — emitted only when the program declares
+        // any `@route`/`@layout` component (Task 6; zero regression when
+        // there are none — `gen_router_files` returns an empty vec).
+        output.files.extend(router::gen_router_files(ir));
         // v4 3.3: drain the warnings collected by the emission points into
         // CompileOutput's warnings channel (CodegenWarning — no source
         // context at the emission point, honest `-:0:0`).

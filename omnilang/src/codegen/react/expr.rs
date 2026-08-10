@@ -42,6 +42,114 @@ pub(crate) struct ReactFormatExpr {
     pub possibly_undefined: FxHashSet<String>,
 }
 
+/// Extract a map-entry KEY as a plain string. After lowering, `{ params:
+/// {...} }` option-object keys arrive as string-literal `ExprIR`s
+/// (parser `key_to_string_literal`); identifier keys are kept as a
+/// defensive fallback for hand-built IR. Anything else → None.
+fn map_entry_key_str(k: &ExprIR) -> Option<String> {
+    match k {
+        ExprIR::LiteralExpr { value } => value.as_str().map(|s| s.to_string()),
+        ExprIR::IdentifierExpr { name, .. } => Some(name.trim_start_matches('$').to_string()),
+        _ => None,
+    }
+}
+
+/// Build the `navigate(...)` argument from a template path plus the
+/// params/query option maps (Task 6 — spec §2.8 navigate 内建):
+///
+/// ```text
+/// navigate("/todos/:id", { params: { id: item } })  → "/todos/" + item
+/// navigate("/todos", { query: { filter: "all" } })  → "/todos?filter=all"
+/// navigate("/todos", { query: { filter: f } })      → "/todos?filter=" + f
+/// navigate("/todos", { params: { id: item }, query: { filter: "all" } })
+///                                                   → "/todos/" + item + "?filter=all"
+/// ```
+///
+/// `:name` placeholders resolve against `params`; placeholders without a
+/// params entry stay verbatim (the URL may fill them at runtime). Query
+/// values that are string literals are inlined RAW (`filter=all`, never
+/// `filter="all"`); any other value is concatenated as an expression.
+/// Adjacent literal chunks merge so the emitted text stays a single
+/// template where possible.
+fn build_navigate_arg(
+    path: &str,
+    params: &FxHashMap<String, &ExprIR>,
+    query: &[(String, &ExprIR)],
+    fmt: &ReactFormatExpr,
+) -> String {
+    // 1) Path pieces: (is_literal, text) pairs — literal chunks and value
+    //    expressions interleaved.
+    let mut pieces: Vec<(bool, String)> = Vec::new();
+    let mut lit = String::new();
+    let mut chars = path.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == ':' {
+            let mut name = String::new();
+            while let Some(&n) = chars.peek() {
+                if n.is_ascii_alphanumeric() || n == '_' {
+                    name.push(n);
+                    chars.next();
+                } else {
+                    break;
+                }
+            }
+            if let Some(value) = params.get(&name) {
+                pieces.push((true, std::mem::take(&mut lit)));
+                pieces.push((false, fmt.format_expr(value)));
+            } else {
+                lit.push(':');
+                lit.push_str(&name);
+            }
+        } else {
+            lit.push(c);
+        }
+    }
+    pieces.push((true, lit));
+    // 2) Query pieces in declaration order (`?k=v&k2=v2`): string-literal
+    //    values merge into the trailing literal chunk; expressions append
+    //    a literal prefix then the value, preserving interleaving order.
+    for (i, (k, v)) in query.iter().enumerate() {
+        let sep = if i == 0 { '?' } else { '&' };
+        match v {
+            ExprIR::LiteralExpr { value } if value.is_string() => {
+                if let Some((true, last)) = pieces.last_mut() {
+                    last.push(sep);
+                    last.push_str(k);
+                    last.push('=');
+                    last.push_str(value.as_str().unwrap_or_default());
+                }
+            }
+            _ => {
+                if let Some((true, last)) = pieces.last_mut() {
+                    last.push_str(&format!("{sep}{k}="));
+                } else {
+                    pieces.push((true, format!("{sep}{k}=")));
+                }
+                pieces.push((false, fmt.format_expr(v)));
+            }
+        }
+    }
+    // 3) Quote literal chunks (JS double-quote convention), drop empty
+    //    literals unless the whole expression is one, and join.
+    let mut rendered: Vec<String> = pieces
+        .iter()
+        .map(|(is_lit, text)| {
+            if *is_lit {
+                format!("\"{text}\"")
+            } else {
+                text.clone()
+            }
+        })
+        .collect();
+    if rendered.len() > 1 {
+        rendered.retain(|s| s != "\"\"");
+    }
+    if rendered.is_empty() {
+        rendered.push("\"\"".to_string());
+    }
+    rendered.join(" + ")
+}
+
 impl FormatExpr for ReactFormatExpr {
     fn json_config(&self) -> &JsonFormatConfig {
         &JSON_REACT
@@ -175,6 +283,68 @@ impl FormatExpr for ReactFormatExpr {
             return native;
         }
         translate_builtin_call(name, args)
+    }
+
+    /// Task 6 — `navigate(path, options)` / `back()` IR-aware translation
+    /// (spec §2.8). The options object arrives as a `MapExpr` whose keys
+    /// are RUNTIME string-literal ExprIRs — the string-level formatter
+    /// would emit `{ params: {...} }` verbatim, which is both a TS error
+    /// and wrong runtime semantics. Translate to flat template
+    /// concatenations: `navigate("/todos/:id", { params: { id: item } })`
+    /// → `navigate("/todos/" + item)`, `back()` → `navigate(-1)`.
+    /// Dynamic (non-literal) paths fall through to the default emission —
+    /// `navigate` still receives the expression at runtime.
+    fn format_call_with_ir(
+        &self,
+        name: &str,
+        args: &[ExprIR],
+        arg_strs: &[String],
+    ) -> Option<String> {
+        if name == "back" && args.is_empty() {
+            return Some("navigate(-1)".to_string());
+        }
+        if name != "navigate" || args.is_empty() {
+            return None;
+        }
+        let path = match &args[0] {
+            ExprIR::LiteralExpr { value } if value.is_string() => value.as_str()?,
+            _ => return None,
+        };
+        // Optional second arg: option MapExpr — `{ params: {...}, query:
+        // {...} }` with string-literal keys.
+        let mut params: FxHashMap<String, &ExprIR> = FxHashMap::default();
+        let mut query: Vec<(String, &ExprIR)> = Vec::new();
+        if let Some(ExprIR::MapExpr { entries }) = args.get(1) {
+            for (k, v) in entries {
+                match map_entry_key_str(k).as_deref() {
+                    Some("params") => {
+                        if let ExprIR::MapExpr { entries: p_entries } = v {
+                            for (pk, pv) in p_entries {
+                                if let Some(pk) = map_entry_key_str(pk) {
+                                    params.insert(pk, pv);
+                                }
+                            }
+                        }
+                    }
+                    Some("query") => {
+                        if let ExprIR::MapExpr { entries: q_entries } = v {
+                            for (qk, qv) in q_entries {
+                                if let Some(qk) = map_entry_key_str(qk) {
+                                    query.push((qk, qv));
+                                }
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        // Plain literal path without options → passthrough as-is.
+        if params.is_empty() && query.is_empty() {
+            return Some(format!("navigate({})", arg_strs[0]));
+        }
+        let arg = build_navigate_arg(path, &params, &query, self);
+        Some(format!("navigate({arg})"))
     }
 
     fn format_method_call(&self, obj: &str, method: &str, args: &[String]) -> String {

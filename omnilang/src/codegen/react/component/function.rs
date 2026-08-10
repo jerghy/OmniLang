@@ -33,60 +33,137 @@ impl ReactCodegen {
         direct_write_applies: &FxHashMap<String, Vec<String>>,
     ) {
         for fun in &comp.fns {
+            // Task 6 (批次 2 导航路由): @route guard 函数由 gen_guard_fns 在
+            // 模块作用域以 `export const` 发射（App.tsx 路由 loader 直接
+            // import）——组件体内只发射真正被调用的普通函数。若组件内部也
+            // 调用 guard（called_fns 命中），体内另有一份函数作用域 const
+            // 遮蔽模块级同名导出（同一函数体两份拷贝，行为一致，且无
+            // 重复声明错误）。
             if !called_fns.contains(&fun.name) {
                 continue;
             }
-            let param_names: Vec<(String, bool)> = fun
-                .params
-                .iter()
-                .map(|p| {
-                    let escaped = crate::codegen::react::escape_js_ident(&p.name);
-                    let needs_rename = escaped != p.name;
-                    (escaped, needs_rename)
-                })
-                .collect();
-            let unused_params = unused_param_names(fun);
-            let params_str = format_fn_params(fun, &unused_params);
-            let is_async =
-                fun.is_async || fun.body.statements.iter().any(effect::stmt_contains_await);
-            let async_prefix = if is_async { "async " } else { "" };
-            w.emit_fmt(format_args!(
-                "const {} = {}({}) => {{",
-                fun.name, async_prefix, params_str
-            ));
-            w.indent();
-            // Emit body into temp writer for post-processing
-            // (v4 H1, task 2.1: 写后读线程化——`x = v; use(x)` → const nextX
-            // 线程化，无写后读时原样返回。)
-            let body_statements = expr::rewrite_write_through(&fun.body.statements);
-            let mut body_w = crate::codegen::CodeWriter::new();
-            body_w.indent();
-            let tail_idx = body_statements.len().saturating_sub(1);
-            for (i, stmt) in body_statements.iter().enumerate() {
-                if i == tail_idx {
-                    if let StatementIR::ExprStmtIR { .. } = stmt {
-                        // H1: the fn's trailing expression IS its return
-                        // value — emit `return <expr>;` instead of the bare
-                        // `{expr};` the generic machinery produces (which
-                        // silently dropped match/block/identifier tail
-                        // values — `error_message` returned undefined and
-                        // DataFetching's success branch was unreachable).
-                        emit_fn_tail_return(
-                            &mut body_w,
-                            stmt,
-                            signal_names,
-                            store_signal_owners,
-                            ref_names,
-                            store_field_renames,
-                            pruned_signal_names,
-                            possibly_undefined,
-                            direct_write_signals,
-                            direct_write_applies,
-                        );
-                        continue;
-                    }
-                }
-                expr::generate_statement_tsx(
+            emit_fn_const(
+                w,
+                comp,
+                fun,
+                "",
+                signal_names,
+                store_signal_owners,
+                fn_names,
+                ref_names,
+                store_field_renames,
+                pruned_signal_names,
+                possibly_undefined,
+                direct_write_signals,
+                direct_write_applies,
+            );
+        }
+        if !comp.fns.is_empty() {
+            w.emit("");
+        }
+    }
+
+    /// Task 6 (批次 2 导航路由): @route guard 函数以模块作用域
+    /// `export const` 发射——App.tsx 的路由 loader `import { Comp, guardFn }`
+    /// 直接引用并调用。必须在组件函数体外（组件体内发射 `export const` 是
+    /// TS1184「Modifiers cannot appear here」）。V9 约束 guard 签名
+    /// `() -> Bool`（无参数、无信号依赖），发射路径与组件体内普通函数
+    /// 完全一致；仅当组件内部同时调用 guard 时才多出一份函数作用域遮蔽。
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn gen_guard_fns(
+        &self,
+        w: &mut CodeWriter,
+        comp: &ComponentIR,
+        signal_names: &FxHashSet<String>,
+        store_signal_owners: &FxHashMap<String, String>,
+        fn_names: &FxHashSet<String>,
+        ref_names: &FxHashSet<String>,
+        store_field_renames: &FxHashMap<String, String>,
+        pruned_signal_names: &FxHashSet<String>,
+        possibly_undefined: &FxHashSet<String>,
+        direct_write_signals: &FxHashSet<String>,
+        direct_write_applies: &FxHashMap<String, Vec<String>>,
+    ) {
+        let Some(guard_name) = comp.route_intent.as_ref().and_then(|r| r.guard.as_deref()) else {
+            return;
+        };
+        let Some(fun) = comp.fns.iter().find(|f| f.name == guard_name) else {
+            return;
+        };
+        emit_fn_const(
+            w,
+            comp,
+            fun,
+            "export ",
+            signal_names,
+            store_signal_owners,
+            fn_names,
+            ref_names,
+            store_field_renames,
+            pruned_signal_names,
+            possibly_undefined,
+            direct_write_signals,
+            direct_write_applies,
+        );
+        w.emit("");
+    }
+}
+
+/// Emit one `const fn = (...) => {...}` declaration (guard fns carry the
+/// `export ` prefix — see `gen_guard_fns`). Shared by the component-body
+/// emission (gen_functions) and the module-scope guard hoisting so the two
+/// paths can never drift apart.
+#[allow(clippy::too_many_arguments)]
+fn emit_fn_const(
+    w: &mut CodeWriter,
+    comp: &ComponentIR,
+    fun: &FunctionIR,
+    export_prefix: &str,
+    signal_names: &FxHashSet<String>,
+    store_signal_owners: &FxHashMap<String, String>,
+    fn_names: &FxHashSet<String>,
+    ref_names: &FxHashSet<String>,
+    store_field_renames: &FxHashMap<String, String>,
+    pruned_signal_names: &FxHashSet<String>,
+    possibly_undefined: &FxHashSet<String>,
+    direct_write_signals: &FxHashSet<String>,
+    direct_write_applies: &FxHashMap<String, Vec<String>>,
+) {
+    let param_names: Vec<(String, bool)> = fun
+        .params
+        .iter()
+        .map(|p| {
+            let escaped = crate::codegen::react::escape_js_ident(&p.name);
+            let needs_rename = escaped != p.name;
+            (escaped, needs_rename)
+        })
+        .collect();
+    let unused_params = unused_param_names(fun);
+    let params_str = format_fn_params(fun, &unused_params);
+    let is_async = fun.is_async || fun.body.statements.iter().any(effect::stmt_contains_await);
+    let async_prefix = if is_async { "async " } else { "" };
+    w.emit_fmt(format_args!(
+        "{export_prefix}const {} = {}({}) => {{",
+        fun.name, async_prefix, params_str
+    ));
+    w.indent();
+    // Emit body into temp writer for post-processing
+    // (v4 H1, task 2.1: 写后读线程化——`x = v; use(x)` → const nextX
+    // 线程化，无写后读时原样返回。)
+    let body_statements = expr::rewrite_write_through(&fun.body.statements);
+    let mut body_w = crate::codegen::CodeWriter::new();
+    body_w.indent();
+    let tail_idx = body_statements.len().saturating_sub(1);
+    for (i, stmt) in body_statements.iter().enumerate() {
+        if i == tail_idx {
+            if let StatementIR::ExprStmtIR { .. } = stmt {
+                // H1: the fn's trailing expression IS its return
+                // value — emit `return <expr>;` instead of the bare
+                // `{expr};` the generic machinery produces (which
+                // silently dropped match/block/identifier tail
+                // values — `error_message` returned undefined and
+                // DataFetching's success branch was unreachable).
+                emit_fn_tail_return(
                     &mut body_w,
                     stmt,
                     signal_names,
@@ -98,43 +175,53 @@ impl ReactCodegen {
                     direct_write_signals,
                     direct_write_applies,
                 );
+                continue;
             }
-            // Build setter renames for states whose setters conflict with function names
-            let setter_renames: Vec<(String, String)> = comp
-                .signals
-                .iter()
-                .filter_map(|s| {
-                    let setter_name = format!("set{}", capitalize_first(&s.name));
-                    if fn_names.contains(&setter_name) {
-                        Some((setter_name.clone(), format!("__{}", setter_name)))
-                    } else {
-                        None
-                    }
-                })
-                .collect();
-
-            let mut body_str = body_w.into_string();
-            // Apply param renames (reserved words)
-            for (i, (new_name, needs_rename)) in param_names.iter().enumerate() {
-                if *needs_rename {
-                    let old_name = &fun.params[i].name;
-                    body_str = body_str.replace(old_name, new_name);
-                }
-            }
-            // Apply setter renames (conflict with function names)
-            for (old_setter, new_setter) in &setter_renames {
-                body_str = body_str.replace(old_setter, new_setter);
-            }
-            for line in body_str.lines() {
-                w.emit(line);
-            }
-            w.dedent();
-            w.emit("};");
         }
-        if !comp.fns.is_empty() {
-            w.emit("");
+        expr::generate_statement_tsx(
+            &mut body_w,
+            stmt,
+            signal_names,
+            store_signal_owners,
+            ref_names,
+            store_field_renames,
+            pruned_signal_names,
+            possibly_undefined,
+            direct_write_signals,
+            direct_write_applies,
+        );
+    }
+    // Build setter renames for states whose setters conflict with function names
+    let setter_renames: Vec<(String, String)> = comp
+        .signals
+        .iter()
+        .filter_map(|s| {
+            let setter_name = format!("set{}", capitalize_first(&s.name));
+            if fn_names.contains(&setter_name) {
+                Some((setter_name.clone(), format!("__{}", setter_name)))
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    let mut body_str = body_w.into_string();
+    // Apply param renames (reserved words)
+    for (i, (new_name, needs_rename)) in param_names.iter().enumerate() {
+        if *needs_rename {
+            let old_name = &fun.params[i].name;
+            body_str = body_str.replace(old_name, new_name);
         }
     }
+    // Apply setter renames (conflict with function names)
+    for (old_setter, new_setter) in &setter_renames {
+        body_str = body_str.replace(old_setter, new_setter);
+    }
+    for line in body_str.lines() {
+        w.emit(line);
+    }
+    w.dedent();
+    w.emit("};");
 }
 
 /// Emit a fn body's TAIL expression statement as `return <expr>;`.

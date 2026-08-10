@@ -1830,6 +1830,14 @@ pub(super) fn gen_view_node_tsx(
             }
         }
         ViewTree::Slot { name, fallback, .. } => {
+            // Layout components (@layout) render `<Outlet />` at the
+            // UNNAMED slot position (spec §4.2) — nested routes mount into
+            // the layout's body via the router's children tree, not via a
+            // `children` prop.
+            if comp.layout_intent.is_some() && name.is_none() {
+                w.emit("<Outlet />");
+                return;
+            }
             // Named slots map to same-named props; the unnamed slot maps to
             // `children`. When the parent provides no content for the slot,
             // the preserved fallback (Task 1.2) is rendered instead:

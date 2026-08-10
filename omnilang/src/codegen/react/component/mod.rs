@@ -13,6 +13,7 @@ pub(super) mod state;
 pub(super) mod store_slices;
 
 use super::expr;
+use super::router;
 use super::{escape_js_ident, CodeWriter, ReactCodegen};
 use crate::codegen::react::motion;
 use crate::codegen::react::view;
@@ -90,6 +91,9 @@ impl ReactCodegen {
                     .any(super::motion::view_has_error_boundary)
             });
         let has_toast = comp_toast_uses(comp, view);
+        // Task 6 (批次 2 导航路由): navigate/back 内建调用 → 模块级
+        // `const navigate = useNavigate();` + 'react-router' 导入门控。
+        let has_navigation = comp_nav_uses(comp, view);
 
         // Task 4 (@modal): single source of truth for the controlled-`<dialog>`
         // machinery. Walked once over the effective view (the JSX emitter and
@@ -379,10 +383,27 @@ impl ReactCodegen {
         // Props interface check — slot declarations also become props
         // (`children` for the unnamed slot, same-named props for named
         // slots). Body-level `@slot` declarations (ADR-053 D5) plus
-        // view-level directives (back-compat).
-        let declared_slots = jsx::component_declared_slots(comp, component_map);
-        let has_props =
-            !comp.props.is_empty() || !comp.events.is_empty() || !declared_slots.is_empty();
+        // view-level directives (back-compat). A LAYOUT's unnamed slot is
+        // excluded (Task 6): it renders `<Outlet />` (view.rs Slot arm), so
+        // destructuring an unused `children` would trip the template's
+        // eslint no-unused-vars gate.
+        let declared_slots: Vec<Option<String>> =
+            jsx::component_declared_slots(comp, component_map)
+                .into_iter()
+                .filter(|s| !(comp.layout_intent.is_some() && s.is_none()))
+                .collect();
+        // Task 6 (批次 2 导航路由): @route 路径参数与 @query 查询参数注入为
+        // Props（router 包装器 useLoaderData/useSearchParams 透传），参与
+        // has_props 门控与 Props 接口/解构发射。
+        let has_route_params = comp
+            .route_intent
+            .as_ref()
+            .is_some_and(|r| !r.params.is_empty());
+        let has_props = !comp.props.is_empty()
+            || !comp.events.is_empty()
+            || !declared_slots.is_empty()
+            || has_route_params
+            || !comp.query_params.is_empty();
 
         // ── Store-related computation ──
         let all_stores = ir.all_stores();
@@ -743,6 +764,8 @@ impl ReactCodegen {
             // Task 4 跟进: ToastProvider 签名引用 ReactNode 类型（module 级），
             // has_toast 时 named import 必须存在。
             has_toast,
+            // Task 6: navigate/back 内建调用 → useNavigate 导入。
+            has_navigation,
         );
         comp_imports.emit(&mut w, name, comp, has_props);
 
@@ -1008,6 +1031,17 @@ impl ReactCodegen {
         module_reserved_names.insert("toast".to_string());
         module_reserved_names.insert("ToastProvider".to_string());
         module_reserved_names.insert("ErrorBoundary".to_string());
+        // Task 6 (批次 2 导航路由): lazy routes emit `XLoader`/`XLazy`
+        // module-scope exports (router.rs::gen_lazy_module_exports) — a user
+        // signal/function named after them would collide at module scope.
+        if comp
+            .route_intent
+            .as_ref()
+            .is_some_and(|r| r.lazy.unwrap_or(false))
+        {
+            module_reserved_names.insert(format!("{name}Loader"));
+            module_reserved_names.insert(format!("{name}Lazy"));
+        }
         module_reserved_names.extend(hooks.iter().cloned());
         if has_styles {
             module_reserved_names.insert("styles".to_string());
@@ -1035,6 +1069,28 @@ impl ReactCodegen {
             &user_types,
         );
 
+        // ── Task 6 (批次 2 导航路由): module-scope route machinery ──
+        // @route guard fns hoist as `export const` (App.tsx's route loader
+        // imports them); lazy routes self-contain `XLoader`/`XLazy` exports
+        // referenced by the App.tsx `lazy:` object. Both must precede the
+        // component function declaration: imports were already emitted above,
+        // and the lazy module exports call hooks/redirect that resolve in
+        // this module's scope.
+        self.gen_guard_fns(
+            &mut w,
+            comp,
+            &signal_names,
+            &store_signal_owners,
+            &fn_names,
+            &ref_names,
+            &store_field_renames,
+            &pruned_signals,
+            &possibly_undefined_handlers,
+            &direct_write_names,
+            &direct_write_applies,
+        );
+        router::gen_lazy_module_exports(&mut w, name, comp);
+
         // Component function signature
         if !has_props {
             w.emit_fmt(format_args!("export function {}() {{", name));
@@ -1051,6 +1107,22 @@ impl ReactCodegen {
                     }
                 })
                 .collect();
+            // Task 6 (批次 2 导航路由): @route 路径参数/@query 查询参数加入
+            // 解构（router 包装器负责注入值）。查询参数默认值只在包装器
+            // `searchParams.get(...) ?? default` 处生效——若写进解构默认位，
+            // 会遮蔽 URL 驱动值（本地默认恒赢、URL 永不生效）。
+            if let Some(route) = &comp.route_intent {
+                for p in &route.params {
+                    if !prop_list.iter().any(|q| q == p) {
+                        prop_list.push(p.clone());
+                    }
+                }
+            }
+            for q in &comp.query_params {
+                if !prop_list.iter().any(|p| p == &q.name) {
+                    prop_list.push(q.name.clone());
+                }
+            }
             for event in &comp.events {
                 if read_signals.contains(event.name.as_str()) {
                     prop_list.push(event.name.clone());
@@ -1110,6 +1182,12 @@ impl ReactCodegen {
                     w.emit_fmt(format_args!("const {} = {}();", store_ref, hook_name));
                 }
             }
+        }
+
+        // Task 6 (批次 2 导航路由): navigate/back 调用 → `const navigate =
+        // useNavigate();`（React Router v7 数据路由形态，spec §4.2）。
+        if has_navigation {
+            w.emit("const navigate = useNavigate();");
         }
 
         // Design system hooks — called from the root component so the
@@ -2197,6 +2275,98 @@ fn view_has_toast_call(node: &ViewTree) -> bool {
         ViewTree::Interpolation(expr) => expr_has_toast_call(expr),
         ViewTree::Slot { fallback, .. } => fallback.iter().any(view_has_toast_call),
         ViewTree::Fragment(children) => children.iter().any(view_has_toast_call),
+        ViewTree::Text(_) => false,
+        // ViewTree is #[non_exhaustive] — cross-crate matches need a wildcard.
+        #[allow(unreachable_patterns)]
+        _ => false,
+    }
+}
+
+/// True when the component emits any `navigate`/`back` builtin call — fns,
+/// effects, lifecycles, computeds, and inline event handlers in the view.
+/// Gates the module-scope `const navigate = useNavigate();` + the
+/// 'react-router' `useNavigate` import (Task 6, 批次 2 导航路由).
+///
+/// Same scan strategy as `comp_toast_uses`: rides the shared IR walker so
+/// block expressions and match arms are covered exactly where the expr
+/// emitter will render the call.
+fn comp_nav_uses(comp: &ComponentIR, view: Option<&ViewTree>) -> bool {
+    for f in &comp.fns {
+        if f.body.statements.iter().any(stmt_has_nav_call) {
+            return true;
+        }
+    }
+    for e in &comp.effects {
+        if e.body.statements.iter().any(stmt_has_nav_call) {
+            return true;
+        }
+    }
+    for lc in &comp.lifecycles {
+        if lc.body.statements.iter().any(stmt_has_nav_call) {
+            return true;
+        }
+    }
+    for c in &comp.computeds {
+        if expr_has_nav_call(&c.body) {
+            return true;
+        }
+    }
+    view.is_some_and(view_has_nav_call)
+}
+
+/// True when a statement subtree contains a `navigate`/`back` call.
+fn stmt_has_nav_call(stmt: &StatementIR) -> bool {
+    let mut found = false;
+    crate::ir::walk::walk_stmt(stmt, &mut |expr| {
+        if expr_has_nav_call(expr) {
+            found = true;
+        }
+    });
+    found
+}
+
+/// True when an expression subtree contains a `navigate`/`back` call.
+fn expr_has_nav_call(expr: &ExprIR) -> bool {
+    let mut found = false;
+    crate::ir::walk::walk_expr(expr, &mut |e| {
+        if let ExprIR::CallExpr { name, .. } = e {
+            if name == "navigate" || name == "back" {
+                found = true;
+            }
+        }
+    });
+    found
+}
+
+/// True when the view tree contains a `navigate`/`back` call (inline event
+/// handlers only — `FnRef` handlers delegate to `comp.fns`, which
+/// `comp_nav_uses` scans at the top level).
+fn view_has_nav_call(node: &ViewTree) -> bool {
+    match node {
+        ViewTree::Element(el) => {
+            el.props.values().any(expr_has_nav_call)
+                || el.class_map_bindings.values().any(expr_has_nav_call)
+                || el.events.values().any(|handler| match handler {
+                    EventHandlerIR::InlineFn { body, .. } => {
+                        body.statements.iter().any(stmt_has_nav_call)
+                    }
+                    EventHandlerIR::StoreAction { .. } | EventHandlerIR::FnRef { .. } => false,
+                })
+                || el.children.iter().any(view_has_nav_call)
+        }
+        ViewTree::Conditional(cond) => {
+            cond.branches.iter().any(|b| {
+                expr_has_nav_call(&b.condition) || b.body.as_ref().is_some_and(view_has_nav_call)
+            }) || cond.fallback.as_ref().is_some_and(view_has_nav_call)
+        }
+        ViewTree::ListRendering(list) => {
+            expr_has_nav_call(&list.iterable)
+                || list.body.as_ref().is_some_and(view_has_nav_call)
+                || list.empty_body.as_ref().is_some_and(view_has_nav_call)
+        }
+        ViewTree::Interpolation(expr) => expr_has_nav_call(expr),
+        ViewTree::Slot { fallback, .. } => fallback.iter().any(view_has_nav_call),
+        ViewTree::Fragment(children) => children.iter().any(view_has_nav_call),
         ViewTree::Text(_) => false,
         // ViewTree is #[non_exhaustive] — cross-crate matches need a wildcard.
         #[allow(unreachable_patterns)]

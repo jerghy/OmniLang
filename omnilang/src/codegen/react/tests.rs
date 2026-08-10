@@ -9171,3 +9171,415 @@ component ErrFixture {
         out
     );
 }
+
+// ═══════════════════════════════════════════════════════════
+// Task 6 (批次 2 导航路由): React data-router emission
+// (omnilang/src/codegen/react/router.rs — spec 2026-08-09 §4.1/§4.2)
+// ═══════════════════════════════════════════════════════════
+
+/// T6-1: 程序声明 @route → 根级 App.tsx 以 createBrowserRouter 数据路由
+/// 形态发射：路由表条目（path + element）与 RouterProvider 挂载；default
+/// 与 named 双导出（react-test-app 模板的 src/main.tsx 按 named 导入）。
+#[test]
+fn react_router_table_emission() {
+    let source = r#"
+component TodoPage {
+  @route "/todos";
+  view { <div>All todos</div> }
+}
+"#;
+    let out = compile_react_src(source);
+    assert!(
+        out.contains("import { createBrowserRouter, RouterProvider } from 'react-router';"),
+        "router 符号导入缺失. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("const router = createBrowserRouter(["),
+        "createBrowserRouter 路由表缺失. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("{ path: '/todos', element: <TodoPage /> },"),
+        "路由表条目缺失. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("return <RouterProvider router={router} />;"),
+        "RouterProvider 挂载缺失. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("export default function App() {") && out.contains("export { App };"),
+        "App 双导出（default + named）缺失. Got:\n{}",
+        out
+    );
+}
+
+/// T6-2: @route guard/redirect → loader 守卫形态（spec §4.2）：
+/// `loader: () => (isAdmin() ? null : redirect('/login'))`；守卫函数与组件
+/// 一并命名导入。
+#[test]
+fn react_guard_loader_redirect() {
+    let source = r#"
+component AdminPage {
+  fn isAdmin() -> Bool { return true; }
+  @route "/admin" guard: isAdmin redirect: "/login";
+  view { <div>Admin</div> }
+}
+"#;
+    let out = compile_react_src(source);
+    assert!(
+        out.contains(
+            "import { createBrowserRouter, RouterProvider, redirect } from 'react-router';"
+        ),
+        "redirect 符号导入缺失. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("import { AdminPage, isAdmin } from './AdminPage';"),
+        "守卫函数必须与组件一并命名导入. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("loader: () => (isAdmin() ? null : redirect('/login'))"),
+        "守卫 loader 形态缺失. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("element: <AdminPage />"),
+        "无参路由直接 element 挂载. Got:\n{}",
+        out
+    );
+}
+
+/// T6-3: @layout → 嵌套 children 路由表（spec §4.2）：布局 prefix 下挂
+/// 相对路径 children（strip 布局前缀）；布局组件在无名槽位渲染
+/// `<Outlet />`（不声明 children prop、不投影 children? ReactNode）。
+/// 注：path == prefix 的 index 子路由（router.rs index: true 分支）在
+/// V14 下不可达——`@route` 路径与 `@layout` 前缀相同是硬错误（spec
+/// 2026-08-09 表 V14 末行），测试仅覆盖可达的嵌套 children 形态。
+#[test]
+fn react_nested_layout_children() {
+    let source = r#"
+component AdminLayout {
+  @layout "/admin";
+  view {
+    <div>
+      @slot { <p>Fallback</p> }
+    </div>
+  }
+}
+component Users {
+  @route "/admin/users";
+  view { <div>Users</div> }
+}
+component Settings {
+  @route "/admin/settings";
+  view { <div>Settings</div> }
+}
+"#;
+    let out = compile_react_src(source);
+    // 布局条目：path + element + children 数组
+    assert!(
+        out.contains("path: '/admin',"),
+        "布局 path 缺失. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("element: <AdminLayout />,"),
+        "布局 element 缺失. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("children: ["),
+        "布局 children 数组缺失. Got:\n{}",
+        out
+    );
+    // 子路由相对路径（strip 布局 prefix）——两个子路由均挂入 children
+    assert!(
+        out.contains("{ path: 'users', element: <Users /> },"),
+        "相对路径子路由缺失. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("{ path: 'settings', element: <Settings /> },"),
+        "相对路径子路由（第二个）缺失. Got:\n{}",
+        out
+    );
+    // 子路由不得作为顶层条目（children 数组之外）
+    assert!(
+        !out.contains("path: '/admin/users'"),
+        "子路由须以相对路径挂载，不得重复完整路径. Got:\n{}",
+        out
+    );
+    // 布局组件自身：无名槽位渲染 Outlet，且不得投影 children prop
+    let layout_file = out.lines().collect::<Vec<_>>().join("\n");
+    assert!(
+        layout_file.contains("import { Outlet } from 'react-router';"),
+        "布局组件 Outlet 导入缺失. Got:\n{}",
+        out
+    );
+    assert!(
+        layout_file.contains("<Outlet />"),
+        "布局无名槽位必须渲染 Outlet（非 children prop）. Got:\n{}",
+        out
+    );
+    assert!(
+        !layout_file.contains("children?: ReactNode"),
+        "布局不得声明 children prop（unused-destructure 防线）. Got:\n{}",
+        out
+    );
+    assert!(
+        !layout_file.contains("{children ??"),
+        "布局不得回退 children 渲染. Got:\n{}",
+        out
+    );
+}
+
+/// T6-4: @route 路径参数 → useLoaderData 包装器（spec §4.2 loader 透传）：
+/// 模块级 `{name}Route` 包装器持有 hook 调用并以 `as { id: string }` 断言
+/// loader 数据；组件 Props 接口声明 `id: string` 并解构。
+#[test]
+fn react_param_injection() {
+    let source = r#"
+component TodoPage {
+  @route "/todos/:id";
+  view { <div>Todo {id}</div> }
+}
+"#;
+    let out = compile_react_src(source);
+    assert!(
+        out.contains(
+            "import { createBrowserRouter, RouterProvider, useLoaderData } from 'react-router';"
+        ),
+        "useLoaderData 导入缺失（router 文件按需合并）. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("function TodoPageRoute() {"),
+        "参数包装器缺失. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("const params = useLoaderData() as { id: string };"),
+        "loader 数据类型断言缺失（须为合法 TS 类型 `{{ id: string }}`）. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("return <TodoPage id={params.id}/>;"),
+        "参数透传缺失. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("element: <TodoPageRoute />"),
+        "路由表须挂包装器（非裸组件）. Got:\n{}",
+        out
+    );
+    // 组件侧：Props 接口声明 + 解构
+    assert!(
+        out.contains("interface TodoPageProps {") && out.contains("  id: string;"),
+        "路径参数必须进入 Props 接口. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("export function TodoPage({ id }: TodoPageProps) {"),
+        "路径参数必须解构. Got:\n{}",
+        out
+    );
+}
+
+/// T6-5: @route lazy: true → 路由级懒加载（v7 lazy-module 契约）：
+/// - App.tsx 只发 `{ path, lazy: () => import(...) }`——lazy 路由不带
+///   `element`（静态 JSX 引用未导入名 → TS2304），也不顶层命名导入；
+/// - lazy+params 自包含：HeavyPage 模块自己导出 `HeavyPageLoader`
+///   （useLoaderData 的 params 来源）与 `HeavyPageLazy`（注入包装器），
+///   App.tsx 经 `Component: m.HeavyPageLazy, loader: m.HeavyPageLoader`
+///   引用（lazy 模块的导出必须在模块内解析——TS2322/TS2304）；
+/// - App 以 Suspense 包裹 RouterProvider。
+#[test]
+fn react_lazy_route() {
+    let source = r#"
+component HeavyPage {
+  @route "/heavy/:id" lazy: true;
+  view { <div>Heavy {id}</div> }
+}
+"#;
+    let out = compile_react_src(source);
+    assert!(
+        out.contains("import { Suspense } from 'react';"),
+        "Suspense 导入缺失（lazy 路由）. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains(
+            "lazy: () => import('./HeavyPage').then(m => ({ Component: m.HeavyPageLazy, loader: m.HeavyPageLoader }))"
+        ),
+        "lazy-module 契约缺失（应引用模块内自包含的 Lazy/Loader 导出）. Got:\n{}",
+        out
+    );
+    assert!(
+        !out.contains("function HeavyPageRoute"),
+        "lazy 路由不得在 App.tsx 生成参数包装器（模块须自包含）. Got:\n{}",
+        out
+    );
+    assert!(
+        !out.contains("import { HeavyPage } from './HeavyPage';"),
+        "lazy 路由不得顶层命名导入. Got:\n{}",
+        out
+    );
+    assert!(
+        !out.contains("element: <HeavyPage />"),
+        "lazy 路由不得带 element（引用未导入名 → TS2304）. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains(
+            "export function HeavyPageLoader({ params }: { params: Readonly<Record<string, string | undefined>> }) {"
+        ),
+        "lazy 模块缺少 params Loader 导出. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("export function HeavyPageLazy() {"),
+        "lazy 模块缺少注入包装器导出. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("const params = useLoaderData() as { id: string };"),
+        "lazy 包装器缺少 useLoaderData 注入. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("return <HeavyPage id={params.id}/>;"),
+        "lazy 包装器缺少 params 透传. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("<Suspense fallback={null}><RouterProvider router={router} /></Suspense>"),
+        "Suspense 包裹缺失. Got:\n{}",
+        out
+    );
+}
+
+/// T6-6: navigate/back 内建 → useNavigate 翻译：`back()` → `navigate(-1)`；
+/// `navigate("/todos/:id", { params: { id: item } })` → 路径字面量 +
+/// 表达式拼接 `navigate("/todos/" + item)`；组件模块导入 useNavigate 并
+/// 实例化 `const navigate = useNavigate();`。源程序须声明 `item`（@for
+/// 迭代变量）并注册 `/todos/:id` 路由（W2 路径登记校验）。
+#[test]
+fn react_navigate_translation() {
+    let source = r#"
+component ListPage {
+  signal items: Array<String> = ["a", "b"];
+  view {
+    @for item in items {
+      <button @onPress={() => {
+        navigate("/todos/:id", { params: { id: item } });
+        back()
+      }}>Go {item}</button>
+    }
+  }
+}
+component TodoPage {
+  @route "/todos/:id";
+  view { <div>Todo {id}</div> }
+}
+"#;
+    let out = compile_react_src(source);
+    assert!(
+        out.contains("import { useNavigate } from 'react-router';"),
+        "useNavigate 导入缺失. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("const navigate = useNavigate();"),
+        "useNavigate 实例化缺失. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("navigate(-1)"),
+        "back() 须翻译为 navigate(-1). Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("navigate(\"/todos/\" + item)"),
+        "路径参数占位须替换为表达式拼接. Got:\n{}",
+        out
+    );
+}
+
+/// T6-7: @query 字符串参数 → useSearchParams 注入：包装器以
+/// `searchParams.get('filter') ?? "all"` 形态注入（URL 携带值优先，默认值
+/// 兜底）；查询参数在 Props 接口为可选成员。@query 必须挂在 @route 页面
+/// 上（无 @route/@layout 的组件不进入路由表，也就不生成注入包装器）。
+#[test]
+fn react_query_param_prop() {
+    let source = r#"
+component FilterPage {
+  @route "/filter";
+  @query filter: String = "all";
+  view { <div>Filter {filter}</div> }
+}
+"#;
+    let out = compile_react_src(source);
+    assert!(
+        out.contains(
+            "import { createBrowserRouter, RouterProvider, useSearchParams } from 'react-router';"
+        ),
+        "useSearchParams 导入缺失（router 文件按需合并）. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("const [searchParams] = useSearchParams();"),
+        "useSearchParams 实例化缺失. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("filter={searchParams.get('filter') ?? \"all\"}"),
+        "查询参数注入形态缺失（URL 优先、默认值兜底）. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("function FilterPageRoute() {"),
+        "查询参数包装器缺失. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("interface FilterPageProps {") && out.contains("  filter?: string;"),
+        "查询参数须为 Props 可选成员. Got:\n{}",
+        out
+    );
+}
+
+/// T6-8: 无 @route/@layout 的程序 → 零路由回归：不发射 App.tsx（无
+/// createBrowserRouter/RouterProvider），main.omni 自产 App 组件不受影响。
+#[test]
+fn react_no_route_no_router_file() {
+    let source = r#"
+component Main {
+  view { <div>Plain</div> }
+}
+"#;
+    let out = compile_react_src(source);
+    assert!(
+        !out.contains("createBrowserRouter"),
+        "无 @route/@layout 不得发射路由表. Got:\n{}",
+        out
+    );
+    assert!(
+        !out.contains("RouterProvider"),
+        "无 @route/@layout 不得发射 RouterProvider. Got:\n{}",
+        out
+    );
+    assert!(
+        !out.contains("react-router"),
+        "无 @route/@layout 不得导入 react-router. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("export function Main() {"),
+        "普通组件发射不受影响. Got:\n{}",
+        out
+    );
+}

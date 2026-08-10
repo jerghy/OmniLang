@@ -164,6 +164,19 @@ pub trait FormatExpr {
         }
     }
 
+    /// Function call WITH IR context (arg ExprIR shapes still available —
+    /// e.g. MapExpr option-objects). The default delegates to the
+    /// string-level `format_call`; backends that translate call options
+    /// (React `navigate` params/query — Task 6) override this.
+    fn format_call_with_ir(
+        &self,
+        _name: &str,
+        _args: &[ExprIR],
+        _arg_strs: &[String],
+    ) -> Option<String> {
+        None
+    }
+
     /// Optional-chain method call (`obj?.method(args)`).
     fn format_optional_method_call(&self, obj: &str, method: &str, args: &[String]) -> String {
         format!("{obj}?.{method}({})", args.join(", "))
@@ -437,6 +450,9 @@ pub trait FormatExpr {
             ),
             ExprIR::CallExpr { name, args } => {
                 let arg_strs: Vec<String> = args.iter().map(|a| self.format_expr(a)).collect();
+                if let Some(mapped) = self.format_call_with_ir(name, args, &arg_strs) {
+                    return mapped;
+                }
                 self.format_call(name, &arg_strs)
             }
             ExprIR::StoreFieldAccessExpr {
