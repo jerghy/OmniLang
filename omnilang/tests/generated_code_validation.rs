@@ -1662,10 +1662,32 @@ fn flutter_modal_generates_show_dialog_with_focus_traversal() {
         "footer 槽内容缺失（文档序投影）。Got:\n{}",
         dart
     );
+    // 槽外匿名子内容落入 body 槽位（不丢弃）：el.children 中非 Slot
+    // 节点在命名槽之后继续投影
+    assert!(
+        dart.contains("槽外匿名内容落入 body 槽"),
+        "匿名子内容未落入 dialog 内容（body 槽位）。Got:\n{}",
+        dart
+    );
+    // @slot fallback 恰好渲染一次（锁定 F7 教训回归）：lowering 会把
+    // @slot 指令同时保留在 el.children 与 modal.slots（同内容），投影时
+    // 必须跳过 Slot 节点，否则双重渲染
+    assert_eq!(
+        dart.matches("小贴士：仅一次").count(),
+        1,
+        "@slot fallback 应恰好出现一次（F7 双重渲染回归）。Got:\n{}",
+        dart
+    );
     // Navigator push/pop 幂等守卫：组件级状态防重复 push/pop
     assert!(
         dart.contains("_modalShown"),
         "Navigator push/pop 幂等守卫 _modalShown 缺失。Got:\n{}",
+        dart
+    );
+    // 下降沿（isOpen=false → pop）：受控信号置假时经根 Navigator 弹出
+    assert!(
+        dart.contains("Navigator.of(context, rootNavigator: true).pop()"),
+        "下降沿 pop 缺失（isOpen=false → Navigator.pop）。Got:\n{}",
         dart
     );
 }

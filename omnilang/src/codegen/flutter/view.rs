@@ -1900,7 +1900,7 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
             _ => wrap_multi_widget(&parts),
         };
         let mut out = format!(
-            "// 注记：@errorBoundary 空壳（诚实降级——Flutter 无 ErrorBoundary 原语，渲染失败不兜底，fallback 槽不渲染）\n{}",
+            "// 注记：@errorBoundary 空壳（诚实降级——Flutter 无 ErrorBoundary 原语，渲染失败不兜底，fallback 槽不渲染；数据级错误请走 @load error 信号）\n{}",
             content
         );
         if let Some(midx) = motion_idx {
