@@ -964,6 +964,15 @@ impl FlutterCodegen {
             w.emit("");
         }
 
+        // @modal (Task 5 F1): showDialog push/pop idempotence snapshot — the
+        // builder's addPostFrameCallback driver reads/writes this flag so the
+        // signal→dialog 1:1 mapping holds across barrier dismiss, system back
+        // and programmatic pops.
+        if has_modal_bindings(comp) {
+            w.emit("bool _modalShown = false;");
+            w.emit("");
+        }
+
         // Effect dependency snapshot fields (C2): previous values of non-prop
         // deps so didUpdateWidget can detect changes and re-run @effect bodies.
         let mut prev_fields: FxHashSet<String> = FxHashSet::default();

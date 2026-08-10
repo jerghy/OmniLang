@@ -525,8 +525,8 @@ pub trait FormatExpr {
                 msg,
                 kind,
                 duration,
-            } => {
-                if self.codegen_target() == Target::React {
+            } => match self.codegen_target() {
+                Target::React => {
                     let mut parts = vec![format!("message: {}", self.format_expr(msg))];
                     if let Some(k) = kind {
                         let kind_str = match k {
@@ -543,10 +543,48 @@ pub trait FormatExpr {
                         parts.push(format!("duration: {d}"));
                     }
                     format!("toast({{ {} }})", parts.join(", "))
-                } else {
-                    "<builtin:showToast>".to_string()
                 }
-            }
+                // showToast Flutter 分支（批次 1 Task 5 F2）：ScaffoldMessenger
+                // SnackBar 语义调用。kind → 三色板背景色（error/success/info）；
+                // duration: 0 → 超长时长 + "关闭" Action（不自动消失），其余 →
+                // Duration(milliseconds: N)。注记：SnackBar 平台语义为单条队列
+                // ——连续触发替换当前条，不做合并/排队扩展。context 依赖组件
+                // State 方法体（State.context 在场）；lib 层 fn 无 context，
+                // 产物编译期"响亮失败"（诚实降级，与占位符同义）。
+                Target::Flutter => {
+                    let mut parts = vec![format!("content: Text({})", self.format_expr(msg))];
+                    if let Some(k) = kind {
+                        let color = match k {
+                            ToastKindIR::Info => Some("Color(0xFF1976D2)"),
+                            ToastKindIR::Success => Some("Color(0xFF388E3C)"),
+                            ToastKindIR::Error => Some("Color(0xFFD32F2F)"),
+                            // V6 已硬错误拒绝 Unknown——防御分支不映射颜色
+                            //（普通 SnackBar 诚实降级）。
+                            ToastKindIR::Unknown(_) => None,
+                        };
+                        if let Some(c) = color {
+                            parts.push(format!("backgroundColor: {c}"));
+                        }
+                    }
+                    match duration {
+                        Some(0) => {
+                            parts.push("duration: const Duration(days: 1)".to_string());
+                            parts.push(
+                                "action: SnackBarAction(label: \"关闭\", onPressed: () => \
+                                 ScaffoldMessenger.of(context).hideCurrentSnackBar())"
+                                    .to_string(),
+                            );
+                        }
+                        Some(n) => parts.push(format!("duration: Duration(milliseconds: {n})")),
+                        None => {}
+                    }
+                    format!(
+                        "ScaffoldMessenger.of(context).showSnackBar(/* 注记：SnackBar 单条队列——连续触发替换当前条 */ SnackBar({}))",
+                        parts.join(", ")
+                    )
+                }
+                _ => "<builtin:showToast>".to_string(),
+            },
         }
     }
 }

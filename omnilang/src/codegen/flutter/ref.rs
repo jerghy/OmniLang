@@ -692,6 +692,67 @@ fn scan_drag_bindings(node: &ViewTree, found: &mut bool) {
     }
 }
 
+/// Whether any element in the view carries a `@modal` binding — this drives
+/// the single `bool _modalShown;` State field the showDialog driver shares
+/// (the push/pop idempotence snapshot lives in the State's class-instance
+/// space, not on the element). Same document-order walk as drag bindings.
+pub(crate) fn has_modal_bindings(comp: &ComponentIR) -> bool {
+    let Some(view) = &comp.view else {
+        return false;
+    };
+    let mut found = false;
+    scan_modal_bindings(view, &mut found);
+    found
+}
+
+fn scan_modal_bindings(node: &ViewTree, found: &mut bool) {
+    if *found {
+        return;
+    }
+    match node {
+        ViewTree::Element(el) => {
+            if el.modal.is_some() {
+                *found = true;
+                return;
+            }
+            for child in &el.children {
+                scan_modal_bindings(child, found);
+            }
+        }
+        ViewTree::Conditional(cond) => {
+            for branch in &cond.branches {
+                if let Some(ref body) = branch.body {
+                    scan_modal_bindings(body, found);
+                }
+            }
+            if let Some(ref fb) = cond.fallback {
+                scan_modal_bindings(fb, found);
+            }
+        }
+        ViewTree::ListRendering(list) => {
+            if let Some(ref body) = list.body {
+                scan_modal_bindings(body, found);
+            }
+            if let Some(ref empty) = list.empty_body {
+                scan_modal_bindings(empty, found);
+            }
+        }
+        ViewTree::Fragment(children) => {
+            for c in children {
+                scan_modal_bindings(c, found);
+            }
+        }
+        ViewTree::Slot { fallback, .. } => {
+            for c in fallback {
+                scan_modal_bindings(c, found);
+            }
+        }
+        ViewTree::Text(_) | ViewTree::Interpolation(_) => {}
+        #[allow(unreachable_patterns)]
+        _ => {}
+    }
+}
+
 /// Which `form.*` builtin signals the view actually reads (`form.valid`,
 /// `form.errors`, `form.submitting`). The Flutter backend degrades these to
 /// constants — validation errors surface through the native `errorText`

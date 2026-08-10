@@ -1742,6 +1742,178 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
         // component widget (the semantic node describes the whole subtree).
         return wrap_a11y(el, decorated, ctx);
     }
+    // @modal (Task 5 F1): `<dialog @modal={openSig}>` renders a dialog
+    // route. The element is driven by the component State's
+    // `bool _modalShown` idempotence snapshot (declared in mod.rs when
+    // has_modal_bindings): a post-frame callback polls the signal — on a
+    // rising edge it pushes showDialog (FocusTraversalGroup for a11y
+    // traversal, barrierDismissible keeps outside-tap semantics), on a
+    // falling edge it pops via the root navigator (showDialog uses
+    // rootNavigator: true by default). The `.then` on the route future
+    // syncs the signal back to false on ANY pop — barrier dismiss, system
+    // back, programmatic pop — keeping the controlled signal the single
+    // source of truth. Honest note: no Esc-key handling on desktop (Global
+    // Constraints 7 — no new listeners); the mobile system back button and
+    // barrier tap are covered by the route's own pop.
+    if let Some(modal) = &el.modal {
+        let motion_idx = if is_flutter_motion_element(el, ctx.component_map) {
+            let idx = *ctx.motion_counter;
+            *ctx.motion_counter += 1;
+            Some(idx)
+        } else {
+            None
+        };
+        // Slot projection (document order, mirrors the React backend):
+        // named @slot fallbacks first — the slot set is not limited to
+        // header/body/footer — then anonymous children fall through into
+        // the body slot. Lowering keeps the @slot directives in
+        // el.children AND in modal.slots (identical content), so
+        // ViewTree::Slot nodes are skipped here to avoid double render.
+        let mut parts: Vec<String> = Vec::new();
+        for slot in &modal.slots {
+            if let Some(content) = format_slot_content(&slot.fallback, motions, ctx) {
+                parts.push(content);
+            }
+        }
+        for child in &el.children {
+            if matches!(child, ViewTree::Slot { .. }) {
+                continue;
+            }
+            parts.push(format_view_tree(child, motions, ctx));
+        }
+        let mut content = match parts.len() {
+            0 => "SizedBox.shrink()".to_string(),
+            1 => parts.remove(0),
+            _ => wrap_multi_widget(&parts),
+        };
+        if let Some(midx) = motion_idx {
+            content = wrap_with_motion_widgets(
+                content,
+                el.motion_behavior()
+                    .map_or(&[] as &[TriggerIntent], |m| &m.triggers),
+                motions,
+                midx,
+            );
+        }
+        let ref_arg = el
+            .ref_binding
+            .as_ref()
+            .map(|n| format!("key: {}, ", ref_key_name(n)))
+            .unwrap_or_default();
+        let sig = &modal.open_signal;
+        let (read_expr, write_false) = if ctx.direct_write_signals.contains(sig) {
+            (
+                format!("_{}.value", sig),
+                format!("_{}.value = false;", sig),
+            )
+        } else {
+            (sig.clone(), format!("setState(() {{ {} = false; }});", sig))
+        };
+        let out = format!(
+            "Builder(builder: (context) {{\n\
+             \x20\x20WidgetsBinding.instance.addPostFrameCallback((_) {{\n\
+             \x20\x20\x20\x20if (!mounted) return;\n\
+             \x20\x20\x20\x20if ({read_expr}) {{\n\
+             \x20\x20\x20\x20\x20\x20if (!_modalShown) {{\n\
+             \x20\x20\x20\x20\x20\x20\x20\x20_modalShown = true;\n\
+             \x20\x20\x20\x20\x20\x20\x20\x20showDialog(context: context, barrierDismissible: true, builder: (context) => FocusTraversalGroup(child: Dialog({ref_arg}child: {content}))).then((_) {{\n\
+             \x20\x20\x20\x20\x20\x20\x20\x20\x20\x20if (!mounted) return;\n\
+             \x20\x20\x20\x20\x20\x20\x20\x20\x20\x20_modalShown = false;\n\
+             \x20\x20\x20\x20\x20\x20\x20\x20\x20\x20{write_false}\n\
+             \x20\x20\x20\x20\x20\x20\x20\x20}});\n\
+             \x20\x20\x20\x20\x20\x20}}\n\
+             \x20\x20\x20\x20}} else {{\n\
+             \x20\x20\x20\x20\x20\x20if (_modalShown) {{\n\
+             \x20\x20\x20\x20\x20\x20\x20\x20_modalShown = false;\n\
+             \x20\x20\x20\x20\x20\x20\x20\x20Navigator.of(context, rootNavigator: true).pop();\n\
+             \x20\x20\x20\x20\x20\x20}}\n\
+             \x20\x20\x20\x20}}\n\
+             \x20\x20}});\n\
+             \x20\x20return const SizedBox.shrink();\n\
+             }})"
+        );
+        return out;
+    }
+    // @skeleton (Task 5 F3): static placeholder — grey block/circle with
+    // ZERO shimmer dependency (honest degradation: the plan forbids new
+    // packages, so no shimmer animation is possible). `circle` → 48x48
+    // grey circle; every other shape (text/line/card, default text) →
+    // 16-high rounded grey rect. The element is a placeholder: its own
+    // children are not rendered.
+    if let Some(skeleton) = &el.skeleton {
+        let motion_idx = if is_flutter_motion_element(el, ctx.component_map) {
+            let idx = *ctx.motion_counter;
+            *ctx.motion_counter += 1;
+            Some(idx)
+        } else {
+            None
+        };
+        let shape = skeleton.shape.as_deref().unwrap_or("text");
+        let placeholder = if shape == "circle" {
+            "Container(width: 48, height: 48, decoration: BoxDecoration(shape: BoxShape.circle, color: Color(0xFFE0E0E0)))"
+                .to_string()
+        } else {
+            "Container(height: 16, decoration: BoxDecoration(color: Color(0xFFE0E0E0), borderRadius: BorderRadius.circular(4)))"
+                .to_string()
+        };
+        let mut out = format!(
+            "// 注记：@skeleton 静态占位（诚实降级——零 shimmer 依赖，纯灰块）\n{}",
+            placeholder
+        );
+        if let Some(midx) = motion_idx {
+            out = wrap_with_motion_widgets(
+                out,
+                el.motion_behavior()
+                    .map_or(&[] as &[TriggerIntent], |m| &m.triggers),
+                motions,
+                midx,
+            );
+        }
+        return out;
+    }
+    // @errorBoundary (Task 5 F4): honest-degradation empty shell — Flutter
+    // has no ErrorBoundary primitive, so the element emits NO wrapper: the
+    // content children render exactly as if the directive were absent, and
+    // the `@slot fallback` fallback UI is NOT rendered (a silent fallback
+    // would mask render failures). The note comment keeps the directive
+    // visible in generated code for source-mapping / debugging.
+    if el.error_boundary.is_some() {
+        let motion_idx = if is_flutter_motion_element(el, ctx.component_map) {
+            let idx = *ctx.motion_counter;
+            *ctx.motion_counter += 1;
+            Some(idx)
+        } else {
+            None
+        };
+        // Slot projection: drop the @slot fallback (not rendered), render
+        // the remaining children exactly as the HTML-mapping path would.
+        let mut parts: Vec<String> = Vec::new();
+        for child in &el.children {
+            if matches!(child, ViewTree::Slot { .. }) {
+                continue;
+            }
+            parts.push(format_view_tree(child, motions, ctx));
+        }
+        let content = match parts.len() {
+            0 => "SizedBox.shrink()".to_string(),
+            1 => parts.remove(0),
+            _ => wrap_multi_widget(&parts),
+        };
+        let mut out = format!(
+            "// 注记：@errorBoundary 空壳（诚实降级——Flutter 无 ErrorBoundary 原语，渲染失败不兜底，fallback 槽不渲染）\n{}",
+            content
+        );
+        if let Some(midx) = motion_idx {
+            out = wrap_with_motion_widgets(
+                out,
+                el.motion_behavior()
+                    .map_or(&[] as &[TriggerIntent], |m| &m.triggers),
+                motions,
+                midx,
+            );
+        }
+        return out;
+    }
     // Otherwise, fall through to HTML tag mapping
     // @form (Task 5): inside an @form component, `<input>` maps to
     // `TextFormField` so bound fields get `validator` (Form validation only

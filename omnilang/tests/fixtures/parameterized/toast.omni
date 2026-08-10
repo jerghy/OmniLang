@@ -1,0 +1,15 @@
+// toast.omni — showToast 语义调用回归（批次 1 Task 5 F2）：fn 执行体内
+// showToast(消息, { kind, duration }) → ScaffoldMessenger SnackBar。
+// 覆盖点：
+//   ① kind: "error" → 主题色三色板映射（error 色）
+//   ② duration: 0 → 超长时长 + SnackBarAction("关闭")（不自动消失）
+import omniview;
+
+component ToastDemo {
+  fn save() { showToast("网络不可用", { kind: "error", duration: 0 }) }
+  view {
+    <div>
+      <button @onPress={save}>触发</button>
+    </div>
+  }
+}

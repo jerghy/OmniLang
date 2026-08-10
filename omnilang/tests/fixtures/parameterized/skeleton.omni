@@ -1,0 +1,20 @@
+// skeleton.omni — @skeleton 静态占位回归（批次 1 Task 5 F3）：@load 加载
+// 分支内 @skeleton 元素 → 灰底静态占位（零 shimmer 依赖，诚实降级）。
+// 覆盖点：
+//   ① shape "circle" → BoxShape.circle 灰底圆（48x48）
+//   ② 加载分支外内容不受影响（@else 正常渲染）
+import omniview;
+
+component SkeletonDemo {
+  fn f() -> Array<String> {
+    return [];
+  }
+  view {
+    @load={f}
+    @if loading {
+      <div @skeleton="circle" />
+    } @else {
+      <div>内容</div>
+    }
+  }
+}

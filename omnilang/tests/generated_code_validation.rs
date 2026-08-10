@@ -276,6 +276,19 @@ const FIXTURE_STRICT_ALLOWANCE: &[((&str, &str), usize)] = &[
     (("motion_drag/MotionDrag.tsx", "TS7006"), 15),
     (("animation/MotionCard.tsx", "TS7006"), 6),
     (("motion_scroll/MotionScroll.tsx", "TS7006"), 2),
+    // (("toast/ToastDemo.tsx", "TS2559"), 1) — Task 4 (批次 1 反馈模态) codegen
+    // defect, first exposed by Task 5's toast.omni fixture entering the React
+    // corpus: `function ToastProvider()` (omnilang/src/codegen/react/component/
+    // mod.rs) is emitted with ZERO args and never renders `{children}`, while
+    // the jsx emitter wraps the component's view in `<ToastProvider>...</
+    // ToastProvider>`. Under @types/react 19 `{children: Element}` has no
+    // properties in common with `IntrinsicAttributes` → TS2559 at the wrap
+    // site. Functionally worse: the wrapped view would be swallowed entirely
+    // (ToastProvider returns only the toast host div). React codegen is out of
+    // Task 5 scope (不碰 React codegen), so this is documented here per the
+    // gate's own contract — cap=1 (one wrap site); goes stale the moment a
+    // Task 4 follow-up makes ToastProvider accept/render `children`.
+    (("toast/ToastDemo.tsx", "TS2559"), 1),
 ];
 
 /// Parse `tsc --noEmit --pretty false` output into (path, code) -> count.
@@ -1616,4 +1629,140 @@ fn event_longpress_warns_on_react() {
         warnings.iter().map(|w| &w.message).collect::<Vec<_>>()
     );
     assert!(!tsx.contains("onLongpress"), "死处理器应被跳过而非发射");
+}
+
+/// 批次 1 Task 5 F1: @modal → showDialog + FocusTraversalGroup + Dialog，
+/// 三槽按文档顺序投影进对话框内容；打开/关闭经受控信号驱动，Navigator
+/// push/pop 以组件级 `_modalShown` 幂等守卫防重复。
+#[test]
+fn flutter_modal_generates_show_dialog_with_focus_traversal() {
+    let Some((dart, _)) = compile_fixture_to_flutter("parameterized/feedback_modal.omni") else {
+        return; // backend not compiled in
+    };
+    assert!(
+        dart.contains("showDialog("),
+        "@modal 应生成 showDialog。Got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("barrierDismissible: true"),
+        "点击遮罩关闭：barrierDismissible: true。Got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("FocusTraversalGroup("),
+        "对话框应包裹 FocusTraversalGroup（移动端焦点遍历）。Got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("Dialog("),
+        "应生成 Dialog widget。Got:\n{}",
+        dart
+    );
+    // 三槽按文档顺序投影进对话框内容
+    assert!(
+        dart.contains("确认删除"),
+        "header 槽内容缺失（文档序投影）。Got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("此操作不可撤销。"),
+        "body 槽内容缺失（文档序投影）。Got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("取消"),
+        "footer 槽内容缺失（文档序投影）。Got:\n{}",
+        dart
+    );
+    // Navigator push/pop 幂等守卫：组件级状态防重复 push/pop
+    assert!(
+        dart.contains("_modalShown"),
+        "Navigator push/pop 幂等守卫 _modalShown 缺失。Got:\n{}",
+        dart
+    );
+}
+
+/// 批次 1 Task 5 F2: showToast 语义调用 → ScaffoldMessenger SnackBar；
+/// kind: "error" → 主题色三色板 error 色；duration: 0 → 不自动消失 +
+/// SnackBarAction("关闭")（诚实降级：单条队列，非堆叠）。
+#[test]
+fn flutter_show_toast_generates_snack_bar() {
+    let Some((dart, _)) = compile_fixture_to_flutter("parameterized/toast.omni") else {
+        return; // backend not compiled in
+    };
+    assert!(
+        dart.contains("ScaffoldMessenger.of(context).showSnackBar("),
+        "showToast 应生成 ScaffoldMessenger.showSnackBar。Got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("SnackBar(content: Text('网络不可用')"),
+        "SnackBar 应携带 toast 消息文本。Got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("Color(0xFFD32F2F)"),
+        "kind: \"error\" 应映射错误主题色。Got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("SnackBarAction("),
+        "duration: 0 应生成 SnackBarAction。Got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("\"关闭\""),
+        "SnackBarAction 应带关闭标签。Got:\n{}",
+        dart
+    );
+}
+
+/// 批次 1 Task 5 F3: @skeleton → 静态灰底占位（诚实降级：零 shimmer 依赖）；
+/// shape "circle" → BoxShape.circle 灰底圆。
+#[test]
+fn flutter_skeleton_generates_static_placeholder() {
+    let Some((dart, _)) = compile_fixture_to_flutter("parameterized/skeleton.omni") else {
+        return; // backend not compiled in
+    };
+    assert!(
+        dart.contains("BoxDecoration(shape: BoxShape.circle"),
+        "@skeleton=\"circle\" 应生成圆形占位。Got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("Color(0xFFE0E0E0)"),
+        "占位底色应为灰底 Color(0xFFE0E0E0)。Got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("静态占位"),
+        "应带诚实降级注记（静态占位、无 shimmer 依赖）。Got:\n{}",
+        dart
+    );
+}
+
+/// 批次 1 Task 5 F4: @errorBoundary → 空壳降级（Flutter 暂不生成错误边界
+/// wrapper）：子内容照常渲染（single → direct / multi → Column），fallback
+/// 槽不渲染，降级事实以 Dart 注释注记呈现（不产生 analyze 警告）。
+#[test]
+fn flutter_error_boundary_generates_stub_with_note() {
+    let Some((dart, _)) = compile_fixture_to_flutter("parameterized/error_boundary.omni") else {
+        return; // backend not compiled in
+    };
+    assert!(
+        dart.contains("errorBoundary"),
+        "空壳降级应以 Dart 注释注记 @errorBoundary。Got:\n{}",
+        dart
+    );
+    assert!(
+        !dart.contains("ErrorBoundary("),
+        "空壳不应生成 ErrorBoundary wrapper widget。Got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("正常内容"),
+        "边界子内容应照常渲染。Got:\n{}",
+        dart
+    );
 }

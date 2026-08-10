@@ -1,0 +1,23 @@
+// feedback_modal.omni — @modal 三槽（header/body/footer）回归（批次 1
+// Task 5 F1）：三个命名槽按文档顺序投影进 Dialog 内容；@modal 由受控
+// 信号 isOpen 驱动 push/pop。覆盖点：
+//   ① 槽名不限三个——header/body/footer 均按声明顺序渲染
+//   ② 打开按钮 @onPress 触发 open() → 信号置真 → showDialog
+//   ③ 槽内交互（取消按钮）回写同一受控信号
+import omniview;
+
+component FeedbackModal {
+  signal isOpen: bool = false;
+  fn open() { isOpen = true }
+  fn close() { isOpen = false }
+  view {
+    <div>
+      <button @onPress={open}>打开</button>
+      <dialog @modal={isOpen}>
+        @slot header { <h1>确认删除</h1> }
+        @slot body { <p>此操作不可撤销。</p> }
+        @slot footer { <button @onPress={close}>取消</button> }
+      </dialog>
+    </div>
+  }
+}
