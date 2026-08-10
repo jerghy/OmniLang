@@ -29,7 +29,6 @@ Files are grouped by primary feature. Many files demonstrate multiple features.
 ## Stores
 
 - `test/projects/learn-omniview/src/stores/TodoStore.omni` — `store` with `signal`, `getter`, `action` (add/remove/clear/setFilter)
-- `test/projects/learn-omniview/src/stores/NotificationStore.omni` — `action` with return value, `getter` derived count, string operations
 
 ## Signals
 
