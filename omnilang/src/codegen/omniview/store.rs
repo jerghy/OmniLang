@@ -318,6 +318,65 @@ impl OmniViewGenerator {
             self.name_resolver.signal_names.insert(prefixed);
         }
 
+        // ── Route param / @query signals (Task 8) ──
+        // @route/:id params and string-typed @query props are WRITABLE
+        // signals — the hash router writes them on route match via the
+        // __omni_subs registry (runtime.rs). __omni_readonlySignal has no
+        // setter, so these CANNOT reuse the prop-default path. Collision-
+        // guarded: a param/query name already claimed by a prop/signal/
+        // store emits a duplicate `const {Comp}_{name}` → JS SyntaxError,
+        // so we skip + warn honestly (ADR-054 — never silent).
+        if self.router_active {
+            if let Some(intent) = &comp.route_intent {
+                for p in &intent.params {
+                    let prefixed = format!("{}_{}", name, p);
+                    if self.name_resolver.name_renames.contains_key(p) {
+                        self.warnings.push(format!(
+                            "OmniView: @route param `{p}` of `{name}` collides with an existing symbol — injection skipped"
+                        ));
+                        continue;
+                    }
+                    self.name_resolver
+                        .name_renames
+                        .insert(p.clone(), prefixed.clone());
+                    self.name_resolver.signal_names.insert(prefixed.clone());
+                    let _ = writeln!(
+                        self.js,
+                        "const {prefixed} = __omni_signal(\"{prefixed}\", \"\");"
+                    );
+                }
+            }
+            for q in &comp.query_params {
+                if !is_string_ty(&q.ty) {
+                    self.warnings.push(format!(
+                        "OmniView: @query `{0}` of `{1}` is non-string — query params are URI strings, injection skipped",
+                        q.name, name
+                    ));
+                    continue;
+                }
+                let prefixed = format!("{}_{}", name, q.name);
+                if self.name_resolver.name_renames.contains_key(&q.name) {
+                    self.warnings.push(format!(
+                        "OmniView: @query `{0}` of `{1}` collides with an existing symbol — injection skipped",
+                        q.name, name
+                    ));
+                    continue;
+                }
+                let init = match &q.default {
+                    Some(d) => self.expr_to_js(d),
+                    None => "\"\"".to_string(),
+                };
+                self.name_resolver
+                    .name_renames
+                    .insert(q.name.clone(), prefixed.clone());
+                self.name_resolver.signal_names.insert(prefixed.clone());
+                let _ = writeln!(
+                    self.js,
+                    "const {prefixed} = __omni_signal(\"{prefixed}\", {init});"
+                );
+            }
+        }
+
         // ── @form builtin signals (Task 6) ──
         // formErrors/formSubmitting are real signals; formValid is a computed
         // over formErrors (empty error map ⇒ valid). Declared AFTER prop
@@ -593,6 +652,23 @@ impl OmniViewGenerator {
                     self.emit_view(&view);
                 }
                 self.scope.emitting_root_view = false;
+            }
+        } else if self.router_active {
+            // Routed non-root components: emit their view into a hidden
+            // route container (`data-omni-route` div) appended AFTER the
+            // root container — the hash router toggles visibility and
+            // moves layout slots at runtime. Layouts materialize their
+            // body-level `@slot` declarations first so a real <slot>
+            // element exists for the router's appendChild (Task 8).
+            if let Some(pattern) = route_pattern(comp) {
+                if let Some(ref view) = comp.view {
+                    let view = if comp.slots.is_empty() {
+                        view.clone()
+                    } else {
+                        materialize_view_slots(view, comp, &slot_collision_names(comp))
+                    };
+                    self.emit_route_view(&view, &pattern);
+                }
             }
         }
 
@@ -1056,4 +1132,17 @@ impl OmniViewGenerator {
         self.js.push_str("}\n\n");
         self.scope.fn_locals.clear();
     }
+}
+
+/// Route container pattern for a routed component: @route path or @layout prefix.
+fn route_pattern(comp: &ComponentIR) -> Option<String> {
+    comp.route_intent
+        .as_ref()
+        .map(|r| r.path.clone())
+        .or_else(|| comp.layout_intent.as_ref().map(|l| l.prefix.clone()))
+}
+
+/// Query params are URI strings — only string-typed ones are injected.
+fn is_string_ty(ty: &TypeIR) -> bool {
+    matches!(ty.kind.as_str(), "string" | "String" | "str")
 }

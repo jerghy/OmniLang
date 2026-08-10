@@ -47,33 +47,65 @@ use std::fmt::Write;
 impl OmniViewGenerator {
     /// Emit the root component's view HTML into self.html, temporarily swapping
     /// self.js ↔ self.deferred_js so event/effect code goes into the deferred buffer.
+    ///
+    /// When hash routing is active the root container is a route page itself
+    /// (`data-omni-route="/"`, hidden by default — the router shows it when the
+    /// path "/" or an unmatched path is current).
     pub(super) fn emit_view(&mut self, view: &ViewTree) {
-        // Swap js with deferred_js so view_to_html event/effect code
-        // goes into the deferred buffer (emitted after DOM insertion)
-        std::mem::swap(&mut self.js, &mut self.deferred_js);
-
-        // Generate initial DOM HTML (events/effects go to deferred_js)
-        let design_attr = if self.design_names.is_empty() {
-            String::new()
+        let route_attr = if self.router_active {
+            " data-omni-route=\"/\" style=\"display:none\""
         } else {
-            format!(" data-design=\"{}\"", self.design_names.join(" "))
+            ""
         };
-        let _ = writeln!(
-            self.html,
-            "<div id=\"root\" data-component=\"{}\"{}>",
-            self.scope.current_component, design_attr
+        let open_tag = format!(
+            "<div id=\"root\" data-component=\"{}\"{}{}>\n",
+            self.scope.current_component,
+            self.design_attr(),
+            route_attr
         );
+        self.emit_view_body(view, &open_tag);
+    }
+
+    /// Emit a routed non-root component's view into a hidden route container
+    /// (`<div data-omni-route="{pattern}" ... style="display:none">`) appended
+    /// after the root container. The hash router toggles visibility and moves
+    /// the container into its owning layout's `@slot` at runtime (Task 8).
+    pub(super) fn emit_route_view(&mut self, view: &ViewTree, pattern: &str) {
+        let open_tag = format!(
+            "<div data-omni-route=\"{}\" data-component=\"{}\"{} style=\"display:none\">\n",
+            pattern,
+            self.scope.current_component,
+            self.design_attr()
+        );
+        self.emit_view_body(view, &open_tag);
+    }
+
+    /// Shared body of view emission: swap js ↔ deferred_js so event/effect code
+    /// goes into the deferred buffer, write the open tag + tree + close tag,
+    /// then restore buffers and accumulate deferred code (flushed once after
+    /// ALL components).
+    fn emit_view_body(&mut self, view: &ViewTree, open_tag: &str) {
+        std::mem::swap(&mut self.js, &mut self.deferred_js);
+        self.html.push_str(open_tag);
         let html = self.view_to_html(view, 1);
         self.html.push_str(&html);
         self.html.push_str("</div>\n");
-
-        // Swap back — events/effects are now in deferred_js
         std::mem::swap(&mut self.js, &mut self.deferred_js);
 
         // Accumulate deferred_js — emit only once after ALL components
         if !self.deferred_js.is_empty() {
             self.all_deferred_js.push_str(&self.deferred_js);
             self.deferred_js.clear();
+        }
+    }
+
+    /// ` data-design="..."` attribute string for the current component (empty
+    /// when no design names are in scope).
+    fn design_attr(&self) -> String {
+        if self.design_names.is_empty() {
+            String::new()
+        } else {
+            format!(" data-design=\"{}\"", self.design_names.join(" "))
         }
     }
 

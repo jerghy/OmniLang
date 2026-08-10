@@ -3577,3 +3577,506 @@ component App {
         js
     );
 }
+
+// ═════════════════════════════════════════════════════════════
+// Task 8 — Hash Router (@route/@layout/@query + navigate/back)
+// ═════════════════════════════════════════════════════════════
+
+/// T8-1 路由表发射：@route 组件进入 `__omni_routes` 表（合成根条目在首位、
+/// 名排序、params/query 列出、守卫/重定向接线），hashchange 监听注册，
+/// 零依赖（无外部 import/require）。
+#[test]
+fn test_omniview_hash_router_emission() {
+    let mut module = make_module("main");
+    let mut app = make_component("App");
+    app.view = Some(ViewTree::Element(Box::new(make_element("div"))));
+    let mut todos = make_component("TodosPage");
+    todos.route_intent = Some(RouteIntentIR {
+        path: "/todos/:id".into(),
+        decl_paths: vec![],
+        params: vec!["id".into()],
+        guard: Some("canView".into()),
+        lazy: Some(true),
+        redirect: Some("/login".into()),
+    });
+    todos.query_params = vec![QueryParamIR {
+        name: "filter".into(),
+        ty: TypeIR {
+            kind: "string".into(),
+            type_args: vec![],
+            is_nullable: false,
+        },
+        default: None,
+    }];
+    todos.fns = vec![FunctionIR {
+        name: "canView".into(),
+        visibility: Visibility::Public,
+        params: vec![],
+        return_type: None,
+        body: BlockIR {
+            statements: vec![StatementIR::ReturnStmtIR {
+                value: Some(ExprIR::LiteralExpr {
+                    value: serde_json::json!(true),
+                }),
+            }],
+        },
+        is_async: false,
+        source_span: None,
+    }];
+    module.components.insert("App".into(), app);
+    module.components.insert("TodosPage".into(), todos);
+    let ir = make_program(FxHashMap::from_iter([("main".into(), module)]));
+    let output = generate(&ir, false, false, false);
+    let js = &output.js;
+
+    // 路由表：合成根条目在首位
+    let root_idx = js
+        .find("__omni_routes")
+        .unwrap_or_else(|| panic!("__omni_routes table missing. JS:\n{}", js));
+    let root_entry = js
+        .find("{ pattern: \"/\", comp: \"App\", params: [], query: [], guard: null, redirect: null, layout: null, isLayout: false }")
+        .unwrap_or_else(|| panic!("synthetic root entry missing. JS:\n{}", js));
+    assert!(
+        root_entry > root_idx,
+        "root entry must appear inside the routes table. JS:\n{}",
+        js
+    );
+    // 名排序 + 守卫/重定向接线 + params/query 列出
+    assert!(
+        js.contains("{ pattern: \"/todos/:id\", comp: \"TodosPage\", params: [\"id\"], query: [\"filter\"], guard: TodosPage_canView, redirect: \"/login\", layout: null, isLayout: false }"),
+        "route entry shape wrong. JS:\n{}",
+        js
+    );
+    // 懒加载注记（静态内联 no-op 诚实降级）
+    assert!(
+        js.contains("声明 lazy 的路由：TodosPage"),
+        "lazy degradation note missing. JS:\n{}",
+        js
+    );
+    // hashchange 监听 + 初始应用
+    assert!(
+        js.contains("window.addEventListener(\"hashchange\", __omni_apply);"),
+        "hashchange listener missing. JS:\n{}",
+        js
+    );
+    assert!(
+        js.contains("__omni_apply();"),
+        "initial route apply missing. JS:\n{}",
+        js
+    );
+    // 零依赖：无外部 import 语句 / require 调用（注记里的"动态 import"字样除外）
+    assert!(
+        !js.lines().any(|l| l.trim_start().starts_with("import ")) && !js.contains("require("),
+        "router must be zero-dependency. JS:\n{}",
+        js
+    );
+    // 根容器即 "/" 路由页（router_active 时带隐藏容器）
+    assert!(
+        output.html.contains("data-omni-route=\"/\""),
+        "root container must be the \"/\" route page. HTML:\n{}",
+        output.html
+    );
+    // 守卫 fn 必须作为 IIFE 内提升函数发射
+    assert!(
+        js.contains("function TodosPage_canView()"),
+        "guard fn must be emitted as a hoisted component fn. JS:\n{}",
+        js
+    );
+}
+
+/// T8-2 参数段 + 查询参数注入：:id 参数与 string 型 @query 生成可写信号
+/// （`__omni_signal("{Comp}_{name}", "")`），路由运行时经 `__omni_subs`
+/// 注册表写入（params/query 两路 + URLSearchParams 解析）。
+#[test]
+fn test_omniview_param_and_query_injection() {
+    let mut module = make_module("main");
+    let mut app = make_component("App");
+    app.view = Some(ViewTree::Element(Box::new(make_element("div"))));
+    let mut todos = make_component("TodosPage");
+    todos.route_intent = Some(RouteIntentIR {
+        path: "/todos/:id".into(),
+        decl_paths: vec![],
+        params: vec!["id".into()],
+        guard: None,
+        lazy: None,
+        redirect: None,
+    });
+    todos.query_params = vec![QueryParamIR {
+        name: "filter".into(),
+        ty: TypeIR {
+            kind: "string".into(),
+            type_args: vec![],
+            is_nullable: false,
+        },
+        default: None,
+    }];
+    module.components.insert("App".into(), app);
+    module.components.insert("TodosPage".into(), todos);
+    let ir = make_program(FxHashMap::from_iter([("main".into(), module)]));
+    let output = generate(&ir, false, false, false);
+    let js = &output.js;
+
+    // 可写信号声明（参数 + 查询各一）
+    assert!(
+        js.contains("const TodosPage_id = __omni_signal(\"TodosPage_id\", \"\");"),
+        "route param signal missing. JS:\n{}",
+        js
+    );
+    assert!(
+        js.contains("const TodosPage_filter = __omni_signal(\"TodosPage_filter\", \"\");"),
+        "query signal missing. JS:\n{}",
+        js
+    );
+    // 路由运行时：params 与 query 双路写入 __omni_subs
+    assert!(
+        js.contains("__omni_subs.get(key).set(params[p])"),
+        "param injection write missing. JS:\n{}",
+        js
+    );
+    assert!(
+        js.contains("__omni_subs.get(key).set(query[q])"),
+        "query injection write missing. JS:\n{}",
+        js
+    );
+    assert!(
+        js.contains("new URLSearchParams"),
+        "query parse must use URLSearchParams. JS:\n{}",
+        js
+    );
+    assert!(
+        js.contains("decodeURIComponent(as[i])"),
+        "param values must be decodeURIComponent'd. JS:\n{}",
+        js
+    );
+}
+
+/// T8-3 守卫 + 重定向：守卫 fn 存在 → 表中为 `{Comp}_{guard}` 标识符；
+/// 运行时 `false` → `location.hash = "#" + (hit.redirect || "/")` 并 return；
+/// 守卫抛错 → `__omni_reportError("warn:route:guard", e)`（不静默）。
+/// 守卫未定义 → 降级 null + 诚实警告。
+#[test]
+fn test_omniview_guard_redirect() {
+    let mut module = make_module("main");
+    let mut app = make_component("App");
+    app.view = Some(ViewTree::Element(Box::new(make_element("div"))));
+    let mut todos = make_component("TodosPage");
+    todos.route_intent = Some(RouteIntentIR {
+        path: "/todos".into(),
+        decl_paths: vec![],
+        params: vec![],
+        guard: Some("canView".into()),
+        lazy: None,
+        redirect: Some("/login".into()),
+    });
+    todos.fns = vec![FunctionIR {
+        name: "canView".into(),
+        visibility: Visibility::Public,
+        params: vec![],
+        return_type: None,
+        body: BlockIR {
+            statements: vec![StatementIR::ReturnStmtIR {
+                value: Some(ExprIR::LiteralExpr {
+                    value: serde_json::json!(false),
+                }),
+            }],
+        },
+        is_async: false,
+        source_span: None,
+    }];
+    let mut broken = make_component("BrokenPage");
+    broken.route_intent = Some(RouteIntentIR {
+        path: "/broken".into(),
+        decl_paths: vec![],
+        params: vec![],
+        guard: Some("nonexistent".into()),
+        lazy: None,
+        redirect: None,
+    });
+    module.components.insert("App".into(), app);
+    module.components.insert("TodosPage".into(), todos);
+    module.components.insert("BrokenPage".into(), broken);
+    let ir = make_program(FxHashMap::from_iter([("main".into(), module)]));
+    let output = generate(&ir, false, false, false);
+    let js = &output.js;
+
+    // 表内守卫/重定向接线
+    assert!(
+        js.contains("guard: TodosPage_canView, redirect: \"/login\""),
+        "guard/redirect wiring missing. JS:\n{}",
+        js
+    );
+    // 运行时：false → 重定向（默认 `/`）；抛错 → reportError
+    assert!(
+        js.contains("if (!hit.guard()) {\n        location.hash = \"#\" + (hit.redirect || \"/\");\n        return;\n      }"),
+        "guard-false redirect missing. JS:\n{}",
+        js
+    );
+    assert!(
+        js.contains("__omni_reportError(\"warn:route:guard\", e)"),
+        "guard error must be reported (ADR-054 never silent). JS:\n{}",
+        js
+    );
+    // 未定义守卫 → 表内降级 null + 诚实警告
+    assert!(
+        js.contains("{ pattern: \"/broken\", comp: \"BrokenPage\", params: [], query: [], guard: null, redirect: null, layout: null, isLayout: false }"),
+        "undefined guard must degrade to null in the table. JS:\n{}",
+        js
+    );
+    assert!(
+        output.warnings.iter().any(|w| w.contains("/broken")
+            && w.contains("nonexistent")
+            && w.contains("降级为 null")),
+        "missing-guard warning expected, got: {:?}",
+        output.warnings
+    );
+}
+
+/// T8-4 嵌套布局渲染：@layout 进入 `isLayout: true` 条目（prefix 排序），
+/// 子路由表项携带 `layout: "/{prefix}"`；运行时沿布局链走
+/// `slot:not([name])` + `appendChild` 移动子容器；布局视图含真实 `<slot>`。
+#[test]
+fn test_omniview_nested_layout_render() {
+    let mut module = make_module("main");
+    let mut app = make_component("App");
+    app.view = Some(ViewTree::Element(Box::new(make_element("div"))));
+    let mut layout = make_component("AdminLayout");
+    layout.layout_intent = Some(LayoutIntentIR {
+        prefix: "/admin".into(),
+    });
+    // 布局视图必须含 `<slot>`（无 fallback）
+    let mut layout_root = make_element("div");
+    layout_root.children = vec![ViewTree::Slot {
+        name: None,
+        fallback: vec![],
+    }];
+    layout.view = Some(ViewTree::Element(Box::new(layout_root)));
+    let mut users = make_component("UsersPage");
+    users.route_intent = Some(RouteIntentIR {
+        path: "/admin/users".into(),
+        decl_paths: vec![],
+        params: vec![],
+        guard: None,
+        lazy: None,
+        redirect: None,
+    });
+    users.view = Some(ViewTree::Element(Box::new(make_element("div"))));
+    module.components.insert("App".into(), app);
+    module.components.insert("AdminLayout".into(), layout);
+    module.components.insert("UsersPage".into(), users);
+    let ir = make_program(FxHashMap::from_iter([("main".into(), module)]));
+    let output = generate(&ir, false, false, false);
+    let js = &output.js;
+
+    // 布局表项 + 子路由 layout 指针
+    assert!(
+        js.contains("{ pattern: \"/admin\", comp: \"AdminLayout\", params: [], query: [], guard: null, redirect: null, layout: null, isLayout: true }"),
+        "layout table entry missing. JS:\n{}",
+        js
+    );
+    assert!(
+        js.contains("layout: \"/admin\""),
+        "route must reference owning layout. JS:\n{}",
+        js
+    );
+    // 运行时：沿布局链移动子容器进 slot 出口
+    assert!(
+        js.contains("querySelector('[data-omni-route=\"' + l.pattern + '\"] slot:not([name])')"),
+        "layout slot lookup missing. JS:\n{}",
+        js
+    );
+    assert!(
+        js.contains("slot.appendChild(childEl)"),
+        "slot appendChild missing. JS:\n{}",
+        js
+    );
+    // 视图：布局与子页面均为隐藏路由容器，布局含真实 <slot>
+    assert!(
+        output.html.contains("data-omni-route=\"/admin\"")
+            && output.html.contains("data-omni-route=\"/admin/users\""),
+        "route containers missing. HTML:\n{}",
+        output.html
+    );
+    assert!(
+        output.html.contains("<slot></slot>"),
+        "layout must render a real <slot>. HTML:\n{}",
+        output.html
+    );
+}
+
+/// T8-5 navigate/back 翻译：全字面路径 → `location.hash = '#/todos/42'`；
+/// 模板路径 + params + query → `'#/todos/' + item + '?filter=all'`；
+/// back() → `history.back()`；缺参 navigate → `undefined` + 诚实警告。
+#[test]
+fn test_omniview_navigate_back() {
+    let mut module = make_module("main");
+    let mut app = make_component("App");
+    app.view = Some(ViewTree::Element(Box::new(make_element("div"))));
+    app.fns = vec![FunctionIR {
+        name: "go".into(),
+        visibility: Visibility::Public,
+        params: vec![],
+        return_type: None,
+        body: BlockIR {
+            statements: vec![
+                // navigate('/todos/42')
+                StatementIR::ExprStmtIR {
+                    expr: ExprIR::CallExpr {
+                        name: "navigate".into(),
+                        args: vec![ExprIR::LiteralExpr {
+                            value: serde_json::json!("/todos/42"),
+                        }],
+                    },
+                },
+                // navigate('/todos/:id', { params: { id: item }, query: { filter: 'all' } })
+                StatementIR::ExprStmtIR {
+                    expr: ExprIR::CallExpr {
+                        name: "navigate".into(),
+                        args: vec![
+                            ExprIR::LiteralExpr {
+                                value: serde_json::json!("/todos/:id"),
+                            },
+                            ExprIR::MapExpr {
+                                entries: vec![
+                                    (
+                                        ExprIR::LiteralExpr {
+                                            value: serde_json::json!("params"),
+                                        },
+                                        ExprIR::MapExpr {
+                                            entries: vec![(
+                                                ExprIR::IdentifierExpr {
+                                                    name: "id".into(),
+                                                    type_ann: None,
+                                                },
+                                                ExprIR::IdentifierExpr {
+                                                    name: "item".into(),
+                                                    type_ann: None,
+                                                },
+                                            )],
+                                        },
+                                    ),
+                                    (
+                                        ExprIR::LiteralExpr {
+                                            value: serde_json::json!("query"),
+                                        },
+                                        ExprIR::MapExpr {
+                                            entries: vec![(
+                                                ExprIR::IdentifierExpr {
+                                                    name: "filter".into(),
+                                                    type_ann: None,
+                                                },
+                                                ExprIR::LiteralExpr {
+                                                    value: serde_json::json!("all"),
+                                                },
+                                            )],
+                                        },
+                                    ),
+                                ],
+                            },
+                        ],
+                    },
+                },
+                // back()
+                StatementIR::ExprStmtIR {
+                    expr: ExprIR::CallExpr {
+                        name: "back".into(),
+                        args: vec![],
+                    },
+                },
+                // navigate() — 缺参
+                StatementIR::ExprStmtIR {
+                    expr: ExprIR::CallExpr {
+                        name: "navigate".into(),
+                        args: vec![],
+                    },
+                },
+            ],
+        },
+        is_async: false,
+        source_span: None,
+    }];
+    module.components.insert("App".into(), app);
+    let ir = make_program(FxHashMap::from_iter([("main".into(), module)]));
+    let output = generate(&ir, false, false, false);
+    let js = &output.js;
+
+    // 全字面路径
+    assert!(
+        js.contains("location.hash = '#/todos/42';"),
+        "literal navigate emission wrong. JS:\n{}",
+        js
+    );
+    // 模板路径 + params 替换 + query 拼接（声明序）
+    assert!(
+        js.contains("location.hash = '#/todos/' + item + '?filter=all';"),
+        "templated navigate emission wrong. JS:\n{}",
+        js
+    );
+    // back
+    assert!(
+        js.contains("history.back();"),
+        "back emission wrong. JS:\n{}",
+        js
+    );
+    // 缺参 navigate → undefined + 诚实警告
+    assert!(
+        js.contains("undefined;"),
+        "no-arg navigate must degrade to undefined. JS:\n{}",
+        js
+    );
+    assert!(
+        output
+            .warnings
+            .iter()
+            .any(|w| w.contains("navigate: 缺少路径参数")),
+        "no-arg navigate warning expected, got: {:?}",
+        output.warnings
+    );
+}
+
+/// T8-6 零回归：无 @route/@layout 意图 → 整个路由发射关闭（无
+/// `__omni_routes`/hashchange/data-omni-route/history.back），输出与
+/// 既有编译产物形态一致。
+#[test]
+fn test_omniview_no_route_regression() {
+    let mut module = make_module("main");
+    let mut app = make_component("App");
+    app.view = Some(ViewTree::Element(Box::new(make_element("div"))));
+    app.fns = vec![FunctionIR {
+        name: "go".into(),
+        visibility: Visibility::Public,
+        params: vec![],
+        return_type: None,
+        body: BlockIR {
+            statements: vec![StatementIR::ExprStmtIR {
+                expr: ExprIR::CallExpr {
+                    name: "back".into(),
+                    args: vec![],
+                },
+            }],
+        },
+        is_async: false,
+        source_span: None,
+    }];
+    module.components.insert("App".into(), app);
+    let ir = make_program(FxHashMap::from_iter([("main".into(), module)]));
+    let output = generate(&ir, false, false, false);
+    let js = &output.js;
+
+    // has_routing 门禁：无意图 → 无任何路由产物
+    assert!(
+        !js.contains("__omni_routes") && !js.contains("hashchange"),
+        "no-route program must not emit router JS. JS:\n{}",
+        js
+    );
+    assert!(
+        !js.contains("data-omni-route") && !output.html.contains("data-omni-route"),
+        "no-route program must not emit route containers. HTML:\n{}",
+        output.html
+    );
+    // back() 无路由上下文仍翻译为 history.back()（非路由功能，不属路由门禁）
+    assert!(
+        js.contains("history.back();"),
+        "back() must still translate without routing. JS:\n{}",
+        js
+    );
+}

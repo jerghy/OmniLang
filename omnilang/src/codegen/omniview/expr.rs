@@ -2,6 +2,7 @@ use super::utils::{binary_op_precedence, map_binary_op, serde_value_to_js};
 use super::OmniViewGenerator;
 use crate::codegen::{sanitize_css_value, try_format_stdlib_call, Target};
 use crate::ir::*;
+use rustc_hash::FxHashMap;
 
 /// Toast runtime JS (spec §4.2 OmniView row, verbatim requirements):
 /// global self-drawn `.omni-toast` container + `__omni_toastQueue` list +
@@ -160,6 +161,13 @@ impl OmniViewGenerator {
                 if name == "println" || name == "print" {
                     let arg_strs: Vec<String> = args.iter().map(|a| self.expr_to_js(a)).collect();
                     return format!("console.log({})", arg_strs.join(", "));
+                }
+                // Task 8: navigate/back builtins (spec §2.8 深链) — OmniView
+                // hash-router form (spec §4.2 注 — 无 history.pushState):
+                // navigate 编译为 `location.hash = '#/...'` 赋值，back 编译为
+                // `history.back()`。
+                if name == "navigate" || name == "back" {
+                    return self.translate_navigate_call(name, args);
                 }
                 let arg_strs: Vec<String> = args.iter().map(|a| self.expr_to_js(a)).collect();
                 if let Some(native) = try_format_stdlib_call(name, &arg_strs, Target::OmniView) {
@@ -892,5 +900,187 @@ impl OmniViewGenerator {
             },
             _ => String::new(),
         }
+    }
+
+    // ══════════════════════════════════════════════════════
+    // Task 8: navigate/back builtins (§2.8 深链 — hash-router form)
+    // ══════════════════════════════════════════════════════
+
+    /// `navigate(path, { params, query })` / `back()` — OmniView hash-router
+    /// form (spec §4.2 注 — 无 history.pushState): navigate compiles to a
+    /// `location.hash = '#/...'` assignment, back to `history.back()`. Both
+    /// are expressions (the statement layer appends `;`).
+    fn translate_navigate_call(&mut self, name: &str, args: &[ExprIR]) -> String {
+        if name == "back" {
+            if !args.is_empty() {
+                self.warnings
+                    .push("back: 不接受参数——多余参数已忽略（诚实降级，ADR-054）".to_string());
+            }
+            return "history.back()".to_string();
+        }
+        let Some(path) = args.first() else {
+            self.warnings.push(
+                "navigate: 缺少路径参数——调用降级为 undefined（诚实降级，ADR-054）".to_string(),
+            );
+            return "undefined".to_string();
+        };
+        // Optional second arg: option MapExpr — `{ params: {...}, query:
+        // {...} }` with string-literal keys.
+        let mut params: FxHashMap<String, &ExprIR> = FxHashMap::default();
+        let mut query: Vec<(String, &ExprIR)> = Vec::new();
+        if let Some(ExprIR::MapExpr { entries }) = args.get(1) {
+            for (k, v) in entries {
+                match map_entry_key_str(k).as_deref() {
+                    Some("params") => {
+                        if let ExprIR::MapExpr { entries: p_entries } = v {
+                            for (pk, pv) in p_entries {
+                                if let Some(pk) = map_entry_key_str(pk) {
+                                    params.insert(pk, pv);
+                                }
+                            }
+                        }
+                    }
+                    Some("query") => {
+                        if let ExprIR::MapExpr { entries: q_entries } = v {
+                            for (qk, qv) in q_entries {
+                                if let Some(qk) = map_entry_key_str(qk) {
+                                    query.push((qk, qv));
+                                }
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        let ExprIR::LiteralExpr { value } = path else {
+            // Dynamic path — options cannot be inlined into a runtime
+            // expression; drop them and warn (honest degradation, ADR-054).
+            if !params.is_empty() || !query.is_empty() {
+                self.warnings.push(
+                    "navigate: 动态路径无法内联 params/query 选项——选项已丢弃，仅保留路径调用（诚实降级，ADR-054）"
+                        .to_string(),
+                );
+            }
+            return format!("location.hash = '#' + ({})", self.expr_to_js(path));
+        };
+        let Some(path) = value.as_str() else {
+            self.warnings.push(
+                "navigate: 路径参数必须为字符串字面量——调用降级为 undefined（诚实降级，ADR-054）"
+                    .to_string(),
+            );
+            return "undefined".to_string();
+        };
+        format!(
+            "location.hash = {}",
+            self.build_navigate_arg(path, &params, &query)
+        )
+    }
+
+    /// Assemble the hash value from a template path plus the params/query
+    /// option maps (Task 8 — spec §2.8 navigate 内建, hash-router form):
+    ///
+    /// ```text
+    /// navigate("/todos/:id", { params: { id: item } })  → '#/todos/' + item
+    /// navigate("/todos", { query: { filter: "all" } })  → '#/todos?filter=all'
+    /// navigate("/todos", { query: { filter: f } })      → '#/todos?filter=' + f
+    /// ```
+    ///
+    /// `:name` placeholders resolve against `params`; placeholders without a
+    /// params entry stay verbatim (the URL may fill them at runtime). Query
+    /// values that are string literals are inlined RAW (`filter=all`, never
+    /// `filter="all"`); any other value is concatenated as an expression.
+    /// `#` lives in the first literal chunk so the whole hash stays a single
+    /// quoted template when no placeholders/expressions intervene.
+    fn build_navigate_arg(
+        &mut self,
+        path: &str,
+        params: &FxHashMap<String, &ExprIR>,
+        query: &[(String, &ExprIR)],
+    ) -> String {
+        // 1) Path pieces: (is_literal, text) pairs — literal chunks and
+        //    value expressions interleaved.
+        let mut pieces: Vec<(bool, String)> = Vec::new();
+        let mut lit = String::from("#");
+        let mut chars = path.chars().peekable();
+        while let Some(c) = chars.next() {
+            if c == ':' {
+                let mut name = String::new();
+                while let Some(&n) = chars.peek() {
+                    if n.is_ascii_alphanumeric() || n == '_' {
+                        name.push(n);
+                        chars.next();
+                    } else {
+                        break;
+                    }
+                }
+                if let Some(value) = params.get(&name) {
+                    pieces.push((true, std::mem::take(&mut lit)));
+                    pieces.push((false, self.expr_to_js(value)));
+                } else {
+                    lit.push(':');
+                    lit.push_str(&name);
+                }
+            } else {
+                lit.push(c);
+            }
+        }
+        pieces.push((true, lit));
+        // 2) Query pieces in declaration order (`?k=v&k2=v2`): string-literal
+        //    values merge into the trailing literal chunk; expressions append
+        //    a literal prefix then the value, preserving interleaving order.
+        for (i, (k, v)) in query.iter().enumerate() {
+            let sep = if i == 0 { '?' } else { '&' };
+            match v {
+                ExprIR::LiteralExpr { value } if value.is_string() => {
+                    if let Some((true, last)) = pieces.last_mut() {
+                        last.push(sep);
+                        last.push_str(k);
+                        last.push('=');
+                        last.push_str(value.as_str().unwrap_or_default());
+                    }
+                }
+                _ => {
+                    if let Some((true, last)) = pieces.last_mut() {
+                        last.push_str(&format!("{sep}{k}="));
+                    } else {
+                        pieces.push((true, format!("{sep}{k}=")));
+                    }
+                    pieces.push((false, self.expr_to_js(v)));
+                }
+            }
+        }
+        // 3) Quote literal chunks (single-quote DSL hash convention; escape
+        //    `\` then `'`), drop empty literals unless the whole expression
+        //    is one, and join.
+        let mut rendered: Vec<String> = pieces
+            .iter()
+            .map(|(is_lit, text)| {
+                if *is_lit {
+                    format!("'{}'", text.replace('\\', "\\\\").replace('\'', "\\'"))
+                } else {
+                    text.clone()
+                }
+            })
+            .collect();
+        if rendered.len() > 1 {
+            rendered.retain(|s| s != "''");
+        }
+        if rendered.is_empty() {
+            rendered.push("''".to_string());
+        }
+        rendered.join(" + ")
+    }
+}
+
+/// The string-literal key of a map entry (same shape as the React backend's
+/// `map_entry_key_str`): `{ "params": ... }` → `params`. Option-object keys
+/// arrive as string-literal `ExprIR`s (parser `key_to_string_literal`);
+/// identifier keys are kept as a defensive fallback for hand-built IR.
+fn map_entry_key_str(k: &ExprIR) -> Option<String> {
+    match k {
+        ExprIR::LiteralExpr { value } => value.as_str().map(|s| s.to_string()),
+        ExprIR::IdentifierExpr { name, .. } => Some(name.trim_start_matches('$').to_string()),
+        _ => None,
     }
 }

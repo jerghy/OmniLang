@@ -22,6 +22,7 @@ pub mod typescript;
 mod motion;
 mod motion_config;
 mod motion_triggers;
+mod router;
 mod runtime;
 mod stmt;
 mod store;
@@ -237,6 +238,7 @@ pub fn generate(
         shimmer_css_emitted: false,
         modal_css_emitted: false,
         toast_runtime_emitted: false,
+        router_active: false,
     };
 
     // In css_only mode, skip ALL JS emission — we only need CSS + element mappings.
@@ -322,6 +324,10 @@ pub fn generate(
     } else {
         all_comps.last().map(|(n, _)| *n).unwrap_or("App")
     };
+
+    // Task 8 (batch 2): hash router gate — any @route/@layout intent turns on
+    // the router emission (zero-regression: no intent → no router code at all).
+    gen.router_active = !editor_mode && !css_only && router::has_routing(ir);
 
     // Initialize editor bridge globals before component factories reference them
     if gen.editor_mode && !css_only {
@@ -464,6 +470,12 @@ pub fn generate(
         gen.emit_editor_bridge();
         // Inject debug bridge code (Tauri event communication for standalone debug window)
         gen.emit_debug_bridge();
+        // Task 8: hash router (route table + runtime + listener) — shares the
+        // IIFE scope with __omni_subs so param/query injection can write the
+        // writable route signals emitted by store.rs.
+        if gen.router_active {
+            router::emit_router_js(&mut gen.js, ir, root_name, &mut gen.warnings);
+        }
         gen.js.push_str("\n})();\n");
     }
 
@@ -676,6 +688,11 @@ struct OmniViewGenerator {
     /// `__omni_toast` queue) has been emitted — exactly once per document
     /// (spec 2026-08-09 §4.2 全局自绘容器).
     toast_runtime_emitted: bool,
+    /// Whether the hash router emission is active: the program carries
+    /// @route/@layout intent AND we are in full JS mode (not editor/css-only).
+    /// Gates route-container emission (store.rs), root-container route attr
+    /// (view/mod.rs) and the router JS injection (generate()).
+    router_active: bool,
 }
 
 /// A parsed part of an attribute template value with {word} placeholders.
