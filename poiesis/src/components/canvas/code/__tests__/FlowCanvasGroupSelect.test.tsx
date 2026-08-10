@@ -72,4 +72,21 @@ describe("FlowCanvas 分组选择", () => {
     act(() => { captured.onNodeContextMenu!({ preventDefault: () => {} } as Event, { id: "cb1" }); });
     expect(screen.queryByRole("button", { name: /组成分组/ })).toBeNull();
   });
+
+  it("预览节点（design-preview）点击不进入多选集——Shift 多选不受干扰", () => {
+    render(<FlowCanvas />);
+    // Shift 点击预览节点：应被忽略（不累积）
+    act(() => { captured.onNodeClick!({ shiftKey: true }, { id: "design-preview" }); });
+    act(() => { captured.onNodeClick!({ shiftKey: true }, { id: "cb1" }); });
+    act(() => { captured.onNodeClick!({ shiftKey: true }, { id: "cb2" }); });
+    // 右键 cb2 → 「组成分组」出现且可创建（多选集不含预览节点）
+    act(() => { captured.onNodeContextMenu!({ preventDefault: () => {} } as Event, { id: "cb2" }); });
+    const btn = screen.getByRole("button", { name: /组成分组/ });
+    expect(btn).toBeTruthy();
+    fireEvent.click(btn);
+    const groups = usePoiesisStore.getState().codeFlowGroups.increment;
+    expect(groups![0].memberIds).toEqual(["cb1", "cb2"]);
+    // 非 shift 点击预览节点：不应清空/改写选中（预览是视图，无选择语义）
+    act(() => { captured.onNodeClick!({ shiftKey: false }, { id: "design-preview" }); });
+  });
 });

@@ -855,6 +855,10 @@ function FlowCanvasInner() {
           elementsSelectable
           panOnScroll
           onNodeClick={(_event, node) => {
+            // 预览节点不可选中：selectable:false 只挡 ReactFlow 内部选中视觉，
+            // onNodeClick 仍触发——若放行会累积进多选集，validateGroupMembers
+            // 查不到该元素 → 「组成分组」报"所选节点不存在"（2026-08-10 真机）。
+            if (node.id === DESIGN_PREVIEW_ID) return;
             if (_event.shiftKey) {
               // Shift 点击：数组中 toggle（多选/取消），不打断既有选中
               setSelectedNodeIds((prev) => prev.includes(node.id) ? prev.filter((id) => id !== node.id) : [...prev, node.id]);
