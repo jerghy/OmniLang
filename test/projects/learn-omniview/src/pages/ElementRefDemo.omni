@@ -75,11 +75,13 @@ component ElementRefDemo {
     signal boxFontNum: f64 = 14;            // 字号
     signal boxLetterNum: f64 = 0;           // 字距
     signal boxPadNum: f64 = 0;              // 内边距
+    signal boxHueNum: f64 = 230;            // 背景色相 0-360（HSL 滑块）
     computed boxRadiusPx: String = boxRadiusNum.to_string() + "px";
     computed boxFontPx: String = boxFontNum.to_string() + "px";
     computed boxLetterPx: String = boxLetterNum.to_string() + "px";
     computed boxPadPx: String = boxPadNum.to_string() + "px";
     computed boxOpacityCss: f64 = boxOpacityNum / 100;   // 滑块 0-100 → CSS 0-1
+    computed boxBgCss: String = "hsl(" + boxHueNum.to_string() + ", 70%, 60%)";
     signal mirrorText: String = "";
     signal selectText: String = "0123456789 全选演示文本";
     signal selectStatus: String = "—";
@@ -220,6 +222,7 @@ component ElementRefDemo {
         boxFontNum = 20;
         boxLetterNum = 3;
         boxPadNum = 20;
+        boxHueNum = 12;
     }
     fn resetBox() {
         boxWidthNum = 200;
@@ -229,6 +232,7 @@ component ElementRefDemo {
         boxFontNum = 14;
         boxLetterNum = 0;
         boxPadNum = 0;
+        boxHueNum = 230;
     }
 
     // ── 多 ref 联动（输入 → 镜像） ──
@@ -455,6 +459,7 @@ component ElementRefDemo {
                         fontSize: boxFontNum,
                         letterSpacing: boxLetterNum,
                         padding: boxPadNum,
+                        backgroundColor: boxBgCss,
                         transition: sliderTransition
                     }>
                     <p>resize via style binding</p>
@@ -510,10 +515,15 @@ component ElementRefDemo {
                     <input type="range" min="0" max="32" bind:value={boxPadNum} class: DemoRange @onInput={onSliderInput} />
                     <span class: SliderValue>{boxPadPx}</span>
                 </div>
+                <div class: SliderRow>
+                    <span class: SliderLabel>Color</span>
+                    <input type="range" min="0" max="360" bind:value={boxHueNum} class: DemoRange @onInput={onSliderInput} />
+                    <span class: SliderValue>hsl({boxHueNum})</span>
+                </div>
             </div>
             <p class: SizeStatus>
                 Width: {boxWidthPx} · 实测: {boxWidth}px · Height: {boxHeightPx} · 实测: {boxHeight}px ·
-                Radius: {boxRadiusPx} · Opacity: {boxOpacityNum}% · FontSize: {boxFontPx} · Letter: {boxLetterPx} · Padding: {boxPadPx}
+                Radius: {boxRadiusPx} · Opacity: {boxOpacityNum}% · FontSize: {boxFontPx} · Letter: {boxLetterPx} · Padding: {boxPadPx} · Color: {boxBgCss}
             </p>
 
             <!-- ═══ 多 ref 联动 ═══ -->
@@ -599,7 +609,9 @@ component ElementRefDemo {
         .SliderRow input[type="range"] { flex: 1; min-width: 0; }
         .SliderValue { width: 56px; font-size: 12px; font-family: monospace; color: var(--textSecondary); text-align: right; flex: 0 0 auto; }
         .SizeStatus { margin-top: 10px; font-size: 12px; color: var(--textSecondary); }
-        .SizeBox p { font-size: var(--fontSizeXs); color: white; margin: 0; }
+        // font-size: inherit——否则 p 的显式字号规则覆盖 sizeBox 的
+        // inline font-size 绑定（fontSize 滑块拖动 p 文字不变）
+        .SizeBox p { font-size: inherit; color: white; margin: 0; }
         .Pointerbox p { font-size: var(--fontSizeXs); color: var(--textSecondary); margin: 0; }
         .PointerCaptured p { color: white; }
         .DragBox p { font-size: var(--fontSizeXs); color: var(--textSecondary); margin: 0; }
