@@ -17,9 +17,12 @@
 .react-flow__node .codeflow-node:hover {
   box-shadow: 0 2px 6px rgba(15, 23, 42, 0.10), 0 8px 24px rgba(15, 23, 42, 0.12);
 }
-/* 选中态（FlowCanvas 已按 selectedNodeIds 注入 .flow-node-selected 类） */
-.react-flow__node .codeflow-node.flow-node-selected,
-.react-flow__node .codeflow-node.selected {
+/* 选中态（FlowCanvas 按 selectedNodeIds 注入 .flow-node-selected；xyflow 对 selected
+   prop 加 .selected——两者都落在 node WRAPPER 上，故选择器须从 wrapper 下钻到
+   .codeflow-node 内容根。旧写法 .codeflow-node.flow-node-selected 要求同元素双类，
+   永不匹配 → 选中无视觉反馈（2026-08-10 真机实测，用户 Shift 多选认不出选中）） */
+.react-flow__node.flow-node-selected .codeflow-node,
+.react-flow__node.selected .codeflow-node {
   box-shadow: 0 0 0 2px var(--ol-color-primary, #4f46e5), 0 4px 14px rgba(15, 23, 42, 0.12);
 }
 
