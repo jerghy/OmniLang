@@ -8707,6 +8707,41 @@ component ToastDemo {
     );
 }
 
+/// Task 4 跟进（批次 1 Task 5 交叉暴露）: ToastProvider 必须接收并渲染
+/// children——jsx.rs 把组件视图包进 `<ToastProvider>...</ToastProvider>`，
+/// 零参数 + 不渲染 children 会让 showToast 组件只输出 toast 宿主 div、
+/// 吞掉自身视图，且在 @types/react 19 下触发 TS2559（原
+/// FIXTURE_STRICT_ALLOWANCE toast/ToastDemo.tsx 条目已随修复删除）。
+#[test]
+fn react_show_toast_provider_accepts_and_renders_children() {
+    let source = r#"
+component ToastDemo {
+  fn save() {
+    showToast("保存成功", { kind: "success" })
+  }
+  view {
+    <button @onPress={save}>保存</button>
+  }
+}
+"#;
+    let out = compile_react_src(source);
+    assert!(
+        out.contains("function ToastProvider({ children }: { children: ReactNode })"),
+        "ToastProvider 应声明 children prop（ReactNode 类型）. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("{children}"),
+        "ToastProvider body 应渲染 {{children}}（被包住的组件视图）. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("ReactNode } from 'react';"),
+        "ReactNode 类型应随 named import 引入（ToastProvider 签名引用）. Got:\n{}",
+        out
+    );
+}
+
 /// @skeleton → 占位元素 + 编译器生成 shimmer keyframes + 形状类
 /// （spec §4.3 React 行）。
 #[test]

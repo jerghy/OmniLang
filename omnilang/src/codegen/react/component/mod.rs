@@ -580,7 +580,12 @@ impl ReactCodegen {
             w.dedent();
             w.emit("}");
             w.emit("");
-            w.emit("function ToastProvider() {");
+            // Task 4 跟进（批次 1 Task 5 交叉暴露）: jsx.rs 把组件视图包进
+            // `<ToastProvider>...</ToastProvider>`——必须声明 children prop，
+            // 否则 @types/react 19 报 TS2559，且不渲染 children 会吞掉组件
+            // 自身视图。ReactNode 命名导入由 collect_component_imports 在
+            // has_toast 时补入。
+            w.emit("function ToastProvider({ children }: { children: ReactNode }) {");
             w.indent();
             w.emit("const [toasts, setToasts] = useState<__omni_ToastItem[]>([]);");
             w.emit("useEffect(() => {");
@@ -595,6 +600,10 @@ impl ReactCodegen {
             w.dedent();
             w.emit("}, []);");
             w.emit("return (");
+            w.indent();
+            // `.omni-toast` 宿主是 fixed 顶层堆叠（CSS 见 gen_component_css）
+            // ——children（被包住的组件视图）必须是同级元素，故整体包 fragment。
+            w.emit("<>");
             w.indent();
             w.emit("<div className={styles[\"omni-toast\"]} aria-live=\"polite\">");
             w.indent();
@@ -611,6 +620,9 @@ impl ReactCodegen {
             w.emit("))}");
             w.dedent();
             w.emit("</div>");
+            w.emit("{children}");
+            w.dedent();
+            w.emit("</>");
             w.dedent();
             w.emit(");");
             w.dedent();
@@ -784,6 +796,9 @@ impl ReactCodegen {
             &design_wiring.import_lines,
             !prop_fn_ctx.memo_children.is_empty(),
             has_error_boundary && view.is_some(),
+            // Task 4 跟进: ToastProvider 签名引用 ReactNode 类型（module 级），
+            // has_toast 时 named import 必须存在。
+            has_toast,
         );
         comp_imports.emit(&mut w, name, comp, has_props);
 

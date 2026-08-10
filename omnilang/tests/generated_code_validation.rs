@@ -276,19 +276,6 @@ const FIXTURE_STRICT_ALLOWANCE: &[((&str, &str), usize)] = &[
     (("motion_drag/MotionDrag.tsx", "TS7006"), 15),
     (("animation/MotionCard.tsx", "TS7006"), 6),
     (("motion_scroll/MotionScroll.tsx", "TS7006"), 2),
-    // (("toast/ToastDemo.tsx", "TS2559"), 1) — Task 4 (批次 1 反馈模态) codegen
-    // defect, first exposed by Task 5's toast.omni fixture entering the React
-    // corpus: `function ToastProvider()` (omnilang/src/codegen/react/component/
-    // mod.rs) is emitted with ZERO args and never renders `{children}`, while
-    // the jsx emitter wraps the component's view in `<ToastProvider>...</
-    // ToastProvider>`. Under @types/react 19 `{children: Element}` has no
-    // properties in common with `IntrinsicAttributes` → TS2559 at the wrap
-    // site. Functionally worse: the wrapped view would be swallowed entirely
-    // (ToastProvider returns only the toast host div). React codegen is out of
-    // Task 5 scope (不碰 React codegen), so this is documented here per the
-    // gate's own contract — cap=1 (one wrap site); goes stale the moment a
-    // Task 4 follow-up makes ToastProvider accept/render `children`.
-    (("toast/ToastDemo.tsx", "TS2559"), 1),
 ];
 
 /// Parse `tsc --noEmit --pretty false` output into (path, code) -> count.

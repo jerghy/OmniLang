@@ -50,6 +50,7 @@ pub(super) fn collect_component_imports(
     design_import_lines: &[String],
     has_memo_aliases: bool,
     has_error_boundary: bool,
+    has_toast: bool,
 ) -> ComponentImports {
     // ── Store hook imports ──────────────────────────────────
     let all_stores = ir.all_stores();
@@ -73,11 +74,15 @@ pub(super) fn collect_component_imports(
         }
     }
 
-    // ── Slot props — typed as ReactNode in the Props interface, so the
-    // named type import must exist whenever the view declares any slot
-    // (body-level declarations or view-level directives). ──
+    // ── ReactNode type import — needed for slot props (typed `ReactNode` in
+    // the Props interface) AND for the module-scope ToastProvider signature
+    // (`{ children: ReactNode }`, Task 4 follow-up: has_toast). The named
+    // type import must exist whenever the view declares any slot (body-level
+    // declarations or view-level directives) or the component mounts the
+    // toast system. ──
     let mut hooks = hooks.to_vec();
-    if (!comp.slots.is_empty()
+    if (has_toast
+        || !comp.slots.is_empty()
         || comp
             .view
             .as_ref()
