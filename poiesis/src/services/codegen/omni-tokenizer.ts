@@ -30,6 +30,10 @@ export interface Token {
  * - Strings (`"..."`) skip all special-character interpretation within.
  * - Comments (`//` to end of line) become a single COMMENT_LINE token.
  * - `/>` becomes SELF_CLOSING, `->` becomes ARROW.
+ * - Compound assignments `+=` `-=` `*=` `/=` `%=` each become a SINGLE TEXT
+ *   token (never `+` `=` etc.) so fn-body reconstruction preserves the
+ *   operator — otherwise `count += 1;` round-trips as `count + = 1 ;` and the
+ *   WASM parser rejects it ("Unexpected token in expression: Eq").
  * - `{` `}` `(` `)` `<` `>` `;` `:` `=` `.` `@` `|` `,` `/` each map to
  *   their own token kinds.
  * - Sequences of [a-zA-Z_][a-zA-Z0-9_-]* become IDENTIFIER. Pure digit
@@ -176,6 +180,45 @@ function scanLine(
         col++;
         break;
 
+      case "+":
+        if (content[pos + 1] === "=") {
+          // Compound assignment `+=` must stay one token — splitting it into
+          // TEXT "+" + EQUALS corrupts fn-body reconstruction (`count + = 1`)
+          // and the WASM compile fails with "Unexpected token in expression: Eq".
+          tokens.push({ kind: "TEXT", text: "+=", line: lineNum, col });
+          pos += 2;
+          col += 2;
+        } else {
+          tokens.push({ kind: "TEXT", text: "+", line: lineNum, col });
+          pos++;
+          col++;
+        }
+        break;
+
+      case "*":
+        if (content[pos + 1] === "=") {
+          tokens.push({ kind: "TEXT", text: "*=", line: lineNum, col });
+          pos += 2;
+          col += 2;
+        } else {
+          tokens.push({ kind: "TEXT", text: "*", line: lineNum, col });
+          pos++;
+          col++;
+        }
+        break;
+
+      case "%":
+        if (content[pos + 1] === "=") {
+          tokens.push({ kind: "TEXT", text: "%=", line: lineNum, col });
+          pos += 2;
+          col += 2;
+        } else {
+          tokens.push({ kind: "TEXT", text: "%", line: lineNum, col });
+          pos++;
+          col++;
+        }
+        break;
+
       case "/":
         if (content[pos + 1] === "/") {
           // Comment to end of line
@@ -196,6 +239,11 @@ function scanLine(
           });
           pos += 2;
           col += 2;
+        } else if (content[pos + 1] === "=") {
+          // Compound assignment `/=` (single token, see "+" case note)
+          tokens.push({ kind: "TEXT", text: "/=", line: lineNum, col });
+          pos += 2;
+          col += 2;
         } else {
           // Standalone slash (e.g. in a URL path inside a string — shouldn't reach here, but handle)
           tokens.push({ kind: "SLASH", text: "/", line: lineNum, col });
@@ -207,6 +255,11 @@ function scanLine(
       case "-":
         if (content[pos + 1] === ">") {
           tokens.push({ kind: "ARROW", text: "->", line: lineNum, col });
+          pos += 2;
+          col += 2;
+        } else if (content[pos + 1] === "=") {
+          // Compound assignment `-=` (single token, see "+" case note)
+          tokens.push({ kind: "TEXT", text: "-=", line: lineNum, col });
           pos += 2;
           col += 2;
         } else if (content[pos + 1] && /[a-zA-Z_0-9]/.test(content[pos + 1])) {
