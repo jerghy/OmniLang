@@ -21,10 +21,11 @@ const assert = require("assert");
 function __omni_sanitizeUrl(url) {
   var str = String(url);
   var trimmed = str.trim().toLowerCase();
-  // Strip CR, LF, TAB before scheme matching — browsers (Chromium, WebKit,
-  // Gecko) strip these characters from URLs before navigation, so
-  // "java\nscript:alert(1)" would execute as "javascript:alert(1)".
-  var normalized = trimmed.replace(/[\r\n\t]/g, '');
+  // Strip CR, LF, TAB and all C0 controls + DEL before scheme matching —
+  // browsers (Chromium, WebKit, Gecko) strip these characters from URLs
+  // before navigation, so "java\nscript:alert(1)" or "javascript:"
+  // would execute as "javascript:alert(1)".
+  var normalized = trimmed.replace(/[\x00-\x1F\x7F]/g, '');
   // Block all javascript:/vbscript: pseudo-protocols and all data: URIs.
   // data: URIs can carry executable content (text/html, text/javascript,
   // application/javascript, base64 payloads, etc.) so we block the entire
@@ -271,6 +272,11 @@ assert.strictEqual(
   const result = __omni_sanitizeUrl("https://example.com/path\nparam");
   assert.strictEqual(result, "https://example.com/path\nparam", "safe URL with newline preserved");
 }
+
+// C0/DEL control-char bypass (review MEDIUM-1)
+assert.strictEqual(__omni_sanitizeUrl('\u0001javascript:alert(1)'), '#blocked');
+assert.strictEqual(__omni_sanitizeUrl('\u000Bjavascript:alert(1)'), '#blocked');
+assert.strictEqual(__omni_sanitizeUrl('\u007Fdata:text/html,<script>alert(1)</script>'), '#blocked');
 
 // ─── Shared CSS sanitizer assertion set ───
 // The SAME expectations must hold for the OmniView runtime copy AND the

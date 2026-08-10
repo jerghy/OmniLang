@@ -3,8 +3,8 @@
 //! The `emit_list_rendering_html` method orchestrates two phases:
 //! 1. State initialization (template HTML, JS _effect header, key/empty-state setup)
 //! 2. DOM generation (iteration/cloning/binding JS, event delegation)
-use super::OmniViewGenerator;
 use super::utils::is_px_style_prop;
+use super::OmniViewGenerator;
 use crate::codegen::emit_event_object;
 use crate::ir::*;
 use std::fmt::Write;

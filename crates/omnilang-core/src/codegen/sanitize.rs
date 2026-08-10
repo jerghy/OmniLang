@@ -148,11 +148,12 @@ pub fn sanitize_css_value(value: &str) -> String {
 pub fn is_dangerous_url(value: &str) -> bool {
     let trimmed = value.trim();
     let lower = trimmed.to_ascii_lowercase();
-    // Strip CR, LF, TAB — browsers strip these before URL navigation
-    let stripped: String = lower
-        .chars()
-        .filter(|c| !matches!(c, '\n' | '\r' | '\t'))
-        .collect();
+    // Strip all C0 controls + DEL, not just CR/LF/TAB — browsers strip
+    // these before URL navigation. The lexer decodes \u{1}/\u{0B}/\u{7F}
+    // into string values and browsers strip leading C0 controls and
+    // spaces before scheme parsing, so "\u{1}javascript:" would
+    // execute as "javascript:" (review MEDIUM-1).
+    let stripped: String = lower.chars().filter(|c| !c.is_control()).collect();
     stripped.starts_with("javascript:")
         || stripped.starts_with("data:")
         || stripped.starts_with("vbscript:")
@@ -409,5 +410,15 @@ mod tests {
         assert!(!is_dangerous_url("/relative/path"));
         assert!(!is_dangerous_url("#anchor"));
         assert!(!is_dangerous_url("mailto:user@example.com"));
+        // C0/DEL control-char bypass: lexer decodes \u{1}/\u{0B}/\u{7F} into
+        // the string value, browsers strip leading C0 controls + spaces
+        // before scheme parsing — the filter must strip ALL control chars,
+        // not just CR/LF/TAB (review MEDIUM-1, previously fixed twice).
+        assert!(is_dangerous_url("\u{1}javascript:alert(1)"));
+        assert!(is_dangerous_url("\u{0B}javascript:alert(1)"));
+        assert!(is_dangerous_url(
+            "\u{7F}data:text/html,<script>alert(1)</script>"
+        ));
+        assert!(is_dangerous_url("\u{1}\u{1}javascript:void(0)"));
     }
 }

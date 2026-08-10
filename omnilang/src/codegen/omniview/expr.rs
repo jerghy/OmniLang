@@ -827,7 +827,12 @@ impl OmniViewGenerator {
     /// - 左子：子优先级 < 父优先级 → 括号（相等时左结合一致，无需）
     /// - 右子：子优先级 <= 父优先级 → 括号（JS 二元操作符左结合，相等
     ///   优先级时 `a - (b - c)` 输出成 `a - b - c` 会改变语义）
-    fn expr_to_js_binary_child(&mut self, expr: &ExprIR, parent_prec: u8, is_right: bool) -> String {
+    fn expr_to_js_binary_child(
+        &mut self,
+        expr: &ExprIR,
+        parent_prec: u8,
+        is_right: bool,
+    ) -> String {
         if let ExprIR::BinaryOpExpr { op, .. } = expr {
             let child_prec = binary_op_precedence(op);
             let need_paren = if is_right {

@@ -1,5 +1,6 @@
 ---
 source: omnilang/src/codegen/tests_regression/parameterized.rs
+assertion_line: 129
 expression: "& super :: super :: format_output(& output)"
 ---
 === index.html ===
@@ -172,10 +173,11 @@ function __omni_reportError(context, error) {
 function __omni_sanitizeUrl(url) {
   var str = String(url);
   var trimmed = str.trim().toLowerCase();
-  // Strip CR, LF, TAB before scheme matching — browsers (Chromium, WebKit,
-  // Gecko) strip these characters from URLs before navigation, so
-  // "java\nscript:alert(1)" would execute as "javascript:alert(1)".
-  var normalized = trimmed.replace(/[\r\n\t]/g, '');
+  // Strip CR, LF, TAB and all C0 controls + DEL before scheme matching —
+  // browsers (Chromium, WebKit, Gecko) strip these characters from URLs
+  // before navigation, so "java\nscript:alert(1)" or "\u0001javascript:"
+  // would execute as "javascript:alert(1)".
+  var normalized = trimmed.replace(/[\x00-\x1F\x7F]/g, '');
   // Block all javascript:/vbscript: pseudo-protocols and all data: URIs.
   // data: URIs can carry executable content (text/html, text/javascript,
   // application/javascript, base64 payloads, etc.) so we block the entire
