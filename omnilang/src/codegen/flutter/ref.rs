@@ -1998,6 +1998,76 @@ impl FormatExpr for FlutterFormatExpr {
         }
     }
 
+    // Task 7 (@route navigate/back 内建): GoRouter 栈语义翻译 — `navigate`
+    // → `context.push(...)`（栈语义），`back()` → `context.pop()`（GoRouter
+    // pop 对空栈为安全 no-op）。GoRouter 导航是 BuildContext 扩展——仅组件
+    // State 上下文（view/事件/fn 内）可用；顶层 lib fn 内使用会被 dart
+    // analyze 诚实捕获。
+    fn format_call_with_ir(
+        &self,
+        name: &str,
+        args: &[ExprIR],
+        arg_strs: &[String],
+    ) -> Option<String> {
+        if name == "back" && args.is_empty() {
+            return Some(
+                "context.pop() /* 栈空时 GoRouter pop 对空栈为安全 no-op（诚实降级注记，ADR-054） */"
+                    .to_string(),
+            );
+        }
+        if name != "navigate" || args.is_empty() {
+            return None;
+        }
+        let path = match &args[0] {
+            ExprIR::LiteralExpr { value } if value.is_string() => value.as_str()?,
+            _ if matches!(args.get(1), Some(ExprIR::MapExpr { .. })) => {
+                // Dynamic path + options — a runtime path cannot inline the
+                // params/query pieces; drop the options and note honestly
+                // (ADR-054: never silent).
+                return Some(format!(
+                    "context.push({}) /* 动态路径含 params/query 选项——选项无法内联，已丢弃（诚实降级注记，ADR-054） */",
+                    arg_strs[0]
+                ));
+            }
+            _ => return None,
+        };
+        // Optional second arg: option MapExpr — `{ params: {...}, query:
+        // {...} }` with string-literal/identifier keys.
+        let mut params: FxHashMap<String, &ExprIR> = FxHashMap::default();
+        let mut query: Vec<(String, &ExprIR)> = Vec::new();
+        if let Some(ExprIR::MapExpr { entries }) = args.get(1) {
+            for (k, v) in entries {
+                match map_entry_key_str(k).as_deref() {
+                    Some("params") => {
+                        if let ExprIR::MapExpr { entries: p_entries } = v {
+                            for (pk, pv) in p_entries {
+                                if let Some(pk) = map_entry_key_str(pk) {
+                                    params.insert(pk, pv);
+                                }
+                            }
+                        }
+                    }
+                    Some("query") => {
+                        if let ExprIR::MapExpr { entries: q_entries } = v {
+                            for (qk, qv) in q_entries {
+                                if let Some(qk) = map_entry_key_str(qk) {
+                                    query.push((qk, qv));
+                                }
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        // Plain literal path without options → passthrough as-is.
+        if params.is_empty() && query.is_empty() {
+            return Some(format!("context.push({})", arg_strs[0]));
+        }
+        let arg = build_navigate_arg(path, &params, &query, self);
+        Some(format!("context.push({arg})"))
+    }
+
     // Dart-family overrides delegate to the inner DartFormatExpr.
     fn format_variant_literal(
         &self,
@@ -2059,6 +2129,106 @@ impl FormatExpr for FlutterFormatExpr {
             }
             _ => None,
         }
+    }
+}
+
+/// Build the `context.push(...)` argument from a template path plus the
+/// params/query option maps (Task 7 — spec §2.8 navigate 内建, Dart 形态):
+///
+/// ```text
+/// navigate("/todos/:id", { params: { id: item } }) → '/todos/${item}'
+/// navigate("/todos", { query: { filter: "all" } }) → '/todos?filter=all'
+/// navigate("/todos", { query: { filter: f } })     → '/todos?filter=${f}'
+/// ```
+///
+/// Dart string interpolation replaces React's `"a" + b` concatenation
+/// (Dart `+` requires both operands to be Strings; interpolation coerces
+/// any value via `toString`).
+fn build_navigate_arg(
+    path: &str,
+    params: &FxHashMap<String, &ExprIR>,
+    query: &[(String, &ExprIR)],
+    fmt: &FlutterFormatExpr,
+) -> String {
+    // 1) Path pieces: (is_literal, text) pairs — literal chunks interleaved
+    //    with `${...}` interpolation slots for `:param` values.
+    let mut pieces: Vec<(bool, String)> = Vec::new();
+    let mut lit = String::new();
+    let mut chars = path.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == ':' {
+            let mut name = String::new();
+            while let Some(&n) = chars.peek() {
+                if n.is_ascii_alphanumeric() || n == '_' {
+                    name.push(n);
+                    chars.next();
+                } else {
+                    break;
+                }
+            }
+            if let Some(value) = params.get(&name) {
+                pieces.push((true, std::mem::take(&mut lit)));
+                pieces.push((false, fmt.format_expr(value)));
+            } else {
+                lit.push(':');
+                lit.push_str(&name);
+            }
+        } else {
+            lit.push(c);
+        }
+    }
+    pieces.push((true, lit));
+    // 2) Query pieces in declaration order (`?k=v&k2=v2`): string-literal
+    //    values merge into the trailing literal chunk; expressions append a
+    //    literal prefix then the interpolation slot.
+    for (i, (k, v)) in query.iter().enumerate() {
+        let sep = if i == 0 { '?' } else { '&' };
+        match v {
+            ExprIR::LiteralExpr { value } if value.is_string() => {
+                if let Some((true, last)) = pieces.last_mut() {
+                    last.push(sep);
+                    last.push_str(k);
+                    last.push('=');
+                    last.push_str(value.as_str().unwrap_or_default());
+                }
+            }
+            _ => {
+                if let Some((true, last)) = pieces.last_mut() {
+                    last.push_str(&format!("{sep}{k}="));
+                } else {
+                    pieces.push((true, format!("{sep}{k}=")));
+                }
+                pieces.push((false, fmt.format_expr(v)));
+            }
+        }
+    }
+    // 3) Join into a single Dart string literal; drop empty literal chunks
+    //    unless the whole string is one.
+    let mut rendered: Vec<String> = pieces
+        .iter()
+        .map(|(is_lit, text)| {
+            if *is_lit {
+                text.clone()
+            } else {
+                format!("${{{text}}}")
+            }
+        })
+        .collect();
+    if rendered.len() > 1 {
+        rendered.retain(|s| !s.is_empty());
+    }
+    if rendered.is_empty() {
+        rendered.push(String::new());
+    }
+    format!("'{}'", rendered.join(""))
+}
+
+/// Map key → string (literal value or identifier name, `$`-prefix stripped).
+fn map_entry_key_str(k: &ExprIR) -> Option<String> {
+    match k {
+        ExprIR::LiteralExpr { value } => value.as_str().map(|s| s.to_string()),
+        ExprIR::IdentifierExpr { name, .. } => Some(name.trim_start_matches('$').to_string()),
+        _ => None,
     }
 }
 

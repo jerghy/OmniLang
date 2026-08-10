@@ -13,6 +13,7 @@ mod expr;
 mod motion;
 mod motion_widgets;
 mod r#ref;
+mod router;
 mod stmt;
 mod type_annotate;
 mod types;
@@ -108,8 +109,19 @@ impl Codegen for FlutterCodegen {
         files.extend(design_files);
         // App shell (main.dart) — MaterialApp wired to the theme runtime
         // when @themes + a @theme signal are declared (Task 4.2 D1).
+        let theme_shell_present = design::gen_theme_app_shell(ir).is_some();
         if let Some(shell) = design::gen_theme_app_shell(ir) {
             files.push(shell);
+        }
+        // Router (Task 7): router.dart GoRouter table + MaterialApp.router
+        // wiring when @route/@layout intent exists. Zero-regression: no
+        // route intent → no router.dart. main.dart is only emitted when no
+        // @theme shell exists (coexistence → CodegenWarning, merge deferred
+        // to Task 10).
+        {
+            let (router_files, router_warnings) = router::gen_router_files(ir, theme_shell_present);
+            files.extend(router_files);
+            warnings.extend(router_warnings);
         }
         // Dedupe per-ref pointer-capture errors by message (multiple refs /
         // multiple components surface one diagnostic, matching the warning
@@ -254,6 +266,7 @@ impl FlutterCodegen {
         let mut uses_http = false;
         let mut uses_prefs = false;
         let mut uses_intl = false;
+        let mut uses_navigation = false;
         for fun in &lib_fns {
             for stmt in &fun.body.statements {
                 uses_dart_math |= stmt_uses_stdlib_fns(stmt, DART_MATH_STDLIB_FNS);
@@ -261,6 +274,7 @@ impl FlutterCodegen {
                 uses_http |= stmt_uses_stdlib_fns(stmt, DART_HTTP_STDLIB_FNS);
                 uses_prefs |= stmt_uses_stdlib_fns(stmt, DART_PREFS_STDLIB_FNS);
                 uses_intl |= stmt_uses_stdlib_fns(stmt, DART_INTL_STDLIB_FNS);
+                uses_navigation |= stmt_uses_stdlib_fns(stmt, &["navigate", "back"]);
                 for e in statement_exprs(stmt) {
                     warn_out_of_range(e);
                 }
@@ -272,6 +286,7 @@ impl FlutterCodegen {
             uses_http |= expr_uses_stdlib_fns(e, DART_HTTP_STDLIB_FNS);
             uses_prefs |= expr_uses_stdlib_fns(e, DART_PREFS_STDLIB_FNS);
             uses_intl |= expr_uses_stdlib_fns(e, DART_INTL_STDLIB_FNS);
+            uses_navigation |= expr_uses_stdlib_fns(e, &["navigate", "back"]);
             warn_out_of_range(e);
         };
         for computed in &comp.computeds {
@@ -455,6 +470,12 @@ impl FlutterCodegen {
         }
         if uses_intl {
             w.emit("import 'package:intl/intl.dart';");
+        }
+        // Navigation (Task 7): navigate/back call translation emits
+        // `context.push`/`context.pop` — the GoRouter extension needs the
+        // go_router package import (gated on actual usage, Task 5.8 pattern).
+        if uses_navigation {
+            w.emit("import 'package:go_router/go_router.dart';");
         }
         // Design classes/variants resolve against design.dart (AppDesign
         // factories, AppTokens constants) — import it when the view

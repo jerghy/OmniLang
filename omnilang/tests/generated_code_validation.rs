@@ -515,6 +515,9 @@ dependencies:
   http: ^1.2.0
   shared_preferences: ^2.2.0
   intl: ^0.19.0
+  # Task 7 (批次 2): @route/@layout/@query + navigate/back emit GoRouter
+  # imports — the generated files import go_router when navigation is used.
+  go_router: ^17.5.0
 "#;
 
 /// Collect every generated `.dart` file under `out_dir/<fixture>/` as

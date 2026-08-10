@@ -47,6 +47,9 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_riverpod: ^3.0.0
+  # Task 7 (批次 2): @route/@layout/@query + navigate/back emit GoRouter
+  # imports — the generated code depends on go_router (pub.dev 官方最新).
+  go_router: ^17.5.0
   http: ^1.2.0
   shared_preferences: ^2.2.0
   intl: ^0.19.0

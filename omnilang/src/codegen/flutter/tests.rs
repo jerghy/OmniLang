@@ -11995,3 +11995,231 @@ component App {
         dart
     );
 }
+
+// ==== 批次 2 Task 7：GoRouter 路由表 + redirect/ShellRoute + pathParameters 注入 + navigate/back 翻译 ====
+
+#[test]
+fn test_flutter_gorouter_table_emission() {
+    let out = compile_flutter(
+        r#"component TodosPage {
+  @route "/todos";
+  view { <div>Todos</div> }
+}
+
+component TodoDetail {
+  prop id: String;
+  @route "/todos/:id";
+  view { <div>Detail {id}</div> }
+}
+"#,
+    )
+    .expect("route fixtures must compile");
+    let router = out
+        .files
+        .get("router.dart")
+        .expect("router.dart must be emitted when @route present");
+    assert!(
+        router.contains("GoRouter("),
+        "router.dart must contain the GoRouter table, got:\n{router}"
+    );
+    assert!(
+        router.contains("initialLocation: '/',"),
+        "GoRouter must pin initialLocation to '/', got:\n{router}"
+    );
+    assert!(
+        router.contains("GoRoute(path: '/todos',"),
+        "static path route missing, got:\n{router}"
+    );
+    assert!(
+        router.contains("GoRoute(path: '/todos/:id',"),
+        "param path route missing, got:\n{router}"
+    );
+    let main = out
+        .files
+        .get("main.dart")
+        .expect("main.dart must be emitted when no @theme shell");
+    assert!(
+        main.contains("MaterialApp.router(routerConfig: router);"),
+        "main.dart must wire MaterialApp.router, got:\n{main}"
+    );
+}
+
+#[test]
+fn test_flutter_guard_redirect() {
+    // Guard MUST be a component fn (V9: is_valid_guard 只查组件 fn).
+    let out = compile_flutter(
+        r#"component AdminPage {
+  @route "/admin" guard: isAuthorized redirect: "/login";
+  fn isAuthorized() -> Bool {
+    return true;
+  }
+  view { <div>Admin</div> }
+}
+"#,
+    )
+    .expect("guard fixture must compile");
+    let router = out
+        .files
+        .get("router.dart")
+        .expect("router.dart must be emitted");
+    assert!(
+        router.contains("redirect: (_, __) => isAuthorized() ? null : '/login',"),
+        "guard must translate to the redirect form, got:\n{router}"
+    );
+    assert!(
+        router.contains("// 守卫：组件 fn 翻译为顶层 Dart 函数（spec §4.1）"),
+        "guard must carry the component-fn translation note, got:\n{router}"
+    );
+    assert!(
+        router.contains("bool isAuthorized() {"),
+        "guard fn must be emitted as a top-level Dart fn, got:\n{router}"
+    );
+}
+
+#[test]
+fn test_flutter_shell_route_nested() {
+    let out = compile_flutter(
+        r#"component AdminLayout {
+  @layout "/admin";
+  view { @slot default }
+}
+
+component AdminUsers {
+  @route "/admin/users";
+  view { <div>Users</div> }
+}
+"#,
+    )
+    .expect("layout fixture must compile");
+    let router = out
+        .files
+        .get("router.dart")
+        .expect("router.dart must be emitted");
+    assert!(
+        router.contains("ShellRoute("),
+        "layout must emit a ShellRoute, got:\n{router}"
+    );
+    assert!(
+        router.contains("builder: (_, __, child) => AdminLayout(children: child),"),
+        "layout must receive its slot content via the children param, got:\n{router}"
+    );
+    assert!(
+        router.contains("GoRoute(path: '/admin/users',"),
+        "layout-owned child route must use its full path, got:\n{router}"
+    );
+}
+
+#[test]
+fn test_flutter_param_injection() {
+    let out = compile_flutter(
+        r#"component TodoDetail {
+  prop id: String;
+  @route "/todos/:id";
+  view { <div>Detail {id}</div> }
+}
+"#,
+    )
+    .expect("param fixture must compile");
+    let router = out
+        .files
+        .get("router.dart")
+        .expect("router.dart must be emitted");
+    assert!(
+        router.contains("builder: (_, s) => TodoDetail(id: s.pathParameters['id']!),"),
+        "path param must inject via pathParameters, got:\n{router}"
+    );
+}
+
+#[test]
+fn test_flutter_query_param() {
+    let out = compile_flutter(
+        r#"component TodosPage {
+  prop filter: String = "all";
+  @route "/todos";
+  @query filter: String = "all";
+  view { <div>Todos {filter}</div> }
+}
+"#,
+    )
+    .expect("query fixture must compile");
+    let router = out
+        .files
+        .get("router.dart")
+        .expect("router.dart must be emitted");
+    assert!(
+        router.contains("filter: s.uri.queryParameters['filter'] ?? 'all'"),
+        "query param must inject via uri.queryParameters with default, got:\n{router}"
+    );
+}
+
+#[test]
+fn test_flutter_navigate_back_translation() {
+    let out = compile_flutter(
+        r#"component TodosPage {
+  @route "/todos";
+  fn goDetail() { navigate("/todos/1"); }
+  fn goBack() { back(); }
+  view { <div>Todos</div> }
+}
+"#,
+    )
+    .expect("navigate/back fixture must compile");
+    let dart: String = out.files.values().cloned().collect::<Vec<_>>().join("\n");
+    assert!(
+        dart.contains("context.push('/todos/1')"),
+        "navigate must translate to context.push, got:\n{dart}"
+    );
+    assert!(
+        dart.contains("context.pop()"),
+        "back must translate to context.pop, got:\n{dart}"
+    );
+    assert!(
+        dart.contains("栈空时 GoRouter pop 对空栈为安全 no-op"),
+        "back must carry the empty-stack no-op degradation note (ADR-054), got:\n{dart}"
+    );
+    assert!(
+        dart.contains("import 'package:go_router/go_router.dart';"),
+        "component file must import go_router when navigate/back used, got:\n{dart}"
+    );
+}
+
+#[test]
+fn test_flutter_lazy_mobile_noop_note() {
+    let out = compile_flutter(
+        r#"component TodosPage {
+  @route "/todos" lazy: true;
+  view { <div>Todos</div> }
+}
+"#,
+    )
+    .expect("lazy fixture must compile");
+    let router = out
+        .files
+        .get("router.dart")
+        .expect("router.dart must be emitted");
+    assert!(
+        router.contains("移动端") && router.contains("无按需加载"),
+        "lazy must emit the mobile no-op degradation note (spec §6 边界 5), got:\n{router}"
+    );
+}
+
+#[test]
+fn test_flutter_no_route_no_router() {
+    let out = compile_flutter(
+        r#"component PlainPage {
+  view { <div>plain</div> }
+}
+"#,
+    )
+    .expect("plain fixture must compile");
+    assert!(
+        !out.files.contains_key("router.dart"),
+        "no @route -> no router.dart (zero-regression), got: {:?}",
+        out.files.keys().collect::<Vec<_>>()
+    );
+    assert!(
+        !out.files.contains_key("main.dart"),
+        "no @route -> no main.dart (zero-regression), got: {:?}",
+        out.files.keys().collect::<Vec<_>>()
+    );
+}
