@@ -328,18 +328,19 @@ mod tests {
         make_test_ir_with_view(comp_name, view)
     }
 
-    /// V5 (spec §3.5): DOM-shaped coordinate names get a migration hint
-    /// pointing at the semantic field with the element-local note.
+    /// D1 + 视口坐标支持（48b79ecb 触控板演示）：clientX/clientY 已是
+    /// PointerEvent schema 的合法字段（视口坐标；offsetX 在部分触摸实现
+    /// 不可靠时经 measure() 换算元素局部位置），因此不再触发迁移提示。
     #[test]
-    fn test_invalid_event_field_dom_coord_name_gets_migration_hint() {
-        let ir = make_pointer_event_ir("Move", vec!["clientX".into()]);
-        let diags = InvalidEventField.check_ir(&ir, &FxHashMap::default());
-        assert_eq!(diags.len(), 1, "exactly one diagnostic, got: {diags:?}");
-        assert!(
-            diags[0].message.contains("可改用 e.x（元素局部坐标）"),
-            "hint must suggest e.x with the element-local note: {}",
-            diags[0].message
-        );
+    fn test_invalid_event_field_client_coords_are_valid_schema_fields() {
+        for field in ["clientX", "clientY"] {
+            let ir = make_pointer_event_ir("Move", vec![field.into()]);
+            let diags = InvalidEventField.check_ir(&ir, &FxHashMap::default());
+            assert!(
+                diags.is_empty(),
+                "{field} is a valid PointerEvent field, got: {diags:?}"
+            );
+        }
     }
 
     /// V5 (spec §3.5): DOM-shaped modifier names get a migration hint
