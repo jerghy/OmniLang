@@ -390,6 +390,54 @@ DOM 命令式元素 API 的语义意图——**焦点 / 滚动 / 测量 / 选择
 
 ---
 
+## 域 7: 导航（navigation）
+
+### 来源域
+
+域 11 导航（semantic-universe 域 11）——**页面切换、路径/查询参数、返回、守卫、嵌套布局、懒加载**（批次 2 设计 spec §5.2，2026-08-10 登记先行 ADR-074）。本域为**机制级词汇**（无编译器词法级白名单常量——语义词汇是组件级指令名/内建语义函数名，交叉断言以存在性检查承担，照域 10 先例）：`@route`/`@layout`/`@query` 组件级指令 + `navigate`/`back` 内建语义函数。**v0 边界**（批次 2 spec §6）：`guard:`/`redirect:`/`lazy:` 为属性级参数不单独立法；页面组件（`@route`）与布局组件（`@layout`）互斥（V3）；动态守卫目标/通配符 404/滚动恢复/预取不进语言。
+
+> 判定注记（编译器保留名判定，非登记词汇）：路径参数注入 prop 名（`:id` → `id`）随路径声明动态产生，为编译器保留名判定——照域 6 先例（formErrors/loading 等内建信号名不登记）。
+
+### 语义词汇
+
+| 语义词汇 | 值域 / 约束 | 说明 |
+|---------|------------|------|
+| @route | `@route STRING (guard: IDENT \| lazy: BOOL \| redirect: STRING)*`——路径以 `/` 开头（V2 硬错误）；参数段 `:id` 注入为 String prop | 页面路径声明——`@route "/todos/:id" guard: isAdmin lazy: true redirect: "/login"` |
+| @layout | `@layout STRING`——前缀以 `/` 开头；视图须含 `<@slot/>` 子页面出口（V10 硬错误） | 布局前缀声明——`@layout "/admin"` |
+| @query | `@query IDENT : TYPE (= expr)?`——声明查询参数注入 prop（默认值可选） | 查询参数声明——`@query filter: String = "all"` |
+| navigate | `navigate(path, { params, query })`——首参须为应用内路径字面量（V12 外链硬错误；动态路径 W1 警告） | 内建语义函数——应用内跳转 |
+| back | `back()` 无参 | 内建语义函数——返回上一页 |
+
+### 目标映射
+
+| 目标 | 生成形状 |
+|------|---------|
+| React | 路由表项 `createBrowserRouter`（React Router v7 data router）+ `useNavigate`（`navigate` → `navigate(path)`；`back` → `navigate(-1)`）+ `useSearchParams`（@query 注入） |
+| Flutter | `GoRoute` 表项 + `redirect` 守卫回调 + `ShellRoute`（@layout）+ `context.push`（`navigate`）/`context.pop`（`back`，栈空 no-op 注记）+ `pathParameters`/`uri.queryParameters` 注入 |
+| OmniView | hash 路由表项 + 守卫 fn + 嵌套渲染 + `location.hash` 更新（`navigate`）/`history.back()`（`back`） |
+
+### 排除词汇
+
+| 排除词汇 | 平台 | 不得成为语义词汇的原因 | 正确语义词汇 |
+|----------|------|----------------------|-------------|
+| path | React Router | 路由声明词（`path:` 属性名）——目标端声明词（禁止借词） | @route |
+| route | 通用 | 通用路由概念词——目标端声明词 | @route |
+| Routes | React Router | 路由表组件名——目标端声明词 | @route |
+| GoRoute | Flutter | GoRouter 路由类名——目标端声明词 | @route |
+| Outlet | React Router | 嵌套出口组件名——目标端词 | @layout |
+| ShellRoute | Flutter | 嵌套路由壳类名——目标端词 | @layout |
+| Layout | 通用 | 通用布局词——目标端词 | @layout |
+| query | 通用 | 通用查询词——目标端词 | @query |
+| searchParams | React Router | useSearchParams 返回值名——目标端词 | @query |
+| push | Flutter | context.push 方法名——目标端词 | navigate |
+| go | GoRouter | context.go 方法名——目标端词 | navigate |
+| useNavigate | React Router | 钩子名——目标端词 | navigate |
+| Navigate | React Router | 声明式跳转组件名——目标端词 | navigate |
+| pop | Flutter | context.pop 方法名——目标端词 | back |
+| back() | 通用 | 平台方法形状（括号是 JS/Dart 形状）——语义词汇是 back | back |
+
+---
+
 ## 域 10: 反馈模态（feedback & modal）
 
 ### 来源域

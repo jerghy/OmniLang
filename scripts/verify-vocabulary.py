@@ -82,6 +82,7 @@ DOMAIN_TITLES = {
     4: "RefOp",
     5: "design token",
     6: "表单校验规则",  # 2026-08-09 Task 7: @form validate 规则域——VALIDATE_RULES 锚点
+    7: "导航",  # 2026-08-10 批次 2 Task 1: 导航词汇域——@route/@layout/@query/navigate/back（登记先行 ADR-074）
     10: "反馈模态",  # 2026-08-09 Task 0: 反馈模态词汇域——@modal/showToast/@skeleton/@errorBoundary（批次 1，登记先行 ADR-074）
 }
 # Required sub-section headers per domain (the four entry fields).
@@ -437,6 +438,58 @@ def audit():
                 overlap = sorted(set(v10) & set(p[0] for p in pairs))
                 if overlap:
                     fail(f"domain 10 (反馈模态): 排除词汇 overlaps 语义词汇 (借词违规): {overlap}")
+
+    # 导航 (域 7, 2026-08-10 批次 2 Task 1): 机制级词汇（组件级指令 @route/@layout/
+    # @query + 内建语义函数 navigate/back——语法未落地无编译器白名单常量，交叉断言
+    # 以存在性检查承担，照域 10 先例）。语义词汇为精确五元闭集（spec §5.2）；排除
+    # 词汇按 正确语义词汇 归属列映射到所属词汇（排除词汇表首列是逐借词而非词汇名）。
+    v7 = vocab(7)
+    if v7 is not None:
+        expected_vocab = ["@route", "@layout", "@query", "navigate", "back"]
+        if sorted(v7) != sorted(expected_vocab):
+            fail(
+                f"domain 7 (导航): 语义词汇 ≠ 批次 2 登记词汇（spec §5.2）\n"
+                f"    registry-only:   {sorted(set(v7) - set(expected_vocab))}\n"
+                f"    spec-only:       {sorted(set(expected_vocab) - set(v7))}"
+            )
+    if 7 in sections:
+        pairs = excluded_word_pairs(subsection(sections[7][1], "排除词汇"))
+        if pairs is None:
+            fail("domain 7 (导航): '### 排除词汇' must be a well-formed table (header + separator + ≥1 row, no empty first column)")
+        else:
+            expected = {
+                "@route": ["path", "route", "Routes", "GoRoute"],
+                "@layout": ["Outlet", "ShellRoute", "Layout"],
+                "@query": ["query", "searchParams"],
+                "navigate": ["push", "go", "useNavigate", "Navigate"],
+                "back": ["pop", "back()"],
+            }
+            owner_map = {}
+            for word, owner in pairs:
+                owner_map.setdefault(owner, []).append(word)
+            # owner 列拼写守卫（照域 10 硬化先例）：owner 键须与登记词汇精确一致——
+            # 否则拼错的 owner（如 @routeX）会让下方逐词断言静默跳过该行排除词。
+            if set(owner_map) != set(expected):
+                fail(
+                    f"domain 7 (导航): 排除词汇 owner 列 ≠ 登记词汇（spec §5.2）\n"
+                    f"    registry-only:   {sorted(set(owner_map) - set(expected))}\n"
+                    f"    spec-only:       {sorted(set(expected) - set(owner_map))}"
+                )
+            else:
+                for vocab_word, words in expected.items():
+                    got = sorted(owner_map.get(vocab_word, []))
+                    if got != sorted(words):
+                        fail(
+                            f"domain 7 (导航): {vocab_word} 的排除词汇 ≠ 批次 2 登记（spec §5.2）\n"
+                            f"    registry-only:   {sorted(set(got) - set(words))}\n"
+                            f"    spec-only:       {sorted(set(words) - set(got))}"
+                        )
+            # 借词违规：域 7 语义词汇与排除词汇天然不相交（back() 字面 ≠ back），
+            # 显式断言以防登记回退。
+            if v7 is not None:
+                overlap = sorted(set(v7) & set(p[0] for p in pairs))
+                if overlap:
+                    fail(f"domain 7 (导航): 排除词汇 overlaps 语义词汇 (借词违规): {overlap}")
     return problems
 
 

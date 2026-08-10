@@ -130,6 +130,7 @@ DOMAIN_TITLES = {
     8: "表单",  # 2026-08-09: form 域——@form/validate 规则/内建信号（Task 7，阶段 2 域 A）
     9: "数据三态",  # 2026-08-09: @load 域——loading/error/data/retry（Task 7，阶段 2 域 A）
     10: "反馈模态",  # 2026-08-09 Task 0: 反馈模态域——showToast/@modal/@skeleton/@errorBoundary（批次 1，登记先行 ADR-074）
+    11: "导航",  # 2026-08-10 批次 2 Task 1: 导航域——@route/@layout/@query/navigate/back（登记先行 ADR-074）
 }
 # Required sub-section headers per domain.
 REQUIRED_SUBSECTIONS = ("语义域定义", "语义集条目", "已实现白名单")
@@ -780,6 +781,24 @@ def audit():
                 fail(f"反馈模态: 缺失已实现白名单行 '{name}'")
         if "tooltip" in wl10:
             fail("反馈模态: tooltip 为留生态条目（未落地），不得出现在已实现白名单")
+
+    # navigation (域 11, 2026-08-10 批次 2 Task 1 登记 → Task 9 回填): 机制级条目
+    # （组件级指令 @route/@layout/@query + 内建函数 navigate/back + 路径参数注入/
+    # guard/lazy——无词法级白名单常量；语法未落地故全部「未支持」）。本任务只做
+    # 条目存在性断言（8 条，照域 10 ①层先例）；白名单锚点断言（存在性 + 编译器
+    # 代码锚点）在批次 2 Task 9 加入——锚点文件 parser/top_level/route.rs 等届时
+    # 才存在，通用结构断言已校验状态列值（未支持 ∈ STATUSES）与四子节。
+    en11 = entries(11)
+    if en11 is None:
+        fail("导航: cannot cross-assert 语义集条目 (extraction failed)")
+    else:
+        en11_map = dict(en11)
+        for name in ("@route 页面声明", "路径参数 prop 注入", "@query 查询参数", "guard 守卫",
+                     "@layout 嵌套布局", "navigate 内建函数", "back 内建函数", "lazy 懒加载"):
+            if name not in en11_map:
+                fail(f"导航: 缺失语义集条目 '{name}'")
+        if any(s.split("（", 1)[0].strip() != "未支持" for s in en11_map.values()):
+            fail("导航: 批次 2 登记阶段全部条目实现状态必须 = 未支持（Task 9 回填前）")
 
     return problems
 
