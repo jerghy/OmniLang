@@ -31,6 +31,7 @@ pub mod validate_feedback_modal;
 pub mod validate_form_load;
 pub mod validate_props;
 pub mod validate_ref_ops;
+pub mod validate_route_navigation;
 pub mod validate_refs;
 pub mod validate_semantic_bindings;
 pub mod validate_semantic_keys;

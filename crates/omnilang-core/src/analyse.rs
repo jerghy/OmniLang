@@ -217,6 +217,12 @@ pub(crate) fn run_program_passes(ir: &mut IRProgram, diagnostics: &mut Vec<Diagn
     // ModalIntentIR/SkeletonBindingIR/ErrorBoundaryBindingIR, checks V1-V14
     // (V4/V11 duplicate bindings are reported at lowering).
     crate::semantic::validate_feedback_modal::validate_feedback_modal(ir, diagnostics);
+
+    // Phase 3f3: Navigation/routing validation (batch 2, task 4) — consumes
+    // RouteIntentIR/LayoutIntentIR/QueryParamIR, checks V3-V13 + W1
+    // (V2/V5 are parse errors; @if page exclusivity / onNavigate are legal
+    // legacy forms per spec §6 boundary 6 — no hard diagnostics).
+    crate::semantic::validate_route_navigation::validate_route_navigation(ir, diagnostics);
 }
 
 /// Fast non-cryptographic hash for content comparison.
