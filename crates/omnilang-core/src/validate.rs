@@ -9,7 +9,10 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 
 use crate::error::{Diagnostic, DiagnosticKind, Severity};
-use crate::parser::ast::{ImportStmt, Program, Visibility};
+use crate::parser::ast::{
+    AssignTarget, Block, ClassValue, ComponentDef, ElementProp, EventHandler, Expr, ImportStmt,
+    Literal, Program, Stmt, TemplatePart, ViewNode, Visibility,
+};
 
 /// The marker library import that identifies a file as an OmniView (view) file.
 pub(crate) const OMNIVIEW_MARKER: &str = "omniview";
@@ -104,6 +107,9 @@ pub fn validate_multi_ref(
             suggestion: None,
         });
     }
+
+    // Phase 5: Whole-project route registry (V14 hard error + W2 warning)
+    errors.extend(validate_route_registry(programs));
 
     MultiFileResult {
         success: errors.is_empty(),
@@ -378,6 +384,475 @@ fn validate_named_import(
     errors
 }
 
+/// One whole-project registry claim: the component that declared a route
+/// path or layout prefix first (deterministic: sorted files/modules, then
+/// declaration order within a module).
+struct RouteClaim {
+    component: String,
+}
+
+/// Phase 5: whole-project route registry validation (spec 2026-08-09 §3
+/// V14/W2 + §5.1 白名单).
+///
+/// Collects every `@route` path and `@layout` prefix across all compiled
+/// files into one registry, then:
+/// - V14 (hard error): a path is claimed by two *different* components —
+///   two `@route`s with the same path, or a `@route` path equal to a
+///   `@layout` prefix. Reported at the second claiming component's file,
+///   naming the first claimant. Same-component collisions (duplicate
+///   `@route` on one component, or `@route` + `@layout` on one component)
+///   are V3/V4 territory of the IR-level pass (validate_route_navigation)
+///   and are not repeated here.
+/// - W2 (warning): every literal `navigate("/path")` call inside component
+///   bodies whose path matches no declared `@route`/`@layout`. Dynamic
+///   first arguments are skipped (W1 covers those); non-`/` literals are
+///   skipped (V12).
+///
+/// Pure AST level — no IR/lowering needed. W2 is Warning severity so it
+/// flows into `errors` without blocking compilation (the success gate in
+/// `analyse_multi`/`analyse_multi_cached` is severity-based).
+#[must_use]
+fn validate_route_registry(programs: &FxHashMap<String, Arc<Program>>) -> Vec<Diagnostic> {
+    let mut diagnostics: Vec<Diagnostic> = Vec::new();
+
+    let mut claimed: FxHashMap<String, RouteClaim> = FxHashMap::default();
+
+    // Pass A/B: collect claims in deterministic order, emit V14 on conflict
+    // (registry is file-agnostic — same path from two files or one file
+    // both collide).
+    for file in sorted_file_paths(programs) {
+        let program = &programs[file];
+        let mut module_names: Vec<&String> = program.modules.keys().collect();
+        module_names.sort();
+        for module_name in module_names {
+            for component in &program.modules[module_name].components {
+                for route in &component.route_decls {
+                    check_claim(&mut claimed, &mut diagnostics, file, &component.name, &route.path);
+                }
+                if let Some(layout) = &component.layout {
+                    check_claim(
+                        &mut claimed,
+                        &mut diagnostics,
+                        file,
+                        &component.name,
+                        &layout.prefix,
+                    );
+                }
+            }
+        }
+    }
+
+    // Pass C: W2 — literal navigate() paths that match no registry entry.
+    for file in sorted_file_paths(programs) {
+        let program = &programs[file];
+        let mut module_names: Vec<&String> = program.modules.keys().collect();
+        module_names.sort();
+        for module_name in module_names {
+            for component in &program.modules[module_name].components {
+                let mut paths: Vec<String> = Vec::new();
+                collect_navigate_paths(component, &mut paths);
+                for path in paths {
+                    if !claimed.contains_key(&path) {
+                        diagnostics.push(make_diag(
+                            Severity::Warning,
+                            DiagnosticKind::E0006,
+                            file,
+                            format!(
+                                "路径 '{}' 未匹配到任何 @route/@layout 声明——跳转将落到空路由（目标端行为差异见注记）",
+                                path
+                            ),
+                        ));
+                    }
+                }
+            }
+        }
+    }
+
+    diagnostics
+}
+
+/// Deterministic iteration order for registry passes: sorted file paths.
+fn sorted_file_paths(
+    programs: &FxHashMap<String, Arc<Program>>,
+) -> Vec<&String> {
+    let mut files: Vec<&String> = programs.keys().collect();
+    files.sort();
+    files
+}
+
+/// Record one claim; if the same path was already claimed by a *different*
+/// component, emit V14 at the current (second claimant's) file, naming the
+/// first claimant. Re-claims by the same component are V3/V4 concerns and
+/// are ignored here (the first claim stays authoritative).
+fn check_claim(
+    claimed: &mut FxHashMap<String, RouteClaim>,
+    diagnostics: &mut Vec<Diagnostic>,
+    file: &str,
+    component: &str,
+    path: &str,
+) {
+    match claimed.get(path) {
+        Some(first) if first.component != component => {
+            diagnostics.push(make_diag(
+                Severity::Error,
+                DiagnosticKind::E0006,
+                file,
+                format!(
+                    "路径 '{}' 已被组件 '{}' 声明——同一路径/前缀不得由多个组件声明（@route 与 @layout 前缀冲突检查）",
+                    path, first.component
+                ),
+            ));
+        }
+        _ => {
+            claimed.insert(
+                path.to_string(),
+                RouteClaim {
+                    component: component.to_string(),
+                },
+            );
+        }
+    }
+}
+
+/// Collect every literal `navigate("/path")` target inside one component's
+/// executable positions: fns, actions, lifecycles, computeds, getters,
+/// signal inits, prop defaults, query defaults, inline stores, slot
+/// fallbacks, and the view template.
+fn collect_navigate_paths(component: &ComponentDef, out: &mut Vec<String>) {
+    for f in &component.fns {
+        walk_block(&f.body, out);
+    }
+    for a in &component.actions {
+        walk_block(&a.body, out);
+    }
+    for lc in &component.lifecycles {
+        walk_block(&lc.body, out);
+    }
+    for c in &component.computeds {
+        walk_expr(&c.body, out);
+    }
+    for g in &component.getters {
+        walk_expr(&g.body, out);
+    }
+    for s in &component.signals {
+        walk_expr(&s.init, out);
+    }
+    for p in &component.props {
+        if let Some(default) = &p.default {
+            walk_expr(default, out);
+        }
+    }
+    for q in &component.queries {
+        if let Some(default) = &q.default {
+            walk_expr(default, out);
+        }
+    }
+    for store in &component.inline_store_defs {
+        for s in &store.signals {
+            walk_expr(&s.init, out);
+        }
+        for g in &store.getters {
+            walk_expr(&g.body, out);
+        }
+        for a in &store.actions {
+            walk_block(&a.body, out);
+        }
+    }
+    for slot in &component.slots {
+        if let Some(content) = &slot.default_content {
+            for node in content {
+                walk_view_node(node, out);
+            }
+        }
+    }
+    if let Some(view) = &component.view {
+        for node in &view.children {
+            walk_view_node(node, out);
+        }
+    }
+}
+
+/// Recurse an expression tree, recording literal `navigate("/...")` targets.
+fn walk_expr(expr: &Expr, out: &mut Vec<String>) {
+    match expr {
+        Expr::FuncCall { func, args, .. } => {
+            if let Expr::VarRef(name, _) = &**func {
+                if name == "navigate" {
+                    if let Some(Expr::Literal(Literal::String(path), _)) = args.first() {
+                        if path.starts_with('/') {
+                            out.push(path.clone());
+                        }
+                    }
+                    // Dynamic first arg → W1; non-`/` literal → V12.
+                }
+            }
+            // The call target itself may contain expressions; walk it too.
+            walk_expr(func, out);
+            for arg in args {
+                walk_expr(arg, out);
+            }
+        }
+        Expr::Literal(..) | Expr::VarRef(..) | Expr::StoreFieldAccess { .. } => {}
+        Expr::BinaryOp { left, right, .. } => {
+            walk_expr(left, out);
+            walk_expr(right, out);
+        }
+        Expr::UnaryOp { operand, .. } => walk_expr(operand, out),
+        Expr::MethodCall { object, args, .. } => {
+            walk_expr(object, out);
+            for arg in args {
+                walk_expr(arg, out);
+            }
+        }
+        Expr::IndexGet { object, index, .. } => {
+            walk_expr(object, out);
+            walk_expr(index, out);
+        }
+        Expr::FieldAccess { object, .. } => walk_expr(object, out),
+        Expr::OptionalChain { object, .. } => walk_expr(object, out),
+        Expr::ArrayLiteral { elements, .. } => {
+            for e in elements {
+                walk_expr(e, out);
+            }
+        }
+        Expr::MapLiteral { entries, .. } => {
+            for (key, value) in entries {
+                walk_expr(key, out);
+                walk_expr(value, out);
+            }
+        }
+        Expr::IfExpr { condition, then_expr, else_expr, .. } => {
+            walk_expr(condition, out);
+            walk_expr(then_expr, out);
+            walk_expr(else_expr, out);
+        }
+        Expr::TernaryExpr { condition, then_expr, else_expr, .. } => {
+            walk_expr(condition, out);
+            walk_expr(then_expr, out);
+            walk_expr(else_expr, out);
+        }
+        Expr::TemplateString { parts, .. } => {
+            for part in parts {
+                if let TemplatePart::Expr(e) = part {
+                    walk_expr(e, out);
+                }
+            }
+        }
+        Expr::StructLiteral { fields, .. } => {
+            for (_, value) in fields {
+                walk_expr(value, out);
+            }
+        }
+        Expr::Block { body, .. } => walk_block(body, out),
+        Expr::ClosureExpr { body, .. } => walk_expr(body, out),
+        Expr::AwaitExpr { operand, .. } => walk_expr(operand, out),
+        Expr::MatchExpr { matched, arms, .. } => {
+            walk_expr(matched, out);
+            for arm in arms {
+                walk_block(&arm.body, out);
+            }
+        }
+        Expr::SpreadExpr { operand, .. } => walk_expr(operand, out),
+        Expr::IsCheck { value, .. } => walk_expr(value, out),
+        Expr::BuiltinToastCall { msg, kind, duration, .. } => {
+            walk_expr(msg, out);
+            if let Some(k) = kind {
+                walk_expr(k, out);
+            }
+            if let Some(d) = duration {
+                walk_expr(d, out);
+            }
+        }
+        Expr::NotYetImplemented { .. } | Expr::Error { .. } => {}
+    }
+}
+
+fn walk_block(block: &Block, out: &mut Vec<String>) {
+    for stmt in &block.stmts {
+        walk_stmt(stmt, out);
+    }
+    if let Some(trailing) = &block.trailing_expr {
+        walk_expr(trailing, out);
+    }
+}
+
+fn walk_stmt(stmt: &Stmt, out: &mut Vec<String>) {
+    match stmt {
+        Stmt::VarDecl { init, .. } => {
+            if let Some(init) = init {
+                walk_expr(init, out);
+            }
+        }
+        Stmt::Assign { target, value, .. } => {
+            walk_assign_target(target, out);
+            walk_expr(value, out);
+        }
+        Stmt::If {
+            condition,
+            then_body,
+            else_ifs,
+            else_body,
+            ..
+        } => {
+            walk_expr(condition, out);
+            walk_block(then_body, out);
+            for (cond, body) in else_ifs {
+                walk_expr(cond, out);
+                walk_block(body, out);
+            }
+            if let Some(body) = else_body {
+                walk_block(body, out);
+            }
+        }
+        Stmt::While { condition, body, .. } => {
+            walk_expr(condition, out);
+            walk_block(body, out);
+        }
+        Stmt::ForIn { iterable, body, .. } => {
+            walk_expr(iterable, out);
+            walk_block(body, out);
+        }
+        Stmt::Return { value, .. } => {
+            if let Some(value) = value {
+                walk_expr(value, out);
+            }
+        }
+        Stmt::Break(_) | Stmt::Continue(_) => {}
+        Stmt::Print { arg, .. } => walk_expr(arg, out),
+        Stmt::ExprStmt { expr, .. } => walk_expr(expr, out),
+        Stmt::EventEmit { args, .. } => {
+            for arg in args {
+                walk_expr(arg, out);
+            }
+        }
+        Stmt::Throw { expr, .. } => walk_expr(expr, out),
+        Stmt::TryCatch {
+            try_body,
+            catch_body,
+            finally_body,
+            ..
+        } => {
+            walk_block(try_body, out);
+            if let Some(body) = catch_body {
+                walk_block(body, out);
+            }
+            if let Some(body) = finally_body {
+                walk_block(body, out);
+            }
+        }
+        Stmt::Error { .. } => {}
+    }
+}
+
+fn walk_assign_target(target: &AssignTarget, out: &mut Vec<String>) {
+    match target {
+        AssignTarget::Name(_) | AssignTarget::Field { .. } => {}
+        AssignTarget::Index { index, .. } => walk_expr(index, out),
+    }
+}
+
+fn walk_view_node(node: &ViewNode, out: &mut Vec<String>) {
+    match node {
+        ViewNode::Element(element) => {
+            for prop in &element.props {
+                walk_element_prop(prop, out);
+            }
+            for child in &element.children {
+                walk_view_node(child, out);
+            }
+        }
+        ViewNode::IfDirective(directive) => {
+            walk_expr(&directive.condition, out);
+            for node in &directive.body {
+                walk_view_node(node, out);
+            }
+            for (cond, body) in &directive.else_ifs {
+                walk_expr(cond, out);
+                for node in body {
+                    walk_view_node(node, out);
+                }
+            }
+            if let Some(body) = &directive.else_body {
+                for node in body {
+                    walk_view_node(node, out);
+                }
+            }
+        }
+        ViewNode::ForDirective(directive) => {
+            walk_expr(&directive.iterable, out);
+            for node in &directive.body {
+                walk_view_node(node, out);
+            }
+            if let Some(empty) = &directive.empty_body {
+                for node in empty {
+                    walk_view_node(node, out);
+                }
+            }
+            if let Some(key) = &directive.key_expr {
+                walk_expr(key, out);
+            }
+        }
+        ViewNode::SlotDirective { default_content, .. } => {
+            if let Some(content) = default_content {
+                for node in content {
+                    walk_view_node(node, out);
+                }
+            }
+        }
+        ViewNode::Interpolation(expr) => walk_expr(expr, out),
+        ViewNode::Text(_) | ViewNode::LoadDirective { .. } => {}
+    }
+}
+
+fn walk_element_prop(prop: &ElementProp, out: &mut Vec<String>) {
+    match prop {
+        ElementProp::Static { value, .. } => walk_expr(value, out),
+        ElementProp::Bind { .. } => {}
+        ElementProp::RefBinding { signal, .. } => walk_expr(signal, out),
+        ElementProp::Event { handler, .. } => {
+            if let EventHandler::InlineFn { body, .. } = handler {
+                walk_block(body, out);
+            }
+        }
+        ElementProp::Class { value } => {
+            if let ClassValue::ClassMap(entries) = value {
+                for (_, cond) in entries {
+                    walk_expr(cond, out);
+                }
+            }
+        }
+        ElementProp::Variant { .. } => {}
+        ElementProp::SlotContent { content, .. } => {
+            for node in content {
+                walk_view_node(node, out);
+            }
+        }
+        ElementProp::Style { entries } => {
+            for (_, value) in entries {
+                walk_expr(value, out);
+            }
+        }
+        ElementProp::A11y(spec) => {
+            if let Some(hidden) = &spec.hidden {
+                walk_expr(hidden, out);
+            }
+            if let Some(alt) = &spec.alt {
+                walk_expr(alt, out);
+            }
+        }
+        ElementProp::Ref(_) => {}
+        ElementProp::MotionTrigger(trigger) => walk_expr(&trigger.motion_expr, out),
+        ElementProp::Form => {}
+        ElementProp::Validate { rules } => {
+            for rule in rules {
+                walk_expr(&rule.value, out);
+            }
+        }
+        ElementProp::Drag { .. } => {}
+        ElementProp::Modal { open_signal } => walk_expr(open_signal, out),
+        ElementProp::Skeleton { .. } | ElementProp::ErrorBoundary => {}
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -466,5 +941,144 @@ mod tests {
             "expected E_IMPORT error, got kinds: {:?}",
             result.errors.iter().map(|d| &d.kind).collect::<Vec<_>>()
         );
+    }
+
+    // ── Phase 5: route registry (V14 + W2) ─────────────────────────────
+
+    const V14_COMPONENT_X: &str =
+        "import omniview; component X { @route \"/todos\"; view { <div/> } }";
+    const V14_COMPONENT_Y: &str =
+        "import omniview; component Y { @route \"/todos\"; view { <div/> } }";
+
+    /// Assert the result carries exactly one V14 error naming `path` and
+    /// `first_component`, and that validation failed.
+    fn assert_v14(result: &MultiFileResult, path: &str, first_component: &str) {
+        let v14: Vec<&Diagnostic> = result
+            .errors
+            .iter()
+            .filter(|d| d.message.contains("已被组件"))
+            .collect();
+        assert_eq!(
+            v14.len(),
+            1,
+            "expected exactly one V14 error, got: {:?}",
+            result.errors
+        );
+        let msg = &v14[0].message;
+        assert!(
+            msg.contains(path) && msg.contains(first_component),
+            "V14 must name the path and the first claimant, got: {msg}"
+        );
+        assert!(
+            matches!(v14[0].severity, Severity::Error),
+            "V14 must be a hard error"
+        );
+        assert!(!result.success, "V14 must fail validation");
+    }
+
+    #[test]
+    fn test_v14_duplicate_route_path_cross_file() {
+        let sources = make_sources(vec![("a.omni", V14_COMPONENT_X), ("b.omni", V14_COMPONENT_Y)]);
+        let result = validate_sources(sources);
+        // Sorted files: a.omni first → X is the first claimant, Y the second.
+        assert_v14(&result, "/todos", "X");
+    }
+
+    #[test]
+    fn test_v14_route_layout_prefix_conflict() {
+        let sources = make_sources(vec![(
+            "app.omni",
+            "import omniview; component X { @route \"/admin\"; view { <div/> } } \
+             component Y { @layout \"/admin\"; view { <div/> } }",
+        )]);
+        let result = validate_sources(sources);
+        assert_v14(&result, "/admin", "X");
+    }
+
+    #[test]
+    fn test_v14_same_file_duplicate() {
+        let sources = make_sources(vec![(
+            "app.omni",
+            "import omniview; component A { @route \"/home\"; view { <div/> } } \
+             component B { @route \"/home\"; view { <div/> } }",
+        )]);
+        let result = validate_sources(sources);
+        // Registry is file-agnostic: same-file duplicates collide too.
+        assert_v14(&result, "/home", "A");
+    }
+
+    #[test]
+    fn test_w2_navigate_unregistered_path() {
+        let sources = make_sources(vec![(
+            "app.omni",
+            "import omniview; component App { fn go() { navigate(\"/nonexistent\"); } \
+             view { <div/> } }",
+        )]);
+        let result = validate_sources(sources);
+        let w2: Vec<&Diagnostic> = result
+            .errors
+            .iter()
+            .filter(|d| d.message.contains("未匹配到任何"))
+            .collect();
+        assert_eq!(
+            w2.len(),
+            1,
+            "expected exactly one W2 warning, got: {:?}",
+            result.errors
+        );
+        assert!(
+            w2[0].message.contains("/nonexistent"),
+            "W2 must name the unmatched path, got: {}",
+            w2[0].message
+        );
+        assert!(
+            matches!(w2[0].severity, Severity::Warning),
+            "W2 must be a warning (not blocking)"
+        );
+    }
+
+    #[test]
+    fn test_w2_navigate_registered_path() {
+        let sources = make_sources(vec![(
+            "app.omni",
+            "import omniview; component App { @route \"/todos\"; \
+             fn go() { navigate(\"/todos\"); } view { <div/> } }",
+        )]);
+        let result = validate_sources(sources);
+        assert!(
+            !result.errors.iter().any(|d| d.message.contains("未匹配到任何")),
+            "registered navigate must not W2, got: {:?}",
+            result.errors
+        );
+        assert!(
+            !result.errors.iter().any(|d| d.message.contains("已被组件")),
+            "single route must not V14, got: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
+    fn test_registry_scope_both_entries() {
+        let sources = make_sources(vec![("a.omni", V14_COMPONENT_X), ("b.omni", V14_COMPONENT_Y)]);
+        let path_mapping = crate::path_mapping::derive_path_mapping(&sources);
+
+        // Entry 1: analyse_multi (lib.rs analyse_multi entry)
+        let fresh = crate::analyse::analyse_multi(&sources, &path_mapping);
+        assert!(
+            fresh.diagnostics.iter().any(|d| d.message.contains("已被组件")),
+            "analyse_multi must surface V14, got: {:?}",
+            fresh.diagnostics
+        );
+        assert!(!fresh.success, "V14 must fail analyse_multi");
+
+        // Entry 2: analyse_multi_cached (lib.rs analyse_multi_cached entry)
+        let mut cache = crate::analyse::IncrementalCache::new();
+        let cached = crate::analyse::analyse_multi_cached(&sources, &path_mapping, &mut cache);
+        assert!(
+            cached.diagnostics.iter().any(|d| d.message.contains("已被组件")),
+            "analyse_multi_cached must surface V14, got: {:?}",
+            cached.diagnostics
+        );
+        assert!(!cached.success, "V14 must fail analyse_multi_cached");
     }
 }
