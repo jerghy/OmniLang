@@ -112,7 +112,12 @@ pub fn validate_multi_ref(
     errors.extend(validate_route_registry(programs));
 
     MultiFileResult {
-        success: errors.is_empty(),
+        // MultiFileResult has no separate warnings channel — Warning-severity
+        // diagnostics (W2 未注册 navigate) ride the errors Vec. success must
+        // therefore gate on Error severity only: warnings never block
+        // compilation (批次 2 T5 brief：W2 不阻塞编译，测试断言处确认).
+        // analyse.rs recomputes the same severity-based gate at both entries.
+        success: !errors.iter().any(|d| d.severity == Severity::Error),
         errors,
     }
 }
@@ -1035,6 +1040,15 @@ mod tests {
             matches!(w2[0].severity, Severity::Warning),
             "W2 must be a warning (not blocking)"
         );
+        // Brief requirement: W2 must NOT block compilation. success is flipped
+        // only by Error-severity diagnostics (severity-based gate in both
+        // analyse entries), so a Warning-only result must stay successful.
+        assert!(
+            result.success,
+            "W2 must not block compilation, got success={} with errors: {:?}",
+            result.success,
+            result.errors
+        );
     }
 
     #[test]
@@ -1080,5 +1094,43 @@ mod tests {
             cached.diagnostics
         );
         assert!(!cached.success, "V14 must fail analyse_multi_cached");
+    }
+
+    #[test]
+    fn test_w2_does_not_block_analyse_entries() {
+        // Analyse-level counterpart of test_w2_navigate_unregistered_path:
+        // with only a W2 warning present, BOTH analyse entries must keep
+        // success=true (severity-based success gate, not MultiFileResult.success).
+        let sources = make_sources(vec![(
+            "app.omni",
+            "import omniview; component App { fn go() { navigate(\"/nowhere\"); } \
+             view { <div/> } }",
+        )]);
+        let path_mapping = crate::path_mapping::derive_path_mapping(&sources);
+
+        let fresh = crate::analyse::analyse_multi(&sources, &path_mapping);
+        assert!(
+            fresh.diagnostics.iter().any(|d| d.message.contains("未匹配到任何")),
+            "analyse_multi must surface W2, got: {:?}",
+            fresh.diagnostics
+        );
+        assert!(
+            fresh.success,
+            "W2 must not flip analyse_multi success, got diagnostics: {:?}",
+            fresh.diagnostics
+        );
+
+        let mut cache = crate::analyse::IncrementalCache::new();
+        let cached = crate::analyse::analyse_multi_cached(&sources, &path_mapping, &mut cache);
+        assert!(
+            cached.diagnostics.iter().any(|d| d.message.contains("未匹配到任何")),
+            "analyse_multi_cached must surface W2, got: {:?}",
+            cached.diagnostics
+        );
+        assert!(
+            cached.success,
+            "W2 must not flip analyse_multi_cached success, got diagnostics: {:?}",
+            cached.diagnostics
+        );
     }
 }

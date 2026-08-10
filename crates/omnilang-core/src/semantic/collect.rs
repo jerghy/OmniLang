@@ -13,6 +13,23 @@ impl SemanticAnalyzer {
     /// Collect all module-level symbols (components, stores, functions, structs,
     /// tagged unions, imports) and recurse into each scope.
     pub(super) fn collect_module_symbols(&mut self, module: &Module) {
+        // 批次 2 导航内建：navigate/back 是全局命令式内建（parser 侧经
+        // BUILTIN_FUNCTIONS 登记、spec §2.3 以 FuncCall+MapLiteral 承载），
+        // 语义层在此按 @form/@load 隐式符号先例（SymbolKind::Unknown +
+        // declared_at: 0——对 dead-code/type lints 不可见）播种到模块根作用域，
+        // 使组件 fn/事件处理器/生命周期体内的 navigate()/back() 调用可解析。
+        // 缺失时 resolve 会对调用点抛 E0001「Undeclared variable」——
+        // V13 已禁止组件成员声明同名，用户无法自行补声明。
+        for name in ["navigate", "back"] {
+            self.declare_or_warn(Symbol {
+                name: name.into(),
+                kind: SymbolKind::Unknown,
+                type_ann: None,
+                mutable: false,
+                declared_at: 0,
+            });
+        }
+
         for comp in &module.components {
             self.symbols.push_scope(&format!("component:{}", comp.name));
 
