@@ -12157,7 +12157,9 @@ fn test_flutter_navigate_back_translation() {
     let out = compile_flutter(
         r#"component TodosPage {
   @route "/todos";
+  prop id: String = "1";
   fn goDetail() { navigate("/todos/1"); }
+  fn goDetailDynamic() { navigate("/users/" + id); }
   fn goBack() { back(); }
   view { <div>Todos</div> }
 }
@@ -12168,6 +12170,14 @@ fn test_flutter_navigate_back_translation() {
     assert!(
         dart.contains("context.push('/todos/1')"),
         "navigate must translate to context.push, got:\n{dart}"
+    );
+    assert!(
+        dart.contains("context.push('/users/' + (widget.id).toString())"),
+        "dynamic-path navigate WITHOUT options must translate to context.push (not raw navigate(...)), got:\n{dart}"
+    );
+    assert!(
+        !dart.contains("navigate("),
+        "raw navigate(...) must never survive into generated Dart, got:\n{dart}"
     );
     assert!(
         dart.contains("context.pop()"),
@@ -12200,6 +12210,10 @@ fn test_flutter_lazy_mobile_noop_note() {
     assert!(
         router.contains("移动端") && router.contains("无按需加载"),
         "lazy must emit the mobile no-op degradation note (spec §6 边界 5), got:\n{router}"
+    );
+    assert!(
+        router.contains("页面保挂载") && router.contains("StatefulShellRoute.indexedStack"),
+        "router.dart must carry the keep-alive difference note (spec §6 边界 7), got:\n{router}"
     );
 }
 

@@ -2029,7 +2029,15 @@ impl FormatExpr for FlutterFormatExpr {
                     arg_strs[0]
                 ));
             }
-            _ => return None,
+            _ => {
+                // Dynamic path without options — a runtime path (e.g.
+                // `navigate('/users/' + id)`, W1 仅警告的合法 DSL) cannot be
+                // inlined for params/query, but has nothing to drop; pass the
+                // runtime path straight to context.push (same shape as the
+                // options branch above — never the raw `navigate(...)` which
+                // is undefined in generated Dart).
+                return Some(format!("context.push({})", arg_strs[0]));
+            }
         };
         // Optional second arg: option MapExpr — `{ params: {...}, query:
         // {...} }` with string-literal/identifier keys.

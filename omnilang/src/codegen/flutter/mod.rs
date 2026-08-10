@@ -109,8 +109,9 @@ impl Codegen for FlutterCodegen {
         files.extend(design_files);
         // App shell (main.dart) — MaterialApp wired to the theme runtime
         // when @themes + a @theme signal are declared (Task 4.2 D1).
-        let theme_shell_present = design::gen_theme_app_shell(ir).is_some();
-        if let Some(shell) = design::gen_theme_app_shell(ir) {
+        let theme_shell = design::gen_theme_app_shell(ir);
+        let theme_shell_present = theme_shell.is_some();
+        if let Some(shell) = theme_shell {
             files.push(shell);
         }
         // Router (Task 7): router.dart GoRouter table + MaterialApp.router
