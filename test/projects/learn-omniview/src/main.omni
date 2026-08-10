@@ -8,7 +8,6 @@ import omniview;
 // ── 全局 Store ──
 import { TodoStore } from "./stores/TodoStore";
 import { ThemeStore } from "./stores/ThemeStore";
-import { NotificationStore } from "./stores/NotificationStore";
 
 // ── 共享组件 ──
 import { Header } from "./components/Header";
@@ -29,7 +28,6 @@ import { DynamicTokens } from "./pages/DynamicTokens";
 component App {
     @store TodoStore;
     @store ThemeStore;
-    @store NotificationStore;
 
     signal activeTab: String = "overview";
 

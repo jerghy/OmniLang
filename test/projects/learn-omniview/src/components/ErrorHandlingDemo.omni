@@ -23,11 +23,20 @@ component ErrorHandlingDemo {
     }
 
     view {
-        <div class: LearnDesign.Container>
-            <h3 class: LearnDesign.CardTitle>异常处理：throw / try / catch / finally</h3>
-            <p class: LearnDesign.Subtitle>
-                演示 lib/error_handling.omni 中的 throw 语句与 try/catch/finally 结构
-            </p>
+        <div>
+            <!-- @errorBoundary 渲染降级：子树渲染期错误 → fallback 槽（React 端编译器生成 ErrorBoundary）-->
+            <div @errorBoundary>
+                @slot fallback {
+                    <div class: LearnDesign.Container>
+                        <h3 class: LearnDesign.CardTitle>渲染降级（error boundary）</h3>
+                        <p class: LearnDesign.Subtitle>此区域渲染失败时显示降级内容——编译器生成错误边界，源码零手写。</p>
+                    </div>
+                }
+                <div class: LearnDesign.Container>
+                    <h3 class: LearnDesign.CardTitle>异常处理：throw / try / catch / finally</h3>
+                    <p class: LearnDesign.Subtitle>
+                        演示 lib/error_handling.omni 中的 throw 语句与 try/catch/finally 结构
+                    </p>
 
             <!-- ═══ throw + try/catch ═══ -->
             <div class: ModuleCard>
@@ -79,6 +88,8 @@ component ErrorHandlingDemo {
                         （空 raw → 空 Map → get_or_throw 触发 → finally 打印）
                     </li>
                 </ul>
+                </div>
+            </div>
             </div>
         </div>
     }

@@ -10,7 +10,6 @@ import { TabPanel } from "../components/TabPanel";
 import { DataTable } from "../components/DataTable";
 import { FormPage } from "../components/FormPage";
 import { LoadDemo } from "../components/LoadDemo";
-import { NotificationsPanel } from "../components/NotificationsPanel";
 import { SlotDefaultDemo } from "../components/SlotDefaultDemo";
 import { EventsDemo } from "../components/EventsDemo";
 import { EventShorthand } from "../components/EventShorthand";
@@ -49,7 +48,13 @@ component UiComponents {
             <h3 class: LearnDesign.SectionTitle>HTML 原生控件</h3>
             <div class: LearnDesign.DemoFull><FormControlsDemo /></div>
 
-            <div class: LearnDesign.DemoFull><NotificationsPanel /></div>
+            <!-- 命令式通知（showToast 内建语义函数：kind info/success/error，原 NotificationsPanel 手写形态即切换）-->
+            <div class: LearnDesign.DemoFull>
+                <h3 class: LearnDesign.SectionTitle>命令式通知（showToast）</h3>
+                <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={() => { showToast("普通消息"); }}>info 通知</button>
+                <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={() => { showToast("保存成功", { kind: "success" }); }}>success 通知</button>
+                <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={() => { showToast("网络不可用", { kind: "error" }); }}>error 通知</button>
+            </div>
             <div class: LearnDesign.DemoFull><EventShorthand /></div>
             <div class: LearnDesign.DemoFull><EventSpectrumDemo /></div>
 

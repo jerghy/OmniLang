@@ -2057,14 +2057,6 @@ design LearnDesign {
         margin: 0;
     }
     // (C2a migration) 5 properties
-    class Modalcontent {
-        background: white;
-        border-radius: 12px;
-        max-width: 90vw;
-        padding: 24px;
-        width: 400px;
-    }
-    // (C2a migration) 5 properties
     class ModuleCard {
         background: token(surfaceMuted);
         border: 1px solid token(borderLight);
@@ -2156,14 +2148,6 @@ design LearnDesign {
         margin: 4px 0;
         padding: 6px 10px;
         white-space: pre-wrap;
-    }
-    // (C2a migration) 5 properties
-    class Overlay {
-        align-items: center;
-        background: #808080;
-        display: flex;
-        justify-content: center;
-        padding: 40px;
     }
     // (C2a migration) 7 properties
     class PageHeader {

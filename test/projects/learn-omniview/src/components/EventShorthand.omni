@@ -1,16 +1,13 @@
 // ╔══════════════════════════════════════════════════════════════╗
 // ║  EventShorthand.omni —— 事件绑定简写                              ║
-// ║  演示：{fnName(args)} 自动包装、{store.action} 引用、              ║
+// ║  演示：{fnName(args)} 自动包装、showToast 命令式通知、             ║
 // ║        @eventName 简写形式                                       ║
 // ╚══════════════════════════════════════════════════════════════╝
 
 import omniview;
 import { LearnDesign } from "../design";
-import { NotificationStore } from "../stores/NotificationStore";
 
 component EventShorthand {
-    @store NotificationStore;
-
     signal msg: String = "Click a button";
     signal count: i32 = 0;
 
@@ -29,6 +26,10 @@ component EventShorthand {
         count = 0;
     }
 
+    fn notify() {
+        showToast("Hello from shorthand");
+    }
+
     view {
         <div class: LearnDesign.Card>
             <h3 class: LearnDesign.CardTitle>Event Shorthand Demo</h3>
@@ -40,14 +41,11 @@ component EventShorthand {
                 <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={farewell("World")}>farewell("World")</button>
             </div>
 
-            <!-- 简写2: {store.action} — 直接引用 store action -->
+            <!-- Form 2: showToast — 内建语义函数（原 NotificationStore.add 手写形态，ADR-075 即切换） -->
             <div class: SectionBox>
-                <p class: section-title>Form 2: { "{store.action}" } — StoreAction ref</p>
-                <button variant: LearnDesign.Button(color=accent, size=sm) @onPress={() => { NotificationStore.add("Hello from shorthand"); }}>
-                    NotificationStore.add(...)
-                </button>
-                <button variant: LearnDesign.Button(color=accent, size=sm) @onPress={NotificationStore.clear}>
-                    NotificationStore.clear
+                <p class: section-title>Form 2: showToast — 命令式通知</p>
+                <button variant: LearnDesign.Button(color=accent, size=sm) @onPress={notify}>
+                    showToast("Hello from shorthand")
                 </button>
             </div>
 
@@ -68,7 +66,6 @@ component EventShorthand {
             <div class: result-area>
                 <p class: result-text>{msg}</p>
                 <p class: ResultCount>Clicks: {count}</p>
-                <p class: LearnDesign.Hint style: { color: "#f59e0b" }>Notifications: {NotificationStore.unreadCount}</p>
             </div>
 
             <button variant: LearnDesign.Button(color=ghost, size=md) @onPress={reset}>Reset</button>

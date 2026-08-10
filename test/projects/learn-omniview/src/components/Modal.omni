@@ -1,86 +1,57 @@
-// Modal.omni - @slot header/body/footer (body-level declarations + {name} interpolation),
-// @onKeyDown (Escape), @onEnter/@onLeave
-// Demonstrates slot projection, keyboard events, and mouse hover tracking
+// Modal.omni - @modal 三槽投影 + @enter 打开动画 + @onEnter/@onLeave hover 追踪
+// 演示编译器内建的模态语义（spec §2.1）：焦点陷阱 / Esc 关闭 / 遮罩点击关闭 /
+// aria 无障碍四要素全由编译器生成——源码只声明受控信号 isOpen 与三个命名槽。
+// @slot header/body/footer 按文档序投影进 dialog 内容；槽内按钮回写同一受控
+// 信号；@enter={fadeIn} 在信号置真时自动重播打开动画。
 
 import omniview;
 import { LearnDesign } from "../design";
 
-component Modal {
-    // Body-level slot declarations: consumers project via named props
-    // (header={<.../>}) or child elements.
-    @slot header
-    @slot body
-    @slot footer
+@motion fadeIn {
+  from { opacity: 0, translateY: 20 }
+  to   { opacity: 1, translateY: 0 }
+  over: 400ms
+  easing: ease-out
+}
 
+component Modal {
     signal isOpen: bool = false;
     signal isHovering: bool = false;
     signal lastAction: String = "";
 
-    // 打开时聚焦 overlay：Escape 的 @onKeyDown 需要焦点元素才能接收
-    // keydown——不聚焦则用户按 Escape 无效（keydown 只发给焦点元素）。
-    ref overlayEl: HtmlElement;
-    @effect(isOpen) {
-        let _ = isOpen;
-        if isOpen { overlayEl.focus(); }
-    }
-
     fn open() { isOpen = true; lastAction = "opened"; }
     fn close() { isOpen = false; lastAction = "closed"; }
-    fn handleKeyDown(e) { if e.key == "Escape" { close() } }
     fn handleMouseEnter() { isHovering = true; }
     fn handleMouseLeave() { isHovering = false; }
-    // 仅点击 overlay 背景关闭——内容区点击先被 handleContentClick 拦截，
-    // 否则选择/阅读弹窗内文本也会误关（@onPress 冒泡到 overlay）
-    fn handleOverlayClick() { close(); }
-    fn handleContentClick(e) { e.stopPropagation(); }
 
     view {
-        <div class: Container>
+        <div>
             <button variant: LearnDesign.Button(color=primary, size=lg) @onPress={open}>Open Modal</button>
             <p class: StatusText>Status: {lastAction} | Hover: {isHovering}</p>
 
-            @if isOpen {
-                <!-- Overlay with keyboard and mouse event handling -->
-                <div
-                    class: { Overlay: true }
-                    tabindex="0"
-                    @ref={overlayEl}
-                    @onKeyDown={handleKeyDown}
-                    @onPress={handleOverlayClick}
-                >
-                    <div
-                        class: { Modalcontent: true, Hover: isHovering }
-                        tabindex="0"
-                        @onEnter={handleMouseEnter}
-                        @onLeave={handleMouseLeave}
-                        @onPress={handleContentClick}
-                    >
-                        <!-- Named slot: header interpolation (title + close stay as static chrome) -->
-                        <div class: ModalHeader>
-                            {header}
-                            <h3 class: ModalTitle>Modal Title</h3>
-                            <button class: CloseBtn @onPress={close}>X</button>
-                        </div>
-
-                        <!-- Named slot: body -->
-                        <div class: ModalBody>
-                            {body}
-                            <p class: ModalText>Modal content goes here.</p>
-                            <p class: HintText>Press Escape or click overlay to close</p>
-                        </div>
-
-                        <!-- Named slot: footer -->
-                        <div class: ModalFooter>
-                            {footer}
-                            <button variant: LearnDesign.Button(color=ghost, size=md) @onPress={close}>Cancel</button>
-                            <button variant: LearnDesign.Button(color=primary, size=md) @onPress={close}>Confirm</button>
-                        </div>
+            <dialog @modal={isOpen} @enter={fadeIn}>
+                @slot header {
+                    <div class: ModalHeader>
+                        <h3 class: ModalTitle>Modal Title</h3>
+                        <button class: CloseBtn @onPress={close}>X</button>
                     </div>
-                </div>
-            }
+                }
+                @slot body {
+                    <div class: ModalBody @onEnter={handleMouseEnter} @onLeave={handleMouseLeave}>
+                        <p class: ModalText>Modal content goes here.</p>
+                        <p class: HintText>Press Escape or click overlay to close</p>
+                    </div>
+                }
+                @slot footer {
+                    <div class: ModalFooter>
+                        <button variant: LearnDesign.Button(color=ghost, size=md) @onPress={close}>Cancel</button>
+                        <button variant: LearnDesign.Button(color=primary, size=md) @onPress={close}>Confirm</button>
+                    </div>
+                }
+            </dialog>
         </div>
     }
     style {
-        // 模态框特有的弹窗布局和覆盖层
+        // 模态框视觉：容器布局见 design.omni（ModalHeader/Body/Footer/Title/Text/CloseBtn）
     }
 }

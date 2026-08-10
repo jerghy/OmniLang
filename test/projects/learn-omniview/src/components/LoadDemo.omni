@@ -21,6 +21,9 @@ component LoadDemo {
             <!-- 三态渲染：loading / error / data（保留名信号） -->
             @if loading {
                 <p data-testid="load-status" a11y: { live: "polite" }>加载中…</p>
+                <!-- @skeleton 加载占位：text（默认）段落条 + card 卡片块，仅限 @load loading 分支 -->
+                <div @skeleton />
+                <div @skeleton="card" />
             }
             @if error != "" {
                 <p data-testid="load-status" a11y: { live: "assertive" }>加载失败：{error}</p>
