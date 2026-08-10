@@ -1145,7 +1145,7 @@ impl IRProgram {
 impl Default for IRProgram {
     fn default() -> Self {
         IRProgram {
-            version: "0.1".to_string(),
+            version: "1.0".to_string(),
             modules: FxHashMap::default(),
             source_map: FxHashMap::default(),
             stdlib_imports: FxHashSet::default(),

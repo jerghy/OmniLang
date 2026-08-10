@@ -370,3 +370,10 @@ fn test_typekind_simple_variants_still_flat() {
     let json = serde_json::to_string(&int_ty).expect("serialize");
     assert_eq!(json, r#""int""#, "Simple types stay flat strings");
 }
+
+#[test]
+fn default_ir_program_version_matches_production() {
+    // 评审 rust-expert LOW-2：Default 曾产 "0.1" 而全部生产构造点用 "1.0"——
+    // 取 Default 的测试/工具静默得到过期版本（version 是序列化 WASM 契约）。
+    assert_eq!(IRProgram::default().version, "1.0");
+}
