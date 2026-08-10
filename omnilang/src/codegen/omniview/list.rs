@@ -4,6 +4,7 @@
 //! 1. State initialization (template HTML, JS _effect header, key/empty-state setup)
 //! 2. DOM generation (iteration/cloning/binding JS, event delegation)
 use super::OmniViewGenerator;
+use super::utils::is_px_style_prop;
 use crate::codegen::emit_event_object;
 use crate::ir::*;
 use std::fmt::Write;
@@ -425,9 +426,16 @@ impl OmniViewGenerator {
                     self.js,
                     "      var _unid = \"{nid}_\" + _idx; var _el = _elCache.get(_unid); if (!_el) {{ _el = clone.querySelector('[data-nid^=\"{nid}_\"]') || clone.querySelector('[data-nid=\"' + _unid + '\"]'); if (_el) _elCache.set(_unid, _el); }}"
                 );
+                // px 属性：数值信号先经 __omni_px 附加单位（sanitize 前——
+                // sanitize 会把数值转字符串，丢失 number 类型判断）。
+                let value_expr = if is_px_style_prop(prop) {
+                    format!("__omni_px({})", js_expr)
+                } else {
+                    js_expr.clone()
+                };
                 let assignment = super::view::style::style_assignment_js(
                     prop,
-                    &format!("__omni_sanitizeCss({})", js_expr),
+                    &format!("__omni_sanitizeCss({})", value_expr),
                 );
                 let _ = writeln!(
                     self.js,

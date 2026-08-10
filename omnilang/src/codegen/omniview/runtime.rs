@@ -271,6 +271,11 @@ function __omni_el(nid) {
 	    });
 	  }
 	}
+	function __omni_px(v) {
+	  // style 绑定直写通道的 px 辅助：数值信号（f64）附加 px 单位，
+	  // 字符串值（"50%"、"auto"、"200px"）原样透传。
+	  return (typeof v === "number" && isFinite(v)) ? v + "px" : v;
+	}
 /// ─── End Signal Runtime ────────────────────────────
 
 "#,

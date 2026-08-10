@@ -204,6 +204,7 @@ pub fn generate(
         node_counter: 0,
         scope: ComponentScope::new(),
         name_resolver: name_resolver::NameResolver::default(),
+        numeric_signal_names: collect_numeric_signal_names(ir),
         signal_defaults: FxHashMap::default(),
         deferred_js: String::new(),
         all_deferred_js: String::new(),
@@ -502,6 +503,28 @@ pub fn generate(
 /// Guards the __mergeTouches helper from being emitted unconditionally.
 /// Checks both component-level declared events and element-level DOM events
 /// in the view tree (where __mergeTouches is actually referenced via TouchEvent data extraction).
+/// Collect all numeric (Int/Float) signal full names across components and
+/// stores — `{Comp}_{sig}` / `{Store}_{field}`. Used by bind:value writeback
+/// to emit `parseFloat` for numeric signals (DOM values are strings).
+fn collect_numeric_signal_names(ir: &IRProgram) -> FxHashSet<String> {
+    let mut names = FxHashSet::default();
+    for (comp_name, comp) in ir.all_components() {
+        for sig in &comp.signals {
+            if matches!(sig.r#type.kind, TypeKind::Int | TypeKind::Float) {
+                names.insert(format!("{}_{}", comp_name, sig.name));
+            }
+        }
+    }
+    for (store_name, store) in ir.all_stores() {
+        for (field, ty) in &store.signals {
+            if matches!(ty.kind, TypeKind::Int | TypeKind::Float) {
+                names.insert(format!("{}_{}", store_name, field));
+            }
+        }
+    }
+    names
+}
+
 fn project_uses_touch_events(ir: &IRProgram) -> bool {
     ir.modules.values().any(|m| {
         m.components.values().any(|c| {
@@ -570,6 +593,11 @@ struct OmniViewGenerator {
     /// Unique counter for guard variable names (bind:value / bind:checked).
     /// Separate from node_counter to guarantee uniqueness even when nids overlap.
     guard_counter: u32,
+    /// 数值类型信号全名集合（`{Comp}_{sig}` / `{Store}_{field}`，Int/Float）。
+    /// bind:value 写回时对数值信号 parseFloat——e.target.value 是字符串，
+    /// f64 信号被字符串污染后 style 绑定（__omni_px typeof 判断）无法附加
+    /// px，滑块拖不动尺寸。
+    numeric_signal_names: FxHashSet<String>,
     /// Accumulated mount lifecycle JS — called after DOM insertion.
     mount_js: String,
     /// When true, emit editor bridge code (postMessage, nid_map, highlight, hot-replace).

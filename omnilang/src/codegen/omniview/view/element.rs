@@ -426,9 +426,18 @@ impl OmniViewGenerator {
                 } else {
                     ("input", "value")
                 };
+                // 数值信号（Int/Float）：e.target.value 是字符串——parseFloat
+                // 保持数值类型。否则 f64 信号被字符串污染，style 绑定的
+                // __omni_px 因 typeof 判断（"380" 是 string）无法附加 px，
+                // el.style.width = "380" 无单位被浏览器忽略（滑块拖不动尺寸）。
+                let value_expr = if self.signal_is_numeric(&binding.name) {
+                    "parseFloat(e.target.value)"
+                } else {
+                    "e.target.value"
+                };
                 let _ = writeln!(self.js,
-                    "{{ const el = __omni_el(\"{0}\"); if (el) el.addEventListener(\"{1}\", (e) => {{ if (!{2}) {{ __omni_subs.get(\"{3}\").set(e.target.{4}); }} }}); }}",
-                    nid, event_name, guard_name, sig_name, dom_prop
+                    "{{ const el = __omni_el(\"{0}\"); if (el) el.addEventListener(\"{1}\", (e) => {{ if (!{2}) {{ __omni_subs.get(\"{3}\").set({4}); }} }}); }}",
+                    nid, event_name, guard_name, sig_name, value_expr
                 );
                 // Reactive binding: signal → DOM (guard against programmatic updates)
                 let _ = writeln!(self.js,
@@ -437,6 +446,24 @@ impl OmniViewGenerator {
                 );
             }
         }
+    }
+
+    /// 判断绑定信号是否为数值类型（Int/Float）。
+    ///
+    /// 绑定名可能是组件信号（"boxWidthNum" → name_renames 解析到全名
+    /// `{Comp}_{sig}`）或 store 信号（"Store.field" → `{Store}_{field}`）。
+    fn signal_is_numeric(&self, name: &str) -> bool {
+        let store_full = name.contains('.').then(|| name.replace('.', "_"));
+        self.name_resolver
+            .name_renames
+            .get(name)
+            .map(|f| self.numeric_signal_names.contains(f))
+            .or_else(|| {
+                store_full
+                    .as_ref()
+                    .map(|f| self.numeric_signal_names.contains(f))
+            })
+            .unwrap_or(false)
     }
 
     /// Emit @form field error aria wiring (Task 6, spec §4.1).

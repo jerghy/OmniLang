@@ -75,6 +75,51 @@ pub(crate) fn event_missing_js_mapping(event_name: &str, tag: &str) -> Option<St
     }
 }
 
+/// CSS 属性需要 px 单位的集合（与 @omni/animation 运行时的 PX_PROPS 对齐）。
+///
+/// style 绑定直写通道（`style: { width: sig }` → `el.style.width = ...`）对
+/// 数值信号（f64）必须附加 px——`el.style.width = 200` 无单位时浏览器忽略
+/// 该声明（width 是长度属性，无单位值非法）。动画的 buildProperties 已在
+/// 运行时处理 px，直写通道在编译期用 `__omni_px()` 包装（数值→px，字符串
+/// 原样）。
+pub(super) fn is_px_style_prop(prop: &str) -> bool {
+    matches!(
+        prop,
+        "width"
+            | "height"
+            | "margin"
+            | "padding"
+            | "borderRadius"
+            | "borderWidth"
+            | "marginTop"
+            | "marginRight"
+            | "marginBottom"
+            | "marginLeft"
+            | "paddingTop"
+            | "paddingRight"
+            | "paddingBottom"
+            | "paddingLeft"
+            | "borderTopLeftRadius"
+            | "borderTopRightRadius"
+            | "borderBottomLeftRadius"
+            | "borderBottomRightRadius"
+            | "fontSize"
+            | "top"
+            | "left"
+            | "right"
+            | "bottom"
+            | "minWidth"
+            | "minHeight"
+            | "maxWidth"
+            | "maxHeight"
+            | "gap"
+            | "rowGap"
+            | "columnGap"
+            | "letterSpacing"
+            | "lineHeight"
+    )
+}
+
 /// Map omni binary operators to JS operators.
 pub(super) fn map_binary_op(op: &BinaryOpIR) -> &str {
     use BinaryOpIR::*;

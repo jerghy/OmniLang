@@ -19,7 +19,7 @@
 
 use std::fmt::Write;
 
-use super::super::utils::escape_html;
+use super::super::utils::{escape_html, is_px_style_prop};
 use super::super::OmniViewGenerator;
 use crate::codegen::{camel_to_kebab, sanitize_css_value};
 use crate::ir::*;
@@ -161,9 +161,17 @@ impl OmniViewGenerator {
                                     "__omni_effect(() => {{ const el = __omni_el(\"{}\"); if (el) ",
                                     nid
                                 );
+                                // px 属性：数值信号先经 __omni_px 附加单位
+                                // （在 sanitize 之前——sanitize 会把数值转
+                                // 字符串，之后再判断就丢失 number 类型）。
+                                let value_expr = if is_px_style_prop(js_prop) {
+                                    format!("__omni_px({})", js_expr)
+                                } else {
+                                    js_expr.clone()
+                                };
                                 self.emit_style_assignment(
                                     js_prop,
-                                    &format!("__omni_sanitizeCss({})", js_expr),
+                                    &format!("__omni_sanitizeCss({})", value_expr),
                                 );
                                 self.js.push_str(" });\n");
                             }
