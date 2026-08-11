@@ -28,27 +28,29 @@ pub(crate) fn format_expr_ir_flutter_dw(
         .format_expr(expr)
 }
 
-/// Task 5: context-carrying expression formatting for component view/event
-/// entries. Carries the @load async local name (builtins loading/error/data
-/// → AsyncValue accessors), the @form presence (form.valid/errors/
-/// submitting → reachability-gated locals), and the @load retry action
-/// (retry → ref.invalidate(...) in value/call contexts). Existing entry
-/// points (`format_expr_ir_flutter` / `_dw`) stay context-free for the call
-/// sites that cannot reference builtins (lib fns, signal initializers,
-/// theme).
+/// Task 5/8: context-carrying expression formatting for component view/event
+/// entries. Carries the per-instance @load builtins (loading/error/data/
+/// retry/reset → their final rendered shapes), the @form presence
+/// (form.valid/errors/submitting → reachability-gated locals), and the
+/// @load param-signal provider map (param reads → `ref.watch`/`ref.read` by
+/// `use_watch_reads`). Existing entry points (`format_expr_ir_flutter` /
+/// `_dw`) stay context-free for the call sites that cannot reference
+/// builtins (lib fns, signal initializers, theme).
 pub(crate) fn format_expr_ir_flutter_ctx(
     expr: &ExprIR,
     direct_write_signals: &FxHashSet<String>,
-    load_async_name: Option<String>,
+    load_builtins: &FxHashMap<String, String>,
     form_present: bool,
-    retry_expr: Option<String>,
+    param_providers: &FxHashMap<String, String>,
+    use_watch_reads: bool,
 ) -> String {
     super::r#ref::FlutterFormatExpr::new_with_context(
         None,
         direct_write_signals,
-        load_async_name,
+        load_builtins,
         form_present,
-        retry_expr,
+        param_providers,
+        use_watch_reads,
     )
     .format_expr(expr)
 }

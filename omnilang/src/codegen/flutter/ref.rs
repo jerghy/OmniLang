@@ -1769,20 +1769,28 @@ pub(crate) struct FlutterFormatExpr {
     /// `_name`). Empty for paths without component context (lib fns, signal
     /// initial values in non-component files, view-tree expressions).
     pub(crate) direct_write_signals: FxHashSet<String>,
-    /// Task 5 (@load): when a `FutureProvider` name is set, the builtin
-    /// `loading` / `error` / `data` identifiers map to the AsyncValue
-    /// accessors (`todosAsync.isLoading`, ...). `None` outside component
-    /// view/event contexts.
-    pub(crate) load_async_name: Option<String>,
+    /// Task 8 (@load 多例): per-instance builtin identifiers (`loading` /
+    /// `error` / `data` / `retry` / `reset`) mapped to their FINAL rendered
+    /// shapes — `{key}Async.isLoading`, `ref.invalidate({key}Provider)`,
+    /// `() => ref.read({key}Provider.notifier).reset()`, ... (values already
+    /// fully formatted; `retry`/`reset` value-forms are `() => ...` closures,
+    /// call-forms strip the prefix in format_call). Empty outside @load
+    /// component contexts (build phase only — the `{key}Async` local is
+    /// build-scoped, so State methods get empty builtins).
+    pub(crate) load_builtins: FxHashMap<String, String>,
     /// Task 5 (@form): when the component declares a `<form @form>`, the
     /// builtin `form.valid` / `form.errors` / `form.submitting` field reads
     /// map to the reachability-gated locals. `false` outside view contexts.
     pub(crate) form_present: bool,
-    /// Task 5 (@load): the reserved `retry` identifier maps to the retry
-    /// action expression (`ref.invalidate(fetchTodosProvider)`) — as a VALUE
-    /// (`() => ...` closure for callbacks) or as a CALL (the raw invalidate
-    /// expr when invoked `retry()`). `None` outside @load component contexts.
-    pub(crate) retry_expr: Option<String>,
+    /// Task 8 (@load 参数): param-signal providers — an identifier resolving
+    /// to a `@load` loader argument maps to `ref.watch({signal}Provider)` in
+    /// build-phase expressions (auto-reload on change) or
+    /// `ref.read({signal}Provider)` inside handlers/fn bodies (Riverpod 3
+    /// forbids watch outside build). Empty outside @load component contexts.
+    pub(crate) param_providers: FxHashMap<String, String>,
+    /// Task 8 (@load 参数): whether identifier reads of param signals use
+    /// `ref.watch(...)` (build phase) or `ref.read(...)` (everywhere else).
+    pub(crate) use_watch_reads: bool,
 }
 
 impl FlutterFormatExpr {
@@ -1790,9 +1798,10 @@ impl FlutterFormatExpr {
         Self {
             inner: DartFormatExpr { event_param_name },
             direct_write_signals: FxHashSet::default(),
-            load_async_name: None,
+            load_builtins: FxHashMap::default(),
             form_present: false,
-            retry_expr: None,
+            param_providers: FxHashMap::default(),
+            use_watch_reads: false,
         }
     }
 
@@ -1805,29 +1814,34 @@ impl FlutterFormatExpr {
         Self {
             inner: DartFormatExpr { event_param_name },
             direct_write_signals: direct_write_signals.clone(),
-            load_async_name: None,
+            load_builtins: FxHashMap::default(),
             form_present: false,
-            retry_expr: None,
+            param_providers: FxHashMap::default(),
+            use_watch_reads: false,
         }
     }
 
-    /// Task 5: context-carrying constructor for component view/event
-    /// expression formatting — carries the @load async local name, the
-    /// @form presence, and the retry action so builtins (loading/error/data,
-    /// form.*, retry) map to their Flutter runtime shapes.
+    /// Task 5 (@load) / Task 8 (多例/参数): context-carrying constructor for
+    /// component view/event expression formatting — carries the per-instance
+    /// load builtins (loading/error/data/retry/reset), the @form presence,
+    /// and the param-signal provider map so builtins map to their Flutter
+    /// runtime shapes. `use_watch_reads` selects `ref.watch` (build phase)
+    /// vs `ref.read` (handlers/fn bodies) for param reads.
     pub(crate) fn new_with_context(
         event_param_name: Option<String>,
         direct_write_signals: &FxHashSet<String>,
-        load_async_name: Option<String>,
+        load_builtins: &FxHashMap<String, String>,
         form_present: bool,
-        retry_expr: Option<String>,
+        param_providers: &FxHashMap<String, String>,
+        use_watch_reads: bool,
     ) -> Self {
         Self {
             inner: DartFormatExpr { event_param_name },
             direct_write_signals: direct_write_signals.clone(),
-            load_async_name,
+            load_builtins: load_builtins.clone(),
             form_present,
-            retry_expr,
+            param_providers: param_providers.clone(),
+            use_watch_reads,
         }
     }
 }
@@ -1856,29 +1870,24 @@ impl FormatExpr for FlutterFormatExpr {
     // resolve to AsyncValue accessors on the hoisted watch local.
     // Everything else stays the Dart-family default (bare name).
     fn format_identifier(&self, name: &str) -> String {
-        // Task 5 (@load): `retry` as a VALUE (e.g. `onPressed={retry}`) must
-        // be a callable — the `() => ref.invalidate(...)` closure. As a CALL
-        // (`retry()` in an expression) format_call below emits the action
-        // directly, so this closure shape is only the value form.
-        if name == "retry" {
-            if let Some(retry) = &self.retry_expr {
-                return format!("() => {retry}");
-            }
+        // Task 8 (@load 多例): per-instance builtins — the map values are the
+        // FINAL rendered forms (`{key}Async.isLoading`,
+        // `() => ref.invalidate({key}Provider)`,
+        // `() => ref.read({key}Provider.notifier).reset()`, ...), so a plain
+        // identifier hit is a complete expression. The `retry` / `reset`
+        // value-forms are `() => ...` closures (callable for callbacks); the
+        // CALL forms (`retry()`) are handled in format_call below.
+        if let Some(v) = self.load_builtins.get(name) {
+            return v.clone();
         }
-        if let Some(async_name) = &self.load_async_name {
-            match name {
-                // `@if loading` — loading is a Bool signal; `AsyncValue.isLoading`.
-                "loading" => return format!("{async_name}.isLoading"),
-                // `@if error != ""` — error is a String signal; AsyncValue
-                // surfaces `error` (Object?) — toString + null-coalesce. The
-                // parens are MANDATORY: Dart's `??` binds looser than `!=`.
-                "error" => return format!("({async_name}.error?.toString() ?? \"\")"),
-                // `@for item in data` — data is an Array signal; AsyncValue
-                // 3.x removed `valueOrNull` — `asData?.value` is List<T>?,
-                // null-coalesce to an empty list.
-                "data" => return format!("{async_name}.asData?.value ?? const []"),
-                _ => {}
+        // Task 8 (@load 参数): param-signal identifiers read through their
+        // module-level provider — `ref.watch` inside build (auto-reload),
+        // `ref.read` elsewhere (Riverpod 3 forbids watch outside build).
+        if let Some(provider) = self.param_providers.get(name) {
+            if self.use_watch_reads {
+                return format!("ref.watch({provider})");
             }
+            return format!("ref.read({provider})");
         }
         if self.direct_write_signals.contains(name) {
             format!("_{}.value", name)
@@ -1977,13 +1986,14 @@ impl FormatExpr for FlutterFormatExpr {
     // The language's `println` / `print` statements map to Dart's `print`
     // (the shared default would emit a bare call — undefined method).
     fn format_call(&self, name: &str, args: &[String]) -> String {
-        // Task 5 (@load): `retry()` — the shared CallExpr arm passes the RAW
-        // callee name here (not via format_identifier), so a call must emit
-        // the retry action itself, not the value-form closure.
-        if name == "retry" {
-            if let Some(retry) = &self.retry_expr {
-                return retry.clone();
-            }
+        // Task 8 (@load 多例): `retry()` / `reset()` — the shared CallExpr
+        // arm passes the RAW callee name here (not via format_identifier), so
+        // a call must emit the raw action itself, not the value-form closure.
+        // Map values are `() => {action}` closures; stripping the prefix
+        // yields the bare action (`ref.invalidate(...)` /
+        // `ref.read(...notifier).reset()`).
+        if let Some(v) = self.load_builtins.get(name) {
+            return v.strip_prefix("() => ").unwrap_or(v).to_string();
         }
         match name {
             "println" | "print" => format!("print({})", args.join(", ")),

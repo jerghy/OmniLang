@@ -114,19 +114,21 @@ pub(crate) struct ViewContext<'a> {
     /// setState); the State fields were renamed `_name` (bare names would be
     /// undeclared identifiers in Dart).
     pub(crate) direct_write_signals: &'a FxHashSet<String>,
-    /// Task 5 (@load): the hoisted AsyncValue local name
-    /// (`{fn}Async`) — builtin identifiers loading/error/data map to its
-    /// accessors. `None` when the component has no `@load`.
-    pub(crate) load_async_name: Option<String>,
+    /// Task 8 (@load 多例): per-instance builtin identifiers — map from
+    /// builtin name (`loading`/`error`/`data`/`retry`/`reset`) to the FINAL
+    /// rendered form (`{key}Async.isLoading`, `() => ref.invalidate(...)`,
+    /// ...). Empty when the component has no `@load`. Values are only valid
+    /// inside build() — the `{key}Async` watch local is build-scoped.
+    pub(crate) load_builtins: &'a FxHashMap<String, String>,
     /// Task 5 (@form): whether the component declares a `<form @form>` —
     /// builtin `form.valid`/`form.errors`/`form.submitting` field reads map
     /// to the reachability-gated locals.
     pub(crate) form_present: bool,
-    /// Task 5 (@load): the retry action expression
-    /// (`ref.invalidate(fetchTodosProvider)`) — `retry` in ANY expression
-    /// context (identifier value, call, or @onClick FnRef) resolves here.
-    /// `None` when the component has no `@load`.
-    pub(crate) retry_expr: Option<String>,
+    /// Task 8 (@load 参数): param-signal providers (signal → `{signal}Provider`)
+    /// for loader arguments — identifier reads map to `ref.watch(...)` inside
+    /// build (auto-reload), `ref.read(...)` in lazy closures. Empty when the
+    /// component has no param-signal @load args.
+    pub(crate) param_providers: &'a FxHashMap<String, String>,
 }
 
 impl ViewContext<'_> {
@@ -269,15 +271,18 @@ impl ViewContext<'_> {
         }
         let rewritten = rewrite_store_accesses(&expr, self.store_provider_map, self.ir);
         let rewritten = rewrite_widget_refs(&rewritten, self.widget_names, self.fn_renames);
-        // Task 5: context-carrying format — @load builtins (loading/error/
-        // data) map to AsyncValue accessors, @form builtins (form.*) map to
-        // the reachability-gated locals, `retry` maps to the invalidate action.
+        // Task 5/8: context-carrying format — @load builtins (loading/error/
+        // data/retry/reset per instance) map to their rendered shapes, @form
+        // builtins (form.*) map to the reachability-gated locals, param
+        // signals read through `ref.watch({p}Provider)` (build phase —
+        // auto-reload on param change).
         format_expr_ir_flutter_ctx(
             &rewritten,
             self.direct_write_signals,
-            self.load_async_name.clone(),
+            self.load_builtins,
             self.form_present,
-            self.retry_expr.clone(),
+            self.param_providers,
+            true,
         )
     }
 }
@@ -2387,18 +2392,14 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
         let raw_var = if key_event { "event" } else { "e" };
         let body: Option<String> = match handler {
             EventHandlerIR::FnRef { r#ref, .. } => {
-                // @load (Task 5): `retry` is the reserved retry ref on @load
-                // components — `ref.invalidate(provider)` re-runs the fetch
-                // and the FutureProvider re-arms loading/error/data. The
-                // action expression lives on ctx.retry_expr (single source:
-                // FnRef binding, value form, and call form all resolve it).
-                if let Some(retry) = ctx
-                    .retry_expr
-                    .as_ref()
-                    .filter(|_| r#ref == "retry")
-                    .map(|retry| format!("() => {retry}"))
-                {
-                    Some(retry)
+                // @load (Task 8): `retry` / `reset` are reserved refs on @load
+                // components — the map values are the FINAL closure forms
+                // (`() => ref.invalidate({key}Provider)` /
+                // `() => ref.read({key}Provider.notifier).reset()`), single
+                // source: FnRef binding, value form, and call form all resolve
+                // through ctx.load_builtins.
+                if let Some(v) = ctx.load_builtins.get(r#ref) {
+                    Some(v.clone())
                 } else {
                     // Task 5.8: pass the handler by TEAR-OFF — `onChanged:
                     // syncMirror` — instead of `(event) { syncMirror({}); }`
@@ -2530,12 +2531,14 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
                             expr: super::r#ref::FlutterFormatExpr::new_with_context(
                                 Some(raw_var.to_string()),
                                 ctx.direct_write_signals,
-                                ctx.load_async_name.clone(),
+                                ctx.load_builtins,
                                 ctx.form_present,
-                                ctx.retry_expr.clone(),
+                                ctx.param_providers,
+                                false,
                             ),
                             direct_write_signals: ctx.direct_write_signals.clone(),
                             local_names: FxHashSet::default(),
+                            param_providers: ctx.param_providers.clone(),
                         };
                         fmt.format_stmt(&mut hw, &s2);
                     }
@@ -3880,12 +3883,14 @@ fn format_key_handler_flutter(body: &BlockIR, ctx: &ViewContext) -> String {
             expr: super::r#ref::FlutterFormatExpr::new_with_context(
                 None,
                 ctx.direct_write_signals,
-                ctx.load_async_name.clone(),
+                ctx.load_builtins,
                 ctx.form_present,
-                ctx.retry_expr.clone(),
+                ctx.param_providers,
+                false,
             ),
             direct_write_signals: ctx.direct_write_signals.clone(),
             local_names: FxHashSet::default(),
+            param_providers: ctx.param_providers.clone(),
         };
         fmt.format_stmt(&mut hw, &s2);
     }
@@ -4246,12 +4251,14 @@ fn format_inline_statements_flutter(body: &BlockIR, ctx: &ViewContext) -> String
             expr: super::r#ref::FlutterFormatExpr::new_with_context(
                 None,
                 ctx.direct_write_signals,
-                ctx.load_async_name.clone(),
+                ctx.load_builtins,
                 ctx.form_present,
-                ctx.retry_expr.clone(),
+                ctx.param_providers,
+                false,
             ),
             direct_write_signals: ctx.direct_write_signals.clone(),
             local_names: FxHashSet::default(),
+            param_providers: ctx.param_providers.clone(),
         };
         fmt.format_stmt(&mut hw, &s2);
     }
@@ -4284,14 +4291,16 @@ fn format_inline_handler_flutter(body: &BlockIR, ctx: &ViewContext) -> String {
     build_inline_handler(&rewritten, &config, |w, s| {
         // Phase 3: inline handler statements carry the D1/D2 set — handler
         // mutations write `_name.value` (no setState in the view tree).
-        // Task 5 review Minor #3: `retry()` statements in inline handlers
-        // resolve to the @load invalidate action (`ref.invalidate(...)`).
+        // Task 8: @load builtin calls (`retry()` / `reset()`) resolve to the
+        // per-instance actions; param-signal reads use ref.read (event time).
         generate_statement_flutter_dw(
             w,
             s,
             ctx.direct_write_signals,
+            ctx.load_builtins,
             ctx.form_present,
-            ctx.retry_expr.clone(),
+            ctx.param_providers,
+            false,
             &FxHashSet::default(),
         )
     })

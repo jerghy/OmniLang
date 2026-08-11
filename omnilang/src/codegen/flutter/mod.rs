@@ -201,17 +201,45 @@ impl FlutterCodegen {
             .map(|v| materialize_view_slots(v, comp, &slot_collision_names(comp)));
         let view = materialized_view.as_ref().or(comp.view.as_ref());
 
+        // ── Task 8 (@load 参数): param-signal discovery ──
+        // A component signal passed as an argument to an `@load` loader
+        // (`@load stats={fetchStats(token)}`) becomes a module-level
+        // NotifierProvider (`{p}Provider` + `{Pascal}Notifier`), NOT a State
+        // field: the provider body `ref.watch`s it so parameter changes
+        // auto-reload the loader (spec §4.2). Such signals are also excluded
+        // from the direct-write set below (they live in a provider, not a
+        // ValueNotifier field) and from signal-field emission.
+        let mut param_candidate_names: FxHashSet<String> = FxHashSet::default();
+        for li in &comp.load_intent {
+            if let LoaderIR::Call(call) = &li.loader {
+                for arg in &call.args {
+                    collect_expr_identifiers(arg, &mut param_candidate_names);
+                }
+            }
+        }
+        let param_signal_names: FxHashSet<String> = param_candidate_names
+            .iter()
+            .filter(|n| comp.signals.iter().any(|s| s.name == **n))
+            .cloned()
+            .collect();
+        let param_providers: FxHashMap<String, String> = param_signal_names
+            .iter()
+            .map(|n| (n.clone(), format!("{n}Provider")))
+            .collect();
+
         // ── Phase 3 (ADR-071 decision 2): signal direct-write classification ──
         // D1 signals (reads confined to dynamic-style entries) and D2 signals
         // (write-only) stop being plain State fields mutated via setState —
         // they become `final _name = ValueNotifier<T>(init);` fields whose
         // mutations write `_name.value` directly (zero whole-tree rebuild).
         // Computed signals / store fields never enter the set (shared pass).
+        // Task 8: param signals are excluded — their storage is the provider.
         let direct_write_sets = classify_direct_write(comp);
         let direct_write_names: FxHashSet<String> = direct_write_sets
             .d1
             .iter()
             .chain(direct_write_sets.d2.iter())
+            .filter(|n| !param_signal_names.contains(*n))
             .cloned()
             .collect();
 
@@ -562,7 +590,7 @@ impl FlutterCodegen {
         }) {
             w.emit("import 'package:flutter/services.dart';");
         }
-        if !comp.store_refs.is_empty() || comp.load_intent.is_some() {
+        if !comp.store_refs.is_empty() || !comp.load_intent.is_empty() {
             w.emit("import 'package:flutter_riverpod/flutter_riverpod.dart';");
             w.emit("");
         }
@@ -726,12 +754,135 @@ impl FlutterCodegen {
 
         // Determine widget/state base classes — @load components watch a
         // FutureProvider, so ConsumerState is required even without @store.
-        let (widget_base, state_base) = if comp.store_refs.is_empty() && comp.load_intent.is_none()
+        let (widget_base, state_base) = if comp.store_refs.is_empty() && comp.load_intent.is_empty()
         {
             ("StatefulWidget", "State")
         } else {
             ("ConsumerStatefulWidget", "ConsumerState")
         };
+
+        // ── Task 8 (@load 多例/参数/Reset) — per-instance metadata ──
+        // Each @load instance (named or anonymous) gets its own provider,
+        // build-phase AsyncValue local, and builtin bindings (loading/error/
+        // data/retry/reset). Instance key: the declared name, or the loader
+        // fn name for anonymous instances (spec §2.1). A reset-using
+        // instance upgrades its provider to AsyncNotifierProvider so `reset`
+        // can write `state = AsyncData(null)` — the native Riverpod reset
+        // (spec §2.2; FutureProvider has no notifier).
+        // Tuple: (key, ret, loader_body, reset_used, named).
+        let load_instances: Vec<(String, String, String, bool, bool)> = comp
+            .load_intent
+            .iter()
+            .map(|li| {
+                let named = li.name.is_some();
+                let key = li
+                    .name
+                    .clone()
+                    .unwrap_or_else(|| li.loader.fn_name().to_string());
+                let ret = comp
+                    .fns
+                    .iter()
+                    .find(|f| f.name == li.loader.fn_name())
+                    .and_then(|f| f.return_type.as_ref())
+                    .map(super::dart::dart_type_ir)
+                    .unwrap_or_else(|| "Object".to_string());
+                let loader_body = match &li.loader {
+                    LoaderIR::Fn(fname) => format!("{fname}()"),
+                    LoaderIR::Call(c) => {
+                        let args = c
+                            .args
+                            .iter()
+                            .map(|a| {
+                                format_expr_ir_flutter_ctx(
+                                    a,
+                                    &FxHashSet::default(),
+                                    &FxHashMap::default(),
+                                    false,
+                                    &param_providers,
+                                    true,
+                                )
+                            })
+                            .collect::<Vec<_>>()
+                            .join(", ");
+                        format!("{}({args})", c.func)
+                    }
+                };
+                // Reset detection: `{name}Reset` (named) / `reset` (anonymous)
+                // referenced anywhere in computeds/effects/lifecycles/fns/view.
+                let reset_builtin = if named {
+                    format!("{key}Reset")
+                } else {
+                    "reset".to_string()
+                };
+                (
+                    key,
+                    ret,
+                    loader_body,
+                    used_fn_names.contains(&reset_builtin),
+                    named,
+                )
+            })
+            .collect();
+
+        // Task 8: @load 参数 signals live in module-level NotifierProviders
+        // (the loader's provider body `ref.watch`es them → auto-reload on
+        // change, spec §4.2). The Notifier exposes an explicit `set` so
+        // mutations route `ref.read({p}Provider.notifier).set(v)` (the state
+        // setter is protected in Riverpod 3). Emitted BEFORE the widget class
+        // — top-level declarations.
+        for state in &comp.signals {
+            if !param_signal_names.contains(&state.name) {
+                continue;
+            }
+            let ann = super::dart::dart_type_ir(&state.r#type);
+            let notifier = format!("{}Notifier", pascal_case(&state.name));
+            w.emit_fmt(format_args!(
+                "final {}Provider = NotifierProvider<{}, {}>({}.new);",
+                state.name, notifier, ann, notifier
+            ));
+            w.emit_fmt(format_args!(
+                "class {} extends Notifier<{}> {{",
+                notifier, ann
+            ));
+            w.indent();
+            w.emit("@override");
+            w.emit_fmt(format_args!(
+                "{} build() => {};",
+                ann,
+                format_expr_ir_flutter_dw(&state.initial_value, &direct_write_names)
+            ));
+            w.emit_fmt(format_args!("void set({} v) => state = v;", ann));
+            w.dedent();
+            w.emit("}");
+            w.emit("");
+        }
+        // Task 8: reset-using @load instances upgrade to AsyncNotifier — the
+        // provider owns a `reset` method writing `state = AsyncData(null)`
+        // (Riverpod 3 native reset; the FutureProvider form has no notifier).
+        for (key, ret, loader_body, reset_used, _named) in &load_instances {
+            if !*reset_used {
+                continue;
+            }
+            let notifier = format!("{}Notifier", pascal_case(key));
+            w.emit_fmt(format_args!(
+                "class {} extends AsyncNotifier<{}> {{",
+                notifier, ret
+            ));
+            w.indent();
+            w.emit("@override");
+            w.emit_fmt(format_args!(
+                "Future<{}> build() async => {};",
+                ret, loader_body
+            ));
+            w.emit("void reset() {");
+            w.indent();
+            w.emit("state = AsyncData(null);");
+            w.dedent();
+            w.emit("}");
+            w.dedent();
+            w.emit("}");
+            w.emit("");
+        }
 
         // ── Widget class ──
         w.emit_fmt(format_args!("class {} extends {} {{", name, widget_base));
@@ -981,6 +1132,12 @@ impl FlutterCodegen {
         // sibling fields. Nullable annotations are preserved (dart_type_ir).
         let signal_names: FxHashSet<String> = comp.signals.iter().map(|s| s.name.clone()).collect();
         for state in &comp.signals {
+            // Task 8 (@load 参数): param signals are NOT State fields — they
+            // live in a module-level NotifierProvider (the loader's provider
+            // body `ref.watch`es them for auto-reload, spec §4.2).
+            if param_signal_names.contains(&state.name) {
+                continue;
+            }
             let ann = super::dart::dart_type_ir(&state.r#type);
             // Phase 3 (ADR-071 decision 2): D1/D2 signals are stored in
             // ValueNotifier cells — `final _dragX = ValueNotifier<double>(0);`
@@ -1040,24 +1197,26 @@ impl FlutterCodegen {
             w.emit("");
         }
 
-        // @load (Task 5): the FutureProvider owns the fetch lifecycle; the
-        // build method hoists `ref.watch(...)` into `{fn}Async` so loading/
-        // error/data map onto AsyncValue's tri-state.
-        let load_ret = comp.load_intent.as_ref().map(|li| {
-            comp.fns
-                .iter()
-                .find(|f| f.name == li.fn_name)
-                .and_then(|f| f.return_type.as_ref())
-                .map(super::dart::dart_type_ir)
-                .unwrap_or_else(|| "Object".to_string())
-        });
-        if let (Some(li), Some(ret)) = (&comp.load_intent, &load_ret) {
-            w.emit_fmt(format_args!(
-                "late final {} = FutureProvider<{}>((ref) async => {}());",
-                load_provider_name(&li.fn_name),
-                ret,
-                li.fn_name
-            ));
+        // @load (Task 5): each instance's provider owns the fetch lifecycle;
+        // the build method hoists `ref.watch(...)` into `{key}Async` so
+        // loading/error/data map onto AsyncValue's tri-state. A reset-using
+        // instance upgrades to AsyncNotifierProvider (Task 8) — the Notifier
+        // class is emitted above; everything else stays FutureProvider.
+        for (key, ret, loader_body, reset_used, _named) in &load_instances {
+            if *reset_used {
+                w.emit_fmt(format_args!(
+                    "late final {}Provider = AsyncNotifierProvider<{}Notifier, {}>(() => {}Notifier());",
+                    key,
+                    pascal_case(key),
+                    ret,
+                    pascal_case(key)
+                ));
+            } else {
+                w.emit_fmt(format_args!(
+                    "late final {}Provider = FutureProvider<{}>((ref) async => {});",
+                    key, ret, loader_body
+                ));
+            }
             w.emit("");
         }
 
@@ -1233,8 +1392,10 @@ impl FlutterCodegen {
                             &mut w,
                             stmt,
                             &direct_write_names,
+                            &FxHashMap::default(),
                             comp.form_intent.is_some(),
-                            None,
+                            &param_providers,
+                            false,
                             &FxHashSet::default(),
                         );
                     }
@@ -1401,8 +1562,10 @@ impl FlutterCodegen {
                                 &mut w,
                                 stmt,
                                 &direct_write_names,
+                                &FxHashMap::default(),
                                 comp.form_intent.is_some(),
-                                None,
+                                &param_providers,
+                                false,
                                 &FxHashSet::default(),
                             );
                         }
@@ -1414,8 +1577,10 @@ impl FlutterCodegen {
                                 &mut w,
                                 stmt,
                                 &direct_write_names,
+                                &FxHashMap::default(),
                                 comp.form_intent.is_some(),
-                                None,
+                                &param_providers,
+                                false,
                                 &FxHashSet::default(),
                             );
                         }
@@ -1462,7 +1627,11 @@ impl FlutterCodegen {
                         // Note: a D1/D2 mutation does not rebuild, so this
                         // comparison alone never re-triggers — the dep is
                         // effectively inert (documented corner, ADR-071 P1).
-                        let rhs = if direct_write_names.contains(dep) {
+                        // Task 8: a @load 参数 signal compares against its
+                        // provider's current value (read outside build).
+                        let rhs = if param_providers.contains_key(dep) {
+                            format!("ref.read({})", param_providers[dep])
+                        } else if direct_write_names.contains(dep) {
                             format!("_{}.value", dep)
                         } else {
                             dep.clone()
@@ -1530,8 +1699,10 @@ impl FlutterCodegen {
                             &mut w,
                             stmt,
                             &direct_write_names,
+                            &FxHashMap::default(),
                             comp.form_intent.is_some(),
-                            None,
+                            &param_providers,
+                            false,
                             &FxHashSet::default(),
                         );
                     }
@@ -1600,7 +1771,10 @@ impl FlutterCodegen {
                 &func,
                 &rewritten,
                 &direct_write_names,
+                &FxHashMap::default(),
                 comp.form_intent.is_some(),
+                &param_providers,
+                false,
             );
             w.emit("");
         }
@@ -1637,8 +1811,10 @@ impl FlutterCodegen {
                     &mut w,
                     stmt,
                     &direct_write_names,
+                    &FxHashMap::default(),
                     comp.form_intent.is_some(),
-                    None,
+                    &param_providers,
+                    false,
                     &FxHashSet::default(),
                 );
             }
@@ -1650,7 +1826,10 @@ impl FlutterCodegen {
                     if !comp.props.contains_key(dep) && find_dep_type(comp, dep).is_some() {
                         // Phase 3: a D1/D2 dep snapshots its notifier cell —
                         // `_prevX = _X.value;` (the field was renamed `_X`).
-                        let rhs = if direct_write_names.contains(dep) {
+                        // Task 8: a @load 参数 signal snapshots its provider.
+                        let rhs = if param_providers.contains_key(dep) {
+                            format!("ref.read({})", param_providers[dep])
+                        } else if direct_write_names.contains(dep) {
                             format!("_{}.value", dep)
                         } else {
                             dep.clone()
@@ -1682,15 +1861,14 @@ impl FlutterCodegen {
             w.emit("});");
         }
 
-        // @load (Task 5): hoisted AsyncValue read — `loading` maps to
+        // @load (Task 5): hoisted AsyncValue reads — `loading` maps to
         // `.isLoading`, `error` to `.error`, `data` to `.asData?.value` in the
-        // view tree (format_identifier override in ref.rs).
-        if let (Some(li), Some(ret)) = (&comp.load_intent, &load_ret) {
+        // view tree (format_identifier override in ref.rs). Task 8: one
+        // hoist per instance (named or anonymous), keyed by instance key.
+        for (key, ret, _loader_body, _reset_used, _named) in &load_instances {
             w.emit_fmt(format_args!(
-                "final AsyncValue<{}> {} = ref.watch({});",
-                ret,
-                load_async_local_name(&li.fn_name),
-                load_provider_name(&li.fn_name)
+                "final AsyncValue<{}> {}Async = ref.watch({}Provider);",
+                ret, key, key
             ));
             w.emit("");
         }
@@ -1710,6 +1888,72 @@ impl FlutterCodegen {
             // instead of watching outside the build phase.
             let mut hoisted: Vec<(String, String)> = Vec::new();
             let mut hoist_next = 0usize;
+            // Task 8: per-instance builtin bindings — only valid inside
+            // build() (view tree + inline handlers). `reset` appears only
+            // when the instance actually upgrades to AsyncNotifier.
+            let mut load_builtins: FxHashMap<String, String> = FxHashMap::default();
+            for (key, _ret, _loader_body, reset_used, named) in &load_instances {
+                let insert = |m: &mut FxHashMap<String, String>, n: String, v: String| {
+                    m.insert(n, v);
+                };
+                if *named {
+                    insert(
+                        &mut load_builtins,
+                        format!("{key}Loading"),
+                        format!("{key}Async.isLoading"),
+                    );
+                    insert(
+                        &mut load_builtins,
+                        format!("{key}Error"),
+                        format!("({key}Async.error?.toString() ?? \"\")"),
+                    );
+                    insert(
+                        &mut load_builtins,
+                        format!("{key}Data"),
+                        format!("{key}Async.asData?.value ?? const []"),
+                    );
+                    insert(
+                        &mut load_builtins,
+                        format!("{key}Retry"),
+                        format!("() => ref.invalidate({key}Provider)"),
+                    );
+                    if *reset_used {
+                        insert(
+                            &mut load_builtins,
+                            format!("{key}Reset"),
+                            format!("() => ref.read({key}Provider.notifier).reset()"),
+                        );
+                    }
+                } else {
+                    insert(
+                        &mut load_builtins,
+                        "loading".to_string(),
+                        format!("{key}Async.isLoading"),
+                    );
+                    insert(
+                        &mut load_builtins,
+                        "error".to_string(),
+                        format!("({key}Async.error?.toString() ?? \"\")"),
+                    );
+                    insert(
+                        &mut load_builtins,
+                        "data".to_string(),
+                        format!("{key}Async.asData?.value ?? const []"),
+                    );
+                    insert(
+                        &mut load_builtins,
+                        "retry".to_string(),
+                        format!("() => ref.invalidate({key}Provider)"),
+                    );
+                    if *reset_used {
+                        insert(
+                            &mut load_builtins,
+                            "reset".to_string(),
+                            format!("() => ref.read({key}Provider.notifier).reset()"),
+                        );
+                    }
+                }
+            }
             let mut ctx = view::ViewContext {
                 component_map,
                 store_provider_map: &store_provider_map,
@@ -1737,19 +1981,13 @@ impl FlutterCodegen {
                 // never a silent drop.
                 errors: &mut view_errors,
                 direct_write: &direct_write_sets,
-                // Task 5: @load/@form context for view-tree builtin mapping.
-                load_async_name: comp
-                    .load_intent
-                    .as_ref()
-                    .map(|li| load_async_local_name(&li.fn_name)),
+                // Task 5/8: @load/@form context for view-tree builtin
+                // mapping — per-instance builtins (see load_builtins above).
+                load_builtins: &load_builtins,
                 form_present: comp.form_intent.is_some(),
-                // Task 5: the retry action — `retry` in ANY expression
-                // context (FnRef binding, value, call) resolves to
-                // `ref.invalidate({fn}Provider)`.
-                retry_expr: comp
-                    .load_intent
-                    .as_ref()
-                    .map(|li| format!("ref.invalidate({})", load_provider_name(&li.fn_name))),
+                // Task 8: @load 参数 signals resolve to `ref.watch({p}Provider)`
+                // in the build phase and `ref.read({p}Provider)` outside it.
+                param_providers: &param_providers,
             };
             // Multi-node root fragments are wrapped in a Column —
             // `return Text('a'), Text('b');` would be invalid Dart
@@ -2101,22 +2339,26 @@ impl FlutterCodegen {
 // (e.g. a store action like `setFilter`) forces the conservative re-run —
 // and its prev-value snapshot fields are never read, so they must not be
 // emitted (dart unused_field) nor assigned (undefined name).
-// ── Task 5 (@load) naming —───────────────
-// The load fn `fetchTodos` becomes the State field
-// `final fetchTodosProvider = FutureProvider<...>((ref) async => fetchTodos());`
-// and the build hoists `final AsyncValue<...> fetchTodosAsync = ref.watch(...);`.
-// Both names are mechanical (fn name + suffix) so any @load fn maps
-// predictably; the async local is what builtins (loading/error/data) and the
-// retry handler reference.
+// ── Task 8 (@load naming) ────────────────
+// Each @load instance keys its provider/AsyncValue/builtins by name:
+// named `@load stats={...}` → `statsProvider`/`statsAsync`/`statsLoading`...;
+// anonymous `@load={fetchTodos}` → the loader fn name
+// (`fetchTodosProvider`/`fetchTodosAsync` + bare `loading`/`error`/...).
+// Reset-using instances upgrade to `{Pascal}Notifier` (AsyncNotifier).
 
-/// AsyncValue local name hoisted in build() (`{fn}Async`).
-pub(crate) fn load_async_local_name(fn_name: &str) -> String {
-    format!("{fn_name}Async")
-}
-
-/// FutureProvider State-field name (`{fn}Provider`).
-pub(crate) fn load_provider_name(fn_name: &str) -> String {
-    format!("{fn_name}Provider")
+/// Identifier → PascalCase Dart class name (`fetchTodos` → `FetchTodos`,
+/// `fetch_stats` → `FetchStats`, `userName` → `UserName`). Splits on `_`/`-`,
+/// capitalizes each segment's first char, preserves existing camelCase caps.
+fn pascal_case(name: &str) -> String {
+    let mut out = String::with_capacity(name.len());
+    for seg in name.split(['_', '-']) {
+        let mut chars = seg.chars();
+        if let Some(first) = chars.next() {
+            out.extend(first.to_uppercase());
+            out.push_str(&seg[first.len_utf8()..]);
+        }
+    }
+    out
 }
 
 /// Whether an effect has NO resolvable dependency (every dep is a store

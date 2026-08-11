@@ -589,9 +589,9 @@ fn fmt_view_with_program_and_map<'a>(
         hoist_next: &mut hoist_next,
         lazy_context: false,
         comp_type_scope: &FxHashMap::default(),
-        load_async_name: None,
+        load_builtins: &FxHashMap::default(),
         form_present: false,
-        retry_expr: None,
+        param_providers: &FxHashMap::default(),
     };
     let result = format_view_tree(node, &[], &mut ctx);
     (result, warnings)
@@ -631,9 +631,9 @@ fn fmt_view_in(
         hoist_next: &mut hoist_next,
         lazy_context: false,
         comp_type_scope: &FxHashMap::default(),
-        load_async_name: None,
+        load_builtins: &FxHashMap::default(),
         form_present: false,
-        retry_expr: None,
+        param_providers: &FxHashMap::default(),
     };
     let result = format_view_tree(node, motions, &mut ctx);
     (result, warnings)
@@ -8034,9 +8034,9 @@ fn test_store_action_in_inline_handler_body() {
         hoist_next: &mut hoist_next,
         lazy_context: false,
         comp_type_scope: &FxHashMap::default(),
-        load_async_name: None,
+        load_builtins: &FxHashMap::default(),
         form_present: false,
-        retry_expr: None,
+        param_providers: &FxHashMap::default(),
     };
     let expr = format_view_tree(&view, &[], &mut ctx);
     assert!(
@@ -8153,9 +8153,9 @@ fn test_store_action_method_call_form_in_handler() {
         hoist_next: &mut hoist_next,
         lazy_context: false,
         comp_type_scope: &FxHashMap::default(),
-        load_async_name: None,
+        load_builtins: &FxHashMap::default(),
         form_present: false,
-        retry_expr: None,
+        param_providers: &FxHashMap::default(),
     };
     let expr = format_view_tree(&view, &[], &mut ctx);
     assert!(
@@ -8399,9 +8399,9 @@ fn test_ref_key_on_widget_and_controller_attachment() {
         hoist_next: &mut hoist_next,
         lazy_context: false,
         comp_type_scope: &FxHashMap::default(),
-        load_async_name: None,
+        load_builtins: &FxHashMap::default(),
         form_present: false,
-        retry_expr: None,
+        param_providers: &FxHashMap::default(),
     };
     let view = ViewTree::Element(Box::new(el));
     let expr = format_view_tree(&view, &[], &mut ctx);
@@ -8450,9 +8450,9 @@ fn test_ref_key_on_widget_and_controller_attachment() {
         hoist_next: &mut hoist_next,
         lazy_context: false,
         comp_type_scope: &FxHashMap::default(),
-        load_async_name: None,
+        load_builtins: &FxHashMap::default(),
         form_present: false,
-        retry_expr: None,
+        param_providers: &FxHashMap::default(),
     };
     let view2 = ViewTree::Element(Box::new(el2));
     let expr2 = format_view_tree(&view2, &[], &mut ctx2);
@@ -8496,9 +8496,9 @@ fn test_ref_key_on_widget_and_controller_attachment() {
         hoist_next: &mut hoist_next,
         lazy_context: false,
         comp_type_scope: &FxHashMap::default(),
-        load_async_name: None,
+        load_builtins: &FxHashMap::default(),
         form_present: false,
-        retry_expr: None,
+        param_providers: &FxHashMap::default(),
     };
     let view3 = ViewTree::Element(Box::new(el3));
     let expr3 = format_view_tree(&view3, &[], &mut ctx3);
@@ -11542,7 +11542,9 @@ component DragBox {
 
 /// A dynamic style value that cannot map to any Flutter widget parameter
 /// (here `letterSpacing`) must produce a compile-time diagnostic instead of
-/// the old silent drop.
+/// the old silent drop. 批次 3 收口（12155e1a）按 ADR-054 诚实降级将
+/// 无参数映射的 CSS 属性从编译错误降为警告（style 条目不发射）——
+/// 断言随之更新为警告通道。
 #[test]
 fn test_flutter_unmappable_style_diagnostic() {
     let flutter = compile_flutter_full(
@@ -11558,11 +11560,11 @@ component LetterBox {
 "#,
     );
     assert!(
-        !flutter.success,
-        "unmappable dynamic style must fail compilation"
+        flutter.success,
+        "unmappable dynamic style degrades to a warning, not a compile failure"
     );
     let msg = flutter
-        .errors
+        .warnings
         .iter()
         .map(|e| e.message.clone())
         .collect::<Vec<_>>()
@@ -11994,6 +11996,230 @@ component App {
     assert!(
         dart.contains("ref.invalidate(fetchTodosProvider);"),
         "retry() must emit the invalidate action in the handler body, got:\n{}",
+        dart
+    );
+}
+
+// ==== 批次 4 Task 8：@load 多例/参数 watch/Reset AsyncNotifier 渐进升级 + null 兜底 ====
+
+/// 多例化（spec §2.1/§4.2）：2 个命名 @load → 每实例独立 provider
+/// （`{name}Provider`）+ 每实例 AsyncValue 提升（`{name}Async`）+ 命名
+/// 三态/retry/reset 回调（`{name}Data`/`{name}Retry`/`{name}Reset`）。
+#[test]
+fn flutter_multi_load_per_instance_providers() {
+    let out = compile_flutter(
+        r#"
+component App {
+  fn fetchItems() -> Array<String> { }
+  fn fetchStats() -> Array<String> { }
+  view {
+    @load items={fetchItems}
+    @load stats={fetchStats}
+    <div>{statsData}</div>
+    <button @onPress={itemsRetry}>Retry</button>
+    <button @onPress={itemsReset}>Reset</button>
+    @for item in statsData { <div>{item}</div> }
+  }
+}
+"#,
+    )
+    .expect("multi-load fixture must compile");
+    let dart: String = out.files.values().cloned().collect::<Vec<_>>().join("\n");
+    assert!(
+        dart.contains("final itemsProvider = AsyncNotifierProvider<ItemsNotifier, List<String>>(() => ItemsNotifier());"),
+        "the reset-using named instance must emit its own upgraded provider, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("class ItemsNotifier extends AsyncNotifier<List<String>>"),
+        "the reset-using named instance needs its AsyncNotifier class, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains(
+            "final statsProvider = FutureProvider<List<String>>((ref) async => fetchStats());"
+        ),
+        "each named instance must emit its own provider, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("final AsyncValue<List<String>> itemsAsync = ref.watch(itemsProvider);"),
+        "the build method must hoist a per-instance AsyncValue, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("final AsyncValue<List<String>> statsAsync = ref.watch(statsProvider);"),
+        "the build method must hoist a per-instance AsyncValue, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("statsAsync.asData?.value ?? const []"),
+        "named data builtin must map to {{name}}Async.asData?.value with null fallback, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("ref.invalidate(itemsProvider)"),
+        "named retry must invalidate the instance provider, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("ref.read(itemsProvider.notifier).reset()"),
+        "named reset must clear the instance state, got:\n{}",
+        dart
+    );
+}
+
+/// 参数信号绑定（spec §2.1 fn_ref call_expr）：`@load stats={fetchStats(token)}`
+/// → provider body 内 `ref.watch(tokenProvider)`——参数变化自动重载（Riverpod
+/// 官方响应式数据流，spec §4）。参数信号升级为模块级 NotifierProvider。
+#[test]
+fn flutter_param_signal_watched_in_provider_body() {
+    let out = compile_flutter(
+        r#"
+component App {
+  signal token: String = "a";
+  fn fetchStats(token: String) -> Array<String> { }
+  view {
+    @load stats={fetchStats(token)}
+    <div>{statsData}</div>
+  }
+}
+"#,
+    )
+    .expect("param-load fixture must compile");
+    let dart: String = out.files.values().cloned().collect::<Vec<_>>().join("\n");
+    assert!(
+        dart.contains("fetchStats(ref.watch(tokenProvider))"),
+        "the provider body must watch the param signal, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains(
+            "final tokenProvider = NotifierProvider<TokenNotifier, String>(TokenNotifier.new);"
+        ),
+        "the param signal must be providerized at module level, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("class TokenNotifier extends Notifier<String>"),
+        "the param signal needs a top-level Notifier class, got:\n{}",
+        dart
+    );
+}
+
+/// Reset 渐进升级（P4/spec §2.1 注记）：组件含 Reset 用点 → 该实例升级
+/// AsyncNotifierProvider + 顶层 Notifier 类，Reset 以 setState(AsyncData(null))
+/// 实现（清空不重载，ref.invalidate ≠ Reset）；无 Reset 的组件维持
+/// FutureProvider（渐进式，不整段重写）。
+#[test]
+fn flutter_reset_upgrades_to_async_notifier() {
+    let out = compile_flutter(
+        r#"
+component App {
+  fn fetchTodos() -> Array<String> { }
+  view {
+    @load={fetchTodos}
+    <button @onPress={reset}>Reset</button>
+    @for item in data { <div>{item}</div> }
+  }
+}
+"#,
+    )
+    .expect("reset fixture must compile");
+    let dart: String = out.files.values().cloned().collect::<Vec<_>>().join("\n");
+    assert!(
+        dart.contains("AsyncNotifierProvider<FetchTodosNotifier, List<String>>"),
+        "Reset usage must upgrade the instance to AsyncNotifierProvider, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("class FetchTodosNotifier extends AsyncNotifier<List<String>>"),
+        "the upgrade needs a top-level AsyncNotifier class, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("state = AsyncData(null);"),
+        "Reset must clear to AsyncData(null) — never auto-reload, got:\n{}",
+        dart
+    );
+    assert!(
+        !dart.contains("ref.invalidate(fetchTodosProvider);"),
+        "Reset must NOT map to ref.invalidate (that is retry), got:\n{}",
+        dart
+    );
+    // 渐进式：同批 2 个组件，仅含 Reset 的升级，另一个维持 FutureProvider。
+    let no_reset = compile_flutter(
+        r#"
+component App {
+  fn fetchTodos() -> Array<String> { }
+  view {
+    @load={fetchTodos}
+    @for item in data { <div>{item}</div> }
+  }
+}
+"#,
+    )
+    .expect("no-reset fixture must compile");
+    let plain: String = no_reset
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        !plain.contains("AsyncNotifier"),
+        "without Reset usage the instance must stay on FutureProvider, got:\n{}",
+        plain
+    );
+}
+
+/// ★ 兼容性检查点（spec §2.1 注记）：@for item in data 且 data 为 null →
+/// `asData?.value ?? const []` 产物——三态 data 为 null 时迭代空列表，
+/// 不崩溃、不显脏 null。
+#[test]
+fn flutter_for_over_null_data_falls_back_empty() {
+    let out = compile_flutter(
+        r#"
+component App {
+  fn fetchTodos() -> Array<String> { }
+  view {
+    @load={fetchTodos}
+    @for item in data { <div>{item}</div> }
+  }
+}
+"#,
+    )
+    .expect("null-data fixture must compile");
+    let dart: String = out.files.values().cloned().collect::<Vec<_>>().join("\n");
+    assert!(
+        dart.contains("fetchTodosAsync.asData?.value ?? const []"),
+        "@for over possibly-null data must fall back to an empty list, got:\n{}",
+        dart
+    );
+}
+
+/// 匿名 @load → reset（v0 无）：匿名实例的 Reset 回调为裸 `reset`，
+/// 清空匿名 provider 状态（data→null、error→null、loading→false），
+/// 不触发重载。
+#[test]
+fn flutter_anon_reset_emitted() {
+    let out = compile_flutter(
+        r#"
+component App {
+  fn fetchTodos() -> Array<String> { }
+  view {
+    @load={fetchTodos}
+    <button @onPress={reset}>Reset</button>
+    @for item in data { <div>{item}</div> }
+  }
+}
+"#,
+    )
+    .expect("anon-reset fixture must compile");
+    let dart: String = out.files.values().cloned().collect::<Vec<_>>().join("\n");
+    assert!(
+        dart.contains("ref.read(fetchTodosProvider.notifier).reset()"),
+        "anonymous reset must clear the anonymous provider, got:\n{}",
         dart
     );
 }

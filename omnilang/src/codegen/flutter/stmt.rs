@@ -4,7 +4,7 @@ use crate::codegen::shared::expr::{DartFormatExpr, FormatExpr};
 use crate::codegen::shared::stmt::FormatStmt;
 use crate::codegen::CodeWriter;
 use crate::ir::*;
-use rustc_hash::FxHashSet;
+use rustc_hash::{FxHashMap, FxHashSet};
 use std::fmt::Write;
 
 // ═══════════════════════════════════════════════════════════════
@@ -49,6 +49,13 @@ pub(crate) struct FlutterStmtFormatter<F: FormatExpr> {
     /// and setState during build crashes ("setState() called during build",
     /// ValidationInput's while-loop counters invoked from build).
     pub(crate) local_names: FxHashSet<String>,
+    /// Task 8 (@load 参数): signal name → NotifierProvider name. Mutations on
+    /// a param signal route through the provider's `set` method —
+    /// `ref.read({p}Provider.notifier).set(v)` — instead of the ValueNotifier
+    /// direct write. Mirrors `FlutterFormatExpr::param_providers` (the generic
+    /// `F: FormatExpr` cannot reach it via the trait, so the formatter carries
+    /// its own copy).
+    pub(crate) param_providers: FxHashMap<String, String>,
 }
 
 impl<F: FormatExpr> FormatStmt for FlutterStmtFormatter<F> {
@@ -127,6 +134,57 @@ impl<F: FormatExpr> FormatStmt for FlutterStmtFormatter<F> {
     /// StdLibShowcase's `sleepResult = await demo_sleep_and_return();`
     /// produced `await_in_wrong_context` inside the closure).
     fn format_mutation_stmt(&self, w: &mut CodeWriter, intent: &MutationIntent) {
+        // Task 8 (@load 参数): a param-signal target writes through its
+        // NotifierProvider's `set` method — `ref.read({p}Provider.notifier)
+        // .set(v)` (the state setter is protected in Riverpod 3, so Notifier
+        // exposes an explicit set()). Runs BEFORE the direct-write branch —
+        // a param signal is stored in a provider, not a ValueNotifier field.
+        if let Some(target) = mutation_target_name(intent) {
+            if let Some(provider) = self.param_providers.get(target) {
+                let semi = if self.needs_semicolon() { ";" } else { "" };
+                let setter = format!("ref.read({provider}.notifier).set");
+                match intent {
+                    MutationIntent::DirectAssign { value, .. } => {
+                        let amount = value
+                            .as_ref()
+                            .map(|v| self.expr_fmt().format_expr(v))
+                            .unwrap_or_else(|| "0".into());
+                        w.emit_fmt(format_args!("{setter}({amount}){semi}"));
+                    }
+                    MutationIntent::Increment { amount, .. } => {
+                        let amt = amount
+                            .as_ref()
+                            .map(|v| self.expr_fmt().format_expr(v))
+                            .unwrap_or_else(|| "1".into());
+                        w.emit_fmt(format_args!("{setter}(ref.read({provider}) + {amt}){semi}"));
+                    }
+                    MutationIntent::Decrement { amount, .. } => {
+                        let amt = amount
+                            .as_ref()
+                            .map(|v| self.expr_fmt().format_expr(v))
+                            .unwrap_or_else(|| "1".into());
+                        w.emit_fmt(format_args!("{setter}(ref.read({provider}) - {amt}){semi}"));
+                    }
+                    MutationIntent::Push { item, .. } => {
+                        let it = item
+                            .as_ref()
+                            .map(|v| self.expr_fmt().format_expr(v))
+                            .unwrap_or_else(|| "null".into());
+                        w.emit_fmt(format_args!(
+                            "{setter}([...ref.read({provider}), {it}]){semi}"
+                        ));
+                    }
+                    MutationIntent::Pop { .. } => {
+                        w.emit_fmt(format_args!(
+                            "{setter}(ref.read({provider}).sublist(0, ref.read({provider}).length - 1)){semi}"
+                        ));
+                    }
+                    #[allow(unreachable_patterns)]
+                    _ => {}
+                }
+                return;
+            }
+        }
         // Phase 3 (ADR-071 decision 2): D1/D2 signals write the ValueNotifier
         // directly — `_name.value = ...`, NO setState, no whole-tree build.
         // Every mutation form must use the `.value` target: the State field
@@ -680,6 +738,7 @@ pub(crate) fn generate_statement_flutter(w: &mut CodeWriter, stmt: &StatementIR)
         expr: super::r#ref::FlutterFormatExpr::new(None),
         direct_write_signals: FxHashSet::default(),
         local_names: FxHashSet::default(),
+        param_providers: FxHashMap::default(),
     };
     fmt.format_stmt(w, stmt);
 }
@@ -691,28 +750,36 @@ pub(crate) fn generate_statement_flutter(w: &mut CodeWriter, stmt: &StatementIR)
 /// (State methods, @mount/@unmount, effect bodies, computed fn-form bodies,
 /// inline handlers).
 ///
-/// `retry_expr` (Task 5 review Minor #3): the `@load` retry action
-/// (`ref.invalidate(loadProvider)`) — inline-handler bodies pass it so
-/// statement-level `retry();` calls resolve to the action instead of a
-/// bare identifier. Callers without load context pass `None`.
+/// Task 8 (@load 多例): `load_builtins` replaces the single `retry_expr` —
+/// map VALUES are final rendered forms (`{key}Async.isLoading` etc.);
+/// `param_providers` carries signal → NotifierProvider names (mutations
+/// route through `ref.read({p}Provider.notifier).set(v)`); `use_watch_reads`
+/// selects `ref.watch` vs `ref.read` for param identifiers (watch is only
+/// legal inside build()). Callers without load/param context pass empty maps
+/// and `false`.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn generate_statement_flutter_dw(
     w: &mut CodeWriter,
     stmt: &StatementIR,
     direct_write_signals: &FxHashSet<String>,
+    load_builtins: &FxHashMap<String, String>,
     form_present: bool,
-    retry_expr: Option<String>,
+    param_providers: &FxHashMap<String, String>,
+    use_watch_reads: bool,
     local_names: &FxHashSet<String>,
 ) {
     let fmt = FlutterStmtFormatter {
         expr: super::r#ref::FlutterFormatExpr::new_with_context(
             None,
             direct_write_signals,
-            None,
+            load_builtins,
             form_present,
-            retry_expr,
+            param_providers,
+            use_watch_reads,
         ),
         direct_write_signals: direct_write_signals.clone(),
         local_names: local_names.clone(),
+        param_providers: param_providers.clone(),
     };
     fmt.format_stmt(w, stmt);
 }
@@ -899,7 +966,16 @@ pub(crate) fn generate_store_action_stmt(
 /// production call sites use `generate_function_flutter_with`).
 #[cfg(test)]
 pub(crate) fn generate_function_flutter(w: &mut CodeWriter, func: &FunctionIR) {
-    generate_function_flutter_with(w, func, &func.body.statements, &FxHashSet::default(), false);
+    generate_function_flutter_with(
+        w,
+        func,
+        &func.body.statements,
+        &FxHashSet::default(),
+        &FxHashMap::default(),
+        false,
+        &FxHashMap::default(),
+        false,
+    );
 }
 
 /// Generate a function as a method on the State class, emitting the given
@@ -909,12 +985,20 @@ pub(crate) fn generate_function_flutter(w: &mut CodeWriter, func: &FunctionIR) {
 /// `await_in_wrong_context` (UserSettings' storage_get in `@mount`).
 /// Phase 3: `direct_write_signals` carries the component's D1/D2 set — the
 /// method's mutations write `_name.value` directly, no setState.
+/// Task 8: `load_builtins`/`param_providers`/`use_watch_reads` — State
+/// methods (fn bodies) run OUTSIDE build(), so callers pass empty
+/// `load_builtins` and `use_watch_reads = false` (param reads use
+/// `ref.read`); the maps exist to keep the signature uniform.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn generate_function_flutter_with(
     w: &mut CodeWriter,
     func: &FunctionIR,
     statements: &[StatementIR],
     direct_write_signals: &FxHashSet<String>,
+    load_builtins: &FxHashMap<String, String>,
     form_present: bool,
+    param_providers: &FxHashMap<String, String>,
+    use_watch_reads: bool,
 ) {
     // Build parameter list — Dart uses `Type name` for positional params
     let mut param_strs = Vec::new();
@@ -982,8 +1066,10 @@ pub(crate) fn generate_function_flutter_with(
             w,
             stmt,
             direct_write_signals,
+            load_builtins,
             form_present,
-            None,
+            param_providers,
+            use_watch_reads,
             &local_names,
         );
     }
@@ -991,7 +1077,14 @@ pub(crate) fn generate_function_flutter_with(
         if let Some(StatementIR::ExprStmtIR { expr }) = statements.last() {
             w.emit_fmt(format_args!(
                 "return {};",
-                generate_statement_flutter_expr(expr, direct_write_signals, form_present)
+                generate_statement_flutter_expr(
+                    expr,
+                    direct_write_signals,
+                    load_builtins,
+                    form_present,
+                    param_providers,
+                    use_watch_reads,
+                )
             ));
         }
     }
@@ -1002,18 +1095,23 @@ pub(crate) fn generate_function_flutter_with(
 
 /// Format a single expression with the component statement formatter's
 /// expression pipeline. Phase 3: carries the D1/D2 set so tail-expression
-/// identifiers resolve through `_name.value`.
+/// identifiers resolve through `_name.value`. Task 8: `load_builtins` /
+/// `param_providers` / `use_watch_reads` mirror `generate_statement_flutter_dw`.
 fn generate_statement_flutter_expr(
     expr: &ExprIR,
     direct_write_signals: &FxHashSet<String>,
+    load_builtins: &FxHashMap<String, String>,
     form_present: bool,
+    param_providers: &FxHashMap<String, String>,
+    use_watch_reads: bool,
 ) -> String {
     super::r#ref::FlutterFormatExpr::new_with_context(
         None,
         direct_write_signals,
-        None,
+        load_builtins,
         form_present,
-        None,
+        param_providers,
+        use_watch_reads,
     )
     .format_expr(expr)
 }
