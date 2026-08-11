@@ -233,11 +233,7 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: showDesignPanels
-            ? "280px 1fr"
-            : activeTabType === "code"
-              ? "280px 1fr"
-              : "1fr",
+          gridTemplateColumns: showDesignPanels || activeTabType === "code" ? "280px 1fr" : "1fr",
           gridTemplateRows: "36px 32px 1fr 24px",
           height: "100vh",
           background: "var(--ol-gray-50)",
@@ -250,6 +246,7 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
 
         {/* Toolbar row — undo / redo / save / CSS styles */}
         <DesignToolbar
+          style={{ gridColumn: "1 / -1" }}
           isDirty={isDirty}
           saving={saving}
           onUndo={undo}

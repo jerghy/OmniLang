@@ -1,7 +1,7 @@
 // components/design/DesignToolbar.tsx
 // Toolbar row with undo/redo, save, open project, and code view buttons.
 
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import styles from "./DesignToolbar.module.css";
 
 interface DesignToolbarProps {
@@ -14,6 +14,7 @@ interface DesignToolbarProps {
   showCode: boolean;
   onToggleCode: () => void;
   saveError: string | null;
+  style?: CSSProperties;
   children?: ReactNode;
 }
 
@@ -27,10 +28,11 @@ export function DesignToolbar({
   showCode,
   onToggleCode,
   saveError,
+  style,
   children,
 }: DesignToolbarProps) {
   return (
-    <div className={styles.toolbar}>
+    <div className={styles.toolbar} style={style}>
       <button type="button"
         onClick={onUndo}
         title="撤销 (Ctrl+Z)"

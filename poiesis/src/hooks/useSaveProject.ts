@@ -380,7 +380,7 @@ export function useSaveProject() {
 
       // ── 5. Update custom component def with designed elements ──
       // Preserve panel-managed props/signals/computeds/events/fns that were
-      // edited through ComponentMembersPanel (or parsed from .omni on load).
+      // edited in the design canvas (or parsed from .omni on load).
       if (componentName !== "main") {
         const currentDef = store.componentDefs[componentName] || {};
         store.setComponentDef(componentName, {
