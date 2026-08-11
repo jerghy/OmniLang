@@ -3,6 +3,9 @@
 import type { PidMap } from "./pid";
 import type { OmniViewOutput } from "../../components/design/useWasmCompile";
 
+/** 语境面板主面板标签（[样子] 后置）。[内容] = 选中元素的接口（睡看印记、醒接/断，M3 起可接）。 */
+export type PanelTab = "behavior" | "content" | "structure";
+
 export interface Breadcrumb {
   type: "architecture" | "component" | "code-layer";
   label: string;
@@ -41,6 +44,10 @@ export interface DesignPageState {
   codeFlowElementId: string | null;
   codeFlowFocusPoint: { x: number; y: number } | null;
   previewOutput: OmniViewOutput | null;
+  /** 整页醒（呼吸点 / [内容] 自动醒）。瞬态视图状态，不持久化。 */
+  awake: boolean;
+  /** 主面板活动标签。 */
+  mainPanelTab: PanelTab;
   breadcrumbs: Breadcrumb[];
   designView: "tokens" | "classes" | "variants";  // persisted sub-tab selection
   /** Store drawer panel state */

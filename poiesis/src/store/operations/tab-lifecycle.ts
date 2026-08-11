@@ -17,6 +17,8 @@ export function createInitialDesignPageState(): DesignPageState {
     codeFlowElementId: null,
     codeFlowFocusPoint: null,
     previewOutput: null,
+    awake: false,
+    mainPanelTab: "structure",
     breadcrumbs: [],
     designView: "tokens",
     storePanelVisible: false,
@@ -266,6 +268,19 @@ export function createTabSlice(set: SetFn, _get?: GetFn) {
         },
       };
     }),
+
+    setAwake: (awake: boolean) => set((s) => ({
+      designPage: { ...s.designPage, awake },
+    })),
+
+    setMainPanelTab: (tab: import("../../core/types/design-page").PanelTab) => set((s) => ({
+      designPage: {
+        ...s.designPage,
+        mainPanelTab: tab,
+        // [内容] 标签 = 意图驱动醒（Q12-A）；切回其他标签不睡
+        awake: tab === "content" ? true : s.designPage.awake,
+      },
+    })),
 
     setBreadcrumbs: (breadcrumbs: import("../../core/types/design-page").Breadcrumb[]) => set((s) => ({
       designPage: { ...s.designPage, breadcrumbs },

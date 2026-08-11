@@ -3,7 +3,7 @@
 import type { ElementData } from "../core/types/element";
 import type { WireData } from "../core/types/wire";
 import type { ArchitectureState, BubbleNode, BubbleEdge } from "../core/types/architecture";
-import type { DesignPageState, Breadcrumb, TabType } from "../core/types/design-page";
+import type { DesignPageState, Breadcrumb, TabType, PanelTab } from "../core/types/design-page";
 import type { PidEntry } from "../core/types/pid";
 import type { StoreDefinition, StoreSignalDef, StoreGetterDef, StoreActionDef } from "../core/types/store";
 import type { ComponentDef, ProjectJson, NodeMeta, WireMeta } from "../core/types/project-json";
@@ -158,6 +158,8 @@ export interface PoiesisState {
   reorderTabs: (tabOrder: string[]) => void;
   markTabDirty: (tabId: string, dirty: boolean) => void;
   toggleCodeFlow: (elementId: string | null, focusPoint?: { x: number; y: number }) => void;
+  setAwake: (awake: boolean) => void;
+  setMainPanelTab: (tab: PanelTab) => void;
   setBreadcrumbs: (breadcrumbs: Breadcrumb[]) => void;
   setPreviewOutput: (output: import("../components/design/useWasmCompile").OmniViewOutput | null) => void;
   setStorePanelVisible: (visible: boolean) => void;
