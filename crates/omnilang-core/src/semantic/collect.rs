@@ -545,9 +545,9 @@ fn scan_form_load(nodes: Option<&[ViewNode]>) -> (bool, Option<String>) {
                     merge_scan(&mut has_form, &mut load_fn, scan_form_load(Some(body)));
                 }
             }
-            ViewNode::LoadDirective { fn_name, .. } => {
+            ViewNode::LoadDirective { spec, .. } => {
                 if load_fn.is_none() {
-                    load_fn = Some(fn_name.clone());
+                    load_fn = Some(spec.loader.fn_name().to_string());
                 }
             }
             ViewNode::Text(_) | ViewNode::Interpolation(_) => {}

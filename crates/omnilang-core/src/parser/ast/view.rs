@@ -185,6 +185,53 @@ pub struct ViewBlock {
     pub children: Vec<ViewNode>,
 }
 
+/// @load 装载函数引用（spec 2026-08-09 §2.1 `fn_ref := identifier | call_expr`）：
+/// 裸函数名（v0 兼容）或带实参的调用表达式（命名实例参数绑定）。
+#[derive(Debug, Clone, Serialize)]
+pub enum LoaderRef {
+    Fn(String),
+    Call(CallExpr),
+}
+
+/// @load 调用表达式形态——函数名 + 实参列表（AST 层无 CallExpr 类型，
+/// Expr::FuncCall 泛化到任意表达式；此处为 @load 特化的窄形态）。
+#[derive(Debug, Clone, Serialize)]
+pub struct CallExpr {
+    pub func: String,
+    pub args: Vec<Expr>,
+    pub span: Span,
+}
+
+/// @load 模式词位（spec §2.2/§2.3/§2.4）：paginated / scroll / interval。
+/// 模式词之间的组合约束（V7 分页须命名、V8 scroll 须配 paginated）为
+/// 语义层硬错误（Task 4），解析层仅登记位。
+#[derive(Debug, Clone, Serialize)]
+pub struct LoadMode {
+    pub paginated: bool,
+    pub scroll: bool,
+    /// 轮询间隔毫秒（正整数，非 None 即开启 interval 轮询）。
+    pub interval: Option<u64>,
+}
+
+/// @load 完整规格：实例名（None = 匿名 v0 形态）+ 装载函数 + 模式词位。
+#[derive(Debug, Clone, Serialize)]
+pub struct LoadSpec {
+    pub name: Option<String>,
+    pub loader: LoaderRef,
+    pub mode: LoadMode,
+}
+
+impl LoaderRef {
+    /// 装载函数名——Fn 裸名或 Call 调用名（semantic 使用扫描 / IR 降级提取，
+    /// IR LoadIntentIR 形状不变，Task 3 起消费完整 Call 形态）。
+    pub fn fn_name(&self) -> &str {
+        match self {
+            LoaderRef::Fn(name) => name,
+            LoaderRef::Call(call) => &call.func,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub enum ViewNode {
     Element(Element),
@@ -194,11 +241,12 @@ pub enum ViewNode {
         name: Option<String>,
         default_content: Option<Vec<ViewNode>>,
     },
-    /// Data three-state intent: `@load={fn}` — view-level directive that
-    /// generates loading/error/data signals (v0: Array-returning fn only,
-    /// spec 2026-08-08 §4.1).
+    /// Data three-state intent: `@load={fn}` / `@load name={fn} mode words`
+    /// — view-level directive that generates loading/error/data signals
+    /// (v0: Array-returning fn only; 批次 4: 命名实例/参数绑定/模式词,
+    /// spec 2026-08-09 §2.1-§2.4).
     LoadDirective {
-        fn_name: String,
+        spec: LoadSpec,
         span: Span,
     },
     Text(String),

@@ -1,7 +1,7 @@
 //! View directive parsers: @if/@for and motion triggers.
 
 use crate::error::ParseError;
-use crate::lexer::TokenKind;
+use crate::lexer::{Span, TokenKind};
 use crate::parser::ast::*;
 use crate::parser::Parser;
 
@@ -94,18 +94,172 @@ impl<'a> Parser<'a> {
         }))
     }
 
-    /// Data three-state intent: `@load={fnName}` (spec 2026-08-08 §4.1).
-    /// Strict shape — `@load` `=` `{` IDENT `}` — mirrors the @if fallback:
-    /// on any parse failure the caller restores position and re-collects
-    /// the text so `@load` appearing in prose keeps working.
+    /// Data three-state intent: `@load` 规格（spec 2026-08-09 §2.1-§2.4 BNF）：
+    ///   load_spec := '{' fn_ref '}'                          // v0 匿名（零行为变化）
+    ///             |  ident '=' '{' fn_ref '}'                // 命名实例
+    ///             |  load_spec 'paginated' | 'scroll' | 'interval' ':' INTEGER
+    ///   fn_ref   := identifier | call_expr
+    /// 组合约束（V7 分页须命名 / V8 scroll 须配 paginated）为语义层硬错误（Task 4），
+    /// 此处仅登记位。解析失败沿用 AtLoad 分发兜底（view/mod.rs collect_at_text），
+    /// `@load` 出现在散文文本中仍按文本收集——镜像 @if 兜底。
     pub(super) fn parse_load_directive(&mut self) -> Result<ViewNode, ParseError> {
         let span = self.peek_span();
         self.advance(); // '@load'
-        self.expect_token(TokenKind::Eq, "'@load' 后缺少 '='")?;
-        self.expect_token(TokenKind::LBrace, "'=' 后缺少 '{'")?;
-        let fn_name = self.expect_ident("@load={...} 内缺少函数名")?;
+
+        // 形态判定：'{' → v0 匿名；Ident + 后随 '=' → 命名。命名判定须
+        // TokenKind::Ident 直查——peek_ident_value 会吸收关键字 token
+        // （mode 等上下文关键字），关键字不是合法实例名（V1）。
+        let mut spec = LoadSpec {
+            name: None,
+            loader: LoaderRef::Fn(String::new()),
+            mode: LoadMode {
+                paginated: false,
+                scroll: false,
+                interval: None,
+            },
+        };
+
+        match self.peek_kind() {
+            // BNF 匿名形态（spec §2.1）：@load { fn }
+            TokenKind::LBrace => {
+                spec.loader = self.parse_load_fn_ref()?;
+            }
+            // v0 兼容形态（LoadDemo 活证据）：@load={fn} —— '=' 吞掉后按
+            // 匿名形态继续解析，行为零变化
+            TokenKind::Eq => {
+                self.advance(); // '='
+                spec.loader = self.parse_load_fn_ref()?;
+            }
+            // 命名形态：@load name={fn}
+            TokenKind::Ident(name)
+                if self
+                    .tokens
+                    .get(self.pos + 1)
+                    .is_some_and(|t| t.kind == TokenKind::Eq) =>
+            {
+                let name = name.clone();
+                self.advance(); // ident
+                self.advance(); // '='
+                spec.name = Some(name);
+                spec.loader = self.parse_load_fn_ref()?;
+            }
+            other => {
+                // V1：命名实例名非法（非标识符 / 关键字 / 缺 '='）
+                return Err(ParseError {
+                    kind: None,
+                    message: format!(
+                        "@load 实例名称须为合法标识符，当前：`{}`",
+                        token_text(other)
+                    ),
+                    span: self.peek_span(),
+                });
+            }
+        }
+
+        // 模式词序列（spec §2.2-§2.4）：paginated / scroll / interval : INTEGER。
+        // 未知 ident 或非 ident → break，遗留 token 交给视图解析器
+        // （v0 散文兼容：`@load={f} hello` 中 hello 保持文本）。
+        loop {
+            match self.peek_kind() {
+                TokenKind::Ident(s) if s == "paginated" => {
+                    self.advance();
+                    spec.mode.paginated = true;
+                }
+                TokenKind::Ident(s) if s == "scroll" => {
+                    self.advance();
+                    spec.mode.scroll = true;
+                }
+                TokenKind::Ident(s) if s == "interval" => {
+                    self.advance(); // 'interval'
+                    self.expect_token(TokenKind::Colon, "'interval' 后缺少 ':'")?;
+                    let (t_kind, t_span) = (self.peek_kind().clone(), self.peek().span);
+                    match &t_kind {
+                        TokenKind::IntLiteral(n) if *n > 0 => {
+                            self.advance();
+                            spec.mode.interval = Some(*n);
+                        }
+                        TokenKind::IntLiteral(n) => {
+                            return Err(self.load_interval_error(t_span, n.to_string()));
+                        }
+                        TokenKind::Minus => {
+                            // interval: -5 —— 负号 + 整数合并渲染
+                            let neg_span = t_span;
+                            self.advance();
+                            let v = match self.peek_kind() {
+                                TokenKind::IntLiteral(n) => format!("-{}", n),
+                                _ => "-".to_string(),
+                            };
+                            let end = self.peek().span.end;
+                            return Err(self.load_interval_error(
+                                Span {
+                                    start: neg_span.start,
+                                    end,
+                                    line: neg_span.line,
+                                    col: neg_span.col,
+                                },
+                                v,
+                            ));
+                        }
+                        other => {
+                            return Err(self.load_interval_error(t_span, token_text(other)));
+                        }
+                    }
+                }
+                _ => break,
+            }
+        }
+
+        Ok(ViewNode::LoadDirective { spec, span })
+    }
+
+    /// 解析 `{ fn_ref }` 花括号体：`fn_ref := identifier | call_expr`
+    /// （spec §2.1）。手动解析函数名 + `parse_call_args`——不复用
+    /// parse_ident_expr（其把 showToast 特判为 BuiltinToastCall）。
+    fn parse_load_fn_ref(&mut self) -> Result<LoaderRef, ParseError> {
+        self.expect_token(TokenKind::LBrace, "'@load' 后缺少 '{'")?;
+        // 拷贝出 span/函数名后再触碰可变借用——peek() 的引用不能跨可变调用存活
+        let fn_span = self.peek().span;
+        let fn_name = match self.peek_kind() {
+            TokenKind::Ident(name) => name.clone(),
+            _ => {
+                return Err(ParseError {
+                    kind: None,
+                    message: "@load={...} 内缺少函数名".into(),
+                    span: self.peek_span(),
+                });
+            }
+        };
+        self.advance();
+        let loader = if self.at(&TokenKind::LParen) {
+            self.advance(); // '('
+            let (args, close_end) = self.parse_call_args()?;
+            LoaderRef::Call(CallExpr {
+                func: fn_name,
+                args,
+                span: Span {
+                    start: fn_span.start,
+                    end: close_end,
+                    line: fn_span.line,
+                    col: fn_span.col,
+                },
+            })
+        } else {
+            LoaderRef::Fn(fn_name)
+        };
         self.expect_token(TokenKind::RBrace, "@load 函数名后缺少 '}'")?;
-        Ok(ViewNode::LoadDirective { fn_name, span })
+        Ok(loader)
+    }
+
+    /// V5（spec §3）：interval 参数非正整数毫秒——硬错误，消息逐字。
+    fn load_interval_error(&self, span: Span, value: String) -> ParseError {
+        ParseError {
+            kind: None,
+            message: format!(
+                "@load interval 参数须为正整数毫秒（如 interval: 5000），当前：`{}`",
+                value
+            ),
+            span,
+        }
     }
 
     /// Modal dialog intent: `@modal={openSig}` on a `dialog` element (spec
@@ -926,5 +1080,114 @@ mod batch1_feedback_modal_tests {
             duration.as_deref(),
             Some(Expr::Literal(Literal::Int(0), _))
         ));
+    }
+}
+
+/// @load spec 扩展解析（批次 4 Task 2，spec 2026-08-09 §2.1-§2.4 BNF）。
+/// 白色盒测试：直接调 parse_load_directive——AtLoad 分发（view/mod.rs）把
+/// 解析失败吞进 collect_at_text 文本兜底，错误路径必须绕过该兜底直测。
+#[cfg(test)]
+mod load_spec_tests {
+    use super::*;
+    use crate::lexer::tokenize;
+    use crate::parser::Parser;
+
+    fn parse_load(source: &str) -> Result<ViewNode, ParseError> {
+        let tokens = tokenize(source);
+        let mut p = Parser::new(tokens, source);
+        p.parse_load_directive()
+    }
+
+    fn spec_of(node: ViewNode) -> LoadSpec {
+        match node {
+            ViewNode::LoadDirective { spec, .. } => spec,
+            other => panic!("expected LoadDirective, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_named_load_with_call_params() {
+        // @load stats={fetchStats(token)} → name=Some("stats"),
+        // loader=Call(fetchStats, [token])（spec §2.1 fn_ref := call_expr）
+        let spec = spec_of(parse_load(r#"@load stats={fetchStats(token)}"#).unwrap());
+        assert_eq!(spec.name.as_deref(), Some("stats"));
+        assert!(matches!(spec.loader, LoaderRef::Call(_)));
+        assert!(!spec.mode.paginated && spec.mode.interval.is_none());
+    }
+
+    #[test]
+    fn parse_paginated_scroll_interval_combined() {
+        // @load history={fetchHistory} paginated scroll interval: 5000
+        // → name=Some("history"), mode 全置（spec §2.2/§2.3/§2.4 模式词组合）
+        let spec = spec_of(
+            parse_load("@load history={fetchHistory} paginated scroll interval: 5000").unwrap(),
+        );
+        assert_eq!(spec.name.as_deref(), Some("history"));
+        assert!(matches!(spec.loader, LoaderRef::Fn(ref f) if f == "fetchHistory"));
+        assert!(spec.mode.paginated);
+        assert!(spec.mode.scroll);
+        assert_eq!(spec.mode.interval, Some(5000));
+    }
+
+    #[test]
+    fn parse_anonymous_v0_form_unchanged() {
+        // @load={fetchItems} → name=None（v0 兼容，LoadDemo 活证据）
+        let spec = spec_of(parse_load("@load={fetchItems}").unwrap());
+        assert!(spec.name.is_none());
+        assert!(matches!(spec.loader, LoaderRef::Fn(ref f) if f == "fetchItems"));
+        assert!(!spec.mode.paginated && !spec.mode.scroll && spec.mode.interval.is_none());
+        // BNF 匿名形态（spec §2.1）：@load { fetchItems }
+        let spec = spec_of(parse_load("@load {fetchItems}").unwrap());
+        assert!(spec.name.is_none());
+        assert!(matches!(spec.loader, LoaderRef::Fn(ref f) if f == "fetchItems"));
+    }
+
+    #[test]
+    fn parse_error_bad_interval() {
+        // interval: 0 / interval: -5 / interval: abc → ParseError（V5 中文消息草案逐字）
+        for src in [
+            "@load items={fetchItems} interval: 0",
+            "@load items={fetchItems} interval: -5",
+            "@load items={fetchItems} interval: abc",
+        ] {
+            let err = parse_load(src).unwrap_err();
+            assert!(
+                err.message
+                    .starts_with("@load interval 参数须为正整数毫秒（如 interval: 5000），当前：`"),
+                "V5 message mismatch for {:?}: {}",
+                src,
+                err.message
+            );
+        }
+    }
+
+    #[test]
+    fn parse_error_missing_loader() {
+        // @load items={} → ParseError
+        let err = parse_load("@load items={}").unwrap_err();
+        assert!(
+            err.message.contains("缺少函数名"),
+            "missing-loader error mismatch: {}",
+            err.message
+        );
+    }
+
+    #[test]
+    fn parse_error_bad_instance_name() {
+        // V1：命名实例名非法（非标识符/关键字/缺 '='）→ ParseError（spec §3 V1 逐字）
+        for src in [
+            "@load 123={fetchItems}",
+            "@load items {fetchItems}",
+            "@load if={fetchItems}",
+        ] {
+            let err = parse_load(src).unwrap_err();
+            assert!(
+                err.message
+                    .starts_with("@load 实例名称须为合法标识符，当前：`"),
+                "V1 message mismatch for {:?}: {}",
+                src,
+                err.message
+            );
+        }
     }
 }

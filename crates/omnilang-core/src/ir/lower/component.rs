@@ -477,10 +477,10 @@ fn scan_view_intents(
                     );
                 }
             }
-            ViewNode::LoadDirective { fn_name, span } => {
+            ViewNode::LoadDirective { spec, span } => {
                 if load_intent.is_none() {
                     *load_intent = Some(LoadIntentIR {
-                        fn_name: fn_name.clone(),
+                        fn_name: spec.loader.fn_name().to_string(),
                     });
                 } else if !*load_dup_reported {
                     // V-F6：组件内第二个 @load

@@ -155,6 +155,12 @@ FLUTTER_REF_FILE = os.path.join(REPO_ROOT, "omnilang", "src", "codegen", "flutte
 LOAD_CONTRACT_FILE = os.path.join(
     REPO_ROOT, "crates", "omnilang-core", "src", "semantic", "load_contract.rs"
 )
+# 2026-08-12 批次 4 Task 2（@load 语法形态扩展）：parse_load_directive 是
+# @load 命名/参数/模式词解析的真实生成点（域 13 锚点断言——"paginated"/
+# "interval" 模式词须出现在该函数体内；V1/V5 解析错误由该函数抛出）。
+DIRECTIVES_FILE = os.path.join(
+    REPO_ROOT, "crates", "omnilang-core", "src", "parser", "view", "directives.rs"
+)
 
 # ── universe section contract ─────────────────────────────────────────────
 # Domain titles must contain the expected keyword (in order 1..9).
@@ -1013,6 +1019,20 @@ def audit():
                     fail(f"数据深化: 时间函数 '{word}' 未出现在节流条目")
             if 'PAGE_TYPE_NAME: &str = "Page"' not in load_contract_src:
                 fail("数据深化: PAGE_TYPE_NAME 常量缺失（needle 'PAGE_TYPE_NAME: &str = \"Page\"'）")
+        # 2026-08-12 批次 4 Task 2 锚点：parse_load_directive 函数体内必须
+        # 出现 "paginated"/"interval" 模式词（Task 2 语法形态扩展落地证据）。
+        directives_src = read_file(DIRECTIVES_FILE)
+        fn_match = re.search(
+            r"fn parse_load_directive.*?(?=\n    pub\(super\) fn |\n    pub fn |\Z)",
+            directives_src,
+            re.DOTALL,
+        )
+        if fn_match is None:
+            fail("数据深化: parse_load_directive 函数体提取失败（directives.rs）")
+        else:
+            for needle in ("paginated", "interval"):
+                if needle not in fn_match.group(0):
+                    fail(f"数据深化: parse_load_directive 体内缺少模式词 '{needle}'（Task 2 锚点）")
     if wl13 is None:
         fail("数据深化: cannot cross-assert 已实现白名单 (extraction failed)")
     else:

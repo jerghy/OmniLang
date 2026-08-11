@@ -1183,9 +1183,11 @@ component App {
         assert!(
             matches!(
                 &children[0],
-                ViewNode::LoadDirective { fn_name, .. } if fn_name == "f"
+                ViewNode::LoadDirective { spec, .. }
+                    if matches!(&spec.loader, LoaderRef::Fn(name) if name == "f")
+                        && spec.name.is_none()
             ),
-            "expected ViewNode::LoadDirective {{ fn_name: \"f\" }}, got: {:?}",
+            "expected anonymous @load with fn f, got: {:?}",
             children[0]
         );
     }
