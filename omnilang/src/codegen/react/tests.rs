@@ -1065,7 +1065,7 @@ fn test_css_empty_component() {
     let codegen = ReactCodegen::default();
     let comp = ComponentIR {
         form_intent: None,
-        load_intent: None,
+        load_intent: vec![],
         name: "App".into(),
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
@@ -1111,7 +1111,7 @@ fn test_css_with_styles() {
     };
     let comp = ComponentIR {
         form_intent: None,
-        load_intent: None,
+        load_intent: vec![],
         name: "App".into(),
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
@@ -1138,7 +1138,7 @@ fn test_css_with_styles() {
 fn make_test_component(name: &str, view: ViewTree) -> ComponentIR {
     ComponentIR {
         form_intent: None,
-        load_intent: None,
+        load_intent: vec![],
         name: name.into(),
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
@@ -1240,7 +1240,7 @@ fn test_tsx_empty_component() {
         "App".into(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             name: "App".into(),
             props: FxHashMap::default(),
             prop_defaults: FxHashMap::default(),
@@ -1288,7 +1288,7 @@ fn test_tsx_component_with_state() {
         "Counter".into(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             name: "Counter".into(),
             props: FxHashMap::default(),
             prop_defaults: FxHashMap::default(),
@@ -1342,7 +1342,7 @@ fn test_tsx_component_with_props() {
         "Greeting".into(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             name: "Greeting".into(),
             props,
             prop_defaults: FxHashMap::default(),
@@ -1394,7 +1394,7 @@ fn test_tsx_component_with_effect() {
         "Watcher".into(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             name: "Watcher".into(),
             props: FxHashMap::default(),
             prop_defaults: FxHashMap::default(),
@@ -1436,7 +1436,7 @@ fn test_tsx_component_with_lifecycle_mount() {
         "App".into(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             name: "App".into(),
             props: FxHashMap::default(),
             prop_defaults: FxHashMap::default(),
@@ -2974,7 +2974,7 @@ fn test_full_pipeline_component() {
     let codegen = ReactCodegen::default();
     let comp = ComponentIR {
         form_intent: None,
-        load_intent: None,
+        load_intent: vec![],
         name: "App".into(),
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
@@ -3117,7 +3117,7 @@ fn test_full_pipeline_component_with_store_ref() {
     };
     let comp = ComponentIR {
         form_intent: None,
-        load_intent: None,
+        load_intent: vec![],
         name: "App".into(),
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
@@ -6630,7 +6630,7 @@ fn react_store_field_access_expr_uses_slice_selectors() {
     };
     let comp = ComponentIR {
         form_intent: None,
-        load_intent: None,
+        load_intent: vec![],
         name: "CounterWithStore".into(),
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),

@@ -52,7 +52,7 @@ fn make_module(name: &str) -> ModuleIR {
 fn make_component(name: &str) -> ComponentIR {
     ComponentIR {
         form_intent: None,
-        load_intent: None,
+        load_intent: vec![],
         route_intent: None,
         layout_intent: None,
         query_params: vec![],
@@ -242,7 +242,7 @@ fn props_are_emitted_as_readonly_wrappers() {
     let mut module = make_module("main");
     let comp = ComponentIR {
         form_intent: None,
-        load_intent: None,
+        load_intent: vec![],
         route_intent: None,
         layout_intent: None,
         query_params: vec![],
@@ -856,7 +856,7 @@ fn test_component_with_states() {
         "Counter".to_string(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -888,7 +888,7 @@ fn test_component_with_computed() {
         "Calc".to_string(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -939,7 +939,7 @@ fn test_component_with_functions() {
         "App".to_string(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -990,7 +990,7 @@ fn test_component_with_lifecycle_mount() {
         "App".to_string(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -1054,7 +1054,7 @@ fn test_component_with_store_ref() {
         "App".to_string(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -1075,7 +1075,7 @@ fn test_component_with_effect() {
         "App".to_string(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -1137,7 +1137,7 @@ fn test_html_element_with_attributes() {
         "App".to_string(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -1171,7 +1171,7 @@ fn details_open_dynamic_binding_emits_el_open_property() {
         "App".to_string(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -1215,7 +1215,7 @@ fn unknown_bare_attr_dynamic_binding_warns() {
         "App".to_string(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -1266,7 +1266,7 @@ fn data_prefixed_attr_dynamic_binding_stays_silent() {
         "App".to_string(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -1316,7 +1316,7 @@ fn build_file_output_forwards_generator_warnings() {
         "App".to_string(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -1360,7 +1360,7 @@ fn test_html_data_nid_present() {
         "App".to_string(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -1386,7 +1386,7 @@ fn test_html_interpolation() {
         "App".to_string(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -1424,7 +1424,7 @@ fn test_html_conditional() {
         "App".to_string(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -1461,7 +1461,7 @@ fn make_conditional_module(transition_mode: Option<String>) -> IRProgram {
         "App".to_string(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -1560,7 +1560,7 @@ fn test_full_pipeline_component_only() {
         "App".to_string(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -1639,7 +1639,7 @@ fn test_full_pipeline_component_with_store() {
         "App".to_string(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -1675,7 +1675,7 @@ fn test_event_binding_click() {
         "App".to_string(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -1797,7 +1797,7 @@ fn test_style_emission() {
         "App".to_string(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -1841,7 +1841,7 @@ fn test_source_map_entries() {
         "App".to_string(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -1873,7 +1873,7 @@ fn test_runtime_error_reporting() {
         "App".to_string(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -1950,7 +1950,7 @@ fn test_theme_runtime_emitted_when_design_has_themes() {
         "App".to_string(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -2009,7 +2009,7 @@ fn test_theme_runtime_not_emitted_without_themes() {
         "App".to_string(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -2072,7 +2072,7 @@ fn make_theme_signal_ir(theme_signal: Option<String>) -> IRProgram {
         "App".to_string(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -2146,7 +2146,7 @@ fn slot_projection_inlines_parent_children_into_default_slot() {
         "Button".to_string(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -2163,7 +2163,7 @@ fn slot_projection_inlines_parent_children_into_default_slot() {
         "App".to_string(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -2203,7 +2203,7 @@ fn slot_projection_maps_named_slots_correctly() {
         "Panel".to_string(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -2232,7 +2232,7 @@ fn slot_projection_maps_named_slots_correctly() {
         "App".to_string(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -2334,7 +2334,7 @@ fn typescript_declarations_emit_props_interface() {
         "Counter".to_string(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -2383,7 +2383,7 @@ fn typescript_declarations_optional_for_defaulted_props() {
         "Widget".to_string(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -2430,7 +2430,7 @@ fn typescript_declarations_event_handler_types() {
         "Button".to_string(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -2485,7 +2485,7 @@ fn body_slot_declaration_renders_fallback_at_interpolation() {
         "Panel".to_string(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -2536,7 +2536,7 @@ fn consumer_named_prop_projects_into_body_declared_slot() {
         "Panel".to_string(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -2575,7 +2575,7 @@ fn consumer_named_prop_projects_into_body_declared_slot() {
         "App".to_string(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -2635,7 +2635,7 @@ fn slot_injection_skips_nested_component_children() {
         "Outer".to_string(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -2653,7 +2653,7 @@ fn slot_injection_skips_nested_component_children() {
         "Inner".to_string(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             ..make_component("Inner")
         },
     );
@@ -2670,7 +2670,7 @@ fn slot_injection_skips_nested_component_children() {
         "App".to_string(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],

@@ -140,29 +140,30 @@ impl OmniViewGenerator {
         self.js.push_str("\n/// ── Initial DOM ──\n");
         self.js
             .push_str("document.getElementById(\"root\").innerHTML = `");
-        let injectable = if let (Some(open), Some(children)) = (&self.root_open_tag, &self.root_children) {
-            // Locate the root wrapper region BY CONTENT (route containers
-            // may be emitted before the root component — ir.all_components()
-            // iteration order is not guaranteed) and inject CHILDREN-ONLY.
-            //
-            // task-10 三轮根因: the static document (index.html) already
-            // carries the FULL DOM — #root wrapper + its children + every
-            // route container as #root siblings. Injecting the containers
-            // again via #root.innerHTML duplicates them inside #root; the
-            // router's querySelector picks the FIRST match (the hidden
-            // static copy inside #root, display:none) and pages render
-            // invisible. Children-only keeps #root content identical to the
-            // static doc — the injection becomes an idempotent no-op.
-            let wrapper = format!("{open}{children}</div>\n");
-            match self.html.find(&wrapper) {
-                Some(_pos) => children.clone(),
-                // Defensive fallback: shape mismatch → full inject (no worse
-                // than pre-fix self-nesting).
-                None => self.html.clone(),
-            }
-        } else {
-            self.html.clone()
-        };
+        let injectable =
+            if let (Some(open), Some(children)) = (&self.root_open_tag, &self.root_children) {
+                // Locate the root wrapper region BY CONTENT (route containers
+                // may be emitted before the root component — ir.all_components()
+                // iteration order is not guaranteed) and inject CHILDREN-ONLY.
+                //
+                // task-10 三轮根因: the static document (index.html) already
+                // carries the FULL DOM — #root wrapper + its children + every
+                // route container as #root siblings. Injecting the containers
+                // again via #root.innerHTML duplicates them inside #root; the
+                // router's querySelector picks the FIRST match (the hidden
+                // static copy inside #root, display:none) and pages render
+                // invisible. Children-only keeps #root content identical to the
+                // static doc — the injection becomes an idempotent no-op.
+                let wrapper = format!("{open}{children}</div>\n");
+                match self.html.find(&wrapper) {
+                    Some(_pos) => children.clone(),
+                    // Defensive fallback: shape mismatch → full inject (no worse
+                    // than pre-fix self-nesting).
+                    None => self.html.clone(),
+                }
+            } else {
+                self.html.clone()
+            };
         let escaped = injectable
             .replace('\\', "\\\\")
             .replace('`', "\\`")

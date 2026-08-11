@@ -248,7 +248,7 @@ mod tests {
 
         let comp = ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             name: "Counter".into(),
             props,
             ..ComponentIR::default()
@@ -277,7 +277,7 @@ mod tests {
 
         let comp = ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             name: "Button".into(),
             props,
             prop_defaults: Default::default(),
@@ -334,7 +334,7 @@ mod tests {
 
         let comp = ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             name: "Widget".into(),
             props,
             prop_defaults,

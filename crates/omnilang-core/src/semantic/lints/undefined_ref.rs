@@ -74,7 +74,7 @@ mod tests {
             "App".into(),
             ComponentIR {
                 form_intent: None,
-                load_intent: None,
+                load_intent: vec![],
                 name: "App".into(),
                 props: FxHashMap::default(),
                 prop_defaults: FxHashMap::default(),
@@ -128,7 +128,7 @@ mod tests {
             "App".into(),
             ComponentIR {
                 form_intent: None,
-                load_intent: None,
+                load_intent: vec![],
                 name: "App".into(),
                 props: FxHashMap::default(),
                 prop_defaults: FxHashMap::default(),
@@ -161,7 +161,7 @@ mod tests {
             "X".into(),
             ComponentIR {
                 form_intent: None,
-                load_intent: None,
+                load_intent: vec![],
                 name: "X".into(),
                 store_refs: vec!["Local".into()],
                 inline_stores: vec!["Local".into()],
@@ -189,7 +189,7 @@ mod tests {
             "Owner".into(),
             ComponentIR {
                 form_intent: None,
-                load_intent: None,
+                load_intent: vec![],
                 name: "Owner".into(),
                 store_refs: vec!["Local".into()],
                 inline_stores: vec!["Local".into()],
@@ -200,7 +200,7 @@ mod tests {
             "Other".into(),
             ComponentIR {
                 form_intent: None,
-                load_intent: None,
+                load_intent: vec![],
                 name: "Other".into(),
                 store_refs: vec!["Local".into()],
                 inline_stores: vec![],

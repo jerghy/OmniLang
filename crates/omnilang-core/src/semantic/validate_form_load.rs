@@ -1,10 +1,13 @@
-//! 表单/数据三态语义验证 pass（spec 2026-08-08 §4.1/§4.2）——消费 Task 2 的
-//! FormIntentIR/LoadIntentIR，校验约束与保留名冲突（V-F2/V-F3/V-F4/V-F5/V-F7/V-F8）。
+//! 表单/数据三态语义验证 pass（spec 2026-08-08 §4.1/§4.2、2026-08-09 §2.1-§2.4）
+//! ——消费 Task 2 的 FormIntentIR/LoadIntentIR，校验约束与保留名冲突
+//! （V-F2/V-F3/V-F4/V-F5/V-F7/V-F8；批次 4 V6 语义：匿名 @load 至多一个、
+//! 命名 @load 数量不限）。
 //!
-//! V-F1（@form 仅限 form 元素）与 V-F6（每组件至多一个 @form/@load）在
-//! lowering 扫描处报错（ir/lower/component.rs）——因为 @form/@load 标记
-//! 经 lowering 后从 IR 视图树消失（view.rs 将其从 props 丢弃），本 pass
-//! 无法定位具体元素，只能消费已收集的意图 IR（诊断 span 回退组件级）。
+//! V-F1（@form 仅限 form 元素）与 V-F6（@form 至多一个）/V6（匿名 @load
+//! 至多一个）在 lowering 扫描处报错（ir/lower/component.rs）——因为
+//! @form/@load 标记经 lowering 后从 IR 视图树消失（view.rs 将其从 props
+//! 丢弃），本 pass 无法定位具体元素，只能消费已收集的意图 IR（诊断 span
+//! 回退组件级）。
 
 /// 校验规则白名单（spec 2026-08-08 §4.1 v0 封闭集；Task 7 登记册锚点，门禁双向断言）。
 pub const VALIDATE_RULES: &[&str] = &["required", "format", "min", "max", "pattern", "custom"];
@@ -18,18 +21,21 @@ use crate::ir::{
     TriggerKind, TypeKind, ViewTree,
 };
 
-/// 校验 @form/@load 语义约束（spec 2026-08-08 §4.1/§4.2 的 V-F2/F3/F4/F5/F7/F8）。
+/// 校验 @form/@load 语义约束（spec 2026-08-08 §4.1/§4.2、2026-08-09 §2.1-§2.4）。
 ///
-/// V-F1（@form 仅限 form 元素）与 V-F6（每组件至多一个 @form/@load）在
-/// lowering 扫描处报错（ir/lower/component.rs）——本 pass 消费已收集的
-/// FormIntentIR/LoadIntentIR，诊断 span 回退组件级（意图 IR 无元素 span）。
+/// V-F1（@form 仅限 form 元素）与 V-F6（@form 至多一个）/V6（匿名 @load
+/// 至多一个）在 lowering 扫描处报错（ir/lower/component.rs）——本 pass
+/// 消费已收集的 FormIntentIR/LoadIntentIR，诊断 span 回退组件级（意图 IR
+/// 无元素 span）。
 pub fn validate_form_load(ir: &IRProgram, diagnostics: &mut Vec<Diagnostic>) {
     for module in ir.modules.values() {
         for component in module.components.values() {
             if let Some(form) = &component.form_intent {
                 validate_form(component, form, diagnostics);
             }
-            if let Some(load) = &component.load_intent {
+            // 多例化（Task 3）：命名 @load 数量不限——逐例校验
+            // （V-F7/V-F8 保留名冲突按装载函数名去重，见 validate_load）。
+            for load in &component.load_intent {
                 validate_load(component, load, diagnostics);
             }
         }
@@ -186,10 +192,16 @@ fn validate_load(component: &ComponentIR, load: &LoadIntentIR, diagnostics: &mut
         }
     }
     // V-F7 @load fn 必须存在、无参、返回 Array 类型
-    let Some(f) = component.fns.iter().find(|f| f.name == load.fn_name) else {
+    // （Task 3：多例化后装载函数名经 loader 提取——Fn 裸名 / Call 调用名；
+    //  参数绑定形态的完整校验（含实参类型/数量）属 Task 4）
+    let Some(f) = component
+        .fns
+        .iter()
+        .find(|f| f.name == load.loader.fn_name())
+    else {
         error_diag(
             component,
-            format!("@load 引用的函数 \"@{}\" 不存在", load.fn_name),
+            format!("@load 引用的函数 \"@{}\" 不存在", load.loader.fn_name()),
             diagnostics,
         );
         return; // 函数不存在，其余检查无意义
@@ -197,7 +209,7 @@ fn validate_load(component: &ComponentIR, load: &LoadIntentIR, diagnostics: &mut
     if !f.params.is_empty() {
         error_diag(
             component,
-            format!("@load 引用的函数 \"@{}\" 必须无参数", load.fn_name),
+            format!("@load 引用的函数 \"@{}\" 必须无参数", load.loader.fn_name()),
             diagnostics,
         );
     }

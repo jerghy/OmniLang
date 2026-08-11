@@ -545,7 +545,7 @@ fn make_theme_ir_multi(designs: Vec<DesignIR>) -> IRProgram {
         "App".to_string(),
         crate::ir::ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             name: "App".to_string(),
             view: None,
             ..Default::default()

@@ -232,7 +232,7 @@ mod tests {
     fn make_component(name: &str, els: Vec<ViewTree>) -> ComponentIR {
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             name: name.to_string(),
             view: if els.is_empty() {
                 None
@@ -374,7 +374,7 @@ mod tests {
         // a11y blocks nested inside a @for body must also be validated.
         let comp = ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             name: "TestComp".into(),
             view: Some(ViewTree::ListRendering(Box::new(ListRenderingIntent {
                 iterable: ExprIR::ident("items"),

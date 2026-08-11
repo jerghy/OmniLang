@@ -52,6 +52,7 @@ fn emit_class_with_multiple_pseudo_states() {
         tokens: FxHashMap::default(),
         classes,
         variants: vec![],
+        breakpoints: FxHashMap::default(),
         source_span: None,
         source_file: None,
     };
@@ -153,6 +154,7 @@ fn css_output_skips_dynamic_tokens() {
         tokens,
         classes: vec![],
         variants: vec![],
+        breakpoints: FxHashMap::default(),
         source_span: None,
         source_file: None,
     };

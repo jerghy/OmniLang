@@ -273,7 +273,7 @@ mod tests {
 
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -335,7 +335,7 @@ mod tests {
         // Two elements both bind to "btn"
         let comp = ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -398,7 +398,7 @@ mod tests {
         // "header" declared but unbound, "btn2" duplicate
         let comp = ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -461,7 +461,7 @@ mod tests {
     fn warns_on_ref_inside_for_loop() {
         let comp = ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],

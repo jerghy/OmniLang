@@ -83,7 +83,7 @@ mod tests {
             "App".into(),
             ComponentIR {
                 form_intent: None,
-                load_intent: None,
+                load_intent: vec![],
                 name: "App".into(),
                 props: FxHashMap::default(),
                 prop_defaults: FxHashMap::default(),
@@ -147,7 +147,7 @@ mod tests {
             "App".into(),
             ComponentIR {
                 form_intent: None,
-                load_intent: None,
+                load_intent: vec![],
                 name: "App".into(),
                 props: FxHashMap::default(),
                 prop_defaults: FxHashMap::default(),
@@ -194,7 +194,7 @@ mod tests {
             "App".into(),
             ComponentIR {
                 form_intent: None,
-                load_intent: None,
+                load_intent: vec![],
                 name: "App".into(),
                 props: FxHashMap::default(),
                 prop_defaults: FxHashMap::default(),

@@ -31,8 +31,9 @@ pub(super) struct ComponentScope {
     /// element emission (HTML5 required/pattern + aria wiring) and event
     /// emission (submit validation gate).
     pub form_intent: Option<FormIntentIR>,
-    /// The current component's @load intent (None when absent).
-    pub load_intent: Option<LoadIntentIR>,
+    /// The current component's @load intents (empty when absent) —
+    /// multi-instance since batch 4 (name/loader/mode shape).
+    pub load_intent: Vec<LoadIntentIR>,
     pub signal_names: FxHashSet<String>,
     pub name_renames: FxHashMap<String, String>,
     pub for_text_bindings: Vec<(String, String)>,
@@ -120,7 +121,7 @@ impl ComponentScope {
             fn_locals: FxHashSet::default(),
             current_component: String::new(),
             form_intent: None,
-            load_intent: None,
+            load_intent: Vec::new(),
             signal_names: FxHashSet::default(),
             name_renames: FxHashMap::default(),
             for_text_bindings: Vec::new(),

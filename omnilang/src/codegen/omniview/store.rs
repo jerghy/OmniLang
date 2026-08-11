@@ -413,7 +413,9 @@ impl OmniViewGenerator {
         // ── @load builtin signals (Task 6) ──
         // loading starts true (the mount call below flips it), error starts "",
         // data starts []. V-F8 guarantees no user-declared collisions.
-        if self.scope.load_intent.is_some() {
+        // TODO(batch4 Task 6-11): 多 @load 实例需 per-instance 信号/重试命名
+        // ——当前按单例发射一组 loading/error/data/retry（行为保持）。
+        if !self.scope.load_intent.is_empty() {
             let lloading = format!("{name}_loading");
             let lerror = format!("{name}_error");
             let ldata = format!("{name}_data");
@@ -628,8 +630,8 @@ impl OmniViewGenerator {
         // Always wraps in Promise.resolve().then() so BOTH sync and async
         // loaders take the same path (React distinguishes via an is_async walk;
         // the unified shape is correct for both — see task-6-report 自审发现).
-        if let Some(intent) = self.scope.load_intent.clone() {
-            let loader = self.resolve_fn_name(&intent.fn_name);
+        if let Some(intent) = self.scope.load_intent.first() {
+            let loader = self.resolve_fn_name(intent.loader.fn_name());
             let _ = writeln!(
                 self.js,
                 "function {name}_retry() {{ {name}_loading.set(true); {name}_error.set(\"\"); Promise.resolve().then(() => {loader}()).then((r) => {{ {name}_data.set(r); {name}_loading.set(false); }}).catch((e) => {{ {name}_error.set(String(e)); {name}_loading.set(false); }}); }}"
@@ -753,11 +755,11 @@ impl OmniViewGenerator {
         // mounts — placed in mount_js/comp_mount_js (runs after DOM attach).
         // Three-state signals (loading=true/error=""/data=[]) were declared in
         // the builtin-signal block above; retry resets them on user action.
-        if let Some(intent) = self.scope.load_intent.clone() {
+        if let Some(intent) = self.scope.load_intent.first() {
             let _ = if self.editor_mode {
-                writeln!(self.comp_mount_js, "// @load {}", intent.fn_name)
+                writeln!(self.comp_mount_js, "// @load {}", intent.loader.fn_name())
             } else {
-                writeln!(self.mount_js, "// @load {}", intent.fn_name)
+                writeln!(self.mount_js, "// @load {}", intent.loader.fn_name())
             };
             // Editor mode: comp_mount_js is top-level JS OUTSIDE the factory
             // IIFE — a direct `{name}_retry()` throws ReferenceError (same
@@ -923,7 +925,7 @@ impl OmniViewGenerator {
                 }
             }
             // @load builtin signals (Task 6) — loading/error/data
-            if self.scope.load_intent.is_some() {
+            if !self.scope.load_intent.is_empty() {
                 for sig in ["loading", "error", "data"] {
                     let prefixed = format!("{}_{}", name, sig);
                     signal_entries.push(format!("{}: {}", prefixed, prefixed));
@@ -948,7 +950,7 @@ impl OmniViewGenerator {
             if self.scope.form_intent.is_some() {
                 fn_entries.push(format!("validateForm: {name}_validateForm"));
             }
-            if self.scope.load_intent.is_some() {
+            if !self.scope.load_intent.is_empty() {
                 fn_entries.push(format!("retry: {name}_retry"));
             }
             // Build the factory return fields as a comma-joined list so the

@@ -135,7 +135,10 @@ fn validate_component(component: &ComponentIR, diagnostics: &mut Vec<Diagnostic>
 
     // V10：@layout 组件视图必须包含 `<@slot/>`（子页面渲染出口）。
     if component.layout_intent.is_some()
-        && !component.view.as_ref().is_some_and(view_contains_default_slot)
+        && !component
+            .view
+            .as_ref()
+            .is_some_and(view_contains_default_slot)
     {
         error_diag(
             component,
@@ -212,7 +215,10 @@ fn is_valid_guard(component: &ComponentIR, name: &str) -> bool {
         f.name == name
             && f.params.is_empty()
             && !f.is_async
-            && matches!(f.return_type.as_ref().map(|t| &t.kind), Some(TypeKind::Bool))
+            && matches!(
+                f.return_type.as_ref().map(|t| &t.kind),
+                Some(TypeKind::Bool)
+            )
     })
 }
 
@@ -236,7 +242,9 @@ fn view_contains_default_slot(view: &ViewTree) -> bool {
         }
         ViewTree::ListRendering(l) => {
             l.body.as_ref().is_some_and(view_contains_default_slot)
-                || l.empty_body.as_ref().is_some_and(view_contains_default_slot)
+                || l.empty_body
+                    .as_ref()
+                    .is_some_and(view_contains_default_slot)
         }
         ViewTree::Fragment(children) => children.iter().any(view_contains_default_slot),
         ViewTree::Interpolation(_) | ViewTree::Text(_) => false,
@@ -348,7 +356,9 @@ fn expr_to_string(expr: &ExprIR) -> String {
             format!("{}.{}()", expr_to_string(object), method)
         }
         ExprIR::CallExpr { name, .. } => format!("{}()", name),
-        ExprIR::BinaryOpExpr { left, op, right, .. } => format!(
+        ExprIR::BinaryOpExpr {
+            left, op, right, ..
+        } => format!(
             "{} {} {}",
             expr_to_string(left),
             binary_op_glyph(op),
@@ -467,9 +477,16 @@ mod tests {
             }"#,
         );
         let hit = diags.iter().find(|d| d.message.contains("重复声明 @route"));
-        assert!(hit.is_some(), "expected V4 duplicate error, got: {:?}", diags);
+        assert!(
+            hit.is_some(),
+            "expected V4 duplicate error, got: {:?}",
+            diags
+        );
         let msg = hit.unwrap().message.clone();
-        assert!(msg.contains("/a") && msg.contains("/b"), "V4 must name both paths: {msg}");
+        assert!(
+            msg.contains("/a") && msg.contains("/b"),
+            "V4 must name both paths: {msg}"
+        );
     }
 
     /// V6：路径参数段重名（`/a/:id/b/:id`）。
@@ -482,7 +499,9 @@ mod tests {
             }"#,
         );
         assert!(
-            diags.iter().any(|d| d.message.contains("参数段 `:id` 重复")),
+            diags
+                .iter()
+                .any(|d| d.message.contains("参数段 `:id` 重复")),
             "expected V6 duplicate param error, got: {:?}",
             diags
         );
@@ -546,7 +565,9 @@ mod tests {
             }"#,
         );
         assert!(
-            missing.iter().any(|d| d.message.contains("未找到或签名不是")),
+            missing
+                .iter()
+                .any(|d| d.message.contains("未找到或签名不是")),
             "expected V9 missing-guard error, got: {:?}",
             missing
         );
@@ -572,7 +593,9 @@ mod tests {
             }"#,
         );
         assert!(
-            bad_sig.iter().any(|d| d.message.contains("未找到或签名不是")),
+            bad_sig
+                .iter()
+                .any(|d| d.message.contains("未找到或签名不是")),
             "param-taking guard must fail V9, got: {:?}",
             bad_sig
         );
@@ -617,7 +640,8 @@ mod tests {
             }"#,
         );
         assert!(
-            neg.iter().any(|d| d.message.contains("必须与 `guard:` 配对")),
+            neg.iter()
+                .any(|d| d.message.contains("必须与 `guard:` 配对")),
             "expected V11 pairing error, got: {:?}",
             neg
         );
@@ -630,7 +654,8 @@ mod tests {
             }"#,
         );
         assert!(
-            !pos.iter().any(|d| d.message.contains("必须与 `guard:` 配对")),
+            !pos.iter()
+                .any(|d| d.message.contains("必须与 `guard:` 配对")),
             "guard + redirect must pass, got: {:?}",
             pos
         );
@@ -643,7 +668,9 @@ mod tests {
             }"#,
         );
         assert!(
-            !guard_only.iter().any(|d| d.message.contains("必须与 `guard:` 配对")),
+            !guard_only
+                .iter()
+                .any(|d| d.message.contains("必须与 `guard:` 配对")),
             "guard without redirect must pass, got: {:?}",
             guard_only
         );
@@ -658,8 +685,14 @@ mod tests {
                 view { <div/> }
             }"#,
         );
-        let hit = diags.iter().find(|d| d.message.contains("只接受应用内路径"));
-        assert!(hit.is_some(), "expected V12 external-path error, got: {:?}", diags);
+        let hit = diags
+            .iter()
+            .find(|d| d.message.contains("只接受应用内路径"));
+        assert!(
+            hit.is_some(),
+            "expected V12 external-path error, got: {:?}",
+            diags
+        );
         let msg = hit.unwrap().message.clone();
         assert!(msg.contains("<a href>"), "V12 must suggest <a href>: {msg}");
     }
@@ -717,7 +750,11 @@ mod tests {
             }"#,
         );
         let hit = diags.iter().find(|d| d.message.contains("动态表达式"));
-        assert!(hit.is_some(), "expected W1 dynamic-path warning, got: {:?}", diags);
+        assert!(
+            hit.is_some(),
+            "expected W1 dynamic-path warning, got: {:?}",
+            diags
+        );
         assert!(
             matches!(hit.unwrap().severity, Severity::Warning),
             "W1 must be a warning, got: {:?}",
@@ -753,7 +790,8 @@ mod tests {
             }"#,
         );
         assert!(
-            neg.iter().any(|d| d.message.contains("必须以 `/` 开头且非空")),
+            neg.iter()
+                .any(|d| d.message.contains("必须以 `/` 开头且非空")),
             "expected V2 path-prefix error, got: {:?}",
             neg
         );
@@ -781,7 +819,8 @@ mod tests {
             }"#,
         );
         assert!(
-            neg.iter().any(|d| d.message.contains("路径参数段 ':1x' 非法")),
+            neg.iter()
+                .any(|d| d.message.contains("路径参数段 ':1x' 非法")),
             "expected V5 illegal-param error, got: {:?}",
             neg
         );
@@ -826,7 +865,8 @@ mod tests {
             }"#,
         );
         assert!(
-            !pos.iter().any(|d| d.message.contains("lazy 属性必须是 true/false")),
+            !pos.iter()
+                .any(|d| d.message.contains("lazy 属性必须是 true/false")),
             "lazy: true must pass, got: {:?}",
             pos
         );
@@ -838,7 +878,8 @@ mod tests {
             }"#,
         );
         assert!(
-            neg.iter().any(|d| d.message.contains("lazy 属性必须是 true/false")),
+            neg.iter()
+                .any(|d| d.message.contains("lazy 属性必须是 true/false")),
             "expected lazy type error, got: {:?}",
             neg
         );
@@ -924,8 +965,15 @@ mod tests {
             }"#,
         );
         let hit = neg.iter().find(|d| d.message.contains("只接受应用内路径"));
-        assert!(hit.is_some(), "expected V12 external-path error, got: {:?}", neg);
-        assert!(hit.unwrap().message.contains("<a href>"), "V12 must suggest <a href>");
+        assert!(
+            hit.is_some(),
+            "expected V12 external-path error, got: {:?}",
+            neg
+        );
+        assert!(
+            hit.unwrap().message.contains("<a href>"),
+            "V12 must suggest <a href>"
+        );
     }
 
     /// 元组 8：navigate + params 选项——字面量路径（正）vs 动态路径（负，W1 警告）。
@@ -951,7 +999,11 @@ mod tests {
             }"#,
         );
         let hit = neg.iter().find(|d| d.message.contains("动态表达式"));
-        assert!(hit.is_some(), "expected W1 dynamic-path warning, got: {:?}", neg);
+        assert!(
+            hit.is_some(),
+            "expected W1 dynamic-path warning, got: {:?}",
+            neg
+        );
         assert!(
             matches!(hit.unwrap().severity, Severity::Warning),
             "W1 must be a warning, got: {:?}",
@@ -1057,7 +1109,8 @@ mod tests {
             }"#,
         );
         assert!(
-            !pos.iter().any(|d| d.message.contains("必须与 `guard:` 配对")),
+            !pos.iter()
+                .any(|d| d.message.contains("必须与 `guard:` 配对")),
             "guard + redirect must pass, got: {:?}",
             pos
         );
@@ -1069,7 +1122,8 @@ mod tests {
             }"#,
         );
         assert!(
-            neg.iter().any(|d| d.message.contains("必须与 `guard:` 配对")),
+            neg.iter()
+                .any(|d| d.message.contains("必须与 `guard:` 配对")),
             "expected V11 redirect-without-guard error, got: {:?}",
             neg
         );

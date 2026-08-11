@@ -124,7 +124,7 @@ fn design_block_css_values_are_sanitized() {
     };
     let comp = ComponentIR {
         form_intent: None,
-        load_intent: None,
+        load_intent: vec![],
         route_intent: None,
         layout_intent: None,
         query_params: vec![],

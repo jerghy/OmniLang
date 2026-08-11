@@ -619,7 +619,7 @@ mod tests {
     fn make_component() -> ComponentIR {
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             name: "Test".into(),
             ..ComponentIR::default()
         }
@@ -861,7 +861,7 @@ mod tests {
     fn declared_ref_subject_is_left_for_ref_validation() {
         let mut comp = ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             name: "Test".into(),
             refs: vec![RefDeclIR {
                 name: "box".into(),

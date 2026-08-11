@@ -1068,10 +1068,51 @@ pub struct ValidateRuleIR {
     pub value: ExprIR,
 }
 
-/// 数据三态意图（spec 2026-08-08 §4.2）——@load 绑定的组件 fn。
+/// 数据装载函数引用（spec 2026-08-09 §2.1 `fn_ref := identifier | call_expr`）：
+/// 裸函数名（v0 兼容）或带实参的调用表达式（命名实例参数绑定）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum LoaderIR {
+    Fn(String),
+    Call(CallExprIR),
+}
+
+/// @load 调用表达式形态——函数名 + 实参列表（AST CallExpr 的 IR 等价；
+/// span 仅解析/诊断层需要，IR 不携带）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CallExprIR {
+    pub func: String,
+    pub args: Vec<ExprIR>,
+}
+
+/// @load 模式词位（spec §2.2/§2.3/§2.4）：paginated / scroll / interval。
+/// 模式词之间的组合约束（V7 分页须命名、V8 scroll 须配 paginated）为
+/// 语义层硬错误（Task 4），IR 仅登记位。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct LoadModeIR {
+    pub paginated: bool,
+    pub scroll: bool,
+    /// 轮询间隔毫秒（正整数，非 None 即开启 interval 轮询）。
+    pub interval: Option<u64>,
+}
+
+/// 数据三态意图（spec 2026-08-09 §2.1）——@load 装载规格：实例名（None =
+/// 匿名 v0 形态，每组件至多一个，V6）+ 装载函数 + 模式词位。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LoadIntentIR {
-    pub fn_name: String,
+    pub name: Option<String>,
+    pub loader: LoaderIR,
+    pub mode: LoadModeIR,
+}
+
+impl LoaderIR {
+    /// 装载函数名——Fn 裸名或 Call 调用名（语义 pass 名称解析 / 既有
+    /// codegen 消费点共用；参数绑定形态的完整校验属 Task 4）。
+    pub fn fn_name(&self) -> &str {
+        match self {
+            LoaderIR::Fn(name) => name,
+            LoaderIR::Call(call) => &call.func,
+        }
+    }
 }
 
 /// 路由意图（spec 2026-08-09 §2.1/§2.5/§2.8）——组件级 `@route "/todos/:id" guard: isAdmin lazy: true redirect: "/login";`。
@@ -1154,9 +1195,10 @@ pub struct ComponentIR {
     /// 表单意图（spec 2026-08-08 §4.1）——@form 元素上的字段校验规则集。
     #[serde(default)]
     pub form_intent: Option<FormIntentIR>,
-    /// 数据三态意图（spec 2026-08-08 §4.2）——@load 绑定的组件 fn。
+    /// 数据三态意图（spec 2026-08-09 §2.1）——@load 装载规格列表（多例化：
+    /// 匿名 v0 形态至多一个 + 命名实例数量不限）。顺序 = 声明顺序。
     #[serde(default)]
-    pub load_intent: Option<LoadIntentIR>,
+    pub load_intent: Vec<LoadIntentIR>,
     /// 路由意图（spec 2026-08-09 §2.1/§2.5/§2.8）——组件级 @route 声明。
     /// 组件至多一个路由；`None` 表示该组件不是路由页。
     #[serde(default)]

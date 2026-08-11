@@ -381,7 +381,7 @@ fn test_js_empty_component() {
     let mut w = CodeWriter::new();
     let comp = ComponentIR {
         form_intent: None,
-        load_intent: None,
+        load_intent: vec![],
         name: "App".into(),
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
@@ -408,7 +408,7 @@ fn test_ts_empty_component() {
     let mut w = CodeWriter::new();
     let comp = ComponentIR {
         form_intent: None,
-        load_intent: None,
+        load_intent: vec![],
         name: "App".into(),
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
@@ -435,7 +435,7 @@ fn test_js_component_with_function() {
     let mut w = CodeWriter::new();
     let comp = ComponentIR {
         form_intent: None,
-        load_intent: None,
+        load_intent: vec![],
         name: "App".into(),
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
@@ -470,7 +470,7 @@ fn test_js_component_with_state() {
     let mut w = CodeWriter::new();
     let comp = ComponentIR {
         form_intent: None,
-        load_intent: None,
+        load_intent: vec![],
         name: "Counter".into(),
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
@@ -508,7 +508,7 @@ fn test_ts_component_with_state() {
     let mut w = CodeWriter::new();
     let comp = ComponentIR {
         form_intent: None,
-        load_intent: None,
+        load_intent: vec![],
         name: "Counter".into(),
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
@@ -691,7 +691,7 @@ fn test_js_full_pipeline_through_trait() {
                     "App".into(),
                     ComponentIR {
                         form_intent: None,
-                        load_intent: None,
+                        load_intent: vec![],
                         name: "App".into(),
                         props: FxHashMap::default(),
                         prop_defaults: FxHashMap::default(),
@@ -748,7 +748,7 @@ fn test_ts_full_pipeline_through_trait() {
                     "App".into(),
                     ComponentIR {
                         form_intent: None,
-                        load_intent: None,
+                        load_intent: vec![],
                         name: "App".into(),
                         props: FxHashMap::default(),
                         prop_defaults: FxHashMap::default(),

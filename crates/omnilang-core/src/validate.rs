@@ -432,7 +432,13 @@ fn validate_route_registry(programs: &FxHashMap<String, Arc<Program>>) -> Vec<Di
         for module_name in module_names {
             for component in &program.modules[module_name].components {
                 for route in &component.route_decls {
-                    check_claim(&mut claimed, &mut diagnostics, file, &component.name, &route.path);
+                    check_claim(
+                        &mut claimed,
+                        &mut diagnostics,
+                        file,
+                        &component.name,
+                        &route.path,
+                    );
                 }
                 if let Some(layout) = &component.layout {
                     check_claim(
@@ -477,9 +483,7 @@ fn validate_route_registry(programs: &FxHashMap<String, Arc<Program>>) -> Vec<Di
 }
 
 /// Deterministic iteration order for registry passes: sorted file paths.
-fn sorted_file_paths(
-    programs: &FxHashMap<String, Arc<Program>>,
-) -> Vec<&String> {
+fn sorted_file_paths(programs: &FxHashMap<String, Arc<Program>>) -> Vec<&String> {
     let mut files: Vec<&String> = programs.keys().collect();
     files.sort();
     files
@@ -626,12 +630,22 @@ fn walk_expr(expr: &Expr, out: &mut Vec<String>) {
                 walk_expr(value, out);
             }
         }
-        Expr::IfExpr { condition, then_expr, else_expr, .. } => {
+        Expr::IfExpr {
+            condition,
+            then_expr,
+            else_expr,
+            ..
+        } => {
             walk_expr(condition, out);
             walk_expr(then_expr, out);
             walk_expr(else_expr, out);
         }
-        Expr::TernaryExpr { condition, then_expr, else_expr, .. } => {
+        Expr::TernaryExpr {
+            condition,
+            then_expr,
+            else_expr,
+            ..
+        } => {
             walk_expr(condition, out);
             walk_expr(then_expr, out);
             walk_expr(else_expr, out);
@@ -659,7 +673,12 @@ fn walk_expr(expr: &Expr, out: &mut Vec<String>) {
         }
         Expr::SpreadExpr { operand, .. } => walk_expr(operand, out),
         Expr::IsCheck { value, .. } => walk_expr(value, out),
-        Expr::BuiltinToastCall { msg, kind, duration, .. } => {
+        Expr::BuiltinToastCall {
+            msg,
+            kind,
+            duration,
+            ..
+        } => {
             walk_expr(msg, out);
             if let Some(k) = kind {
                 walk_expr(k, out);
@@ -709,7 +728,9 @@ fn walk_stmt(stmt: &Stmt, out: &mut Vec<String>) {
                 walk_block(body, out);
             }
         }
-        Stmt::While { condition, body, .. } => {
+        Stmt::While {
+            condition, body, ..
+        } => {
             walk_expr(condition, out);
             walk_block(body, out);
         }
@@ -797,7 +818,9 @@ fn walk_view_node(node: &ViewNode, out: &mut Vec<String>) {
                 walk_expr(key, out);
             }
         }
-        ViewNode::SlotDirective { default_content, .. } => {
+        ViewNode::SlotDirective {
+            default_content, ..
+        } => {
             if let Some(content) = default_content {
                 for node in content {
                     walk_view_node(node, out);
@@ -983,7 +1006,10 @@ mod tests {
 
     #[test]
     fn test_v14_duplicate_route_path_cross_file() {
-        let sources = make_sources(vec![("a.omni", V14_COMPONENT_X), ("b.omni", V14_COMPONENT_Y)]);
+        let sources = make_sources(vec![
+            ("a.omni", V14_COMPONENT_X),
+            ("b.omni", V14_COMPONENT_Y),
+        ]);
         let result = validate_sources(sources);
         // Sorted files: a.omni first → X is the first claimant, Y the second.
         assert_v14(&result, "/todos", "X");
@@ -1046,8 +1072,7 @@ mod tests {
         assert!(
             result.success,
             "W2 must not block compilation, got success={} with errors: {:?}",
-            result.success,
-            result.errors
+            result.success, result.errors
         );
     }
 
@@ -1060,7 +1085,10 @@ mod tests {
         )]);
         let result = validate_sources(sources);
         assert!(
-            !result.errors.iter().any(|d| d.message.contains("未匹配到任何")),
+            !result
+                .errors
+                .iter()
+                .any(|d| d.message.contains("未匹配到任何")),
             "registered navigate must not W2, got: {:?}",
             result.errors
         );
@@ -1073,13 +1101,19 @@ mod tests {
 
     #[test]
     fn test_registry_scope_both_entries() {
-        let sources = make_sources(vec![("a.omni", V14_COMPONENT_X), ("b.omni", V14_COMPONENT_Y)]);
+        let sources = make_sources(vec![
+            ("a.omni", V14_COMPONENT_X),
+            ("b.omni", V14_COMPONENT_Y),
+        ]);
         let path_mapping = crate::path_mapping::derive_path_mapping(&sources);
 
         // Entry 1: analyse_multi (lib.rs analyse_multi entry)
         let fresh = crate::analyse::analyse_multi(&sources, &path_mapping);
         assert!(
-            fresh.diagnostics.iter().any(|d| d.message.contains("已被组件")),
+            fresh
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains("已被组件")),
             "analyse_multi must surface V14, got: {:?}",
             fresh.diagnostics
         );
@@ -1089,7 +1123,10 @@ mod tests {
         let mut cache = crate::analyse::IncrementalCache::new();
         let cached = crate::analyse::analyse_multi_cached(&sources, &path_mapping, &mut cache);
         assert!(
-            cached.diagnostics.iter().any(|d| d.message.contains("已被组件")),
+            cached
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains("已被组件")),
             "analyse_multi_cached must surface V14, got: {:?}",
             cached.diagnostics
         );
@@ -1110,7 +1147,10 @@ mod tests {
 
         let fresh = crate::analyse::analyse_multi(&sources, &path_mapping);
         assert!(
-            fresh.diagnostics.iter().any(|d| d.message.contains("未匹配到任何")),
+            fresh
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains("未匹配到任何")),
             "analyse_multi must surface W2, got: {:?}",
             fresh.diagnostics
         );
@@ -1123,7 +1163,10 @@ mod tests {
         let mut cache = crate::analyse::IncrementalCache::new();
         let cached = crate::analyse::analyse_multi_cached(&sources, &path_mapping, &mut cache);
         assert!(
-            cached.diagnostics.iter().any(|d| d.message.contains("未匹配到任何")),
+            cached
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains("未匹配到任何")),
             "analyse_multi_cached must surface W2, got: {:?}",
             cached.diagnostics
         );

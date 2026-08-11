@@ -580,7 +580,7 @@ pub(super) fn gen_view_node_tsx(
                             // 为 load 标识符（load 已是 useCallback 稳定
                             // 引用，不能再包 __omni_cb_ 包装）。
                             let ref_emitted =
-                                if r#ref.as_str() == "retry" && comp.load_intent.is_some() {
+                                if r#ref.as_str() == "retry" && !comp.load_intent.is_empty() {
                                     "load".to_string()
                                 } else if prop_fn_ctx.wrapped_fns.contains(r#ref) {
                                     format!("__omni_cb_{}", r#ref)
@@ -888,7 +888,8 @@ pub(super) fn gen_view_node_tsx(
                         // 为 load 标识符（与表达式上下文的
                         // store_field_renames 映射一致）；别名不在生成输出
                         // 中发射，避免未使用局部（eslint no-unused-vars）。
-                        let ref_name = if r#ref.as_str() == "retry" && comp.load_intent.is_some() {
+                        let ref_name = if r#ref.as_str() == "retry" && !comp.load_intent.is_empty()
+                        {
                             "load"
                         } else {
                             r#ref.as_str()
@@ -899,7 +900,7 @@ pub(super) fn gen_view_node_tsx(
                         // 是无参 useCallback，事件对象必须整体跳过（否则
                         // `load({ x: ... })` 报 Expected 0 arguments）。
                         let is_retry_mapped =
-                            r#ref.as_str() == "retry" && comp.load_intent.is_some();
+                            r#ref.as_str() == "retry" && !comp.load_intent.is_empty();
                         let call = if possibly_undefined.contains(ref_name) {
                             format!("{ref_name}?.")
                         } else {
@@ -2449,7 +2450,7 @@ fn emit_drag_react_attrs(
     // fns are always defined and stay bare `f(...)`.
     // Task 4 评审（retry 可达性）: @load 回调别名在 @drag 处理器上同样映
     // 射为 load 标识符（load 是无参 useCallback，`load()` 直调合法）。
-    let move_fn = if move_fn == "retry" && comp.load_intent.is_some() {
+    let move_fn = if move_fn == "retry" && !comp.load_intent.is_empty() {
         "load"
     } else {
         move_fn
@@ -2485,7 +2486,7 @@ fn emit_drag_react_attrs(
         // useCallback）恒零参直调——"load" 不在 comp.fns，fn_arity 查无
         // 返回 0，但非空 DragIntent 仍会走到 else 分支传对象；对 load
         // 整体跳过实参（含 @dragEnd 侧，共用本闭包）。
-        if name == "load" && comp.load_intent.is_some() {
+        if name == "load" && !comp.load_intent.is_empty() {
             return String::new();
         }
         if obj == "{}" {
@@ -2526,7 +2527,7 @@ fn emit_drag_react_attrs(
             ..
         }) => {
             // Task 4 评审: @dragEnd={retry} 同 move 侧映射为 load。
-            let end_fn = if end_fn == "retry" && comp.load_intent.is_some() {
+            let end_fn = if end_fn == "retry" && !comp.load_intent.is_empty() {
                 "load"
             } else {
                 end_fn

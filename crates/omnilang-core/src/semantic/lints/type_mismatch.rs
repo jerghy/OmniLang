@@ -199,7 +199,7 @@ mod tests {
             "Test".into(),
             ComponentIR {
                 form_intent: None,
-                load_intent: None,
+                load_intent: vec![],
                 name: "Test".into(),
                 props: FxHashMap::default(),
                 prop_defaults: FxHashMap::default(),
@@ -269,7 +269,7 @@ mod tests {
             "Test".into(),
             ComponentIR {
                 form_intent: None,
-                load_intent: None,
+                load_intent: vec![],
                 name: "Test".into(),
                 signals: vec![crate::ir::SignalIntent {
                     name: "age".into(),

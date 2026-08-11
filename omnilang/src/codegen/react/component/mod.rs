@@ -335,7 +335,7 @@ impl ReactCodegen {
         // toast 容器组件与调用组件同文件，状态钩子必须存在。
         if has_mutable_states
             || comp.form_intent.is_some()
-            || comp.load_intent.is_some()
+            || !comp.load_intent.is_empty()
             || has_toast
         {
             hooks.push("useState".to_string());
@@ -346,7 +346,7 @@ impl ReactCodegen {
         if has_fn_form_computed
             || has_interactive_motion
             || !wrapped_prop_fns.is_empty()
-            || comp.load_intent.is_some()
+            || !comp.load_intent.is_empty()
         {
             hooks.push("useCallback".to_string());
         }
@@ -359,7 +359,7 @@ impl ReactCodegen {
             // bindings) still needs the import, or the emitted `useEffect`
             // is undeclared (TS2304).
             || !direct_write_sets.b2_entries.is_empty()
-            || comp.load_intent.is_some()
+            || !comp.load_intent.is_empty()
             || has_toast
         {
             hooks.push("useEffect".to_string());
@@ -756,7 +756,7 @@ impl ReactCodegen {
         // @load 存在时生效；别名不在输出中发射（映射覆盖全部引用面，
         // 别名恒为未使用局部——评审目标 eslint no-unused-vars）。
         let mut store_field_renames = store_field_renames;
-        if comp.load_intent.is_some() {
+        if !comp.load_intent.is_empty() {
             store_field_renames.insert("retry".to_string(), "load".to_string());
         }
 
@@ -1439,7 +1439,9 @@ impl ReactCodegen {
             w.dedent();
             w.emit("}");
         }
-        if let Some(load) = &comp.load_intent {
+        // TODO(batch4 Task 6-11): 多 @load 命名实例/loader 表达式/轮询发射
+        // ——当前仅发射首个实例（单例行为保持），其余实例由后续任务实现。
+        if let Some(load) = comp.load_intent.first() {
             w.emit("// @load (spec 2026-08-08 §4.2): 数据三态");
             w.emit("const [loading, setLoading] = useState(true);");
             w.emit("const [error, setError] = useState(\"\");");
@@ -1447,7 +1449,7 @@ impl ReactCodegen {
             let elem_ts = comp
                 .fns
                 .iter()
-                .find(|f| f.name == load.fn_name)
+                .find(|f| f.name == load.loader.fn_name())
                 .and_then(|f| f.return_type.as_ref())
                 .and_then(|t| match &t.kind {
                     TypeKind::Named { name } if name == "Array" && t.type_args.len() == 1 => {
@@ -1468,14 +1470,14 @@ impl ReactCodegen {
             let is_async = comp
                 .fns
                 .iter()
-                .find(|f| f.name == load.fn_name)
+                .find(|f| f.name == load.loader.fn_name())
                 .is_some_and(|f| {
                     f.is_async || f.body.statements.iter().any(effect::stmt_contains_await)
                 });
             let call = if is_async {
-                format!("{}()", load.fn_name)
+                format!("{}()", load.loader.fn_name())
             } else {
-                format!("Promise.resolve().then(() => {}())", load.fn_name)
+                format!("Promise.resolve().then(() => {}())", load.loader.fn_name())
             };
             w.emit_fmt(format_args!(
                 "{call}.then((r) => {{ setData(r); setLoading(false); }}).catch((e) => {{ setError(String(e)); setLoading(false); }});"

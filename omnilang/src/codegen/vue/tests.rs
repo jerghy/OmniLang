@@ -216,7 +216,7 @@ mod tests {
             "Card".into(),
             ComponentIR {
                 form_intent: None,
-                load_intent: None,
+                load_intent: vec![],
                 name: "Card".into(),
                 props: FxHashMap::default(),
                 prop_defaults: FxHashMap::default(),
@@ -285,7 +285,7 @@ mod tests {
             "Card".into(),
             ComponentIR {
                 form_intent: None,
-                load_intent: None,
+                load_intent: vec![],
                 name: "Card".into(),
                 props: FxHashMap::default(),
                 prop_defaults: FxHashMap::default(),
@@ -484,7 +484,7 @@ mod tests {
             "App".into(),
             ComponentIR {
                 form_intent: None,
-                load_intent: None,
+                load_intent: vec![],
                 name: "App".into(),
                 props: FxHashMap::default(),
                 prop_defaults: FxHashMap::default(),
@@ -541,7 +541,7 @@ mod tests {
             "Counter".into(),
             ComponentIR {
                 form_intent: None,
-                load_intent: None,
+                load_intent: vec![],
                 name: "Counter".into(),
                 props: FxHashMap::default(),
                 prop_defaults: FxHashMap::default(),
@@ -600,7 +600,7 @@ mod tests {
             "Greeting".into(),
             ComponentIR {
                 form_intent: None,
-                load_intent: None,
+                load_intent: vec![],
                 name: "Greeting".into(),
                 props,
                 prop_defaults: FxHashMap::default(),
@@ -655,7 +655,7 @@ mod tests {
             "Watcher".into(),
             ComponentIR {
                 form_intent: None,
-                load_intent: None,
+                load_intent: vec![],
                 name: "Watcher".into(),
                 props: FxHashMap::default(),
                 prop_defaults: FxHashMap::default(),
@@ -698,7 +698,7 @@ mod tests {
             "App".into(),
             ComponentIR {
                 form_intent: None,
-                load_intent: None,
+                load_intent: vec![],
                 name: "App".into(),
                 props: FxHashMap::default(),
                 prop_defaults: FxHashMap::default(),
@@ -862,7 +862,7 @@ mod tests {
         let codegen = VueCodegen;
         let comp = ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             name: "App".into(),
             props: FxHashMap::default(),
             prop_defaults: FxHashMap::default(),
@@ -1190,7 +1190,7 @@ mod tests {
         };
         let comp = ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             name: "App".into(),
             props: FxHashMap::default(),
             prop_defaults: FxHashMap::default(),

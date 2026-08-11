@@ -212,10 +212,13 @@ pub(super) fn lower_component(
     // 内建信号（errors/submitting/loading/data）不在此生成信号声明：由语义
     // pass 校验保留名冲突、codegen 生成对应实现（三目标各自惯用形态）。
     let mut form_intent: Option<FormIntentIR> = None;
-    let mut load_intent: Option<LoadIntentIR> = None;
+    // 数据装载意图多例化（spec 2026-08-09 §2.1）——顺序 = 声明顺序。
+    let mut load_intent: Vec<LoadIntentIR> = vec![];
     // V-F6 重复上报闸门：发现第二个即报，报完即止（恰好 1 条）。
     let mut form_dup_reported = false;
     let mut load_dup_reported = false;
+    // 匿名 @load 计数（V6 诊断需要「当前匿名 {n} 个」）。
+    let mut anon_load_count = 0usize;
     if let Some(v) = &comp.view {
         scan_view_intents(
             &v.children,
@@ -225,6 +228,7 @@ pub(super) fn lower_component(
             &mut load_intent,
             &mut form_dup_reported,
             &mut load_dup_reported,
+            &mut anon_load_count,
         );
     }
 
@@ -355,19 +359,22 @@ fn lower_style_rule(s: &StyleRule) -> StyleRuleIR {
     }
 }
 
-/// 遍历组件视图收集 @form / @load 意图（spec 2026-08-08 §4.1/§4.2）。
-/// V-F6（每组件至多一个 @form/@load）在此扫描处上报：发现第二个即报，
-/// 报完即止（`*_dup_reported` 闸门保证恰好 1 条）；V-F1（@form 仅限
-/// form 元素）在 collect_form_intent 内上报（首槽位），重复分支若落在
-/// 非 form 元素上同样报 V-F1（R2：V-F1 优先于 V-F6）。
+/// 遍历组件视图收集 @form / @load 意图（spec 2026-08-08 §4.1/§4.2、
+/// 2026-08-09 §2.1-§2.4）。
+/// V-F6（@form 至多一个）与 V6（匿名 @load 至多一个，命名 @load 数量不限）
+/// 在此扫描处上报：发现第二个即报，报完即止（`*_dup_reported` 闸门保证
+/// 恰好 1 条）；V-F1（@form 仅限 form 元素）在 collect_form_intent 内上报
+/// （首槽位），重复分支若落在非 form 元素上同样报 V-F1（R2：V-F1 优先于
+/// V-F6）。每个 @load 依次追加进 `load_intent`（多例化，顺序 = 声明顺序）。
 fn scan_view_intents(
     nodes: &[ViewNode],
     variant_map: &FxHashMap<String, String>,
     semantics: &mut SemanticResult,
     form_intent: &mut Option<FormIntentIR>,
-    load_intent: &mut Option<LoadIntentIR>,
+    load_intent: &mut Vec<LoadIntentIR>,
     form_dup_reported: &mut bool,
     load_dup_reported: &mut bool,
+    anon_load_count: &mut usize,
 ) {
     for node in nodes {
         match node {
@@ -405,6 +412,7 @@ fn scan_view_intents(
                     load_intent,
                     form_dup_reported,
                     load_dup_reported,
+                    anon_load_count,
                 );
             }
             ViewNode::IfDirective(ifd) => {
@@ -416,6 +424,7 @@ fn scan_view_intents(
                     load_intent,
                     form_dup_reported,
                     load_dup_reported,
+                    anon_load_count,
                 );
                 for (_, branch) in &ifd.else_ifs {
                     scan_view_intents(
@@ -426,6 +435,7 @@ fn scan_view_intents(
                         load_intent,
                         form_dup_reported,
                         load_dup_reported,
+                        anon_load_count,
                     );
                 }
                 if let Some(else_body) = &ifd.else_body {
@@ -437,6 +447,7 @@ fn scan_view_intents(
                         load_intent,
                         form_dup_reported,
                         load_dup_reported,
+                        anon_load_count,
                     );
                 }
             }
@@ -449,6 +460,7 @@ fn scan_view_intents(
                     load_intent,
                     form_dup_reported,
                     load_dup_reported,
+                    anon_load_count,
                 );
                 if let Some(empty) = &fd.empty_body {
                     scan_view_intents(
@@ -459,6 +471,7 @@ fn scan_view_intents(
                         load_intent,
                         form_dup_reported,
                         load_dup_reported,
+                        anon_load_count,
                     );
                 }
             }
@@ -474,22 +487,48 @@ fn scan_view_intents(
                         load_intent,
                         form_dup_reported,
                         load_dup_reported,
+                        anon_load_count,
                     );
                 }
             }
             ViewNode::LoadDirective { spec, span } => {
-                if load_intent.is_none() {
-                    *load_intent = Some(LoadIntentIR {
-                        fn_name: spec.loader.fn_name().to_string(),
-                    });
-                } else if !*load_dup_reported {
-                    // V-F6：组件内第二个 @load
-                    semantics.diagnostics.push(crate::error::Diagnostic::error(
-                        crate::error::DiagnosticKind::E0006,
-                        "组件内 @form/@load 至多一个",
-                        span,
-                    ));
-                    *load_dup_reported = true;
+                // 多例化（spec 2026-08-09 §2.1）：每个 @load 依次追加，
+                // 匿名（None）与命名（Some(name)）共存，顺序 = 声明顺序。
+                let loader = match &spec.loader {
+                    LoaderRef::Fn(name) => LoaderIR::Fn(name.clone()),
+                    LoaderRef::Call(call) => LoaderIR::Call(CallExprIR {
+                        func: call.func.clone(),
+                        args: call
+                            .args
+                            .iter()
+                            .map(|e| lower_expr(e, variant_map, None, semantics))
+                            .collect(),
+                    }),
+                };
+                load_intent.push(LoadIntentIR {
+                    name: spec.name.clone(),
+                    loader,
+                    mode: LoadModeIR {
+                        paginated: spec.mode.paginated,
+                        scroll: spec.mode.scroll,
+                        interval: spec.mode.interval,
+                    },
+                });
+                if spec.name.is_none() {
+                    *anon_load_count += 1;
+                    if *anon_load_count > 1 && !*load_dup_reported {
+                        // V6（spec 2026-08-09 §3）：匿名 @load 至多一个，
+                        // 命名实例数量不限——第二个匿名即报，报完即止。
+                        semantics.diagnostics.push(crate::error::Diagnostic::error(
+                            crate::error::DiagnosticKind::E0006,
+                            &format!(
+                                "组件内至多一个匿名 @load——多个数据源请使用命名实例（@load name={{fn}}），当前匿名 {} 个",
+                                *anon_load_count
+                            ),
+                            span,
+                        ));
+                        *load_dup_reported = true;
+                    }
                 }
             }
             ViewNode::Text(_) | ViewNode::Interpolation(_) => {}
@@ -895,7 +934,8 @@ mod tests {
     #[test]
     fn lower_load_directive_carries_fn_name() {
         let ir = lower_component_src("component App { fn f() {} view { @load={f} <div/> } }");
-        assert_eq!(ir.load_intent.expect("load intent").fn_name, "f");
+        assert_eq!(ir.load_intent.len(), 1);
+        assert_eq!(ir.load_intent[0].loader.fn_name(), "f");
     }
 
     /// V-F1：@form 只能在 <form> 元素上 → error「@form 只能用于 form 元素」，
@@ -1001,8 +1041,10 @@ mod tests {
         assert_eq!(vf1_count, 0, "V-F1 must not fire here, got: {:?}", diags);
     }
 
-    /// V-F6：组件内第二个 @load → error「组件内 @form/@load 至多一个」，
-    /// 报完即止（恰好 1 条）。
+    /// V6（spec 2026-08-09 §3）：组件内第二个匿名 @load → error
+    /// 「组件内至多一个匿名 @load——多个数据源请使用命名实例（@load name={fn}），
+    /// 当前匿名 {n} 个」——V-F6 升级：匿名至多一个、命名不限，报完即止
+    /// （恰好 1 条）。
     #[test]
     fn lower_load_duplicate_reports_once() {
         let (_, diags) = lower_component_diags(
@@ -1010,9 +1052,123 @@ mod tests {
         );
         let count = diags
             .iter()
-            .filter(|d| d.message.contains("组件内 @form/@load 至多一个"))
+            .filter(|d| d.message.contains("组件内至多一个匿名 @load"))
             .count();
-        assert_eq!(count, 1, "V-F6 must report exactly once, got: {:?}", diags);
+        assert_eq!(count, 1, "V6 must report exactly once, got: {:?}", diags);
+    }
+
+    // ── 批次 4：LoadIntentIR 多例化（spec 2026-08-09 §2.1-§2.4，Task 3）──
+
+    /// spec §2.1 多例：组件内 2 个命名 @load（items/stats）→ load_intent.len() == 2
+    /// 且声明顺序保持。
+    #[test]
+    fn multi_load_intents_collected_in_order() {
+        let ir = lower_component_src(
+            r#"component App {
+                fn fetchOrders() {}
+                fn fetchStats(t: String) {}
+                view { @load items={fetchOrders} @load stats={fetchStats(token)} <div/> }
+            }"#,
+        );
+        assert_eq!(ir.load_intent.len(), 2);
+        assert_eq!(ir.load_intent[0].name.as_deref(), Some("items"));
+        assert_eq!(ir.load_intent[1].name.as_deref(), Some("stats"));
+    }
+
+    /// spec §2.1 fn_ref call_expr：@load stats={fetchStats(token)} →
+    /// loader=Call(fetchStats, [token])，实参表达式保留在 IR。
+    #[test]
+    fn load_call_expr_preserved_in_ir() {
+        let ir = lower_component_src(
+            r#"component App {
+                fn fetchStats(t: String) {}
+                view { @load stats={fetchStats(token)} <div/> }
+            }"#,
+        );
+        assert_eq!(ir.load_intent.len(), 1);
+        let loader = &ir.load_intent[0].loader;
+        let call = match loader {
+            crate::ir::LoaderIR::Call(c) => c,
+            other => panic!("expected Call loader, got: {:?}", other),
+        };
+        assert_eq!(call.func, "fetchStats");
+        assert_eq!(call.args.len(), 1);
+        assert!(
+            matches!(&call.args[0], ExprIR::IdentifierExpr { name, .. } if name == "token"),
+            "arg expr must be preserved as VarRef, got: {:?}",
+            call.args[0]
+        );
+    }
+
+    /// spec §2.2-§2.4 模式词：paginated scroll interval: 5000 →
+    /// mode { paginated: true, scroll: true, interval: Some(5000) }。
+    #[test]
+    fn load_mode_flags_lowered() {
+        let ir = lower_component_src(
+            r#"component App {
+                fn fetchOrders() {}
+                view { @load items={fetchOrders} paginated scroll interval: 5000 <div/> }
+            }"#,
+        );
+        assert_eq!(ir.load_intent.len(), 1);
+        let mode = &ir.load_intent[0].mode;
+        assert!(mode.paginated, "paginated flag");
+        assert!(mode.scroll, "scroll flag");
+        assert_eq!(mode.interval, Some(5000));
+        // 匿名 v0 形态默认模式全关
+        let anon = lower_component_src(r#"component App { fn f() {} view { @load={f} <div/> } }"#);
+        let anon_mode = &anon.load_intent[0].mode;
+        assert!(!anon_mode.paginated && !anon_mode.scroll && anon_mode.interval.is_none());
+    }
+
+    /// spec §2.1 v0 匿名与命名共存：@load={fn} + @load items={fn2} →
+    /// vec![None, Some("items")]（匿名至多一个，命名不限——V6 语义）。
+    #[test]
+    fn anon_and_named_mix_collected() {
+        let ir = lower_component_src(
+            r#"component App {
+                fn f() {}
+                fn f2() {}
+                view { @load={f} @load items={f2} <div/> }
+            }"#,
+        );
+        assert_eq!(ir.load_intent.len(), 2);
+        assert_eq!(ir.load_intent[0].name.as_deref(), None);
+        assert_eq!(ir.load_intent[1].name.as_deref(), Some("items"));
+        // 匿名重复仍报 V6（升级版 V-F6 消息）
+        let (_, diags) = lower_component_diags(
+            "component App { fn f() {} fn f2() {} view { @load={f} @load={f2} <div/> } }",
+        );
+        let v6_count = diags
+            .iter()
+            .filter(|d| d.message.contains("组件内至多一个匿名 @load"))
+            .count();
+        assert_eq!(v6_count, 1, "V6 must report exactly once, got: {:?}", diags);
+    }
+
+    /// WASM 序列化契约：缺失 load_intent 键的旧 JSON 快照反序列化不 panic
+    /// （#[serde(default)]），得到空 Vec。
+    #[test]
+    fn serde_snapshot_backward_compat() {
+        let legacy = r#"{
+            "name": "App",
+            "props": {},
+            "signals": [],
+            "computeds": [],
+            "effects": [],
+            "lifecycles": [],
+            "fns": [],
+            "store_refs": [],
+            "refs": [],
+            "view": null,
+            "styles": []
+        }"#;
+        let ir: ComponentIR =
+            serde_json::from_str(legacy).expect("legacy snapshot must deserialize");
+        assert!(
+            ir.load_intent.is_empty(),
+            "missing key defaults to empty Vec"
+        );
     }
 
     // ── 导航/路由意图（批次 2：@route/@layout/@query，spec 2026-08-09）──

@@ -366,8 +366,7 @@ pub fn generate(
     // route container in the static DOM. Containers before #root break
     // first-match selectors (`waitForSelector('button')` lands on a hidden
     // NavHome button) — batch 2 Task 10 收口.
-    let mut emit_order: Vec<(&str, &ComponentIR)> =
-        ir.all_components().into_iter().collect();
+    let mut emit_order: Vec<(&str, &ComponentIR)> = ir.all_components().into_iter().collect();
     emit_order.sort_by_key(|(n, _)| *n != root_name);
     for (comp_name, comp) in emit_order {
         // SAFETY: element_tree_stack must be empty before each component.

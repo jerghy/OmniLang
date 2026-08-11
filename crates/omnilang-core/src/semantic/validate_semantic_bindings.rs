@@ -267,7 +267,7 @@ mod tests {
     fn make_component(name: &str, ref_names: &[&str], els: Vec<ViewTree>) -> ComponentIR {
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -494,7 +494,7 @@ mod tests {
         // Semantic bindings nested inside a @for body must also be validated.
         let comp = ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],

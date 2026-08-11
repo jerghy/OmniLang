@@ -24,7 +24,7 @@ fn computed_references_prop_with_default() {
     // ── Build IR directly (avoids type-checker prop resolution bug) ──
     let comp = ComponentIR {
         form_intent: None,
-        load_intent: None,
+        load_intent: vec![],
         route_intent: None,
         layout_intent: None,
         query_params: vec![],

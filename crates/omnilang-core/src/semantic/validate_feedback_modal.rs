@@ -250,7 +250,7 @@ fn walk_view_checked(
             for branch in &cond.branches {
                 // @if loading 分支判定：@load 存在且条件引用 loading 信号。
                 let loading = in_loading
-                    || (component.load_intent.is_some() && expr_refs_loading(&branch.condition));
+                    || (!component.load_intent.is_empty() && expr_refs_loading(&branch.condition));
                 if let Some(body) = &branch.body {
                     walk_view_checked(component, body, in_for, loading, diagnostics);
                 }

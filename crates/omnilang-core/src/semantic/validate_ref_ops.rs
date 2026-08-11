@@ -783,7 +783,7 @@ mod tests {
     fn make_component() -> ComponentIR {
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             name: "Test".into(),
             refs: vec![RefDeclIR {
                 name: "box".into(),
@@ -1209,7 +1209,7 @@ mod tests {
     fn component_without_refs_is_a_noop() {
         let mut comp = ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             name: "NoRefs".into(),
             ..ComponentIR::default()
         };

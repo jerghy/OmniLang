@@ -60,9 +60,10 @@ impl Codegen for ReactCodegen {
         // shadowed by it (the router file is written last) → broken pair;
         // error out. A non-routed component named "app" is merely shadowed
         // → warning (router wins, per router.rs naming doc).
-        let has_routing = ir.all_components().values().any(|c| {
-            c.route_intent.is_some() || c.layout_intent.is_some()
-        });
+        let has_routing = ir
+            .all_components()
+            .values()
+            .any(|c| c.route_intent.is_some() || c.layout_intent.is_some());
         for (name, comp) in ir.all_components() {
             if has_routing
                 && name.eq_ignore_ascii_case("app")

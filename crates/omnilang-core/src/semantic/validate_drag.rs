@@ -127,7 +127,7 @@ mod tests {
     ) -> ComponentIR {
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -301,7 +301,7 @@ mod tests {
         // Give "move" two params — the pass reads arity from the fn IR.
         let comp = ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -340,7 +340,7 @@ mod tests {
     fn drag_inside_list_body_is_checked() {
         let comp = ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],

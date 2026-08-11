@@ -247,9 +247,9 @@ impl<'a> DesignCtx<'a> {
 /// iteration).
 pub(super) fn is_root_component(name: &str, ir: &IRProgram) -> bool {
     let all_names: Vec<&str> = ir.all_components().keys().copied().collect();
-    let route_root = ir.iter_all_components().find(|(_, c)| {
-        c.route_intent.as_ref().is_some_and(|r| r.path == "/")
-    });
+    let route_root = ir
+        .iter_all_components()
+        .find(|(_, c)| c.route_intent.as_ref().is_some_and(|r| r.path == "/"));
     if let Some((r, _)) = route_root {
         return name == r;
     }

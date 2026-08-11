@@ -150,7 +150,7 @@ mod tests {
             comp_name.to_string(),
             ComponentIR {
                 form_intent: None,
-                load_intent: None,
+                load_intent: vec![],
                 name: comp_name.to_string(),
                 props: FxHashMap::default(),
                 prop_defaults: FxHashMap::default(),

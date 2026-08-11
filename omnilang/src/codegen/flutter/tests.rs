@@ -505,7 +505,7 @@ fn test_stmt_if() {
 fn dummy_comp() -> ComponentIR {
     ComponentIR {
         form_intent: None,
-        load_intent: None,
+        load_intent: vec![],
         route_intent: None,
         layout_intent: None,
         query_params: vec![],
@@ -1876,7 +1876,7 @@ fn test_design_class_on_component_element_wraps_in_decoration() {
     let ir = design_test_program();
     let my_card = ComponentIR {
         form_intent: None,
-        load_intent: None,
+        load_intent: vec![],
         route_intent: None,
         layout_intent: None,
         query_params: vec![],
@@ -2016,7 +2016,7 @@ fn test_empty_component() {
         "App".into(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -2079,7 +2079,7 @@ fn test_component_with_state() {
         "Counter".into(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -2165,7 +2165,7 @@ fn test_component_with_props() {
         "Greeting".into(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -2222,7 +2222,7 @@ fn test_component_with_mount_lifecycle() {
         "App".into(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -2279,7 +2279,7 @@ fn test_component_with_unmount_lifecycle() {
         "App".into(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -2662,7 +2662,7 @@ fn test_motion_enter_controller_init() {
         "App".into(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -2964,7 +2964,7 @@ fn test_motion_inline_body_handling() {
         "App".into(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -4194,7 +4194,7 @@ fn test_motion_pipeline_warnings_and_playback() {
         "App".into(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -4377,7 +4377,7 @@ fn test_full_pipeline_component() {
     let codegen = FlutterCodegen;
     let comp = ComponentIR {
         form_intent: None,
-        load_intent: None,
+        load_intent: vec![],
         route_intent: None,
         layout_intent: None,
         query_params: vec![],
@@ -4488,7 +4488,7 @@ fn test_full_pipeline_component_with_store_ref() {
     };
     let comp = ComponentIR {
         form_intent: None,
-        load_intent: None,
+        load_intent: vec![],
         route_intent: None,
         layout_intent: None,
         query_params: vec![],
@@ -6205,7 +6205,7 @@ fn test_effect_emits_real_method_and_lifecycle_wiring() {
         "App".into(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -6328,7 +6328,7 @@ fn test_effect_unresolvable_dep_skips_dead_prev_fields() {
         "App".into(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -6407,7 +6407,7 @@ fn test_component_constructor_includes_class_name() {
         "Greeting".into(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -6515,7 +6515,7 @@ fn test_view_store_field_read_uses_ref_watch() {
         "FilterBar".into(),
         ComponentIR {
             form_intent: None,
-            load_intent: None,
+            load_intent: vec![],
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
@@ -8242,7 +8242,7 @@ fn ref_component(
 ) -> ComponentIR {
     ComponentIR {
         form_intent: None,
-        load_intent: None,
+        load_intent: vec![],
         route_intent: None,
         layout_intent: None,
         query_params: vec![],

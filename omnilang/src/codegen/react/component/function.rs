@@ -388,8 +388,8 @@ pub(super) fn collect_called_local_fns(comp: &ComponentIR) -> FxHashSet<String> 
             }
         }
     }
-    if let Some(load) = &comp.load_intent {
-        acc.insert(load.fn_name.clone());
+    for load in &comp.load_intent {
+        acc.insert(load.loader.fn_name().to_string());
     }
 
     // Transitive closure: scan bodies of called fns for calls to other local fns

@@ -413,7 +413,7 @@ impl OmniViewGenerator {
     /// above would silently skip them — leaving `@if loading` to lower to a
     /// bare `loading` identifier that throws ReferenceError at runtime.
     fn register_builtin_intent_names(&mut self, comp: &ComponentIR) {
-        if comp.load_intent.is_some() {
+        if !comp.load_intent.is_empty() {
             for (bare, kind) in [
                 ("loading", IntentReservedKind::Signal),
                 ("error", IntentReservedKind::Signal),
