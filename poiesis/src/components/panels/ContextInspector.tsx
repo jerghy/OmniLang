@@ -2,13 +2,12 @@
 // Context-sensitive right panel showing properties, styles, or events
 // based on the selected element type.
 
-import { useMemo } from "react";
 import { useSelectedElementIds, useElements } from "../../store/hooks";
 import styles from "./ContextInspector.module.css";
 import { PropsSection } from "./inspector/PropsSection";
 import { EventsSection } from "./inspector/EventsSection";
 import { BindingsSection } from "./inspector/BindingsSection";
-import { useHandlerItems } from "./inspector/useHandlerItems";
+import { useHandlerItems, BASIC_TAGS, useSignalItems } from "./inspector/shared";
 import { InlineStylePanel } from "./inspector/InlineStylePanel";
 import { ClassesSection } from "./inspector/ClassesSection";
 import { VariantBindingSection } from "./inspector/VariantBindingSection";
@@ -16,135 +15,6 @@ import { BranchConditionEditor } from "./inspector/BranchConditionEditor";
 import { ConditionalBlockEditor } from "./inspector/ConditionalBlockEditor";
 import { ForBlockEditor } from "./inspector/ForBlockEditor";
 import { usePoiesisStore } from "../../store";
-import type { SignalPickerItem } from "./inspector/SignalSlashPicker";
-
-/** HTML-like tags that get PropsSection + StylesSection */
-const BASIC_TAGS = new Set([
-  "div",
-  "span",
-  "button",
-  "input",
-  "p",
-  "h1",
-  "h2",
-  "h3",
-  "img",
-  "a",
-  "section",
-  "article",
-  "header",
-  "footer",
-  "nav",
-  "main",
-  "ul",
-  "ol",
-  "li",
-  "label",
-  "textarea",
-  "select",
-]);
-
-/** Compute available signal/computed/store items for the active component. */
-function useSignalItems(): SignalPickerItem[] {
-  const activeTabId = usePoiesisStore((s) => s.designPage.activeTabId);
-  const openTabs = usePoiesisStore((s) => s.designPage.openTabs);
-  const componentDefs = usePoiesisStore((s) => s.componentDefs);
-  const storeDefs = usePoiesisStore((s) => s.storeDefs);
-  const inlineStoreDefs = usePoiesisStore((s) => s.inlineStoreDefs);
-  const storeReferences = usePoiesisStore((s) => s.storeReferences);
-
-  return useMemo(() => {
-    const activeTab = activeTabId
-      ? openTabs.find((t) => t.id === activeTabId)
-      : undefined;
-    const compName = activeTab?.componentName;
-    if (!compName) return [];
-
-    const items: SignalPickerItem[] = [];
-    const compDef = componentDefs[compName];
-
-    // Component signals
-    if (compDef?.signals) {
-      for (const s of compDef.signals) {
-        items.push({
-          pid: s.pid,
-          name: s.name,
-          insertionText: s.name,
-          type: s.type,
-          category: "signals",
-        });
-      }
-    }
-
-    // Component computeds
-    if (compDef?.computeds) {
-      for (const c of compDef.computeds) {
-        items.push({
-          pid: c.pid,
-          name: c.name,
-          insertionText: c.name,
-          type: c.returnType,
-          category: "computeds",
-        });
-      }
-    }
-
-    // Store signals and getters referenced by this component
-    const refs = storeReferences[compName] ?? [];
-    for (const storeName of refs) {
-      const storeDef = storeDefs[storeName];
-      if (storeDef) {
-        for (const sig of storeDef.signals) {
-          items.push({
-            pid: sig.pid,
-            name: `${storeName}.${sig.name}`,
-            insertionText: `${storeName}.${sig.name}`,
-            type: sig.type,
-            category: "store-signals",
-          });
-        }
-        for (const getter of storeDef.getters) {
-          items.push({
-            pid: getter.pid,
-            name: `${storeName}.${getter.name}`,
-            insertionText: `${storeName}.${getter.name}`,
-            type: getter.returnType,
-            category: "store-getters",
-          });
-        }
-      }
-    }
-
-    // Inline store signals and getters
-    for (const [key, storeDef] of Object.entries(inlineStoreDefs)) {
-      // Inline stores are keyed as "ComponentName.StoreName"
-      if (!key.startsWith(compName + ".")) continue;
-
-      // Inline store signals can be accessed without prefix
-      for (const sig of storeDef.signals) {
-        items.push({
-          pid: sig.pid,
-          name: sig.name,
-          insertionText: sig.name,
-          type: sig.type,
-          category: "store-signals",
-        });
-      }
-      // Inline store getters can be accessed without prefix
-      for (const getter of storeDef.getters) {
-        items.push({
-          pid: getter.pid,
-          name: getter.name,
-          insertionText: getter.name,
-          type: getter.returnType,
-          category: "store-getters",
-        });
-      }
-    }
-
-    return items;
-  }, [activeTabId, openTabs, componentDefs, storeDefs, inlineStoreDefs, storeReferences]);
-}
 
 export function ContextInspector() {
   const selectedIds = useSelectedElementIds();

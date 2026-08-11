@@ -1,0 +1,65 @@
+/* poiesis/src/components/design/ContextPanel.module.css */
+.panel {
+  position: fixed;
+  width: 280px;
+  max-height: 420px;
+  display: flex;
+  flex-direction: column;
+  background: var(--ol-surface);
+  border: 1px solid var(--ol-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+  overflow: hidden;
+}
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--ol-border);
+  cursor: grab;
+  user-select: none;
+  background: var(--ol-gray-50);
+}
+.title { font-size: 12px; font-weight: 600; color: var(--ol-text-secondary); }
+.subNote { font-size: 11px; color: var(--ol-text-muted); }
+.tabs { display: flex; gap: 2px; }
+.tab {
+  font-size: 12px;
+  padding: 2px 8px;
+  border: none;
+  background: transparent;
+  color: var(--ol-text-secondary);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.tab:hover { background: var(--ol-gray-100); }
+.tabActive { background: var(--ol-color-primary-subtle); color: var(--ol-color-primary); font-weight: 600; }
+.body { overflow: auto; flex: 1; min-height: 0; }
+.stub {
+  position: fixed;
+  right: 16px;
+  top: 64px;
+  z-index: 30;
+  padding: 4px 12px;
+  font-size: 12px;
+  border: 1px solid var(--ol-border);
+  border-radius: 999px;
+  background: var(--ol-surface);
+  color: var(--ol-text-secondary);
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+}
+.stubEmpty {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 180px;
+  padding: 12px;
+  font-size: 12px;
+  color: var(--ol-text-muted);
+  background: var(--ol-surface);
+  border: 1px solid var(--ol-border);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}

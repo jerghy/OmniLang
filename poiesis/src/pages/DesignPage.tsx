@@ -33,6 +33,7 @@ import { emitStoreDefinition } from "../services/codegen/source-emitter";
 import { ComponentPalette } from "../components/panels/ComponentPalette";
 import { ComponentTree } from "../components/panels/ComponentTree";
 import { ContextInspector } from "../components/panels/ContextInspector";
+import { ContextPanel } from "../components/design/ContextPanel";
 import { LibMembersPanel } from "../components/code/LibMembersPanel";
 import { DesignToolbar } from "../components/design/DesignToolbar";
 import { usePoiesisStore } from "../store";
@@ -325,6 +326,8 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
               <LogicLayer visible={logicLayerVisible}>
                 <CodeFlowCanvas />
               </LogicLayer>
+              {/* 语境面板（T6）：浮动主/副面板 + 浮标，叠加在画布层之上 */}
+              <ContextPanel />
             </div>
           ) : activeTabType === "store" && activeTab ? (
             <StorePage storeName={activeTab.componentName} tabId={activeTab.id} />
