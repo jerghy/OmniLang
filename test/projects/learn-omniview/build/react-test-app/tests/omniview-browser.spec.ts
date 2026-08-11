@@ -81,7 +81,7 @@ test.describe('OmniView — 9 标签页全量验证', () => {
     test('01 - banner + capability grid render', async ({ page }) => {
       await switchToTab(page, 0);
       await visible(page, 'OmniLang Capability Showcase');
-      await visible(page, '102 源文件 · 4 主题 · 10 语义域 · 9 标签页');
+      await visible(page, '103 源文件 · 4 主题 · 10 语义域 · 9 标签页');
       for (const t of ['UI Components', 'Motion & Animation', 'Design & Theme', 'State & Signals', 'Language Features', 'Element Ref', 'Compiler Features', 'Design Tokens']) {
         await visible(page, t);
       }
@@ -519,5 +519,108 @@ test.describe('OmniView — 9 标签页全量验证', () => {
     test('44 - no console errors', async ({ page }) => {
       await expectNoErrors(page, 'tab8', () => switchToTab(page, 8));
     });
+  });
+});
+
+// ════════════════════════════════════════════════════════════════
+// Task 7.10 — 路由断言集（批次 2，spec §7 断言 1-10 × OmniView 目标）
+// OmniView 端：合成根 hash 路由（#/todos/42）。直接访问由静态服务器
+// index.html + hash 客户端路由接管。全部 tab 分支保留在 DOM（display:none
+// 切换）→ 断言必须 filter visible。守卫/懒加载/空路由兜底行为逐条记录：
+//   - R7 守卫：AdminConsole @route guard: isAdmin → false → 重定向 #/login
+//     （V14 注记：@route 路径与 @layout 前缀精确相等冲突——守卫页在
+//     /admin/console 而非 /admin，见 NavigationDemo.omni 头注）
+//   - R9 lazy：OmniView 动态 import 注记——无 Suspense fallback 语义，
+//     断言最终内容渲染（行为记录，不强断言 fallback）
+//   - R10 未注册路径：合成根兜底 __omni_routes[0] = "/"（首页）——
+//     行为记录：回退到 Main 而非空页面（与 React 空渲染有差异，W2 已警告）
+// ════════════════════════════════════════════════════════════════
+
+test.describe('Routing — 10 assertions × OmniView (hash router)', () => {
+  const H = (path: string) => `${BASE}/#${path}`;
+
+  test('R1 - default route "/" renders Main (Overview landing)', async ({ page }) => {
+    await page.goto(BASE, { timeout: 8000 });
+    await visible(page, 'OmniLang Capability Showcase');
+    await expect(page).toHaveURL(/#\/$/);
+  });
+
+  test('R2 - navigate() click switches route and syncs URL', async ({ page }) => {
+    await page.goto(H('/nav'), { timeout: 8000 });
+    await visible(page, '导航中心');
+
+    await clickBtn(page, '待办列表（@query 过滤）');
+    await expect(page).toHaveURL(/#\/todos$/);
+    await visible(page, '当前过滤: all');
+  });
+
+  test('R3 - direct access /todos/:id injects path param', async ({ page }) => {
+    await page.goto(H('/todos/42'), { timeout: 8000 });
+    await visible(page, '待办详情');
+    await visible(page, '待办 #42');
+  });
+
+  test('R4 - direct access ?filter=all injects query param + click updates URL query', async ({ page }) => {
+    await page.goto(H('/todos?filter=all'), { timeout: 8000 });
+    await visible(page, '当前过滤: all');
+
+    await clickBtn(page, '已完成');
+    await expect(page).toHaveURL(/#\/todos\?filter=done/);
+    await visible(page, '当前过滤: done');
+  });
+
+  test('R5 - back() button returns to previous route', async ({ page }) => {
+    await page.goto(H('/nav'), { timeout: 8000 });
+    await visible(page, '导航中心');
+
+    await clickBtn(page, '待办列表（@query 过滤）');
+    await visible(page, '当前过滤: all');
+
+    await clickBtn(page, '返回');
+    await expect(page).toHaveURL(/#\/nav$/);
+    await visible(page, '导航中心');
+  });
+
+  test('R6 - browser back returns to previous route', async ({ page }) => {
+    await page.goto(H('/nav'), { timeout: 8000 });
+    await visible(page, '导航中心');
+
+    await clickBtn(page, '待办列表（@query 过滤）');
+    await visible(page, '当前过滤: all');
+
+    await page.goBack();
+    await expect(page).toHaveURL(/#\/nav$/);
+    await visible(page, '导航中心');
+  });
+
+  test('R7 - guard redirects unauthorized access to /login', async ({ page }) => {
+    await page.goto(H('/admin/console'), { timeout: 8000 });
+    await expect(page).toHaveURL(/#\/login$/);
+    await visible(page, /未授权访问管理页/);
+    // 被守卫的内容不得渲染（filter visible：隐藏 tab 分支中的同名文本不计）
+    await expect(page.getByText('控制台（需授权）').filter({ visible: true })).toHaveCount(0);
+  });
+
+  test('R8 - nested @layout ShellRoute renders outlet inside layout', async ({ page }) => {
+    await page.goto(H('/admin/users'), { timeout: 8000 });
+    await visible(page, 'Admin 控制台');
+    await visible(page, '用户管理');
+    await visible(page, /AdminLayout 外壳内嵌页面/);
+  });
+
+  test('R9 - lazy: true route loads (dynamic-import note, content renders)', async ({ page }) => {
+    // OmniView 端 lazy 为动态 import 注记（无 Suspense fallback 语义）——
+    // 行为记录：最终内容渲染。
+    await page.goto(H('/heavy'), { timeout: 8000 });
+    await visible(page, '懒加载页面');
+  });
+
+  test('R10 - unregistered path falls back to "/" (behavior recorded)', async ({ page }) => {
+    // 行为记录：OmniView 合成根未命中兜底 __omni_routes[0] = "/"（Main）——
+    // 与 React 空渲染存在目标端差异（W2 已警告，行为由目标端决定）。
+    await page.goto(H('/does-not-exist'), { timeout: 8000 });
+    await page.waitForTimeout(400);
+    await expect(page).toHaveURL(/#\/does-not-exist/); // URL 保持原样
+    await visible(page, 'OmniLang Capability Showcase'); // 内容回退首页
   });
 });
