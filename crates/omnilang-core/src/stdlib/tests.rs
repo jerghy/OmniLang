@@ -987,3 +987,63 @@ fn test_optional_max_args_accepts_range() {
         "multi-arg console_log should be valid"
     );
 }
+
+// ── Task 5（批次 4）：std/timing 注册 ─────────────────
+
+/// Task 5（spec §2.5）：stdlib 注册表含 module "std/timing" 的
+/// debounce/throttle——import 形态 `from "std/timing"` 由 IR 层 strip 前缀后
+/// 按裸模块名 "timing" 解析（async_mod 同款先例；spec §5.2 锚点「stdlib 注册表」）。
+#[test]
+fn std_timing_module_registered() {
+    for name in ["debounce", "throttle"] {
+        let f = lookup("timing", name)
+            .unwrap_or_else(|| panic!("std/timing `{name}` 必须注册（module: \"timing\"）"));
+        assert_eq!(f.module, "timing");
+        assert_eq!((f.min_args, f.max_args), (2, Some(2)));
+        assert!(!f.is_async);
+        assert!(f.available_targets.contains(&Target::JavaScript));
+        assert!(f.available_targets.contains(&Target::Python));
+        assert!(f.available_targets.contains(&Target::Rust));
+    }
+}
+
+/// Task 5（spec §2.5）：debounce(doSearch, 300) → 函数类型（可作 @onInput
+/// 处理器）——语义层对 stdlib 调用按 Any 静默（imports 声明为 Unknown 符号，
+/// 见 collect.rs），注册后的真实消费链是 stdlib codegen 通道：注册表中
+/// debounce 命中 → 产出可调用表达式；未注册时为 None（落入普通调用，
+/// 生成 undefined 函数引用）。
+#[test]
+fn debounce_type_checked_as_callable_return() {
+    for target in &ALL_TARGETS {
+        let out = try_format_stdlib_call("debounce", &["doSearch".into(), "300".into()], *target)
+            .unwrap_or_else(|| panic!("debounce 未命中 stdlib 注册表（target {:?}）", target));
+        assert!(
+            !out.contains("compile_error"),
+            "debounce 不应产出编译错误诊断（target {:?}）: {out}",
+            target
+        );
+        // 产物必须是可调用表达式：含 fn 名
+        assert!(
+            out.contains("doSearch"),
+            "debounce 产物须含 fn 名（target {:?}）: {out}",
+            target
+        );
+    }
+    // JS 族（注册语义完整落地，含 ms）：防抖包装基于 setTimeout。仅断言
+    // ALL_TARGETS ∩ JS 族（TypeScript 不在 ALL_TARGETS——既有 stdlib 可用性
+    // 约定，TypeScript 目标经 try_format_stdlib_call 返回 None 落入普通调用）
+    for target in [
+        Target::JavaScript,
+        Target::React,
+        Target::Vue,
+        Target::OmniView,
+    ] {
+        let out = try_format_stdlib_call("debounce", &["doSearch".into(), "300".into()], target)
+            .expect("JS 族 debounce 必须命中注册表");
+        assert!(
+            out.contains("setTimeout") && out.contains("300"),
+            "JS 族 debounce 应产出 setTimeout 防抖包装（target {:?}）: {out}",
+            target
+        );
+    }
+}

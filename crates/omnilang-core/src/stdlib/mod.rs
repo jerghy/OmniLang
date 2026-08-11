@@ -18,6 +18,7 @@ mod math;
 mod regex;
 mod storage;
 mod string;
+mod timing;
 
 #[cfg(test)]
 mod tests;
@@ -69,6 +70,7 @@ pub fn registry() -> &'static [StdlibFn] {
         r.extend(datetime::register());
         r.extend(encode::register());
         r.extend(regex::register());
+        r.extend(timing::register());
         r
     })
 }

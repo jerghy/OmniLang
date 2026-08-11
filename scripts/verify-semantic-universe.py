@@ -161,6 +161,14 @@ LOAD_CONTRACT_FILE = os.path.join(
 DIRECTIVES_FILE = os.path.join(
     REPO_ROOT, "crates", "omnilang-core", "src", "parser", "view", "directives.rs"
 )
+# 2026-08-12 批次 4 Task 5（std/timing stdlib 注册）：stdlib 注册表锚点——
+# timing.rs 的 register() 登记 debounce/throttle。⚠️ 锚点按源码字面断言
+# `module: "timing"` 而非 `"std/timing"`：注册表存储裸模块名（"std/" 前缀由
+# IR 层 strip 后解析，async_mod 同款先例），"std/timing" 字面量仅存在于
+# 显示/错误串（如 validate_form_load.rs 的 V9 诊断）。
+TIMING_REGISTRY_FILE = os.path.join(
+    REPO_ROOT, "crates", "omnilang-core", "src", "stdlib", "timing.rs"
+)
 
 # ── universe section contract ─────────────────────────────────────────────
 # Domain titles must contain the expected keyword (in order 1..9).
@@ -1033,6 +1041,16 @@ def audit():
             for needle in ("paginated", "interval"):
                 if needle not in fn_match.group(0):
                     fail(f"数据深化: parse_load_directive 体内缺少模式词 '{needle}'（Task 2 锚点）")
+        # 2026-08-12 批次 4 Task 5 锚点（spec §5.2「stdlib 注册表」）：timing.rs 注册
+        # debounce/throttle——module 裸名 "timing" + 函数名源码字面量断言。
+        timing_registry_src = read_file(TIMING_REGISTRY_FILE)
+        for needle in (
+            'module: "timing"',
+            'name: "debounce"',
+            'name: "throttle"',
+        ):
+            if needle not in timing_registry_src:
+                fail(f"数据深化: stdlib 注册表缺失 '{needle}'（Task 5 锚点，timing.rs）")
     if wl13 is None:
         fail("数据深化: cannot cross-assert 已实现白名单 (extraction failed)")
     else:
