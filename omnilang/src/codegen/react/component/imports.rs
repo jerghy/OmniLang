@@ -233,9 +233,16 @@ impl ComponentImports {
                 // import is all that's needed.
                 w.emit("import React from 'react';");
             } else {
+                // 去重且保序（多个独立条件可 push 同名 hook——如 useState 由
+                // @form/@load 与批次 3 bp 响应式各自 push；重复 import 名是
+                // 语法错误）。保序：既有 snapshot 与「ReactNode 最后」的
+                // 断言依赖 push 顺序，sort 会破坏。
+                let mut hooks = self.hooks.clone();
+                let mut seen = std::collections::HashSet::new();
+                hooks.retain(|h| seen.insert(h.clone()));
                 w.emit_fmt(format_args!(
                     "import React, {{ {} }} from 'react';",
-                    self.hooks.join(", ")
+                    hooks.join(", ")
                 ));
             }
         }

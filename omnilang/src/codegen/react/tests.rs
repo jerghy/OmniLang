@@ -9619,3 +9619,104 @@ component Main {
         out
     );
 }
+
+// ── 批次 3 响应式：bp() → useMediaQuery / breakpoints.ts / @media 透传 ──
+
+#[test]
+fn bp_emits_use_media_query_hooks() {
+    let src = r#"
+        design D {
+            breakpoint sm: 640;
+            breakpoint md: 768;
+            breakpoint lg: 1024;
+        }
+        component App {
+            view {
+                @if (bp("md")) {
+                    <div class: DesktopLayout>Desktop</div>
+                } @else {
+                    <div class: MobileLayout>Mobile</div>
+                }
+            }
+        }
+    "#;
+    let out = compile_react_src(src);
+    assert!(
+        out.contains("const bp_768 = useMediaQuery('(min-width: 768px)');"),
+        "got: {out}"
+    );
+    assert!(
+        out.contains("const bp_640 = useMediaQuery('(min-width: 640px)');")
+            || out.contains("const bp_1024 = useMediaQuery('(min-width: 1024px)');")
+            || out.contains("const bp_768 = useMediaQuery('(min-width: 768px)');"),
+        "hoisted bp vars missing: {out}"
+    );
+}
+
+#[test]
+fn bp_hook_uses_local_ssr_safe_helper() {
+    let src = r#"
+        design D { breakpoint md: 768; }
+        component App {
+            view { @if (bp("md")) { <div>x</div> } }
+        }
+    "#;
+    let out = compile_react_src(src);
+    assert!(
+        out.contains("function useMediaQuery"),
+        "本地 helper 缺失: {out}"
+    );
+    assert!(out.contains("matchMedia"), "matchMedia 订阅缺失: {out}");
+    assert!(
+        out.contains("typeof window === 'undefined'"),
+        "SSR 缺省分支缺失: {out}"
+    );
+}
+
+#[test]
+fn design_emits_breakpoints_const_table() {
+    let src = r#"
+        design D {
+            breakpoint sm: 640;
+            breakpoint md: 768;
+            breakpoint lg: 1024;
+        }
+        component App { view { <div>x</div> } }
+    "#;
+    let result = compile_react_full(src);
+    assert!(result.success, "compile failed: {:?}", result.errors);
+    let bp_ts = result
+        .files
+        .get("__design/breakpoints.ts")
+        .expect("breakpoints.ts emitted")
+        .clone();
+    assert!(bp_ts.contains("export const BP = {"), "got: {bp_ts}");
+    assert!(
+        bp_ts.contains("sm: 640") && bp_ts.contains("md: 768") && bp_ts.contains("lg: 1024"),
+        "BP 值缺失: {bp_ts}"
+    );
+}
+
+#[test]
+fn media_block_passthrough_in_css() {
+    let src = r#"
+        component App {
+            style {
+                .card { padding: 16; }
+                @media (min-width: 768px) {
+                    .card { padding: 32; }
+                }
+                @media (prefers-color-scheme: dark) {
+                    .card { background: #111827; }
+                }
+            }
+            view { <div class: card>c</div> }
+        }
+    "#;
+    let out = compile_react_src(src);
+    assert!(out.contains("@media (min-width: 768px) {"), "got: {out}");
+    assert!(
+        out.contains("@media (prefers-color-scheme: dark) {"),
+        "got: {out}"
+    );
+}

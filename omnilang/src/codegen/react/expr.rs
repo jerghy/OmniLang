@@ -319,6 +319,17 @@ impl<'a> FormatExpr for ReactFormatExpr<'a> {
         if name == "back" && args.is_empty() {
             return Some("navigate(-1)".to_string());
         }
+        // bp("md") → `bp_768` hoisted useMediaQuery variable — the semantic
+        // layer (validate_breakpoints) already rewrote the argument to a
+        // numeric literal (batch 3, spec §2.2; three-target dispatch contract).
+        if name == "bp" {
+            if let Some(ExprIR::LiteralExpr { value }) = args.first() {
+                if let Some(n) = value.as_u64() {
+                    return Some(format!("bp_{n}"));
+                }
+            }
+            return None;
+        }
         if name != "navigate" || args.is_empty() {
             return None;
         }

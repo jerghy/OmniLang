@@ -297,6 +297,34 @@ impl ReactCodegen {
         let wrapped_prop_fns: FxHashSet<String> = view
             .map(|v| collect_wrapped_prop_fns(v, component_map, &fn_names))
             .unwrap_or_default();
+        // ── Task 6 (批次 3 响应式): bp("n") 断点值集合——hoisted useMediaQuery
+        // 变量（bp_{n}）。语义层 validate_breakpoints 已把参数改写为数字字面量；
+        // 视图与 computed 都是 bp 使用面（spec §2.2），两者都扫。空集合 =
+        // 组件无响应式条件，不注入任何 hook/helper。
+        let mut bp_values: Vec<u64> = Vec::new();
+        {
+            let mut collect = |e: &mut crate::ir::ExprIR| {
+                if let crate::ir::ExprIR::CallExpr { name, args } = e {
+                    if name == "bp" {
+                        if let Some(crate::ir::ExprIR::LiteralExpr { value }) = args.first() {
+                            if let Some(n) = value.as_u64() {
+                                if !bp_values.contains(&n) {
+                                    bp_values.push(n);
+                                }
+                            }
+                        }
+                    }
+                }
+            };
+            if let Some(view) = &comp.view {
+                let mut v = view.clone();
+                crate::ir::walk::walk_view_exprs_mut(&mut v, &mut collect);
+            }
+            for c in &comp.computeds {
+                let mut body = c.body.clone();
+                crate::ir::walk::walk_expr_mut(&mut body, &mut collect);
+            }
+        }
         let mut hooks: Vec<String> = Vec::new();
         // Task 4 (Phase 2 域 A): @form/@load 脚手架 emit useState/useCallback/
         // useEffect——formErrors/formSubmitting state、load useCallback +
@@ -343,6 +371,13 @@ impl ReactCodegen {
         // would be an unused import (eslint no-unused-vars).
         if !modal_refs.is_empty() {
             hooks.push("useLayoutEffect".to_string());
+        }
+        // 批次 3 响应式: bp() 组件依赖本地 useMediaQuery helper——helper 基于
+        // useState（初始 matchMedia 值）+ useEffect（change 订阅），两者
+        // 必须导入（否则 helper 内 hook 调用 undeclared, TS2304）。
+        if !bp_values.is_empty() {
+            hooks.push("useState".to_string());
+            hooks.push("useEffect".to_string());
         }
 
         // Ref declarations → useRef (user @refs + synthesized motion refs)
@@ -1093,6 +1128,35 @@ impl ReactCodegen {
         );
         router::gen_lazy_module_exports(&mut w, name, comp);
 
+        // ── Task 6 (批次 3 响应式): 本地 SSR-safe useMediaQuery helper ──
+        // React 组件模块零外部依赖（仅 React + CSS module import），hook 内联
+        // 自给（照 guard fns「组件函数前」注入先例）。SSR/无 matchMedia 环境
+        // 恒 false = 视口缺省分支（spec §4.2 SSR 注记）；change 订阅保持响应式。
+        if !bp_values.is_empty() {
+            w.emit("");
+            w.emit("// SSR-safe useMediaQuery — 无 matchMedia 环境恒 false（视口缺省分支）");
+            w.emit("function useMediaQuery(query) {");
+            w.indent();
+            w.emit("const [matches, setMatches] = useState(");
+            w.indent();
+            w.emit("typeof window === 'undefined' || typeof window.matchMedia !== 'function' ? false : window.matchMedia(query).matches,");
+            w.dedent();
+            w.emit(");");
+            w.emit("useEffect(() => {");
+            w.indent();
+            w.emit("if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;");
+            w.emit("const mql = window.matchMedia(query);");
+            w.emit("const onChange = (e) => setMatches(e.matches);");
+            w.emit("mql.addEventListener('change', onChange);");
+            w.emit("return () => mql.removeEventListener('change', onChange);");
+            w.dedent();
+            w.emit("}, [query]);");
+            w.emit("return matches;");
+            w.dedent();
+            w.emit("}");
+            w.emit("");
+        }
+
         // Component function signature
         if !has_props {
             w.emit_fmt(format_args!("export function {}() {{", name));
@@ -1190,6 +1254,16 @@ impl ReactCodegen {
         // useNavigate();`（React Router v7 数据路由形态，spec §4.2）。
         if has_navigation {
             w.emit("const navigate = useNavigate();");
+        }
+
+        // Task 6 (批次 3 响应式): bp() 断点条件 → hoisted useMediaQuery 变量
+        // `const bp_768 = useMediaQuery('(min-width: 768px)');`——表达式层
+        // 只引用 bp_{n} 变量，不重复调用 hook（hook 调用规则）。
+        for v in &bp_values {
+            w.emit_fmt(format_args!(
+                "const bp_{} = useMediaQuery('(min-width: {}px)');",
+                v, v
+            ));
         }
 
         // Design system hooks — called from the root component so the
@@ -1696,6 +1770,18 @@ impl ReactCodegen {
             w.emit("opacity: 1;");
             w.dedent();
             w.emit("}");
+            w.dedent();
+            w.emit("}");
+        }
+        // 批次 3 响应式 (spec §2.4): 用户级 @media 块 CSS 透传——条件原文 +
+        // 块内规则（复用 generate_css_style_block 单规则输出逻辑，与顶层
+        // styles 同源；@themes 生成的 prefers-color-scheme 在 design.css，
+        // 语法层 vs 输出层分离，互不冲突）。
+        for mb in &comp.media_blocks {
+            w.emit("");
+            w.emit_fmt(format_args!("@media {} {{", mb.condition));
+            w.indent();
+            crate::codegen::generate_css_style_block(&mut w, &mb.rules);
             w.dedent();
             w.emit("}");
         }
