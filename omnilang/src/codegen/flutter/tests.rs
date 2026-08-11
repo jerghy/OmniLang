@@ -12107,6 +12107,57 @@ component App {
     );
 }
 
+/// Task 8 fix round 1（Riverpod 3.0 布局期防线）：scroll @for 的
+/// itemBuilder 在 LAYOUT 期执行——item 体引用参数信号 `token` 时，读取
+/// 必须像 store 读取一样提升为 build 局部量（`ref.watch(tokenProvider)`
+/// 提升至 build 方法体），itemBuilder 闭包内不得出现 `ref.watch`
+/// （否则 Riverpod 3.0 抛 StateError）。
+#[test]
+fn flutter_scroll_item_builder_hoists_param_reads() {
+    let out = compile_flutter(
+        r#"
+component App {
+  signal token: String = "a";
+  fn fetchStats(token: String) -> Array<String> { }
+  view {
+    @load stats={fetchStats(token)}
+    @for item in statsData [scroll] { <div>{item}{token}</div> }
+  }
+}
+"#,
+    )
+    .expect("scroll + param fixture must compile");
+    let dart: String = out.files.values().cloned().collect::<Vec<_>>().join("\n");
+    // 参数读取被提升为 build 局部量（`__omniIter` 已占用 hoist 计数，故为
+    // `__omni1`），provider body 照常 watch 参数（变化自动重载）。
+    assert!(
+        dart.contains("fetchStats(ref.watch(tokenProvider))"),
+        "the provider body must watch the param signal, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("final __omni1 = ref.watch(tokenProvider);"),
+        "param read in the scroll item body must be hoisted to a build local, got:\n{}",
+        dart
+    );
+    let item_builder_pos = dart
+        .find("itemBuilder:")
+        .unwrap_or_else(|| panic!("must emit ListView.builder with itemBuilder: {}", dart));
+    let body_region = &dart[item_builder_pos..];
+    assert!(
+        !body_region.contains("ref.watch"),
+        "itemBuilder body must not contain ref.watch (layout-phase watch \
+         throws in Riverpod 3.0): {}",
+        dart
+    );
+    // item 体引用提升后的局部量，而非闭包内 watch。
+    assert!(
+        body_region.contains("__omni1"),
+        "item body must reference the hoisted param local: {}",
+        dart
+    );
+}
+
 /// Reset 渐进升级（P4/spec §2.1 注记）：组件含 Reset 用点 → 该实例升级
 /// AsyncNotifierProvider + 顶层 Notifier 类，Reset 以 setState(AsyncData(null))
 /// 实现（清空不重载，ref.invalidate ≠ Reset）；无 Reset 的组件维持

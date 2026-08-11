@@ -452,6 +452,12 @@ pub(crate) fn rewrite_stmt_store_accesses(
 /// which is callback-safe.
 pub(crate) struct ClosureHoister<'a> {
     store_provider_map: &'a FxHashMap<String, String>,
+    /// Task 8 fix round 1: param-signal reads (`@load fn(param)` args) map
+    /// to module-level `{param}Provider`s. In lazy contexts (scroll
+    /// itemBuilder) the bare identifier would otherwise format to
+    /// `ref.watch({p}Provider)` at layout time (Riverpod 3.0 StateError) —
+    /// hoisted the same way as store reads.
+    param_providers: &'a FxHashMap<String, String>,
     ir: &'a IRProgram,
     hoist_all: bool,
     /// Unique-name counter — threaded by the caller so names stay unique
@@ -462,12 +468,14 @@ pub(crate) struct ClosureHoister<'a> {
 impl<'a> ClosureHoister<'a> {
     pub(crate) fn new(
         store_provider_map: &'a FxHashMap<String, String>,
+        param_providers: &'a FxHashMap<String, String>,
         ir: &'a IRProgram,
         hoist_all: bool,
         next: &'a mut usize,
     ) -> Self {
         Self {
             store_provider_map,
+            param_providers,
             ir,
             hoist_all,
             next,
@@ -739,6 +747,36 @@ impl<'a> ClosureHoister<'a> {
                     map_ref_op_args(op, &mut f)
                 },
             },
+            // Task 8 fix round 1: param-signal identifiers (e.g. `token` in
+            // `@load stats={fetchStats(token)}` view args). They previously
+            // fell through to `leaf =>` and the ctx formatter emitted
+            // `ref.watch(tokenProvider)` inside lazy closures (scroll
+            // itemBuilder) — a layout-time watch that throws in Riverpod 3.0.
+            // Hoist them like store reads: the watch moves to a build local,
+            // the closure captures the local.
+            ExprIR::IdentifierExpr { name, .. } => {
+                if need_hoist {
+                    if let Some(provider) = self.param_providers.get(name) {
+                        return self.hoist_local(
+                            ExprIR::MethodCallExpr {
+                                object: Box::new(ExprIR::IdentifierExpr {
+                                    name: "ref".into(),
+                                    type_ann: None,
+                                }),
+                                method: "watch".into(),
+                                args: vec![ExprIR::IdentifierExpr {
+                                    name: provider.clone(),
+                                    type_ann: None,
+                                }],
+                                is_optional: false,
+                            },
+                            seen,
+                            locals,
+                        );
+                    }
+                }
+                expr.clone()
+            }
             leaf => leaf.clone(),
         }
     }

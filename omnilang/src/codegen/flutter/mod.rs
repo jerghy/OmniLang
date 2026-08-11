@@ -1365,7 +1365,18 @@ impl FlutterCodegen {
             // body, so the closure references them instead of a
             // `ref.watch` that could fire outside the build phase.
             let mut hoist_next = 0usize;
-            let mut hoister = ClosureHoister::new(&store_provider_map, ir, false, &mut hoist_next);
+            // Task 8 fix round 1: computed getters deliberately get an EMPTY
+            // param map — their bodies format param reads as `ref.read`
+            // (callback-safe), and a hoisted `ref.watch` at the top of a
+            // getter invoked from a scroll itemBuilder at layout would throw.
+            let empty_param_providers: FxHashMap<String, String> = FxHashMap::default();
+            let mut hoister = ClosureHoister::new(
+                &store_provider_map,
+                &empty_param_providers,
+                ir,
+                false,
+                &mut hoist_next,
+            );
             // Task 5.8a: re-annotate the computed expression from the
             // component's signals/computeds (same rationale as fn bodies —
             // the IR's type_ann is never populated). A typed Map signal's

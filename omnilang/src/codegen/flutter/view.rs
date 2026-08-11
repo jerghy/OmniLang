@@ -260,6 +260,7 @@ impl ViewContext<'_> {
         // carry the rewritten read expressions directly.
         let mut hoister = ClosureHoister::new(
             self.store_provider_map,
+            self.param_providers,
             self.ir,
             self.lazy_context,
             self.hoist_next,
