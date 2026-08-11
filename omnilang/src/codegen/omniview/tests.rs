@@ -4137,3 +4137,56 @@ fn test_omniview_no_route_regression() {
         js
     );
 }
+
+// ── 批次 3 响应式：bp() → matchMedia 内联 / @media 块 CSS 透传 ──
+
+/// Compile source and return the lowered IR program (success asserted).
+fn omniview_ir(src: &str) -> crate::ir::IRProgram {
+    let result = omnilang_core::compile(src);
+    assert!(result.success, "compile failed: {:?}", result.errors);
+    result.ir.expect("ir present")
+}
+
+#[test]
+fn bp_emits_inline_match_media() {
+    let src = r#"
+        design D { breakpoint md: 768; }
+        component App {
+            view {
+                @if (bp("md")) { <div>Desktop</div> } @else { <div>Mobile</div> }
+            }
+        }
+    "#;
+    let ir = omniview_ir(src);
+    let output = generate(&ir, false, false, false);
+    assert!(
+        output
+            .js
+            .contains("matchMedia('(min-width: 768px)').matches"),
+        "got: {}",
+        output.js
+    );
+}
+
+#[test]
+fn media_block_passthrough_in_css_output() {
+    let src = r#"
+        component App {
+            style {
+                .card { padding: 16; }
+                @media (min-width: 768px) {
+                    .card { padding: 32; }
+                }
+            }
+            view { <div class: card>c</div> }
+        }
+    "#;
+    let ir = omniview_ir(src);
+    let output = generate(&ir, false, false, false);
+    assert!(
+        output.css.contains("@media (min-width: 768px) {"),
+        "got: {}",
+        output.css
+    );
+    assert!(output.css.contains(".card {"), "got: {}", output.css);
+}

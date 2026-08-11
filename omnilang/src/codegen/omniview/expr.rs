@@ -169,6 +169,16 @@ impl OmniViewGenerator {
                 if name == "navigate" || name == "back" {
                     return self.translate_navigate_call(name, args);
                 }
+                // bp("md") → `matchMedia('(min-width: 768px)').matches` 内联
+                // 表达式（批次 3，spec §2.2/§4.2——浏览器原生 API 直通；参数
+                // 已被语义层改写为数字字面量，三目标分发契约）。
+                if name == "bp" {
+                    if let Some(ExprIR::LiteralExpr { value }) = args.first() {
+                        if let Some(n) = value.as_u64() {
+                            return format!("matchMedia('(min-width: {n}px)').matches");
+                        }
+                    }
+                }
                 let arg_strs: Vec<String> = args.iter().map(|a| self.expr_to_js(a)).collect();
                 if let Some(native) = try_format_stdlib_call(name, &arg_strs, Target::OmniView) {
                     return native;

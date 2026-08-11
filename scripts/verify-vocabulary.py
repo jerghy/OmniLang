@@ -89,6 +89,7 @@ REACT_COMPONENT_FILE = os.path.join(
     REPO_ROOT, "omnilang", "src", "codegen", "react", "component", "mod.rs"
 )
 FLUTTER_MOD_FILE = os.path.join(REPO_ROOT, "omnilang", "src", "codegen", "flutter", "mod.rs")
+FLUTTER_REF_FILE = os.path.join(REPO_ROOT, "omnilang", "src", "codegen", "flutter", "ref.rs")
 OMNIVIEW_EXPR_FILE = os.path.join(REPO_ROOT, "omnilang", "src", "codegen", "omniview", "expr.rs")
 
 # ── registry section contract ────────────────────────────────────────────
@@ -589,12 +590,12 @@ def audit():
         design_parser_src = read_file(DESIGN_PARSER_FILE)
         design_ir_src = read_file(DESIGN_IR_FILE)
         react_src = read_file(REACT_COMPONENT_FILE)
-        flutter_src = read_file(FLUTTER_MOD_FILE)
+        flutter_ref_src = read_file(FLUTTER_REF_FILE)
         omni_expr_src = read_file(OMNIVIEW_EXPR_FILE)
         for vocab_word, haystack, needles in (
             ("bp", analyse_src, ["validate_breakpoints"]),
             ("bp", react_src, ["useMediaQuery"]),
-            ("bp", flutter_src, ["MediaQuery.sizeOf"]),
+            ("bp", flutter_ref_src, ["MediaQuery.sizeOf"]),
             ("bp", omni_expr_src, ["matchMedia"]),
             ("breakpoint", design_parser_src, ["breakpoint"]),
             ("breakpoint", design_ir_src, ["breakpoints"]),

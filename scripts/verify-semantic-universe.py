@@ -147,6 +147,8 @@ STYLE_PARSER_FILE = os.path.join(
 # 深色模式生成物（@themes → 3-layer CSS）真实生成点：shared/design.rs 的
 # emit_design_css（react/component/mod.rs 仅 prefers-reduced-motion，无主题生成物）
 SHARED_DESIGN_FILE = os.path.join(REPO_ROOT, "omnilang", "src", "codegen", "shared", "design.rs")
+# MediaQuery.sizeOf 表达式分派在 flutter/ref.rs（mod.rs 是组件/样式输出层）
+FLUTTER_REF_FILE = os.path.join(REPO_ROOT, "omnilang", "src", "codegen", "flutter", "ref.rs")
 
 # ── universe section contract ─────────────────────────────────────────────
 # Domain titles must contain the expected keyword (in order 1..9).
@@ -911,11 +913,12 @@ def audit():
         lower_comp_src = read_file(LOWER_COMPONENT_FILE)
         react_src = read_file(REACT_COMPONENT_FILE)
         flutter_src = read_file(FLUTTER_MOD_FILE)
+        flutter_ref_src = read_file(FLUTTER_REF_FILE)
         omni_expr_src = read_file(OMNIVIEW_EXPR_FILE)
         for name, needles in (
             ("breakpoint 声明", [("breakpoint", design_parser_src), ("breakpoints", design_ir_src)]),
             ("bp() 条件", [("validate_breakpoints", analyse_src), ("useMediaQuery", react_src),
-                          ("MediaQuery.sizeOf", flutter_src), ("matchMedia", omni_expr_src)]),
+                          ("MediaQuery.sizeOf", flutter_ref_src), ("matchMedia", omni_expr_src)]),
             ("选择器诊断", [("validate_style_selectors", analyse_src), ("unsupported_selector", lower_comp_src)]),
             ("@media 块", [("AtMedia", style_parser_src), ("@media", react_src),
                           ("media_blocks", flutter_src)]),

@@ -683,6 +683,16 @@ impl OmniViewGenerator {
         for style in &comp.styles {
             self.emit_style(style);
         }
+        // 批次 3 响应式 (spec §2.4): 用户级 @media 块 CSS 透传——条件原文 +
+        // 块内规则（复用 emit_style 单规则输出，组件作用域与顶层 rules 一致；
+        // OmniView 运行时 CSS 直通，与 React 同通道）。
+        for mb in &comp.media_blocks {
+            let _ = writeln!(self.css, "@media {} {{", mb.condition);
+            for rule in &mb.rules {
+                self.emit_style(rule);
+            }
+            self.css.push_str("}\n\n");
+        }
 
         // Lifecycle hooks: @mount / @unmount
         if !comp.lifecycles.is_empty() {
