@@ -32,6 +32,12 @@ export function OmniViewElementTree({
     [output.element_tags],
   );
 
+  // nid → elementId (UUID) mapping for data-omni-el-id (port layer measurement)
+  const elIdMap = useMemo(() =>
+    output.nid_map instanceof Map ? output.nid_map : new Map(Object.entries(output.nid_map)),
+    [output.nid_map],
+  );
+
   if (output.element_tree.length === 0) {
     return (
       <div style={{
@@ -54,6 +60,8 @@ export function OmniViewElementTree({
           isSelected={node.nid === selectedNid}
           selectedNid={selectedNid}
           classMap={classMap}
+          elId={elIdMap.get(node.nid) ?? null}
+          elIdMap={elIdMap}
           onSelect={onSelectNid}
         />
       ))}

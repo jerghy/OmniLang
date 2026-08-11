@@ -9,6 +9,7 @@ import { useWasmCompile } from "./useWasmCompile";
 import { useDebugCompile } from "../../features/debug/useDebugCompile";
 import { useCssScopePool } from "./useCssScopePool";
 import { OmniViewElementTree } from "./OmniViewElementTree";
+import { ElementPortLayer } from "../canvas/ElementPortLayer";
 import styles from "./OmniViewRenderer.module.css";
 
 export function OmniViewRenderer() {
@@ -125,6 +126,10 @@ export function OmniViewRenderer() {
           空画布 — 从组件面板拖入元素
         </div>
       )}
+
+      {/* 元素端口层（视觉）：醒态元素右缘接口圆点，纯展示不拦截事件。
+          挂载契约：本容器（overflow:auto + padding:8 + position:relative）的 absolute 子节点 */}
+      <ElementPortLayer visible={!!output && errors.length === 0} />
     </div>
   );
 }

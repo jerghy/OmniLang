@@ -20,6 +20,10 @@ export interface OmniViewElementProps {
   classMap?: ReadonlyMap<string, string[]>;
   /** Passed from OmniViewElementTree for tag resolution. */
   tagMap?: ReadonlyMap<string, string>;
+  /** This element's design elementId (from nid_map) — rendered as data-omni-el-id for port measurement. */
+  elId?: string | null;
+  /** nid → elementId map, threaded for children recursion. */
+  elIdMap?: ReadonlyMap<string, string> | null;
   /**
    * When set, this element is a descendant of a custom component.
    * Click events select the ancestor component nid instead of this node's nid.
@@ -36,6 +40,8 @@ export const OmniViewElement = React.memo(function OmniViewElement({
   onSelect,
   classMap,
   tagMap,
+  elId,
+  elIdMap,
   parentComponentNid,
 }: OmniViewElementProps) {
   // Custom components are identified by a hyphen in the HTML tag
@@ -90,6 +96,7 @@ export const OmniViewElement = React.memo(function OmniViewElement({
     {
       key: node.nid,
       "data-nid": node.nid,
+      "data-omni-el-id": elId ?? undefined,
       className,
       style,
       ...clickHandlerProps,
@@ -105,6 +112,8 @@ export const OmniViewElement = React.memo(function OmniViewElement({
         selectedNid={selectedNid}
         classMap={classMap}
         tagMap={tagMap}
+        elId={elIdMap?.get(child.nid) ?? null}
+        elIdMap={elIdMap}
         onSelect={onSelect}
         parentComponentNid={componentNid}
       />
