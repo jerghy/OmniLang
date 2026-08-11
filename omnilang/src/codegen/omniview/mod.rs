@@ -362,7 +362,14 @@ pub fn generate(
     }
 
     // Generate each component (signals, fns). Only root component emits its view.
-    for (comp_name, comp) in ir.all_components() {
+    // Emission order: root FIRST — its #root wrapper must precede every hidden
+    // route container in the static DOM. Containers before #root break
+    // first-match selectors (`waitForSelector('button')` lands on a hidden
+    // NavHome button) — batch 2 Task 10 收口.
+    let mut emit_order: Vec<(&str, &ComponentIR)> =
+        ir.all_components().into_iter().collect();
+    emit_order.sort_by_key(|(n, _)| *n != root_name);
+    for (comp_name, comp) in emit_order {
         // SAFETY: element_tree_stack must be empty before each component.
         // A non-empty stack indicates a bug in the previous component's
         // element_to_html tree_push/tree_pop pairing.
