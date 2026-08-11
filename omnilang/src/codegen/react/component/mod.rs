@@ -1135,7 +1135,7 @@ impl ReactCodegen {
         if !bp_values.is_empty() {
             w.emit("");
             w.emit("// SSR-safe useMediaQuery — 无 matchMedia 环境恒 false（视口缺省分支）");
-            w.emit("function useMediaQuery(query) {");
+            w.emit("function useMediaQuery(query: string): boolean {");
             w.indent();
             w.emit("const [matches, setMatches] = useState(");
             w.indent();
@@ -1146,7 +1146,7 @@ impl ReactCodegen {
             w.indent();
             w.emit("if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;");
             w.emit("const mql = window.matchMedia(query);");
-            w.emit("const onChange = (e) => setMatches(e.matches);");
+            w.emit("const onChange = (e: MediaQueryListEvent) => setMatches(e.matches);");
             w.emit("mql.addEventListener('change', onChange);");
             w.emit("return () => mql.removeEventListener('change', onChange);");
             w.dedent();

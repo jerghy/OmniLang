@@ -9592,8 +9592,13 @@ component FilterPage {
 /// createBrowserRouter/RouterProvider），main.omni 自产 App 组件不受影响。
 #[test]
 fn react_no_route_no_router_file() {
+    // Route-less program → any component name is fine (no App.tsx router
+    // file). Note: with routing, "App" is reserved for the router entry
+    // (react/mod.rs Bug A defense, batch 2/Task 10); "main" is NOT
+    // reserved — the hand-written template lives at src/main.tsx while
+    // generated files land at the output root, so no collision.
     let source = r#"
-component Main {
+component PlainApp {
   view { <div>Plain</div> }
 }
 "#;
@@ -9614,7 +9619,7 @@ component Main {
         out
     );
     assert!(
-        out.contains("export function Main() {"),
+        out.contains("export function PlainApp() {"),
         "普通组件发射不受影响. Got:\n{}",
         out
     );

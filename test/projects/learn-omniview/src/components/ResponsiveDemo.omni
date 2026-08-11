@@ -15,28 +15,28 @@ import { LearnDesign } from "../design";
 component ResponsiveDemo {
     style {
         .card {
-            padding: 16;
-            border-radius: 8;
+            padding: "16px";
+            border-radius: "8px";
             background: var(--surfaceSubtle);
         }
         @media (min-width: 768px) {
             .card {
-                padding: 32;
-                border-radius: 12;
+                padding: "32px";
+                border-radius: "12px";
             }
         }
         .desktopLayout {
-            padding: 24;
+            padding: "24px";
             border: 1px solid var(--border);
         }
         .mobileLayout {
-            padding: 12;
+            padding: "12px";
             border: 1px dashed var(--border);
         }
     }
 
     view {
-        <div class: LearnDesign.Card card>
+        <div class: card>
             <h3>响应式布局演示（bp() / @media）</h3>
             <p>视口 ≥768px 显示桌面分支（bp("md") 为真）；否则显示移动分支。.card 内边距在 768px 以上由 @media 块增强（web 透传生效）。</p>
 

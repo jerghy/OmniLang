@@ -133,6 +133,14 @@ design LearnDesign {
         min-height: "100vh";
     }
 
+    // ── 导航 demo 页壳（批次 2 NavigationDemo C1-C8 各页共用） ──
+    class NavPage {
+        padding: token(spaceMd);
+        display: flex;
+        flex-direction: column;
+        gap: token(spaceSm);
+    }
+
     class Section {
         padding: "0 " token(spaceMd) " " token(spaceMd) " " token(spaceMd);
     }

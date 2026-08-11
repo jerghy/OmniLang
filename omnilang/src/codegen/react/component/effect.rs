@@ -787,6 +787,23 @@ impl<'a> EmittedRefCollector<'a> {
                 if self.local_fns.contains(name) {
                     self.push(name, reads, seen);
                 }
+                // Task 6 (批次 2 导航路由): `navigate(path)` emits the
+                // `useNavigate()` result — a hook const recreated per
+                // render, so a callback referencing it needs it in the dep
+                // array (eslint exhaustive-deps). `back()` emits
+                // `navigate(-1)` — no bare `back` identifier appears in the
+                // emitted body, so it is NOT a dependency.
+                else if name == "navigate" {
+                    self.push("navigate", reads, seen);
+                }
+                // Event-prop invocation: `onX(...)` emits `onX?.(...)`
+                // referencing the destructured event prop — a render-time
+                // value, so callbacks that call an event need it in the dep
+                // array (eslint exhaustive-deps). Signals/computeds are not
+                // callable in the DSL, so a reactive callee is an event.
+                else if self.reactive.contains(name) {
+                    self.push(name, reads, seen);
+                }
                 for arg in args {
                     self.walk_expr(arg, locals, reads, seen);
                 }

@@ -337,10 +337,18 @@ pub fn gen_theme_app_shell(ir: &IRProgram) -> Option<CompiledFile> {
         return None;
     }
 
-    // Root component: App → Main → last sorted (mirrors the React backend).
+    // Root component: the @route "/" carrier first (Task 10 — its container
+    // doubles as the "/" route page in routed programs), then App → Main →
+    // last sorted (mirrors the React backend).
     let all_components = ir.all_components();
+    let route_root: Option<String> = all_components
+        .iter()
+        .find(|(_, c)| c.route_intent.as_ref().is_some_and(|r| r.path == "/"))
+        .map(|(n, _)| n.to_string());
     let mut all_comp_names: Vec<&str> = all_components.keys().copied().collect();
-    let root_name = if all_comp_names.contains(&"App") {
+    let root_name = if let Some(r) = route_root {
+        r
+    } else if all_comp_names.contains(&"App") {
         "App".to_string()
     } else if all_comp_names.contains(&"Main") {
         "Main".to_string()
@@ -348,6 +356,15 @@ pub fn gen_theme_app_shell(ir: &IRProgram) -> Option<CompiledFile> {
         all_comp_names.sort_unstable();
         all_comp_names.last().map(|n| n.to_string())?
     };
+
+    // Task 10 merge (Bug B): when the program carries route/layout intent,
+    // the shell wires GoRouter — MaterialApp.router(routerConfig: router) —
+    // instead of `home:`, so @theme and @route coexist. Zero-regression:
+    // no route intent → the pre-v2 `home:` shell is unchanged.
+    let has_routing = ir
+        .all_components()
+        .values()
+        .any(|c| c.route_intent.is_some() || c.layout_intent.is_some());
     let root = all_components.get(root_name.as_str())?;
     // Const-instance when the root takes no props/slots, so the generated
     // shell stays lint-clean (`prefer_const_constructors`).
@@ -391,8 +408,22 @@ pub fn gen_theme_app_shell(ir: &IRProgram) -> Option<CompiledFile> {
     w.emit("import 'package:flutter/material.dart';");
     w.emit("import 'package:flutter_riverpod/flutter_riverpod.dart';");
     w.emit("");
-    w.emit_fmt(format_args!("import '{}.dart';", root_name));
+    // component_file_name: root component named `main` → `MainRoot.dart`
+    // (case-insensitive-fs collision guard, batch 2 Task 10).
+    // Task 10 merge (Bug B): with routing, GoRouter owns the page tree and
+    // router.dart references the root — importing it here would be an
+    // unused_import (dart analyze fatal-infos). Import only for the
+    // `home:` shell (no route/layout intent).
+    if !has_routing {
+        w.emit_fmt(format_args!(
+            "import '{}.dart';",
+            super::component_file_name(root_name.as_str())
+        ));
+    }
     w.emit("import 'design.dart';");
+    if has_routing {
+        w.emit("import 'router.dart';");
+    }
     w.emit("");
     w.emit("void main() {");
     w.indent();
@@ -407,7 +438,14 @@ pub fn gen_theme_app_shell(ir: &IRProgram) -> Option<CompiledFile> {
     w.emit("@override");
     w.emit("Widget build(BuildContext context, WidgetRef ref) {");
     w.indent();
-    w.emit("return MaterialApp(");
+    if has_routing {
+        // GoRouter owns the page tree: `routerConfig:` only exists on
+        // MaterialApp.router — `MaterialApp(` + `routerConfig:` is invalid
+        // Dart (batch 2, Task 10 codegen integration bug).
+        w.emit("return MaterialApp.router(");
+    } else {
+        w.emit("return MaterialApp(");
+    }
     w.indent();
     if multi_theme {
         w.emit("theme: ref.watch(themeDataProvider),");
@@ -418,22 +456,30 @@ pub fn gen_theme_app_shell(ir: &IRProgram) -> Option<CompiledFile> {
             w.emit_fmt(format_args!("darkTheme: {}(),", dark_builder));
         }
     }
-    // Task 3.9: the root gets a Scaffold + SafeArea shell — status-bar /
-    // display-notch insets are honored (SafeArea) and the root component
-    // renders on a Material background (ink effects, Material text style).
-    // The F1 component-root Material (input-bearing components) nests
-    // inside without conflict — Flutter allows arbitrary Material nesting.
-    w.emit("home: Scaffold(");
-    w.indent();
-    w.emit("body: SafeArea(");
-    w.indent();
-    w.emit_fmt(format_args!("child: {},", home));
-    w.dedent();
-    w.emit("),");
-    w.dedent();
-    w.emit("),");
-    w.dedent();
-    w.emit(");");
+    if has_routing {
+        // Task 10 merge: GoRouter owns the page tree — MaterialApp.router
+        // with the theme wiring preserved (Bug B fix).
+        w.emit("routerConfig: router,");
+        w.dedent();
+        w.emit(");");
+    } else {
+        // Task 3.9: the root gets a Scaffold + SafeArea shell — status-bar /
+        // display-notch insets are honored (SafeArea) and the root component
+        // renders on a Material background (ink effects, Material text style).
+        // The F1 component-root Material (input-bearing components) nests
+        // inside without conflict — Flutter allows arbitrary Material nesting.
+        w.emit("home: Scaffold(");
+        w.indent();
+        w.emit("body: SafeArea(");
+        w.indent();
+        w.emit_fmt(format_args!("child: {},", home));
+        w.dedent();
+        w.emit("),");
+        w.dedent();
+        w.emit("),");
+        w.dedent();
+        w.emit(");");
+    }
     w.dedent();
     w.emit("}");
     w.dedent();

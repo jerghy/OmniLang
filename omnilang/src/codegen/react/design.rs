@@ -241,10 +241,18 @@ impl<'a> DesignCtx<'a> {
 
 /// Whether a component is the app root — the component that mounts the
 /// design system runtime (dynamic token effects, theme subscription).
-/// Preference: `App`, else `Main`, else the last-sorted component name
-/// (deterministic across hash-map iteration).
+/// Preference: the @route "/" carrier (Task 10 — routed programs mount
+/// the design runtime on the root route page), else `App`, else `Main`,
+/// else the last-sorted component name (deterministic across hash-map
+/// iteration).
 pub(super) fn is_root_component(name: &str, ir: &IRProgram) -> bool {
     let all_names: Vec<&str> = ir.all_components().keys().copied().collect();
+    let route_root = ir.iter_all_components().find(|(_, c)| {
+        c.route_intent.as_ref().is_some_and(|r| r.path == "/")
+    });
+    if let Some((r, _)) = route_root {
+        return name == r;
+    }
     if all_names.contains(&"App") {
         return name == "App";
     }

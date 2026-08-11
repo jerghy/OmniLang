@@ -1466,14 +1466,16 @@ fn handle_channel_style(
                 _ => {
                     // Mapped CSS property with no Flutter parameter
                     // (letterSpacing, transform handled above, ...) — the
-                    // old code silently dropped these; surface a compile
-                    // error instead.
-                    ctx.error_at(
+                    // old code silently dropped these; honest degradation
+                    // (ADR-054): surface a warning instead of failing the
+                    // build, the style entry is not emitted.
+                    ctx.warn_at(
                         format!(
-                            "[flutter] dynamic style property '{}' on a @ref'd element cannot \
-                             map to any Flutter widget parameter; only width/height, \
+                            "[flutter] dynamic style property '{}' on a @ref'd element has no \
+                             Flutter widget parameter mapping (only width/height, \
                              padding/margin, color/background-color, and the \
-                             translate(xpx, ypx) transform shape are supported",
+                             translate(xpx, ypx) transform shape are supported); \
+                             the style entry was not emitted",
                             entry.prop
                         ),
                         el.source_span,
