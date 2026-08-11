@@ -1047,3 +1047,36 @@ fn debounce_type_checked_as_callable_return() {
         );
     }
 }
+
+/// Task 7 fix round 1（批次 4 Task 5 minor-1 拍板 P6「trailing-only 默认」）：
+/// throttle 必须尾沿节流——窗口内至多一次、取窗口内最后一次调用（与
+/// debounce 同款延迟触发，绝非首沿 Date.now 形态）。首沿形态会被固定
+/// 间隔吞掉高频调用（如 onInput 只剩首个字符），与「最后一次触发」语义
+/// 相悖，故以 setTimeout 形态断言锁死。
+#[test]
+fn throttle_trailing_only_codegen() {
+    for target in [
+        Target::JavaScript,
+        Target::React,
+        Target::Vue,
+        Target::OmniView,
+    ] {
+        let out = try_format_stdlib_call("throttle", &["doSearch".into(), "300".into()], target)
+            .expect("JS 族 throttle 必须命中注册表");
+        assert!(
+            out.contains("setTimeout") && out.contains("300"),
+            "JS 族 throttle 应产出 setTimeout 尾沿节流包装（target {:?}）: {out}",
+            target
+        );
+        assert!(
+            !out.contains("Date.now"),
+            "throttle 不得为首沿 Date.now 形态（P6 trailing-only，target {:?}）: {out}",
+            target
+        );
+        assert!(
+            out.contains("_args"),
+            "尾沿节流必须以窗口内最后一次调用的参数触发（target {:?}）: {out}",
+            target
+        );
+    }
+}

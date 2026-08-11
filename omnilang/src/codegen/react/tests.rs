@@ -8983,8 +8983,8 @@ component App {
     );
     assert_eq!(
         out.matches("setHistoryData(").count(),
-        2,
-        "setHistoryData 只允许出现在初载成功与追加成功两处——catch 不得触碰数据. Got:\n{}",
+        3,
+        "setHistoryData 三处 = 初载成功/追加成功/V12 降级保留数据——catch 不得触碰数据，V12 分支先 append 再 return（与初载分支行为一致，绝不丢数据）. Got:\n{}",
         out
     );
     assert_eq!(
@@ -9055,6 +9055,33 @@ component App {
     assert!(
         out.contains("ref={historyScrollSentinelRef}"),
         "哨兵必须挂到列表末项后. Got:\n{}",
+        out
+    );
+    // fix round 1 (Critical 1): observer deps 必须含 Data 派生项——
+    // mount 时序（初载前 Data=null → @for 空分支）下哨兵先挂空分支，
+    // Data 变化后 effect 重跑并以新守卫值重建观察者（光靠 LoadMore
+    // 引用切换在「空态哨兵卸载后 LoadMore 身份不变」时漏 attach）。
+    assert!(
+        out.contains("}, [historyLoadMore, historyData]);"),
+        "observer effect deps 必须含 Data 派生项（mount 时序锁定）. Got:\n{}",
+        out
+    );
+    // fix round 1 (Minor 4): 哨兵双处——空分支（无条件）与列表末项后
+    // （_i === length - 1）——page 1 返回 items=[] && hasMore=true 时
+    // 空态滚动不停滞。
+    assert_eq!(
+        out.matches("ref={historyScrollSentinelRef}").count(),
+        2,
+        "哨兵必须同时出现在空分支与列表末项后（空列表滚动不停滞）. Got:\n{}",
+        out
+    );
+    // 空分支（无 @empty 内容时）也必须仍发射哨兵 div——输出带缩进
+    // 换行，故去空白后断言标签邻接形态。
+    let normalized = out.replace(' ', "").replace('\n', "");
+    assert!(
+        normalized
+            .contains("<React.Fragment><divref={historyScrollSentinelRef}/></React.Fragment>"),
+        "空分支（无 @empty 内容时）必须仍发射哨兵 div. Got:\n{}",
         out
     );
 }
@@ -9167,6 +9194,31 @@ component App {
     assert!(
         out.contains("setHistoryHasMore(false);"),
         "缺 hasMore 必须按 hasMore=false 处理（停止加载更多）. Got:\n{}",
+        out
+    );
+    // fix round 1 (Important 3): V12 分支必须双通道暴露——除 console.warn
+    // 外 {name}Error 也置错（诚实降级，绝不静默；成功分支清错）。
+    assert!(
+        out.contains("setHistoryError(\"分页数据缺少 hasMore 字段"),
+        "V12 初载分支必须置 historyError. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("setHistoryError(\"\")"),
+        "信封合法（成功）分支必须清 historyError. Got:\n{}",
+        out
+    );
+    // fix round 1 (Important 3): LoadMore V12 分支同样置错 + 保留本次
+    // 取回数据（append 后再 return，页码不推进）——绝不丢数据。
+    assert!(
+        out.contains("...(r.items ?? [])"),
+        "LoadMore V12 分支必须 append 保留本次取回数据（与初载分支一致）. Got:\n{}",
+        out
+    );
+    assert_eq!(
+        out.matches("setHistoryPage(").count(),
+        1,
+        "V12 分支不得推进页码（页码只在成功分支 +1）. Got:\n{}",
         out
     );
 }

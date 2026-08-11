@@ -56,8 +56,10 @@ pub(super) fn codegen_debounce(args: &[String], target: Target) -> String {
     }
 }
 
-/// throttle(fn, ms) → 节流后的可调用函数（leading-edge 语义：距上次触发
-/// ≥ ms 才放行）。JS 族为自包含 Date.now 包装；其余族占位同上。
+/// throttle(fn, ms) → 节流后的可调用函数（trailing-only 语义：窗口内
+/// 至多触发一次，且取窗口内最后一次调用——批次 4 Task 5 minor-1 拍板
+/// P6「trailing-only 默认」）。JS 族为自包含 setTimeout 包装（窗口首调
+/// 起计时，窗口尾以最新参数触发一次）；其余族占位同上。
 pub(super) fn codegen_throttle(args: &[String], target: Target) -> String {
     let fn_expr = &args[0];
     let ms = &args[1];
@@ -68,7 +70,7 @@ pub(super) fn codegen_throttle(args: &[String], target: Target) -> String {
         | Target::Vue
         | Target::OmniView => {
             format!(
-                "((_fn, _ms) => {{ let _l = 0; return (..._a) => {{ const _n = Date.now(); if (_n - _l >= _ms) {{ _l = _n; _fn(..._a); }} }}; }})({fn_expr}, {ms})"
+                "((_fn, _ms) => {{ let _t; let _args; return (..._a) => {{ _args = _a; if (_t === undefined) {{ _t = setTimeout(() => {{ _t = undefined; _fn(..._args); }}, _ms); }} }}; }})({fn_expr}, {ms})"
             )
         }
         // 占位：保持可调用形态（透传调用，ms 暂未参与语义——Task 7/9/11 映射）

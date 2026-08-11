@@ -1755,7 +1755,42 @@ pub(super) fn gen_view_node_tsx(
                     iterable_str
                 ));
                 w.indent();
-                if let Some(ref empty_body) = list.empty_body {
+                if let Some(sentinel_ref) = &scroll_iterable {
+                    // Task 7 fix (批次 4 数据能力): scroll 模式空态同样发射
+                    // 哨兵——初载前 Data=null 或 page 1 返回 items=[] 且
+                    // hasMore=true 时，空分支无 `_i` 索引（map 内哨兵不可
+                    // 达），缺哨兵则滚动停滞（observer 永无可观察元素）。
+                    // 空态内容与哨兵同置 fragment（fragment 内为
+                    // JSX-children 位置）。
+                    w.emit("<React.Fragment>");
+                    w.indent();
+                    if let Some(ref empty_body) = list.empty_body {
+                        gen_branch_body_tsx(
+                            w,
+                            empty_body,
+                            comp,
+                            component_map,
+                            design_ctx,
+                            signal_names,
+                            store_signal_owners,
+                            motion_names,
+                            ref_names,
+                            store_field_renames,
+                            pruned_signal_names,
+                            possibly_undefined,
+                            direct_write_signals,
+                            direct_write_applies,
+                            motion_counter,
+                            prop_fn_ctx,
+                            warnings,
+                            // fragment 内是 JSX-children 位置
+                            true,
+                        );
+                    }
+                    w.emit_fmt(format_args!("<div ref={{{sentinel_ref}}} />"));
+                    w.dedent();
+                    w.emit("</React.Fragment>");
+                } else if let Some(ref empty_body) = list.empty_body {
                     gen_branch_body_tsx(
                         w,
                         empty_body,

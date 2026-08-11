@@ -1631,15 +1631,21 @@ impl ReactCodegen {
                     }
                 }
             };
+            // Task 7 (批次 4 数据能力): V12 信封校验消息——console.warn +
+            // {name}Error 双通道暴露（诚实降级，绝不静默）；初载与 LoadMore
+            // 共用（消息一致便于断言/排查）。
+            let v12_msg = "分页数据缺少 hasMore 字段——按 hasMore=false 处理（停止加载更多）";
             if load.mode.paginated {
                 // Task 7 (批次 4 数据能力): V12 信封校验（诚实降级，绝不
                 // 静默）——响应缺 hasMore 按 hasMore=false 处理并
-                // console.warn（停止加载更多）；数据经 items 解包入
-                // {name}Data。
+                // console.warn + {name}Error 置错（双通道暴露）；数据经
+                // items 解包入 {name}Data（V12 分支同样保留取回数据）。
                 w.emit_fmt(format_args!(
-                    "{call}.then((r) => {{ if (typeof r.hasMore !== 'boolean') {{ console.warn(\"分页数据缺少 hasMore 字段——按 hasMore=false 处理（停止加载更多）\"); {}(false); }} else {{ {}(r.hasMore); }} {}(r.items ?? []); {}(false); }}).catch((e) => {{ {}(String(e)); {}(false); }});",
+                    "{call}.then((r) => {{ if (typeof r.hasMore !== 'boolean') {{ console.warn(\"{v12_msg}\"); {}(false); {}(\"{v12_msg}\"); }} else {{ {}(r.hasMore); {}(\"\"); }} {}(r.items ?? []); {}(false); }}).catch((e) => {{ {}(String(e)); {}(false); }});",
                     setter("HasMore"),
+                    setter("Error"),
                     setter("HasMore"),
+                    setter("Error"),
                     setter("Data"),
                     setter("Loading"),
                     setter("Error"),
@@ -1709,8 +1715,10 @@ impl ReactCodegen {
                     }
                 };
                 w.emit_fmt(format_args!(
-                    "{load_more_call}.then((r) => {{ if (typeof r.hasMore !== 'boolean') {{ console.warn(\"分页数据缺少 hasMore 字段——按 hasMore=false 处理（停止加载更多）\"); {}(false); {}(false); return; }} {}((p) => p + 1); {}((prev) => [...(prev ?? []), ...r.items]); {}(r.hasMore); {}(false); }}).catch((e) => {{ {}(String(e)); {}(false); }});",
+                    "{load_more_call}.then((r) => {{ if (typeof r.hasMore !== 'boolean') {{ console.warn(\"{v12_msg}\"); {}(false); {}((prev) => [...(prev ?? []), ...(r.items ?? [])]); {}(\"{v12_msg}\"); {}(false); return; }} {}((p) => p + 1); {}((prev) => [...(prev ?? []), ...r.items]); {}(r.hasMore); {}(false); }}).catch((e) => {{ {}(String(e)); {}(false); }});",
                     setter("HasMore"),
+                    setter("Data"),
+                    setter("Error"),
                     setter("LoadingMore"),
                     setter("Page"),
                     setter("Data"),
@@ -1738,9 +1746,11 @@ impl ReactCodegen {
             // Task 7 (批次 4 数据能力): 无限滚动哨兵观察（spec §2.3）——
             // 最后一项哨兵 div 进入视口触发 LoadMore；双守卫
             // LoadingMore || !HasMore 时不触发（哨兵复用防抖）；
-            // 卸载 disconnect。deps [LoadMore]——LoadMore 在页码推进后
-            // 换引用，观察者以新守卫值重建（[] 会让闭包持 stale 守卫值，
-            // hasMore=true 时无限自动加载）。
+            // 卸载 disconnect。deps [LoadMore, Data]——Data 进 deps 锁
+            // mount 时序：初载前 Data=null → @for 空分支 → 哨兵可能未挂载
+            // 或先挂空分支哨兵；Data 变化（初载/追加）后 effect 重跑并以
+            // 新守卫值重建观察者（光靠 LoadMore 引用切换会在「空态哨兵被
+            // 卸载后 LoadMore 身份不变」时漏 attach，滚动停滞）。
             if load.mode.scroll {
                 let sentinel_ref = format!("{}ScrollSentinelRef", p);
                 w.emit_fmt(format_args!(
@@ -1768,7 +1778,7 @@ impl ReactCodegen {
                 w.emit("}");
                 w.emit("return () => observer.disconnect();");
                 w.dedent();
-                w.emit_fmt(format_args!("}}, [{}]);", sig("LoadMore")));
+                w.emit_fmt(format_args!("}}, [{}, {}]);", sig("LoadMore"), sig("Data")));
             }
             // Reset（spec §4.1/P5）: 三态置初值不重载——引用门控发射
             let reset_cb = sig("Reset");
