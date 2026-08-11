@@ -160,6 +160,7 @@ mod tests {
                     slots: vec![],
                     view: None,
                     styles: vec![],
+                    media_blocks: vec![],
                     route_decls: vec![],
                     layout: None,
                     queries: vec![],

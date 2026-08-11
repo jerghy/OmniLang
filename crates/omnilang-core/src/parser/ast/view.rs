@@ -54,6 +54,11 @@ pub struct ComponentDef {
     /// Component-level query-parameter declarations (`@query name: Type = default`).
     #[serde(default)]
     pub queries: Vec<QueryDecl>,
+    /// User-level `@media (condition) { ... }` blocks in the style block
+    /// (batch 3, spec 2026-08-09 §2.4) — condition text is passthrough,
+    /// parsed with paren pairing and kept verbatim.
+    #[serde(default)]
+    pub media_blocks: Vec<MediaBlock>,
     pub span: Span,
 }
 
@@ -388,6 +393,38 @@ pub struct StyleRule {
     pub class_name: String,
     pub properties: Vec<(String, StyleValue)>,
     pub is_tag_selector: bool,
+    /// When the selector contains parts the parser cannot represent (sibling
+    /// `+`/`~`, child `>`, attribute `[attr]`, parameterized pseudo-classes,
+    /// pseudo-elements, selector lists), the rule is silently truncated at the
+    /// first unsupported token — this records what was skipped so the semantic
+    /// layer can emit the W-301 warning (honest degradation, ADR-054) instead
+    /// of silently dropping the selector part. `None` = fully supported.
+    #[serde(default)]
+    pub unsupported_selector: Option<UnsupportedSelector>,
+}
+
+/// Record of a selector part skipped by the parser (batch 3, spec 2026-08-09 §2.3).
+/// The semantic-layer `validate_style_selectors` pass turns this into the
+/// W-301 warning with the full selector text, the skip point, and the category.
+#[derive(Debug, Clone, Serialize)]
+pub struct UnsupportedSelector {
+    /// Full selector text (class name + skipped part), e.g. `input:checked +span`.
+    pub text: String,
+    /// Span of the first skipped token (rule anchor for the warning).
+    pub span: Span,
+    /// Category word: 兄弟选择器 / 子选择器 / 属性选择器 / 选择器列表 / 带参伪类.
+    pub category: String,
+}
+
+/// User-level `@media (condition) { rules }` block in a style block
+/// (batch 3, spec 2026-08-09 §2.4). The condition text is passthrough —
+/// the compiler does not parse its inner structure.
+#[derive(Debug, Clone, Serialize)]
+pub struct MediaBlock {
+    /// Raw condition text including the outer parens: `(min-width: 768px)`.
+    pub condition: String,
+    /// Rules inside the block (same syntax as top-level style rules).
+    pub rules: Vec<StyleRule>,
 }
 
 #[derive(Debug, Clone, Serialize)]

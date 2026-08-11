@@ -73,121 +73,296 @@ impl<'a> Parser<'a> {
 
     /// Parse style rules from `style { .class1 { ... } .class2 { ... } }` block.
     /// Returns a list of StyleRule — one per CSS class rule.
-    pub fn parse_style_rules(&mut self) -> Result<Vec<StyleRule>, ParseError> {
+    pub fn parse_style_block(&mut self) -> Result<(Vec<StyleRule>, Vec<MediaBlock>), ParseError> {
         self.enter_recursion()?;
         self.advance(); // 'style'
         self.expect_token(TokenKind::LBrace, "expected '{' after 'style'")?;
 
         let mut rules = Vec::new();
+        let mut media_blocks = Vec::new();
         while *self.peek_kind() != TokenKind::RBrace && *self.peek_kind() != TokenKind::Eof {
-            // Each rule: .className { prop: value; ... }
-            // or: tag { prop: value; ... }
-            let is_tag_selector = *self.peek_kind() != TokenKind::Dot;
-            if *self.peek_kind() == TokenKind::Dot {
-                self.advance(); // consume '.'
+            // User-level @media blocks (batch 3, spec 2026-08-09 §2.4) — the
+            // condition text is passthrough (paren-paired, kept verbatim).
+            if *self.peek_kind() == TokenKind::AtMedia {
+                media_blocks.push(self.parse_media_block()?);
+                continue;
             }
-            let mut class_name = self.expect_ident("expected class name")?;
-            // Handle hyphenated class names: .app-shell, .btn-add, etc.
+            // @container is a documented low-priority candidate — hard error
+            // E-404 with guidance (never silent, ADR-054).
+            if *self.peek_kind() == TokenKind::AtContainer {
+                return Err(ParseError {
+                    kind: None,
+                    message: "不支持的 at-rule @container——容器查询为低优先候选（语义级未实施），响应式意图请用 bp() 或 @media 表达".to_string(),
+                    span: self.tokens[self.pos].span,
+                });
+            }
+            rules.push(self.parse_single_style_rule()?);
+        }
+
+        self.expect_token(TokenKind::RBrace, "expected '}'")?;
+        self.leave_recursion();
+        Ok((rules, media_blocks))
+    }
+
+    /// Parse a single style rule: `.className { prop: value; ... }` or
+    /// `tag { ... }`. Extracted from parse_style_block so @media blocks can
+    /// reuse the same rule grammar (batch 3, spec 2026-08-09 §2.4).
+    fn parse_single_style_rule(&mut self) -> Result<StyleRule, ParseError> {
+        // Each rule: .className { prop: value; ... }
+        // or: tag { prop: value; ... }
+        let is_tag_selector = *self.peek_kind() != TokenKind::Dot;
+        if *self.peek_kind() == TokenKind::Dot {
+            self.advance(); // consume '.'
+        }
+        let mut class_name = self.expect_ident("expected class name")?;
+        // Handle hyphenated class names: .app-shell, .btn-add, etc.
+        while *self.peek_kind() == TokenKind::Minus {
+            self.advance(); // consume '-'
+            let next = self.expect_ident("expected identifier after '-'")?;
+            class_name = format!("{}-{}", class_name, next);
+        }
+        // Handle pseudo-classes: .className:hover, .className:focus, etc.
+        while *self.peek_kind() == TokenKind::Colon {
+            self.advance(); // consume ':'
+            let pseudo = self.expect_ident("expected pseudo-class after ':'")?;
+            class_name = format!("{}:{}", class_name, pseudo);
+        }
+        // Handle compound class selectors: .var-card.alt, .btn.active.dark, etc.
+        // Only when the '.' directly abuts the previous ident — with
+        // whitespace it starts a descendant segment instead (".a .b").
+        while *self.peek_kind() == TokenKind::Dot
+            && self.pos > 0
+            && self.tokens[self.pos - 1].span.end == self.tokens[self.pos].span.start
+        {
+            self.advance(); // consume '.'
+            let extra = self.expect_ident("expected class name after '.'")?;
+            class_name = format!("{}.{}", class_name, extra);
+            // Handle hyphenated names in compound part: .var-card.deep-dark
             while *self.peek_kind() == TokenKind::Minus {
                 self.advance(); // consume '-'
                 let next = self.expect_ident("expected identifier after '-'")?;
                 class_name = format!("{}-{}", class_name, next);
             }
-            // Handle pseudo-classes: .className:hover, .className:focus, etc.
+            // Handle pseudo-classes on compound part: .var-card.alt:hover
             while *self.peek_kind() == TokenKind::Colon {
                 self.advance(); // consume ':'
                 let pseudo = self.expect_ident("expected pseudo-class after ':'")?;
                 class_name = format!("{}:{}", class_name, pseudo);
             }
-            // Handle compound class selectors: .var-card.alt, .btn.active.dark, etc.
-            // Only when the '.' directly abuts the previous ident — with
-            // whitespace it starts a descendant segment instead (".a .b").
-            while *self.peek_kind() == TokenKind::Dot
-                && self.pos > 0
-                && self.tokens[self.pos - 1].span.end == self.tokens[self.pos].span.start
-            {
+        }
+        // Descendant selectors: ".note-list li", ".note-list .item",
+        // ".child-box strong". The lexer drops whitespace, so a compound
+        // (".a.b") is distinguished from a descendant (".a .b") by token
+        // spans: whitespace means prev.span.end < next.span.start.
+        loop {
+            let has_space = self.pos > 0
+                && self.tokens[self.pos - 1].span.end < self.tokens[self.pos].span.start;
+            if !has_space {
+                break;
+            }
+            let mut segment = String::new();
+            let starts_class = *self.peek_kind() == TokenKind::Dot;
+            if starts_class {
                 self.advance(); // consume '.'
-                let extra = self.expect_ident("expected class name after '.'")?;
-                class_name = format!("{}.{}", class_name, extra);
-                // Handle hyphenated names in compound part: .var-card.deep-dark
+                segment.push('.');
+                let ident = self.expect_ident("expected class name after '.'")?;
+                segment.push_str(&ident);
+                // Hyphenated names in the descendant segment: .note-list .app-shell
                 while *self.peek_kind() == TokenKind::Minus {
-                    self.advance(); // consume '-'
-                    let next = self.expect_ident("expected identifier after '-'")?;
-                    class_name = format!("{}-{}", class_name, next);
-                }
-                // Handle pseudo-classes on compound part: .var-card.alt:hover
-                while *self.peek_kind() == TokenKind::Colon {
-                    self.advance(); // consume ':'
-                    let pseudo = self.expect_ident("expected pseudo-class after ':'")?;
-                    class_name = format!("{}:{}", class_name, pseudo);
-                }
-            }
-            // Descendant selectors: ".note-list li", ".note-list .item",
-            // ".child-box strong". The lexer drops whitespace, so a compound
-            // (".a.b") is distinguished from a descendant (".a .b") by token
-            // spans: whitespace means prev.span.end < next.span.start.
-            loop {
-                let has_space = self.pos > 0
-                    && self.tokens[self.pos - 1].span.end < self.tokens[self.pos].span.start;
-                if !has_space {
-                    break;
-                }
-                let mut segment = String::new();
-                let starts_class = *self.peek_kind() == TokenKind::Dot;
-                if starts_class {
-                    self.advance(); // consume '.'
-                    segment.push('.');
-                    let ident = self.expect_ident("expected class name after '.'")?;
-                    segment.push_str(&ident);
-                    // Hyphenated names in the descendant segment: .note-list .app-shell
-                    while *self.peek_kind() == TokenKind::Minus {
-                        self.advance();
-                        let next = self.expect_ident("expected identifier after '-'")?;
-                        segment.push('-');
-                        segment.push_str(&next);
-                    }
-                } else if matches!(self.peek_kind(), TokenKind::Ident(_)) {
-                    // Tag segment: "li", "strong", "p", ...
-                    let ident = self.expect_ident("expected tag name")?;
-                    segment.push_str(&ident);
-                } else {
-                    break;
-                }
-                // Pseudo-classes on the descendant segment: li:hover
-                while *self.peek_kind() == TokenKind::Colon {
                     self.advance();
-                    let pseudo = self.expect_ident("expected pseudo-class after ':'")?;
-                    segment.push(':');
-                    segment.push_str(&pseudo);
+                    let next = self.expect_ident("expected identifier after '-'")?;
+                    segment.push('-');
+                    segment.push_str(&next);
                 }
-                class_name.push(' ');
-                class_name.push_str(&segment);
+            } else if matches!(self.peek_kind(), TokenKind::Ident(_)) {
+                // Tag segment: "li", "strong", "p", ...
+                let ident = self.expect_ident("expected tag name")?;
+                segment.push_str(&ident);
+            } else {
+                break;
             }
-            // Skip unsupported remaining selector parts (e.g., "input:checked + span")
-            // until we find the opening brace
-            while *self.peek_kind() != TokenKind::LBrace
-                && *self.peek_kind() != TokenKind::RBrace
-                && *self.peek_kind() != TokenKind::Eof
-            {
+            // Pseudo-classes on the descendant segment: li:hover
+            while *self.peek_kind() == TokenKind::Colon {
                 self.advance();
+                let pseudo = self.expect_ident("expected pseudo-class after ':'")?;
+                segment.push(':');
+                segment.push_str(&pseudo);
             }
-            self.expect_token(TokenKind::LBrace, "expected '{'")?;
+            class_name.push(' ');
+            class_name.push_str(&segment);
+        }
+        // Skip unsupported remaining selector parts (e.g., "input:checked + span")
+        // until we find the opening brace — recording what was skipped so the
+        // semantic layer can emit W-301 (honest degradation, ADR-054) instead
+        // of silently truncating the selector.
+        let mut skipped_text = String::new();
+        let mut category: Option<String> = None;
+        let mut skip_span: Option<crate::lexer::Span> = None;
+        while *self.peek_kind() != TokenKind::LBrace
+            && *self.peek_kind() != TokenKind::RBrace
+            && *self.peek_kind() != TokenKind::Eof
+        {
+            let kind = self.peek_kind().clone();
+            if category.is_none()
+                && matches!(
+                    kind,
+                    TokenKind::Plus
+                        | TokenKind::Gt
+                        | TokenKind::LBracket
+                        | TokenKind::Comma
+                        | TokenKind::LParen
+                )
+            {
+                category = Some(match kind {
+                    TokenKind::Plus => "兄弟选择器".into(),
+                    TokenKind::Gt => "子选择器".into(),
+                    TokenKind::LBracket => "属性选择器".into(),
+                    TokenKind::Comma => "选择器列表".into(),
+                    TokenKind::LParen => "带参伪类".into(),
+                    _ => unreachable!(),
+                });
+                skip_span = Some(self.tokens[self.pos].span);
+            }
+            skipped_text.push_str(&token_text(&kind));
+            self.advance();
+        }
+        self.expect_token(TokenKind::LBrace, "expected '{'")?;
 
-            let mut properties = Vec::new();
-            while *self.peek_kind() != TokenKind::RBrace && *self.peek_kind() != TokenKind::Eof {
-                // Parse property name — supports CSS custom properties (--name)
-                let key = self.parse_css_property_name("expected property name")?;
-                self.expect_token(TokenKind::Colon, "expected ':'")?;
+        let mut properties = Vec::new();
+        while *self.peek_kind() != TokenKind::RBrace && *self.peek_kind() != TokenKind::Eof {
+            // Parse property name — supports CSS custom properties (--name)
+            let key = self.parse_css_property_name("expected property name")?;
+            self.expect_token(TokenKind::Colon, "expected ':'")?;
 
-                let value = {
+            let value = {
+                let t = self.advance();
+                match &t.kind {
+                    TokenKind::IntLiteral(n) => {
+                        let val = *n as f64;
+                        try_consume_dimension(self, val)
+                    }
+                    TokenKind::FloatLiteral(n) => try_consume_dimension(self, *n),
+                    TokenKind::StringLiteral(s) => StyleValue::String(s.clone()),
+                    TokenKind::Hash => {
+                        let mut hex = String::from("#");
+                        let next_t = self.advance();
+                        match &next_t.kind {
+                            TokenKind::IntLiteral(n) => {
+                                hex.push_str(&n.to_string());
+                                if matches!(self.peek_kind(), TokenKind::Ident(_)) {
+                                    let ident_t = self.advance();
+                                    if let TokenKind::Ident(s) = &ident_t.kind {
+                                        hex.push_str(s);
+                                    }
+                                }
+                            }
+                            TokenKind::Ident(s) => {
+                                hex.push_str(s);
+                            }
+                            TokenKind::FloatLiteral(_) => {
+                                // Clamp to valid UTF-8 char boundaries.
+                                // The tokenizer may produce byte positions in the
+                                // middle of multi-byte characters; walk backward from
+                                // the token start and forward from the token end to
+                                // find valid char boundaries.
+                                let raw_start = (0..=next_t.span.start)
+                                    .rev()
+                                    .find(|&i| self.source.is_char_boundary(i))
+                                    .unwrap_or(next_t.span.start);
+                                let raw_end = (next_t.span.end..self.source.len())
+                                    .find(|&i| self.source.is_char_boundary(i))
+                                    .unwrap_or(next_t.span.end);
+                                let raw = &self.source[raw_start..raw_end];
+                                hex.push_str(raw);
+                                if matches!(self.peek_kind(), TokenKind::Ident(_)) {
+                                    let ident_t = self.advance();
+                                    if let TokenKind::Ident(s) = &ident_t.kind {
+                                        hex.push_str(s);
+                                    }
+                                }
+                            }
+                            _ => {
+                                return Err(ParseError {
+                                    kind: None,
+                                    message: format!(
+                                        "Unexpected token after '#' in color value: {:?}",
+                                        next_t.kind
+                                    ),
+                                    span: next_t.span,
+                                })
+                            }
+                        }
+                        StyleValue::HexColor(hex)
+                    }
+                    TokenKind::Ident(s) => {
+                        let mut ident = s.clone();
+                        // Handle hyphenated idents: space-between, nowrap, etc.
+                        while *self.peek_kind() == TokenKind::Minus {
+                            self.advance(); // consume '-'
+                            let next = self.expect_ident("expected identifier after '-'")?;
+                            ident = format!("{}-{}", ident, next);
+                        }
+                        // Handle CSS function calls: rotate(15deg), translateY(-2px), etc.
+                        if *self.peek_kind() == TokenKind::LParen {
+                            ident = consume_css_function_args(self, &ident);
+                        }
+                        // Check for dimension: 16px, 1.5rem
+                        if let Some(unit) = try_parse_dimension(&ident) {
+                            StyleValue::Dimension(unit.0, unit.1)
+                        } else if ident.starts_with('#') {
+                            StyleValue::HexColor(ident)
+                        } else {
+                            StyleValue::Ident(ident)
+                        }
+                    }
+                    _ => {
+                        return Err(ParseError {
+                            kind: None,
+                            message: format!("Unexpected style value: {:?}", t.kind),
+                            span: t.span,
+                        })
+                    }
+                }
+            };
+
+            // Collect additional value parts for multi-value properties
+            // like `margin: 0 auto` or `border: 1 solid #333`
+            let mut parts: Vec<StyleValuePart> = Vec::new();
+            parts.push(style_value_to_part(&value));
+            loop {
+                // Check if next token could be another value part
+                match self.peek_kind() {
+                    TokenKind::Semicolon | TokenKind::RBrace => break,
+                    k if keyword_as_ident_name(k).is_some() && self.peek_is_attr_start() => break,
+                    _ => {}
+                }
+                // Try to parse another value part
+                let next_part = {
                     let t = self.advance();
                     match &t.kind {
                         TokenKind::IntLiteral(n) => {
                             let val = *n as f64;
-                            try_consume_dimension(self, val)
+                            try_consume_dimension_part(self, val)
                         }
-                        TokenKind::FloatLiteral(n) => try_consume_dimension(self, *n),
-                        TokenKind::StringLiteral(s) => StyleValue::String(s.clone()),
+                        TokenKind::FloatLiteral(n) => try_consume_dimension_part(self, *n),
+                        TokenKind::Ident(s) => {
+                            let mut ident = s.clone();
+                            while *self.peek_kind() == TokenKind::Minus {
+                                self.advance();
+                                let next = self.expect_ident("expected identifier after '-'")?;
+                                ident = format!("{}-{}", ident, next);
+                            }
+                            if *self.peek_kind() == TokenKind::LParen {
+                                ident = consume_css_function_args(self, &ident);
+                            }
+                            if let Some(unit) = try_parse_dimension(&ident) {
+                                StyleValuePart::Dimension(unit.0, unit.1)
+                            } else if ident.starts_with('#') {
+                                StyleValuePart::HexColor(ident)
+                            } else {
+                                StyleValuePart::Ident(ident)
+                            }
+                        }
                         TokenKind::Hash => {
                             let mut hex = String::from("#");
                             let next_t = self.advance();
@@ -205,19 +380,7 @@ impl<'a> Parser<'a> {
                                     hex.push_str(s);
                                 }
                                 TokenKind::FloatLiteral(_) => {
-                                    // Clamp to valid UTF-8 char boundaries.
-                                    // The tokenizer may produce byte positions in the
-                                    // middle of multi-byte characters; walk backward from
-                                    // the token start and forward from the token end to
-                                    // find valid char boundaries.
-                                    let raw_start = (0..=next_t.span.start)
-                                        .rev()
-                                        .find(|&i| self.source.is_char_boundary(i))
-                                        .unwrap_or(next_t.span.start);
-                                    let raw_end = (next_t.span.end..self.source.len())
-                                        .find(|&i| self.source.is_char_boundary(i))
-                                        .unwrap_or(next_t.span.end);
-                                    let raw = &self.source[raw_start..raw_end];
+                                    let raw = &self.source[next_t.span.start..next_t.span.end];
                                     hex.push_str(raw);
                                     if matches!(self.peek_kind(), TokenKind::Ident(_)) {
                                         let ident_t = self.advance();
@@ -227,152 +390,105 @@ impl<'a> Parser<'a> {
                                     }
                                 }
                                 _ => {
-                                    return Err(ParseError {
-                                        kind: None,
-                                        message: format!(
-                                            "Unexpected token after '#' in color value: {:?}",
-                                            next_t.kind
-                                        ),
-                                        span: next_t.span,
-                                    })
+                                    break;
                                 }
                             }
-                            StyleValue::HexColor(hex)
-                        }
-                        TokenKind::Ident(s) => {
-                            let mut ident = s.clone();
-                            // Handle hyphenated idents: space-between, nowrap, etc.
-                            while *self.peek_kind() == TokenKind::Minus {
-                                self.advance(); // consume '-'
-                                let next = self.expect_ident("expected identifier after '-'")?;
-                                ident = format!("{}-{}", ident, next);
-                            }
-                            // Handle CSS function calls: rotate(15deg), translateY(-2px), etc.
-                            if *self.peek_kind() == TokenKind::LParen {
-                                ident = consume_css_function_args(self, &ident);
-                            }
-                            // Check for dimension: 16px, 1.5rem
-                            if let Some(unit) = try_parse_dimension(&ident) {
-                                StyleValue::Dimension(unit.0, unit.1)
-                            } else if ident.starts_with('#') {
-                                StyleValue::HexColor(ident)
-                            } else {
-                                StyleValue::Ident(ident)
-                            }
+                            StyleValuePart::HexColor(hex)
                         }
                         _ => {
-                            return Err(ParseError {
-                                kind: None,
-                                message: format!("Unexpected style value: {:?}", t.kind),
-                                span: t.span,
-                            })
+                            break;
                         }
                     }
                 };
-
-                // Collect additional value parts for multi-value properties
-                // like `margin: 0 auto` or `border: 1 solid #333`
-                let mut parts: Vec<StyleValuePart> = Vec::new();
-                parts.push(style_value_to_part(&value));
-                loop {
-                    // Check if next token could be another value part
-                    match self.peek_kind() {
-                        TokenKind::Semicolon | TokenKind::RBrace => break,
-                        k if keyword_as_ident_name(k).is_some() && self.peek_is_attr_start() => {
-                            break
-                        }
-                        _ => {}
-                    }
-                    // Try to parse another value part
-                    let next_part = {
-                        let t = self.advance();
-                        match &t.kind {
-                            TokenKind::IntLiteral(n) => {
-                                let val = *n as f64;
-                                try_consume_dimension_part(self, val)
-                            }
-                            TokenKind::FloatLiteral(n) => try_consume_dimension_part(self, *n),
-                            TokenKind::Ident(s) => {
-                                let mut ident = s.clone();
-                                while *self.peek_kind() == TokenKind::Minus {
-                                    self.advance();
-                                    let next =
-                                        self.expect_ident("expected identifier after '-'")?;
-                                    ident = format!("{}-{}", ident, next);
-                                }
-                                if *self.peek_kind() == TokenKind::LParen {
-                                    ident = consume_css_function_args(self, &ident);
-                                }
-                                if let Some(unit) = try_parse_dimension(&ident) {
-                                    StyleValuePart::Dimension(unit.0, unit.1)
-                                } else if ident.starts_with('#') {
-                                    StyleValuePart::HexColor(ident)
-                                } else {
-                                    StyleValuePart::Ident(ident)
-                                }
-                            }
-                            TokenKind::Hash => {
-                                let mut hex = String::from("#");
-                                let next_t = self.advance();
-                                match &next_t.kind {
-                                    TokenKind::IntLiteral(n) => {
-                                        hex.push_str(&n.to_string());
-                                        if matches!(self.peek_kind(), TokenKind::Ident(_)) {
-                                            let ident_t = self.advance();
-                                            if let TokenKind::Ident(s) = &ident_t.kind {
-                                                hex.push_str(s);
-                                            }
-                                        }
-                                    }
-                                    TokenKind::Ident(s) => {
-                                        hex.push_str(s);
-                                    }
-                                    TokenKind::FloatLiteral(_) => {
-                                        let raw = &self.source[next_t.span.start..next_t.span.end];
-                                        hex.push_str(raw);
-                                        if matches!(self.peek_kind(), TokenKind::Ident(_)) {
-                                            let ident_t = self.advance();
-                                            if let TokenKind::Ident(s) = &ident_t.kind {
-                                                hex.push_str(s);
-                                            }
-                                        }
-                                    }
-                                    _ => {
-                                        break;
-                                    }
-                                }
-                                StyleValuePart::HexColor(hex)
-                            }
-                            _ => {
-                                break;
-                            }
-                        }
-                    };
-                    parts.push(next_part);
-                }
-                let value = if parts.len() == 1 {
-                    value
-                } else {
-                    StyleValue::List(parts)
-                };
-
-                properties.push((key, value));
-                if *self.peek_kind() == TokenKind::Semicolon {
-                    self.advance();
-                }
+                parts.push(next_part);
             }
+            let value = if parts.len() == 1 {
+                value
+            } else {
+                StyleValue::List(parts)
+            };
 
-            self.expect_token(TokenKind::RBrace, "expected '}'")?;
-            rules.push(StyleRule {
-                class_name,
-                properties,
-                is_tag_selector,
-            });
+            properties.push((key, value));
+            if *self.peek_kind() == TokenKind::Semicolon {
+                self.advance();
+            }
         }
 
         self.expect_token(TokenKind::RBrace, "expected '}'")?;
-        self.leave_recursion();
-        Ok(rules)
+        // 先计算 unsupported（借用 class_name）再 move 进构造——field init
+        // shorthand 按书写顺序求值，先 move 后借用会 E0382。
+        let unsupported = category
+            .zip(skip_span)
+            .map(|(cat, span)| UnsupportedSelector {
+                text: format!("{} {}", class_name, skipped_text)
+                    .trim()
+                    .to_string(),
+                span,
+                category: cat,
+            });
+        Ok(StyleRule {
+            class_name,
+            properties,
+            is_tag_selector,
+            unsupported_selector: unsupported,
+        })
+    }
+
+    /// Parse a user-level `@media (condition) { ... }` block (batch 3, spec
+    /// 2026-08-09 §2.4). The condition is consumed with paren pairing and its
+    /// raw source text (from the opening `(` to the closing `)`) is kept
+    /// verbatim — the compiler does not parse the condition's inner structure.
+    fn parse_media_block(&mut self) -> Result<MediaBlock, ParseError> {
+        self.advance(); // consume @media
+        let cond_start = self.tokens[self.pos].span.start;
+        self.expect_token(TokenKind::LParen, "expected '(' after @media")?;
+        // Paren-paired consumption: `(a) and (b) { ... }` conditions have
+        // multiple paren groups — the condition ends only when the depth
+        // returns to 0 AND the next token is the block opening `{`.
+        let mut depth = 1usize;
+        loop {
+            let kind = self.peek_kind().clone();
+            match kind {
+                TokenKind::LParen => {
+                    depth += 1;
+                    self.advance();
+                }
+                TokenKind::RParen => {
+                    depth -= 1;
+                    self.advance();
+                    if depth == 0 && *self.peek_kind() == TokenKind::LBrace {
+                        break;
+                    }
+                }
+                TokenKind::Eof => {
+                    return Err(ParseError {
+                        kind: None,
+                        message: "未闭合的 @media 条件".to_string(),
+                        span: self.tokens[self.pos].span,
+                    })
+                }
+                _ => {
+                    self.advance();
+                }
+            }
+        }
+        let cond_end = self.tokens[self.pos - 1].span.end; // closing ')' span end
+        let condition = self.source[cond_start..cond_end].to_string();
+        self.expect_token(TokenKind::LBrace, "expected '{' after @media condition")?;
+
+        let mut rules = Vec::new();
+        while *self.peek_kind() != TokenKind::RBrace {
+            if *self.peek_kind() == TokenKind::Eof {
+                return Err(ParseError {
+                    kind: None,
+                    message: "未闭合的 @media 块".to_string(),
+                    span: self.tokens[self.pos].span,
+                });
+            }
+            rules.push(self.parse_single_style_rule()?);
+        }
+        self.expect_token(TokenKind::RBrace, "expected '}'")?;
+        Ok(MediaBlock { condition, rules })
     }
 
     /// Parse a single style rule (legacy syntax): `style .className { ... }`
@@ -487,6 +603,8 @@ impl<'a> Parser<'a> {
             class_name,
             properties,
             is_tag_selector,
+            // 不做捕获——主路径 parse_single_style_rule 已覆盖（W-301 走主解析路径）
+            unsupported_selector: None,
         })
     }
 }
@@ -645,6 +763,14 @@ pub(super) fn is_text_token(kind: &TokenKind) -> bool {
             // "@else"/"@empty" inside element content must not truncate children
             // (directive parsing consumes them internally, before text paths).
             | TokenKind::AtElse | TokenKind::AtEmpty
+            // 批次 2/3 新增 at-rule 与元素/组件指令——文本位置出现时保留字面词，
+            // 绝不静默丢词（与 @else/@empty 同族；@if/@for 为结构指令由上游拦截，
+            // 不入本表）。
+            | TokenKind::AtRoute | TokenKind::AtLayout | TokenKind::AtQuery
+            | TokenKind::AtForm | TokenKind::AtLoad
+            | TokenKind::AtModal | TokenKind::AtSkeleton | TokenKind::AtErrorBoundary
+            | TokenKind::AtSlot
+            | TokenKind::AtMedia | TokenKind::AtContainer
             | TokenKind::IfMode
             | TokenKind::Percent
             // Assignment and comparison operators
@@ -738,6 +864,19 @@ pub(super) fn token_text(kind: &TokenKind) -> String {
         TokenKind::AtEffect => "@effect".into(),
         TokenKind::AtElse => "@else".into(),
         TokenKind::AtEmpty => "@empty".into(),
+        // 批次 2/3 at-rule 与元素/组件指令字面拼写（与 is_text_token 新臂对应——
+        // 缺臂则 fallback 静默丢词）
+        TokenKind::AtRoute => "@route".into(),
+        TokenKind::AtLayout => "@layout".into(),
+        TokenKind::AtQuery => "@query".into(),
+        TokenKind::AtForm => "@form".into(),
+        TokenKind::AtLoad => "@load".into(),
+        TokenKind::AtModal => "@modal".into(),
+        TokenKind::AtSkeleton => "@skeleton".into(),
+        TokenKind::AtErrorBoundary => "@errorBoundary".into(),
+        TokenKind::AtSlot => "@slot".into(),
+        TokenKind::AtMedia => "@media".into(),
+        TokenKind::AtContainer => "@container".into(),
         TokenKind::LBracket => "[".into(),
         TokenKind::RBracket => "]".into(),
         TokenKind::TemplateString(s) => format!("`{}`", s),
@@ -745,5 +884,133 @@ pub(super) fn token_text(kind: &TokenKind) -> String {
         other => crate::parser::stmt::keyword_as_ident_name(other)
             .unwrap_or_default()
             .to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse_component(src: &str) -> (crate::parser::ast::Program, Vec<ParseError>) {
+        crate::parser::parse(crate::lexer::tokenize(src), src)
+    }
+
+    fn find_app(prog: &crate::parser::ast::Program) -> &crate::parser::ast::ComponentDef {
+        prog.modules
+            .values()
+            .flat_map(|m| m.components.iter())
+            .find(|c| c.name == "App")
+            .expect("App component")
+    }
+
+    // ── @media 块（批次 3，spec 2026-08-09 §2.4）─────────────────────────────
+
+    #[test]
+    fn parses_media_block_with_raw_condition() {
+        let src = r#"
+            component App {
+                style {
+                    .card { padding: 16; }
+                    @media (min-width: 768px) {
+                        .card { padding: 32; }
+                    }
+                    @media (prefers-color-scheme: dark) {
+                        .card { background: #111827; }
+                    }
+                }
+            }
+        "#;
+        let (prog, errors) = parse_component(src);
+        assert!(errors.is_empty(), "parse errors: {errors:?}");
+        let comp = find_app(&prog);
+        assert_eq!(comp.styles.len(), 1); // 块外 .card
+        assert_eq!(comp.media_blocks.len(), 2);
+        assert_eq!(comp.media_blocks[0].condition, "(min-width: 768px)");
+        assert_eq!(
+            comp.media_blocks[1].condition,
+            "(prefers-color-scheme: dark)"
+        );
+        assert_eq!(comp.media_blocks[0].rules.len(), 1);
+        assert_eq!(comp.media_blocks[0].rules[0].class_name, "card"); // 点前缀被消费（照顶层规则形态）
+    }
+
+    #[test]
+    fn media_block_condition_keeps_raw_nested_parens() {
+        let src = r#"
+            component App {
+                style {
+                    @media (min-width: 768px) and (max-width: calc(100vw - 20px)) {
+                        .a { color: red; }
+                    }
+                }
+            }
+        "#;
+        let (prog, errors) = parse_component(src);
+        assert!(errors.is_empty(), "parse errors: {errors:?}");
+        let comp = find_app(&prog);
+        assert_eq!(
+            comp.media_blocks[0].condition,
+            "(min-width: 768px) and (max-width: calc(100vw - 20px))"
+        );
+    }
+
+    // ── @container E-404（批次 3，spec 2026-08-09 §2.5）──────────────────────
+
+    #[test]
+    fn container_at_rule_is_hard_error_e404() {
+        let src = r#"
+            component App {
+                style {
+                    @container (min-width: 400px) {
+                        .card { padding: 32; }
+                    }
+                }
+            }
+        "#;
+        let (_, errors) = parse_component(src);
+        let msgs: Vec<&str> = errors.iter().map(|e| e.message.as_str()).collect();
+        assert!(
+            msgs.iter()
+                .any(|m| m.contains("@container") && m.contains("低优先候选")),
+            "got: {msgs:?}"
+        );
+    }
+
+    // ── 未支持选择器捕获（批次 3，spec 2026-08-09 §2.3）─────────────────────
+
+    #[test]
+    fn unsupported_selector_captured_with_category() {
+        let src = r#"
+            component App {
+                style {
+                    input:checked + span { color: red; }
+                }
+            }
+        "#;
+        let (prog, errors) = parse_component(src);
+        assert!(errors.is_empty(), "parse errors: {errors:?}");
+        let comp = find_app(&prog);
+        let rule = &comp.styles[0];
+        let us = rule
+            .unsupported_selector
+            .as_ref()
+            .expect("unsupported selector captured");
+        assert_eq!(us.category, "兄弟选择器");
+        assert!(us.text.contains("+"));
+    }
+
+    #[test]
+    fn supported_selectors_have_no_unsupported_annotation() {
+        let src = r#"
+            component App {
+                style {
+                    .a.b:hover .c { color: red; }
+                }
+            }
+        "#;
+        let (prog, errors) = parse_component(src);
+        assert!(errors.is_empty(), "parse errors: {errors:?}");
+        let comp = find_app(&prog);
+        assert!(comp.styles[0].unsupported_selector.is_none());
     }
 }

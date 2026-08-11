@@ -28,6 +28,7 @@ impl<'a> Parser<'a> {
         let mut slots: Vec<SlotDecl> = Vec::new();
         let mut view: Option<ViewBlock> = None;
         let mut styles = Vec::new();
+        let mut media_blocks = Vec::new();
         let mut route_decls = Vec::new();
         let mut layout: Option<LayoutDecl> = None;
         let mut queries = Vec::new();
@@ -219,8 +220,9 @@ impl<'a> Parser<'a> {
                     view = Some(self.parse_view_block()?);
                 }
                 TokenKind::Style => {
-                    let mut rules = self.parse_style_rules()?;
+                    let (mut rules, mb) = self.parse_style_block()?;
                     styles.append(&mut rules);
+                    media_blocks = mb;
                 }
                 TokenKind::AtMotion => {
                     let motion = self.parse_motion_def()?;
@@ -278,6 +280,7 @@ impl<'a> Parser<'a> {
             slots,
             view,
             styles,
+            media_blocks,
             route_decls,
             layout,
             queries,
