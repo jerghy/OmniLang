@@ -25,12 +25,14 @@ export function ContentTab({ elementId }: { elementId: string }) {
   // 来源印记展示（spec M1 明列，审查修正）：已绑槽位显示"已绑定"徽章——来源名徽章
   // （"来自 X"）与线显示在 M3 同做，M1 以存在性标记 + BindingsSection 实际绑定内容兑现。
   // 绑定字段形状以 ViewElementData.bindings 实际定义为准（实现时按真实字段读取）。
-  const bindings = ("bindings" in el && el.bindings) as Record<string, unknown> | undefined;
+  const bindings = "bindings" in el ? el.bindings : undefined;
   return (
     <div style={{ padding: 12, overflow: "auto", boxSizing: "border-box" }}>
       <h3 style={{ fontSize: 13, fontWeight: 600, margin: "0 0 8px", color: "var(--ol-gray-700)" }}>接口</h3>
       {slots.map((s) => {
-        const bound = bindings != null && Object.keys(bindings).some((k) => k === s.key || k.includes(s.key));
+        // 审查修正（T6 复审）：bindings 键是精确 prop 名——子串匹配会误报
+        // （text ← textColor/textAlign、value ← defaultValue、src ← srcset）
+        const bound = bindings != null && Object.keys(bindings).some((k) => k === s.key);
         return (
           <div key={s.key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 8px", borderBottom: "1px solid var(--ol-border)" }}>
             <span style={{ fontSize: 12 }}>{s.label}</span>

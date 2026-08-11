@@ -2,7 +2,7 @@
 // 语境面板（§15.5）：选中元素 → 浮动在主元素旁（跟随/换侧/可拖走）；空选收成小浮标。
 // 主面板 = [行为][内容][结构]；副面板 = 仅 [内容]；最多 2 个面板。
 // [内容] 标签 = 意图驱动醒（自动醒，store 内实现）。
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePoiesisStore } from "../../store";
 import { computePanelPlacement, type PanelPlacement } from "./panel-position";
 import { StructureTab } from "./StructureTab";
@@ -23,7 +23,6 @@ export function ContextPanel() {
   const [placement, setPlacement] = useState<PanelPlacement | null>(null);
   const [secondaryPlacement, setSecondaryPlacement] = useState<PanelPlacement | null>(null);
   const [drag, setDrag] = useState<DraggedPanel | null>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
 
   // 面板集合：主 = 选中[0]，副 = 选中[1]（≤2，按 id 去重）
   const panelIds = useMemo(() => {
@@ -56,8 +55,20 @@ export function ContextPanel() {
           { width: window.innerWidth, height: window.innerHeight },
         );
       };
-      setPlacement((prev) => measureFor(panelIds[0]) ?? prev);
-      if (panelIds[1]) setSecondaryPlacement((prev) => measureFor(panelIds[1]) ?? prev);
+      // 审查修正（T6 复审）：变更检测——x/y/side 未变则返回 prev，避免 60fps 重渲染
+      // （measureFor 每帧新建对象，直接 set 恒不等 → 面板 + 全部标签页每帧重渲 + 强制布局）
+      setPlacement((prev) => {
+        const next = measureFor(panelIds[0]);
+        if (!next) return prev;
+        if (prev && prev.x === next.x && prev.y === next.y && prev.side === next.side) return prev;
+        return next;
+      });
+      if (panelIds[1]) setSecondaryPlacement((prev) => {
+        const next = measureFor(panelIds[1]);
+        if (!next) return prev;
+        if (prev && prev.x === next.x && prev.y === next.y && prev.side === next.side) return prev;
+        return next;
+      });
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
@@ -70,25 +81,41 @@ export function ContextPanel() {
     : null);
 
   // 副面板同款兜底（jsdom/未渲染副元素时 placement 恒 null——渲染门禁须用兜底值，
-  // 否则副面板永不显示，测试 4 必红）
+  // 否则副面板永不显示，测试 4 必红）。注：y 偏移复用 PANEL_WIDTH（≈面板高度）作间距。
   const secondaryResolved: PanelPlacement | null = secondaryPlacement ?? (panelIds.length > 1
     ? { x: window.innerWidth - PANEL_WIDTH - 16, y: 64 + PANEL_WIDTH, side: "right" }
     : null);
 
   // ── 拖拽（头部按住拖动）──
-  const onHeaderPointerDown = (e: React.PointerEvent) => {
+  // 审查修正（T6 复审）：pointer capture + pointercancel 清理——触摸中断/系统手势/窗外
+  // 释放都会触发 pointercancel，只等 pointerup 会泄漏 window 监听（此后每次移动都 setDrag
+  // 重渲染且面板永久位移）；capture 使释放发生在面板上，事件仍冒泡到 window 监听。
+  const onHeaderPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
+    const headerEl = e.currentTarget;
+    try {
+      headerEl.setPointerCapture(e.pointerId);
+    } catch {
+      // 指针已失效（如 jsdom/连点）：忽略，window 监听仍可工作
+    }
     const startX = e.clientX;
     const startY = e.clientY;
     const onMove = (ev: PointerEvent) => {
       setDrag({ dx: ev.clientX - startX, dy: ev.clientY - startY });
     };
-    const onUp = () => {
+    const onUp = (ev: PointerEvent) => {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+      try {
+        if (headerEl.hasPointerCapture(ev.pointerId)) headerEl.releasePointerCapture(ev.pointerId);
+      } catch {
+        // 同上：capture 不可用时无需释放
+      }
     };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
   };
 
   if (panelIds.length === 0) {
@@ -120,7 +147,6 @@ export function ContextPanel() {
   return (
     <>
       <div
-        ref={panelRef}
         data-testid="context-panel"
         data-panel-for={mainId}
         className={styles.panel}
