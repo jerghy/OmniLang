@@ -1,0 +1,156 @@
+// NavigationDemo.omni — 导航/路由全要素 demo（批次 2，spec §8 #5，C1-C8）
+// C1 页面切换：NavHome hub + navigate("/...") 字面量跳转
+// C2 路径参数：/todos/:id —— navigate("/todos/:id", { params: { id } }) + 直接访问注入
+// C3 @query：@query filter: String = "all" —— navigate 带 { query } 选项 + 直接访问注入
+// C4 guard 登录示例：AdminConsole @route guard: isAdmin redirect: "/login"（v0 限静态守卫 fn）
+// C5 @layout 嵌套：AdminLayout @layout "/admin" + AdminUsers @route "/admin/users"（ShellRoute）
+// C6 lazy: true：HeavyPage 路由级懒加载（React Suspense / OmniView 动态 import 注记 / Flutter no-op 注记）
+// C7 back()：back 按钮（React navigate(-1) / Flutter context.pop / OmniView history.back）
+// C8 未注册路径兜底：navigate 未注册路径行为由目标端决定（W2 已警告，Playwright 断言 10 记录）
+//
+// V14 注记：@route 路径与 @layout 前缀精确相等冲突（硬错误）——守卫页 AdminConsole
+// 位于 /admin/console（布局前缀 /admin 下独立路径），与 spec 断言 7 文本
+// 「访问 /admin」存在路径偏差：布局前缀本身不守卫（访问 /admin 渲染空出口外壳），
+// 守卫演示落在 /admin/console。详见 task-10-report.md。
+
+import omniview;
+
+// ── C1：页面切换 hub（NavDemo 入口） ──
+component NavHome {
+    @route "/nav";
+
+    view {
+        <div class: NavPage>
+            <h3>导航中心</h3>
+            <p>路由指令全要素 demo——点击下方入口体验各路由能力</p>
+            <button @onPress={() => { navigate("/todos"); }}>待办列表（query 过滤）</button>
+            <button @onPress={() => { navigate("/todos/:id", { params: { id: "42" } }); }}>待办 #42（路径参数）</button>
+            <button @onPress={() => { navigate("/admin/users"); }}>用户管理（嵌套布局）</button>
+            <button @onPress={() => { navigate("/admin/console"); }}>管理控制台（守卫重定向）</button>
+            <button @onPress={() => { navigate("/heavy"); }}>懒加载页面</button>
+            <button @onPress={() => { navigate("/home"); }}>Home（PageSwitcherDemo）</button>
+            <button @onPress={() => { navigate("/about"); }}>About（PageSwitcherDemo）</button>
+        </div>
+    }
+    style {
+    }
+}
+
+// ── C3：@query filter 注入 ──
+component TodosPage {
+    @route "/todos";
+    @query filter: String = "all";
+
+    signal todoIds: Array<String> = ["42", "17", "8"];
+
+    fn applyAll() { navigate("/todos", { query: { filter: "all" } }); }
+    fn applyDone() { navigate("/todos", { query: { filter: "done" } }); }
+
+    view {
+        <div class: NavPage>
+            <h3>待办列表</h3>
+            <p>当前过滤: {filter}</p>
+            <button @onPress={applyAll}>全部</button>
+            <button @onPress={applyDone}>已完成</button>
+            <ul>
+                @for item in todoIds key={item} {
+                    <li>
+                        <button @onPress={() => { navigate("/todos/:id", { params: { id: item } }); }}>
+                            查看待办 #{item}
+                        </button>
+                    </li>
+                }
+            </ul>
+            <button @onPress={() => { back(); }}>返回</button>
+        </div>
+    }
+    style {
+    }
+}
+
+// ── C2：路径参数详情 ──
+component TodoDetail {
+    @route "/todos/:id";
+
+    view {
+        <div class: NavPage>
+            <h3>待办详情</h3>
+            <p>待办 #{id}</p>
+            <button @onPress={() => { back(); }}>返回</button>
+        </div>
+    }
+    style {
+    }
+}
+
+// ── C5：@layout 嵌套（标准 ShellRoute——Flutter 保挂载差异见 PageSwitcherDemo 注记） ──
+component AdminLayout {
+    @layout "/admin";
+
+    view {
+        <div class: NavPage>
+            <header class: AdminHeader>Admin 控制台</header>
+            @slot default
+        </div>
+    }
+    style {
+    }
+}
+
+component AdminUsers {
+    @route "/admin/users";
+
+    view {
+        <div class: NavPage>
+            <h3>用户管理</h3>
+            <p>AdminLayout 外壳内嵌页面（slot 出口）</p>
+        </div>
+    }
+    style {
+    }
+}
+
+// ── C4：guard 登录示例——守卫 fn 组件级声明（v0 限静态字面量守卫，V9）
+//    守卫 fn 顶层发射（React/Dart），不引用组件信号——demo 用确定返回值。 ──
+component AdminConsole {
+    fn isAdmin() -> Bool { return false; }
+
+    @route "/admin/console" guard: isAdmin redirect: "/login";
+
+    view {
+        <div class: NavPage>
+            <h3>控制台（需授权）</h3>
+            <p>未授权访问此页 → 重定向 /login</p>
+        </div>
+    }
+    style {
+    }
+}
+
+component LoginPage {
+    @route "/login";
+
+    view {
+        <div class: NavPage>
+            <h3>登录</h3>
+            <p>未授权访问管理页 → 重定向至此</p>
+            <button @onPress={() => { navigate("/nav"); }}>返回导航中心</button>
+        </div>
+    }
+    style {
+    }
+}
+
+// ── C6：lazy: true 路由级懒加载 ──
+component HeavyPage {
+    @route "/heavy" lazy: true;
+
+    view {
+        <div class: NavPage>
+            <h3>懒加载页面</h3>
+            <p>React 路由级 lazy + Suspense fallback；Flutter 移动端 no-op 注记；OmniView 动态 import 注记</p>
+        </div>
+    }
+    style {
+    }
+}

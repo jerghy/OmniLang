@@ -1,4 +1,7 @@
 // Overview.omni -- capability matrix landing page
+// 批次 2 接线注记：NavDemo 入口卡片走 navigate("/nav")（路由意图），
+// 其余 8 张卡片保留 CapabilityCard 合法组件事件模式（@onNavigate → switchTab tab UI 态）。
+// routeOrTab 分派：tabName == "nav" → 路由跳转；其余 → 事件上抛。
 
 import omniview;
 import { LearnDesign } from "../design";
@@ -10,11 +13,15 @@ component Overview {
 
     event onNavigate: String;
 
+    fn routeOrTab(tab: String) {
+        if (tab == "nav") { navigate("/nav"); } else { onNavigate(tab); }
+    }
+
     view {
         <section ><div class: LearnDesign.Banner>
                 <h1 class: LearnDesign.BannerTitle>{'\u{1F680}'} OmniLang Capability Showcase</h1>
                 <p class: LearnDesign.BannerSubtitle>
-                    v2 语义级 DSL · 102 源文件 · 4 主题 · 10 语义域 · 9 标签页
+                    v2 语义级 DSL · 103 源文件 · 4 主题 · 10 语义域 · 9 标签页
                 </p>
             </div>
 
@@ -67,11 +74,17 @@ component Overview {
                     tabName="tokens"
                     @onNavigate={onNavigate}
                 />
+                <CapabilityCard
+                    icon="\u{1F9ED}" title="Navigation & Routing"
+                    description="@route / @layout / @query / guard / lazy / back() — navigate() 全要素 demo（NavDemo hub）"
+                    tabName="nav"
+                    @onNavigate={routeOrTab}
+                />
             </div>
 
             <div class: StatsBar>
                 <div class: StatItem>
-                    <span class: StatValue>102</span>
+                    <span class: StatValue>103</span>
                     <span class: StatLabel>Source Files</span>
                 </div>
                 <div class: StatItem>

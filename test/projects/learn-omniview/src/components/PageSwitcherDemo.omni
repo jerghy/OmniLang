@@ -1,12 +1,20 @@
-// PageSwitcherDemo.omni — Task 3.9: 顶层互斥 @if（组件级页面切换形态）→ IndexedStack
-// 组件根部的 @if/@else 分支全部是组件实例（页面切换形态）时，Flutter 目标发射
-// IndexedStack——切标签页时所有页面保持挂载，表单输入/滚动位置不丢失
-//（旧的 `cond ? child : SizedBox()` 三元互斥每次切换都会卸载前页）。
+// PageSwitcherDemo.omni — 导航/路由 demo（批次 2 迁移，spec §8 #1/#2）
+// 旧形态：组件根部 @if 互斥 + onSwitch 事件（顶层页面切换）→ 已迁移为
+// @route 声明 + navigate() 内建调用（HomePage @route "/home"、AboutPage
+// @route "/about"）。
+//
+// Flutter 目标保挂载差异注记（spec §6 边界 7——v0 标准 ShellRoute）：
+// 旧形态的顶层 @if 互斥在 Flutter 发射 IndexedStack——切页时所有页面保持
+// 挂载，表单输入/滚动位置不丢失；路由形态下两页为独立 GoRoute，切换走
+// context.push/pop，前一页卸载（draft 输入不保留）。页面保挂载仅对
+// @layout 的 ShellRoute 子路由生效（StatefulShellRoute.indexedStack 变体
+// 随语料扩展，编译器不代劳）。
 
 import omniview;
 
 component HomePage {
-    event onSwitch: String;
+    @route "/home";
+
     signal draft: String = "";
 
     view {
@@ -18,7 +26,7 @@ component HomePage {
                 bind:value={draft}
                 a11y: { label: "Home draft input" }
             ></input>
-            <button @onPress={() => { onSwitch("about"); }}>Go to About</button>
+            <button @onPress={() => { navigate("/about"); }}>Go to About</button>
         </div>
     }
     style {
@@ -26,7 +34,8 @@ component HomePage {
 }
 
 component AboutPage {
-    event onSwitch: String;
+    @route "/about";
+
     signal draft: String = "";
 
     view {
@@ -38,24 +47,9 @@ component AboutPage {
                 bind:value={draft}
                 a11y: { label: "About draft input" }
             ></input>
-            <button @onPress={() => { onSwitch("home"); }}>Back to Home</button>
+            <button @onPress={() => { navigate("/home"); }}>Back to Home</button>
         </div>
     }
     style {
-    }
-}
-
-component PageSwitcherDemo {
-    signal page: String = "home";
-
-    fn switchTo(p: String) { page = p; }
-
-    view {
-        @if page == "home" {
-            <HomePage @onSwitch={switchTo} />
-        }
-        @else {
-            <AboutPage @onSwitch={switchTo} />
-        }
     }
 }

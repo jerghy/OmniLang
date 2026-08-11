@@ -1,7 +1,17 @@
-// OmniView 能力展示 — 10 语义域 · 4 主题 · 102 源文件
+// OmniView 能力展示 — 10 语义域 · 4 主题 · 103 源文件
 // 运行：omnic run    编译：omnic build --target omniview
 //
 // 架构：design（设计系统）→ components/pages（UI 组件）→ main（根组装）
+//
+// 批次 2（导航路由）接线注记：
+// - 根组件命名 App → Main：React 目标 createBrowserRouter 产物占用 App.tsx
+//   （router.rs），root 检测统一「App → Main → last sorted」——Main 三端原生支持
+//   （OmniView 合成根 pattern=="/"；Flutter theme shell 下 MaterialApp.home = Main）。
+// - `@route "/"` 声明根路由：直接访问 / 由三端 router 接管，9 标签页 tab UI 态保留
+//   （§9 未决 1 已定：tab ≠ 路由）。
+// - NavigationDemo 以 namespace 副作用导入进入编译单元：其 @route/@layout 路由表
+//   经程序级收集进入三端 router；页面不在此渲染（Overview 入口卡片 navigate("/nav")），
+//   namespace 形态不触发 unused-import lint。
 
 import omniview;
 
@@ -24,8 +34,10 @@ import { LanguagePage } from "./pages/LanguagePage";
 import { CompilerPage } from "./pages/CompilerPage";
 import { ElementRefDemo } from "./pages/ElementRefDemo";
 import { DynamicTokens } from "./pages/DynamicTokens";
+import "./pages/NavigationDemo" as NavDemo;
 
-component App {
+component Main {
+    @route "/";
     @store TodoStore;
     @store ThemeStore;
 
