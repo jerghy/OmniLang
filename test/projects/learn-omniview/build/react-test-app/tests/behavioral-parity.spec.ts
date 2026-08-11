@@ -108,13 +108,114 @@ test.describe('Behavioral parity — 5 scenarios × React', () => {
     //  2. Flutter emits IndexedStack for the same source (3.9, task 3.9) —
     //     pages stay mounted and page_switch_test.dart asserts the typed
     //     draft survives the switch: the targets DIVERGE here.
-    //  3. PageSwitcherDemo is not mounted in the React app at all
-    //     (no import in App.tsx / any page), so the divergence cannot even
-    //     be exercised in-browser today.
     //
-    // Un-skip contract (when the React codegen gains a state-preserving
-    // conditional AND the demo is mounted): type into the Home draft →
-    // Go to About → Back to Home → the draft text must still be present
-    // (mirror of smoke/page_switch_test.dart).
+    // 批次 2 迁移注记（task-10）：PageSwitcherDemo 已迁移为 @route 路由形态
+    // （HomePage @route "/home" / AboutPage @route "/about" + navigate()），
+    // demo 层面不再有 @if 互斥——本 gap 作为一般性编译器能力差距登记
+    // （spec §6 边界 7：页面保挂载仅对 @layout ShellRoute 生效，React 端
+    // 切页卸载为预期行为，与 Flutter GoRouter push/pop 对等）。
+    // Un-skip contract 不变：React codegen 获得状态保持条件渲染后恢复断言。
+  });
+});
+
+// ════════════════════════════════════════════════════════════════
+// Task 7.10 — 路由断言集（批次 2，spec §7 断言 1-10 × React 目标）
+// React 端：createBrowserRouter → URL 为路径形式（/todos/42，无 hash）。
+// 直接访问由 vite dev history fallback 接管 → React Router 渲染。
+// 守卫/懒加载/嵌套布局/空路由兜底行为逐条记录（断言 10 为行为记录，
+// 不设强断言——W2 已警告，行为由目标端决定）。
+// ════════════════════════════════════════════════════════════════
+
+test.describe('Routing — 10 assertions × React (BrowserRouter)', () => {
+  test('R1 - default route "/" renders Main (Overview landing)', async ({ page }) => {
+    await page.goto(BASE, { timeout: 8000 });
+    await expect(page.getByText(/OmniLang Capability Showcase/).first()).toBeVisible({ timeout: 8000 });
+    // @route "/" 注册 → Main 直接渲染；URL 保持根路径
+    await expect(page).toHaveURL(`${BASE}/`);
+  });
+
+  test('R2 - navigate() click switches route and syncs URL', async ({ page }) => {
+    await page.goto(`${BASE}/nav`, { timeout: 8000 });
+    await expect(page.getByText('导航中心').first()).toBeVisible({ timeout: 8000 });
+
+    await page.getByRole('button', { name: '待办列表（query 过滤）' }).click();
+    await expect(page).toHaveURL(`${BASE}/todos`);
+    await expect(page.getByText('当前过滤: all').first()).toBeVisible({ timeout: 8000 });
+  });
+
+  test('R3 - direct access /todos/:id injects path param', async ({ page }) => {
+    await page.goto(`${BASE}/todos/42`, { timeout: 8000 });
+    await expect(page.getByText('待办详情').first()).toBeVisible({ timeout: 8000 });
+    await expect(page.getByText('待办 #42').first()).toBeVisible({ timeout: 8000 });
+  });
+
+  test('R4 - direct access ?filter=all injects query param + click updates URL query', async ({ page }) => {
+    await page.goto(`${BASE}/todos?filter=all`, { timeout: 8000 });
+    await expect(page.getByText('当前过滤: all').first()).toBeVisible({ timeout: 8000 });
+
+    await page.getByRole('button', { name: '已完成' }).click();
+    await expect(page).toHaveURL(/\/todos\?filter=done/);
+    await expect(page.getByText('当前过滤: done').first()).toBeVisible({ timeout: 8000 });
+  });
+
+  test('R5 - back() button returns to previous route', async ({ page }) => {
+    await page.goto(`${BASE}/nav`, { timeout: 8000 });
+    await expect(page.getByText('导航中心').first()).toBeVisible({ timeout: 8000 });
+
+    await page.getByRole('button', { name: '待办列表（query 过滤）' }).click();
+    await expect(page.getByText('当前过滤: all').first()).toBeVisible({ timeout: 8000 });
+
+    await page.getByRole('button', { name: '返回' }).first().click();
+    await expect(page).toHaveURL(`${BASE}/nav`);
+    await expect(page.getByText('导航中心').first()).toBeVisible({ timeout: 8000 });
+  });
+
+  test('R6 - browser back returns to previous route', async ({ page }) => {
+    await page.goto(`${BASE}/nav`, { timeout: 8000 });
+    await expect(page.getByText('导航中心').first()).toBeVisible({ timeout: 8000 });
+
+    await page.getByRole('button', { name: '待办列表（query 过滤）' }).click();
+    await expect(page.getByText('当前过滤: all').first()).toBeVisible({ timeout: 8000 });
+
+    await page.goBack();
+    await expect(page).toHaveURL(`${BASE}/nav`);
+    await expect(page.getByText('导航中心').first()).toBeVisible({ timeout: 8000 });
+  });
+
+  test('R7 - guard redirects unauthorized access to /login', async ({ page }) => {
+    // V14 注记：@route 路径与 @layout 前缀精确相等冲突（硬错误）——守卫演示
+    // 落在 /admin/console（/admin 布局前缀下独立路径），而非 /admin 本身。
+    await page.goto(`${BASE}/admin/console`, { timeout: 8000 });
+    await expect(page).toHaveURL(`${BASE}/login`);
+    await expect(page.getByText(/未授权访问管理页/).first()).toBeVisible({ timeout: 8000 });
+    // 被守卫的内容不得渲染
+    await expect(page.getByText(/控制台（需授权）/)).toHaveCount(0);
+  });
+
+  test('R8 - nested @layout ShellRoute renders outlet inside layout', async ({ page }) => {
+    await page.goto(`${BASE}/admin/users`, { timeout: 8000 });
+    await expect(page.getByText('Admin 控制台').first()).toBeVisible({ timeout: 8000 });
+    await expect(page.getByText('用户管理').first()).toBeVisible({ timeout: 8000 });
+    await expect(page.getByText(/AdminLayout 外壳内嵌页面/).first()).toBeVisible({ timeout: 8000 });
+  });
+
+  test('R9 - lazy: true route loads via Suspense', async ({ page }) => {
+    // React 端：React.lazy + <Suspense fallback>。本地 vite 模块加载极快，
+    // fallback 可能一闪而过——轮询最终内容渲染（Suspense 完成后挂载）。
+    await page.goto(`${BASE}/heavy`, { timeout: 8000 });
+    await expect(page.getByText('懒加载页面').first()).toBeVisible({ timeout: 8000 });
+    await expect(page.getByText(/React 路由级 lazy \+ Suspense fallback/).first()).toBeVisible({ timeout: 8000 });
+  });
+
+  test('R10 - unregistered path renders React Router default 404 (behavior recorded)', async ({ page }) => {
+    // 行为记录（非强断言）：createBrowserRouter 无匹配路径 → React Router
+    // 抛出 404 并渲染默认错误页（dev 模式 "Unexpected Application Error! /
+    // 404 Not Found"），无崩溃、无未捕获错误。与 OmniView 端（兜底回退
+    // __omni_routes[0] = "/"）存在目标端差异（W2 已警告，行为由目标端决定）。
+    const errors: string[] = [];
+    page.on('pageerror', (err) => errors.push(String(err)));
+    await page.goto(`${BASE}/does-not-exist`, { timeout: 8000 });
+    await expect(page.getByText(/404 Not Found/).first()).toBeVisible({ timeout: 8000 });
+    expect(errors, 'unregistered path must not throw').toEqual([]);
   });
 });
