@@ -15,17 +15,17 @@ component StatsPanel {
     view {
         <div class: LearnDesign.Card>
             <h3 class: LearnDesign.CardTitle>统计面板</h3>
-            <div class: grid>
-                <div class: stat-card>
+            <div class: Grid>
+                <div class: StatCard>
                     <span class: value>{total}</span>
                     <span class: label>总事项</span>
                 </div>
-                <div class: stat-card>
+                <div class: StatCard>
                     <span class: value>{if total > 0 { "有" } else { "无" }}</span>
                     <span class: label>状态</span>
                 </div>
             </div>
-            <span class: msg>{
+            <span class: Msg>{
                 if total == 0 {
                     "开始添加第一个待办事项"
                 } else {
@@ -36,11 +36,9 @@ component StatsPanel {
     }
     style {
         // 统计面板特有的内部布局和数据展示
-        .grid { display: flex; gap: 12px; margin-bottom: 16px; }
-        .stat-card { flex: 1; background: white; padding: 16px; border-radius: 8px; text-align: center; border: 1px solid #e5e7eb; }
         .value { font-size: 28px; font-weight: bold; color: #6366f1; }
-        .label { font-size: 13px; color: #6b7280; }
-        .msg { font-size: 14px; color: #6b7280; }
         // 外部容器 .panel / .title 已由 LearnDesign.Card / CardTitle 提供
+    
+        .label { font-size: 13px; color: #6b7280; }
     }
 }

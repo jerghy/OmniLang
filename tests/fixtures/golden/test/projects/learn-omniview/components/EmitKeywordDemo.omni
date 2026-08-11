@@ -32,33 +32,26 @@ component EmitChild {
     }
 
     view {
-        <div class: emit-child>
-            <h4 class: child-title>EmitChild</h4>
-            <p class: child-desc>
+        <div class: EmitChild>
+            <h4 class: ChildTitle>EmitChild</h4>
+            <p class: ChildDesc>
                 内部分发计数: <strong>{count}</strong>
             </p>
-            <div class: btn-row>
+            <div class: BtnRow>
                 <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={handleEmit}>
                     emit onEmitClick
                 </button>
-                <button class: func-btn @onPress={handleFunc}>
+                <button class: FuncBtn @onPress={handleFunc}>
                     onFuncClick()
                 </button>
             </div>
-            <p class: child-hint>
+            <p class: ChildHint>
                 上方按钮分别用 <code>emit eventName(value)</code> 和 <code>eventName(value)</code> 触发
             </p>
         </div>
     }
     style {
         // EmitChild 特有的布局和粉色 func 按钮
-        .emit-child { background: white; border: 1px solid #d4d4d8; border-radius: 10px; padding: 16px; }
-        .child-title { font-size: 15px; color: #1e293b; margin: 0 0 4px 0; }
-        .child-desc { font-size: 12px; color: #64748b; margin: 0 0 12px 0; }
-        .btn-row { display: flex; gap: 8px; }
-        .func-btn { padding: 8px 16px; background: #ec4899; color: white; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; }
-        .func-btn:hover { background: #db2777; }
-        .child-hint { font-size: 11px; color: #94a3b8; margin: 8px 0 0 0; }
         code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 11px; }
     }
 }
@@ -84,9 +77,9 @@ component EmitKeywordDemo {
                 对比 <code>emit eventName(value)</code> 与 <code>eventName(value)</code> 两种事件触发语法
             </p>
 
-            <div class: side-by-side>
-                <div class: child-column>
-                    <h4 class: column-label>Emit Child</h4>
+            <div class: SideBySide>
+                <div class: ChildColumn>
+                    <h4 class: ColumnLabel>Emit Child</h4>
                     <EmitChild
                         @onEmitClick={recordEmit}
                         @onFuncClick={recordFunc}
@@ -95,42 +88,42 @@ component EmitKeywordDemo {
             </div>
 
             <!-- 事件日志对比 -->
-            <div class: log-section>
-                <div class: log-column>
-                    <h4 class: log-title>emit 触发记录</h4>
-                    <div class: log-box>
-                        @if emitLog.len() == 0 {
-                            <p class: log-empty>暂无 emit 事件</p>
-                        }
+            <div class: LogSection>
+                <div class: LogColumn>
+                    <h4 class: LogTitle>emit 触发记录</h4>
+                    <div class: LogBox>
                         @for item in emitLog {
-                            <div class: log-entry>
+                            <div class: LogEntry>
                                 <span class: log-badge emit>emit</span>
-                                <span class: log-msg>{item}</span>
+                                <span class: LogMsg>{item}</span>
                             </div>
+                        }
+                        @empty {
+                            <p class: LogEmpty>暂无 emit 事件</p>
                         }
                     </div>
                 </div>
 
-                <div class: log-column>
-                    <h4 class: log-title>函数调用触发记录</h4>
-                    <div class: log-box>
-                        @if funcLog.len() == 0 {
-                            <p class: log-empty>暂无 function 事件</p>
-                        }
+                <div class: LogColumn>
+                    <h4 class: LogTitle>函数调用触发记录</h4>
+                    <div class: LogBox>
                         @for item in funcLog {
-                            <div class: log-entry>
+                            <div class: LogEntry>
                                 <span class: log-badge func>function</span>
-                                <span class: log-msg>{item}</span>
+                                <span class: LogMsg>{item}</span>
                             </div>
+                        }
+                        @empty {
+                            <p class: LogEmpty>暂无 function 事件</p>
                         }
                     </div>
                 </div>
             </div>
 
             <!-- 技术说明 -->
-            <div class: tech-note>
-                <h4 class: note-title>💡 emit 关键字说明</h4>
-                <ul class: note-list>
+            <div class: TechNote>
+                <h4 class: NoteTitle>💡 emit 关键字说明</h4>
+                <ul class: NoteList>
                     <li><code>emit eventName(value)</code> 与 <code>eventName(value)</code> 在语义上<strong>完全等价</strong></li>
                     <li><code>emit</code> 关键字更明确地表达了"这是一个事件发射"的意图</li>
                     <li>函数调用语法更简洁，适合在回调中快速触发</li>
@@ -142,22 +135,9 @@ component EmitKeywordDemo {
 
     style {
         // emit 演示特有的日志布局和技术说明暗色块
-        .child-column { max-width: 400px; }
-        .column-label { font-size: 13px; color: #64748b; margin: 0 0 8px 0; font-weight: 600; }
-        .side-by-side { margin-bottom: 16px; }
-        .log-section { display: flex; gap: 12px; margin-bottom: 16px; }
-        .log-column { flex: 1; }
-        .log-title { font-size: 13px; font-weight: 600; color: #334155; margin: 0 0 6px 0; }
-        .log-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; min-height: 80px; }
-        .log-empty { font-size: 12px; color: #94a3b8; text-align: center; padding: 16px 0; margin: 0; }
-        .log-entry { display: flex; align-items: center; gap: 6px; padding: 4px 0; }
         .log-badge { font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; }
         .log-badge.emit { background: #e0e7ff; color: #4338ca; }
         .log-badge.func { background: #fce7f3; color: #be185d; }
-        .log-msg { font-size: 12px; color: #334155; }
-        .tech-note { background: #0f172a; border-radius: 8px; padding: 14px 18px; }
-        .note-title { font-size: 14px; color: #e2e8f0; margin: 0 0 8px 0; }
-        .note-list { margin: 0; padding-left: 18px; }
-        .note-list li { font-size: 12px; color: #94a3b8; margin-bottom: 4px; line-height: 1.5; }
+        .NoteList li { font-size: 12px; color: #94a3b8; margin-bottom: 4px; line-height: 1.5; }
     }
 }

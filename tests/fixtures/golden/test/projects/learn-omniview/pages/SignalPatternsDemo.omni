@@ -26,16 +26,16 @@ component SlotBox {
     @slot footer
 
     view {
-        <div class: slot-container>
-            <div class: slot-header-area>
+        <div class: SlotContainer>
+            <div class: SlotHeaderArea>
                 {header}
-                <strong class: slot-default-header>Default Header</strong>
+                <strong class: SlotDefaultHeader>Default Header</strong>
             </div>
-            <div class: slot-body-area>
+            <div class: SlotBodyArea>
                 {body}
-                <p class: slot-default-body>Default body content goes here.</p>
+                <p class: SlotDefaultBody>Default body content goes here.</p>
             </div>
-            <div class: slot-footer-area>
+            <div class: SlotFooterArea>
                 {footer}
                 <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={onClose}>
                     Close
@@ -45,12 +45,6 @@ component SlotBox {
     }
 
     style {
-        .slot-container { border: 1px solid var(--border); border-radius: var(--radiusLg); overflow: hidden; background: var(--surface); }
-        .slot-header-area { padding: 12px 14px; background: var(--surfaceMuted); border-bottom: 1px solid var(--borderLight); }
-        .slot-default-header { font-size: 14px; color: var(--textPrimary); }
-        .slot-body-area { padding: 14px; min-height: 40px; }
-        .slot-default-body { font-size: 13px; color: var(--textSecondary); margin: 0; }
-        .slot-footer-area { padding: 10px 14px; background: var(--surfaceMuted); border-top: 1px solid var(--borderLight); display: flex; justify-content: flex-end; gap: 8px; }
     }
 }
 
@@ -94,8 +88,10 @@ component SignalPatternsDemo {
 
     fn removeLast() {
         if items.len() > 0 {
-            items = items.slice(0, items.len() - 1);
-            onItemRemoved(items.len());
+            // 先记录被删项 index 再 emit——载荷语义为「被移除项」，而非「删除后的长度」
+            let removedIndex = items.len() - 1;
+            items = items.slice(0, removedIndex);
+            onItemRemoved(removedIndex);
         }
     }
 
@@ -107,7 +103,13 @@ component SignalPatternsDemo {
         mountTime = "mounted!";
     }
 
-    @effect {
+    // 依赖 count：count 变化时触发一次（+1 / -1 / Reset 交互）。
+    // body 须读取 count 建立订阅——OmniView 目标 __omni_effect 自动跟踪
+    // body 实际读取的信号（显式依赖列表仅 React 目标 useEffect 使用）；
+    // 写入 effectCount（非依赖信号）不构成自依赖：React 无无限循环、
+    // OmniView setting 标志挡掉同步重入（自增仅在 count 变化时生效）。
+    @effect(count) {
+        let _ = count;
         effectCount = effectCount + 1;
     }
 
@@ -123,9 +125,9 @@ component SignalPatternsDemo {
 
             <!-- ═══ Inline Store + Computed ═══ -->
             <h4 class: LearnDesign.SectionTitle>Inline Store + Computed 派生</h4>
-            <div class: pattern-card>
-                <p class: big-number>{count}</p>
-                <p class: info>Double: {doubleCount} | {if isEven { "Even" } else { "Odd" }}</p>
+            <div class: PatternCard>
+                <p class: BigNumber>{count}</p>
+                <p class: Info>Double: {doubleCount} | {if isEven { "Even" } else { "Odd" }}</p>
                 <div class: LearnDesign.Row>
                     <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={inc}>
                         +1
@@ -141,16 +143,16 @@ component SignalPatternsDemo {
 
             <!-- ═══ bind:value 双向绑定 ═══ -->
             <h4 class: LearnDesign.SectionTitle>bind:value 双向绑定 + 验证</h4>
-            <div class: pattern-card>
-                <div class: form-row>
-                    <label class: form-label>Name:</label>
-                    <input class: form-input bind:value={name} placeholder="Enter name" />
+            <div class: PatternCard>
+                <div class: FormRow>
+                    <label class: FormLabel>Name:</label>
+                    <input class: FormInput bind:value={name} placeholder="Enter name" />
                 </div>
-                <div class: form-row>
-                    <label class: form-label>Email:</label>
-                    <input class: form-input bind:value={email} placeholder="Enter email" />
+                <div class: FormRow>
+                    <label class: FormLabel>Email:</label>
+                    <input class: FormInput bind:value={email} placeholder="Enter email" />
                 </div>
-                <p class: info>
+                <p class: Info>
                     Name: {name} | Email: {email} |
                     {if isValid { "✅ Valid" } else { "❌ Fill both fields" }}
                 </p>
@@ -158,8 +160,8 @@ component SignalPatternsDemo {
 
             <!-- ═══ @for key={expr} 身份追踪 ═══ -->
             <h4 class: LearnDesign.SectionTitle>For key 身份追踪列表</h4>
-            <div class: pattern-card>
-                <p class: info>Total: {totalItems} items</p>
+            <div class: PatternCard>
+                <p class: Info>Total: {totalItems} items</p>
                 <div class: LearnDesign.Row>
                     <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={addItem}>
                         Add Item
@@ -168,7 +170,7 @@ component SignalPatternsDemo {
                         Remove Last
                     </button>
                 </div>
-                <ul class: item-list>
+                <ul class: ItemList>
                     @for item in items key={item} {
                         <li class: list-item>{item}</li>
                     }
@@ -180,12 +182,12 @@ component SignalPatternsDemo {
 
             <!-- ═══ @if mode: "wait" 过渡模式 ═══ -->
             <h4 class: LearnDesign.SectionTitle>If mode: "wait" 过渡模式</h4>
-            <div class: pattern-card>
+            <div class: PatternCard>
                 <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={togglePanel}>
                     {if showPanel { "Hide Panel" } else { "Show Panel" }}
                 </button>
                 @if showPanel mode: "wait" {
-                    <div class: panel>
+                    <div class: Panel>
                         <p>mode: "wait" 延迟卸载：有离开动画时等待其完成，无动画时立即切换</p>
                     </div>
                 }
@@ -193,7 +195,7 @@ component SignalPatternsDemo {
 
             <!-- ═══ @slot 命名插槽 ═══ -->
             <h4 class: LearnDesign.SectionTitle>命名插槽（命名属性投影）</h4>
-            <div class: pattern-card>
+            <div class: PatternCard>
                 <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={toggleSlot}>
                     {if showSlot { "Close Slot Demo" } else { "Open Slot Demo" }}
                 </button>
@@ -201,7 +203,7 @@ component SignalPatternsDemo {
                     <SlotBox
                         @onClose={toggleSlot}
                         header={<h4>Custom Header via Slot</h4>}
-                        body={<div><p class: slot-content>This body content is projected into the body slot</p><p class: slot-content>Counter: {count}</p></div>}
+                        body={<div><p class: SlotContent>This body content is projected into the body slot</p><p class: SlotContent>Counter: {count}</p></div>}
                         footer={<button variant: LearnDesign.Button(color=primary, size=sm) @onPress={toggleSlot}>Confirm</button>}
                     />
                 }
@@ -209,26 +211,16 @@ component SignalPatternsDemo {
 
             <!-- ═══ 生命周期状态 ═══ -->
             <h4 class: LearnDesign.SectionTitle>生命周期：@mount · @effect · @unmount</h4>
-            <div class: pattern-card>
-                <p class: info>Mount: {mountTime}</p>
-                <p class: info>@effect 触发次数: {effectCount}</p>
+            <div class: PatternCard>
+                <p class: Info>Mount: {mountTime}</p>
+                <p class: Info>@effect 触发次数: {effectCount}</p>
             </div>
         </div>
     }
 
     style {
-        .pattern-card { padding: 14px; background: var(--surfaceMuted); border-radius: var(--radiusMd); border: 1px solid var(--borderLight); margin-bottom: 12px; }
-        .big-number { font-size: 36px; font-weight: bold; color: var(--primary); margin: 4px 0; }
-        .info { font-size: 13px; color: var(--textSecondary); margin: 4px 0; }
-        .form-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-        .form-label { font-size: 14px; color: var(--textPrimary); min-width: 50px; }
-        .form-input { flex: 1; padding: 8px 12px; border: 2px solid var(--border); border-radius: var(--radiusMd); font-size: 14px; outline: none; }
-        .form-input:focus { border-color: var(--primary); }
-        .item-list { margin: 8px 0; padding: 0; list-style: none; }
         .list-item { padding: 6px 12px; font-size: 13px; color: var(--textPrimary); border-bottom: 1px solid var(--borderLighter); }
         .list-item.empty { color: var(--textMuted); font-style: italic; }
-        .panel { padding: 14px; background: var(--surfaceSubtle); border-radius: var(--radiusMd); border: 1px solid var(--borderLight); margin-top: 10px; }
-        .panel p { font-size: 13px; color: var(--textPrimary); margin: 0; }
-        .slot-content { font-size: 13px; color: var(--textSecondary); margin: 4px 0; }
+        .Panel p { font-size: 13px; color: var(--textPrimary); margin: 0; }
     }
 }

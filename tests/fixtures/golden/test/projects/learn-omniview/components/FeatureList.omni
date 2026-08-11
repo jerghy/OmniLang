@@ -34,12 +34,12 @@ component FeatureList {
 
     view {
         <div class: LearnDesign.Card style: { background: "#fffbeb" }>
-            <div class: header @onPress={toggle}>
+            <div class: Header @onPress={toggle}>
                 <h3 class: title>Features ({features.len()} items)</h3>
-                <span class: arrow>{if isOpen { "^" } else { "v" }}</span>
+                <span class: Arrow>{if isOpen { "^" } else { "v" }}</span>
             </div>
             @if isOpen {
-                <div class: list>
+                <div class: List>
                     @for f in features {
                         <span class: LearnDesign.Tag>{f}</span>
                     }
@@ -50,9 +50,6 @@ component FeatureList {
     }
     style {
         // 特有色板（暖黄色系——组件特有的演示风格）
-        .header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
         .title { font-size: 16px; color: #b45309; }
-        .arrow { font-size: 14px; color: #a16207; }
-        .list { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 12px; }
     }
 }

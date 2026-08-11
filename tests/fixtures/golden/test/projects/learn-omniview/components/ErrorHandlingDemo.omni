@@ -17,83 +17,84 @@ import {
 } from "../lib/error_handling";
 
 component ErrorHandlingDemo {
-    // 触发一次 safe_divide(4, 0)，控制台会打印 finally 分支
+    // 触发一次 try_catch_finally_divide(4, 0)，控制台会打印 finally 分支
     fn triggerFinally() -> String {
         return try_catch_finally_divide(4.0, 0.0);
     }
 
     view {
-        <div class: LearnDesign.Container>
-            <h3 class: LearnDesign.CardTitle>异常处理：throw / try / catch / finally</h3>
-            <p class: LearnDesign.Subtitle>
-                演示 lib/error_handling.omni 中的 throw 语句与 try/catch/finally 结构
-            </p>
+        <div>
+            <!-- @errorBoundary 渲染降级：子树渲染期错误 → fallback 槽（React 端编译器生成 ErrorBoundary）-->
+            <div @errorBoundary>
+                @slot fallback {
+                    <div class: LearnDesign.Container>
+                        <h3 class: LearnDesign.CardTitle>渲染降级（error boundary）</h3>
+                        <p class: LearnDesign.Subtitle>此区域渲染失败时显示降级内容——编译器生成错误边界，源码零手写。</p>
+                    </div>
+                }
+                <div class: LearnDesign.Container>
+                    <h3 class: LearnDesign.CardTitle>异常处理：throw / try / catch / finally</h3>
+                    <p class: LearnDesign.Subtitle>
+                        演示 lib/error_handling.omni 中的 throw 语句与 try/catch/finally 结构
+                    </p>
 
             <!-- ═══ throw + try/catch ═══ -->
-            <div class: module-card>
-                <h4 class: module-title>① throw 语句 + try/catch</h4>
-                <ul class: output-list>
-                    <li class: output-item>
+            <div class: ModuleCard>
+                <h4 class: ModuleTitle>① throw 语句 + try/catch</h4>
+                <ul class: OutputList>
+                    <li class: OutputItem>
                         <code>safe_divide(10, 2)</code> = {safe_divide(10.0, 2.0)}
                     </li>
-                    <li class: output-item>
+                    <li class: OutputItem>
                         <code>try_catch_divide(10, 0)</code> → {try_catch_divide(10.0, 0.0)}
                         （b==0 时 throw "division by zero"，被 catch 捕获）
                     </li>
-                    <li class: output-item>
+                    <li class: OutputItem>
                         <code>try_catch_divide(8, 2)</code> → {try_catch_divide(8.0, 2.0)}
                     </li>
                 </ul>
             </div>
 
             <!-- ═══ try/catch/finally ═══ -->
-            <div class: module-card>
-                <h4 class: module-title>② try/catch/finally</h4>
-                <ul class: output-list>
-                    <li class: output-item>
+            <div class: ModuleCard>
+                <h4 class: ModuleTitle>② try/catch/finally</h4>
+                <ul class: OutputList>
+                    <li class: OutputItem>
                         <code>triggerFinally()</code> → {triggerFinally()}
                         （finally 分支的 print 输出到控制台）
                     </li>
-                    <li class: output-item>
+                    <li class: OutputItem>
                         <code>try_catch_finally_divide(6, 2)</code> → {try_catch_finally_divide(6.0, 2.0)}
                     </li>
                 </ul>
             </div>
 
             <!-- ═══ Map + get_or_throw + fallback ═══ -->
-            <div class: module-card>
-                <h4 class: module-title>③ Map 存取 + get_or_throw + safe_get</h4>
-                <ul class: output-list>
-                    <li class: output-item>
+            <div class: ModuleCard>
+                <h4 class: ModuleTitle>③ Map 存取 + get_or_throw + safe_get</h4>
+                <ul class: OutputList>
+                    <li class: OutputItem>
                         <code>safe_get(parse_config("abc"), "parsed")</code> = {safe_get(parse_config("abc"), "parsed")}
                     </li>
-                    <li class: output-item>
+                    <li class: OutputItem>
                         <code>safe_get(parse_config("abc"), "missing")</code> = {safe_get(parse_config("abc"), "missing")}
                         （key 缺失 → throw → catch 返回 fallback）
                     </li>
-                    <li class: output-item>
+                    <li class: OutputItem>
                         <code>complex_parse("length", "abc")</code> = {complex_parse("length", "abc")}
                     </li>
-                    <li class: output-item>
+                    <li class: OutputItem>
                         <code>complex_parse("unknown", "")</code> = {complex_parse("unknown", "")}
                         （空 raw → 空 Map → get_or_throw 触发 → finally 打印）
                     </li>
                 </ul>
+                </div>
+            </div>
             </div>
         </div>
     }
 
     style {
-        .module-card {
-            background: var(--surfaceMuted);
-            border: 1px solid var(--borderLight);
-            border-radius: 8px;
-            padding: 12px 16px;
-            margin-bottom: 12px;
-        }
-        .module-title { font-size: 14px; font-weight: 600; color: var(--textPrimary); margin: 0 0 8px 0; }
-        .output-list { margin: 0; padding-left: 16px; }
-        .output-item { font-size: 13px; color: var(--textPrimary); margin: 4px 0; line-height: 1.5; }
-        .output-item code { background: var(--surfaceSubtle); padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+        .OutputItem code { background: var(--surfaceSubtle); padding: 1px 5px; border-radius: 4px; font-size: 12px; }
     }
 }

@@ -149,88 +149,88 @@ component AnimPropertiesDemo {
     fn toggleAll() { playAll = !playAll; }
 
     view {
-        <div class: container>
-            <h3 class: title>全动画属性覆盖</h3>
+        <div class: Container>
+            <h3 class: Title>全动画属性覆盖</h3>
             <p class: subtitle>17 个可动画属性 · 点击按钮播放所有 @enter 动画</p>
 
-            <button @onPress={toggleAll} class: trigger-btn>
+            <button @onPress={toggleAll} class: TriggerBtn>
                 Replay All Animations
             </button>
 
             <!-- ═══ 变换组 ═══ -->
-            <h4 class: group-title>变换组（scale · scaleX · scaleY · rotate · rotateX · rotateY · rotateZ · skewX · skewY）</h4>
-            <div class: grid>
-                <div class: card @enter={scaleXDemo}>
+            <h4 class: GroupTitle>变换组（scale · scaleX · scaleY · rotate · rotateX · rotateY · rotateZ · skewX · skewY）</h4>
+            <div class: Grid>
+                <div class: MotionCard @enter={scaleXDemo}>
                     <strong>scaleX</strong>
                     <p>X 轴 1→1.8 缩放</p>
                 </div>
-                <div class: card @enter={scaleYDemo}>
+                <div class: MotionCard @enter={scaleYDemo}>
                     <strong>scaleY</strong>
                     <p>Y 轴 1→1.5 缩放</p>
                 </div>
-                <div class: card @enter={scalePulseDemo}>
+                <div class: MotionCard @enter={scalePulseDemo}>
                     <strong>scale</strong>
                     <p>等比 1→1.25 脉冲</p>
                 </div>
-                <div class: card @enter={rotateXDemo}>
+                <div class: MotionCard @enter={rotateXDemo}>
                     <strong>rotateX</strong>
                     <p>X 轴 360° 旋转</p>
                 </div>
-                <div class: card @enter={rotateYDemo}>
+                <div class: MotionCard @enter={rotateYDemo}>
                     <strong>rotateY</strong>
                     <p>Y 轴 360° 旋转</p>
                 </div>
-                <div class: card @enter={rotateZDemo}>
+                <div class: MotionCard @enter={rotateZDemo}>
                     <strong>rotateZ</strong>
                     <p>Z 轴 360° 摆动</p>
                 </div>
-                <div class: card @enter={rotateDemo}>
+                <div class: MotionCard @enter={rotateDemo}>
                     <strong>rotate</strong>
                     <p>平面 0→180° 旋转</p>
                 </div>
-                <div class: card @enter={skewXDemo}>
+                <div class: MotionCard @enter={skewXDemo}>
                     <strong>skewX</strong>
                     <p>X 轴 0→15° 倾斜</p>
                 </div>
-                <div class: card @enter={skewYDemo}>
+                <div class: MotionCard @enter={skewYDemo}>
                     <strong>skewY</strong>
                     <p>Y 轴 0→10° 倾斜</p>
                 </div>
             </div>
 
             <!-- ═══ 位移组 ═══ -->
-            <h4 class: group-title>位移组（translateX · translateY · translateZ）</h4>
-            <div class: grid>
-                <div class: card-translate @enter={translateDemo}>
+            <h4 class: GroupTitle>位移组（translateX · translateY · translateZ）</h4>
+            <div class: Grid>
+                <div class: CardTranslate @enter={translateDemo}>
                     <strong>translateX + translateY</strong>
                     <p>位移 120px, -20px</p>
                 </div>
-                <div class: card @enter={translateZDemo}>
+                <div class: MotionCard @enter={translateZDemo}>
                     <strong>translateZ</strong>
                     <p>Z 轴 0→60px</p>
                 </div>
             </div>
 
             <!-- ═══ 视觉组 ═══ -->
-            <h4 class: group-title>视觉组（opacity · backgroundColor · color · width · height）</h4>
-            <div class: grid>
-                <div class: card @enter={opacityPulseDemo}>
+            <h4 class: GroupTitle>视觉组（opacity · backgroundColor · color · width · height）</h4>
+            <div class: Grid>
+                <div class: MotionCard @enter={opacityPulseDemo}>
                     <strong>opacity</strong>
                     <p>透明度 0.3→1 脉冲</p>
                 </div>
-                <div class: card @enter={bgColorDemo}>
+                <div class: MotionCard @enter={bgColorDemo}>
                     <strong>backgroundColor</strong>
                     <p>背景色渐变</p>
                 </div>
-                <div class: card-color @enter={textColorDemo}>
+                <div class: CardColor @enter={textColorDemo}>
                     <strong>color</strong>
                     <p>文字颜色渐变</p>
                 </div>
-                <div class: box @enter={widthDemo}>
+                <div class: Box @enter={widthDemo}>
                     <strong>width</strong>
                     <p>宽度 60→200px</p>
                 </div>
-                <div class: box @enter={heightDemo}>
+                <div class: Box @enter={heightDemo}>
                     <strong>height</strong>
                     <p>高度 40→120px</p>
                 </div>
@@ -239,23 +239,15 @@ component AnimPropertiesDemo {
     }
 
     style {
-        .container { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 16px; margin: 16px 0; }
-        .title { font-size: 18px; color: var(--textPrimary); margin: 0 0 4px 0; }
+        .MotionCard strong { font-size: 13px; color: var(--textPrimary); display: block; margin-bottom: 4px; }
+        .MotionCard p { font-size: 11px; color: var(--textSecondary); margin: 0; }
+        .CardColor strong { font-size: 13px; color: var(--textPrimary); display: block; margin-bottom: 4px; }
+        .CardColor p { font-size: 11px; color: var(--textSecondary); margin: 0; }
+        .Box strong { font-size: 12px; color: #4338ca; display: block; margin-bottom: 4px; }
+        .Box p { font-size: 11px; color: #6366f1; margin: 0; white-space: nowrap; }
+        .CardTranslate strong { font-size: 13px; color: var(--textPrimary); display: block; margin-bottom: 4px; }
+        .CardTranslate p { font-size: 11px; color: var(--textSecondary); margin: 0; }
+    
         .subtitle { font-size: 12px; color: var(--textSecondary); margin: 0 0 8px 0; line-height: 1.5; }
-        .trigger-btn { padding: 8px 16px; background: #6366f1; color: #fff; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; margin-bottom: 8px; }
-        .group-title { font-size: 14px; font-weight: 600; color: var(--textPrimary); margin: 20px 0 10px 0; padding-bottom: 4px; border-bottom: 1px solid var(--borderLight); }
-        .grid { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 4px; }
-        .card { flex: 0 0 auto; padding: 14px 16px; background: var(--surfaceMuted); border-radius: 10px; border: 1px solid var(--borderLight); text-align: center; min-width: 120px; }
-        .card strong { font-size: 13px; color: var(--textPrimary); display: block; margin-bottom: 4px; }
-        .card p { font-size: 11px; color: var(--textSecondary); margin: 0; }
-        .card-color { flex: 0 0 auto; padding: 14px 16px; background: var(--surfaceMuted); border-radius: 10px; border: 2px solid var(--border); text-align: center; min-width: 140px; }
-        .card-color strong { font-size: 13px; color: var(--textPrimary); display: block; margin-bottom: 4px; }
-        .card-color p { font-size: 11px; color: var(--textSecondary); margin: 0; }
-        .box { flex: 0 0 auto; padding: 12px; background: #eef2ff; border-radius: 8px; border: 1px solid #6366f1; text-align: center; overflow: hidden; }
-        .box strong { font-size: 12px; color: #4338ca; display: block; margin-bottom: 4px; }
-        .box p { font-size: 11px; color: #6366f1; margin: 0; white-space: nowrap; }
-        .card-translate { flex: 0 0 auto; padding: 14px 16px; background: #fef9c3; border-radius: 10px; border: 1px solid #eab308; text-align: center; min-width: 120px; position: relative; }
-        .card-translate strong { font-size: 13px; color: var(--textPrimary); display: block; margin-bottom: 4px; }
-        .card-translate p { font-size: 11px; color: var(--textSecondary); margin: 0; }
     }
 }

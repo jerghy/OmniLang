@@ -2,13 +2,15 @@
 
 import omniview;
 import { LearnDesign } from "../design";
+import { EventSpectrumDemo } from "../components/EventSpectrumDemo";
 import { ValidationInput } from "../components/ValidationInput";
 import { Timer } from "../components/Timer";
 import { Modal } from "../components/Modal";
 import { TabPanel } from "../components/TabPanel";
 import { DataTable } from "../components/DataTable";
 import { FormPage } from "../components/FormPage";
-import { NotificationsPanel } from "../components/NotificationsPanel";
+import { LoadDemo } from "../components/LoadDemo";
+import { ResponsiveDemo } from "../components/ResponsiveDemo";
 import { SlotDefaultDemo } from "../components/SlotDefaultDemo";
 import { EventsDemo } from "../components/EventsDemo";
 import { EventShorthand } from "../components/EventShorthand";
@@ -41,13 +43,23 @@ component UiComponents {
             </div>
 
             <div class: LearnDesign.DemoFull><FormPage /></div>
+            <div class: LearnDesign.DemoFull><LoadDemo /></div>
+            <!-- 批次 3 响应式：breakpoint 断点 + bp() 三使用面 + 用户级 @media 块 -->
+            <div class: LearnDesign.DemoFull><ResponsiveDemo /></div>
 
             <!-- HTML 原生表单控件（FormControlsDemo：a / select / checkbox / number / range）-->
             <h3 class: LearnDesign.SectionTitle>HTML 原生控件</h3>
             <div class: LearnDesign.DemoFull><FormControlsDemo /></div>
 
-            <div class: LearnDesign.DemoFull><NotificationsPanel /></div>
+            <!-- 命令式通知（showToast 内建语义函数：kind info/success/error，原 NotificationsPanel 手写形态即切换）-->
+            <div class: LearnDesign.DemoFull>
+                <h3 class: LearnDesign.SectionTitle>命令式通知（showToast）</h3>
+                <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={() => { showToast("普通消息"); }}>info 通知</button>
+                <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={() => { showToast("保存成功", { kind: "success" }); }}>success 通知</button>
+                <button variant: LearnDesign.Button(color=primary, size=sm) @onPress={() => { showToast("网络不可用", { kind: "error" }); }}>error 通知</button>
+            </div>
             <div class: LearnDesign.DemoFull><EventShorthand /></div>
+            <div class: LearnDesign.DemoFull><EventSpectrumDemo /></div>
 
             <!-- 可访问性语义（a11y: label/role/hidden/live/alt）-->
             <h3 class: LearnDesign.SectionTitle>可访问性（a11y）</h3>
@@ -60,14 +72,14 @@ component UiComponents {
 
             <h3 class: LearnDesign.SectionTitle>Todo App Demo</h3>
             <!-- TodoList 内部组合了自己的 AddTodo（@onAdd → TodoStore.add）-->
-            <div class: todo-section>
-                <div class: todo-sidebar>
+            <div class: TodoSection>
+                <div class: TodoSidebar>
                     <FilterBar />
                 </div>
-                <div class: todo-main>
+                <div class: TodoMain>
                     <TodoList />
                 </div>
-                <div class: todo-stats>
+                <div class: TodoStats>
                     <StatsDashboard />
                 </div>
             </div>
@@ -75,9 +87,5 @@ component UiComponents {
     }
 
     style {
-        .todo-section { display: flex; gap: 14px; }
-        .todo-sidebar { width: 200px; flex-shrink: 0; }
-        .todo-main { flex: 1; min-width: 0; }
-        .todo-stats { width: 200px; flex-shrink: 0; }
     }
 }

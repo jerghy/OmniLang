@@ -2,14 +2,14 @@
 // 纯逻辑文件，不 import omniview
 
 pub fn demo_print_concat() -> String {
-    print "Hello ";
-    print "World";         // print 不自动加换行
+    print("Hello ");
+    print("World");         // print 不自动加换行
     return "print demo ok";
 }
 
 pub fn demo_println_vs_print() -> i32 {
-    println "line 1";
-    print "inline ";       // 无换行
-    println "inline 2";
+    println("line 1");
+    print("inline ");       // 无换行
+    println("inline 2");
     return 0;
 }

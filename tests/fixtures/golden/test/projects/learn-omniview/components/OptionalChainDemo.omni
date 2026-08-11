@@ -13,46 +13,38 @@ component OptionalChainDemo {
     fn toggle() { showDetails = !showDetails; }
 
     view {
-        <div class: container>
-            <h3 class: title>Optional Chain ( ?. ) Demo</h3>
-            <p class: subtitle>演示 ?. 可选链 和 ?? 空值合并运算符</p>
+        <div class: Container>
+            <h3 class: Title>Optional Chain ( ?. ) Demo</h3>
+            <p class: Subtitle>演示 ?. 可选链 和 ?? 空值合并运算符</p>
 
-            <div class: card>
-                <p class: label>user?.len() ?? 0 → {nameLen}</p>
-                <p class: label>user ?? "Guest" → {displayName}</p>
+            <div class: DemoCard>
+                <p class: Label>user?.len() ?? 0 → {nameLen}</p>
+                <p class: Label>user ?? "Guest" → {displayName}</p>
             </div>
 
-            <div class: btn-row>
-                <button class: btn @onPress={clearUser}>Set null → test ?.</button>
-                <button class: btn @onPress={setUser}>Set "Bob"</button>
-                <button class: btn-outline @onPress={toggle}>Toggle Details</button>
+            <div class: BtnRow>
+                <button class: Btn @onPress={clearUser}>Set null → test ?.</button>
+                <button class: Btn @onPress={setUser}>Set "Bob"</button>
+                <button class: BtnOutline @onPress={toggle}>Toggle Details</button>
             </div>
 
-            <!-- @else if 和 @else @if 两种写法都演示 -->
+            <!-- @else @if 写法演示 -->
             @if showDetails {
-                <div class: card>
+                <div class: DemoCard>
                     <p>user is: {displayName}</p>
                     <p>length via ?.: {nameLen}</p>
                 </div>
             } @else @if !showDetails && user != null {
-                <div class: card>
+                <div class: DemoCard>
                     <p>Click "Toggle Details" to expand</p>
                 </div>
             } @else {
-                <div class: card>
+                <div class: DemoCard>
                     <p>No user set</p>
                 </div>
             }
         </div>
     }
     style {
-        .container { background: white; border: 1px solid #d4d4d8; border-radius: 12px; padding: 20px 16px; margin: 16px 0; }
-        .title { font-size: 18px; color: #1f2937; margin: 0 0 4px 0; }
-        .subtitle { font-size: 13px; color: #9ca3af; margin: 0 0 16px 0; }
-        .card { margin-bottom: 14px; padding: 12px; background: #f9fafb; border-radius: 8px; }
-        .label { font-size: 14px; color: #374151; margin: 4px 0; }
-        .btn-row { display: flex; gap: 8px; margin-bottom: 12px; }
-        .btn { padding: 8px 16px; background: #6366f1; color: white; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; }
-        .btn-outline { padding: 8px 16px; background: white; color: #6366f1; border: 1px solid #6366f1; border-radius: 8px; font-size: 14px; cursor: pointer; }
     }
 }

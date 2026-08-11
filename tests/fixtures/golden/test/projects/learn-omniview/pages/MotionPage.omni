@@ -6,6 +6,7 @@ import { EasingFunctionsDemo } from "./EasingFunctionsDemo";
 import { AnimPropertiesDemo } from "./AnimPropertiesDemo";
 import { MotionTriggersDemo } from "./MotionTriggersDemo";
 import { KeyframeAnimationDemo } from "./KeyframeAnimationDemo";
+import { FontSizeMotionDemo } from "./FontSizeMotionDemo";
 
 component MotionPage {
     view {
@@ -14,6 +15,7 @@ component MotionPage {
             <div class: LearnDesign.DemoFull><KeyframeAnimationDemo /></div>
             <div class: LearnDesign.DemoFull><EasingFunctionsDemo /></div>
             <div class: LearnDesign.DemoFull><AnimPropertiesDemo /></div>
+            <div class: LearnDesign.DemoFull><FontSizeMotionDemo /></div>
             <div class: LearnDesign.DemoFull><MotionTriggersDemo /></div>
         </section>
     }

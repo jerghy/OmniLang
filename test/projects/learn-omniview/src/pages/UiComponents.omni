@@ -10,6 +10,7 @@ import { TabPanel } from "../components/TabPanel";
 import { DataTable } from "../components/DataTable";
 import { FormPage } from "../components/FormPage";
 import { LoadDemo } from "../components/LoadDemo";
+import { ResponsiveDemo } from "../components/ResponsiveDemo";
 import { SlotDefaultDemo } from "../components/SlotDefaultDemo";
 import { EventsDemo } from "../components/EventsDemo";
 import { EventShorthand } from "../components/EventShorthand";
@@ -43,6 +44,8 @@ component UiComponents {
 
             <div class: LearnDesign.DemoFull><FormPage /></div>
             <div class: LearnDesign.DemoFull><LoadDemo /></div>
+            <!-- 批次 3 响应式：breakpoint 断点 + bp() 三使用面 + 用户级 @media 块 -->
+            <div class: LearnDesign.DemoFull><ResponsiveDemo /></div>
 
             <!-- HTML 原生表单控件（FormControlsDemo：a / select / checkbox / number / range）-->
             <h3 class: LearnDesign.SectionTitle>HTML 原生控件</h3>

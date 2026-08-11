@@ -14,14 +14,14 @@ pub fn now_formatted() -> String {
     return datetime_format(now, "%Y-%m-%d %H:%M:%S");
 }
 
-pub fn get_date_parts() {
+pub fn get_date_parts() -> Map<String, i32> {
     let now = datetime_now();
     return { "year": datetime_year(now),
              "month": datetime_month(now),
              "day": datetime_day(now) };
 }
 
-pub fn get_time_parts() {
+pub fn get_time_parts() -> Map<String, i32> {
     let now = datetime_now();
     return { "hour": datetime_hour(now),
              "minute": datetime_minute(now),
@@ -32,7 +32,7 @@ pub fn timestamp_to_string(ts: i64) -> String {
     return datetime_format(datetime_from_timestamp(ts), "%Y-%m-%d");
 }
 
-pub fn all_extractors() {
+pub fn all_extractors() -> Map<String, i32> {
     let now = datetime_now();
     return { "year": datetime_year(now),
              "month": datetime_month(now),

@@ -36,30 +36,24 @@ component FeatureCard {
     view {
         <div class: LearnDesign.Card>
             <h3 class: LearnDesign.CardTitle>FeatureCard Demo</h3>
-            <input class: input placeholder="Click" bind:value={inputText} @onFocus={handleFocus} @onBlur={handleBlur}></input>
+            <input class: Input placeholder="Click" bind:value={inputText} @onFocus={handleFocus} @onBlur={handleBlur}></input>
             @if status == "focused" {
-                <span class: badge-focused>Focused</span>
+                <span class: BadgeFocused>Focused</span>
             }
             @else if status == "blurred" {
-                <span class: badge-blurred>Blurred</span>
+                <span class: BadgeBlurred>Blurred</span>
             }
             @else if status == "idle" {
-                <span class: badge-idle>Idle</span>
+                <span class: BadgeIdle>Idle</span>
             }
             @else {
-                <span class: badge-unknown>Unknown</span>
+                <span class: BadgeUnknown>Unknown</span>
             }
-            <p class: text>X: {getOriginX()} | Focus: {focusCount} | Stats: {getStats().name} / {getStats().count} / {getStats().percentage}</p>
+            <p class: Text>X: {getOriginX()} | Focus: {focusCount} | Stats: {getStats().name} / {getStats().count} / {getStats().percentage}</p>
             <button variant: LearnDesign.Button(color=ghost, size=md) @onPress={reset}>Reset</button>
         </div>
     }
     style {
-        // 状态徽章颜色（组件特有的语义色——保留在组件级）
-        .badge-focused { font-size: 14px; padding: 4px 12px; border-radius: 12px; background: #dbf0ff; color: #1d40d0; }
-        .badge-blurred { font-size: 14px; padding: 4px 12px; border-radius: 12px; background: #f3f4f6; color: #6b7280; }
-        .badge-idle { font-size: 14px; padding: 4px 12px; border-radius: 12px; background: #fdf0c0; color: #924000; }
-        .badge-unknown { font-size: 14px; padding: 4px 12px; border-radius: 12px; background: #fddddd; color: #dc2626; }
-        .text { font-size: 14px; color: #6b7280; margin: 4px 0; }
-        .input { padding: 12px; border: 2px solid #d4d4d8; border-radius: 8px; font-size: 16px; margin-bottom: 12px; width: 100%; box-sizing: border-box; }
+        // 状态徽章颜色由 design.omni 提供（BadgeFocused/BadgeBlurred/BadgeIdle/BadgeUnknown）
     }
 }

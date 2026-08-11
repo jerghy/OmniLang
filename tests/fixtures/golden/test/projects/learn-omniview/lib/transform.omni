@@ -4,7 +4,7 @@
 // ║  纯逻辑文件，不写 import omniview;                              ║
 // ╚══════════════════════════════════════════════════════════════╝
 
-// ── 1. find_first_match —— for..in + break（提前退出循环）──────
+// ── 1. find_first_match —— for..in + 提前 return ──────────────
 
 pub fn find_first_match(values: Array<String>, min_len: i32) -> String {
     for value in values {
@@ -111,32 +111,37 @@ pub fn find_first_long(values: Array<String>, min_len: i32) -> String {
 }
 
 // ── 8. find_first_vowel —— while + break（查找第一个元音）─────────
-// 由 ValidationInput 组件导入使用
+// 语法展示（for..in/while + break、提前返回 变体）——当前无导入消费者
 // NOTE: OmniLang 中 while 循环体内不支持 let 声明，直接使用表达式
 
 pub fn find_first_vowel(text: String) -> i32 {
+    let lower_text = text.to_lowercase();  // 统一小写——大写文本同样匹配
     let mut i = 0;
-    while i < text.len() {
-        if text.get(i) == "a" || text.get(i) == "e" || text.get(i) == "i" || text.get(i) == "o" || text.get(i) == "u" {
+    while i < lower_text.len() {
+        if lower_text.get(i) == "a" || lower_text.get(i) == "e" || lower_text.get(i) == "i" || lower_text.get(i) == "o" || lower_text.get(i) == "u" {
             break;  // 找到元音立即退出
         }
         i = i + 1;
     }
-    if i < text.len() { return i; }
+    if i < lower_text.len() { return i; }
     return -1;
 }
 
 // ── 9. count_consonants —— while + continue（跳过元音）────────────
 
 pub fn count_consonants(text: String) -> i32 {
+    let lower_text = text.to_lowercase();  // 统一小写——大写字母同样识别
     let mut count = 0;
     let mut i = 0;
-    while i < text.len() {
-        if text.get(i) == "a" || text.get(i) == "e" || text.get(i) == "i" || text.get(i) == "o" || text.get(i) == "u" {
+    while i < lower_text.len() {
+        if lower_text.get(i) == "a" || lower_text.get(i) == "e" || lower_text.get(i) == "i" || lower_text.get(i) == "o" || lower_text.get(i) == "u" {
             i = i + 1;
             continue;  // 跳过元音，不计入辅音统计
         }
-        count = count + 1;
+        // 仅字母计入辅音——空格/标点/数字跳过
+        if lower_text.get(i) >= "a" && lower_text.get(i) <= "z" {
+            count = count + 1;
+        }
         i = i + 1;
     }
     return count;

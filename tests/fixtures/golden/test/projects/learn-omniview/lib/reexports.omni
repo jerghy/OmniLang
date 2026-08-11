@@ -1,7 +1,7 @@
 // ╔══════════════════════════════════════════════════════════════╗
 // ║  lib/reexports.omni —— 重新导出                                ║
-// ║  演示：export { Type } from "./module" 语法                    ║
-// ║  消费者可通过 reexports 统一导入，无需直接依赖 types            ║
+// ║  语法展示：export { Type } from "./module" 重导出机制          ║
+// ║  当前无导入消费者（StructImportDemo 直接从 ./types 导入）       ║
 // ╚══════════════════════════════════════════════════════════════╝
 
 // 重新导出 types 中的公有类型（pub struct / pub type）

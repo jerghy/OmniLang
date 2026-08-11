@@ -24,6 +24,13 @@ design LearnDesign {
     @themes { light, dark, sepia, highContrast }
     @default-theme light;
 
+    // ── 响应式断点（批次 3）──
+    // 命名断点数值表（min-width 语义），供 bp("name") 条件表达式编译期查表：
+    //   React useMediaQuery / Flutter MediaQuery.sizeOf / OmniView matchMedia
+    breakpoint sm: 640;
+    breakpoint md: 768;
+    breakpoint lg: 1024;
+
     // ═══════════════════════════════════════════════════════════
     // 1. 设计令牌（DESIGN TOKENS）
     //    8 种类型：Color, Size, Radius, Shadow, FontFamily, FontSize,

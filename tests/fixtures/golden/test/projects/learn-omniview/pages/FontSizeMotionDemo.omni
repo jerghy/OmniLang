@@ -1,0 +1,91 @@
+// ╔══════════════════════════════════════════════════════════════════════╗
+// ║  FontSizeMotionDemo — 可动画属性补齐：fontSize + 多属性复合动画        ║
+// ║                                                                      ║
+// ║  白名单 19 项覆盖收口：opacity/scale/scaleX/scaleY/translateX/Y/Z/    ║
+// ║  rotate/rotateX/Y/Z/skewX/skewY/backgroundColor/color/width/height/   ║
+// ║  borderRadius（AnimPropertiesDemo 等）+ fontSize（本组件）。          ║
+// ║                                                                      ║
+// ║  灵活运用：多属性同帧复合（scale + translateY + backgroundColor +     ║
+// ║  borderRadius 同时过渡）+ 命名 @enter 动画经信号切换重放。            ║
+// ╚══════════════════════════════════════════════════════════════════════╝
+
+import omniview;
+import { LearnDesign } from "../design";
+
+// ── fontSize 动画（三目标：React 内联样式 / Flutter TextStyle / OmniView） ──
+@motion fontGrow {
+    from { fontSize: 14 }
+    to   { fontSize: 30 }
+    over: 500ms
+    easing: power2-out
+}
+
+@motion fontShrink {
+    from { fontSize: 30 }
+    to   { fontSize: 14 }
+    over: 500ms
+    easing: power2-out
+}
+
+// ── 多属性复合动画（灵活运用：四属性同帧过渡） ──
+@motion comboPulse {
+    from { scale: 1, translateY: 0, backgroundColor: "#6366f1", borderRadius: 8 }
+    to   { scale: 1.18, translateY: -8, backgroundColor: "#f97316", borderRadius: 24 }
+    over: 700ms
+    easing: ease-in-out
+}
+
+// ── 反向复合（回弹） ──
+@motion comboSettle {
+    from { scale: 1.18, translateY: -8, backgroundColor: "#f97316", borderRadius: 24 }
+    to   { scale: 1, translateY: 0, backgroundColor: "#6366f1", borderRadius: 8 }
+    over: 500ms
+    easing: power2-out
+}
+
+component FontSizeMotionDemo {
+    // 命名 @enter 动画随信号切换重放（omniview 运行时语义——playAll 同机制）
+    signal fontPhase: String = "grow";
+    signal comboPhase: String = "in";
+
+    fn toggleFont() { fontPhase = if fontPhase == "grow" { "shrink" } else { "grow" }; }
+    fn toggleCombo() { comboPhase = if comboPhase == "in" { "out" } else { "in" }; }
+
+    view {
+        <section class: LearnDesign.DemoCard>
+            <h3 class: LearnDesign.CardTitle>字号动画 + 多属性复合</h3>
+            <p class: LearnDesign.CardDesc>
+                白名单第 19 项 fontSize 动画（TextStyle 过渡）；复合动画 = scale + translateY +
+                backgroundColor + borderRadius 同帧——编译器为每目标合成组合变换。
+            </p>
+
+            <div class: LearnDesign.Row>
+                <div class: LearnDesign.Chip @onPress={toggleFont}>
+                    {if fontPhase == "grow" { "字号 14 → 30" } else { "字号 30 → 14" }}
+                </div>
+
+                <div class: LearnDesign.Chip @onPress={toggleCombo}>
+                    {if comboPhase == "in" { "复合：放大+上浮+变色+圆角" } else { "复合回弹" }}
+                </div>
+            </div>
+
+            <div class: LearnDesign.Row>
+                @if fontPhase == "grow" {
+                    <div class: LearnDesign.Badge @enter={fontGrow}>fontSize 动画</div>
+                }
+                @else {
+                    <div class: LearnDesign.Badge @enter={fontShrink}>fontSize 回缩</div>
+                }
+
+                @if comboPhase == "in" {
+                    <div class: LearnDesign.Badge @enter={comboPulse}>四属性同帧</div>
+                }
+                @else {
+                    <div class: LearnDesign.Badge @enter={comboSettle}>复合回弹</div>
+                }
+
+                <span class: LearnDesign.Note>覆盖 19/19 可动画属性 ✓</span>
+            </div>
+        </section>
+    }
+}

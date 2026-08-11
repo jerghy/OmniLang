@@ -29,8 +29,8 @@ import omniview;
 }
 
 component MotionDemo {
-  signal count: i32 = 0
-  signal isOpen: bool = false
+  signal count: i32 = 0;
+  signal isOpen: bool = false;
 
   fn toggleModal() {
     isOpen = !isOpen
@@ -54,11 +54,18 @@ component MotionDemo {
         Toggle Modal
       </button>
 
-      @if isOpen mode: "fade" {
-        <div @enter={fadeInUp}>
+      <!-- @modal 受控模态：焦点陷阱 / Esc / 遮罩点击 / aria 由编译器生成，@enter 打开动画 -->
+      <dialog @modal={isOpen} @enter={fadeInUp}>
+        @slot header {
           <h2>Modal Content</h2>
-        </div>
-      }
+        }
+        @slot body {
+          <p>受控信号 isOpen 为唯一真源——打开/关闭（含 Esc、遮罩点击）均回写该信号。</p>
+        }
+        @slot footer {
+          <button @onPress={toggleModal}>关闭</button>
+        }
+      </dialog>
 
       <button @press={scalePress} @onPress={addItem}>Add Item</button>
       <button @press={scalePress} @onPress={removeItem}>Remove Item</button>

@@ -8,6 +8,10 @@ import { json_parse, json_stringify } from "std/json";
 component UserSettings {
     signal username: String = "";
     signal savedText: String = "";
+    // 加载基线：@mount 把加载值写入此处；@effect 仅在 username 偏离基线
+    // （用户编辑）时保存——effect 构造首跑（OmniView @mount 之后立即执行）
+    // 与加载写入都不会触发保存，"Settings loaded from storage" 文案得以保留。
+    signal loadedUsername: String = "";
 
     // @mount：组件挂载时从 storage 读取配置
     @mount {
@@ -19,6 +23,7 @@ component UserSettings {
             let parsed = json_parse(raw);
             if parsed != "" && parsed != null {
                 username = parsed;
+                loadedUsername = parsed;
                 savedText = "Settings loaded from storage";
             } else {
                 savedText = "No saved settings found";
@@ -28,9 +33,14 @@ component UserSettings {
         }
     }
 
-    // @effect：信号变化时自动保存
+    // @effect：信号变化时自动保存。仅在 username 偏离加载基线时执行——
+    // effect 构造首跑（OmniView 在 @mount 之后立即运行一次）与 @mount 的
+    // 加载写入（React 目标 mount setState → effect 随 username 变化重跑）
+    // 均不会误保存，加载文案不被覆盖；用户编辑才触发保存。
     @effect(username) {
-        saveSettings();
+        if username != loadedUsername {
+            saveSettings();
+        }
     }
 
     // 保存设置到 localStorage + JSON 序列化
@@ -40,44 +50,36 @@ component UserSettings {
         savedText = "Settings saved";
     }
 
-    // 清除存储的设置
+    // 清除存储的设置（基线同步置空：effect 判定 username == loadedUsername 跳过保存，
+    // "Settings cleared" 文案不被 effect 覆盖）
     fn clearSettings() {
         storage_set("user-settings", "");
         username = "";
+        loadedUsername = "";
         savedText = "Settings cleared";
     }
 
     view {
-        <div class: user-settings>
-            <h3 class: title>Storage Demo</h3>
-            <p class: desc>storage get/set + json parse/stringify + mount</p>
+        <div class: UserSettings>
+            <h3 class: Title>Storage Demo</h3>
+            <p class: Desc>storage get/set + json parse/stringify + mount</p>
 
-            <div class: form>
-                <label class: field-label>Username</label>
-                <input bind:value={username} class: field-input placeholder="Your name..."></input>
+            <div class: Form>
+                <label class: FieldLabel>Username</label>
+                <input bind:value={username} class: FieldInput placeholder="Your name..."></input>
 
-                <div class: btn-row>
-                    <button class: btn-save @onPress={saveSettings}>Save</button>
-                    <button class: btn-clear @onPress={clearSettings}>Clear</button>
+                <div class: BtnRow>
+                    <button class: BtnSave @onPress={saveSettings}>Save</button>
+                    <button class: BtnClear @onPress={clearSettings}>Clear</button>
                 </div>
             </div>
 
-            <div class: info-bar>
+            <div class: InfoBar>
                 <p class: info-text>{savedText}</p>
             </div>
         </div>
     }
     style {
-        .user-settings { background: #fff; border: 1px solid #ddd; border-radius: 12px; padding: 20px 16px; margin: 16px 0; }
-        .title { font-size: 18px; color: #1f2937; margin: 0 0 4px 0; }
-        .desc { font-size: 13px; color: #6b7280; margin: 0 0 12px 0; }
-        .form { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
-        .field-label { font-size: 13px; font-weight: 600; color: #374151; }
-        .field-input { padding: 8px 12px; border: 1px solid #d4d4d8; border-radius: 6px; font-size: 14px; }
-        .btn-row { display: flex; gap: 8px; }
-        .btn-save { padding: 8px 16px; background: #6366f1; color: #fff; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; }
-        .btn-clear { padding: 8px 16px; background: #f97316; color: #fff; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; }
-        .info-bar { padding: 10px 12px; background: #f9fafb; border-radius: 8px; border: 1px solid #d4d4d8; }
         .info-text { font-size: 13px; color: #374151; margin: 0; }
     }
 }

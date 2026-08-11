@@ -20,7 +20,7 @@ component VariantShowcase {
             </p>
 
             <h4 class: LearnDesign.SectionTitle>Color Variants (size=md)</h4>
-            <div class: variant-row>
+            <div class: VariantRow>
                 <button variant: LearnDesign.Button(color=primary, size=md)>Primary</button>
                 <button variant: LearnDesign.Button(color=danger, size=md)>Danger</button>
                 <button variant: LearnDesign.Button(color=ghost, size=md)>Ghost</button>
@@ -28,14 +28,14 @@ component VariantShowcase {
             </div>
 
             <h4 class: LearnDesign.SectionTitle>Size Variants (color=primary)</h4>
-            <div class: variant-row>
+            <div class: VariantRow>
                 <button variant: LearnDesign.Button(color=primary, size=sm)>Small</button>
                 <button variant: LearnDesign.Button(color=primary, size=md)>Medium</button>
                 <button variant: LearnDesign.Button(color=primary, size=lg)>Large</button>
             </div>
 
             <h4 class: LearnDesign.SectionTitle>Theme Responsiveness</h4>
-            <p class: hint-text>
+            <p class: HintText>
                 Switch themes above -- button colors change automatically via <code>var(--primary)</code>, <code>var(--danger)</code>, etc.
                 No component code changes needed.
             </p>
@@ -43,8 +43,6 @@ component VariantShowcase {
     }
 
     style {
-        .variant-row { display: flex; gap: 10px; margin: 0 0 16px 0; flex-wrap: wrap; }
-        .hint-text { font-size: var(--fontSizeXs); color: var(--textMuted); margin: 0; }
-        .hint-text code { font-size: var(--fontSizeXs); background: var(--surfaceSubtle); padding: "1px 4px"; border-radius: "3px"; }
+        .HintText code { font-size: var(--fontSizeXs); background: var(--surfaceSubtle); padding: "1px 4px"; border-radius: "3px"; }
     }
 }

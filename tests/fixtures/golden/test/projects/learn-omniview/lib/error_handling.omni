@@ -37,7 +37,9 @@ pub fn try_catch_finally_divide(a: f64, b: f64) -> String {
 
 // ── 4. parse_config —— Map 字面量构建 ──────────────────────────
 
-pub fn parse_config(raw: String) {
+// 返回 Map<String, String> 与 complex_parse 经 get_or_throw 以 String 消费的方式一致
+// （"length" 存字符串形式，供字符串拼接消费）
+pub fn parse_config(raw: String) -> Map<String, String> {
     if raw != "" {
         return { "parsed": "true", "length": raw.len().to_string() };
     }

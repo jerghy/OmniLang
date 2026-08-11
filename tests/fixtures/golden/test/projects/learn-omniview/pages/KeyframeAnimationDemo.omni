@@ -199,49 +199,49 @@ component KeyframeAnimationDemo {
             <!-- ═══ 触发器组 ═══ -->
             <h4 class: LearnDesign.SectionTitle>全部 8 触发器</h4>
 
-            <div class: trigger-grid>
+            <div class: TriggerGrid>
                 <!-- @enter -->
-                <div class: card @enter={enterFadeUp}>
+                <div class: MotionCard @enter={enterFadeUp}>
                     <strong>@enter</strong>
                     <p>入场动画 fadeUp 500ms</p>
                 </div>
 
                 <!-- @hover -->
-                <div class: card @hover={hoverScale}>
+                <div class: MotionCard @hover={hoverScale}>
                     <strong>@hover</strong>
                     <p>悬停缩放 1.05x</p>
                 </div>
 
                 <!-- @press -->
-                <div class: card @press={pressShrink}>
+                <div class: MotionCard @press={pressShrink}>
                     <strong>@press</strong>
                     <p>按压缩小 0.95x</p>
                 </div>
 
                 <!-- @focus -->
-                <div class: card>
+                <div class: MotionCard>
                     <strong>focus</strong>
                     <p>聚焦按钮触发</p>
-                    <button class: focus-btn @focus={focusGlow}>Focus me</button>
+                    <button class: FocusBtn @focus={focusGlow}>Focus me</button>
                 </div>
 
-                <div class: card @in-view={inViewSlide}>
+                <div class: MotionCard @in-view={inViewSlide}>
                     <strong>@in-view</strong>
                     <p>进入视口触发</p>
                 </div>
 
                 <!-- @scroll / @drag 的控制维度（start/end/scrub、constraints/elastic）见 MotionTriggersDemo -->
-                <div class: "card scroll-area" @scroll={scrollProgress}>
+                <div class: "MotionCard ScrollArea" @scroll={scrollProgress}>
                     <strong>@scroll</strong>
                     <p>滚动驱动</p>
                 </div>
 
-                <div class: card @drag-horizontal={dragSlideX}>
+                <div class: MotionCard @drag-horizontal={dragSlideX}>
                     <strong>@drag-horizontal</strong>
                     <p>水平拖拽 →</p>
                 </div>
 
-                <div class: card @drag-vertical={dragSlideY}>
+                <div class: MotionCard @drag-vertical={dragSlideY}>
                     <strong>@drag-vertical</strong>
                     <p>垂直拖拽 ↓</p>
                 </div>
@@ -250,32 +250,32 @@ component KeyframeAnimationDemo {
             <!-- ═══ 播放属性组 ═══ -->
             <h4 class: LearnDesign.SectionTitle>4 个播放属性：Loop · Direction · Fill · Delay</h4>
 
-            <div class: trigger-grid>
-                <div class: card @enter={spinLoop}>
+            <div class: TriggerGrid>
+                <div class: MotionCard @enter={spinLoop}>
                     <strong>Loop</strong>
                     <p>无限旋转 360°</p>
                 </div>
-                <div class: card @enter={dirAlternate}>
+                <div class: MotionCard @enter={dirAlternate}>
                     <strong>Direction alternate</strong>
                     <p>交替往返</p>
                 </div>
-                <div class: card @enter={dirAltReverse}>
+                <div class: MotionCard @enter={dirAltReverse}>
                     <strong>Direction alternateReverse</strong>
                     <p>交替反向</p>
                 </div>
-                <div class: card @enter={fillForwards}>
+                <div class: MotionCard @enter={fillForwards}>
                     <strong>Fill forwards</strong>
                     <p>保持终点状态</p>
                 </div>
-                <div class: card @enter={fillBackwards}>
+                <div class: MotionCard @enter={fillBackwards}>
                     <strong>Fill backwards + Delay</strong>
                     <p>delay 500ms 前即跳到 from 态</p>
                 </div>
-                <div class: card @enter={fillBoth}>
+                <div class: MotionCard @enter={fillBoth}>
                     <strong>Fill both + Delay</strong>
                     <p>前后都填充 · delay 300ms</p>
                 </div>
-                <div class: card @enter={delayedEntrance}>
+                <div class: MotionCard @enter={delayedEntrance}>
                     <strong>Delay 500ms</strong>
                     <p>延迟 0.5 秒开始</p>
                 </div>
@@ -283,20 +283,20 @@ component KeyframeAnimationDemo {
 
             <!-- ═══ 缓动变体组 ═══ -->
             <h4 class: LearnDesign.SectionTitle>4 种缓动变体：Named · CubicBezier · Back · Elastic</h4>
-            <div class: trigger-grid>
-                <div class: card @enter={enterFadeUp}>
+            <div class: TriggerGrid>
+                <div class: MotionCard @enter={enterFadeUp}>
                     <strong>Named (power2-out)</strong>
                     <p>命名曲线（缓动全集见 EasingFunctionsDemo）</p>
                 </div>
-                <div class: card @enter={cubicDemo}>
+                <div class: MotionCard @enter={cubicDemo}>
                     <strong>CubicBezier</strong>
                     <p>cubic(0.68, -0.55, 0.27, 1.55)</p>
                 </div>
-                <div class: card @enter={backEaseDemo}>
+                <div class: MotionCard @enter={backEaseDemo}>
                     <strong>Back (named-only)</strong>
                     <p>back-out 回弹曲线</p>
                 </div>
-                <div class: card @enter={elasticEaseDemo}>
+                <div class: MotionCard @enter={elasticEaseDemo}>
                     <strong>Elastic (named-only)</strong>
                     <p>elastic-out 弹性曲线</p>
                 </div>
@@ -304,7 +304,7 @@ component KeyframeAnimationDemo {
 
             <!-- ═══ 多停靠关键帧 ═══ -->
             <h4 class: LearnDesign.SectionTitle>多停靠关键帧（百分比：0% 25% 50% 75% 100%）</h4>
-            <div class: "card multi-stop" @enter={multiStopDemo}>
+            <div class: "MotionCard MultiStop" @enter={multiStopDemo}>
                 <strong>Multi-stop Keyframe</strong>
                 <p>5 个停靠点 · 颜色渐变 · 缩放循环</p>
             </div>
@@ -312,12 +312,7 @@ component KeyframeAnimationDemo {
     }
 
     style {
-        .trigger-grid { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
-        .card { flex: 0 0 auto; padding: 14px 16px; background: var(--surfaceMuted); border-radius: var(--radiusMd); border: 1px solid var(--borderLight); text-align: center; min-width: 140px; cursor: default; }
-        .card strong { font-size: 13px; color: var(--textPrimary); display: block; margin-bottom: 4px; }
-        .card p { font-size: 11px; color: var(--textSecondary); margin: 0; }
-        .scroll-area { height: 100px; overflow-y: auto; }
-        .multi-stop { padding: 24px; text-align: center; background: var(--surfaceMuted); }
-        .focus-btn { margin-top: 6px; padding: 4px 10px; font-size: 11px; background: var(--primary); color: #fff; border: none; border-radius: 6px; cursor: pointer; }
+        .MotionCard strong { font-size: 13px; color: var(--textPrimary); display: block; margin-bottom: 4px; }
+        .MotionCard p { font-size: 11px; color: var(--textSecondary); margin: 0; }
     }
 }

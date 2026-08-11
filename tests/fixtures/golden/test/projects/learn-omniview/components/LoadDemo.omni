@@ -1,0 +1,49 @@
+// LoadDemo.omni —— @load 数据三态（loading/error/data + retry）能力展示
+// 演示 @load={fn} 视图级指令：编译器生成 loading/error/data 三态信号 + retry 重试回调
+// fn 须存在且无参数、返回 Array（v0 边界：仅 Array）；静态数组模拟异步数据源
+
+import omniview;
+import { LearnDesign } from "../design";
+
+component LoadDemo {
+    // @load 绑定 fn：无参数 + Array<String> 返回（v0 边界）
+    fn fetchItems() -> Array<String> {
+        return ["项目 Alpha", "项目 Beta", "项目 Gamma"];
+    }
+
+    view {
+        <div class: LearnDesign.Card>
+            <h2 class: LearnDesign.CardTitle>LoadDemo — @load 数据三态</h2>
+
+            <!-- @load 视图级指令：mount 后自动装载 -->
+            @load={fetchItems}
+
+            <!-- 三态渲染：loading / error / data（保留名信号） -->
+            @if loading {
+                <p data-testid="load-status" a11y: { live: "polite" }>加载中…</p>
+                <!-- @skeleton 加载占位：text（默认）段落条 + card 卡片块，仅限 @load loading 分支 -->
+                <div @skeleton />
+                <div @skeleton="card" />
+            }
+            @if error != "" {
+                <p data-testid="load-status" a11y: { live: "assertive" }>加载失败：{error}</p>
+            }
+
+            <ul data-testid="load-items">
+                @for item in data {
+                    <li data-testid="load-item">{item}</li>
+                }
+            </ul>
+
+            <!-- retry 重试回调：绑定到用户交互 -->
+            <div class: Actions>
+                <button
+                    variant: LearnDesign.Button(color=primary, size=md)
+                    @onPress={retry}
+                    a11y: { label: "Retry load" }
+                    data-testid="load-retry-btn"
+                >重试</button>
+            </div>
+        </div>
+    }
+}

@@ -1,0 +1,58 @@
+// ╔══════════════════════════════════════════════════════════════════════╗
+// ║  StructImportDemo — 跨文件结构体导入 + import type 展示               ║
+// ║                                                                      ║
+// ║  语法点：                                                            ║
+// ║    · import type { X } from "./path" —— 类型专用导入（仅编译期，       ║
+// ║      运行时零引用，不再是未使用导入警告）                              ║
+// ║    · pub struct 跨文件导入 + 构造语法 X { field: value }               ║
+// ║    · struct-typed signal：signal s: StatisticsData = ...             ║
+// ║    · 字段访问 s.name（响应式，全目标通用）                              ║
+// ║  灵活运用：                                                           ║
+// ║    · 更新 = 完整构造新结构体（不可变风格，无需可变引用）                 ║
+// ║    · 布尔字段直接进三元表达式 → 可读标签                                  ║
+// ╚══════════════════════════════════════════════════════════════════════╝
+
+import omniview;
+import type { StatisticsData } from "../lib/types";
+import { LearnDesign } from "../design";
+
+component StructImportDemo {
+    signal stats: StatisticsData = StatisticsData { name: "OmniLang 1.0", count: 42, percentage: 96.5, active: true };
+
+    computed statusLabel: String = stats.active ? "活跃" : "归档";
+    computed hasData: bool = stats.count > 0;
+
+    fn rotateStatus() {
+        stats = StatisticsData {
+            name: stats.name,
+            count: stats.count + 1,
+            percentage: stats.percentage,
+            active: !stats.active,
+        };
+    }
+
+    view {
+        <section class: LearnDesign.DemoCard>
+            <h3 class: LearnDesign.CardTitle>跨文件结构体导入（import type）</h3>
+            <p class: LearnDesign.Hint>
+                import type 仅用于编译期类型；pub struct 跨文件导入；struct-typed signal；字段响应式访问。
+            </p>
+
+            <div class: LearnDesign.Row>
+                <div class: LearnDesign.Col>
+                    <h4 class: LearnDesign.SectionTitle>统计对象（StatisticsData）</h4>
+                    <p class: LearnDesign.Hint>名称：{stats.name}</p>
+                    <p class: LearnDesign.Hint>计数：{stats.count}</p>
+                    <p class: LearnDesign.Hint>占比：{stats.percentage}%</p>
+                    <p class: LearnDesign.Hint>状态：{statusLabel}</p>
+                    <p class: LearnDesign.Hint>
+                        hasData 派生：{hasData ? "有数据（count 为正）" : "无数据"}
+                    </p>
+                    <button class: LearnDesign.Button data-testid="struct-rotate" @onPress={rotateStatus}>
+                        轮转状态（构造新结构体）
+                    </button>
+                </div>
+            </div>
+        </section>
+    }
+}

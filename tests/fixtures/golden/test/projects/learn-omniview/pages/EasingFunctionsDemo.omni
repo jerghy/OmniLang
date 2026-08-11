@@ -223,77 +223,72 @@ component EasingFunctionsDemo {
     fn toggleAll() { playAll = !playAll; }
 
     view {
-        <div class: container>
-            <h3 class: title>缓动函数全家桶</h3>
+        <div class: Container>
+            <h3 class: Title>缓动函数全家桶</h3>
             <p class: subtitle>23 种缓动 · 点击按钮播放当前屏幕所有 @enter 动画</p>
-            <button @press={backOutMove} @onPress={toggleAll} class: trigger-btn>
+            <button @press={backOutMove} @onPress={toggleAll} class: TriggerBtn>
                 Replay All Animations
             </button>
 
             <!-- ═══ Power 组 ═══ -->
-            <h4 class: group-title>Power 曲线（ease-in · power1 · power2 · power3 · power4）</h4>
-            <div class: grid>
-                <div class: card @enter={easeInMove}><strong>ease-in</strong><p>三次方加速</p></div>
-                <div class: card @enter={power1InMove}><strong>power1-in</strong><p>二次方入</p></div>
-                <div class: card @enter={power1OutMove}><strong>power1-out</strong><p>二次方出</p></div>
-                <div class: card @enter={power1InOutMove}><strong>power1-in-out</strong><p>二次方出入</p></div>
-                <div class: card @enter={power2InMove}><strong>power2-in</strong><p>三次方入</p></div>
-                <div class: card @enter={power2InOutMove}><strong>power2-in-out</strong><p>三次方出入</p></div>
-                <div class: card @enter={power3InMove}><strong>power3-in</strong><p>四次方入</p></div>
-                <div class: card @enter={power3InOutMove}><strong>power3-in-out</strong><p>四次方出入</p></div>
-                <div class: card @enter={power4InMove}><strong>power4-in</strong><p>五次方入</p></div>
-                <div class: card @enter={power4OutMove}><strong>power4-out</strong><p>五次方出</p></div>
-                <div class: card @enter={power4InOutMove}><strong>power4-in-out</strong><p>五次方出入</p></div>
+            <h4 class: GroupTitle>Power 曲线（ease-in · power1 · power2 · power3 · power4）</h4>
+            <div class: Grid>
+                <div class: MotionCard @enter={easeInMove}><strong>ease-in</strong><p>三次方加速</p></div>
+                <div class: MotionCard @enter={power1InMove}><strong>power1-in</strong><p>二次方入</p></div>
+                <div class: MotionCard @enter={power1OutMove}><strong>power1-out</strong><p>二次方出</p></div>
+                <div class: MotionCard @enter={power1InOutMove}><strong>power1-in-out</strong><p>二次方出入</p></div>
+                <div class: MotionCard @enter={power2InMove}><strong>power2-in</strong><p>三次方入</p></div>
+                <div class: MotionCard @enter={power2InOutMove}><strong>power2-in-out</strong><p>三次方出入</p></div>
+                <div class: MotionCard @enter={power3InMove}><strong>power3-in</strong><p>四次方入</p></div>
+                <div class: MotionCard @enter={power3InOutMove}><strong>power3-in-out</strong><p>四次方出入</p></div>
+                <div class: MotionCard @enter={power4InMove}><strong>power4-in</strong><p>五次方入</p></div>
+                <div class: MotionCard @enter={power4OutMove}><strong>power4-out</strong><p>五次方出</p></div>
+                <div class: MotionCard @enter={power4InOutMove}><strong>power4-in-out</strong><p>五次方出入</p></div>
             </div>
 
             <!-- ═══ Back 组 ═══ -->
-            <h4 class: group-title>Back 弹回（named-only）</h4>
-            <div class: grid>
-                <div class: card @enter={backInMove}><strong>back-in</strong><p>回弹入</p></div>
-                <div class: card @enter={backOutMove}><strong>back-out</strong><p>回弹出</p></div>
-                <div class: card @enter={backInOutMove}><strong>back-in-out</strong><p>回弹出入</p></div>
+            <h4 class: GroupTitle>Back 弹回（named-only）</h4>
+            <div class: Grid>
+                <div class: MotionCard @enter={backInMove}><strong>back-in</strong><p>回弹入</p></div>
+                <div class: MotionCard @enter={backOutMove}><strong>back-out</strong><p>回弹出</p></div>
+                <div class: MotionCard @enter={backInOutMove}><strong>back-in-out</strong><p>回弹出入</p></div>
             </div>
 
             <!-- ═══ Bounce 组 ═══ -->
-            <h4 class: group-title>Bounce 弹跳</h4>
-            <div class: grid>
-                <div class: card @enter={bounceInMove}><strong>bounce-in</strong><p>弹跳入</p></div>
-                <div class: card @enter={bounceOutMove}><strong>bounce-out</strong><p>弹跳出</p></div>
-                <div class: card @enter={bounceInOutMove}><strong>bounce-in-out</strong><p>弹跳出入</p></div>
+            <h4 class: GroupTitle>Bounce 弹跳</h4>
+            <div class: Grid>
+                <div class: MotionCard @enter={bounceInMove}><strong>bounce-in</strong><p>弹跳入</p></div>
+                <div class: MotionCard @enter={bounceOutMove}><strong>bounce-out</strong><p>弹跳出</p></div>
+                <div class: MotionCard @enter={bounceInOutMove}><strong>bounce-in-out</strong><p>弹跳出入</p></div>
             </div>
 
             <!-- ═══ Elastic 组 ═══ -->
-            <h4 class: group-title>Elastic 弹性（named-only）</h4>
-            <div class: grid>
-                <div class: card @enter={elasticInMove}><strong>elastic-in</strong><p>弹性入</p></div>
-                <div class: card @enter={elasticOutMove}><strong>elastic-out</strong><p>弹性出</p></div>
-                <div class: card @enter={elasticInOutMove}><strong>elastic-in-out</strong><p>弹性出入</p></div>
+            <h4 class: GroupTitle>Elastic 弹性（named-only）</h4>
+            <div class: Grid>
+                <div class: MotionCard @enter={elasticInMove}><strong>elastic-in</strong><p>弹性入</p></div>
+                <div class: MotionCard @enter={elasticOutMove}><strong>elastic-out</strong><p>弹性出</p></div>
+                <div class: MotionCard @enter={elasticInOutMove}><strong>elastic-in-out</strong><p>弹性出入</p></div>
             </div>
 
             <!-- ═══ Steps 组 ═══ -->
-            <h4 class: group-title>Steps 阶跃（仅位置参数）</h4>
-            <div class: grid>
-                <div class: card @enter={stepsEndMove}><strong>steps(6, end)</strong><p>6 步阶跃，保持终点值</p></div>
-                <div class: card @enter={stepsStartMove}><strong>steps(6, start)</strong><p>6 步阶跃，保持起点值</p></div>
+            <h4 class: GroupTitle>Steps 阶跃（仅位置参数）</h4>
+            <div class: Grid>
+                <div class: MotionCard @enter={stepsEndMove}><strong>steps(6, end)</strong><p>6 步阶跃，保持终点值</p></div>
+                <div class: MotionCard @enter={stepsStartMove}><strong>steps(6, start)</strong><p>6 步阶跃，保持起点值</p></div>
             </div>
 
             <!-- ═══ Custom 组 ═══ -->
-            <h4 class: group-title>自定义缓动（cubic-bezier）</h4>
-            <div class: grid>
-                <div class: card @enter={cubicCustom}><strong>cubic(x1,y1,x2,y2)</strong><p>自定义贝塞尔 overshoot</p></div>
+            <h4 class: GroupTitle>自定义缓动（cubic-bezier）</h4>
+            <div class: Grid>
+                <div class: MotionCard @enter={cubicCustom}><strong>cubic(x1,y1,x2,y2)</strong><p>自定义贝塞尔 overshoot</p></div>
             </div>
         </div>
     }
 
     style {
-        .container { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 16px; margin: 16px 0; }
-        .title { font-size: 18px; color: var(--textPrimary); margin: 0 0 4px 0; }
+        .MotionCard strong { font-size: 11px; color: var(--textPrimary); display: block; margin-bottom: 2px; }
+        .MotionCard p { font-size: 10px; color: var(--textSecondary); margin: 0; }
+    
         .subtitle { font-size: 12px; color: var(--textSecondary); margin: 0 0 12px 0; }
-        .trigger-btn { padding: 8px 16px; background: var(--primary); color: #fff; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; margin-bottom: 8px; }
-        .group-title { font-size: 14px; font-weight: 600; color: var(--textPrimary); margin: 20px 0 10px 0; padding-bottom: 4px; border-bottom: 1px solid var(--borderLight); }
-        .grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
-        .card { flex: 0 0 auto; padding: 12px 14px; background: var(--surfaceMuted); border-radius: 10px; border: 1px solid var(--borderLight); text-align: center; min-width: 110px; }
-        .card strong { font-size: 11px; color: var(--textPrimary); display: block; margin-bottom: 2px; }
-        .card p { font-size: 10px; color: var(--textSecondary); margin: 0; }
     }
 }

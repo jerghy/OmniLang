@@ -6,7 +6,6 @@
 
 import omniview;
 import { LearnDesign } from "../design";
-import { console_log, console_warn } from "std/console";
 
 component AddTodo {
     // 自定义事件——子→父通信，携带输入文本
@@ -24,7 +23,7 @@ component AddTodo {
 
     // @mount —— 组件挂载后执行一次
     @mount {
-        console_log("AddTodo mounted");
+        println("AddTodo mounted");
     }
 
     // @effect —— 依赖变化时执行（在 DOM 更新后）
@@ -40,12 +39,12 @@ component AddTodo {
             onAdd(input);
             input = "";
         } else {
-            console_warn("Input is empty");
+            println("Input is empty");
         }
     }
 
     view {
-        <div class: add-todo-container>
+        <div class: AddTodoContainer>
             <div class: LearnDesign.Row>
                 <input bind:value={input} placeholder={hint} class: LearnDesign.Input style: { flex: 1 } />
                 <button variant: LearnDesign.Button(color=primary, size=md) @onPress={handleAdd}>添加</button>
@@ -55,6 +54,5 @@ component AddTodo {
         </div>
     }
     style {
-        .add-todo-container { padding: 0 16px 16px 16px; }
     }
 }

@@ -29,14 +29,14 @@ component A11yDemo {
 
             <!-- ═══ label + role ═══ -->
             <h4 class: LearnDesign.SectionTitle>label + role</h4>
-            <div class: demo-row>
+            <div class: DemoRow>
                 <button
                     variant: LearnDesign.Button(color=primary, size=sm)
                     a11y: { label: "Close dialog", role: "button" }
                     @onPress={notify}
                 >×</button>
                 <input
-                    class: search-input
+                    class: SearchInput
                     placeholder="Search..."
                     a11y: { label: "Search", role: "textbox" }
                 />
@@ -47,7 +47,7 @@ component A11yDemo {
 
             <!-- ═══ hidden 动态隐藏 ═══ -->
             <h4 class: LearnDesign.SectionTitle>hidden 动态隐藏</h4>
-            <div class: demo-row>
+            <div class: DemoRow>
                 <button variant: LearnDesign.Button(color=ghost, size=sm) @onPress={() => { hidden = !hidden; }}>
                     {if hidden { "Show hint" } else { "Hide hint" }}
                 </button>
@@ -55,17 +55,17 @@ component A11yDemo {
                     hidden={ "{expr}" } 把元素对辅助技术隐藏（视觉保留）：
                 </p>
             </div>
-            <p class: hidden-hint a11y: { hidden: hidden }>
+            <p class: HiddenHint a11y: { hidden: hidden }>
                 辅助技术提示文本（当前 {if hidden { "已隐藏" } else { "可见" }}）
             </p>
 
             <!-- ═══ live 实时区域 ═══ -->
             <h4 class: LearnDesign.SectionTitle>live 实时区域</h4>
-            <div class: demo-row>
+            <div class: DemoRow>
                 <button variant: LearnDesign.Button(color=accent, size=sm) @onPress={notify}>
                     触发状态更新
                 </button>
-                <p class: live-region a11y: { live: "polite", label: "状态播报" }>
+                <p class: LiveRegion a11y: { live: "polite", label: "状态播报" }>
                     {status}
                 </p>
                 <p class: LearnDesign.Hint>
@@ -75,8 +75,8 @@ component A11yDemo {
 
             <!-- ═══ alt 图像替代文本 ═══ -->
             <h4 class: LearnDesign.SectionTitle>alt 图像替代文本</h4>
-            <div class: demo-row>
-                <img class: demo-img src="/dot.png" a11y: { alt: "演示用小圆点" } />
+            <div class: DemoRow>
+                <img class: DemoImg src="/dot.png" a11y: { alt: "演示用小圆点" } />
                 <p class: LearnDesign.Hint>
                     alt 为图片提供替代文本（读屏软件朗读内容）
                 </p>
@@ -85,10 +85,5 @@ component A11yDemo {
     }
 
     style {
-        .demo-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
-        .search-input { padding: 10px 12px; border: 2px solid var(--borderLight); border-radius: var(--radiusMd); font-size: 13px; min-width: 160px; }
-        .hidden-hint { padding: 10px 14px; background: var(--surfaceMuted); border: 1px dashed var(--borderLight); border-radius: var(--radiusMd); font-size: 13px; color: var(--textSecondary); }
-        .live-region { padding: 10px 14px; background: var(--primaryLight); border-radius: var(--radiusMd); font-size: 13px; color: var(--textPrimary); min-width: 200px; }
-        .demo-img { width: 24px; height: 24px; }
     }
 }

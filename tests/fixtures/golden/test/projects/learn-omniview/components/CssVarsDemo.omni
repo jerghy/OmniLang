@@ -25,22 +25,35 @@ component CssVarsDemo {
         }
     }
 
+    // Demo 4 驱动：hue 值在 HueBar 的四个阶梯间循环（221 → 260 → 300 → 340）
+    fn cycleHue() {
+        if accentHue == 221 {
+            accentHue = 260;
+        } else if accentHue == 260 {
+            accentHue = 300;
+        } else if accentHue == 300 {
+            accentHue = 340;
+        } else {
+            accentHue = 221;
+        }
+    }
+
     view {
-        <div class: wrapper>
-            <h3 class: section-title>CSS Custom Properties (CSS Variables)</h3>
+        <div class: Wrapper>
+            <h3 class: SectionHeader>CSS Custom Properties (CSS Variables)</h3>
             <p class: subtitle>
                 演示编译器对 <code>--*</code> 声明、<code>var()</code> 引用、内联静态/动态 CSS 变量的完整支持
             </p>
 
             <!-- ═══ Demo 1: Style 块声明 + var() 引用 ═══ -->
             <div class: demo-card>
-                <h4 class: demo-label>① Style 块声明 --* + var() 引用</h4>
-                <p class: demo-desc>
+                <h4 class: DemoLabel>① Style 块声明 --* + var() 引用</h4>
+                <p class: DemoDesc>
                     Style 块内部声明 <code>--primary</code>、<code>--bg</code> 等自定义属性，
                     然后用 <code>var()</code> 引用。这是编译器中 <code>parse_css_property_name()</code>
                     解析 <code>--</code> 前缀的常规路径。
                 </p>
-                <div class: var-demo-area>
+                <div class: VarDemoArea>
                     <div class: var-card>var(--primary)</div>
                     <div class: var-card alt>var(--primary-alt)</div>
                     <div class: var-card surface>background: var(--surface)</div>
@@ -50,14 +63,14 @@ component CssVarsDemo {
 
             <!-- ═══ Demo 2: 内联样式静态 CSS 变量 ═══ -->
             <div class: demo-card>
-                <h4 class: demo-label>② 内联样式静态 CSS 变量</h4>
-                <p class: demo-desc>
+                <h4 class: DemoLabel>② 内联样式静态 CSS 变量</h4>
+                <p class: DemoDesc>
                     在 <code>style: {"{"} --name: "value" {"}"}</code> 中直接写 <code>--</code> 属性。
                     编译器代码生成将 <code>--</code> 属性用 <code>el.style.setProperty("--name", value)</code>
                     输出，而非普通的 <code>el.style.prop = value</code>。
                 </p>
-                <div class: inline-static-row>
-                    <div class: inline-static-box
+                <div class: InlineStaticRow>
+                    <div class: InlineStaticBox
                         style: {
                             --box-bg: "#e0e7ff",
                             --box-text: "#3730a3",
@@ -66,7 +79,7 @@ component CssVarsDemo {
                     >
                         <code>--box-bg: "#e0e7ff"</code>
                     </div>
-                    <div class: inline-static-box
+                    <div class: InlineStaticBox
                         style: {
                             --box-bg: "#fce7f3",
                             --box-text: "#9d174d",
@@ -75,7 +88,7 @@ component CssVarsDemo {
                     >
                         <code>--box-radius: "16px"</code>
                     </div>
-                    <div class: inline-static-box
+                    <div class: InlineStaticBox
                         style: {
                             --box-bg: "#d1fae5",
                             --box-text: "#065f46",
@@ -89,30 +102,30 @@ component CssVarsDemo {
 
             <!-- ═══ Demo 3: 内联样式动态 CSS 变量（信号引用） ═══ -->
             <div class: demo-card>
-                <h4 class: demo-label>③ 内联样式动态 CSS 变量（信号 → setProperty）</h4>
-                <p class: demo-desc>
+                <h4 class: DemoLabel>③ 内联样式动态 CSS 变量（信号 → setProperty）</h4>
+                <p class: DemoDesc>
                     传递<strong>信号引用</strong>给 <code>--*</code> 属性。编译器生成 effect
                     在信号变化时更新 CSS 变量。
                 </p>
 
-                <div class: dynamic-area
+                <div class: DynamicArea
                     style: {
                         --accent: accentColor,
                         padding: "16px",
                         border: "2px solid " + accentColor
                     }
                 >
-                    <p class: dynamic-text>
+                    <p class: DynamicText>
                         当前 accent: <strong>{accentColor}</strong>
                     </p>
-                    <div class: dynamic-swatches>
-                        <div class: swatch-preview style: { background: accentColor }></div>
-                        <div class: swatch-label>{accentColor}</div>
+                    <div class: DynamicSwatches>
+                        <div class: SwatchPreview style: { background: accentColor }></div>
+                        <div class: SwatchLabel>{accentColor}</div>
                     </div>
-                    <button class: cycle-btn @onPress={cycleAccent}>
+                    <button class: CycleBtn @onPress={cycleAccent}>
                         Cycle Accent Color
                     </button>
-                    <p class: code-hint>
+                    <p class: CodeHint>
                         生成的 JS: <code>setProperty("--accent", accentColor)</code>
                     </p>
                 </div>
@@ -120,38 +133,41 @@ component CssVarsDemo {
 
             <!-- ═══ Demo 4: CSS 变量 + 动态 hue 实现主题色循环 ═══ -->
             <div class: demo-card>
-                <h4 class: demo-label>④ CSS 变量级联 + Motion 驱动</h4>
-                <p class: demo-desc>
+                <h4 class: DemoLabel>④ CSS 变量级联 + 信号驱动</h4>
+                <p class: DemoDesc>
                     外层设 <code>--accent-h</code>（由 accentHue 信号驱动），内层用
                     <code>var(--accent-h)</code> 计算衍生色。hue 值随信号变化实时更新。
                 </p>
-                <div class: cascade-area
+                <div class: CascadeArea
                     style: {
                         --accent-h: accentHue,
                         padding: "16px"
                     }
                 >
-                    <div class: cascade-box>
-                        <p class: cascade-title>
+                    <div class: CascadeBox>
+                        <p class: CascadeTitle>
                             hue = <strong>{accentHue}°</strong>
                         </p>
-                        <p class: cascade-desc>
+                        <p class: CascadeDesc>
                             内层用 <code>var(--accent-h)</code> 通过 CSS <code>hsl()</code> 计算色值
                         </p>
-                        <div class: hue-bar>
-                            <span class: hue-step style: { background: "hsl(221, 80%, 60%)" }>221°</span>
-                            <span class: hue-step style: { background: "hsl(260, 80%, 60%)" }>260°</span>
-                            <span class: hue-step style: { background: "hsl(300, 80%, 60%)" }>300°</span>
-                            <span class: hue-step style: { background: "hsl(340, 80%, 60%)" }>340°</span>
+                        <div class: HueBar>
+                            <span class: HueStep style: { background: "hsl(221, 80%, 60%)" }>221°</span>
+                            <span class: HueStep style: { background: "hsl(260, 80%, 60%)" }>260°</span>
+                            <span class: HueStep style: { background: "hsl(300, 80%, 60%)" }>300°</span>
+                            <span class: HueStep style: { background: "hsl(340, 80%, 60%)" }>340°</span>
                         </div>
+                        <button class: CycleBtn @onPress={cycleHue}>
+                            Cycle Hue（当前 {accentHue}°）
+                        </button>
                     </div>
                 </div>
             </div>
 
             <!-- 技术说明 -->
-            <div class: tech-note>
-                <h4 class: note-title>要点</h4>
-                <ul class: note-list>
+            <div class: TechNote>
+                <h4 class: NoteTitle>要点</h4>
+                <ul class: NoteList>
                     <li>Style 块与内联 <code>style:</code> 均可声明 <code>--name</code> 属性</li>
                     <li><code>--name: 信号</code> 信号引用 → 编译期生成响应式 setProperty 更新</li>
                     <li>静态 <code>--name: "value"</code> → 直接写入 CSS 变量</li>
@@ -162,76 +178,21 @@ component CssVarsDemo {
 
     style {
         // ═══ CSS 自定义属性声明 + var() 引用 ═══
-        .wrapper {
-            --primary: #6366f1;
-            --primary-alt: #ec4899;
-            --surface: #f8fafc;
-            --surface-alt: #f1f5f9;
-            --border-color: #cbd5e1;
-            --text-primary: #1e293b;
-            --text-muted: #64748b;
-            --radius-sm: 6px;
-            --radius-md: 12px;
-        }
-
-        .wrapper {
-            background: white;
-            border: 1px solid var(--border-color);
-            border-radius: var(--radius-md);
-            padding: 20px;
-            margin: 16px 0;
-        }
-
-        .section-title {
-            font-size: 18px;
-            color: var(--text-primary);
-            margin: 0 0 4px 0;
-        }
-        .subtitle {
-            font-size: 13px;
-            color: var(--text-muted);
-            margin: 0 0 20px 0;
-        }
         code {
-            background: var(--surface-alt);
+            background: var(--surfaceMuted);
             padding: 2px 6px;
             border-radius: 4px;
             font-size: 12px;
         }
-
         // Demo cards
-        .demo-card {
-            background: var(--surface);
-            border: 1px solid var(--border-color);
-            border-radius: var(--radius-md);
-            padding: 16px;
-            margin-bottom: 16px;
-        }
-        .demo-label {
-            font-size: 15px;
-            color: var(--text-primary);
-            margin: 0 0 6px 0;
-        }
-        .demo-desc {
-            font-size: 13px;
-            color: var(--text-muted);
-            margin: 0 0 12px 0;
-            line-height: 1.5;
-        }
-
         // Demo 1: var-demo-area
-        .var-demo-area {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
         .var-card {
             padding: 12px 18px;
             background: white;
             border: 1px solid var(--border-color);
-            border-radius: var(--radius-sm);
+            border-radius: var(--radiusSm);
             font-size: 13px;
-            color: var(--text-primary);
+            color: var(--textPrimary);
         }
         .var-card.alt {
             // 使用 var(--primary-alt) 覆盖边框颜色
@@ -248,129 +209,36 @@ component CssVarsDemo {
             border: 2px solid var(--primary-alt);
             background: white;
         }
-
         // Demo 2: inline static
-        .inline-static-row {
-            display: flex;
-            gap: 12px;
-            flex-wrap: wrap;
-        }
-        .inline-static-box {
-            padding: 14px 20px;
-            // 以下 --box-bg / --box-text / --box-radius 由内联 style: 提供
-            background: var(--box-bg, #e0e7ff);
-            color: var(--box-text, #3730a3);
-            border-radius: var(--box-radius, 8px);
-            font-size: 12px;
-            font-weight: 600;
-            border: 1px solid var(--border-color);
-        }
-
         // Demo 3: dynamic area
-        .dynamic-area {
-            background: white;
-            border-radius: var(--radius-sm);
-        }
-        .dynamic-text {
-            font-size: 14px;
-            color: var(--text-primary);
-            margin: 0 0 10px 0;
-        }
-        .dynamic-swatches {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 12px;
-        }
-        .swatch-preview {
-            width: 32px;
-            height: 32px;
-            border-radius: 6px;
-            border: 1px solid var(--border-color);
-        }
-        .swatch-label {
-            font-size: 13px;
-            color: var(--text-muted);
-            font-family: monospace;
-        }
-        .cycle-btn {
-            padding: 8px 16px;
-            background: var(--primary);
-            color: white;
-            border: none;
-            border-radius: var(--radius-sm);
-            font-size: 13px;
-            cursor: pointer;
-            margin-bottom: 8px;
-        }
-        .cycle-btn:hover {
-            filter: brightness(1.1);
-        }
-        .code-hint {
-            font-size: 11px;
-            color: var(--text-muted);
-            margin: 0;
-        }
-        .code-hint code {
+        .CodeHint code {
             background: #f1f5f9;
         }
-
         // Demo 4: cascade
-        .cascade-area {
-            background: white;
-            border-radius: var(--radius-sm);
-        }
-        .cascade-box {
-            // 用 var(--accent-h) 计算衍生色
-            background: hsl(var(--accent-h, 221), 70%, 95%);
-            border: 2px solid hsl(var(--accent-h, 221), 70%, 75%);
-            border-radius: var(--radius-sm);
-            padding: 16px;
-            text-align: center;
-        }
-        .cascade-title {
-            font-size: 16px;
-            color: hsl(var(--accent-h, 221), 50%, 30%);
-            margin: 0 0 6px 0;
-        }
-        .cascade-desc {
-            font-size: 12px;
-            color: hsl(var(--accent-h, 221), 40%, 45%);
-            margin: 0 0 12px 0;
-        }
-        .hue-bar {
-            display: flex;
-            gap: 6px;
-            justify-content: center;
-        }
-        .hue-step {
-            padding: 6px 12px;
-            border-radius: 4px;
-            font-size: 11px;
-            color: white;
-            font-weight: 600;
-        }
-
         // Tech note
-        .tech-note {
-            background: #0f172a;
-            border-radius: var(--radius-sm);
-            padding: 14px 18px;
-        }
-        .note-title {
-            font-size: 14px;
-            color: #e2e8f0;
-            margin: 0 0 8px 0;
-        }
-        .note-list {
-            margin: 0;
-            padding-left: 18px;
-        }
-        .note-list li {
+        .NoteList li {
             font-size: 12px;
             color: #94a3b8;
             margin-bottom: 4px;
             line-height: 1.5;
+        }
+    
+        .subtitle {
+            font-size: 13px;
+            color: var(--textMuted);
+            margin: 0 0 20px 0;
+        }
+        .demo-card {
+            // Demo 1 演示路径：组件级 --* 声明（覆盖 design.omni 全局同名变量，
+            // 级联到 .var-card 子元素），随后用 var() 引用
+            --primary: "#6366f1";
+            --primary-alt: "#818cf8";
+            --bg: "#f8fafc";
+            background: var(--surface);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radiusMd);
+            padding: 16px;
+            margin-bottom: 16px;
         }
     }
 }

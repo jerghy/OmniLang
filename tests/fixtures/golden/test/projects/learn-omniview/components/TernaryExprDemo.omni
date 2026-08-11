@@ -15,45 +15,36 @@ component TernaryExprDemo {
     fn setScore(s: i32) { score = s; }
 
     view {
-        <div class: container>
-            <h3 class: title>Ternary ( ? : ) 三元表达式 Demo</h3>
+        <div class: Container>
+            <h3 class: Title>Ternary ( ? : ) 三元表达式 Demo</h3>
             <p class: subtitle>演示 cond ? then : else 运算符</p>
 
-            <div class: card>
-                <h4 class: label>数值判定: count = {count}</h4>
-                <p class: value-text>结果: {label}</p>
-                <p class: value-text>直接内联: {count > 0 ? "正数哦" : "非正数哦"}</p>
-                <div class: btn-row>
-                    <button class: btn-inc @onPress={inc}>count + 1</button>
-                    <button class: btn-dec @onPress={dec}>count - 1</button>
+            <div class: DemoCard>
+                <h4 class: Label>数值判定: count = {count}</h4>
+                <p class: ValueText>结果: {label}</p>
+                <p class: ValueText>直接内联: {count > 0 ? "正数哦" : "非正数哦"}</p>
+                <div class: BtnRow>
+                    <button class: BtnInc @onPress={inc}>count + 1</button>
+                    <button class: BtnDec @onPress={dec}>count - 1</button>
                 </div>
             </div>
 
-            <div class: card>
-                <h4 class: label>成绩判定: score = {score}</h4>
-                <p class: value-text>等级: {grade}</p>
-                <div class: btn-row>
-                    <button class: btn-small @onPress={() => { setScore(95); }}>95 → A</button>
-                    <button class: btn-small @onPress={() => { setScore(85); }}>85 → B</button>
-                    <button class: btn-small @onPress={() => { setScore(72); }}>72 → C</button>
-                    <button class: btn-small @onPress={() => { setScore(55); }}>55 → F</button>
+            <div class: DemoCard>
+                <h4 class: Label>成绩判定: score = {score}</h4>
+                <p class: ValueText>等级: {grade}</p>
+                <div class: BtnRow>
+                    <button class: BtnSmall @onPress={() => { setScore(95); }}>95 → A</button>
+                    <button class: BtnSmall @onPress={() => { setScore(85); }}>85 → B</button>
+                    <button class: BtnSmall @onPress={() => { setScore(72); }}>72 → C</button>
+                    <button class: BtnSmall @onPress={() => { setScore(55); }}>55 → F</button>
                 </div>
             </div>
 
-            <p class: note>三元 ? : 是 if-expr 的紧凑形式，用于值上下文</p>
+            <p class: Note>三元 ? : 是 if-expr 的紧凑形式，用于值上下文</p>
         </div>
     }
     style {
-        .container { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 16px; margin: 16px 0; }
-        .title { font-size: 18px; color: var(--textPrimary); margin: 0 0 4px 0; }
+    
         .subtitle { font-size: 13px; color: var(--textSecondary); margin: 0 0 16px 0; }
-        .card { margin-bottom: 14px; padding: 12px; background: var(--surfaceMuted); border-radius: 8px; }
-        .label { font-size: 14px; font-weight: 600; color: var(--textPrimary); margin: 0 0 8px 0; }
-        .value-text { font-size: 15px; color: var(--textPrimary); margin: 5px 0; font-family: monospace; }
-        .btn-row { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
-        .btn-inc { padding: 8px 16px; background: "#16a34a"; color: white; border: none; border-radius: 8px; font-size: 13px; cursor: pointer; }
-        .btn-dec { padding: 8px 16px; background: "#dc2626"; color: white; border: none; border-radius: 8px; font-size: 13px; cursor: pointer; }
-        .btn-small { padding: 6px 12px; background: "#6366f1"; color: white; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; }
-        .note { font-size: 12px; color: var(--textSecondary); margin: 4px 0 0 0; }
     }
 }

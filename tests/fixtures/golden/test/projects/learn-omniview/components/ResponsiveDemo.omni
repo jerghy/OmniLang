@@ -1,0 +1,56 @@
+// ResponsiveDemo.omni — 批次 3 响应式演示：breakpoint 声明 + bp() 三使用面 +
+// 用户级 @media 块（web 透传）
+//
+// 使用面（spec 2026-08-09 §2.2）：
+//   1. @if (bp("md")) 双分支布局——DesktopLayout/MobileLayout
+//   2. class: {key: bp(...)} 条件 class map——desktop-grid/mobile-list
+//   3. style 块内用户级 @media（min-width: 768px）——.card 内边距增强（web 生效）
+//
+// 边界注记：class: {bp("md") ? "a" : "b"} 三元形态为 spec 示例——parser 的
+// class: {} 是 ClassMap（key: expr）语法，三元表达式走 style: 值槽或条件 class。
+
+import omniview;
+import { LearnDesign } from "../design";
+
+component ResponsiveDemo {
+    style {
+        .card {
+            padding: 16;
+            border-radius: 8;
+            background: var(--surfaceSubtle);
+        }
+        @media (min-width: 768px) {
+            .card {
+                padding: 32;
+                border-radius: 12;
+            }
+        }
+        .desktopLayout {
+            padding: 24;
+            border: 1px solid var(--border);
+        }
+        .mobileLayout {
+            padding: 12;
+            border: 1px dashed var(--border);
+        }
+    }
+
+    view {
+        <div class: LearnDesign.Card card>
+            <h3>响应式布局演示（bp() / @media）</h3>
+            <p>视口 ≥768px 显示桌面分支（bp("md") 为真）；否则显示移动分支。.card 内边距在 768px 以上由 @media 块增强（web 透传生效）。</p>
+
+            <div class: {desktopGrid: bp("md"), mobileList: !bp("md")}>
+                <div class: LearnDesign.Box>A</div>
+                <div class: LearnDesign.Box>B</div>
+                <div class: LearnDesign.Box>C</div>
+            </div>
+
+            @if (bp("md")) {
+                <div class: desktopLayout>桌面分支（≥768px 可见）</div>
+            } @else {
+                <div class: mobileLayout>移动分支（宽度小于 768px 可见）</div>
+            }
+        </div>
+    }
+}

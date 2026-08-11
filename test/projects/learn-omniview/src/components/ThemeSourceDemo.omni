@@ -8,6 +8,10 @@
 // ║                                                                  ║
 // ║  同时展示生成的 CSS 三层结构：                                    ║
 // ║  :root → [data-theme="X"] → @media prefers-color-scheme          ║
+// ║                                                                  ║
+// ║  批次 3 注记：本页 @media (prefers-color-scheme: dark) 是          ║
+// ║  @themes 主题系统的编译器生成物（输出层）；用户级 @media 是          ║
+// ║  style 块内的独立语法面（见 ResponsiveDemo），二者不冲突。         ║
 // ╚══════════════════════════════════════════════════════════════════╝
 
 import omniview;
