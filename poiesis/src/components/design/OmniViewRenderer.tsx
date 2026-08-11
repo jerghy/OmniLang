@@ -15,6 +15,7 @@ import styles from "./OmniViewRenderer.module.css";
 export function OmniViewRenderer() {
   const selectedElementIds = usePoiesisStore((s) => s.selectedElementIds);
   const selectElement = usePoiesisStore((s) => s.selectElement);
+  const clearSelection = usePoiesisStore((s) => s.clearSelection);
   const switchTab = usePoiesisStore((s) => s.switchTab);
   const componentDefs = usePoiesisStore((s) => s.componentDefs);
   const openTabs = usePoiesisStore((s) => s.designPage.openTabs);
@@ -90,6 +91,12 @@ export function OmniViewRenderer() {
   return (
     <div
       data-renderer="omniview"
+      // 画布空白点击清空选中（取消选中 → 睡回输入路径）：元素点击在
+      // OmniViewElement 内 stopPropagation，文本节点冒泡到元素处理器——
+      // 此处只收到真正的空白点击。空选守卫避免无谓 setState。
+      onClick={() => {
+        if (selectedElementIds.length > 0) clearSelection();
+      }}
       style={{
         width: "100%", height: "100%", overflow: "auto",
         padding: 8, boxSizing: "border-box", position: "relative",
