@@ -8,7 +8,6 @@
 
 import React from "react";
 import type { ElementTreeNode } from "./useWasmCompile";
-import { _lastClickPos } from "./omni-view-utils";
 
 export interface OmniViewElementProps {
   node: ElementTreeNode;
@@ -17,7 +16,6 @@ export interface OmniViewElementProps {
   isSelected: boolean;
   selectedNid?: string | null;
   onSelect: (nid: string, multi: boolean) => void;
-  onDoubleClick: (nid: string) => void;
   /** Passed from OmniViewElementTree for CSS resolution. */
   classMap?: ReadonlyMap<string, string[]>;
   /** Passed from OmniViewElementTree for tag resolution. */
@@ -36,7 +34,6 @@ export const OmniViewElement = React.memo(function OmniViewElement({
   isSelected,
   selectedNid,
   onSelect,
-  onDoubleClick,
   classMap,
   tagMap,
   parentComponentNid,
@@ -83,14 +80,8 @@ export const OmniViewElement = React.memo(function OmniViewElement({
     ? {}
     : {
         onClick: (e: React.MouseEvent) => {
-          _lastClickPos.x = e.clientX;
-          _lastClickPos.y = e.clientY;
           e.stopPropagation();
           onSelect(effectiveNid, e.shiftKey || e.ctrlKey);
-        },
-        onDoubleClick: (e: React.MouseEvent) => {
-          e.stopPropagation();
-          onDoubleClick(effectiveNid);
         },
       };
 
@@ -115,7 +106,6 @@ export const OmniViewElement = React.memo(function OmniViewElement({
         classMap={classMap}
         tagMap={tagMap}
         onSelect={onSelect}
-        onDoubleClick={onDoubleClick}
         parentComponentNid={componentNid}
       />
     )),

@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import {
   buildTabSaveEntry,
   tabRestoreCanvasPartial,
-  tabRestoreDesignPagePartial,
 } from "../tab-helpers";
 import type { ElementData } from "../../core/types/element";
 import type { WireData } from "../../core/types/wire";
@@ -14,7 +13,6 @@ describe("buildTabSaveEntry", () => {
       wires: [] as WireData[],
       rootOrder: [] as string[],
       selectedElementIds: [] as string[],
-      designPage: { codeFlowVisible: false, codeFlowElementId: null },
     };
 
     const entry = buildTabSaveEntry(source);
@@ -25,8 +23,6 @@ describe("buildTabSaveEntry", () => {
       rootOrder: [],
       selectedElementIds: [],
       filePath: undefined,
-      codeFlowVisible: false,
-      codeFlowElementId: null,
       selectedActionPid: null,
     });
   });
@@ -48,7 +44,6 @@ describe("buildTabSaveEntry", () => {
       ],
       rootOrder: ["el-1"],
       selectedElementIds: ["el-1"],
-      designPage: { codeFlowVisible: true, codeFlowElementId: "el-1" },
     };
 
     const entry = buildTabSaveEntry(source);
@@ -57,8 +52,6 @@ describe("buildTabSaveEntry", () => {
     expect(entry.wires).toEqual(source.wires);
     expect(entry.rootOrder).toEqual(source.rootOrder);
     expect(entry.selectedElementIds).toEqual(source.selectedElementIds);
-    expect(entry.codeFlowVisible).toBe(true);
-    expect(entry.codeFlowElementId).toBe("el-1");
   });
 });
 
@@ -78,8 +71,6 @@ describe("tabRestoreCanvasPartial", () => {
       wires: [{ id: "w-1", fromId: "sig-1", fromPort: "value", toId: "view-1", toPort: "label" }],
       rootOrder: ["el-1"],
       selectedElementIds: ["el-1"],
-      codeFlowVisible: false,
-      codeFlowElementId: null,
     };
 
     const result = tabRestoreCanvasPartial(entry);
@@ -111,30 +102,5 @@ describe("tabRestoreCanvasPartial", () => {
     expect(result.wires).toEqual([]);
     expect(result.rootOrder).toEqual([]);
     expect(result.selectedElementIds).toEqual([]);
-  });
-});
-
-describe("tabRestoreDesignPagePartial", () => {
-  it("should extract code flow fields from entry", () => {
-    const entry = {
-      elements: [] as ElementData[],
-      wires: [] as WireData[],
-      rootOrder: [] as string[],
-      selectedElementIds: [] as string[],
-      codeFlowVisible: true,
-      codeFlowElementId: "el-1",
-    };
-
-    const result = tabRestoreDesignPagePartial(entry);
-
-    expect(result.codeFlowVisible).toBe(true);
-    expect(result.codeFlowElementId).toBe("el-1");
-  });
-
-  it("should return defaults when entry is undefined", () => {
-    const result = tabRestoreDesignPagePartial(undefined);
-
-    expect(result.codeFlowVisible).toBe(false);
-    expect(result.codeFlowElementId).toBeNull();
   });
 });

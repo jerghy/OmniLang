@@ -2,7 +2,7 @@
 // Top-level design page with tabbed editor, left panels, and Z-axis canvas.
 // Drag-and-drop from palette to canvas uses @dnd-kit/core (pointer events, not native HTML5 DnD).
 
-import { Component, useState, useEffect, useRef, useLayoutEffect, useCallback, useMemo, type ReactNode } from "react";
+import { Component, useState, useEffect, useRef, useCallback, useMemo, type ReactNode } from "react";
 import { Logger } from "../lib/utils/logger";
 import {
   DndContext,
@@ -20,6 +20,7 @@ import type { RecentProject } from "../commands/project-api";
 import type { StoreDefinition } from "../core/types/store";
 import { DesignTabContent } from "../components/design/DesignTabContent";
 import { InfiniteCanvas } from "../components/canvas/InfiniteCanvas";
+import { LogicLayer } from "../components/canvas/LogicLayer";
 import { OmniViewRenderer } from "../components/design/OmniViewRenderer";
 import { CodeFlowCanvas } from "../components/design/CodeFlowCanvas";
 import { StorePage } from "./StorePage";
@@ -32,7 +33,6 @@ import { emitStoreDefinition } from "../services/codegen/source-emitter";
 import { ComponentPalette } from "../components/panels/ComponentPalette";
 import { ComponentTree } from "../components/panels/ComponentTree";
 import { ContextInspector } from "../components/panels/ContextInspector";
-import { ComponentMembersPanel } from "../components/design/ComponentMembersPanel";
 import { LibMembersPanel } from "../components/code/LibMembersPanel";
 import { DesignToolbar } from "../components/design/DesignToolbar";
 import { usePoiesisStore } from "../store";
@@ -152,29 +152,27 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
     if (!activeId) return "component" as const;
     return s.designPage.openTabs.find((t) => t.id === activeId)?.tabType ?? "component";
   });
-  const codeFlowVisible = usePoiesisStore((s) => s.designPage.codeFlowVisible);
-  const codeFlowFocusPoint = usePoiesisStore((s) => s.designPage.codeFlowFocusPoint);
   const storePanelVisible = usePoiesisStore((s) => s.designPage.storePanelVisible);
-  const toggleCodeFlow = usePoiesisStore((s) => s.toggleCodeFlow);
   const activeTab = usePoiesisStore((s) => {
     const activeId = s.designPage.activeTabId;
     if (!activeId) return null;
     return s.designPage.openTabs.find((t) => t.id === activeId) ?? null;
   });
-  // Side panels are visible only for component tabs NOT in code-flow mode AND not in store drawer mode
-  const showCodeFlowPanel = codeFlowVisible && activeTabType === "component";
-  const showDesignPanels = activeTabType === "component" && !codeFlowVisible && !storePanelVisible;
+  // Side panels are visible only for component tabs NOT in store drawer mode
+  const showDesignPanels = activeTabType === "component" && !storePanelVisible;
+  // 逻辑层叠加可见：组件 tab 醒态 或 Shift 多选 ≥2（画布叠加，旧 codeFlowVisible 双态模式已删）
+  const logicLayerVisible = usePoiesisStore((s) => s.designPage.awake || s.selectedElementIds.length >= 2);
 
-  // ── F1 物化：组件 tab 进入 codeflow 时合并当前组件的 fn 图 ──
-  // 物化是幂等的（pid 去重、已存在不覆盖），可安全地在每次 codeflow 可见时触发。
+  // ── F1 物化：组件 tab 进入逻辑层时合并当前组件的 fn 图 ──
+  // 物化是幂等的（pid 去重、已存在不覆盖），可安全地在每次逻辑层可见时触发。
   const materializeFnGraphs = usePoiesisStore((s) => s.materializeFnGraphs);
   const activeTabComponentName = activeTab?.componentName;
   useEffect(() => {
-    if (codeFlowVisible && activeTabType === "component" && activeTabComponentName) {
+    if (logicLayerVisible && activeTabType === "component" && activeTabComponentName) {
       materializeFnGraphs(activeTabComponentName);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 物化幂等，依赖仅触发时机
-  }, [codeFlowVisible, activeTabType, activeTabComponentName]);
+  }, [logicLayerVisible, activeTabType, activeTabComponentName]);
 
   // ── 物化：code tab 进入时合并当前 lib 文件的 fn 图（幂等，对标组件 F1 物化）──
   const materializeLibGraphs = usePoiesisStore((s) => s.materializeLibGraphs);
@@ -236,11 +234,9 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
           display: "grid",
           gridTemplateColumns: showDesignPanels
             ? "280px 1fr 300px"
-            : showCodeFlowPanel
-              ? "280px 1fr 240px"
-              : activeTabType === "code"
-                ? "280px 1fr"
-                : "1fr",
+            : activeTabType === "code"
+              ? "280px 1fr"
+              : "1fr",
           gridTemplateRows: "36px 32px 1fr 24px",
           height: "100vh",
           background: "var(--ol-gray-50)",
@@ -292,21 +288,6 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
         </div>
         )}
 
-        {/* Left panel: ComponentMembersPanel (code-flow mode for component tabs) */}
-        {showCodeFlowPanel && activeTab && (
-        <div
-          style={{
-            gridRow: 3,
-            gridColumn: 1,
-            overflow: "hidden",
-            background: "var(--ol-surface)",
-            borderRight: "1px solid var(--ol-border)",
-          }}
-        >
-          <ComponentMembersPanel componentName={activeTab.componentName} />
-        </div>
-        )}
-
         {/* Left panel: LibMembersPanel（code tab 常驻，无按钮开关——用户已确认） */}
         {activeTabType === "code" && (
         <div
@@ -326,7 +307,7 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
         <div
           style={{
             gridRow: 3,
-            gridColumn: showDesignPanels ? 2 : showCodeFlowPanel ? 2 : activeTabType === "code" ? 2 : "1 / -1",
+            gridColumn: showDesignPanels ? 2 : activeTabType === "code" ? 2 : "1 / -1",
             overflow: "hidden",
             display: "flex",
             flexDirection: "column",
@@ -336,39 +317,14 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
           {activeTabType === "design" ? (
             <DesignTabContent />
           ) : activeTabType === "component" ? (
-            /* Z-axis dual-layer: OmniView top layer shrinks to reveal CodeFlowCanvas below */
+            /* Z-axis 双层叠加：设计层（DOM 画布）常显，逻辑层（醒态 fn 图）浮于其上 */
             <div ref={zAxisRef} style={{ flex: 1, position: "relative", overflow: "hidden" }}>
-              {/* Top layer: OmniViewRenderer with shrink animation */}
-              <TopLayer
-                codeFlowVisible={codeFlowVisible}
-                focusPoint={codeFlowFocusPoint}
-                containerRef={zAxisRef}
-              >
-                <InfiniteCanvas>
-                  <OmniViewRenderer />
-                </InfiniteCanvas>
-              </TopLayer>
-
-              {/* Bottom layer: CodeFlowCanvas (revealed when codeFlowVisible) */}
-              {codeFlowVisible && (
-                <div
-                  onDoubleClick={(e) => {
-                    const target = e.target as HTMLElement;
-                    if (target.closest(".react-flow__node, .react-flow__controls")) return;
-                    toggleCodeFlow(null);
-                  }}
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    zIndex: 0,
-                  }}
-                >
-                  <CodeFlowCanvas />
-                </div>
-              )}
+              <InfiniteCanvas>
+                <OmniViewRenderer />
+              </InfiniteCanvas>
+              <LogicLayer visible={logicLayerVisible}>
+                <CodeFlowCanvas />
+              </LogicLayer>
             </div>
           ) : activeTabType === "store" && activeTab ? (
             <StorePage storeName={activeTab.componentName} tabId={activeTab.id} />
@@ -397,7 +353,7 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
         {storePanelVisible && activeTabType === "component" && (
           <div style={{
             gridRow: 3,
-            gridColumn: showDesignPanels ? 2 : showCodeFlowPanel ? 2 : "1 / -1",
+            gridColumn: showDesignPanels ? 2 : "1 / -1",
             overflow: "hidden",
             position: "relative",
             zIndex: 10,
@@ -499,49 +455,6 @@ function TreeDragPreview({ elementId }: { elementId: string }) {
     <div className={styles.treeDragPreview}>
       {"tag" in el ? el.tag : ""}
       {"props" in el && el.props?.label ? ` "${String(el.props.label).slice(0, 20)}"` : ""}
-    </div>
-  );
-}
-
-/** Z-axis top layer with shrink animation centered on the double-click focus point. */
-function TopLayer({
-  codeFlowVisible,
-  focusPoint,
-  containerRef,
-  children,
-}: {
-  codeFlowVisible: boolean;
-  focusPoint: { x: number; y: number } | null;
-  containerRef: React.RefObject<HTMLDivElement | null>;
-  children: React.ReactNode;
-}) {
-  // Measure the container AFTER layout (side panels hidden) to get correct pixel coords.
-  const [origin, setOrigin] = useState<string>("50% 50%");
-
-  useLayoutEffect(() => {
-    if (!codeFlowVisible || !focusPoint) return;
-    const container = containerRef.current;
-    if (!container) return;
-    const rect = container.getBoundingClientRect();
-    // Convert viewport-relative client coords to element-relative pixel coords
-    const ox = focusPoint.x - rect.left;
-    const oy = focusPoint.y - rect.top;
-    setOrigin(`${ox}px ${oy}px`);
-  }, [codeFlowVisible, focusPoint, containerRef]);
-
-  return (
-    <div
-      className={styles.topLayer}
-      style={{
-        display: codeFlowVisible ? "none" : "flex",
-        transform: codeFlowVisible ? "scale(0.4)" : "scale(1)",
-        transformOrigin: origin,
-        borderRadius: codeFlowVisible ? 8 : 0,
-        boxShadow: codeFlowVisible ? "0 4px 16px rgba(0,0,0,0.15)" : "none",
-        pointerEvents: codeFlowVisible ? "none" : "auto",
-      }}
-    >
-      {children}
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 import type { DesignTab, DesignPageState } from "../../core/types/design-page";
 import type { PoiesisState } from "../types";
-import { buildTabSaveEntry, tabRestoreCanvasPartial, tabRestoreDesignPagePartial } from "../tab-helpers";
+import { buildTabSaveEntry, tabRestoreCanvasPartial } from "../tab-helpers";
 import { lruEvictTabData } from "./lru-evict";
 
 type SetFn = (partial: Partial<PoiesisState> | ((state: PoiesisState) => Partial<PoiesisState>)) => void;
@@ -13,9 +13,6 @@ export function createInitialDesignPageState(): DesignPageState {
     openTabs: [],
     activeTabId: null,
     tabOrder: [],
-    codeFlowVisible: false,
-    codeFlowElementId: null,
-    codeFlowFocusPoint: null,
     previewOutput: null,
     awake: false,
     mainPanelTab: "structure",
@@ -44,7 +41,6 @@ export function createTabSlice(set: SetFn, _get?: GetFn) {
               wires: s.wires,
               rootOrder: s.rootOrder,
               selectedElementIds: s.selectedElementIds,
-              designPage: s.designPage,
             })
           : undefined;
         // Preserve selectedActionPid from existing tabData
@@ -56,13 +52,11 @@ export function createTabSlice(set: SetFn, _get?: GetFn) {
           : s.tabData;
 
         const canvasPartial = tabRestoreCanvasPartial(td, s.elements);
-        const codeFlowPartial = tabRestoreDesignPagePartial(td);
         return {
           currentPage: "design",
           designPage: {
             ...s.designPage,
             activeTabId: existing.id,
-            ...codeFlowPartial,
           },
           tabData: updatedTabData,
           ...canvasPartial,
@@ -93,7 +87,7 @@ export function createTabSlice(set: SetFn, _get?: GetFn) {
         }
       }
 
-      // Save current tab's data before switching to new tab (including code flow view state)
+      // Save current tab's data before switching to new tab
       const oldTabId = s.designPage.activeTabId;
       const saveEntry = oldTabId
         ? buildTabSaveEntry({
@@ -101,7 +95,6 @@ export function createTabSlice(set: SetFn, _get?: GetFn) {
             wires: s.wires,
             rootOrder: s.rootOrder,
             selectedElementIds: s.selectedElementIds,
-            designPage: s.designPage,
           })
         : undefined;
       // Preserve selectedActionPid from existing tabData
@@ -118,9 +111,6 @@ export function createTabSlice(set: SetFn, _get?: GetFn) {
           openTabs: [...s.designPage.openTabs, newTab],
           tabOrder: [...s.designPage.tabOrder, id],
           activeTabId: id,
-          codeFlowVisible: false,
-          codeFlowElementId: null,
-          codeFlowFocusPoint: null,
           previewOutput: null,
           breadcrumbs: [{ type: "architecture", label: "架构", id: "arch" }, { type: "component", label: componentName, id, filePath }],
         },
@@ -155,10 +145,6 @@ export function createTabSlice(set: SetFn, _get?: GetFn) {
         rootOrder: isActive ? s.rootOrder : (closedTabData?.rootOrder ?? []),
         selectedElementIds: isActive ? s.selectedElementIds : (closedTabData?.selectedElementIds ?? []),
         filePath: closedTab?.filePath,
-        designPage: {
-          codeFlowVisible: isActive ? s.designPage.codeFlowVisible : (closedTabData?.codeFlowVisible ?? false),
-          codeFlowElementId: isActive ? s.designPage.codeFlowElementId : (closedTabData?.codeFlowElementId ?? null),
-        },
       });
       // Preserve selectedActionPid from existing tabData
       if (closedTabData?.selectedActionPid) {
@@ -170,14 +156,12 @@ export function createTabSlice(set: SetFn, _get?: GetFn) {
       // If a neighbor tab becomes active, restore its data
       const restoreEntry = activeTabId ? prunedTabData[activeTabId] : undefined;
       const canvasPartial = tabRestoreCanvasPartial(restoreEntry, activeTabId ? undefined : s.elements);
-      const codeFlowPartial = tabRestoreDesignPagePartial(restoreEntry);
       return {
         designPage: {
           ...s.designPage,
           openTabs: newTabs,
           tabOrder: newOrder,
           activeTabId,
-          ...codeFlowPartial,
         },
         tabData: prunedTabData,
         ...canvasPartial,
@@ -187,13 +171,12 @@ export function createTabSlice(set: SetFn, _get?: GetFn) {
     switchTab: (tabId: string) => set((s) => {
       const oldTabId = s.designPage.activeTabId;
       if (oldTabId === tabId) return s;
-      // Save current tab's data into tabData (including code flow view state)
+      // Save current tab's data into tabData
       const saveEntry = buildTabSaveEntry({
         elements: s.elements,
         wires: s.wires,
         rootOrder: s.rootOrder,
         selectedElementIds: s.selectedElementIds,
-        designPage: s.designPage,
       });
       // Preserve selectedActionPid from existing tabData
       if (oldTabId && s.tabData[oldTabId]?.selectedActionPid) {
@@ -228,12 +211,10 @@ export function createTabSlice(set: SetFn, _get?: GetFn) {
       // Restore target tab's data (or empty if not yet loaded)
       const restoreEntry = s.tabData[tabId];
       const canvasPartial = tabRestoreCanvasPartial(restoreEntry);
-      const codeFlowPartial = tabRestoreDesignPagePartial(restoreEntry);
       return {
         designPage: {
           ...s.designPage,
           activeTabId: tabId,
-          ...codeFlowPartial,
         },
         tabData: { ...s.tabData, ...savedTabData },
         componentDefs: updatedComponentDefs,
@@ -253,22 +234,6 @@ export function createTabSlice(set: SetFn, _get?: GetFn) {
       isDirty: dirty,
     })),
 
-    toggleCodeFlow: (elementId: string | null, focusPoint?: { x: number; y: number }) => set((s) => {
-      const visible = elementId !== null;
-      const breadcrumbs = visible
-        ? [...s.designPage.breadcrumbs, { type: "code-layer" as const, label: "代码", id: elementId }]
-        : s.designPage.breadcrumbs.filter(b => b.type !== "code-layer");
-      return {
-        designPage: {
-          ...s.designPage,
-          codeFlowVisible: visible,
-          codeFlowElementId: elementId,
-          codeFlowFocusPoint: visible ? (focusPoint ?? null) : null,
-          breadcrumbs,
-        },
-      };
-    }),
-
     setAwake: (awake: boolean) => set((s) => ({
       designPage: { ...s.designPage, awake },
     })),
@@ -280,14 +245,6 @@ export function createTabSlice(set: SetFn, _get?: GetFn) {
         // [内容] 标签 = 意图驱动醒（Q12-A）；切回其他标签不睡
         awake: tab === "content" ? true : s.designPage.awake,
       },
-    })),
-
-    setBreadcrumbs: (breadcrumbs: import("../../core/types/design-page").Breadcrumb[]) => set((s) => ({
-      designPage: { ...s.designPage, breadcrumbs },
-    })),
-
-    setPreviewOutput: (output: import("../../components/design/useWasmCompile").OmniViewOutput | null) => set((s) => ({
-      designPage: { ...s.designPage, previewOutput: output },
     })),
 
     setStorePanelVisible: (visible: boolean) => set((s) => ({

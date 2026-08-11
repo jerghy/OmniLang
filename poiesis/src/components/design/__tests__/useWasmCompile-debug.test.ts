@@ -58,7 +58,6 @@ function baseline() {
     componentDefs: {},
     designPage: {
       ...usePoiesisStore.getState().designPage,
-      codeFlowVisible: false,
       activeTabId: null,
       openTabs: [],
     },

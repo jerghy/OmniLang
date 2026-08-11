@@ -23,7 +23,7 @@ vi.mock("@xyflow/react", () => ({
   BackgroundVariant: { Dots: "dots" },
   // GroupBox 折叠卡 Handle 用到 Position（Left/Right 钉缘）；mock 缺失该导出会在渲染期抛错
   Position: { Left: "left", Right: "right" },
-  useReactFlow: () => ({ screenToFlowPosition: (p: { x: number; y: number }) => p }),
+  useReactFlow: () => ({ screenToFlowPosition: (p: { x: number; y: number }) => p, setViewport: vi.fn() }),
 }));
 
 import { FlowCanvas } from "../FlowCanvas";

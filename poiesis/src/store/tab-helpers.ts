@@ -13,8 +13,6 @@ export interface TabDataEntry {
   rootOrder: string[];
   selectedElementIds: string[];
   filePath?: string; // preserved across close/reopen to restore tab state
-  codeFlowVisible?: boolean;
-  codeFlowElementId?: string | null;
   /** Store tab: currently selected action PID */
   selectedActionPid?: string | null;
 }
@@ -29,7 +27,6 @@ export interface TabSaveSource {
   rootOrder: string[];
   selectedElementIds: string[];
   filePath?: string;
-  designPage: { codeFlowVisible: boolean; codeFlowElementId: string | null };
 }
 
 // ── Helpers ──
@@ -48,8 +45,6 @@ export function buildTabSaveEntry(source: TabSaveSource): TabDataEntry {
     rootOrder: source.rootOrder,
     selectedElementIds: source.selectedElementIds,
     filePath: source.filePath,
-    codeFlowVisible: source.designPage.codeFlowVisible,
-    codeFlowElementId: source.designPage.codeFlowElementId,
     selectedActionPid: (source as { selectedActionPid?: string | null }).selectedActionPid ?? null,
   };
 }
@@ -78,18 +73,3 @@ export function tabRestoreCanvasPartial(
   };
 }
 
-/**
- * Extract code flow design page fields from a saved entry.
- *
- * Usage: const codeFlow = tabRestoreDesignPagePartial(s.tabData[tabId]);
- *        return { designPage: { ...s.designPage, ...codeFlow } };
- */
-export function tabRestoreDesignPagePartial(entry?: TabDataEntry): {
-  codeFlowVisible: boolean;
-  codeFlowElementId: string | null;
-} {
-  return {
-    codeFlowVisible: entry?.codeFlowVisible ?? false,
-    codeFlowElementId: entry?.codeFlowElementId ?? null,
-  };
-}

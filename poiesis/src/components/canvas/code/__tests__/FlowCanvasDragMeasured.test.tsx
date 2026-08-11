@@ -28,7 +28,7 @@ vi.mock("@xyflow/react", () => ({
     return <div data-testid="rf-mock" />;
   },
   ReactFlowProvider: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  useReactFlow: () => ({ screenToFlowPosition: (p: { x: number; y: number }) => p }),
+  useReactFlow: () => ({ screenToFlowPosition: (p: { x: number; y: number }) => p, setViewport: vi.fn() }),
   Background: () => null,
   BackgroundVariant: { Dots: "dots" },
   Controls: () => null,

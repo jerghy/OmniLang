@@ -3,7 +3,7 @@
 // 位置更新被内部 `hasDefaultNodes` 门控丢弃，必须由应用经 onNodesChange 回写 store，
 // 否则节点拖拽冻结、仅 onNodeDragStop 提交导致松开后瞬移。
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, act } from "@testing-library/react";
+import { render } from "@testing-library/react";
 import type { NodeChange } from "@xyflow/react";
 import { FlowCanvas } from "../FlowCanvas";
 
@@ -16,7 +16,7 @@ vi.mock("@xyflow/react", () => ({
     return <div data-testid="rf-mock" />;
   },
   ReactFlowProvider: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  useReactFlow: () => ({ screenToFlowPosition: (p: { x: number; y: number }) => p }),
+  useReactFlow: () => ({ screenToFlowPosition: (p: { x: number; y: number }) => p, setViewport: vi.fn() }),
   Background: () => null,
   BackgroundVariant: { Dots: "dots", Lines: "lines", Cross: "cross" },
   Controls: () => null,
@@ -53,8 +53,6 @@ vi.mock("../../../../store", () => ({
       storeDefs: {},
       inlineStoreDefs: {},
       designPage: {
-        codeFlowElementId: "main",
-        previewOutput: null,
         activeTabId: "t1",
         openTabs: [{ id: "t1", componentName: "App", filePath: "App.omni" }],
       },
@@ -84,40 +82,5 @@ describe("FlowCanvas 拖拽位置回写（onNodesChange 接线）", () => {
     const onNodesChange = mockRfProps.current?.onNodesChange as (changes: NodeChange[]) => void;
     onNodesChange([{ type: "select", id: "l1", selected: true }]);
     expect(mockSetElementPosition).not.toHaveBeenCalled();
-  });
-
-  // design-preview 是伪节点（不在 store elements）+ draggable:false——拖拽由节点组件自管
-  // （ref + transform 直改，松手经 data.onPreviewMove 提交一次，2026-08-06 闪烁修复轮）。
-  // className:"nopan" 是硬约束：draggable:false 时 ReactFlow 不再给 wrapper 加 nopan 类，
-  // pane 的 pan filter 放行后 d3-zoom stopImmediatePropagation 切断冒泡 → React 合成
-  // mousedown 永不触发（实测复现）；nopan 类让 pan filter 拒绝 → 合成事件正常分发。
-  it("design-preview 节点 draggable:false + className nopan（不经 ReactFlow 拖拽体系）", () => {
-    render(<FlowCanvas />);
-    const nodes = mockRfProps.current?.nodes as Array<{ id: string; draggable?: boolean; className?: string }>;
-    const preview = nodes.find((n) => n.id === "design-preview");
-    expect(preview?.draggable).toBe(false);
-    expect(preview?.className).toContain("nopan");
-  });
-
-  it("design-preview 松手经 onPreviewMove 提交位置（不落 store）", () => {
-    render(<FlowCanvas />);
-    const nodesBefore = mockRfProps.current?.nodes as Array<{
-      id: string;
-      position: { x: number; y: number };
-      data: { onPreviewMove: (pos: { x: number; y: number }) => void };
-    }>;
-    const previewBefore = nodesBefore.find((n) => n.id === "design-preview");
-    expect(previewBefore?.position).toEqual({ x: 50, y: 50 });
-    expect(previewBefore?.data.onPreviewMove).toBeTypeOf("function");
-
-    act(() => {
-      previewBefore!.data.onPreviewMove({ x: 150, y: 180 });
-    });
-
-    // 预览节点不在 store → 不得调用 setElementPosition
-    expect(mockSetElementPosition).not.toHaveBeenCalled();
-    // 位置提交到本地 state → ReactFlow 收到新 nodes prop（落点持久）
-    const nodesAfter = mockRfProps.current?.nodes as Array<{ id: string; position: { x: number; y: number } }>;
-    expect(nodesAfter.find((n) => n.id === "design-preview")?.position).toEqual({ x: 150, y: 180 });
   });
 });

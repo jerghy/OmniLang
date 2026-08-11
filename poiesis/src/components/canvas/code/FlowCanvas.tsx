@@ -21,7 +21,6 @@ import { FnNode } from "./nodes/FnNode";
 import { ConditionNode } from "./nodes/ConditionNode";
 import { CodeBlockNode } from "./nodes/CodeBlockNode";
 import { ReturnNode } from "./nodes/ReturnNode";
-import { DesignPreviewNode } from "./nodes/DesignPreviewNode";
 import { SyntaxNode } from "./nodes/SyntaxNode";
 import { LoopNode } from "./nodes/LoopNode";
 import { LifecycleNode } from "./nodes/LifecycleNode";
@@ -31,7 +30,7 @@ import { defaultSyntaxProps } from "../../../services/codegen/syntax-nodes";
 import { useFlowScope } from "../../../services/codegen/flow-scope-hook";
 import { collectLetVarsPerFn, findOwnerFnId } from "../../../services/codegen/fn-topology";
 import { CODE_TAGS, TAG_CN, type MenuItem } from "./flowConstants";
-import { computeLayeredLayout, estimateNodeSize, buildLayoutInput } from "../../../services/codegen/flow-layout";
+import { computeLayeredLayout, buildLayoutInput } from "../../../services/codegen/flow-layout";
 import { validateGroupMembers, fnNameOf, GROUP_COLORS, computeGroupBoxes, collectCollapsedMemberIds, buildFlowEdges } from "../../../services/codegen/groups";
 import type { GroupBBox } from "../../../services/codegen/groups";
 import type { CodeFlowGroup } from "../../../core/types/project-json";
@@ -41,10 +40,7 @@ import type { CodeBlockEditorContext } from "./CodeBlockEditor";
 import type { DependencyInfo } from "../../../core/types/dependency-info";
 import { FlowInspector } from "./FlowInspector";
 import styles from "./FlowCanvas.module.css";
-
-/** 预览伪节点 id：必须与 handleNodesChange 回写分支、previewNode id 一致（拖拽写回依赖此键），
- *  单点定义防漂移（曾因两处字面量 + 无回写导致拖不动回归）。 */
-const DESIGN_PREVIEW_ID = "design-preview";
+import { useCanvasStore } from "../canvas-store";
 
 // ── 节点 measured 缓存（拖拽防闪烁，2026-08-09）──
 // 受控 ReactFlow 下 nodes prop 每次引用变化都会 setNodes → adoptUserNodes：节点对象
@@ -72,7 +68,6 @@ const nodeTypes = {
   "code-block": CodeBlockNode,
   "condition": ConditionNode,
   "return": ReturnNode,
-  "design-preview": DesignPreviewNode,
   "let": SyntaxNode,
   "assign": SyntaxNode,
   "store-call": SyntaxNode,
@@ -104,16 +99,14 @@ function FlowCanvasInner() {
   const wires = useWires();
   const addElement = usePoiesisStore((s) => s.addElement);
   const addWire = usePoiesisStore((s) => s.addWire);
-  const codeFlowElementId = usePoiesisStore(
-    (s) => s.designPage.codeFlowElementId,
-  );
-
-  // Read preview output from store (set by OmniViewRenderer)
-  const previewOutput = usePoiesisStore((s) => s.designPage.previewOutput);
-
-
-  const { screenToFlowPosition } = useReactFlow();
+  const { screenToFlowPosition, setViewport } = useReactFlow();
   const flowWrapperRef = useRef<HTMLDivElement>(null);
+
+  // ── 视口同步：单一真相 = useCanvasStore（DOM 画布），ReactFlow 跟随；onMove 回写 ──
+  const { zoom: canvasZoom, panX, panY } = useCanvasStore();
+  useEffect(() => {
+    setViewport({ x: panX, y: panY, zoom: canvasZoom });
+  }, [canvasZoom, panX, panY, setViewport]);
 
   // ── 搜索菜单（替换原 ContextMenu）：右键 / 空格 / 拖出端口创建唤出 ──
   const [menuState, setMenuState] = useState<{ x: number; y: number; flowX: number; flowY: number } | null>(null);
@@ -256,12 +249,6 @@ function FlowCanvasInner() {
   // 折叠组位置（Task 7 布局落点消费；Task 4 仅 getter——setter 由 Task 7 写入，弃名防 TS6133）
   const [collapsedGroupPositions, setCollapsedGroupPositions] = useState<Record<string, { x: number; y: number }>>({});
 
-  // Preview node — shows the design canvas inside the flow when in codeflow mode.
-  // position 为 state（非 store elements——它是伪节点）：布局按钮点击时把预览组件归位到
-  // 布局包围盒右下角外（不参与布局；否则固定 (50,50) 会盖住布局后的左上角节点，E2E 用户实测），
-  // 拖拽回写也走这里（handleNodesChange 分流，见下——写 store 是无操作，节点会瞬移回原位）。
-  const [previewPos, setPreviewPos] = useState({ x: 50, y: 50 });
-
   // ── Node context menu (right-click on a node) ──
   const [nodeMenu, setNodeMenu] = useState<{ x: number; y: number; nodeId: string } | null>(null);
   const nodeMenuRef = useRef<HTMLDivElement>(null);
@@ -334,9 +321,6 @@ function FlowCanvasInner() {
   // `hasDefaultNodes` 门控丢弃，仅 onNodesChange 会收到变更——不接线则节点拖拽冻结、
   // 松开后瞬移。这里把 position 变更实时回写 store（setElementPosition 无 undo 条目，
   // 每帧提交不污染撤销栈；末帧 dragging:false 的变更即最终落点）。
-  // 注意：预览节点（design-preview）不在本处理器路径——它 draggable:false，
-  // 拖拽由 DesignPreviewNode 自管（ref + transform 直改，松手经 onPreviewMove 提交），
-  // ReactFlow 不会为它发出 position 变更（曾走这里回写导致真机拖拽闪烁，2026-08-06）。
   // dimensions 变更（React Flow RO 测量结果）写入 measured 缓存：节点对象构建时携带
   //（见 nodes useMemo），adoptUserNodes 重建内部节点时 measured 不丢失 → 拖拽不闪烁。
   const cacheInstanceId = useId();
@@ -652,7 +636,7 @@ function FlowCanvasInner() {
     }
     return out;
   }, [codeFlowGroups, groupBoxes, collapsedGroupPositions, editingGroupId, patchGroup, removeGroup, groupFnName, codeElements, cacheInstanceId]);
-  const allNodesWithGroups = [...groupNodes, ...nodes];
+  const allNodes = [...groupNodes, ...nodes];
 
   const edges = useMemo(
     () =>
@@ -725,44 +709,7 @@ function FlowCanvasInner() {
         : e,
     );
     setElementsAndWires(nextElements, wires);
-    // 预览组件（design-preview）不参与布局（不在 store elements）：归位到布局包围盒
-    // 右下角外，避免盖住布局后的节点（用户实测：固定 (50,50) 挡左上角节点）。
-    let maxX = 0;
-    let maxY = 0;
-    for (const el of codeElements) {
-      const p = layout[el.id];
-      if (!p) continue;
-      const s = sizes.get(el.id) ?? estimateNodeSize(el.tag, el.props);
-      maxX = Math.max(maxX, p.x + s.width);
-      maxY = Math.max(maxY, p.y + s.height);
-    }
-    setPreviewPos({ x: maxX + 40, y: maxY + 40 });
   }, [codeElements, allElements, wires, nodes, setElementsAndWires, codeFlowGroups]);
-
-  // Preview node — shows the design canvas inside the flow when in codeflow mode.
-  // draggable:false——拖拽由 DesignPreviewNode 自管（ref + transform 直改，无 state 往返，
-  // 松手经 data.onPreviewMove 提交一次）。曾用 ReactFlow 原生拖拽 + 回写 previewPos 导致
-  // 真机拖拽闪烁（每帧 state 更新 → StoreUpdater 调和与 transform 直改打架，2026-08-06）。
-  // className:"nopan" 必须保留：draggable:false 会让 ReactFlow 不给 wrapper 加 nopan 类，
-  // 而 pane 的 pan filter（isWrappedWithClass 'nopan'）放行后 d3-zoom 会 stopImmediatePropagation
-  // 切断冒泡 → React 合成 mousedown 永不触发 → 节点拖不动（2026-08-06 实测复现）。
-  const previewNode: RFNode | null = useMemo(() => {
-    if (!codeFlowElementId) return null;
-    return {
-      id: DESIGN_PREVIEW_ID,
-      type: "design-preview",
-      position: previewPos,
-      selectable: false,
-      draggable: false,
-      className: "nopan",
-      data: { output: previewOutput, position: previewPos, onPreviewMove: setPreviewPos },
-    };
-  }, [codeFlowElementId, previewOutput, previewPos]);
-
-  const allNodes = useMemo(
-    () => [...allNodesWithGroups, ...(previewNode ? [previewNode] : [])],
-    [allNodesWithGroups, previewNode],
-  );
 
   // ── Editing element (for CodeBlockEditor) ──
   const editingElement = editingNodeId
@@ -834,31 +781,24 @@ function FlowCanvasInner() {
             gap: 6,
           }}
         >
-          <div>
-            {codeFlowElementId
-              ? "双击组件元素进入代码节点流编辑"
-              : "右键画布添加节点，或从组件标签页双击进入"}
-          </div>
+          <div>右键画布添加节点</div>
           <div style={{ fontSize: 11, opacity: 0.7 }}>右键 / 空格 / 拖出端口 → 添加节点</div>
         </div>
       ) : (
         <ReactFlow
-          key={`flow-${codeFlowElementId ?? "none"}`}
           nodes={allNodes}
           edges={edges}
           nodeTypes={nodeTypes}
           fitView
           fitViewOptions={{ maxZoom: 1 }}
+          minZoom={0.1}
+          maxZoom={5}
           nodesDraggable
           nodesConnectable
           nodesFocusable
           elementsSelectable
           panOnScroll
           onNodeClick={(_event, node) => {
-            // 预览节点不可选中：selectable:false 只挡 ReactFlow 内部选中视觉，
-            // onNodeClick 仍触发——若放行会累积进多选集，validateGroupMembers
-            // 查不到该元素 → 「组成分组」报"所选节点不存在"（2026-08-10 真机）。
-            if (node.id === DESIGN_PREVIEW_ID) return;
             if (_event.shiftKey) {
               // Shift 点击：数组中 toggle（多选/取消），不打断既有选中
               setSelectedNodeIds((prev) => prev.includes(node.id) ? prev.filter((id) => id !== node.id) : [...prev, node.id]);
@@ -879,6 +819,15 @@ function FlowCanvasInner() {
               pendingDragRef.current = null;
               menuOpenRef.current = false;
               setMenuState(null);
+            }
+          }}
+          onMove={(_e, vp) => {
+            const cur = useCanvasStore.getState();
+            // setViewport 编程式同步也会触发 onMove——Object.is 守卫防 ping-pong
+            // 注意：setZoom 钳制 0.1-5.0 与 ReactFlow zoom 范围须一致，否则钳制后值不等 → 每帧回写
+            if (vp.zoom !== cur.zoom || vp.x !== cur.panX || vp.y !== cur.panY) {
+              cur.setZoom(vp.zoom);
+              cur.setPan(vp.x, vp.y);
             }
           }}
         >

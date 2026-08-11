@@ -12,7 +12,7 @@ vi.mock("@xyflow/react", () => ({
     return <div data-testid="rf-mock" />;
   },
   ReactFlowProvider: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  useReactFlow: () => ({ screenToFlowPosition: (p: { x: number; y: number }) => p }),
+  useReactFlow: () => ({ screenToFlowPosition: (p: { x: number; y: number }) => p, setViewport: vi.fn() }),
   Background: () => null,
   BackgroundVariant: { Dots: "dots", Lines: "lines", Cross: "cross" },
   Controls: () => null,
@@ -35,7 +35,7 @@ vi.mock("../../../../store", () => ({
       addElement: () => {}, removeElement: () => {}, setElementPosition: () => {},
       setProp: () => {}, setElementSource: () => {}, setNodeMeta: () => {}, addWire: () => {},
       componentDefs: {}, storeReferences: {}, storeDefs: {}, inlineStoreDefs: {},
-      designPage: { codeFlowElementId: "main", previewOutput: null, activeTabId: "t1", openTabs: [{ id: "t1", componentName: "App", filePath: "App.omni" }] },
+      designPage: { activeTabId: "t1", openTabs: [{ id: "t1", componentName: "App", filePath: "App.omni" }] },
     }),
 }));
 

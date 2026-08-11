@@ -7,7 +7,7 @@ import type { OmniViewOutput } from "../../components/design/useWasmCompile";
 export type PanelTab = "behavior" | "content" | "structure";
 
 export interface Breadcrumb {
-  type: "architecture" | "component" | "code-layer";
+  type: "architecture" | "component";
   label: string;
   id: string;          // pid or bubble id
   filePath?: string;   // .omni file path
@@ -40,9 +40,6 @@ export interface DesignPageState {
   openTabs: DesignTab[];
   activeTabId: string | null;
   tabOrder: string[];       // drag-reordered tab IDs
-  codeFlowVisible: boolean;
-  codeFlowElementId: string | null;
-  codeFlowFocusPoint: { x: number; y: number } | null;
   previewOutput: OmniViewOutput | null;
   /** 整页醒（呼吸点 / [内容] 自动醒）。瞬态视图状态，不持久化。 */
   awake: boolean;

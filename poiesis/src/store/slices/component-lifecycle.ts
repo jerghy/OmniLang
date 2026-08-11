@@ -3,7 +3,7 @@
 import type { PoiesisState } from "../types";
 import type { ComponentDef, DefEntry, ComputedEntry } from "../../core/types/project-json";
 import { detectTabType } from "../../core/types/design-page";
-import { buildTabSaveEntry, tabRestoreCanvasPartial, tabRestoreDesignPagePartial } from "../tab-helpers";
+import { buildTabSaveEntry, tabRestoreCanvasPartial } from "../tab-helpers";
 import { lruEvictTabData } from "../operations/lru-evict";
 
 type SetFn = (partial: Partial<PoiesisState> | ((state: PoiesisState) => Partial<PoiesisState>)) => void;
@@ -54,7 +54,6 @@ export function createComponentLifecycleSlice(set: SetFn, get: GetFn) {
         wires: s.wires,
         rootOrder: s.rootOrder,
         selectedElementIds: s.selectedElementIds,
-        designPage: s.designPage,
       });
       const tabDataWithSave = { ...s.tabData, [tabId]: saveEntry };
       const { [tabId]: _tab, ...restTabData } = tabDataWithSave;
@@ -62,7 +61,6 @@ export function createComponentLifecycleSlice(set: SetFn, get: GetFn) {
       const prunedTabData = lruEvictTabData(restTabData, new Set(newTabs.map((t) => t.id)));
       const restoreEntry = activeTabId ? prunedTabData[activeTabId] : undefined;
       const canvasPartial = tabRestoreCanvasPartial(restoreEntry, activeTabId ? [] : undefined);
-      const codeFlowPartial = tabRestoreDesignPagePartial(restoreEntry);
       return {
         componentDefs: restDefs,
         designPage: {
@@ -70,7 +68,6 @@ export function createComponentLifecycleSlice(set: SetFn, get: GetFn) {
           openTabs: newTabs,
           tabOrder: newOrder,
           activeTabId,
-          ...codeFlowPartial,
         },
         tabData: prunedTabData,
         ...canvasPartial,

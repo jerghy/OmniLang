@@ -210,17 +210,3 @@
   color: var(--ol-text-muted);
   font-family: inherit;
 }
-
-/* TopLayer */
-.topLayer {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 1;
-  overflow: hidden;
-  background: var(--ol-surface);
-  flex-direction: column;
-  transition: transform var(--ol-duration-slow) var(--ol-ease-default), border-radius var(--ol-duration-slow) var(--ol-ease-default), box-shadow var(--ol-duration-slow) var(--ol-ease-default);
-}

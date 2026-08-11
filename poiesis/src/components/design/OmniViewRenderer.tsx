@@ -9,7 +9,6 @@ import { useWasmCompile } from "./useWasmCompile";
 import { useDebugCompile } from "../../features/debug/useDebugCompile";
 import { useCssScopePool } from "./useCssScopePool";
 import { OmniViewElementTree } from "./OmniViewElementTree";
-import { _lastClickPos } from "./omni-view-utils";
 import styles from "./OmniViewRenderer.module.css";
 
 export function OmniViewRenderer() {
@@ -19,18 +18,11 @@ export function OmniViewRenderer() {
   const componentDefs = usePoiesisStore((s) => s.componentDefs);
   const openTabs = usePoiesisStore((s) => s.designPage.openTabs);
   const activeTabId = usePoiesisStore((s) => s.designPage.activeTabId);
-  const toggleCodeFlow = usePoiesisStore((s) => s.toggleCodeFlow);
 
   const { output, isCompiling, errors } = useWasmCompile();
   useDebugCompile();
   const { updateScopes } = useCssScopePool();
   const styleContainerRef = useRef<HTMLDivElement>(null);
-
-  // Sync output to store so FlowCanvas preview node can read it
-  const setPreviewOutput = usePoiesisStore((s) => s.setPreviewOutput);
-  useEffect(() => {
-    setPreviewOutput(output);
-  }, [output, setPreviewOutput]);
 
   // Update CSS scopes when output changes
   useEffect(() => {
@@ -94,14 +86,6 @@ export function OmniViewRenderer() {
     return () => window.removeEventListener("poiesis:debug-select", handler);
   }, [selectElement, switchTab, componentDefs, openTabs, activeTabId]);
 
-  const handleDoubleClickNid = useCallback(
-    (nid: string) => {
-      const elementId = nidToElementId.get(nid) ?? nid;
-      toggleCodeFlow(elementId, { x: _lastClickPos.x, y: _lastClickPos.y });
-    },
-    [toggleCodeFlow, nidToElementId],
-  );
-
   return (
     <div
       data-renderer="omniview"
@@ -132,7 +116,6 @@ export function OmniViewRenderer() {
           output={output}
           selectedNid={selectedNid}
           onSelectNid={handleSelectNid}
-          onDoubleClickNid={handleDoubleClickNid}
         />
       ) : (
         <div style={{

@@ -41,7 +41,6 @@ function useWasmCompile(): {
   const wires = usePoiesisStore((s) => s.wires);
   const activeDesign = usePoiesisStore((s) => s.activeDesign);
   const componentDefs = useComponentDefs();
-  const codeFlowVisible = usePoiesisStore((s) => s.designPage.codeFlowVisible);
   const activeTabId = usePoiesisStore((s) => s.designPage.activeTabId);
   const openTabs = usePoiesisStore((s) => s.designPage.openTabs);
   const debugValues = usePoiesisStore((s) => s.debugValues);
@@ -60,10 +59,6 @@ function useWasmCompile(): {
       setIsCompiling(false);
       return;
     }
-
-    // Skip WASM recompilation when CodeFlow is active.
-    // OmniViewRenderer stays mounted so output is preserved in store.
-    if (codeFlowVisible) return;
 
     // 调试覆盖目标组件：活动 tab 为组件 tab 时以其组件名解析 ownerKey 目标文件，
     // 否则回退 "main"（main/store/设计 tab 的调试值按 main 文件解析）。
@@ -210,7 +205,7 @@ function useWasmCompile(): {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [elements, wires, rootOrder, activeDesign, componentDefs, codeFlowVisible, activeTabId, openTabs, debugValues, debugOverridesEnabled]);
+  }, [elements, wires, rootOrder, activeDesign, componentDefs, activeTabId, openTabs, debugValues, debugOverridesEnabled]);
 
   return { output, isCompiling, errors };
 }

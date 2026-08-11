@@ -1,0 +1,11 @@
+/* poiesis/src/components/canvas/LogicLayer.module.css */
+.layer {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  transition: opacity 0.15s ease;
+}
+/* 叠加层只允许节点/边/控件接收事件——pane 区域事件穿透到设计层（醒着也能改样式） */
+.layer :global(.react-flow__pane) {
+  pointer-events: none;
+}

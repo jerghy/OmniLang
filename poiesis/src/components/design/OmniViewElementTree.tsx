@@ -10,14 +10,12 @@ export interface OmniViewElementTreeProps {
   output: OmniViewOutput;
   selectedNid: string | null;
   onSelectNid: (nid: string, multi: boolean) => void;
-  onDoubleClickNid: (nid: string) => void;
 }
 
 export function OmniViewElementTree({
   output,
   selectedNid,
   onSelectNid,
-  onDoubleClickNid,
 }: OmniViewElementTreeProps) {
   // serde_wasm_bindgen serializes HashMap as JS Map, not plain object
   const classMap = useMemo(
@@ -57,7 +55,6 @@ export function OmniViewElementTree({
           selectedNid={selectedNid}
           classMap={classMap}
           onSelect={onSelectNid}
-          onDoubleClick={onDoubleClickNid}
         />
       ))}
     </>
