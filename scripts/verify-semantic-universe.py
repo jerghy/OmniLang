@@ -144,6 +144,9 @@ ANALYSE_FILE = os.path.join(REPO_ROOT, "crates", "omnilang-core", "src", "analys
 STYLE_PARSER_FILE = os.path.join(
     REPO_ROOT, "crates", "omnilang-core", "src", "parser", "view", "style.rs"
 )
+# 深色模式生成物（@themes → 3-layer CSS）真实生成点：shared/design.rs 的
+# emit_design_css（react/component/mod.rs 仅 prefers-reduced-motion，无主题生成物）
+SHARED_DESIGN_FILE = os.path.join(REPO_ROOT, "omnilang", "src", "codegen", "shared", "design.rs")
 
 # ── universe section contract ─────────────────────────────────────────────
 # Domain titles must contain the expected keyword (in order 1..9).
@@ -916,7 +919,7 @@ def audit():
             ("选择器诊断", [("validate_style_selectors", analyse_src), ("unsupported_selector", lower_comp_src)]),
             ("@media 块", [("AtMedia", style_parser_src), ("@media", react_src),
                           ("media_blocks", flutter_src)]),
-            ("深色模式", [("prefers-color-scheme", react_src)]),
+            ("深色模式", [("prefers-color-scheme", read_file(SHARED_DESIGN_FILE))]),
         ):
             # 状态列带括号注记（「支持（批次 3）」）——按「（」前基词判定（域 14 基词
             # 校验同模式；域 10 锚点断言用裸 in ("支持","部分") 会静默跳过，此处不做）。

@@ -81,4 +81,40 @@ mod tests {
 
         let _ = std::fs::remove_dir_all(&tmp);
     }
+
+    /// W-301 (unsupported selector) is a warning — build must succeed
+    /// (honest degradation, ADR-054) and still emit output files. The
+    /// warning's stderr text is asserted at the core level
+    /// (validate_style_selectors tests); here we pin the build-succeeds
+    /// contract end to end (批次 3, spec §2.3).
+    #[test]
+    fn cmd_build_surfaces_w301_without_failing() {
+        let tmp = std::env::temp_dir().join(format!("omnic-build-w301-{}", std::process::id()));
+        let src_dir = tmp.join("src");
+        std::fs::create_dir_all(&src_dir).unwrap();
+        let main = src_dir.join("main.omni");
+        // `input:checked + span` — sibling selector: parser truncates at `+`
+        // and records UnsupportedSelector (W-301 at the semantic layer).
+        std::fs::write(
+            &main,
+            "import omniview;\ncomponent App { style { input:checked + span { color: red; } } view { <div /> } }",
+        )
+        .unwrap();
+
+        let out_dir = tmp.join("out");
+        let files = vec![main.to_string_lossy().to_string()];
+        let result = cmd_build(
+            files,
+            Some("omniview".to_string()),
+            &out_dir.to_string_lossy(),
+        );
+        assert!(
+            result.is_ok(),
+            "build with W-301 must succeed (warning non-blocking), got: {result:?}"
+        );
+        let written = std::fs::read_dir(&out_dir).unwrap().count();
+        assert!(written > 0, "expected generated output files");
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
 }

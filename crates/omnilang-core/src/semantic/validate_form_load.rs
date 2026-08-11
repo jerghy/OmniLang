@@ -352,7 +352,7 @@ fn walk_element_exprs<F: FnMut(&ExprIR)>(el: &ElementIR, f: &mut F) {
 /// （覆盖模型同 optimize.rs 的 collect_idents_from_view_exprs）。元素
 /// 子节点经 walk_view 回调访问其槽位、经本递归访问其子树的非元素节点，
 /// 任一表达式槽位恰好被访问一次。
-fn walk_view_exprs<F: FnMut(&ExprIR)>(tree: &ViewTree, f: &mut F) {
+pub(crate) fn walk_view_exprs<F: FnMut(&ExprIR)>(tree: &ViewTree, f: &mut F) {
     walk_view(tree, &mut |el| walk_element_exprs(el, f));
     match tree {
         ViewTree::Interpolation(expr) => walk_expr(expr, f),

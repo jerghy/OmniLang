@@ -223,6 +223,17 @@ pub(crate) fn run_program_passes(ir: &mut IRProgram, diagnostics: &mut Vec<Diagn
     // (V2/V5 are parse errors; @if page exclusivity / onNavigate are legal
     // legacy forms per spec §6 boundary 6 — no hard diagnostics).
     crate::semantic::validate_route_navigation::validate_route_navigation(ir, diagnostics);
+
+    // Phase 3g: Responsive breakpoint + style-selector diagnostics (batch 3) —
+    // validate_breakpoints: bp("name") lookup against the full-program
+    // breakpoint table (E-401/E-405 + rewrite arg to numeric literal, so
+    // three-target codegen only handles name=="bp" + numeric arg);
+    // validate_style_selectors: W-301 warnings for silently-truncated
+    // selector parts (honest degradation, ADR-054). Both run on the merged
+    // IR — cross-file breakpoint lookup is only visible there (same
+    // single-owner model as validate_theme).
+    crate::semantic::validate_breakpoints::validate_breakpoints(ir, diagnostics);
+    crate::semantic::validate_style_selectors::validate_style_selectors(ir, diagnostics);
 }
 
 /// Fast non-cryptographic hash for content comparison.

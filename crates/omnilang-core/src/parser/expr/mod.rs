@@ -29,7 +29,7 @@ pub mod template;
 /// navigation builtins (spec 2026-08-09 §2.3): they compile to the target's
 /// navigation API (useNavigate / context.push / hash update). Users may not
 /// shadow any of them (V8/V13, semantic layer).
-pub(crate) const BUILTIN_FUNCTIONS: &[&str] = &["showToast", "navigate", "back"];
+pub(crate) const BUILTIN_FUNCTIONS: &[&str] = &["showToast", "navigate", "back", "bp"];
 
 /// Binding power: (left_bp, right_bp). Higher = tighter.
 type Bp = u8;
