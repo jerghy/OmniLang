@@ -325,6 +325,25 @@ impl ReactCodegen {
                 crate::ir::walk::walk_expr_mut(&mut body, &mut collect);
             }
         }
+        // ── Task 7 (批次 4 数据能力): debounce/throttle 使用面——
+        // 事件处理器值形态在 view.rs InlineFn 臂发射 `useMemo(() =>
+        // debounce(fn, ms), [fn])`（spec §4.1），useMemo import 必须
+        // 按此门控（spec §2.5）。walk_view_exprs_mut 下钻事件处理器体。
+        let has_timing_calls = {
+            let mut found = false;
+            let mut collect = |e: &mut crate::ir::ExprIR| {
+                if let crate::ir::ExprIR::CallExpr { name, .. } = e {
+                    if crate::semantic::load_contract::TIMING_FUNCS.contains(&name.as_str()) {
+                        found = true;
+                    }
+                }
+            };
+            if let Some(view) = &comp.view {
+                let mut v = view.clone();
+                crate::ir::walk::walk_view_exprs_mut(&mut v, &mut collect);
+            }
+            found
+        };
         let mut hooks: Vec<String> = Vec::new();
         // Task 4 (Phase 2 域 A): @form/@load 脚手架 emit useState/useCallback/
         // useEffect——formErrors/formSubmitting state、load useCallback +
@@ -340,7 +359,7 @@ impl ReactCodegen {
         {
             hooks.push("useState".to_string());
         }
-        if has_computeds {
+        if has_computeds || has_timing_calls {
             hooks.push("useMemo".to_string());
         }
         if has_fn_form_computed
@@ -380,8 +399,12 @@ impl ReactCodegen {
             hooks.push("useEffect".to_string());
         }
 
-        // Ref declarations → useRef (user @refs + synthesized motion refs)
-        let has_refs = !comp.refs.is_empty() || !motion_internal_refs.is_empty();
+        // Ref declarations → useRef (user @refs + synthesized motion refs
+        // + Task 7 无限滚动哨兵 ref——scroll 模式 @load 发射
+        // {name}ScrollSentinelRef，见 load 块)
+        let has_refs = !comp.refs.is_empty()
+            || !motion_internal_refs.is_empty()
+            || comp.load_intent.iter().any(|li| li.mode.scroll);
         if has_refs {
             hooks.push("useRef".to_string());
         }
@@ -1157,6 +1180,15 @@ impl ReactCodegen {
             w.emit("");
         }
 
+        // ── Task 7 (批次 4 数据能力): 分页信封 Page<T> interface
+        // （spec §2.2）——paginated 模式 @load 的 fetch 响应信封。V11
+        // 保证签名形态 `fn {name}(page: i32) -> Page<X>`。接口在模块
+        // 作用域发射（组件间可共享）。
+        if comp.load_intent.iter().any(|li| li.mode.paginated) {
+            w.emit("interface Page<T> { items: T[]; hasMore: boolean; }");
+            w.emit("");
+        }
+
         // Component function signature
         if !has_props {
             w.emit_fmt(format_args!("export function {}() {{", name));
@@ -1482,7 +1514,9 @@ impl ReactCodegen {
                 sig("Error"),
                 setter("Error")
             ));
-            // 元素类型来自 fn 返回 Array<X> 的 X（V-F7 保证 Array 形态）
+            // 元素类型来自 fn 返回 Array<X> 的 X（V-F7 保证 Array 形态）；
+            // Task 7: 分页信封 Page<X> 的元素类型同样取唯一类型实参
+            // （V11 保证签名形态 `fn {name}(page: i32) -> Page<X>`）。
             let elem_ts = comp
                 .fns
                 .iter()
@@ -1490,6 +1524,10 @@ impl ReactCodegen {
                 .and_then(|f| f.return_type.as_ref())
                 .and_then(|t| match &t.kind {
                     TypeKind::Named { name } if name == "Array" && t.type_args.len() == 1 => {
+                        let arg = &t.type_args[0];
+                        Some(JsTypeFormatter.format_type(arg.kind.as_str(), &arg.type_args))
+                    }
+                    TypeKind::Named { name } if name == "Page" && t.type_args.len() == 1 => {
                         let arg = &t.type_args[0];
                         Some(JsTypeFormatter.format_type(arg.kind.as_str(), &arg.type_args))
                     }
@@ -1501,6 +1539,26 @@ impl ReactCodegen {
                 sig("Data"),
                 setter("Data")
             ));
+            // Task 7 (批次 4 数据能力): 分页派生信号（spec §2.2 信号表）——
+            // {name}Page 从 1 / {name}HasMore / {name}LoadingMore 三 state。
+            // V8 保证 scroll 必 paginated（哨兵观察依赖 Page 推进）。
+            if load.mode.paginated {
+                w.emit_fmt(format_args!(
+                    "const [{}, {}] = useState<number>(1);",
+                    sig("Page"),
+                    setter("Page")
+                ));
+                w.emit_fmt(format_args!(
+                    "const [{}, {}] = useState(true);",
+                    sig("HasMore"),
+                    setter("HasMore")
+                ));
+                w.emit_fmt(format_args!(
+                    "const [{}, {}] = useState(false);",
+                    sig("LoadingMore"),
+                    setter("LoadingMore")
+                ));
+            }
             // 参数绑定：Call loader 实参中的标识符（重命名感知格式化）进入
             // deps——与调用处读取的是同一表达式（信号变更自动重载）。
             let param_deps: Vec<String> = match &load.loader {
@@ -1542,9 +1600,21 @@ impl ReactCodegen {
                 });
             let call = match &load.loader {
                 LoaderIR::Fn(fname) if !is_async => {
-                    format!("Promise.resolve().then(() => {fname}())")
+                    // Task 7: 分页首载固定 page=1（Page state 独立推进——
+                    // retry 重载首页，LoadMore 才走 {p}Page + 1）
+                    if load.mode.paginated {
+                        format!("Promise.resolve().then(() => {fname}(1))")
+                    } else {
+                        format!("Promise.resolve().then(() => {fname}())")
+                    }
                 }
-                LoaderIR::Fn(fname) => format!("{fname}()"),
+                LoaderIR::Fn(fname) => {
+                    if load.mode.paginated {
+                        format!("{fname}(1)")
+                    } else {
+                        format!("{fname}()")
+                    }
+                }
                 LoaderIR::Call(c) => {
                     let args = c
                         .args
@@ -1561,13 +1631,29 @@ impl ReactCodegen {
                     }
                 }
             };
-            w.emit_fmt(format_args!(
-                "{call}.then((r) => {{ {}(r); {}(false); }}).catch((e) => {{ {}(String(e)); {}(false); }});",
-                setter("Data"),
-                setter("Loading"),
-                setter("Error"),
-                setter("Loading")
-            ));
+            if load.mode.paginated {
+                // Task 7 (批次 4 数据能力): V12 信封校验（诚实降级，绝不
+                // 静默）——响应缺 hasMore 按 hasMore=false 处理并
+                // console.warn（停止加载更多）；数据经 items 解包入
+                // {name}Data。
+                w.emit_fmt(format_args!(
+                    "{call}.then((r) => {{ if (typeof r.hasMore !== 'boolean') {{ console.warn(\"分页数据缺少 hasMore 字段——按 hasMore=false 处理（停止加载更多）\"); {}(false); }} else {{ {}(r.hasMore); }} {}(r.items ?? []); {}(false); }}).catch((e) => {{ {}(String(e)); {}(false); }});",
+                    setter("HasMore"),
+                    setter("HasMore"),
+                    setter("Data"),
+                    setter("Loading"),
+                    setter("Error"),
+                    setter("Loading")
+                ));
+            } else {
+                w.emit_fmt(format_args!(
+                    "{call}.then((r) => {{ {}(r); {}(false); }}).catch((e) => {{ {}(String(e)); {}(false); }});",
+                    setter("Data"),
+                    setter("Loading"),
+                    setter("Error"),
+                    setter("Loading")
+                ));
+            }
             w.dedent();
             if param_deps.is_empty() {
                 w.emit("}, []);");
@@ -1582,11 +1668,120 @@ impl ReactCodegen {
             w.emit_fmt(format_args!(
                 "useEffect(() => {{ {retry_cb}(); }}, {effect_deps});"
             ));
+            // Task 7 (批次 4 数据能力): LoadMore（spec §2.2 追加语义）——
+            // 双守卫 LoadingMore || !HasMore 防重入（哨兵/按钮复用）；
+            // 页码推进在成功分支（失败重试取同页不跳页）；V12 信封校验
+            // 同上；数据 concat append（保留已加载页）。
+            if load.mode.paginated {
+                let load_more_cb = sig("LoadMore");
+                w.emit_fmt(format_args!("const {load_more_cb} = useCallback(() => {{"));
+                w.indent();
+                w.emit_fmt(format_args!(
+                    "if ({} || !{}) return;",
+                    sig("LoadingMore"),
+                    sig("HasMore")
+                ));
+                w.emit_fmt(format_args!("{}(true);", setter("LoadingMore")));
+                w.emit_fmt(format_args!("{}(\"\");", setter("Error")));
+                let load_more_call = match &load.loader {
+                    LoaderIR::Fn(fname) if !is_async => {
+                        format!("Promise.resolve().then(() => {fname}({} + 1))", sig("Page"))
+                    }
+                    LoaderIR::Fn(fname) => format!("{fname}({} + 1)", sig("Page")),
+                    LoaderIR::Call(c) => {
+                        let args = c
+                            .args
+                            .iter()
+                            .map(|a| {
+                                expr::format_expr_ir_tsx_renamed(
+                                    a,
+                                    &ref_names,
+                                    &store_field_renames,
+                                )
+                            })
+                            .collect::<Vec<_>>()
+                            .join(", ");
+                        if is_async {
+                            format!("{}({args})", c.func)
+                        } else {
+                            format!("Promise.resolve().then(() => {}({args}))", c.func)
+                        }
+                    }
+                };
+                w.emit_fmt(format_args!(
+                    "{load_more_call}.then((r) => {{ if (typeof r.hasMore !== 'boolean') {{ console.warn(\"分页数据缺少 hasMore 字段——按 hasMore=false 处理（停止加载更多）\"); {}(false); {}(false); return; }} {}((p) => p + 1); {}((prev) => [...(prev ?? []), ...r.items]); {}(r.hasMore); {}(false); }}).catch((e) => {{ {}(String(e)); {}(false); }});",
+                    setter("HasMore"),
+                    setter("LoadingMore"),
+                    setter("Page"),
+                    setter("Data"),
+                    setter("HasMore"),
+                    setter("LoadingMore"),
+                    setter("Error"),
+                    setter("LoadingMore")
+                ));
+                w.dedent();
+                w.emit_fmt(format_args!(
+                    "}}, [{}, {}, {}]);",
+                    sig("Page"),
+                    sig("LoadingMore"),
+                    sig("HasMore")
+                ));
+            }
+            // Task 7 (批次 4 数据能力): interval 轮询（spec §2.4）——
+            // setInterval 回调 = reload（复用 retry 语义）；同 effect
+            // 卸载 clearInterval（不泄漏）。
+            if let Some(ms) = load.mode.interval {
+                w.emit_fmt(format_args!(
+                    "useEffect(() => {{ const timer = setInterval(() => {{ {retry_cb}(); }}, {ms}); return () => clearInterval(timer); }}, [{retry_cb}]);"
+                ));
+            }
+            // Task 7 (批次 4 数据能力): 无限滚动哨兵观察（spec §2.3）——
+            // 最后一项哨兵 div 进入视口触发 LoadMore；双守卫
+            // LoadingMore || !HasMore 时不触发（哨兵复用防抖）；
+            // 卸载 disconnect。deps [LoadMore]——LoadMore 在页码推进后
+            // 换引用，观察者以新守卫值重建（[] 会让闭包持 stale 守卫值，
+            // hasMore=true 时无限自动加载）。
+            if load.mode.scroll {
+                let sentinel_ref = format!("{}ScrollSentinelRef", p);
+                w.emit_fmt(format_args!(
+                    "const {sentinel_ref} = useRef<HTMLDivElement>(null);"
+                ));
+                w.emit_fmt(format_args!("useEffect(() => {{"));
+                w.indent();
+                w.emit("const observer = new IntersectionObserver((entries) => {");
+                w.indent();
+                w.emit_fmt(format_args!(
+                    "if (entries[0].isIntersecting && !{} && {}) {{",
+                    sig("LoadingMore"),
+                    sig("HasMore")
+                ));
+                w.indent();
+                w.emit_fmt(format_args!("{}();", sig("LoadMore")));
+                w.dedent();
+                w.emit("}");
+                w.dedent();
+                w.emit("}, { threshold: 0.1 });");
+                w.emit_fmt(format_args!("if ({sentinel_ref}.current) {{"));
+                w.indent();
+                w.emit_fmt(format_args!("observer.observe({sentinel_ref}.current);"));
+                w.dedent();
+                w.emit("}");
+                w.emit("return () => observer.disconnect();");
+                w.dedent();
+                w.emit_fmt(format_args!("}}, [{}]);", sig("LoadMore")));
+            }
             // Reset（spec §4.1/P5）: 三态置初值不重载——引用门控发射
             let reset_cb = sig("Reset");
             if used_fn_names.contains(&reset_cb) {
                 w.emit_fmt(format_args!("const {reset_cb} = useCallback(() => {{"));
                 w.indent();
+                if load.mode.paginated {
+                    // Task 7 (批次 4 数据能力): 分页 Reset 页码回 1 +
+                    // HasMore/LoadingMore 复位（P8）——重新从首页继续加载
+                    w.emit_fmt(format_args!("{}(1);", setter("Page")));
+                    w.emit_fmt(format_args!("{}(true);", setter("HasMore")));
+                    w.emit_fmt(format_args!("{}(false);", setter("LoadingMore")));
+                }
                 w.emit_fmt(format_args!("{}(false);", setter("Loading")));
                 w.emit_fmt(format_args!("{}(\"\");", setter("Error")));
                 w.emit_fmt(format_args!("{}(null);", setter("Data")));

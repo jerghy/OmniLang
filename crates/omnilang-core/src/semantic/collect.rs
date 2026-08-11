@@ -156,7 +156,7 @@ impl SemanticAnalyzer {
             // declared_at: 0 keeps them invisible to dead-code/type lints;
             // type_ann mirrors the codegen-side shapes so binary-op checks
             // (`error != ""`) stay well-typed.
-            let (has_form, load_fn) =
+            let (has_form, loads) =
                 scan_form_load(comp.view.as_ref().map(|v| v.children.as_slice()));
             if has_form {
                 self.declare_or_warn(Symbol {
@@ -167,23 +167,51 @@ impl SemanticAnalyzer {
                     declared_at: 0,
                 });
             }
-            if load_fn.is_some() {
-                // Task 4 评审修复: type_ann 统一大写（Bool/String，与
-                // codegen 侧 useState 类型一致）+ retry 播种（@load 回
-                // 调别名，expr.rs/view.rs 映射为 load 标识符）。
-                for (name, ty) in [
-                    ("loading", Some("Bool")),
-                    ("error", Some("String")),
-                    ("data", Some("Array")),
-                    ("retry", None),
+            // Task 3 起 @load 可命名（`@load history={fetchHistory}`）——
+            // 命名实例信号面 `{name}Loading/Error/Data/Retry/Reset`（分页
+            // 追加 `{name}Page/HasMore/LoadingMore/LoadMore`）须同样入组件
+            // 作用域，否则视图体引用 `{name}Data` 报 E0001（spec 2026-08-09
+            // §2.1/§2.2 信号表）；匿名 v0 形态沿用既有播种（loading/error/
+            // data/retry，并补充 reset——codegen 侧 Reset 回调无条件可用）。
+            // 重复同名由 merge_scan 去重（first-wins，与旧行为一致）。
+            for load in &loads {
+                let prefix = |suffix: &str| {
+                    if load.name.is_empty() {
+                        suffix.to_lowercase().to_string()
+                    } else {
+                        format!("{}{}", load.name, suffix)
+                    }
+                };
+                for (suffix, ty) in [
+                    ("Loading", Some("Bool")),
+                    ("Error", Some("String")),
+                    ("Data", Some("Array")),
+                    ("Retry", None),
+                    ("Reset", None),
                 ] {
                     self.declare_or_warn(Symbol {
-                        name: name.into(),
+                        name: prefix(suffix),
                         kind: SymbolKind::Unknown,
                         type_ann: ty.map(str::to_string),
                         mutable: false,
                         declared_at: 0,
                     });
+                }
+                if load.paginated {
+                    for (suffix, ty) in [
+                        ("Page", Some("i32")),
+                        ("HasMore", Some("Bool")),
+                        ("LoadingMore", Some("Bool")),
+                        ("LoadMore", None),
+                    ] {
+                        self.declare_or_warn(Symbol {
+                            name: prefix(suffix),
+                            kind: SymbolKind::Unknown,
+                            type_ann: ty.map(str::to_string),
+                            mutable: false,
+                            declared_at: 0,
+                        });
+                    }
                 }
             }
 
@@ -504,62 +532,73 @@ fn infer_type_from_expr(expr: &Expr) -> Option<String> {
 /// §4.1/§4.2). `walk_view`'s on_element callback never sees
 /// `ViewNode::LoadDirective` (it treats it as a leaf) and ElementProp::Form
 /// is a bare attribute, so this private scanner walks the AST view tree
-/// directly. Returns `(has_form, load_fn_name)` — at most one @load per
-/// component (V-F6 is enforced in ir/lower/component.rs; the first hit wins
-/// here, which only decides whether the builtin symbols are seeded).
-fn scan_form_load(nodes: Option<&[ViewNode]>) -> (bool, Option<String>) {
+/// directly. Returns `(has_form, loads)` — every @load directive's seeding
+/// descriptor (Task 3 起支持多实例命名 @load；同名 first-wins 由
+/// merge_scan 去重，决定内置信号播种集）。
+struct LoadDesc {
+    /// @load 实例名（空 = 匿名 v0 形态，播种 loading/error/data/retry/reset）。
+    name: String,
+    /// 分页模式位（播种 {name}Page/HasMore/LoadingMore/LoadMore）。
+    paginated: bool,
+}
+
+fn scan_form_load(nodes: Option<&[ViewNode]>) -> (bool, Vec<LoadDesc>) {
     let Some(nodes) = nodes else {
-        return (false, None);
+        return (false, Vec::new());
     };
     let mut has_form = false;
-    let mut load_fn = None;
+    let mut loads = Vec::new();
     for node in nodes {
         match node {
             ViewNode::Element(el) => {
                 has_form |= el.props.iter().any(|p| matches!(p, ElementProp::Form));
                 merge_scan(
                     &mut has_form,
-                    &mut load_fn,
+                    &mut loads,
                     scan_form_load(Some(&el.children)),
                 );
             }
             ViewNode::IfDirective(dir) => {
-                merge_scan(&mut has_form, &mut load_fn, scan_form_load(Some(&dir.body)));
+                merge_scan(&mut has_form, &mut loads, scan_form_load(Some(&dir.body)));
                 for (_, body) in &dir.else_ifs {
-                    merge_scan(&mut has_form, &mut load_fn, scan_form_load(Some(body)));
+                    merge_scan(&mut has_form, &mut loads, scan_form_load(Some(body)));
                 }
                 if let Some(body) = &dir.else_body {
-                    merge_scan(&mut has_form, &mut load_fn, scan_form_load(Some(body)));
+                    merge_scan(&mut has_form, &mut loads, scan_form_load(Some(body)));
                 }
             }
             ViewNode::ForDirective(dir) => {
-                merge_scan(&mut has_form, &mut load_fn, scan_form_load(Some(&dir.body)));
+                merge_scan(&mut has_form, &mut loads, scan_form_load(Some(&dir.body)));
                 if let Some(body) = &dir.empty_body {
-                    merge_scan(&mut has_form, &mut load_fn, scan_form_load(Some(body)));
+                    merge_scan(&mut has_form, &mut loads, scan_form_load(Some(body)));
                 }
             }
             ViewNode::SlotDirective {
                 default_content, ..
             } => {
                 if let Some(body) = default_content {
-                    merge_scan(&mut has_form, &mut load_fn, scan_form_load(Some(body)));
+                    merge_scan(&mut has_form, &mut loads, scan_form_load(Some(body)));
                 }
             }
             ViewNode::LoadDirective { spec, .. } => {
-                if load_fn.is_none() {
-                    load_fn = Some(spec.loader.fn_name().to_string());
-                }
+                loads.push(LoadDesc {
+                    name: spec.name.clone().unwrap_or_default(),
+                    paginated: spec.mode.paginated,
+                });
             }
             ViewNode::Text(_) | ViewNode::Interpolation(_) => {}
         }
     }
-    (has_form, load_fn)
+    (has_form, loads)
 }
 
-/// Merge a nested scan result into the accumulators (first @load fn wins).
-fn merge_scan(has_form: &mut bool, load_fn: &mut Option<String>, next: (bool, Option<String>)) {
+/// Merge a nested scan result into the accumulators (同名 first-wins——
+/// 与旧单实例行为一致，重复匿名 @load 不产生 E0002 警告）。
+fn merge_scan(has_form: &mut bool, loads: &mut Vec<LoadDesc>, next: (bool, Vec<LoadDesc>)) {
     *has_form |= next.0;
-    if load_fn.is_none() {
-        *load_fn = next.1;
+    for load in next.1 {
+        if !loads.iter().any(|l| l.name == load.name) {
+            loads.push(load);
+        }
     }
 }

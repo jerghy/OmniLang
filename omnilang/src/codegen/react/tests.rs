@@ -8847,6 +8847,331 @@ component App {
 }
 
 // ═══════════════════════════════════════════════════════════
+// 批次 4 数据能力（Task 7）：分页状态机 / 无限滚动哨兵 / 轮询 /
+// 防抖节流映射 + V12 信封校验 —— spec 2026-08-09-semantic-batch4
+// §2.2/§2.3/§2.4/§2.5 + §4.1（TDD RED → GREEN）
+// ═══════════════════════════════════════════════════════════
+
+/// @load history={fetchHistory} paginated → 4 派生信号全量生成：
+/// {name}Page 初值 1 / {name}HasMore 初值 true / {name}LoadingMore
+/// 初值 false / {name}LoadMore callback（spec §2.2 信号表）。
+#[test]
+fn react_pagination_state_machine_generated() {
+    let source = r#"
+component App {
+  fn fetchHistory(page: i32) -> Page<String> { }
+  view {
+    @load history={fetchHistory} paginated
+    <button @onPress={historyLoadMore}>More</button>
+  }
+}
+"#;
+    let out = compile_react_src(source);
+    assert!(
+        out.contains("const [historyPage, setHistoryPage] = useState<number>(1);"),
+        "分页页码 state 必须从 1 起步. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("const [historyHasMore, setHistoryHasMore] = useState(true);"),
+        "HasMore 派生信号缺失. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("const [historyLoadingMore, setHistoryLoadingMore] = useState(false);"),
+        "LoadingMore 派生信号缺失. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("const historyLoadMore = useCallback("),
+        "LoadMore callback 缺失. Got:\n{}",
+        out
+    );
+}
+
+/// LoadMore() → 页码 +1 + 数据 concat append（spec §2.2 追加语义）：
+/// setHistoryPage((p) => p + 1) + setHistoryData((prev) => [...(prev ?? []), ...r.items])
+/// + 下一页请求 fetchHistory(historyPage + 1)。
+#[test]
+fn react_load_more_appends_and_increments() {
+    let source = r#"
+component App {
+  fn fetchHistory(page: i32) -> Page<String> { }
+  view {
+    @load history={fetchHistory} paginated
+    <button @onPress={historyLoadMore}>More</button>
+  }
+}
+"#;
+    let out = compile_react_src(source);
+    assert!(
+        out.contains("setHistoryPage((p) => p + 1)"),
+        "LoadMore 必须页码 +1. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("setHistoryData((prev) => [...(prev ?? []), ...r.items])"),
+        "追加页必须 concat 拼接进已加载数据. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("fetchHistory(historyPage + 1)"),
+        "下一页请求必须取当前页 + 1. Got:\n{}",
+        out
+    );
+}
+
+/// P8：分页 Reset 页码回 1 —— Reset 除数据三态复位外，还必须
+/// setHistoryPage(1) + setHistoryHasMore(true) + setHistoryLoadingMore(false)
+/// （spec §2.2 分页状态机复位）。
+#[test]
+fn react_paginated_reset_resets_page() {
+    let source = r#"
+component App {
+  fn fetchHistory(page: i32) -> Page<String> { }
+  view {
+    @load history={fetchHistory} paginated
+    <button @onPress={historyReset}>Reset</button>
+    <button @onPress={historyLoadMore}>More</button>
+  }
+}
+"#;
+    let out = compile_react_src(source);
+    assert!(
+        out.contains("setHistoryPage(1);"),
+        "分页 Reset 必须页码回 1. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("setHistoryData(null);"),
+        "Reset 必须清空已加载数据. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("setHistoryHasMore(true);"),
+        "分页 Reset 必须恢复 HasMore. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("setHistoryLoadingMore(false);"),
+        "分页 Reset 必须复位 LoadingMore. Got:\n{}",
+        out
+    );
+}
+
+/// 追加页失败 → historyError 置错 + 已加载数据保留 + LoadMore 可重试
+/// （spec §2.2 失败语义）：catch 只置 error/loadingMore，绝不触碰 data；
+/// 页码只在成功分支推进——失败后重试取同一页，不跳页。
+#[test]
+fn react_append_failure_keeps_loaded_data() {
+    let source = r#"
+component App {
+  fn fetchHistory(page: i32) -> Page<String> { }
+  view {
+    @load history={fetchHistory} paginated
+    <button @onPress={historyLoadMore}>More</button>
+  }
+}
+"#;
+    let out = compile_react_src(source);
+    assert!(
+        out.contains(
+            "catch((e) => { setHistoryError(String(e)); setHistoryLoadingMore(false); });"
+        ),
+        "追加失败必须只置 error + loadingMore，已加载数据保留. Got:\n{}",
+        out
+    );
+    assert_eq!(
+        out.matches("setHistoryData(").count(),
+        2,
+        "setHistoryData 只允许出现在初载成功与追加成功两处——catch 不得触碰数据. Got:\n{}",
+        out
+    );
+    assert_eq!(
+        out.matches("setHistoryPage(").count(),
+        1,
+        "页码必须只在 append 成功时推进（失败重试取同页，不跳页）. Got:\n{}",
+        out
+    );
+}
+
+/// paginated scroll → 列表末哨兵 div + IntersectionObserver + 卸载
+/// disconnect（spec §2.3）：双守卫 `!historyLoadingMore && historyHasMore`
+/// 时不触发 loadMore。
+#[test]
+fn react_scroll_sentinel_observer_generated() {
+    let source = r#"
+component App {
+  fn fetchHistory(page: i32) -> Page<String> { }
+  view {
+    @load history={fetchHistory} paginated scroll
+    @for item in historyData { <div>{item}</div> }
+  }
+}
+"#;
+    let result = compile_react_full(source);
+    if !result.success {
+        panic!(
+            "compile failed: {:?}",
+            result
+                .errors
+                .iter()
+                .map(|d| format!("{:?}", d))
+                .collect::<Vec<_>>()
+                .join("\n")
+        );
+    }
+    let out = result
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        out.contains("const historyScrollSentinelRef = useRef<HTMLDivElement>(null);"),
+        "哨兵 ref 缺失. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("new IntersectionObserver("),
+        "IntersectionObserver 缺失. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("entries[0].isIntersecting && !historyLoadingMore && historyHasMore"),
+        "双守卫（LoadingMore || !HasMore 时不触发）缺失. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("historyLoadMore();"),
+        "哨兵进入视口必须触发 loadMore. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("return () => observer.disconnect();"),
+        "卸载必须 disconnect observer. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("ref={historyScrollSentinelRef}"),
+        "哨兵必须挂到列表末项后. Got:\n{}",
+        out
+    );
+}
+
+/// interval: 5000 → setInterval + clearInterval 同 effect（spec §2.4
+/// 卸载清理；每轮 = reload retry 语义）。
+#[test]
+fn react_interval_cleanup_on_unmount() {
+    let source = r#"
+component App {
+  fn fetchTodos() -> Array<String> { }
+  view {
+    @load todos={fetchTodos} interval: 5000
+    <div/>
+  }
+}
+"#;
+    let out = compile_react_src(source);
+    assert!(
+        out.contains("setInterval(() => { todosRetry(); }, 5000)"),
+        "interval 轮询必须以 retry 为每轮回调. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("return () => clearInterval(timer);"),
+        "interval effect 卸载必须 clearInterval. Got:\n{}",
+        out
+    );
+}
+
+/// debounce(doSearch, 300) → useMemo(() => debounce(doSearch, 300), [doSearch])
+/// 稳定引用（spec §2.5 trailing-only 默认 + §4.1）——stdlib debounce 闭包
+/// 经 useMemo 包装后作为事件处理器值。
+#[test]
+fn react_debounce_stable_reference() {
+    let source = r#"
+import { debounce } from "std/timing";
+component App {
+  fn doSearch(q: String) -> Array<String> { }
+  view {
+    <input @onInput={debounce(doSearch, 300)} />
+  }
+}
+"#;
+    let out = compile_react_src(source);
+    assert!(
+        out.contains("useMemo(() =>"),
+        "debounce 必须经 useMemo 稳定包装（spec §2.5）. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("setTimeout"),
+        "useMemo 内必须是 stdlib debounce 闭包（trailing-only 默认）. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("[doSearch]"),
+        "useMemo 依赖必须为 [fn]（稳定引用）. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("useMemo } from 'react'"),
+        "useMemo 必须进入 react 导入. Got:\n{}",
+        out
+    );
+}
+
+/// Page<T> 信封 interface { items: T[]; hasMore: boolean } 生成
+/// （spec §2.2 信封）。
+#[test]
+fn react_page_envelope_interface_emitted() {
+    let source = r#"
+component App {
+  fn fetchHistory(page: i32) -> Page<String> { }
+  view {
+    @load history={fetchHistory} paginated
+    <button @onPress={historyLoadMore}>More</button>
+  }
+}
+"#;
+    let out = compile_react_src(source);
+    assert!(
+        out.contains("interface Page<T> { items: T[]; hasMore: boolean; }"),
+        "Page<T> 信封 interface 缺失. Got:\n{}",
+        out
+    );
+}
+
+/// V12 运行时信封校验：响应无 hasMore → 错误态 + 控制台消息
+/// （诚实降级，绝不静默）——按 hasMore=false 处理，停止加载更多。
+#[test]
+fn react_v12_missing_has_more_honest_degradation() {
+    let source = r#"
+component App {
+  fn fetchHistory(page: i32) -> Page<String> { }
+  view {
+    @load history={fetchHistory} paginated
+    <button @onPress={historyLoadMore}>More</button>
+  }
+}
+"#;
+    let out = compile_react_src(source);
+    assert!(
+        out.contains(
+            "console.warn(\"分页数据缺少 hasMore 字段——按 hasMore=false 处理（停止加载更多）\")"
+        ),
+        "V12 信封校验必须 console.warn 诚实降级. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("setHistoryHasMore(false);"),
+        "缺 hasMore 必须按 hasMore=false 处理（停止加载更多）. Got:\n{}",
+        out
+    );
+}
+
+// ═══════════════════════════════════════════════════════════
 // 批次 1 反馈与模态（Task 4）：@modal / showToast / @skeleton /
 // @errorBoundary —— spec 2026-08-09-semantic-batch1-feedback-modal-design
 // §4 三目标映射表 React 形态（TDD RED → GREEN）

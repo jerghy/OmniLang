@@ -5,7 +5,9 @@
 use crate::codegen::escape_literal_str;
 use crate::codegen::shared::inline_handler::{build_inline_handler, InlineHandlerConfig};
 use crate::codegen::shared::style::{format_style_prop_key, format_style_value_expr};
+use crate::codegen::try_format_stdlib_call;
 use crate::codegen::CodeWriter;
+use crate::codegen::Target;
 use crate::ir::*;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
@@ -1004,6 +1006,53 @@ pub(super) fn gen_view_node_tsx(
                         used_fields,
                         ..
                     } => {
+                        // Task 7 (批次 4 数据能力): debounce/throttle 值形态
+                        // （spec §2.5 + §4.1）——单 ExprStmt 体且调用名 ∈
+                        // TIMING_FUNCS 时，处理器即期望值：`@onInput={debounce(
+                        // doSearch, 300)}` → `onInput={useMemo(() => debounce(
+                        // doSearch, 300), [doSearch])}` 稳定引用（trailing-only
+                        // 默认，P6）。deps = [fn]（首参标识符）或 []。
+                        match body.statements.as_slice() {
+                            [StatementIR::ExprStmtIR {
+                                expr: ExprIR::CallExpr { name, args },
+                            }] if crate::semantic::load_contract::TIMING_FUNCS
+                                .contains(&name.as_str()) =>
+                            {
+                                let formatted: Vec<String> = args
+                                    .iter()
+                                    .map(|a| {
+                                        format_expr_ir_tsx_renamed(
+                                            a,
+                                            ref_names,
+                                            store_field_renames,
+                                        )
+                                    })
+                                    .collect();
+                                let native = try_format_stdlib_call(
+                                    name.as_str(),
+                                    &formatted,
+                                    Target::React,
+                                )
+                                .unwrap_or_default();
+                                let dep = match args.first() {
+                                    Some(ExprIR::IdentifierExpr { .. }) => {
+                                        formatted.first().cloned().unwrap_or_default()
+                                    }
+                                    _ => String::new(),
+                                };
+                                let deps = if dep.is_empty() {
+                                    "[]".to_string()
+                                } else {
+                                    format!("[{dep}]")
+                                };
+                                attrs.push(format!(
+                                    "{}={{useMemo(() => {}, {})}}",
+                                    react_event, native, deps
+                                ));
+                                continue;
+                            }
+                            _ => {}
+                        }
                         if let Some(setter_call) = binding_events_map.remove(&react_event) {
                             // Generate body with binding setter prepended
                             let mut merged_hw = CodeWriter::new();
@@ -1663,7 +1712,34 @@ pub(super) fn gen_view_node_tsx(
                 // keyed reconciliation.
                 " key={_i} /* omni: no key={expr} on @for — index-key fallback; reorder/filter loses item state — add key={...} for object items */".to_string()
             };
-            if list.empty_body.is_some() {
+            // Task 7 (批次 4 数据能力): 无限滚动哨兵（spec §2.3）——
+            // scroll 模式 @load 的 data 列表在末项后发射哨兵 div
+            // （IntersectionObserver 观察）。哨兵判定
+            // `_i === __omni_iterable.length - 1` 需要 __omni_iterable
+            // 作用域，故无 empty_body 的列表也强制 IIFE 形态
+            // （空态分支 (null) 兜底——裸 `()` 是语法错误）。
+            // V7/V8（批次 4 验证网）保证 scroll 必 named + paginated。
+            let scroll_iterable = match &list.iterable {
+                ExprIR::IdentifierExpr { name, .. } => comp.load_intent.iter().find_map(|li| {
+                    if li.mode.scroll {
+                        let data_name = match li.name.as_deref() {
+                            Some(p) => format!("{p}Data"),
+                            None => "data".to_string(),
+                        };
+                        (data_name == *name).then(|| {
+                            format!(
+                                "{}ScrollSentinelRef",
+                                li.name.as_deref().unwrap_or_default()
+                            )
+                        })
+                    } else {
+                        None
+                    }
+                }),
+                _ => None,
+            };
+            let force_scroll_iife = scroll_iterable.is_some();
+            if list.empty_body.is_some() || force_scroll_iife {
                 if in_jsx_children {
                     w.emit("{");
                     w.indent();
@@ -1702,6 +1778,8 @@ pub(super) fn gen_view_node_tsx(
                         // parens — never a JSX-children position
                         false,
                     );
+                } else if force_scroll_iife {
+                    w.emit("null");
                 }
                 w.dedent();
                 w.emit_fmt(format_args!(
@@ -1751,12 +1829,22 @@ pub(super) fn gen_view_node_tsx(
                     true,
                 );
             }
+            // Task 7 (批次 4 数据能力): 无限滚动哨兵——列表末项后发射
+            // 哨兵 div（spec §2.3）。`__omni_iterable` 在强制 IIFE 形态
+            // 下作用域内可见；双守卫（LoadingMore/HasMore）在
+            // LoadMore 回调内，哨兵本身仅判定"末项"。
+            if let Some(sentinel_ref) = &scroll_iterable {
+                w.emit_fmt(format_args!(
+                    "{{_i === __omni_iterable.length - 1 ? <div ref={{{}}} /> : null}}",
+                    sentinel_ref
+                ));
+            }
             w.dedent();
             w.emit("</React.Fragment>");
             w.dedent();
             w.emit("))");
             w.dedent();
-            if list.empty_body.is_some() {
+            if list.empty_body.is_some() || force_scroll_iife {
                 // The preceding `))` closed the lambda-body and map-call
                 // parens; here the ternary's else paren closes (`)`), the
                 // return statement ends (`;`), the arrow body and the IIFE
