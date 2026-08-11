@@ -103,7 +103,11 @@ function FlowCanvasInner() {
   const flowWrapperRef = useRef<HTMLDivElement>(null);
 
   // ── 视口同步：单一真相 = useCanvasStore（DOM 画布），ReactFlow 跟随；onMove 回写 ──
-  const { zoom: canvasZoom, panX, panY } = useCanvasStore();
+  // 分字段订阅（T4 复审 Minor 3）：整 store 订阅会被 devicePreset/artboardScroll/
+  // panelPosition/isPanelCollapsed 等无关变更触发重渲染。
+  const canvasZoom = useCanvasStore((s) => s.zoom);
+  const panX = useCanvasStore((s) => s.panX);
+  const panY = useCanvasStore((s) => s.panY);
   useEffect(() => {
     setViewport({ x: panX, y: panY, zoom: canvasZoom });
   }, [canvasZoom, panX, panY, setViewport]);
@@ -636,7 +640,8 @@ function FlowCanvasInner() {
     }
     return out;
   }, [codeFlowGroups, groupBoxes, collapsedGroupPositions, editingGroupId, patchGroup, removeGroup, groupFnName, codeElements, cacheInstanceId]);
-  const allNodes = [...groupNodes, ...nodes];
+  // T4 复审 Minor 4：稳定节点数组身份，避免 StoreUpdater 每渲染重跑
+  const allNodes = useMemo(() => [...groupNodes, ...nodes], [groupNodes, nodes]);
 
   const edges = useMemo(
     () =>
@@ -768,8 +773,9 @@ function FlowCanvasInner() {
       {/* position: relative 作为布局按钮 absolute 定位的锚点（对齐 Controls bottom-right） */}
       <div style={{ flex: 1, height: "100%", minWidth: 0, position: "relative" }}>
       {allNodes.length === 0 ? (
+        // T4 复审 Fix 2：空态容器 pointerEvents:none 穿透到设计层（不吞滚轮/拖拽），
+        // 节点创建入口改由内部"添加节点"按钮承载（按钮 pointerEvents:auto 自收事件）。
         <div
-          onContextMenu={handlePaneContextMenu}
           style={{
             display: "flex",
             flexDirection: "column",
@@ -779,25 +785,44 @@ function FlowCanvasInner() {
             color: "#94a3b8",
             fontSize: 13,
             gap: 6,
+            pointerEvents: "none",
           }}
         >
           <div>右键画布添加节点</div>
           <div style={{ fontSize: 11, opacity: 0.7 }}>右键 / 空格 / 拖出端口 → 添加节点</div>
+          <button
+            type="button"
+            onClick={() => openMenuAt(window.innerWidth / 2, window.innerHeight / 2)}
+            style={{
+              pointerEvents: "auto",
+              marginTop: 6,
+              padding: "4px 12px",
+              fontSize: 12,
+              color: "#475569",
+              background: "rgba(255, 255, 255, 0.6)",
+              border: "1px solid #cbd5e1",
+              borderRadius: 6,
+              cursor: "pointer",
+            }}
+          >
+            ＋ 添加节点
+          </button>
         </div>
       ) : (
         <ReactFlow
           nodes={allNodes}
           edges={edges}
           nodeTypes={nodeTypes}
-          fitView
-          fitViewOptions={{ maxZoom: 1 }}
+          // T4 复审 Fix 1：去 fitView —— 挂载竞态（节点 measured 缓存未命中时
+          // fitView → onMove → 回写 setZoom/setPan）会用"适应 fn 图"污染设计层视口；
+          // 初始视口由上方视口同步 effect 从 store 驱动。
+          // T4 复审 Minor 6：panOnScroll 为死配置（pane pointer-events:none，永不触发）
           minZoom={0.1}
           maxZoom={5}
           nodesDraggable
           nodesConnectable
           nodesFocusable
           elementsSelectable
-          panOnScroll
           onNodeClick={(_event, node) => {
             if (_event.shiftKey) {
               // Shift 点击：数组中 toggle（多选/取消），不打断既有选中

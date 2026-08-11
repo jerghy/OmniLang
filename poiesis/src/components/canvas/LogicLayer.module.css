@@ -3,7 +3,11 @@
   position: absolute;
   inset: 0;
   z-index: 1;
-  transition: opacity 0.15s ease;
+  /* T4 复审 Minor 7：visibility 无过渡即时翻转，opacity 淡出不播——
+     延迟到透明度动画结束后再切（fade-out 也完整播放） */
+  transition:
+    opacity 0.15s ease,
+    visibility 0s linear 0.15s;
 }
 /* 叠加层只允许节点/边/控件接收事件——pane 区域事件穿透到设计层（醒着也能改样式） */
 .layer :global(.react-flow__pane) {
