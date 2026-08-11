@@ -6,6 +6,7 @@ import styles from "./BreathingPoint.module.css";
 export function BreathingPoint() {
   const awake = usePoiesisStore((s) => s.designPage.awake);
   const setAwake = usePoiesisStore((s) => s.setAwake);
+  const clearSelection = usePoiesisStore((s) => s.clearSelection);
 
   return (
     <button
@@ -13,7 +14,7 @@ export function BreathingPoint() {
       data-testid="breathing-point"
       className={`${styles.pulse} ${awake ? styles.awake : ""}`}
       title={awake ? "睡回（隐藏逻辑层）" : "醒来（显示逻辑层）"}
-      onClick={() => setAwake(!awake)}
+      onClick={() => { setAwake(!awake); clearSelection(); }}
     >
       <span className={styles.dot} />
     </button>

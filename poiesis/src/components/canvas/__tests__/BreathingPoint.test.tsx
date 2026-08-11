@@ -29,4 +29,12 @@ describe("BreathingPoint", () => {
     render(<BreathingPoint />);
     expect(screen.getByTestId("breathing-point").getAttribute("title")).toContain("醒来");
   });
+
+  it("点击呼吸点清空选中（spec §17.3：呼吸点翻转 + awakeArea 清空）", () => {
+    usePoiesisStore.setState({ selectedElementIds: ["a", "b"] });
+    render(<BreathingPoint />);
+    fireEvent.click(screen.getByTestId("breathing-point"));
+    expect(usePoiesisStore.getState().designPage.awake).toBe(true);
+    expect(usePoiesisStore.getState().selectedElementIds).toHaveLength(0);
+  });
 });
