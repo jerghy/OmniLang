@@ -277,6 +277,7 @@ mod tests {
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
+            media_blocks: vec![],
             name: name.to_string(),
             refs: ref_names
                 .iter()
@@ -338,6 +339,7 @@ mod tests {
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
+            media_blocks: vec![],
             name: "Test".to_string(),
             refs: vec![RefDeclIR {
                 element_tag: None,
@@ -400,6 +402,7 @@ mod tests {
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
+            media_blocks: vec![],
             name: "Test".to_string(),
             refs: vec![
                 RefDeclIR {
@@ -462,6 +465,7 @@ mod tests {
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
+            media_blocks: vec![],
             name: "TestComp".into(),
             refs: vec![RefDeclIR {
                 element_tag: None,

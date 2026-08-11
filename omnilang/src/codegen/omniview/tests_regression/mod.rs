@@ -28,6 +28,7 @@ fn computed_references_prop_with_default() {
         route_intent: None,
         layout_intent: None,
         query_params: vec![],
+        media_blocks: vec![],
         name: "Counter".into(),
         source_file: None,
         props: FxHashMap::from_iter([(

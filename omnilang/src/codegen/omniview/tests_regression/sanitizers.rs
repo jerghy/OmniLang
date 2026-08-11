@@ -118,6 +118,7 @@ fn design_block_css_values_are_sanitized() {
         default_theme: None,
         themes: vec![],
         theme_signal: None,
+        breakpoints: FxHashMap::default(),
         source_span: None,
         source_file: None,
     };
@@ -127,6 +128,7 @@ fn design_block_css_values_are_sanitized() {
         route_intent: None,
         layout_intent: None,
         query_params: vec![],
+        media_blocks: vec![],
         name: "Test".into(),
         source_file: Some("main.omni".into()),
         props: FxHashMap::default(),

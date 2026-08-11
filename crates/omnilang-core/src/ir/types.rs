@@ -958,6 +958,33 @@ pub struct StyleRuleIR {
     pub output_mode: String,
     #[serde(default)]
     pub is_tag_selector: bool,
+    /// Selector part skipped by the parser (batch 3, spec 2026-08-09 §2.3) —
+    /// consumed by the `validate_style_selectors` pass to emit the W-301
+    /// warning (honest degradation, ADR-054). `None` = fully supported.
+    #[serde(default)]
+    pub unsupported_selector: Option<UnsupportedSelectorIR>,
+}
+
+/// IR mirror of the parser's `UnsupportedSelector` record (batch 3).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UnsupportedSelectorIR {
+    /// Full selector text (class name + skipped part).
+    pub text: String,
+    /// Span of the first skipped token (rule anchor for the warning).
+    pub span: Span,
+    /// Category word: 兄弟选择器 / 子选择器 / 属性选择器 / 选择器列表 / 带参伪类.
+    pub category: String,
+}
+
+/// User-level `@media (condition) { rules }` block (batch 3, spec 2026-08-09
+/// §2.4) — condition text is passthrough; web targets emit it verbatim,
+/// Flutter degrades with W-302.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MediaBlockIR {
+    /// Raw condition text including the outer parens: `(min-width: 768px)`.
+    pub condition: String,
+    /// Rules inside the block (same shape as top-level style rules).
+    pub rules: Vec<StyleRuleIR>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1120,6 +1147,10 @@ pub struct ComponentIR {
     pub slots: Vec<SlotDeclIR>,
     pub view: Option<ViewTree>,
     pub styles: Vec<StyleRuleIR>,
+    /// 用户级 @media 块（批次 3，spec 2026-08-09 §2.4）——web 目标 CSS 透传，
+    /// Flutter 目标降级（W-302）。
+    #[serde(default)]
+    pub media_blocks: Vec<MediaBlockIR>,
     /// 表单意图（spec 2026-08-08 §4.1）——@form 元素上的字段校验规则集。
     #[serde(default)]
     pub form_intent: Option<FormIntentIR>,

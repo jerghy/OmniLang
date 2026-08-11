@@ -1107,6 +1107,7 @@ fn test_css_with_styles() {
         properties: props,
         output_mode: "static".into(),
         is_tag_selector: false,
+        unsupported_selector: None,
     };
     let comp = ComponentIR {
         form_intent: None,
@@ -3601,6 +3602,7 @@ fn react_format_class_ref_escapes_quotes_defense_in_depth() {
             default_theme: None,
             themes: vec![],
             theme_signal: None,
+            breakpoints: FxHashMap::default(),
             source_span: None,
             source_file: None,
         };

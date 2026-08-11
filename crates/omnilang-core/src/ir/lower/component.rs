@@ -235,67 +235,13 @@ pub(super) fn lower_component(
     let layout_intent = collect_layout_intent(comp);
     let query_params = collect_query_params(comp, variant_map, semantics);
 
-    let styles: Vec<StyleRuleIR> = comp
-        .styles
+    let styles: Vec<StyleRuleIR> = comp.styles.iter().map(lower_style_rule).collect();
+    let media_blocks: Vec<MediaBlockIR> = comp
+        .media_blocks
         .iter()
-        .map(|s| {
-            let properties: FxHashMap<String, ExprIR> = s
-                .properties
-                .iter()
-                .map(|(k, v)| {
-                    let ir_val = match v {
-                        StyleValue::Number(n) => {
-                            // JSON does not support NaN or Infinity; fall back to 0
-                            // for these edge cases (should not occur in well-formed source).
-                            let num = if n.is_finite() {
-                                serde_json::Number::from_f64(*n)
-                                    .unwrap_or_else(|| serde_json::Number::from(0))
-                            } else {
-                                serde_json::Number::from(0)
-                            };
-                            ExprIR::LiteralExpr {
-                                value: serde_json::Value::Number(num),
-                            }
-                        }
-                        StyleValue::String(str_val) => ExprIR::LiteralExpr {
-                            value: serde_json::Value::String(str_val.clone()),
-                        },
-                        StyleValue::Ident(id) => ExprIR::LiteralExpr {
-                            value: serde_json::Value::String(id.clone()),
-                        },
-                        StyleValue::HexColor(h) => ExprIR::LiteralExpr {
-                            value: serde_json::Value::String(h.clone()),
-                        },
-                        StyleValue::Dimension(val, unit) => ExprIR::LiteralExpr {
-                            value: serde_json::Value::String(format!("{}{}", val, unit)),
-                        },
-                        StyleValue::List(parts) => {
-                            let s: String = parts
-                                .iter()
-                                .map(|p| match p {
-                                    StyleValuePart::Ident(id) => id.clone(),
-                                    StyleValuePart::Number(n) => n.to_string(),
-                                    StyleValuePart::Dimension(val, unit) => {
-                                        format!("{}{}", val, unit)
-                                    }
-                                    StyleValuePart::HexColor(h) => h.clone(),
-                                })
-                                .collect::<Vec<_>>()
-                                .join(" ");
-                            ExprIR::LiteralExpr {
-                                value: serde_json::Value::String(s),
-                            }
-                        }
-                    };
-                    (k.clone(), ir_val)
-                })
-                .collect();
-            StyleRuleIR {
-                class_name: s.class_name.clone(),
-                properties,
-                output_mode: "css".into(),
-                is_tag_selector: s.is_tag_selector,
-            }
+        .map(|mb| MediaBlockIR {
+            condition: mb.condition.clone(),
+            rules: mb.rules.iter().map(lower_style_rule).collect(),
         })
         .collect();
 
@@ -330,12 +276,82 @@ pub(super) fn lower_component(
         slots,
         view,
         styles,
+        media_blocks,
         form_intent,
         load_intent,
         route_intent,
         layout_intent,
         query_params,
         source_span: Some(comp.span),
+    }
+}
+
+/// Lower one AST `StyleRule` to `StyleRuleIR` (extracted from the former
+/// inline closure so top-level styles and `@media` block rules share one
+/// mapping — batch 3, spec 2026-08-09 §2.4).
+fn lower_style_rule(s: &StyleRule) -> StyleRuleIR {
+    let properties: FxHashMap<String, ExprIR> = s
+        .properties
+        .iter()
+        .map(|(k, v)| {
+            let ir_val = match v {
+                StyleValue::Number(n) => {
+                    // JSON does not support NaN or Infinity; fall back to 0
+                    // for these edge cases (should not occur in well-formed source).
+                    let num = if n.is_finite() {
+                        serde_json::Number::from_f64(*n)
+                            .unwrap_or_else(|| serde_json::Number::from(0))
+                    } else {
+                        serde_json::Number::from(0)
+                    };
+                    ExprIR::LiteralExpr {
+                        value: serde_json::Value::Number(num),
+                    }
+                }
+                StyleValue::String(str_val) => ExprIR::LiteralExpr {
+                    value: serde_json::Value::String(str_val.clone()),
+                },
+                StyleValue::Ident(id) => ExprIR::LiteralExpr {
+                    value: serde_json::Value::String(id.clone()),
+                },
+                StyleValue::HexColor(h) => ExprIR::LiteralExpr {
+                    value: serde_json::Value::String(h.clone()),
+                },
+                StyleValue::Dimension(val, unit) => ExprIR::LiteralExpr {
+                    value: serde_json::Value::String(format!("{}{}", val, unit)),
+                },
+                StyleValue::List(parts) => {
+                    let s: String = parts
+                        .iter()
+                        .map(|p| match p {
+                            StyleValuePart::Ident(id) => id.clone(),
+                            StyleValuePart::Number(n) => n.to_string(),
+                            StyleValuePart::Dimension(val, unit) => format!("{}{}", val, unit),
+                            StyleValuePart::HexColor(h) => h.clone(),
+                        })
+                        .collect::<Vec<_>>()
+                        .join(" ");
+                    ExprIR::LiteralExpr {
+                        value: serde_json::Value::String(s),
+                    }
+                }
+            };
+            (k.clone(), ir_val)
+        })
+        .collect();
+    StyleRuleIR {
+        class_name: s.class_name.clone(),
+        properties,
+        output_mode: "css".into(),
+        is_tag_selector: s.is_tag_selector,
+        unsupported_selector: s
+            .unsupported_selector
+            .clone()
+            .map(|u| UnsupportedSelectorIR {
+                text: u.text,
+                span: u.span,
+                category: u.category,
+            }),
     }
 }
 
@@ -1136,5 +1152,27 @@ mod tests {
             &params_map[0].1,
             ExprIR::IdentifierExpr { name, .. } if name == "item"
         ));
+    }
+
+    // ── 批次 3：@media 块 + 未支持选择器 IR 透传 ─────────────────────────────
+
+    #[test]
+    fn lower_media_blocks_and_unsupported_selector() {
+        let src = r#"
+            component App {
+                style {
+                    input:checked + span { color: red; }
+                    @media (min-width: 768px) { .card { padding: 32; } }
+                }
+            }
+        "#;
+        let comp = lower_component_src(src);
+        assert_eq!(comp.media_blocks.len(), 1);
+        assert_eq!(comp.media_blocks[0].condition, "(min-width: 768px)");
+        let us = comp.styles[0]
+            .unsupported_selector
+            .as_ref()
+            .expect("unsupported selector captured");
+        assert_eq!(us.category, "兄弟选择器");
     }
 }

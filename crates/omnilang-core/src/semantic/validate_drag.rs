@@ -131,6 +131,7 @@ mod tests {
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
+            media_blocks: vec![],
             name: name.to_string(),
             refs: ref_names
                 .iter()
@@ -304,6 +305,7 @@ mod tests {
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
+            media_blocks: vec![],
             fns: vec![crate::ir::logic::FunctionIR {
                 name: "move".into(),
                 visibility: Visibility::Private,
@@ -342,6 +344,7 @@ mod tests {
             route_intent: None,
             layout_intent: None,
             query_params: vec![],
+            media_blocks: vec![],
             name: "TestComp".into(),
             refs: vec![],
             view: Some(ViewTree::ListRendering(Box::new(ListRenderingIntent {

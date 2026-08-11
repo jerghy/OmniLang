@@ -36,6 +36,12 @@ pub struct DesignIR {
     pub tokens: FxHashMap<String, TokenIR>,
     pub classes: Vec<ClassIR>,
     pub variants: Vec<VariantIR>,
+    /// Named breakpoint declarations: `breakpoint md: 768;` (batch 3, spec
+    /// 2026-08-09 §2.1) — name → unitless px value, min-width semantics.
+    /// Compile-time static table consumed by the `bp("name")` condition
+    /// expression (validate_breakpoints pass + three-target codegen).
+    #[serde(default)]
+    pub breakpoints: FxHashMap<String, u32>,
     /// Source file path relative to project root (e.g. "src/design.omni").
     /// Populated during multi-file compilation; used by multi-file codegens
     /// (React) to place design outputs (design.css, hooks) in the same

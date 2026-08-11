@@ -85,6 +85,8 @@ pub fn lower_design_with_consts(
         tokens,
         classes,
         variants,
+        // breakpoints: AST Vec<(String, u32)> → FxHashMap（批次 3，spec §2.1）
+        breakpoints: ast.breakpoints.iter().cloned().collect(),
         source_file: None,
         source_span: Some(ast.span),
     }
@@ -802,5 +804,22 @@ mod tests {
 
         let spacing = design.tokens.get("spacing").expect("should have spacing");
         assert!(matches!(spacing.value, TokenValueIR::Static(ref s) if s == "16px"));
+    }
+
+    // ── 批次 3：breakpoint 断点常量表（spec 2026-08-09 §2.1）────────────────
+
+    #[test]
+    fn lower_breakpoints_map() {
+        let design = lower_design_source(
+            r#"
+            design D {
+                breakpoint sm: 640;
+                breakpoint md: 768;
+            }
+        "#,
+        );
+        assert_eq!(design.breakpoints.get("sm"), Some(&640));
+        assert_eq!(design.breakpoints.get("md"), Some(&768));
+        assert_eq!(design.breakpoints.len(), 2);
     }
 }

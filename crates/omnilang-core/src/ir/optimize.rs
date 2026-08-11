@@ -877,6 +877,7 @@ mod tests {
                 },
                 output_mode: "css".to_string(),
                 is_tag_selector: false,
+                unsupported_selector: None,
             }],
             ..ComponentIR::default()
         };
