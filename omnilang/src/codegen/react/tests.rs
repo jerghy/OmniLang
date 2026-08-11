@@ -3401,8 +3401,11 @@ component ListPage {
         .cloned()
         .collect::<Vec<_>>()
         .join("\n");
+    // Task 6（批次 4）：data 可空化后迭代点统一 `?? []` 兜底
     assert_eq!(
-        content.matches("const __omni_iterable = items;").count(),
+        content
+            .matches("const __omni_iterable = items ?? [];")
+            .count(),
         1,
         "the iterable const must be declared exactly once, got:\n{content}"
     );
@@ -5725,8 +5728,9 @@ component ListPage {
         .cloned()
         .collect::<Vec<_>>()
         .join("\n");
+    // Task 6（批次 4）：data 可空化后迭代点统一 `?? []` 兜底
     assert!(
-        content.contains("return (\n        (() => { const __omni_iterable = items;"),
+        content.contains("return (\n        (() => { const __omni_iterable = items ?? [];"),
         "the single-eval IIFE must sit directly in the return parens, got:\n{}",
         content
     );
@@ -5769,8 +5773,9 @@ component ListPage {
         .cloned()
         .collect::<Vec<_>>()
         .join("\n");
+    // Task 6（批次 4）：data 可空化后迭代点统一 `?? []` 兜底
     assert!(
-        content.contains("return (\n        items.map((item, _i) => ("),
+        content.contains("return (\n        (items ?? []).map((item, _i) => ("),
         "the bare .map must sit directly in the return parens, got:\n{}",
         content
     );
@@ -8558,9 +8563,10 @@ component App {
         out
     );
     // M4: 元素类型来自 fn 返回 Array<String> 的 String→string 映射。
+    // Task 6（批次 4）：data 可空化（P5 破坏性变更）——初值 [] → null。
     assert!(
-        out.contains("useState<string[]>([])"),
-        "data 类型化三态 missing. Got:\n{}",
+        out.contains("useState<string[] | null>(null)"),
+        "data 类型化三态 missing（Task 6 后应为 null 初值）. Got:\n{}",
         out
     );
     // M4: 同步 fn 包装为 Promise.resolve().then(() => fetchTodos())。
@@ -8580,6 +8586,13 @@ component App {
     assert!(
         !out.contains("const retry"),
         "retry 未引用时不应发射死别名（可达性）. Got:\n{}",
+        out
+    );
+    // Task 6（批次 4）：reset 信号同为引用门控——未引用不发射（eslint
+    // no-unused-vars 门禁，LoadDemo 无豁免）。
+    assert!(
+        !out.contains("const reset"),
+        "reset 未引用时不应发射死回调（可达性）. Got:\n{}",
         out
     );
 }
@@ -8606,6 +8619,229 @@ component App {
     assert!(
         !out.contains("const retry"),
         "retry 映射后不应发射死别名. Got:\n{}",
+        out
+    );
+}
+
+// ═══════════════════════════════════════════════════════════
+// 批次 4 Task 6：@load 多例 / 参数绑定重载 / Reset / data 可空化 +
+// @for null 兜底 —— spec 2026-08-09-semantic-batch4-data-capabilities
+// §2.1 信号表 + §4.1 映射（TDD RED → GREEN）
+// ═══════════════════════════════════════════════════════════
+
+/// 多 @load 命名实例 → 每实例独立 5 信号（{name}Loading/Error/Data/
+/// Retry/Reset）+ 独立 effect。retry/reset 为引用门控发射（本测试
+/// 全引用）。
+#[test]
+fn react_multi_load_generates_per_instance_signals() {
+    let source = r#"
+component App {
+  fn fetchOrders() -> Array<String> { }
+  fn fetchStats() -> Array<Number> { }
+  view {
+    @load items={fetchOrders} @load stats={fetchStats}
+    <button @onPress={itemsRetry}>R1</button>
+    <button @onPress={statsRetry}>R2</button>
+    <button @onPress={itemsReset}>X1</button>
+    <button @onPress={statsReset}>X2</button>
+    <div/>
+  }
+}
+"#;
+    let out = compile_react_src(source);
+    for s in [
+        "itemsLoading",
+        "statsLoading",
+        "itemsData",
+        "statsData",
+        "itemsReset",
+        "statsReset",
+    ] {
+        assert!(out.contains(s), "{s} 信号缺失. Got:\n{}", out);
+    }
+    assert!(
+        out.contains("const itemsRetry = useCallback(() => {")
+            && out.contains("const statsRetry = useCallback(() => {"),
+        "命名实例 retry 回调必须逐实例发射. Got:\n{}",
+        out
+    );
+    // 只数 effect 调用（import 行的 `useEffect` 不算）
+    assert_eq!(
+        out.matches("useEffect(() => {").count(),
+        2,
+        "每实例独立 useEffect——2 个 @load 应为 2 个 effect. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("useEffect(() => { itemsRetry(); }, [itemsRetry]);")
+            && out.contains("useEffect(() => { statsRetry(); }, [statsRetry]);"),
+        "每实例 effect 应引用自身 retry 回调. Got:\n{}",
+        out
+    );
+}
+
+/// 参数绑定重载（spec §2.1）：@load stats={fetchStats(token)} →
+/// loader 调用实参 token 进入 useCallback deps 与 useEffect deps
+/// （信号变更自动重载）。
+#[test]
+fn react_param_signal_change_auto_reloads() {
+    let source = r#"
+component App {
+  signal token: String = "abc"
+  fn fetchStats(t: String) -> Array<Number> { }
+  view {
+    @load stats={fetchStats(token)}
+    <div/>
+  }
+}
+"#;
+    let out = compile_react_src(source);
+    assert!(
+        out.contains("Promise.resolve().then(() => fetchStats(token))"),
+        "Call loader 实参必须原样发射. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("}, [token]);"),
+        "参数绑定: useCallback deps 必须含 token. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("useEffect(() => { statsRetry(); }, [statsRetry, token]);"),
+        "参数绑定: useEffect deps 必须含 token（变更自动重载）. Got:\n{}",
+        out
+    );
+}
+
+/// Reset 回调（spec §4.1/P5）：setData(null)/setError("")/setLoading(false)
+/// 三态置初值，不触发 refetch（不自动重载）。
+#[test]
+fn react_reset_sets_data_null_no_refetch() {
+    let source = r#"
+component App {
+  fn fetchOrders() -> Array<String> { }
+  view {
+    @load items={fetchOrders}
+    <button @onPress={itemsReset}>X</button>
+    <div/>
+  }
+}
+"#;
+    let out = compile_react_src(source);
+    let start = out
+        .find("const itemsReset = useCallback(() => {")
+        .unwrap_or_else(|| panic!("itemsReset 回调未发射. Got:\n{}", out));
+    let end = out[start..]
+        .find("}, []);")
+        .map(|i| start + i)
+        .unwrap_or_else(|| panic!("itemsReset 回调未闭合. Got:\n{}", out));
+    let body = &out[start..end];
+    assert!(
+        body.contains("setItemsData(null)"),
+        "Reset 必须清 data 为 null. body:\n{}",
+        body
+    );
+    assert!(
+        body.contains("setItemsError(\"\")"),
+        "Reset 必须清 error. body:\n{}",
+        body
+    );
+    assert!(
+        body.contains("setItemsLoading(false)"),
+        "Reset 必须置 loading false. body:\n{}",
+        body
+    );
+    assert!(
+        !body.contains("fetchOrders"),
+        "Reset 不得触发 refetch（P5 不自动重载）. body:\n{}",
+        body
+    );
+}
+
+/// 匿名 @load 也发射 reset 信号（v0 无此信号——新增，spec §2.1 信号表）。
+#[test]
+fn react_anon_reset_signal_emitted() {
+    let source = r#"
+component App {
+  fn fetchTodos() -> Array<String> { }
+  view {
+    @load={fetchTodos}
+    <button @onPress={reset}>X</button>
+    <div/>
+  }
+}
+"#;
+    let out = compile_react_src(source);
+    let start = out
+        .find("const reset = useCallback(() => {")
+        .unwrap_or_else(|| panic!("匿名 reset 回调未发射. Got:\n{}", out));
+    let end = out[start..]
+        .find("}, []);")
+        .map(|i| start + i)
+        .unwrap_or_else(|| panic!("匿名 reset 回调未闭合. Got:\n{}", out));
+    let body = &out[start..end];
+    assert!(
+        body.contains("setData(null)")
+            && body.contains("setError(\"\")")
+            && body.contains("setLoading(false)"),
+        "匿名 reset 三态置初值 missing. body:\n{}",
+        body
+    );
+    assert!(
+        !body.contains("fetchTodos"),
+        "匿名 reset 不得触发 refetch. body:\n{}",
+        body
+    );
+}
+
+/// ★ 兼容性检查点（主审查要求）：@for item in data 且 data 为 null
+/// （Reset 后）→ 迭代产物为 (data ?? []).map(...)（spec §2.1 渲染兜底），
+/// null 不崩溃。
+#[test]
+fn react_for_over_null_data_renders_empty() {
+    let source = r#"
+component App {
+  fn fetchTodos() -> Array<String> { }
+  view {
+    @load={fetchTodos}
+    @for item in data { <div>{item}</div> }
+  }
+}
+"#;
+    let out = compile_react_src(source);
+    assert!(
+        out.contains("?? []"),
+        "@for over null data 必须生成空数组兜底. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("(data ?? []).map("),
+        "@for 迭代必须落在 (data ?? []) 上. Got:\n{}",
+        out
+    );
+}
+
+/// data 初值从 [] 改为 null（P5 破坏性变更——既有快照 fixture 同步更新）。
+#[test]
+fn react_data_initial_null_breaking_change() {
+    let source = r#"
+component App {
+  fn fetchTodos() -> Array<String> { }
+  view {
+    @load={fetchTodos}
+    <div/>
+  }
+}
+"#;
+    let out = compile_react_src(source);
+    assert!(
+        out.contains("useState<string[] | null>(null)"),
+        "data 初值必须为 null. Got:\n{}",
+        out
+    );
+    assert!(
+        !out.contains("useState<string[]>([])"),
+        "data 初值不得再为 []. Got:\n{}",
         out
     );
 }

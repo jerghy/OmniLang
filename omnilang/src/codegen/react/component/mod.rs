@@ -1439,12 +1439,49 @@ impl ReactCodegen {
             w.dedent();
             w.emit("}");
         }
-        // TODO(batch4 Task 6-11): 多 @load 命名实例/loader 表达式/轮询发射
-        // ——当前仅发射首个实例（单例行为保持），其余实例由后续任务实现。
-        if let Some(load) = comp.load_intent.first() {
-            w.emit("// @load (spec 2026-08-08 §4.2): 数据三态");
-            w.emit("const [loading, setLoading] = useState(true);");
-            w.emit("const [error, setError] = useState(\"\");");
+        // ── @load（spec 2026-08-09 §2.1 信号表）──
+        // 多例化：每个 LoadIntentIR 依次发射独立 5 信号组（命名实例
+        // {name}Loading/{name}Error/{name}Data/{name}Retry/{name}Reset；
+        // 匿名实例 loading/error/data/retry/reset——v0 四信号 + Task 6 新增
+        // reset）。retry 回调 = 装载回调本身（匿名名 load——视图 retry FnRef
+        // 经 store_field_renames 映射；命名名 {name}Retry——视图直接引用），
+        // 恒被自身 useEffect 引用故无需门控；reset 为独立回调，仅视图引用
+        // 时发射（used_fn_names 引用门控，eslint no-unused-vars 门禁——
+        // LoadDemo 无豁免）。
+        // 参数绑定（§2.1）：Call loader 实参中的标识符进入 useCallback 与
+        // useEffect 的 deps——参数信号变更自动重载。Reset（§4.1/P5）清
+        // data(null)/error("")/loading(false) 三态置初值，不触发 refetch。
+        for load in &comp.load_intent {
+            let p = load.name.as_deref().unwrap_or("");
+            // 信号名（spec §2.1 信号表）：命名实例 {name}Loading/...；
+            // 匿名实例全小写 loading/error/data/reset（v0 形态保持）。
+            // setter 遵循 React 约定首字母大写：set{Name}Loading。
+            let sig = |suffix: &str| {
+                if p.is_empty() {
+                    suffix.to_lowercase()
+                } else {
+                    format!("{p}{suffix}")
+                }
+            };
+            let setter = |suffix: &str| {
+                let mut c = p.chars();
+                let first = c
+                    .next()
+                    .map(|f| f.to_uppercase().to_string())
+                    .unwrap_or_default();
+                format!("set{first}{}{suffix}", c.as_str())
+            };
+            w.emit("// @load (spec 2026-08-09 §2.1): 数据三态");
+            w.emit_fmt(format_args!(
+                "const [{}, {}] = useState(true);",
+                sig("Loading"),
+                setter("Loading")
+            ));
+            w.emit_fmt(format_args!(
+                "const [{}, {}] = useState(\"\");",
+                sig("Error"),
+                setter("Error")
+            ));
             // 元素类型来自 fn 返回 Array<X> 的 X（V-F7 保证 Array 形态）
             let elem_ts = comp
                 .fns
@@ -1460,13 +1497,42 @@ impl ReactCodegen {
                 })
                 .unwrap_or_else(|| "unknown".to_string());
             w.emit_fmt(format_args!(
-                "const [data, setData] = useState<{elem_ts}[]>([]);"
+                "const [{}, {}] = useState<{elem_ts}[] | null>(null);",
+                sig("Data"),
+                setter("Data")
             ));
-            w.emit("const load = useCallback(() => {");
+            // 参数绑定：Call loader 实参中的标识符（重命名感知格式化）进入
+            // deps——与调用处读取的是同一表达式（信号变更自动重载）。
+            let param_deps: Vec<String> = match &load.loader {
+                LoaderIR::Fn(_) => vec![],
+                LoaderIR::Call(c) => c
+                    .args
+                    .iter()
+                    .filter_map(|a| match a {
+                        ExprIR::IdentifierExpr { .. } => Some(expr::format_expr_ir_tsx_renamed(
+                            a,
+                            &ref_names,
+                            &store_field_renames,
+                        )),
+                        _ => None,
+                    })
+                    .fold(Vec::new(), |mut acc, n| {
+                        if !acc.contains(&n) {
+                            acc.push(n);
+                        }
+                        acc
+                    }),
+            };
+            let retry_cb = if p.is_empty() {
+                "load".to_string()
+            } else {
+                format!("{p}Retry")
+            };
+            w.emit_fmt(format_args!("const {retry_cb} = useCallback(() => {{"));
             w.indent();
-            w.emit("setLoading(true);");
-            w.emit("setError(\"\");");
-            // 同步 fn 包装 Promise.resolve().then(() => fn())（V-F7 无参保证）
+            w.emit_fmt(format_args!("{}(true);", setter("Loading")));
+            w.emit_fmt(format_args!("{}(\"\");", setter("Error")));
+            // 同步 fn 包装 Promise.resolve().then(() => fn(...))（V-F7）
             let is_async = comp
                 .fns
                 .iter()
@@ -1474,20 +1540,59 @@ impl ReactCodegen {
                 .is_some_and(|f| {
                     f.is_async || f.body.statements.iter().any(effect::stmt_contains_await)
                 });
-            let call = if is_async {
-                format!("{}()", load.loader.fn_name())
-            } else {
-                format!("Promise.resolve().then(() => {}())", load.loader.fn_name())
+            let call = match &load.loader {
+                LoaderIR::Fn(fname) if !is_async => {
+                    format!("Promise.resolve().then(() => {fname}())")
+                }
+                LoaderIR::Fn(fname) => format!("{fname}()"),
+                LoaderIR::Call(c) => {
+                    let args = c
+                        .args
+                        .iter()
+                        .map(|a| {
+                            expr::format_expr_ir_tsx_renamed(a, &ref_names, &store_field_renames)
+                        })
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    if is_async {
+                        format!("{}({args})", c.func)
+                    } else {
+                        format!("Promise.resolve().then(() => {}({args}))", c.func)
+                    }
+                }
             };
             w.emit_fmt(format_args!(
-                "{call}.then((r) => {{ setData(r); setLoading(false); }}).catch((e) => {{ setError(String(e)); setLoading(false); }});"
+                "{call}.then((r) => {{ {}(r); {}(false); }}).catch((e) => {{ {}(String(e)); {}(false); }});",
+                setter("Data"),
+                setter("Loading"),
+                setter("Error"),
+                setter("Loading")
             ));
             w.dedent();
-            w.emit("}, []);");
-            w.emit("useEffect(() => { load(); }, [load]);");
-            // Task 4 评审（retry 可达性）: 别名不发射——store_field_renames
-            // 映射（表达式上下文）+ view.rs FnRef 映射（事件回调）覆盖全
-            // 部引用面，别名恒为未使用局部（eslint no-unused-vars）。
+            if param_deps.is_empty() {
+                w.emit("}, []);");
+            } else {
+                w.emit_fmt(format_args!("}}, [{}]);", param_deps.join(", ")));
+            }
+            let effect_deps = if param_deps.is_empty() {
+                format!("[{retry_cb}]")
+            } else {
+                format!("[{retry_cb}, {}]", param_deps.join(", "))
+            };
+            w.emit_fmt(format_args!(
+                "useEffect(() => {{ {retry_cb}(); }}, {effect_deps});"
+            ));
+            // Reset（spec §4.1/P5）: 三态置初值不重载——引用门控发射
+            let reset_cb = sig("Reset");
+            if used_fn_names.contains(&reset_cb) {
+                w.emit_fmt(format_args!("const {reset_cb} = useCallback(() => {{"));
+                w.indent();
+                w.emit_fmt(format_args!("{}(false);", setter("Loading")));
+                w.emit_fmt(format_args!("{}(\"\");", setter("Error")));
+                w.emit_fmt(format_args!("{}(null);", setter("Data")));
+                w.dedent();
+                w.emit("}, []);");
+            }
         }
         state::gen_ref_hooks(
             &mut w,

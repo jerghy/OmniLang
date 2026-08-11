@@ -723,7 +723,12 @@ fn assert_control_flow_react(files: &FxHashMap<String, String>) {
     assert_contains(files, "ListPage.tsx", ".length === 0");
     // Empty body → single-eval iterable (T5.5: the old `({} && {}...)`
     // shape double-evaluated the iterable; now a render-scope const).
-    assert_contains(files, "ListPage.tsx", "const __omni_iterable = items;");
+    // Task 6（批次 4）：data 可空化后迭代点统一 `?? []` 兜底。
+    assert_contains(
+        files,
+        "ListPage.tsx",
+        "const __omni_iterable = items ?? [];",
+    );
     // Key-less nested @for → index-key fallback + generated warning comment.
     assert_contains(files, "ListPage.tsx", "key={_i}");
     assert_contains(files, "ListPage.tsx", "omni: no key=");

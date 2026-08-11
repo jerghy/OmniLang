@@ -1672,9 +1672,10 @@ pub(super) fn gen_view_node_tsx(
                 // `({} && {}.length === 0) ? ... : ({}.map(...))` evaluated
                 // the iterable TWICE per render (side effects / allocations
                 // ran twice). Hoist to a const inside an IIFE so the list
-                // expression runs exactly once.
+                // expression runs exactly once. Task 6 (batch 4): data 可空化
+                // 后迭代点统一 `?? []` 兜底（spec §2.1）——null 迭代不崩溃。
                 w.emit_fmt(format_args!(
-                    "(() => {{ const __omni_iterable = {}; return (__omni_iterable && __omni_iterable.length === 0) ? (",
+                    "(() => {{ const __omni_iterable = {} ?? []; return (__omni_iterable && __omni_iterable.length === 0) ? (",
                     iterable_str
                 ));
                 w.indent();
@@ -1712,8 +1713,10 @@ pub(super) fn gen_view_node_tsx(
                     w.emit("{");
                     w.indent();
                 }
+                // Task 6（批次 4）: 无 empty_body 路径同样 `?? []` 兜底
+                // （data 可空化后 null 直接崩溃——spec §2.1 渲染兜底）
                 w.emit_fmt(format_args!(
-                    "{}.map(({}, _i) => (",
+                    "({} ?? []).map(({}, _i) => (",
                     iterable_str, item_name
                 ));
             }
