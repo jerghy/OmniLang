@@ -509,6 +509,7 @@ fn dummy_comp() -> ComponentIR {
         route_intent: None,
         layout_intent: None,
         query_params: vec![],
+        media_blocks: vec![],
         name: "Dummy".into(),
         props: FxHashMap::default(),
         prop_defaults: FxHashMap::default(),
@@ -727,6 +728,7 @@ fn design_test_program() -> IRProgram {
         themes: vec![],
         theme_signal: None,
         default_theme: None,
+        breakpoints: FxHashMap::default(),
         tokens,
         classes,
         variants,
@@ -12236,4 +12238,80 @@ fn test_flutter_no_route_no_router() {
         "no @route -> no main.dart (zero-regression), got: {:?}",
         out.files.keys().collect::<Vec<_>>()
     );
+}
+
+// ── 批次 3 响应式：bp() → MediaQuery.sizeOf / bp 常量 / W-302 降级 ──
+
+#[test]
+fn bp_emits_media_query_sizeof() {
+    let src = r#"
+        design D { breakpoint md: 768; }
+        component App {
+            view {
+                @if (bp("md")) { <Container>Desktop</Container> } @else { <Container>Mobile</Container> }
+            }
+        }
+    "#;
+    let out = compile_flutter_full(src);
+    assert!(out.success, "compile failed: {:?}", out.errors);
+    let joined = out.files.values().cloned().collect::<Vec<_>>().join("\n");
+    assert!(
+        joined.contains("MediaQuery.sizeOf(context).width >= 768"),
+        "got: {joined}"
+    );
+}
+
+#[test]
+fn design_emits_bp_constants() {
+    let src = r#"
+        design D {
+            breakpoint sm: 640;
+            breakpoint md: 768;
+            breakpoint lg: 1024;
+        }
+        component App { view { <Text>x</Text> } }
+    "#;
+    let out = compile_flutter_full(src);
+    assert!(out.success, "compile failed: {:?}", out.errors);
+    let joined = out.files.values().cloned().collect::<Vec<_>>().join("\n");
+    assert!(
+        joined.contains("static const bpSm = 640.0;"),
+        "got: {joined}"
+    );
+    assert!(
+        joined.contains("static const bpMd = 768.0;"),
+        "got: {joined}"
+    );
+    assert!(
+        joined.contains("static const bpLg = 1024.0;"),
+        "got: {joined}"
+    );
+}
+
+#[test]
+fn media_block_degrades_with_w302_and_no_residue() {
+    let src = r#"
+        component App {
+            style {
+                .card { padding: 16; }
+                @media (min-width: 768px) {
+                    .card { padding: 32; }
+                }
+            }
+            view { <div class: card>c</div> }
+        }
+    "#;
+    let out = compile_flutter_full(src);
+    assert!(out.success, "compile failed: {:?}", out.errors);
+    let joined = out.files.values().cloned().collect::<Vec<_>>().join("\n");
+    assert!(
+        !joined.contains("@media"),
+        "Flutter 生成物不得残留 @media 语法: {joined}"
+    );
+    assert!(!joined.contains("min-width"), "块内规则不得生效: {joined}");
+    let w302 = out
+        .warnings
+        .iter()
+        .any(|w| w.message.contains("不生效") && w.message.contains("bp()"));
+    assert!(w302, "W-302 缺失: {:?}", out.warnings);
 }

@@ -299,6 +299,7 @@ fn make_design() -> DesignIR {
         themes: vec!["light".to_string(), "dark".to_string()],
         theme_signal: None,
         default_theme: Some("light".to_string()),
+        breakpoints: FxHashMap::default(),
         tokens,
         classes,
         variants,

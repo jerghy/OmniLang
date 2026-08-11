@@ -106,6 +106,18 @@ pub(crate) fn emit_tokens_class(
     if !emitted_any {
         w.emit("// No static tokens were mappable to Dart constants.");
     }
+    // 批次 3 响应式 (spec §2.1/§4.1): breakpoint 断点常量——`static const
+    // bpSm = 640.0;`（断点名 → PascalCase 前缀 bp），供 MediaQuery.sizeOf
+    // 分支引用。断点是编译期静态表，无常量级类型差异（均为 double px）。
+    if !design.breakpoints.is_empty() {
+        w.emit("");
+        let mut bps: Vec<(&String, &u32)> = design.breakpoints.iter().collect();
+        bps.sort_by(|a, b| a.0.cmp(b.0));
+        for (bp_name, value) in bps {
+            let const_name = format!("bp{}", capitalize_first(bp_name));
+            w.emit_fmt(format_args!("static const {} = {}.0;", const_name, value));
+        }
+    }
     w.dedent();
     w.emit("}");
     w.emit("");

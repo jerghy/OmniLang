@@ -158,6 +158,17 @@ impl FlutterCodegen {
         // Task 14: compile-time diagnostics from view formatting (unmappable
         // direct-write style values) — merged into the ref_errors return.
         let mut view_errors: Vec<Diagnostic> = Vec::new();
+        // 批次 3 响应式 (spec §2.4/§4.3): 用户级 @media 块 Flutter 诚实降级
+        // （ADR-054）——W-302 + 块内规则跳过（不生成任何 Dart 输出），指引
+        // bp()（跨目标主通道）。生成物零 @media 残留语法。
+        for _ in &comp.media_blocks {
+            warnings.push(crate::codegen::CodegenWarning::at(
+                "@media 块在 Flutter 目标不生效（降级跳过）——响应式意图请用 bp() 表达（跨目标主通道）".to_string(),
+                comp.source_file.clone(),
+                comp.source_span.map(|s| s.line).unwrap_or(0),
+                comp.source_span.map(|s| s.col).unwrap_or(0),
+            ));
+        }
         // ADR-053 D5: body-level `@slot` declarations surface in the view as
         // `{name}` interpolations — materialize them into `ViewTree::Slot`
         // nodes ONCE so the trigger-helper import decision (below), the

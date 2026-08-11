@@ -2009,6 +2009,17 @@ impl FormatExpr for FlutterFormatExpr {
         args: &[ExprIR],
         arg_strs: &[String],
     ) -> Option<String> {
+        // bp("md") → `MediaQuery.sizeOf(context).width >= 768`（批次 3，
+        // spec §2.2/§4.2——Flutter 官方响应式惯用法；参数已被语义层改写为
+        // 数字字面量，三目标分发契约）。
+        if name == "bp" {
+            if let Some(ExprIR::LiteralExpr { value }) = args.first() {
+                if let Some(n) = value.as_u64() {
+                    return Some(format!("MediaQuery.sizeOf(context).width >= {n}"));
+                }
+            }
+            return None;
+        }
         if name == "back" && args.is_empty() {
             return Some(
                 "context.pop() /* 栈空时 GoRouter pop 对空栈为安全 no-op（诚实降级注记，ADR-054） */"
