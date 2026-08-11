@@ -31,6 +31,12 @@ pub struct DesignDef {
     /// Optional default theme name set via `@default-theme ...;`.
     #[serde(default)]
     pub default_theme: Option<String>,
+    /// Named breakpoint declarations: `breakpoint md: 768;` (batch 3, spec
+    /// 2026-08-09 §2.1) — unitless positive integers, min-width semantics.
+    /// Names share the design-block identifier space with token/class/variant
+    /// (E-402 mutual exclusion, enforced in parse_design_body).
+    #[serde(default)]
+    pub breakpoints: Vec<(String, u32)>,
     /// Source span of the whole `design ... { }` block — used to anchor
     /// design-level diagnostics (e.g. duplicate @themes names).
     pub span: Span,

@@ -48,6 +48,7 @@ pub fn parse_design_body(input: &str, design_tokens: &[Token]) -> ParseResult<De
     let mut variants = Vec::new();
     let mut themes: Vec<String> = Vec::new();
     let mut default_theme: Option<String> = None;
+    let mut breakpoints: Vec<(String, u32)> = Vec::new();
     // Only trim leading whitespace so that remaining is a suffix of input.
     // This keeps the offset calculation in parse_token_value correct:
     //   offset = design_body_full.len() - raw_input.len()
@@ -82,6 +83,11 @@ pub fn parse_design_body(input: &str, design_tokens: &[Token]) -> ParseResult<De
             let (var, rest) = parse_variant(remaining)?;
             variants.push(var);
             remaining = rest;
+        } else if remaining.starts_with("breakpoint ") {
+            // Batch 3 (spec 2026-08-09 §2.1): `breakpoint <name>: <positive integer>;`
+            let (bp_name, bp_value, rest) = parse_breakpoint(input, remaining)?;
+            breakpoints.push((bp_name, bp_value));
+            remaining = rest;
         } else if remaining.starts_with("}") || remaining.is_empty() {
             break;
         } else {
@@ -97,6 +103,25 @@ pub fn parse_design_body(input: &str, design_tokens: &[Token]) -> ParseResult<De
         }
     }
 
+    // E-402: breakpoint 名与同块 token/class/variant 名互斥；breakpoint 之间
+    // 也不得重名（顺序无关重名检测，spec §2.1 冲突检查表）。
+    let mut seen_bp: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    for (name, _) in &breakpoints {
+        if !seen_bp.insert(name.as_str())
+            || tokens.iter().any(|t| &t.name == name)
+            || classes.iter().any(|c| &c.name == name)
+            || variants.iter().any(|v| &v.name == name)
+        {
+            return Err(err_at(
+                input,
+                remaining,
+                &format!(
+                    "design 块中 breakpoint 名 {name} 与 token/class/variant 名冲突——breakpoint 名须与同块标识符互斥"
+                ),
+            ));
+        }
+    }
+
     Ok(DesignDef {
         name: String::new(),
         themes,
@@ -104,6 +129,7 @@ pub fn parse_design_body(input: &str, design_tokens: &[Token]) -> ParseResult<De
         tokens,
         classes,
         variants,
+        breakpoints,
         // Overridden by parse_design_def with the `design` keyword span.
         span: Span {
             start: 0,
@@ -112,6 +138,49 @@ pub fn parse_design_body(input: &str, design_tokens: &[Token]) -> ParseResult<De
             col: 0,
         },
     })
+}
+
+/// Parse `breakpoint <name>: <value>;` — named breakpoint declaration
+/// (batch 3, spec 2026-08-09 §2.1). Value must be a unitless positive
+/// integer; ≤ 0 → E-403, non-integer → plain parse error.
+fn parse_breakpoint<'a>(input: &'a str, remaining: &'a str) -> ParseResult<(String, u32, &'a str)> {
+    let rest = remaining
+        .strip_prefix("breakpoint ")
+        .ok_or_else(|| err("expected 'breakpoint'"))?;
+    let (name, rest) = parse_ident(rest)?;
+    let rest = rest
+        .trim_start()
+        .strip_prefix(":")
+        .ok_or_else(|| err("expected ':' after breakpoint name"))?
+        .trim_start();
+    let value_end = rest.find(';').unwrap_or(rest.len());
+    let value_str = rest[..value_end].trim();
+    let value: u32 = match value_str.parse() {
+        Ok(v) if v > 0 => v,
+        Ok(_) => {
+            // 0 or positive-but-parsed-as-0 edge — value ≤ 0 → E-403 (spec §3)
+            return Err(err_at(
+                input,
+                remaining,
+                &format!("breakpoint {name} 的值必须为正数（当前 {value_str}）"),
+            ));
+        }
+        Err(_) => {
+            if value_str.starts_with('-') {
+                return Err(err_at(
+                    input,
+                    remaining,
+                    &format!("breakpoint {name} 的值必须为正数（当前 {value_str}）"),
+                ));
+            }
+            return Err(err_at(input, remaining, "breakpoint 值必须为无单位整数"));
+        }
+    };
+    // 消费终止分号（照 parse_token 的 `;` break 模式——缺分号不报错，交由
+    // dispatch 循环后续内容处理）
+    let after = rest[value_end..].trim_start();
+    let after = after.strip_prefix(';').unwrap_or(after);
+    Ok((name, value, after.trim_start()))
 }
 
 fn parse_token<'a>(
@@ -1286,5 +1355,54 @@ mod tests {
             "expression with object literal arg should parse as Expression, got {:?}",
             result.tokens[0].value
         );
+    }
+
+    // ── breakpoint 断点声明（批次 3，spec 2026-08-09 §2.1）──────────────────
+
+    #[test]
+    fn parses_breakpoint_declarations() {
+        let src = "\n    breakpoint sm: 640;\n    breakpoint md: 768;\n    breakpoint lg: 1024;\n";
+        let result = parse_design_body(src, &[]).unwrap();
+        let bps: Vec<(String, u32)> = result.breakpoints.clone();
+        assert_eq!(
+            bps,
+            vec![("sm".into(), 640), ("md".into(), 768), ("lg".into(), 1024)]
+        );
+    }
+
+    #[test]
+    fn breakpoint_conflicts_with_token_are_hard_error_e402() {
+        let src = "\n    token md: color = \"#6366f1\";\n    breakpoint md: 768;\n";
+        let err = parse_design_body(src, &[]).unwrap_err();
+        assert!(
+            err.message.contains("与 token/class/variant 名冲突"),
+            "got: {}",
+            err.message
+        );
+    }
+
+    #[test]
+    fn breakpoint_zero_value_is_hard_error_e403() {
+        let src = "\n    breakpoint md: 0;\n";
+        let err = parse_design_body(src, &[]).unwrap_err();
+        assert!(err.message.contains("必须为正数"), "got: {}", err.message);
+    }
+
+    #[test]
+    fn breakpoint_duplicate_name_is_hard_error_e402() {
+        let src = "\n    breakpoint md: 768;\n    breakpoint md: 1024;\n";
+        let err = parse_design_body(src, &[]).unwrap_err();
+        assert!(
+            err.message.contains("与 token/class/variant 名冲突"),
+            "got: {}",
+            err.message
+        );
+    }
+
+    #[test]
+    fn breakpoint_decimal_value_is_plain_error() {
+        let src = "\n    breakpoint md: 768.5;\n";
+        let err = parse_design_body(src, &[]).unwrap_err();
+        assert!(err.message.contains("无单位整数"), "got: {}", err.message);
     }
 }

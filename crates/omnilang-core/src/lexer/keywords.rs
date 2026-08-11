@@ -104,6 +104,9 @@ pub(super) fn at_keyword_to_token(kw: &str) -> Option<TokenKind> {
         "@drag-vertical" => Some(TokenKind::AtDragVertical),
         // @hero support
         "@hero" => Some(TokenKind::AtHero),
+        // Responsive styling at-rules (spec 2026-08-09 §2.4/§2.5)
+        "@media" => Some(TokenKind::AtMedia),
+        "@container" => Some(TokenKind::AtContainer),
         // @if-mode component prop
         "@if-mode" => Some(TokenKind::IfMode),
         // Unknown @-prefixed words are event bindings like @onPress, @onChange

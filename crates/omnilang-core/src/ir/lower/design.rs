@@ -463,6 +463,7 @@ mod tests {
             name: "App".to_string(),
             themes: vec!["light".to_string(), "dark".to_string()],
             default_theme: Some("light".to_string()),
+            breakpoints: Vec::new(),
 
             span: Span {
                 start: 0,
@@ -534,6 +535,7 @@ mod tests {
             name: "Test".to_string(),
             themes: vec!["light".to_string(), "dark".to_string()],
             default_theme: Some("light".to_string()),
+            breakpoints: Vec::new(),
 
             span: Span {
                 start: 0,
@@ -568,6 +570,7 @@ mod tests {
             name: "Test".to_string(),
             themes: vec!["light".to_string(), "dark".to_string()],
             default_theme: Some("highContrast".to_string()),
+            breakpoints: Vec::new(),
 
             span: Span {
                 start: 0,
@@ -597,6 +600,7 @@ mod tests {
             name: "Test".to_string(),
             themes: vec!["light".to_string(), "dark".to_string()],
             default_theme: Some("light".to_string()),
+            breakpoints: Vec::new(),
 
             span: Span {
                 start: 0,
@@ -623,6 +627,7 @@ mod tests {
             name: "Test".to_string(),
             themes: vec![],
             default_theme: None,
+            breakpoints: Vec::new(),
 
             span: Span {
                 start: 0,
@@ -653,6 +658,7 @@ mod tests {
             name: "Test".to_string(),
             themes: vec![],
             default_theme: None,
+            breakpoints: Vec::new(),
 
             span: Span {
                 start: 0,
@@ -687,6 +693,7 @@ mod tests {
             name: "Test".to_string(),
             themes: vec![],
             default_theme: None,
+            breakpoints: Vec::new(),
 
             span: Span {
                 start: 0,
@@ -718,6 +725,7 @@ mod tests {
             name: "Test".to_string(),
             themes: vec![],
             default_theme: None,
+            breakpoints: Vec::new(),
 
             span: Span {
                 start: 0,
@@ -768,6 +776,7 @@ mod tests {
             name: "Test".to_string(),
             themes: vec![],
             default_theme: None,
+            breakpoints: Vec::new(),
 
             span: Span {
                 start: 0,

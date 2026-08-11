@@ -1298,6 +1298,29 @@ mod tests {
         assert_token("@hero", TokenKind::AtHero);
     }
     #[test]
+    fn test_at_media_container() {
+        assert_token("@media", TokenKind::AtMedia);
+        assert_token("@container", TokenKind::AtContainer);
+    }
+    #[test]
+    fn tokenizes_media_at_rules() {
+        // 批次 3（spec 2026-08-09 §2.4/§2.5）：style 块 @media/@container at-rule
+        let src = "@media (min-width: 768px) { .card { padding: 32; } } @container (min-width: 400px) { .a { color: red; } }";
+        let tokens = tokenize(src);
+        assert!(tokens.iter().any(|t| t.kind == TokenKind::AtMedia));
+        assert!(tokens.iter().any(|t| t.kind == TokenKind::AtContainer));
+    }
+    #[test]
+    fn media_token_span_roundtrip() {
+        // Token 无 text 字段（kind + span）——@media 起于源码开头，span.start = 0
+        let tokens = tokenize("@media (x) {}");
+        let t = tokens
+            .iter()
+            .find(|t| t.kind == TokenKind::AtMedia)
+            .unwrap();
+        assert_eq!(t.span.start, 0);
+    }
+    #[test]
     fn test_keyword_if_mode() {
         assert_token("if_mode", TokenKind::IfMode);
     }

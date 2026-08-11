@@ -100,6 +100,10 @@ pub enum TokenKind {
     AtDragVertical,
     IfMode,
     AtHero,
+    /// Responsive media-query at-rule: `@media (min-width: 768px) { ... }` in a style block (spec 2026-08-09 §2.4).
+    AtMedia,
+    /// Container-query at-rule: `@container ...` (低优先候选未实施——遇之 E-404, spec 2026-08-09 §2.5).
+    AtContainer,
     Bind,
 
     // Literals
