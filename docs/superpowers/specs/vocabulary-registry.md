@@ -516,6 +516,43 @@ DOM 命令式元素 API 的语义意图——**焦点 / 滚动 / 测量 / 选择
 
 ---
 
+## 域 9: 数据（data）
+
+### 来源域
+
+域 13 数据深化 + 域 9 数据三态（semantic-universe 域 13/9）——**分页/无限滚动/轮询/时间节流**（批次 4 设计 spec §5.3，2026-08-11 登记先行 ADR-074）。本域为**词法级词汇**——本批登记先行已建词法级白名单常量层 `load_contract.rs`（`LOAD_PARAM_WORDS`/`TIMING_FUNCS`/`PAGE_TYPE_NAME`），交叉断言经 `rust_str_array` 双向断言承担（verify-vocabulary.py 域 9 断言块）：`paginated`/`scroll`/`interval` @load 局部参数词 + `debounce`/`throttle` std/timing 时间函数 + `Page<T>` 内建分页信封类型。**v0 边界**（批次 4 spec §6）：分页仅页码模式（无游标/无键集）；轮询与分页不组合；无限滚动触发仅列表容器（`@for` 宿主）；乐观更新为远期候选；缓存策略留生态（不进语言）。
+
+> 判定注记：`loading`/`error`/`data`/`retry`/`reset` 为编译器保留名（匿名实例派生信号 `LOAD_RESERVED_NAMES`），不登记为词汇——照域 6 先例（formErrors/loading 等内建信号名不登记）；`scroll` 与既有 `@in-view`/`@onScroll` 词汇不同词汇面（@load 参数面 vs 事件面），不冲突；两文档编号体系独立——universe 域 13 数据深化对应本域 9。
+
+### 语义词汇
+
+| 语义词汇 | 来源域 | 目标映射 | 说明 |
+|---------|--------|---------|------|
+| debounce | std/timing（stdlib 语言函数） | setTimeout/clearTimeout 闭包（web）/ Dart Timer 闭包（Flutter） | 时间节流原语——非视图意图，stdlib 通道（async_sleep 先例） |
+| throttle | std/timing（stdlib 语言函数） | setTimeout/clearTimeout 闭包（web）/ Dart Timer 闭包（Flutter） | 时间节流原语——非视图意图，stdlib 通道（async_sleep 先例） |
+| paginated | 域 13 数据深化（@load 参数面） | 页码状态机生成 | @load 局部参数词——机制级条目（存在性断言） |
+| scroll（@load 参数） | 域 13 数据深化 | IntersectionObserver / ScrollController 阈值 | 装载触发参数——与 @in-view/@onScroll 既有词汇区分（不同词汇面） |
+| interval（@load 参数） | 域 13 数据深化 | setInterval / Timer.periodic | 冒号参数形态（motion over: 先例） |
+| Page\<T\> | 域 13 数据深化（内建类型） | TS interface / Dart class | 分页信封——与 Array\<T\> 并列 |
+
+### 目标映射
+
+| 目标 | 生成形状 |
+|------|---------|
+| React | `debounce`/`throttle` → setTimeout/clearTimeout 闭包；`paginated` → 页码状态机（page/hasMore/加载中/加载更多）；`scroll` → IntersectionObserver 阈值；`interval` → setInterval；`Page<T>` → TS interface |
+| Flutter | `debounce`/`throttle` → Dart Timer 闭包；`paginated` → PageController/ScrollController 阈值；`scroll` → ScrollController 阈值；`interval` → Timer.periodic；`Page<T>` → Dart class |
+| OmniView | 同 React 形态（web 通道——IntersectionObserver/setInterval 原生） |
+
+### 排除词汇
+
+| 排除词汇 | 平台 | 不得成为语义词汇的原因 | 正确语义词汇 |
+|----------|------|----------------------|-------------|
+| refetchInterval | TanStack Query | 库参数名——平台/库形状（禁止借词规则） | interval |
+| refreshInterval | SWR | 库参数名——平台/库形状（禁止借词规则） | interval |
+| infinite_scroll_pagination | 库 | 包名——平台/库形状（禁止借词规则） | paginated |
+
+---
+
 ## 维护约定
 
 - 编译器白名单变更（新增事件 canonical 名 / a11y 角色 / 动画属性 / RefOp / token 类型 / 表单校验规则）必须同步本登记册**同 commit**——`scripts/verify-vocabulary.py` 双向断言使漂移即门禁失败（与 docs-gate 对设计文档的强制力同级）。

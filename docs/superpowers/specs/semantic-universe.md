@@ -450,7 +450,7 @@ CSS 动画语义域——**属性值从 A 到 B 平滑过渡**（CSS Transitions
 
 ### 语义域定义
 
-视图级数据装载语义域——**声明式装载意图 + 三态信号**（`@load` 视图级指令 + `loading`/`error`/`data` 三信号 + `retry` 重试函数）。语义词汇 = 意图与信号名（`@load`/`loading`/`error`/`data`/`retry`——机制级条目，无编译器词法级白名单常量，事实源以代码锚点记录，白名单表作锚点账本，交叉断言以存在性检查承担）。全集封闭按本表（2026-08-09 登记，阶段 2 域 A Task 7）：未列数据装载功能视为未登记。**v0 边界：`@load` 仅支持 Array 返回**（三目标 `{T}[]` 形态）；每组件至多一个 `@load`。
+视图级数据装载语义域——**声明式装载意图 + 三态信号**（`@load` 视图级指令 + `loading`/`error`/`data` 三信号 + `retry` 重试函数）。语义词汇 = 意图与信号名（`@load`/`loading`/`error`/`data`/`retry`/`reset`——机制级条目，词法级白名单常量 `LOAD_RESERVED_NAMES`（`crates/omnilang-core/src/semantic/load_contract.rs`——匿名实例派生信号保留名集合，2026-08-11 批次 4 登记先行 ADR-074），事实源以代码锚点记录，白名单表作锚点账本，交叉断言以词法级双向断言承担）。全集封闭按本表（2026-08-09 登记，阶段 2 域 A Task 7）：未列数据装载功能视为未登记。**v0 边界：`@load` 仅支持 Array 返回**（三目标 `{T}[]` 形态）；每组件至多一个 `@load`。**深化（2026-08-11 批次 4）：`@load` 支持多例**（命名实例 `@load name={fn}`，信号派生 `{name}Loading/{name}Error/{name}Data/{name}Retry/{name}Reset`）、参数绑定（调用形式 `@load name={fn(arg)}`，参数变化自动重载）、Reset（清空回未装载态，data=null）；v0 边界（仅 Array/每组件至多一个/仅 mount 自动）补齐——装载函数可为普通 fn 或 async fn。分页/无限滚动/轮询扩展归域 13。
 
 ### 语义集条目
 
@@ -461,6 +461,9 @@ CSS 动画语义域——**属性值从 A 到 B 平滑过渡**（CSS Transitions
 | error | 装载错误信号（初始 ""，失败时 `String(e)`） | 支持 | 无（三目标：React `useState("")` + setError / Flutter `({fn}Async.error?.toString() ?? "")` / OmniView `{Comp}_error`） |
 | data | 装载数据信号（初始 []，成功时 loader 返回） | 支持 | 无（三目标：React `useState({T}[])` + setData / Flutter `{fn}Async.valueOrNull ?? const []` / OmniView `{Comp}_data`） |
 | retry | 重试函数（重置三态 → 重跑 loader） | 支持 | 无（三目标：React `load()` 复用 / Flutter `ref.invalidate({fn}Provider)` 全表达式上下文 / OmniView `{Comp}_retry` fn）；OmniView editor 模式须经 `window.__omni_components["{Comp}"].fns.retry()`（comp_mount_js 在工厂 IIFE 外，直调 ReferenceError——store.rs:840-844 回归） |
+| @load 命名实例（多例） | 命名实例装载意图（`@load name={fn}`；参数绑定 `name={fn(arg)}`，参数变化自动重载） | 部分（本批补齐） | 名称冲突/匿名重复 → 硬错误 V2/V6 |
+| {name}Loading/{name}Error/{name}Data/{name}Retry/{name}Reset | 命名实例派生信号（`{name}` 实例化前缀，保留名判定——`LOAD_RESERVED_NAMES` 词法级集合） | 部分（本批补齐） | 派生名冲突 → 硬错误 V4 |
+| reset（匿名） | Reset 信号/函数（清空回未装载态，data=null） | 部分（本批补齐） | 与既有信号/函数冲突 → 硬错误 V2 |
 
 ### 已实现白名单
 
@@ -471,8 +474,9 @@ CSS 动画语义域——**属性值从 A 到 B 平滑过渡**（CSS Transitions
 | error | react `setError`（component/mod.rs:1074）/ omniview `_error`（store.rs:359）；flutter 经 `error?.toString()`（ref.rs） |
 | data | react `setData`（component/mod.rs:1090）/ omniview `_data`（store.rs:360）；flutter 经 `valueOrNull ?? const []`（ref.rs:1804） |
 | retry | flutter `ref.invalidate({fn}Provider)`（mod.rs:1535）/ omniview `_retry`（store.rs:570）；react 复用 `load()`（`retry` → `load` 重命名，component/mod.rs:561） |
+| reset（匿名） | 词法级保留名 `LOAD_RESERVED_NAMES`（`crates/omnilang-core/src/semantic/load_contract.rs`——匿名实例派生信号保留名集合，保留名冲突判定，V-F8 先例）；Reset 行为锚点待本批 Task 2-11 落地后回填（登记先行） |
 
-> 注：域 9 无编译器词法级白名单常量（信号名非闭集词汇，仅保留名冲突检查），**白名单表为锚点账本**（代码锚点记录事实源，域 6 值绑定先例）；交叉断言以存在性检查承担（见 verify-semantic-universe.py 域 9 断言 Task 7）。
+> 注：域 9 词法级白名单常量 `LOAD_RESERVED_NAMES`（`load_contract.rs`，2026-08-11 批次 4 登记先行 ADR-074——含新增 reset，匿名实例派生信号保留名集合）——交叉断言两层：编译器代码锚点存在性检查（既有 Task 7）+ 词法级双向断言（verify-semantic-universe.py 域 9 断言扩展，`rust_str_array` 提取模式，ADR-074）；本批新增 3 条「部分（本批补齐）」条目待 Task 2-11 落地后回填行为锚点。
 
 ---
 
@@ -567,6 +571,33 @@ CSS 动画语义域——**属性值从 A 到 B 平滑过渡**（CSS Transitions
 | 深色模式 | design codegen prefers-color-scheme 生成物 |
 
 > 注：域 12 语法随批次 3 T2-T8 落地——交叉断言两层：语义集条目实现状态断言（含「选择器诊断」行——spec/plan 白名单表含此行而语义集条目缺失，执行时修正补齐，防孤儿白名单）+ 编译器代码锚点账本断言（见 verify-semantic-universe.py 域 12 断言；T1 登记阶段锚点 pending-red 文档化，T8 完成全绿收口）。
+
+---
+
+## 域 13: 数据深化（data deepening）
+
+### 语义域定义
+
+数据能力深化语义域——分页/无限滚动/轮询/时间节流。与域 9（@load 三态装载）同簇：装载触发与装载状态的扩展语义（分页页码状态机、滚动接近底部装载触发、定时重新装载、高频事件时间包装）。语义词汇 = 模式词与类型名（`paginated`/`scroll`/`interval` @load 局部模式词 + `debounce`/`throttle` std/timing 函数 + `Page<T>` 内建信封类型——机制级条目，词法级白名单常量 `LOAD_PAGINATED_SUFFIXES`/`LOAD_PARAM_WORDS`/`TIMING_FUNCS`/`PAGE_TYPE_NAME`（`crates/omnilang-core/src/semantic/load_contract.rs`，2026-08-11 批次 4 登记先行 ADR-074））。全集封闭按本表（2026-08-11 登记，批次 4 登记先行 ADR-074）：未列数据深化功能视为未登记。**v0 边界**：分页仅页码模式（游标模式留边界）；轮询与分页不组合；无限滚动触发仅列表容器（scroll 参数）。
+
+### 语义集条目
+
+| 语义集条目 | 语义 | 实现状态 | 诊断行为 |
+|-----------|------|---------|---------|
+| @load paginated（分页页码状态机） | 分页装载（页码状态机） | 未支持（本批实现后更新） | 匿名分页 → 硬错误 V7；签名无法确认 → warning V11 |
+| Page\<T\>（内建信封 `{items, hasMore}`） | 分页信封类型（与 Array\<T\> 并列） | 未支持 | 信封缺字段 → 运行时错误 V12（诚实降级） |
+| {name}Page / {name}HasMore / {name}LoadingMore / {name}LoadMore | 命名分页派生信号（`{name}` 实例化前缀，保留名判定——`LOAD_PAGINATED_SUFFIXES` 词法级集合） | 未支持 | 派生名冲突 → 硬错误 V4 |
+| @load scroll（无限滚动触发） | 滚动接近底部装载触发（仅列表容器） | 未支持 | 未与 paginated 组合 → 硬错误 V8；容器不可滚动 → warning V10 |
+| @load interval: ms（轮询） | 定时重新装载（毫秒周期） | 未支持 | 非正整数 → 硬错误 V5 |
+| debounce / throttle（std/timing） | 时间节流函数（高频事件时间包装） | 未支持 | ms 非正整数 → 硬错误 V9 |
+
+### 已实现白名单
+
+| 条目 | 编译器事实源 |
+|------|-------------|
+| （登记先行——本批未实现，白名单空） | 待 Task 2-11 落地后回填（词法级常量已登记于 load_contract.rs） |
+
+> 注：域 13 为登记先行域（批次 4 Task 1，2026-08-11）——本批 6 条目全部「未支持」，已实现白名单以占位行维持表结构（通用循环 ≥1 行约束），Task 2-11 逐条落地后回填行为锚点并更新状态；词法级四常量双向断言见 verify-semantic-universe.py 域 13 块（`LOAD_PAGINATED_SUFFIXES`/`LOAD_PARAM_WORDS`/`TIMING_FUNCS`/`PAGE_TYPE_NAME`，`rust_str_array` 提取模式）。**语言边界**（spec §6）：游标分页/滚动恢复为语言边界（v0 仅页码模式；滚动恢复不进语言）；轮询 × 分页组合 v0 不支持；乐观更新（TanStack onMutate 快照回滚 / Flutter 手动回滚）为远期候选；缓存策略为配置面留生态（库配置非功能意图——失效意图 retry/Reset 已覆盖）；分页库绑定/请求去重与竞态/半实现信号 v0 桩注记为编译器职责（后续增强路径）；预取为候选。
 
 ---
 

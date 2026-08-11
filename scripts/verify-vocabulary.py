@@ -91,6 +91,12 @@ REACT_COMPONENT_FILE = os.path.join(
 FLUTTER_MOD_FILE = os.path.join(REPO_ROOT, "omnilang", "src", "codegen", "flutter", "mod.rs")
 FLUTTER_REF_FILE = os.path.join(REPO_ROOT, "omnilang", "src", "codegen", "flutter", "ref.rs")
 OMNIVIEW_EXPR_FILE = os.path.join(REPO_ROOT, "omnilang", "src", "codegen", "omniview", "expr.rs")
+# 2026-08-11 批次 4 Task 1（登记先行 ADR-074）：@load 契约常量层——load_contract.rs
+# （LOAD_PARAM_WORDS/TIMING_FUNCS/PAGE_TYPE_NAME——本域词法级词汇锚点；域 9 断言块
+# rust_str_array 双向断言；PAGE_TYPE_NAME 为 &str 形态，needle 检查）。
+LOAD_CONTRACT_FILE = os.path.join(
+    REPO_ROOT, "crates", "omnilang-core", "src", "semantic", "load_contract.rs"
+)
 
 # ── registry section contract ────────────────────────────────────────────
 # Domain titles must contain the expected keyword (in order 1..6).
@@ -103,6 +109,7 @@ DOMAIN_TITLES = {
     6: "表单校验规则",  # 2026-08-09 Task 7: @form validate 规则域——VALIDATE_RULES 锚点
     7: "导航",  # 2026-08-10 批次 2 Task 1: 导航词汇域——@route/@layout/@query/navigate/back（登记先行 ADR-074）
     8: "响应式",  # 2026-08-11 批次 3 Task 1: 响应式词汇域——bp/breakpoint（登记先行 ADR-074；域 7 已被导航占用，响应式取域 8，两文档编号体系独立）
+    9: "数据",  # 2026-08-11 批次 4 Task 1: 数据词汇域——debounce/throttle/paginated/scroll/interval/Page<T>（登记先行 ADR-074）
     10: "反馈模态",  # 2026-08-09 Task 0: 反馈模态词汇域——@modal/showToast/@skeleton/@errorBoundary（批次 1，登记先行 ADR-074）
 }
 # Required sub-section headers per domain (the four entry fields).
@@ -603,6 +610,50 @@ def audit():
             for needle in needles:
                 if needle not in haystack:
                     fail(f"domain 8 (响应式): 词汇 '{vocab_word}' 编译器锚点 '{needle}' 缺失")
+
+    # data (域 9, 2026-08-11 批次 4 Task 1 登记先行): 词法级词汇——@load 参数词
+    # （LOAD_PARAM_WORDS）/std timing 函数（TIMING_FUNCS）/内建信封类型
+    # （PAGE_TYPE_NAME 为 &str 形态——rust_str_array 仅匹配 &[...]，改 needle 检查）。
+    # 语义词汇为精确闭集（spec §5.3，6 词——「（@load 参数）」括注与 Page<T> 泛型
+    # 尖括号归一后与契约常量双向断言）；排除词汇 3 行（refetchInterval/
+    # refreshInterval/infinite_scroll_pagination = 平台/库形状——禁止借词规则），
+    # 正确语义词汇列 = 基词归属（interval/interval/paginated），owner 拼写守卫
+    # 防漂移（域 10 先例）。loading/error/data/retry/reset 为编译器保留名
+    # （LOAD_RESERVED_NAMES）不登记为词汇——不在此断言（域 6 formErrors 先例）。
+    v9 = vocab(9)
+    if v9 is not None:
+        load_contract_src = read_file(LOAD_CONTRACT_FILE)
+        param_words = rust_str_array(load_contract_src, "LOAD_PARAM_WORDS")
+        timing_words = rust_str_array(load_contract_src, "TIMING_FUNCS")
+        if param_words is None or timing_words is None:
+            fail("domain 9 (数据): cannot cross-assert 契约常量（load_contract.rs rust_str_array 提取失败）")
+        elif 'PAGE_TYPE_NAME: &str = "Page"' not in load_contract_src:
+            fail("domain 9 (数据): PAGE_TYPE_NAME 常量缺失（needle 'PAGE_TYPE_NAME: &str = \"Page\"'）")
+        else:
+            base_v9 = [w.split("（", 1)[0].strip().replace(r"\<T\>", "") for w in v9]
+            assert_set("数据", base_v9, param_words + timing_words + ["Page"], "语义词汇")
+    if 9 in sections:
+        pairs9 = excluded_word_pairs(subsection(sections[9][1], "排除词汇"))
+        if pairs9 is None:
+            fail("domain 9 (数据): '### 排除词汇' must be a well-formed table (header + separator + ≥1 row, no empty first column)")
+        else:
+            owner_map = {}
+            for word, owner in pairs9:
+                owner_map.setdefault(owner, []).append(word)
+            expected = {
+                "interval": ["refetchInterval", "refreshInterval"],
+                "paginated": ["infinite_scroll_pagination"],
+            }
+            if set(owner_map) != set(expected):
+                fail(f"domain 9 (数据): 排除词汇 owner 拼写漂移——got {sorted(owner_map)} expected {sorted(expected)}")
+            else:
+                for owner, words in expected.items():
+                    if sorted(owner_map[owner]) != sorted(words):
+                        fail(f"domain 9 (数据): 排除词汇归属 '{owner}' 漂移——got {sorted(owner_map[owner])} expected {sorted(words)}")
+            if v9 is not None:
+                overlap = sorted(set(v9) & set(p[0] for p in pairs9))
+                if overlap:
+                    fail(f"domain 9 (数据): 排除词汇 overlaps 语义词汇 (借词违规): {overlap}")
     return problems
 
 

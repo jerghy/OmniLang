@@ -20,6 +20,7 @@
 
 pub mod cycles;
 pub mod lints;
+pub mod load_contract;
 pub mod symbols;
 pub mod types;
 pub mod validate_a11y;

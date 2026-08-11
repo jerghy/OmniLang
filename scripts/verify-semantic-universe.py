@@ -149,6 +149,12 @@ STYLE_PARSER_FILE = os.path.join(
 SHARED_DESIGN_FILE = os.path.join(REPO_ROOT, "omnilang", "src", "codegen", "shared", "design.rs")
 # MediaQuery.sizeOf 表达式分派在 flutter/ref.rs（mod.rs 是组件/样式输出层）
 FLUTTER_REF_FILE = os.path.join(REPO_ROOT, "omnilang", "src", "codegen", "flutter", "ref.rs")
+# 2026-08-11 批次 4 Task 1（登记先行 ADR-074）：@load 契约常量层——load_contract.rs
+# （LOAD_RESERVED_NAMES/LOAD_PAGINATED_SUFFIXES/LOAD_PARAM_WORDS/TIMING_FUNCS/
+# PAGE_TYPE_NAME）。rust_str_array 双向断言锚点（域 9 扩展 + 域 13 专项块）。
+LOAD_CONTRACT_FILE = os.path.join(
+    REPO_ROOT, "crates", "omnilang-core", "src", "semantic", "load_contract.rs"
+)
 
 # ── universe section contract ─────────────────────────────────────────────
 # Domain titles must contain the expected keyword (in order 1..9).
@@ -165,6 +171,7 @@ DOMAIN_TITLES = {
     10: "反馈模态",  # 2026-08-09 Task 0: 反馈模态域——showToast/@modal/@skeleton/@errorBoundary（批次 1，登记先行 ADR-074）
     11: "导航",  # 2026-08-10 批次 2 Task 1: 导航域——@route/@layout/@query/navigate/back（登记先行 ADR-074）
     12: "响应式",  # 2026-08-11 批次 3 Task 1: 响应式域——breakpoint 声明/bp() 条件/@media 块/@container 块/深色模式（登记先行 ADR-074）
+    13: "数据深化",  # 2026-08-11 批次 4 Task 1: 数据深化域——分页/无限滚动/轮询/时间节流（登记先行 ADR-074）
     # 域 14 为单表留生态登记行（无三子节结构）——不走通用循环，见 audit() 域 14 专项块
 }
 # Required sub-section headers per domain.
@@ -761,6 +768,20 @@ def audit():
                         fail(f"数据三态: '{name}' 声明 支持/部分 但编译器锚点 '{needle}' 缺失")
             elif name not in dict(en9):
                 fail(f"数据三态: 缺失语义集条目 '{name}'")
+    if wl9 is None:
+        fail("数据三态: cannot cross-assert 已实现白名单 (extraction failed)")
+    else:
+        # 词法级双向断言（2026-08-11 批次 4 Task 1）：白名单行含「@load」「reset（匿名）」
+        # 等指令名/括注行——按「（」前基词归一；@load 指令名本身非保留名（
+        # LOAD_RESERVED_NAMES 仅含匿名实例派生信号 loading/error/data/retry/reset），
+        # 排除后与 load_contract.rs 常量双向一致（ADR-074 rust_str_array 提取模式）。
+        wl9_lex = [w.split("（", 1)[0].strip() for w in wl9 if w != "@load"]
+        assert_set(
+            "数据三态",
+            wl9_lex,
+            rust_str_array(read_file(LOAD_CONTRACT_FILE), "LOAD_RESERVED_NAMES"),
+            "已实现白名单（词法级 LOAD_RESERVED_NAMES 保留名集）",
+        )
 
     # feedback & modal (域 10, 2026-08-09 Task 0 登记 → 2026-08-10 Task 7 全量断言):
     # showToast/@modal/焦点陷阱/@skeleton/@errorBoundary/tooltip——机制级条目居多
@@ -936,6 +957,67 @@ def audit():
         for name in ("breakpoint 声明", "bp() 条件", "@media 块", "选择器诊断", "深色模式"):
             if name not in wl12:
                 fail(f"响应式: 缺失已实现白名单行 '{name}'")
+
+    # data deepening (域 13, 2026-08-11 批次 4 Task 1 登记先行): 机制级条目——
+    # @load 参数词/派生信号后缀/内建信封类型（无词法级白名单常量，登记先行 ADR-074：
+    # 本批未实现，状态全部 未支持——不进已实现白名单，占位行满足通用循环 ≥1 行约束）。
+    # 断言两层：① 条目 6 行存在 + 状态基词 = 未支持（实现后更新）；② 契约常量双向
+    # 断言（rust_str_array：LOAD_PAGINATED_SUFFIXES ∈ 派生信号条目文本 / LOAD_PARAM_WORDS
+    # ∈ 各自参数条目 / TIMING_FUNCS ∈ 节流条目；PAGE_TYPE_NAME 为 &str 形态——
+    # rust_str_array 仅匹配 &[...]，故改 needle 检查）。⚠️ 不入 assert_matrix：
+    # 未支持 ∩ 白名单 = ∅ 恒成立（白名单仅占位行），无需状态矩阵。
+    wl13, en13 = whitelist(13), entries(13)
+    if en13 is None:
+        fail("数据深化: cannot cross-assert 语义集条目 (extraction failed)")
+    else:
+        en13_map = dict(en13)  # 键 = 条目名文本（doc 逐字），值 = 实现状态——双向断言对「条目名文本」做包含检查，绝不取状态值
+        # Page<T> 行 doc 形态：反斜杠转义 `\<T\>` + 反引号包裹 `{items, hasMore}`（逐字一致）
+        derived_text = "{name}Page / {name}HasMore / {name}LoadingMore / {name}LoadMore"
+        page_entry_text = r"Page\<T\>（内建信封 `{items, hasMore}`）"
+        param_entries = {
+            "paginated": "@load paginated（分页页码状态机）",
+            "scroll": "@load scroll（无限滚动触发）",
+            "interval": "@load interval: ms（轮询）",
+        }
+        timing_text = "debounce / throttle（std/timing）"
+        for name in (
+            "@load paginated（分页页码状态机）",
+            page_entry_text,
+            derived_text,
+            "@load scroll（无限滚动触发）",
+            "@load interval: ms（轮询）",
+            timing_text,
+        ):
+            if name not in en13_map:
+                fail(f"数据深化: 缺失语义集条目 '{name}'")
+            elif en13_map[name].split("（", 1)[0].strip() != "未支持":
+                fail(f"数据深化: '{name}' 登记先行阶段实现状态应 = 未支持，got '{en13_map[name]}'")
+        load_contract_src = read_file(LOAD_CONTRACT_FILE)
+        suffixes = rust_str_array(load_contract_src, "LOAD_PAGINATED_SUFFIXES")
+        param_words = rust_str_array(load_contract_src, "LOAD_PARAM_WORDS")
+        timing_words = rust_str_array(load_contract_src, "TIMING_FUNCS")
+        if suffixes is None or param_words is None or timing_words is None:
+            fail("数据深化: cannot cross-assert 契约常量（load_contract.rs rust_str_array 提取失败）")
+        else:
+            for suffix in suffixes:
+                if suffix not in derived_text:
+                    fail(f"数据深化: 派生信号后缀 '{suffix}' 未出现在派生信号条目")
+            if sorted(param_words) != sorted(param_entries):
+                fail(f"数据深化: LOAD_PARAM_WORDS 参数词漂移——got {sorted(param_words)} expected {sorted(param_entries)}")
+            else:
+                for word, entry in param_entries.items():
+                    if word not in entry:
+                        fail(f"数据深化: 参数词 '{word}' 未出现在条目 '{entry}'")
+            for word in timing_words:
+                if word not in timing_text:
+                    fail(f"数据深化: 时间函数 '{word}' 未出现在节流条目")
+            if 'PAGE_TYPE_NAME: &str = "Page"' not in load_contract_src:
+                fail("数据深化: PAGE_TYPE_NAME 常量缺失（needle 'PAGE_TYPE_NAME: &str = \"Page\"'）")
+    if wl13 is None:
+        fail("数据深化: cannot cross-assert 已实现白名单 (extraction failed)")
+    else:
+        if "（登记先行——本批未实现，白名单空）" not in wl13:
+            fail("数据深化: 白名单占位行缺失（登记先行——本批未实现，白名单空）")
 
     # styling (域 14, 2026-08-11 批次 3 Task 1): 单表留生态登记行（无三子节结构——
     # 不走通用 REQUIRED_SUBSECTIONS 循环，专项校验）。状态值域 ∈ STATUSES（含
