@@ -66,10 +66,33 @@ impl<'a> Parser<'a> {
                 // Try to parse @load as a real directive; fall back to text on
                 // failure. This handles @load in text content (e.g. a heading
                 // mentioning "@load"), mirroring the @if/@for fallback.
+                // 指令形态判定：loader 须以花括号形态出现——`{fn}`（匿名）、
+                // `={fn}`（v0 兼容）、`name={fn}`（命名）任一即真实指令，
+                // 其体内（如模式词序列 interval: 0，V5 硬错误）出错必须传播
+                // 不得回落为文本；`@load=foo` 等无花括号的残缺形态与散文
+                // 中的 "@load" 字样同属文本回落（既有契约测试锁定）。
+                let directive_shape = match self.tokens.get(self.pos + 1).map(|t| &t.kind) {
+                    Some(TokenKind::LBrace) => true,
+                    Some(TokenKind::Eq) => self
+                        .tokens
+                        .get(self.pos + 2)
+                        .is_some_and(|t| t.kind == TokenKind::LBrace),
+                    Some(TokenKind::Ident(_)) => {
+                        self.tokens
+                            .get(self.pos + 2)
+                            .is_some_and(|t| t.kind == TokenKind::Eq)
+                            && self
+                                .tokens
+                                .get(self.pos + 3)
+                                .is_some_and(|t| t.kind == TokenKind::LBrace)
+                    }
+                    _ => false,
+                };
                 let saved_pos = self.pos;
                 let saved_depth = self.depth;
                 match self.parse_load_directive() {
                     Ok(node) => Ok(node),
+                    Err(e) if directive_shape => Err(e),
                     Err(_) => {
                         self.pos = saved_pos;
                         self.depth = saved_depth;

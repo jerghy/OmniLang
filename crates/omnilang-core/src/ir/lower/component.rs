@@ -366,6 +366,11 @@ fn lower_style_rule(s: &StyleRule) -> StyleRuleIR {
 /// 恰好 1 条）；V-F1（@form 仅限 form 元素）在 collect_form_intent 内上报
 /// （首槽位），重复分支若落在非 form 元素上同样报 V-F1（R2：V-F1 优先于
 /// V-F6）。每个 @load 依次追加进 `load_intent`（多例化，顺序 = 声明顺序）。
+// 8 参数为批次 3 既有扫描签名（Task 3 遗产）：单遍视图扫描须同时收集
+// @form/@load 两个意图 + 3 个重复闸门，Task 4 仅新增 V10 发射（body 内），
+// 未扩展签名——保持既有形状不动，以 allow 压制阈值告警（既有先例：
+// ir/lower/mod.rs #[allow(clippy::approx_constant)]）。
+#[allow(clippy::too_many_arguments)]
 fn scan_view_intents(
     nodes: &[ViewNode],
     variant_map: &FxHashMap<String, String>,
@@ -379,6 +384,25 @@ fn scan_view_intents(
     for node in nodes {
         match node {
             ViewNode::Element(el) => {
+                // V10（spec 2026-08-09 §3，warning）：scroll 模式 @load 的
+                // 宿主容器须有滚动能力——静态启发式查 style 高度/溢出键；
+                // 无高度约束的容器滚动触发可能永不生效。@load 现为
+                // ViewNode::LoadDirective 子节点，可从父元素 children 定位
+                // 宿主容器，span 用元素级（比组件级回退更精准）。
+                let infinite_scroll = el.children.iter().any(|c| {
+                    matches!(
+                        c,
+                        ViewNode::LoadDirective { spec, .. }
+                            if spec.mode.scroll && spec.mode.paginated
+                    )
+                });
+                if infinite_scroll && !element_scroll_capable(el) {
+                    semantics.diagnostics.push(crate::error::Diagnostic::warning(
+                        crate::error::DiagnosticKind::E0006,
+                        "无限滚动 @load 所在容器可能不可滚动——滚动触发可能永不生效，请确认容器有滚动能力",
+                        &el.span,
+                    ));
+                }
                 if el.props.iter().any(|p| matches!(p, ElementProp::Form)) {
                     if form_intent.is_none() {
                         if let Some(form) = collect_form_intent(el, variant_map, semantics) {
@@ -534,6 +558,20 @@ fn scan_view_intents(
             ViewNode::Text(_) | ViewNode::Interpolation(_) => {}
         }
     }
+}
+
+/// V10 静态启发式：容器是否可能可滚动——style 显式声明高度约束或溢出
+/// 属性即视为有滚动能力（v0 封闭集；其他滚动来源如 flex 布局留待运行时
+/// 行为验证）。
+fn element_scroll_capable(el: &Element) -> bool {
+    el.props.iter().any(|p| {
+        matches!(
+            p,
+            ElementProp::Style { entries } if entries.iter().any(|(k, _)| {
+                matches!(k.as_str(), "height" | "max-height" | "overflow" | "overflow-y")
+            })
+        )
+    })
 }
 
 /// 从 @form 元素构造表单意图：onSubmit 的 FnRef 为 submit_handler
