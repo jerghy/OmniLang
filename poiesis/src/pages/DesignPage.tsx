@@ -21,6 +21,7 @@ import type { StoreDefinition } from "../core/types/store";
 import { DesignTabContent } from "../components/design/DesignTabContent";
 import { InfiniteCanvas } from "../components/canvas/InfiniteCanvas";
 import { LogicLayer } from "../components/canvas/LogicLayer";
+import { BreathingPoint } from "../components/canvas/BreathingPoint";
 import { OmniViewRenderer } from "../components/design/OmniViewRenderer";
 import { CodeFlowCanvas } from "../components/design/CodeFlowCanvas";
 import { StorePage } from "./StorePage";
@@ -324,6 +325,8 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
               <LogicLayer visible={logicLayerVisible}>
                 <CodeFlowCanvas />
               </LogicLayer>
+              {/* 呼吸点（T3）：角落小脉搏整页睡/醒开关，绝对定位叠加 */}
+              <BreathingPoint />
               {/* 语境面板（T6）：浮动主/副面板 + 浮标，叠加在画布层之上 */}
               <ContextPanel />
             </div>
