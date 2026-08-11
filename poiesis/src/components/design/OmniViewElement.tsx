@@ -16,7 +16,7 @@ export interface OmniViewElementProps {
   className?: string | undefined;
   isSelected: boolean;
   selectedNid?: string | null;
-  onSelect: (nid: string) => void;
+  onSelect: (nid: string, multi: boolean) => void;
   onDoubleClick: (nid: string) => void;
   /** Passed from OmniViewElementTree for CSS resolution. */
   classMap?: ReadonlyMap<string, string[]>;
@@ -86,7 +86,7 @@ export const OmniViewElement = React.memo(function OmniViewElement({
           _lastClickPos.x = e.clientX;
           _lastClickPos.y = e.clientY;
           e.stopPropagation();
-          onSelect(effectiveNid);
+          onSelect(effectiveNid, e.shiftKey || e.ctrlKey);
         },
         onDoubleClick: (e: React.MouseEvent) => {
           e.stopPropagation();

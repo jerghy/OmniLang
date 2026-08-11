@@ -53,9 +53,9 @@ export function OmniViewRenderer() {
   }, [output, selectedElementIds]);
 
   const handleSelectNid = useCallback(
-    (nid: string) => {
+    (nid: string, multi: boolean) => {
       const elementId = nidToElementId.get(nid) ?? nid;
-      selectElement(elementId);
+      selectElement(elementId, multi);
     },
     [selectElement, nidToElementId],
   );

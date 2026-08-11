@@ -9,7 +9,7 @@ import type { OmniViewOutput } from "./useWasmCompile";
 export interface OmniViewElementTreeProps {
   output: OmniViewOutput;
   selectedNid: string | null;
-  onSelectNid: (nid: string) => void;
+  onSelectNid: (nid: string, multi: boolean) => void;
   onDoubleClickNid: (nid: string) => void;
 }
 
