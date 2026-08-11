@@ -32,10 +32,10 @@ import { emitDesignSource } from "../services/codegen/design-emitter";
 import { emitStoreDefinition } from "../services/codegen/source-emitter";
 import { ComponentPalette } from "../components/panels/ComponentPalette";
 import { ComponentTree } from "../components/panels/ComponentTree";
-import { ContextInspector } from "../components/panels/ContextInspector";
 import { ContextPanel } from "../components/design/ContextPanel";
 import { LibMembersPanel } from "../components/code/LibMembersPanel";
 import { DesignToolbar } from "../components/design/DesignToolbar";
+import { StorePanelToggleButton } from "../components/design/StorePanelToggleButton";
 import { usePoiesisStore } from "../store";
 import { useSaveProject } from "../hooks/useSaveProject";
 import { useDragHandlers } from "../hooks/useDragHandlers";
@@ -234,7 +234,7 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
         style={{
           display: "grid",
           gridTemplateColumns: showDesignPanels
-            ? "280px 1fr 300px"
+            ? "280px 1fr"
             : activeTabType === "code"
               ? "280px 1fr"
               : "1fr",
@@ -261,6 +261,7 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
           saveError={saveError}
         >
           <DebugWindowButton />
+          <StorePanelToggleButton />
         </DesignToolbar>
 
         {/* Left panel: ComponentPalette + ComponentTree (component tabs, hidden in code-flow mode) */}
@@ -335,22 +336,6 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
             <CodeFlowCanvas />
           )}
         </div>
-
-        {/* Right panel: ContextInspector (component tabs, hidden in code-flow mode) */}
-        {showDesignPanels && (
-        <div
-          style={{
-            gridRow: 3,
-            gridColumn: 3,
-            overflow: "hidden",
-            display: "flex",
-            background: "var(--ol-surface)",
-            borderLeft: "1px solid var(--ol-border)",
-          }}
-        >
-          <ContextInspector />
-        </div>
-        )}
 
         {/* Store Drawer — overlays center area when visible */}
         {storePanelVisible && activeTabType === "component" && (
