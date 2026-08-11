@@ -788,8 +788,8 @@ function FlowCanvasInner() {
             pointerEvents: "none",
           }}
         >
-          <div>右键画布添加节点</div>
-          <div style={{ fontSize: 11, opacity: 0.7 }}>右键 / 空格 / 拖出端口 → 添加节点</div>
+          <div>点击"添加节点"按钮或按空格添加节点</div>
+          <div style={{ fontSize: 11, opacity: 0.7 }}>空格在画布内唤出搜索菜单 → 添加节点（右键仅在节点存在时可用）</div>
           <button
             type="button"
             onClick={() => openMenuAt(window.innerWidth / 2, window.innerHeight / 2)}
