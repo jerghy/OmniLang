@@ -9066,6 +9066,15 @@ component App {
         "observer effect deps 必须含 Data 派生项（mount 时序锁定）. Got:\n{}",
         out
     );
+    // fix round 2（批次 4 审查）: Data===null 早退锁 mount 竞态——初载前
+    // 空态哨兵零面积（IO 对零面积元素初始即报 isIntersecting）会误触发
+    // loadMore 与初载并发（乱序返回 → 数据覆盖 + 页码错位）；初载完成前
+    // 不 observe，Data 变化后 effect 重跑自然 attach。[] 非 null 不受影响。
+    assert!(
+        out.contains("if (historyData === null) return;"),
+        "observer effect 必须 Data===null 早退（async loader 下防 mount 竞态）. Got:\n{}",
+        out
+    );
     // fix round 1 (Minor 4): 哨兵双处——空分支（无条件）与列表末项后
     // （_i === length - 1）——page 1 返回 items=[] && hasMore=true 时
     // 空态滚动不停滞。
@@ -9077,7 +9086,7 @@ component App {
     );
     // 空分支（无 @empty 内容时）也必须仍发射哨兵 div——输出带缩进
     // 换行，故去空白后断言标签邻接形态。
-    let normalized = out.replace(' ', "").replace('\n', "");
+    let normalized = out.replace([' ', '\n'], "");
     assert!(
         normalized
             .contains("<React.Fragment><divref={historyScrollSentinelRef}/></React.Fragment>"),

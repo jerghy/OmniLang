@@ -1751,6 +1751,17 @@ impl ReactCodegen {
             // 或先挂空分支哨兵；Data 变化（初载/追加）后 effect 重跑并以
             // 新守卫值重建观察者（光靠 LoadMore 引用切换会在「空态哨兵被
             // 卸载后 LoadMore 身份不变」时漏 attach，滚动停滞）。
+            //
+            // fix round 2（批次 4 审查）：空分支哨兵 + Data-dep 重跑组合
+            // 在 async loader 下引入 mount 竞态——初载前空态哨兵零面积，
+            // IntersectionObserver 对零面积元素初始即报 isIntersecting，
+            // 守卫（!LoadingMore && HasMore）全过 → loadMore 与初载并发，
+            // 乱序返回时 page 覆盖/页码错位（sync loader 微任务先于 IO
+            // 回调不暴露，仅 async/网络命中）。此处 Data===null 早退：
+            // 初载完成前不 observe；初载后 Data 变化自动重跑 attach。
+            // 不用 !Loading 守卫（Loading 不在 deps，闭包捕获渲染 1 的
+            // Loading=false 无效）；空列表 [] 非 null，空态哨兵照常观察
+            // （Minor 4 语义不损）。
             if load.mode.scroll {
                 let sentinel_ref = format!("{}ScrollSentinelRef", p);
                 w.emit_fmt(format_args!(
@@ -1758,6 +1769,7 @@ impl ReactCodegen {
                 ));
                 w.emit_fmt(format_args!("useEffect(() => {{"));
                 w.indent();
+                w.emit_fmt(format_args!("if ({} === null) return;", sig("Data")));
                 w.emit("const observer = new IntersectionObserver((entries) => {");
                 w.indent();
                 w.emit_fmt(format_args!(
