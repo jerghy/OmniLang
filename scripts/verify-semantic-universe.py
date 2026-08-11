@@ -937,7 +937,10 @@ def audit():
     # styling (域 14, 2026-08-11 批次 3 Task 1): 单表留生态登记行（无三子节结构——
     # 不走通用 REQUIRED_SUBSECTIONS 循环，专项校验）。状态值域 ∈ STATUSES（含
     # 第四值「留生态」，基线 §8 状态值域扩展）；三行已知状态断言防登记回退。
-    if 14 in sections:
+    # 显式存在性守卫（评审 MEDIUM-2 修正）——整节被删时必须 fail，不静默跳过。
+    if 14 not in sections:
+        fail("domain 14 missing (expected '## 域 14: …样式…'——留生态登记行，批次 3 T1)")
+    else:
         headers14, rows14 = table_rows(sections[14][1])
         if headers14 is None or rows14 is None:
             fail("域 14: 留生态登记表必须为良构表格（header + separator + ≥1 行，首列非空）")
