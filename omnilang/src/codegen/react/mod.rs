@@ -8,6 +8,7 @@ use super::{CodeWriter, Codegen, CodegenWarning, CompileOutput, CompiledFile};
 use crate::codegen::shared::build_component_map;
 use crate::codegen::shared::types::{FormatType, JsTypeFormatter};
 use crate::codegen::{format_json_value, JSON_REACT};
+use crate::error::{Diagnostic, DiagnosticKind, Severity};
 use crate::ir::*;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
@@ -47,7 +48,49 @@ impl Codegen for ReactCodegen {
         // module-level StoreIRs (Phase 5.2, deferral #37) and emit their
         // useXxx.ts Zustand store files exactly like module-level stores.
         let mut output = CompileOutput::success(Vec::new());
+        // Task 10 (Bug A defense, react layout): the hand-written entry
+        // template lives at `src/main.tsx` while generated files land at the
+        // OUTPUT ROOT (`source_dir_prefix` strips `src/`), so a component
+        // named "main" never physically collides with the template (an
+        // earlier over-broad check errored on `src/main.omni`'s routed root
+        // `Main` and blocked the demo build; removed). The real react
+        // collision: the router owns `App.tsx` at the output root whenever
+        // the program declares any `@route`/`@layout` (router.rs). A routed
+        // component named "app" would be imported by the router and then
+        // shadowed by it (the router file is written last) → broken pair;
+        // error out. A non-routed component named "app" is merely shadowed
+        // → warning (router wins, per router.rs naming doc).
+        let has_routing = ir.all_components().values().any(|c| {
+            c.route_intent.is_some() || c.layout_intent.is_some()
+        });
         for (name, comp) in ir.all_components() {
+            if has_routing
+                && name.eq_ignore_ascii_case("app")
+                && source_dir_prefix(comp.source_file.as_deref()).is_empty()
+            {
+                let routed = comp.route_intent.is_some() || comp.layout_intent.is_some();
+                if routed {
+                    output.errors.push(Diagnostic {
+                        severity: Severity::Error,
+                        kind: DiagnosticKind::ECodegen,
+                        message: format!(
+                            "组件名 '{}' 与路由器入口 App.tsx 在输出根冲突——该组件被 @route/@layout 注册，路由器需要同名文件且会被自身覆盖（broken pair）；请改名（如 Main）",
+                            name
+                        ),
+                        file: comp.source_file.clone(),
+                        line: 0,
+                        col: 0,
+                        end_line: None,
+                        end_col: None,
+                        suggestion: None,
+                    });
+                    continue; // skip the colliding file pair
+                }
+                output.warnings.push(CodegenWarning::new(format!(
+                    "组件名 '{}' 与路由器入口 App.tsx 同输出根——组件文件将被路由器覆盖（router wins）；请改名",
+                    name
+                )));
+            }
             output.files.extend(self.gen_component_file(name, comp, ir));
         }
         for (name, store) in ir.all_stores() {

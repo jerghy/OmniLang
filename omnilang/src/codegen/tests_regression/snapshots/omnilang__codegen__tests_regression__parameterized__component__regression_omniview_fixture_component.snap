@@ -1,6 +1,5 @@
 ---
 source: omnilang/src/codegen/tests_regression/parameterized.rs
-assertion_line: 119
 expression: "& super :: super :: format_output(& output)"
 ---
 === index.html ===
@@ -376,12 +375,10 @@ function Counter_onUpdate(...args) {
 
 
 /// ── Initial DOM ──
-document.getElementById("root").innerHTML = `<div id="root" data-component="Counter">
-  <div data-nid="el-div-001">
+document.getElementById("root").innerHTML = `  <div data-nid="el-div-001">
     Hello
     <span data-nid="el-interp-003"></span>
   </div>
-</div>
 `;
 
 

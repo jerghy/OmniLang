@@ -235,6 +235,11 @@ pub(super) fn emit_router_js(
     js.push_str(" * 页面切换不重新触发（诚实降级注记）。\n");
     js.push_str(" */\n");
     js.push_str("window.addEventListener(\"hashchange\", __omni_apply);\n");
+    // 初始 URL 归一化（spec §7 断言 1 × OmniView）：文档化 URL 形态为
+    // `#/path`（降级注记）——裸 URL 首次加载时 replaceState 补 `#/`，
+    // 不新增历史条目（history 污染），`__omni_apply()` 读到 `#/` 匹配
+    // 合成根 "/"。无 hash 时路径解析同为 "/"，行为不变，仅 URL 形态对齐。
+    js.push_str("if (!location.hash) history.replaceState(null, \"\", location.pathname + location.search + \"#/\");\n");
     js.push_str("__omni_apply();\n");
 }
 

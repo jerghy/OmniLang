@@ -1,6 +1,5 @@
 ---
 source: omnilang/src/codegen/tests_regression/parameterized.rs
-assertion_line: 129
 expression: "& super :: super :: format_output(& output)"
 ---
 === index.html ===
@@ -376,12 +375,10 @@ function AppStore_increment() {
 
 
 /// ── Initial DOM ──
-document.getElementById("root").innerHTML = `<div id="root" data-component="CounterWithStore">
-  <div data-nid="el-div-001">
+document.getElementById("root").innerHTML = `  <div data-nid="el-div-001">
     Count: 
     <span data-nid="el-interp-003"></span>
   </div>
-</div>
 `;
 
 

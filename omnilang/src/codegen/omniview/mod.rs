@@ -239,6 +239,8 @@ pub fn generate(
         modal_css_emitted: false,
         toast_runtime_emitted: false,
         router_active: false,
+        root_open_tag: None,
+        root_children: None,
     };
 
     // In css_only mode, skip ALL JS emission — we only need CSS + element mappings.
@@ -315,9 +317,18 @@ pub fn generate(
         }
     }
 
-    // Find the root component (prefer "App", otherwise use the last component)
+    // Find the root component: the @route "/" carrier first (Task 10 — its
+    // container doubles as the "/" route page in routed programs; the hash
+    // router's root_entry special case keys on it), then "App", then "Main",
+    // then the last component.
     let all_comps: Vec<(&str, &ComponentIR)> = ir.all_components().into_iter().collect();
-    let root_name = if all_comps.iter().any(|(n, _)| *n == "App") {
+    let route_root = all_comps
+        .iter()
+        .find(|(_, c)| c.route_intent.as_ref().is_some_and(|r| r.path == "/"))
+        .map(|(n, _)| *n);
+    let root_name = if let Some(r) = route_root {
+        r
+    } else if all_comps.iter().any(|(n, _)| *n == "App") {
         "App"
     } else if all_comps.iter().any(|(n, _)| *n == "Main") {
         "Main"
@@ -693,6 +704,15 @@ struct OmniViewGenerator {
     /// Gates route-container emission (store.rs), root-container route attr
     /// (view/mod.rs) and the router JS injection (generate()).
     router_active: bool,
+    /// Open tag of the static `#root` wrapper emitted by emit_view().
+    /// Recorded so emit_dom_and_bindings() can strip the wrapper from the
+    /// injected buffer and inject ONLY the children — the static #root in
+    /// the document (standalone index.html or editor iframe) must not get
+    /// nested inside its own innerHTML (task-10 嵌套 #root 修复).
+    root_open_tag: Option<String>,
+    /// Children of the root view (view_to_html output for the root view),
+    /// captured by emit_view_body() when the open_tag matches root_open_tag.
+    root_children: Option<String>,
 }
 
 /// A parsed part of an attribute template value with {word} placeholders.

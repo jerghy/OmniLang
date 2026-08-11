@@ -42,6 +42,21 @@ use crate::ir::*;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 
+/// Case-insensitive filesystems (Windows/macOS) collapse a component named
+/// `main` onto the same physical file as the app shell (`main.dart`) — the
+/// later write clobbers the component, then `router.dart` fails to resolve
+/// `const Main()`. The same applies to `design`/`router`/`types` (fixed
+/// codegen outputs). The CLASS name is untouched; only the emitted basename
+/// is mangled — deterministically on every platform (batch 2, Task 10).
+pub(crate) fn component_file_name(name: &str) -> String {
+    const RESERVED: [&str; 4] = ["main", "design", "router", "types"];
+    if RESERVED.iter().any(|r| name.eq_ignore_ascii_case(r)) {
+        format!("{}Root", name)
+    } else {
+        name.to_string()
+    }
+}
+
 pub struct FlutterCodegen;
 
 impl Codegen for FlutterCodegen {
@@ -59,7 +74,10 @@ impl Codegen for FlutterCodegen {
             warnings.extend(w);
             errors.extend(errs);
             files.push(CompiledFile {
-                path: format!("{}.dart", name),
+                // component_file_name: `main` component → `MainRoot.dart` so
+                // the app-shell `main.dart` is not clobbered on
+                // case-insensitive filesystems (batch 2, Task 10).
+                path: format!("{}.dart", component_file_name(name)),
                 content,
             });
         }
@@ -752,6 +770,40 @@ impl FlutterCodegen {
                 && seen_slots.insert(slot_prop)
         });
 
+        // Route + query params (batch 2 Task 10): `@route "/todos/:id"` path
+        // segments and string-typed `@query` params are injected by
+        // router.dart as named ctor args (`TodoDetail(id:
+        // s.pathParameters['id']!`, `TodosPage(filter:
+        // s.uri.queryParameters['filter'] ?? 'all')`). They live on the
+        // widget like props, so the State class resolves them via
+        // `widget.<name>`. Names already claimed by props/events/slots are
+        // skipped (first-wins — mirrors the react codegen dedup).
+        let mut route_params: Vec<String> = Vec::new();
+        if let Some(ri) = &comp.route_intent {
+            for p in &ri.params {
+                if !comp.props.contains_key(p)
+                    && !comp.events.iter().any(|e| &e.name == p)
+                    && !declared_slots
+                        .iter()
+                        .any(|s| s.as_deref().unwrap_or("children") == p)
+                {
+                    route_params.push(p.clone());
+                }
+            }
+        }
+        let mut string_query_params: Vec<String> = Vec::new();
+        for q in &comp.query_params {
+            if router::is_string_ty(&q.ty)
+                && !comp.props.contains_key(&q.name)
+                && !comp.events.iter().any(|e| e.name == q.name)
+                && !declared_slots
+                    .iter()
+                    .any(|s| s.as_deref().unwrap_or("children") == q.name)
+            {
+                string_query_params.push(q.name.clone());
+            }
+        }
+
         // Widget-scope names (Task 5.8): props, events, and slots live on the
         // StatefulWidget — bare references from the State class (fn bodies,
         // computed getters, effects, lifecycles, view expressions) are
@@ -766,6 +818,8 @@ impl FlutterCodegen {
         for slot_name in &declared_slots {
             widget_names.insert(slot_name.clone().unwrap_or_else(|| "children".into()));
         }
+        widget_names.extend(route_params.iter().cloned());
+        widget_names.extend(string_query_params.iter().cloned());
 
         // Component-fn renames (Task 5.8): a fn whose name shadows a Dart
         // builtin TYPE used in the same class (`fn double()` → the State
@@ -780,7 +834,12 @@ impl FlutterCodegen {
         }
 
         let has_events = !comp.events.is_empty();
-        if comp.props.is_empty() && declared_slots.is_empty() && !has_events {
+        if comp.props.is_empty()
+            && declared_slots.is_empty()
+            && !has_events
+            && route_params.is_empty()
+            && string_query_params.is_empty()
+        {
             w.emit_fmt(format_args!("const {}({{super.key}});", name));
         } else {
             // Constructor with named parameters for props + slots + events
@@ -820,6 +879,39 @@ impl FlutterCodegen {
                 let param_name = slot_name.as_deref().unwrap_or("children");
                 w.emit_fmt(format_args!("this.{},", param_name));
             }
+            // Route params — always required; router.dart always supplies
+            // them from `s.pathParameters['{p}']!`.
+            for rp in &route_params {
+                w.emit_fmt(format_args!("required this.{},", rp));
+            }
+            // String query params — optional, with the @query default when it
+            // is a const literal; router.dart passes the URL value (falling
+            // back to `?? ''` when no default), so the ctor default only
+            // matters for direct construction elsewhere.
+            for qp in &string_query_params {
+                let qp_default = comp
+                    .query_params
+                    .iter()
+                    .find(|q| q.name == *qp)
+                    .and_then(|q| q.default.as_ref());
+                match qp_default {
+                    Some(ExprIR::LiteralExpr { .. }) => {
+                        let default_expr = format_expr_ir_flutter(qp_default.unwrap());
+                        w.emit_fmt(format_args!("this.{qp} = {default_expr},"));
+                    }
+                    Some(_) => {
+                        w.emit_fmt(format_args!(
+                            "// [omni] query param '{qp}' default is not a \
+                             const literal; emitted as required (no Dart \
+                             const-ctor default)"
+                        ));
+                        w.emit_fmt(format_args!("required this.{},", qp));
+                    }
+                    None => {
+                        w.emit_fmt(format_args!("this.{} = '',", qp));
+                    }
+                }
+            }
             w.dedent();
             w.emit("});");
 
@@ -845,6 +937,14 @@ impl FlutterCodegen {
             for slot_name in &declared_slots {
                 let param_name = slot_name.as_deref().unwrap_or("children");
                 w.emit_fmt(format_args!("final Widget? {};", param_name));
+            }
+            // Route + query params — String fields (router.dart injects URI
+            // strings); declared last so props/events/slots keep priority.
+            for rp in &route_params {
+                w.emit_fmt(format_args!("final String {};", rp));
+            }
+            for qp in &string_query_params {
+                w.emit_fmt(format_args!("final String {};", qp));
             }
         }
 
