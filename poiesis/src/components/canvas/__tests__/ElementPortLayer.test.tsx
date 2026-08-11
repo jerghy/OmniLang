@@ -52,4 +52,23 @@ describe("collectPortPositions", () => {
     } as DOMRect);
     expect(collectPortPositions(container)).toEqual([]);
   });
+
+  it("zoom≠1 缩放补偿：变换后视口 delta ÷zoom 换回层本地空间，scroll 原样加回（T5 复审修正）", () => {
+    const container = document.createElement("div");
+    const el = document.createElement("div");
+    el.dataset.omniElId = "el-3";
+    container.appendChild(el);
+    vi.spyOn(container, "scrollLeft", "get").mockReturnValue(30);
+    vi.spyOn(container, "scrollTop", "get").mockReturnValue(12);
+    vi.spyOn(el, "getBoundingClientRect").mockReturnValue({
+      left: 0, right: 100, top: 20, bottom: 60,
+      width: 100, height: 40, x: 0, y: 20, toJSON: () => ({}),
+    } as DOMRect);
+    vi.spyOn(container, "getBoundingClientRect").mockReturnValue({
+      left: 0, right: 800, top: 0, bottom: 600,
+      width: 800, height: 600, x: 0, y: 0, toJSON: () => ({}),
+    } as DOMRect);
+    // 视口 delta = 内容 delta × zoom：x = 100/2 + 30 = 80；y = (20 + 40/2)/2 + 12 = 32
+    expect(collectPortPositions(container, 2)).toEqual([{ elId: "el-3", x: 80, y: 32 }]);
+  });
 });
