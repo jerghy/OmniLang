@@ -12,6 +12,7 @@ use crate::ir::*;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 use serde_json::Value;
+use std::cell::Cell;
 
 use super::capitalize_first;
 use super::design::DesignResolver;
@@ -129,6 +130,22 @@ pub(crate) struct ViewContext<'a> {
     /// build (auto-reload), `ref.read(...)` in lazy closures. Empty when the
     /// component has no param-signal @load args.
     pub(crate) param_providers: &'a FxHashMap<String, String>,
+    /// Task 9 (无限滚动 §2.3): paginated+scroll @load instance keys, in
+    /// declaration order — each `[scroll]` @for loop consumes the next key
+    /// (pairing is by position) to attach its ScrollController.
+    pub(crate) scroll_keys: &'a [String],
+    /// Ordinal of the NEXT scroll pairing to consume (advances per `[scroll]`
+    /// @for loop in the view).
+    pub(crate) scroll_next: &'a mut usize,
+    /// Task 9 (debounce/throttle §2.5): per-kind Timer indices — inline
+    /// handlers number their map keys (`_omniTimers['debounce_{n}']`) in
+    /// visit order so re-renders reuse stable entries.
+    // Interior-mutable counters (`Cell`) — the timing-call interceptor runs
+    // inside `build_inline_handler`'s `impl Fn` closure (Task 9 §2.5), which
+    // forbids mutable captures; `Cell` gives per-ordinal map keys
+    // (`_omniTimers['debounce_{n}']`) without any mutable borrow.
+    pub(crate) debounce_next: &'a Cell<usize>,
+    pub(crate) throttle_next: &'a Cell<usize>,
 }
 
 impl ViewContext<'_> {
@@ -701,6 +718,58 @@ pub(crate) fn view_uses_design_classes(node: &ViewTree, design: &DesignResolver)
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
     }
+}
+
+/// Task 9 (§2.5): whether any inline event handler in the view is a
+/// debounce/throttle call — drives the `import 'dart:async';` emission and
+/// the `_omniTimers` field in the component State.
+///
+/// Must mirror the interception predicate EXACTLY: only an InlineFn whose
+/// body is a single `debounce(fn, ms)` / `throttle(fn, ms)` expression
+/// statement emits a Timer closure; timing calls in prop VALUES (which
+/// render as stdlib placeholders) never emit timers, so a coarse scan would
+/// over-report and leave `_omniTimers` unused.
+pub(crate) fn view_has_timing_handlers(view: &ViewTree) -> bool {
+    match view {
+        ViewTree::Element(el) => {
+            el.events.values().any(|h| match h {
+                EventHandlerIR::InlineFn { body, .. } => is_timing_call_body(body),
+                _ => false,
+            }) || el.children.iter().any(view_has_timing_handlers)
+        }
+        ViewTree::Conditional(cond) => {
+            cond.branches
+                .iter()
+                .any(|b| b.body.as_ref().is_some_and(view_has_timing_handlers))
+                || cond.fallback.as_ref().is_some_and(view_has_timing_handlers)
+        }
+        ViewTree::ListRendering(list) => {
+            list.body.as_ref().is_some_and(view_has_timing_handlers)
+                || list
+                    .empty_body
+                    .as_ref()
+                    .is_some_and(view_has_timing_handlers)
+        }
+        ViewTree::Fragment(children) => children.iter().any(view_has_timing_handlers),
+        ViewTree::Slot { fallback, .. } => fallback.iter().any(view_has_timing_handlers),
+        ViewTree::Text(_) | ViewTree::Interpolation(_) => false,
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
+    }
+}
+
+/// Whether a BlockIR is a single debounce/throttle expression statement —
+/// the exact predicate the Timer-closure interception matches on (Task 9
+/// §2.5; shared with `view_has_timing_handlers` so the dart:async/`_omniTimers`
+/// gating never drifts from the interception).
+fn is_timing_call_body(body: &BlockIR) -> bool {
+    matches!(
+        body.statements.as_slice(),
+        [StatementIR::ExprStmtIR {
+            expr: ExprIR::CallExpr { name, .. },
+            ..
+        }] if crate::semantic::load_contract::TIMING_FUNCS.contains(&name.as_str())
+    )
 }
 
 /// Whether a bare class name resolves to a design class whose decoration
@@ -4206,9 +4275,22 @@ fn format_list_rendering(
     };
     ctx.lazy_context = saved_lazy;
     let rendered = if list.scroll_hint {
+        // Task 9 (§2.3): each `[scroll]` @for consumes the next paginated+
+        // scroll @load instance (pairing is by position, declaration order)
+        // and attaches its ScrollController — the initState listener fires
+        // `{key}LoadMore()` once `pixels >= maxScrollExtent - 200`.
+        let mut controller_line = String::new();
+        if *ctx.scroll_next < ctx.scroll_keys.len() {
+            let key = &ctx.scroll_keys[*ctx.scroll_next];
+            *ctx.scroll_next += 1;
+            controller_line = format!(
+                "  controller: _scrollController{},\n",
+                super::pascal_case(key)
+            );
+        }
         format!(
-            "ListView.builder(\n  itemCount: {iter}.length,\n  itemBuilder: (context, index) {{\n    var {item} = {iter}[index];\n    return {item_widget};\n  }},\n)",
-            iter = iter_ref, item = item_name, item_widget = item_widget
+            "ListView.builder(\n{controller}  itemCount: {iter}.length,\n  itemBuilder: (context, index) {{\n    var {item} = {iter}[index];\n    return {item_widget};\n  }},\n)",
+            controller = controller_line, iter = iter_ref, item = item_name, item_widget = item_widget
         )
     } else {
         format!(
@@ -4270,7 +4352,7 @@ fn format_inline_statements_flutter(body: &BlockIR, ctx: &ViewContext) -> String
 /// Store accesses in the body are rewritten to Riverpod provider reads (C4).
 /// Task 3.7: reads become `ref.read` — the handler runs at EVENT time
 /// (outside the build phase), where Riverpod 3.0 forbids `ref.watch`.
-fn format_inline_handler_flutter(body: &BlockIR, ctx: &ViewContext) -> String {
+fn format_inline_handler_flutter(body: &BlockIR, ctx: &mut ViewContext) -> String {
     let config = InlineHandlerConfig {
         opener: "() {".into(),
         closer: "}".into(),
@@ -4290,6 +4372,73 @@ fn format_inline_handler_flutter(body: &BlockIR, ctx: &ViewContext) -> String {
             .collect(),
     };
     build_inline_handler(&rewritten, &config, |w, s| {
+        // Task 9 (§2.5): `debounce(fn, ms)` / `throttle(fn, ms)` stdlib calls
+        // map to Timer-based closures — per-kind ordinal map keys
+        // (`_omniTimers['debounce_{n}']`) keep stable entries across
+        // re-renders; mod.rs emits the `_omniTimers` State field + dispose
+        // cancellation when the component has timing handlers. The target is
+        // formatted through the free functions (NOT `ctx.format_expr` — a
+        // `&mut self` receiver would conflict with the closure's disjoint
+        // field captures); an event-time call never carries a page/fn-arg
+        // hoist, so `use_watch_reads=true` is irrelevant for the fn name.
+        if let StatementIR::ExprStmtIR {
+            expr: ExprIR::CallExpr { name, args },
+            ..
+        } = s
+        {
+            if crate::semantic::load_contract::TIMING_FUNCS.contains(&name.as_str()) {
+                let is_debounce = name.as_str() == "debounce";
+                let n = if is_debounce {
+                    let n = ctx.debounce_next.get();
+                    ctx.debounce_next.set(n + 1);
+                    n
+                } else {
+                    let n = ctx.throttle_next.get();
+                    ctx.throttle_next.set(n + 1);
+                    n
+                };
+                let target = args
+                    .first()
+                    .map(|a| {
+                        format_expr_ir_flutter_ctx(
+                            a,
+                            ctx.direct_write_signals,
+                            ctx.load_builtins,
+                            ctx.form_present,
+                            ctx.param_providers,
+                            true,
+                        )
+                    })
+                    .unwrap_or_default();
+                let ms = args
+                    .get(1)
+                    .map(|a| {
+                        format_expr_ir_flutter_ctx(
+                            a,
+                            ctx.direct_write_signals,
+                            ctx.load_builtins,
+                            ctx.form_present,
+                            ctx.param_providers,
+                            true,
+                        )
+                    })
+                    .unwrap_or_default();
+                if is_debounce {
+                    // trailing-only debounce: cancel any pending timer, then
+                    // arm a fresh one that fires the wrapped call.
+                    w.emit_fmt(format_args!(
+                        "() {{ _omniTimers['debounce_{n}']?.cancel(); _omniTimers['debounce_{n}'] = Timer(const Duration(milliseconds: {ms}), () => {target}()); }}"
+                    ));
+                } else {
+                    // leading-edge throttle: ignore while a timer is active,
+                    // then arm the next window.
+                    w.emit_fmt(format_args!(
+                        "() {{ if (_omniTimers['throttle_{n}']?.isActive ?? false) return; _omniTimers['throttle_{n}'] = Timer(const Duration(milliseconds: {ms}), () => {target}()); }}"
+                    ));
+                }
+                return;
+            }
+        }
         // Phase 3: inline handler statements carry the D1/D2 set — handler
         // mutations write `_name.value` (no setState in the view tree).
         // Task 8: @load builtin calls (`retry()` / `reset()`) resolve to the

@@ -1993,7 +1993,17 @@ impl FormatExpr for FlutterFormatExpr {
         // yields the bare action (`ref.invalidate(...)` /
         // `ref.read(...notifier).reset()`).
         if let Some(v) = self.load_builtins.get(name) {
-            return v.strip_prefix("() => ").unwrap_or(v).to_string();
+            // Task 9: paginated `{key}Retry` is a two-statement block
+            // (`() { ref.read(...).page = 1; ref.invalidate(...); }`) — the
+            // closure call in the view (`{itemsRetry}` on a button) must
+            // render the block body, so strip the block shape too.
+            let v = v.strip_prefix("() => ").unwrap_or(v);
+            let v = v
+                .strip_prefix("() {")
+                .and_then(|s| s.strip_suffix('}'))
+                .map(str::trim)
+                .unwrap_or(v);
+            return v.to_string();
         }
         match name {
             "println" | "print" => format!("print({})", args.join(", ")),

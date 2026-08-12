@@ -6,6 +6,7 @@ use crate::codegen::shared::build_component_map;
 use crate::codegen::{format_json_value, JSON_FLUTTER};
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
+use std::cell::Cell;
 use std::fmt::Write;
 use std::process::Command;
 
@@ -569,6 +570,9 @@ fn fmt_view_with_program_and_map<'a>(
     let mut motion_counter = 0usize;
     let mut hoisted: Vec<(String, String)> = Vec::new();
     let mut hoist_next = 0usize;
+    let mut scroll_next = 0usize;
+    let debounce_next = Cell::new(0usize);
+    let throttle_next = Cell::new(0usize);
     let mut ctx = ViewContext {
         component_map,
         store_provider_map: &store_provider_map,
@@ -592,6 +596,10 @@ fn fmt_view_with_program_and_map<'a>(
         load_builtins: &FxHashMap::default(),
         form_present: false,
         param_providers: &FxHashMap::default(),
+        scroll_keys: &[],
+        scroll_next: &mut scroll_next,
+        debounce_next: &debounce_next,
+        throttle_next: &throttle_next,
     };
     let result = format_view_tree(node, &[], &mut ctx);
     (result, warnings)
@@ -611,6 +619,9 @@ fn fmt_view_in(
     let mut motion_counter = 0usize;
     let mut hoisted: Vec<(String, String)> = Vec::new();
     let mut hoist_next = 0usize;
+    let mut scroll_next = 0usize;
+    let debounce_next = Cell::new(0usize);
+    let throttle_next = Cell::new(0usize);
     let mut ctx = ViewContext {
         component_map: &component_map,
         store_provider_map: &store_provider_map,
@@ -634,6 +645,10 @@ fn fmt_view_in(
         load_builtins: &FxHashMap::default(),
         form_present: false,
         param_providers: &FxHashMap::default(),
+        scroll_keys: &[],
+        scroll_next: &mut scroll_next,
+        debounce_next: &debounce_next,
+        throttle_next: &throttle_next,
     };
     let result = format_view_tree(node, motions, &mut ctx);
     (result, warnings)
@@ -8014,6 +8029,9 @@ fn test_store_action_in_inline_handler_body() {
     let mut motion_counter = 0usize;
     let mut hoisted: Vec<(String, String)> = Vec::new();
     let mut hoist_next = 0usize;
+    let mut scroll_next = 0usize;
+    let debounce_next = Cell::new(0usize);
+    let throttle_next = Cell::new(0usize);
     let mut ctx = ViewContext {
         component_map: &component_map,
         store_provider_map: &store_provider_map,
@@ -8037,6 +8055,10 @@ fn test_store_action_in_inline_handler_body() {
         load_builtins: &FxHashMap::default(),
         form_present: false,
         param_providers: &FxHashMap::default(),
+        scroll_keys: &[],
+        scroll_next: &mut scroll_next,
+        debounce_next: &debounce_next,
+        throttle_next: &throttle_next,
     };
     let expr = format_view_tree(&view, &[], &mut ctx);
     assert!(
@@ -8133,6 +8155,9 @@ fn test_store_action_method_call_form_in_handler() {
     let mut motion_counter = 0usize;
     let mut hoisted: Vec<(String, String)> = Vec::new();
     let mut hoist_next = 0usize;
+    let mut scroll_next = 0usize;
+    let debounce_next = Cell::new(0usize);
+    let throttle_next = Cell::new(0usize);
     let mut ctx = ViewContext {
         component_map: &component_map,
         store_provider_map: &store_provider_map,
@@ -8156,6 +8181,10 @@ fn test_store_action_method_call_form_in_handler() {
         load_builtins: &FxHashMap::default(),
         form_present: false,
         param_providers: &FxHashMap::default(),
+        scroll_keys: &[],
+        scroll_next: &mut scroll_next,
+        debounce_next: &debounce_next,
+        throttle_next: &throttle_next,
     };
     let expr = format_view_tree(&view, &[], &mut ctx);
     assert!(
@@ -8379,6 +8408,9 @@ fn test_ref_key_on_widget_and_controller_attachment() {
     let mut motion_counter = 0usize;
     let mut hoisted: Vec<(String, String)> = Vec::new();
     let mut hoist_next = 0usize;
+    let mut scroll_next = 0usize;
+    let debounce_next = Cell::new(0usize);
+    let throttle_next = Cell::new(0usize);
     let mut ctx = ViewContext {
         component_map: &component_map,
         store_provider_map: &store_provider_map,
@@ -8402,6 +8434,10 @@ fn test_ref_key_on_widget_and_controller_attachment() {
         load_builtins: &FxHashMap::default(),
         form_present: false,
         param_providers: &FxHashMap::default(),
+        scroll_keys: &[],
+        scroll_next: &mut scroll_next,
+        debounce_next: &debounce_next,
+        throttle_next: &throttle_next,
     };
     let view = ViewTree::Element(Box::new(el));
     let expr = format_view_tree(&view, &[], &mut ctx);
@@ -8430,6 +8466,9 @@ fn test_ref_key_on_widget_and_controller_attachment() {
     let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
     let design_resolver2 = DesignResolver::new(&ir);
     let mut motion_counter = 0usize;
+    let mut scroll_next = 0usize;
+    let debounce_next = Cell::new(0usize);
+    let throttle_next = Cell::new(0usize);
     let mut ctx2 = ViewContext {
         component_map: &component_map,
         store_provider_map: &store_provider_map,
@@ -8453,6 +8492,10 @@ fn test_ref_key_on_widget_and_controller_attachment() {
         load_builtins: &FxHashMap::default(),
         form_present: false,
         param_providers: &FxHashMap::default(),
+        scroll_keys: &[],
+        scroll_next: &mut scroll_next,
+        debounce_next: &debounce_next,
+        throttle_next: &throttle_next,
     };
     let view2 = ViewTree::Element(Box::new(el2));
     let expr2 = format_view_tree(&view2, &[], &mut ctx2);
@@ -8476,6 +8519,9 @@ fn test_ref_key_on_widget_and_controller_attachment() {
     let component_slots: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
     let design_resolver3 = DesignResolver::new(&ir);
     let mut motion_counter = 0usize;
+    let mut scroll_next = 0usize;
+    let debounce_next = Cell::new(0usize);
+    let throttle_next = Cell::new(0usize);
     let mut ctx3 = ViewContext {
         component_map: &component_map,
         store_provider_map: &store_provider_map,
@@ -8499,6 +8545,10 @@ fn test_ref_key_on_widget_and_controller_attachment() {
         load_builtins: &FxHashMap::default(),
         form_present: false,
         param_providers: &FxHashMap::default(),
+        scroll_keys: &[],
+        scroll_next: &mut scroll_next,
+        debounce_next: &debounce_next,
+        throttle_next: &throttle_next,
     };
     let view3 = ViewTree::Element(Box::new(el3));
     let expr3 = format_view_tree(&view3, &[], &mut ctx3);
@@ -12026,7 +12076,7 @@ component App {
     .expect("multi-load fixture must compile");
     let dart: String = out.files.values().cloned().collect::<Vec<_>>().join("\n");
     assert!(
-        dart.contains("final itemsProvider = AsyncNotifierProvider<ItemsNotifier, List<String>>(() => ItemsNotifier());"),
+        dart.contains("final itemsProvider = AsyncNotifierProvider<ItemsNotifier, List<String>>(() => ItemsNotifier(fetchItems));"),
         "the reset-using named instance must emit its own upgraded provider, got:\n{}",
         dart
     );
@@ -12271,6 +12321,369 @@ component App {
     assert!(
         dart.contains("ref.read(fetchTodosProvider.notifier).reset()"),
         "anonymous reset must clear the anonymous provider, got:\n{}",
+        dart
+    );
+}
+
+// ==== Task 9：分页/无限滚动/轮询 + debounce/throttle ====
+
+/// 分页（spec §2.2）：`@load name={fn} paginated` → AsyncNotifier 子类携带
+/// page/hasMore/loadingMore 状态；build 内注入 page 首载并做 hasMore 信封校验
+/// （V12：缺 hasMore → 抛 StateError 进入 error 态，绝不静默）；loadMore 页码
+/// +1 追加 items（失败保留已加载数据，value 参数带回）；reset 三态置初值。
+#[test]
+fn flutter_paginated_notifier_generated() {
+    let out = compile_flutter(
+        r#"
+component App {
+  fn fetchItems(page: i32) -> Page<String> { }
+  view {
+    @load items={fetchItems} paginated
+    @for item in itemsData { <div>{item}</div> }
+    @if itemsHasMore { <button @onPress={itemsLoadMore}>加载更多</button> }
+    @if itemsLoadingMore { <p>装载下一页…</p> }
+    <button @onPress={itemsReset}>重置</button>
+    {itemsPage}
+  }
+}
+"#,
+    )
+    .expect("paginated fixture must compile");
+    let dart: String = out.files.values().cloned().collect::<Vec<_>>().join("\n");
+    // notifier 类 + 状态字段
+    assert!(
+        dart.contains("class ItemsNotifier extends AsyncNotifier<List<String>>"),
+        "paginated instance must upgrade to an AsyncNotifier subclass, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("int page = 1;"),
+        "页码必须从 1 起步（spec §2.2 首页=1）, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("bool hasMore = true;"),
+        "hasMore 初值 true, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("bool loadingMore = false;"),
+        "loadingMore 初值 false, got:\n{}",
+        dart
+    );
+    // build：编译器注入 page 参数 + V12 信封校验
+    assert!(
+        dart.contains("final r = await _load(page);"),
+        "build 首载必须注入 page 参数, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("if (r.hasMore == null) {"),
+        "V12：缺 hasMore 必须显式判定, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("throw StateError(\"分页数据缺少 hasMore 字段——按 hasMore=false 处理（停止加载更多）\");"),
+        "V12：缺 hasMore → 进入 error 态绝不静默, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("hasMore = r.hasMore!;"),
+        "hasMore 信封字段必须解包, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("return r.items ?? const [];"),
+        "items 必须解包为 List（null 兜底）, got:\n{}",
+        dart
+    );
+    // loadMore：双保护 + 页码+1 追加 + 失败保留数据
+    assert!(
+        dart.contains("void loadMore() async {"),
+        "必须生成 loadMore()（await _load 需要 async）, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("if (loadingMore || !hasMore) return;"),
+        "loadMore 必须 loadingMore 与 hasMore 双保护, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("loadingMore = true;"),
+        "loadMore 必须先置 loadingMore, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("state = AsyncLoading<List<String>>().copyWithPrevious(state);"),
+        "loadMore 必须写 state 触发 rebuild（字段写入不触发）, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("final r = await _load(page + 1);"),
+        "loadMore 必须页码+1 请求下一页, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("page += 1;"),
+        "成功追加后页码必须前进, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("state = AsyncData<List<String>>([...(state.value ?? const []), ...(r.items ?? const [])]);"),
+        "追加 = 旧页 + 新页合并, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("state = AsyncError<List<String>>(StateError"),
+        "追加页缺 hasMore → error 态（value 保留已加载数据）, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("state = AsyncError<List<String>>(e, st, value: state.value);"),
+        "追加页异常 → error 态且 value 带回旧数据, got:\n{}",
+        dart
+    );
+    // reset：三态置初值不重载
+    assert!(
+        dart.contains("void reset() {"),
+        "必须生成 reset(), got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("state = AsyncData<List<String>>(const []);"),
+        "reset 必须清空 items 列表, got:\n{}",
+        dart
+    );
+    // provider 声明 + build hoist + 派生信号
+    assert!(
+        dart.contains("late final itemsProvider = AsyncNotifierProvider<ItemsNotifier, List<String>>(() => ItemsNotifier(fetchItems));"),
+        "分页 provider 必须是 AsyncNotifierProvider（显式泛型）, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("final ItemsNotifier itemsNotifier = ref.watch(itemsProvider.notifier);"),
+        "build 必须 hoist notifier watch, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("itemsNotifier.page"),
+        "{{name}}Page 派生信号必须读取 notifier.page, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("ref.read(itemsProvider.notifier).loadMore()"),
+        "{{name}}LoadMore 必须调用 notifier.loadMore, got:\n{}",
+        dart
+    );
+}
+
+/// 无限滚动（spec §2.3）：paginated scroll 组合 → ScrollController listener
+/// 滚动位置 ≥ maxScrollExtent - 阈值（200）时触发 LoadMore，卸载断开 dispose。
+#[test]
+fn flutter_scroll_controller_sentinel() {
+    let out = compile_flutter(
+        r#"
+component App {
+  fn fetchFeed(page: i32) -> Page<String> { }
+  view {
+    @load feed={fetchFeed} paginated scroll
+    @for item in feedData [scroll] key={item} { <div>{item}</div> }
+  }
+}
+"#,
+    )
+    .expect("scroll fixture must compile");
+    let dart: String = out.files.values().cloned().collect::<Vec<_>>().join("\n");
+    assert!(
+        dart.contains("final ScrollController _scrollControllerFeed = ScrollController();"),
+        "scroll 实例必须生成 ScrollController 状态字段, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("_scrollControllerFeed.addListener"),
+        "initState 必须挂 listener, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("hasClients"),
+        "listener 必须守卫 hasClients, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("maxScrollExtent - 200"),
+        "阈值 sentinel 必须为 maxScrollExtent - 阈值, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("controller: _scrollControllerFeed"),
+        "ListView.builder 必须挂 controller, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("_scrollControllerFeed.dispose();"),
+        "dispose 必须释放 ScrollController, got:\n{}",
+        dart
+    );
+}
+
+/// 轮询（spec §2.4）：`@load name={fn} interval: ms` → Timer.periodic 每次
+/// 轮询等价 retry（ref.invalidate 重跑 build），dispose 取消。
+#[test]
+fn flutter_interval_timer_periodic_dispose() {
+    let out = compile_flutter(
+        r#"
+component App {
+  fn fetchPrices() -> Array<String> { }
+  view {
+    @load prices={fetchPrices} interval: 5000
+    @for item in pricesData { <div>{item}</div> }
+  }
+}
+"#,
+    )
+    .expect("interval fixture must compile");
+    let dart: String = out.files.values().cloned().collect::<Vec<_>>().join("\n");
+    assert!(
+        dart.contains("Timer? _pollTimerPrices;"),
+        "interval 实例必须生成 Timer 状态字段, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("Timer.periodic(const Duration(milliseconds: 5000)"),
+        "必须生成 Timer.periodic(毫秒), got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("ref.invalidate(pricesProvider)"),
+        "每次轮询必须等价 retry（invalidate 重跑 build）, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("_pollTimerPrices?.cancel();"),
+        "dispose 必须取消轮询 Timer, got:\n{}",
+        dart
+    );
+}
+
+/// Page<T> 信封类（spec §4 表）：全局 types.dart 只发射一次；items/hasMore
+/// nullable 字段使 V12 `== null` 判定合法。
+#[test]
+fn flutter_page_envelope_class_emitted() {
+    let out = compile_flutter(
+        r#"
+component App {
+  fn fetchItems(page: i32) -> Page<String> { }
+  view {
+    @load items={fetchItems} paginated
+    @for item in itemsData { <div>{item}</div> }
+  }
+}
+"#,
+    )
+    .expect("paginated fixture must compile");
+    let dart: String = out.files.values().cloned().collect::<Vec<_>>().join("\n");
+    assert!(
+        dart.contains("import './types.dart';"),
+        "分页实例必须触发 types.dart 引用, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("class Page<T>"),
+        "Page<T> 信封类必须发射, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("final List<T>? items;"),
+        "Page 必须含 nullable items, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("final bool? hasMore;"),
+        "Page 必须含 nullable hasMore（V12 判定合法）, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("const Page({this.items, this.hasMore});"),
+        "Page 必须含 const 构造, got:\n{}",
+        dart
+    );
+}
+
+/// debounce（spec §2.5）：`@onPress={debounce(doSearch, 300)}` → Timer 延迟
+/// 闭包包装（trailing-only）；引用身份变化时包装器保持有效（map 按索引复用）；
+/// dispose 统一取消。
+#[test]
+fn flutter_debounce_timer_wrapper() {
+    let out = compile_flutter(
+        r#"
+import { debounce } from "std/timing";
+component App {
+  fn doSearch() -> Array<String> { }
+  view {
+    <button @onPress={debounce(doSearch, 300)}>Search</button>
+  }
+}
+"#,
+    )
+    .expect("debounce fixture must compile");
+    let dart: String = out.files.values().cloned().collect::<Vec<_>>().join("\n");
+    assert!(
+        dart.contains("final Map<String, Timer> _omniTimers = {};"),
+        "计时器 map 状态字段必须发射, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("_omniTimers['debounce_0']?.cancel();"),
+        "再触发必须取消前一 Timer（防抖）, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("Timer(const Duration(milliseconds: 300)"),
+        "必须生成 300ms 延迟 Timer, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("() => doSearch()"),
+        "Timer 回调必须调用包装目标, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("for (final t in _omniTimers.values) { t.cancel(); }"),
+        "dispose 必须统一取消所有计时器, got:\n{}",
+        dart
+    );
+}
+
+/// throttle（spec §2.5）：`@onPress={throttle(doRefresh, 500)}` → isActive
+/// 守卫尾沿化——激活期内重复触发直接丢弃（return），仅尾沿执行。
+#[test]
+fn flutter_throttle_timer_wrapper() {
+    let out = compile_flutter(
+        r#"
+import { throttle } from "std/timing";
+component App {
+  fn doRefresh() -> Array<String> { }
+  view {
+    <button @onPress={throttle(doRefresh, 500)}>Refresh</button>
+  }
+}
+"#,
+    )
+    .expect("throttle fixture must compile");
+    let dart: String = out.files.values().cloned().collect::<Vec<_>>().join("\n");
+    assert!(
+        dart.contains("if (_omniTimers['throttle_0']?.isActive ?? false) return;"),
+        "激活期内重复触发必须丢弃（尾沿化）, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("_omniTimers['throttle_0'] = Timer(const Duration(milliseconds: 500)"),
+        "必须生成 500ms 节流 Timer 并写入 map, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("() => doRefresh()"),
+        "Timer 回调必须调用包装目标, got:\n{}",
         dart
     );
 }

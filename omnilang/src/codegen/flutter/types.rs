@@ -835,7 +835,14 @@ fn collect_store_union_names(
 pub(crate) fn gen_types_files(ir: &IRProgram) -> Vec<CompiledFile> {
     let enum_names = enum_names(ir);
     let struct_names = struct_names(ir);
-    if enum_names.is_empty() && struct_names.is_empty() {
+    // Task 9 (§2.2): paginated @load instances return `Page<T>` — the
+    // envelope class is emitted whenever ANY component has a paginated load
+    // (loader signature `fn name(page: i32) -> Page<T>`).
+    let has_paginated = ir
+        .all_components()
+        .iter()
+        .any(|(_, c)| c.load_intent.iter().any(|li| li.mode.paginated));
+    if enum_names.is_empty() && struct_names.is_empty() && !has_paginated {
         return Vec::new();
     }
     let mut referenced: FxHashSet<String> = FxHashSet::default();
@@ -876,7 +883,7 @@ pub(crate) fn gen_types_files(ir: &IRProgram) -> Vec<CompiledFile> {
             collect_type_union_names(t, &enum_names, &mut referenced);
         }
     }
-    if referenced.is_empty() {
+    if referenced.is_empty() && !has_paginated {
         return Vec::new();
     }
 
@@ -915,6 +922,18 @@ pub(crate) fn gen_types_files(ir: &IRProgram) -> Vec<CompiledFile> {
     }
     for s in &structs {
         emit_struct_class(&mut w, s);
+    }
+    if has_paginated {
+        w.emit("");
+        w.emit("/// Page<T> \u{2014} pagination envelope (spec §2.2): nullable fields so");
+        w.emit("/// the V12 `hasMore == null` detection is legal \u{2014} a missing");
+        w.emit("/// hasMore is treated as hasMore=false (stop loading more), never");
+        w.emit("/// silently assumed.");
+        w.emit("class Page<T> {");
+        w.emit("  final List<T>? items;");
+        w.emit("  final bool? hasMore;");
+        w.emit("  const Page({this.items, this.hasMore});");
+        w.emit("}");
     }
     vec![CompiledFile {
         path: "types.dart".to_string(),
