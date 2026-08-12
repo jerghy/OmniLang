@@ -1,0 +1,58 @@
+/* poiesis/src/components/design/BehaviorCard.module.css
+   行为卡紧凑表单行：当[事件]→[动作][参数] 一行排布，与事件编辑器视觉同族。 */
+
+.card {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 10px;
+  margin-bottom: 12px;
+  background: var(--ol-surface-2, #fafafa);
+  border: 1px solid var(--ol-border, #e5e5e5);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.whenLabel {
+  color: var(--ol-text, #333);
+  font-weight: 500;
+}
+
+.arrow {
+  color: var(--ol-text-muted, #999);
+}
+
+.select,
+.input {
+  height: 24px;
+  font-size: 12px;
+  padding: 0 4px;
+  border: 1px solid var(--ol-border, #e5e5e5);
+  border-radius: 4px;
+  background: #fff;
+  color: var(--ol-text, #333);
+  max-width: 160px;
+  min-width: 0;
+}
+
+.select:focus,
+.input:focus {
+  outline: none;
+  border-color: var(--ol-accent, #c2603a);
+}
+
+.commitBtn {
+  height: 24px;
+  padding: 0 10px;
+  font-size: 12px;
+  border: 1px solid var(--ol-accent, #c2603a);
+  border-radius: 4px;
+  background: var(--ol-accent, #c2603a);
+  color: #fff;
+  cursor: pointer;
+}
+
+.commitBtn:hover {
+  filter: brightness(1.08);
+}
