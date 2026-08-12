@@ -5,6 +5,7 @@ import type { ComponentDef, DefEntry, ComputedEntry } from "../../core/types/pro
 import { detectTabType } from "../../core/types/design-page";
 import { buildTabSaveEntry, tabRestoreCanvasPartial } from "../tab-helpers";
 import { lruEvictTabData } from "../operations/lru-evict";
+import { buildUndoUpdate } from "../undo-slice";
 
 type SetFn = (partial: Partial<PoiesisState> | ((state: PoiesisState) => Partial<PoiesisState>)) => void;
 type GetFn = () => PoiesisState;
@@ -124,25 +125,36 @@ export function createComponentLifecycleSlice(set: SetFn, get: GetFn) {
       if (!def) return {};
       const signals = [...(def.signals || []), signal];
       s.setComponentDef(compName, { ...def, signals });
-      return { isDirty: true };
+      const undoUpdate = buildUndoUpdate(s.undoStacks, s.designPage.activeTabId, {
+        type: "componentSignals", compName, prevSignals: def.signals ?? [], newSignals: signals,
+      });
+      return { ...undoUpdate, isDirty: true };
     }),
 
     updateComponentSignal: (compName: string, pid: string, updates: Partial<DefEntry>) => set((s) => {
       const def = s.componentDefs[compName];
       if (!def) return {};
-      const signals = (def.signals || []).map((sig) =>
+      const prevSignals = def.signals ?? [];
+      const signals = prevSignals.map((sig) =>
         sig.pid === pid ? { ...sig, ...updates } : sig
       );
       s.setComponentDef(compName, { ...def, signals });
-      return { isDirty: true };
+      const undoUpdate = buildUndoUpdate(s.undoStacks, s.designPage.activeTabId, {
+        type: "componentSignals", compName, prevSignals, newSignals: signals,
+      });
+      return { ...undoUpdate, isDirty: true };
     }),
 
     removeComponentSignal: (compName: string, pid: string) => set((s) => {
       const def = s.componentDefs[compName];
       if (!def) return {};
-      const signals = (def.signals || []).filter((sig) => sig.pid !== pid);
+      const prevSignals = def.signals ?? [];
+      const signals = prevSignals.filter((sig) => sig.pid !== pid);
       s.setComponentDef(compName, { ...def, signals });
-      return { isDirty: true };
+      const undoUpdate = buildUndoUpdate(s.undoStacks, s.designPage.activeTabId, {
+        type: "componentSignals", compName, prevSignals, newSignals: signals,
+      });
+      return { ...undoUpdate, isDirty: true };
     }),
 
     // ── Component prop CRUD ──

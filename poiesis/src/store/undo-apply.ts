@@ -333,6 +333,17 @@ export function computeInverse(
       };
     }
 
+    case "componentSignals": {
+      const signals = isRedo ? action.newSignals : action.prevSignals;
+      return {
+        componentDefs: {
+          ...state.componentDefs,
+          [action.compName]: { ...(state.componentDefs[action.compName] ?? {}), signals },
+        },
+        isDirty: true,
+      };
+    }
+
     default:
       return null;
   }

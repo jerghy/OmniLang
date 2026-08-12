@@ -2,9 +2,10 @@
 
 import type { ElementData } from "../core/types/element";
 import type { WireData } from "../core/types/wire";
+import type { DefEntry } from "../core/types/project-json";
 import { computeInverse } from "./undo-apply";
 
-const MAX_UNDO_SIZE = 100;
+export const MAX_UNDO_SIZE = 100;
 
 // ── Types ──
 
@@ -25,7 +26,8 @@ export type UndoAction =
   | { type: "setElementsAndWires"; prevElements: ElementData[]; prevWires: WireData[]; newElements: ElementData[]; newWires: WireData[] }
   | { type: "setElementBinding"; id: string; propName: string; oldBinding: string | null; newBinding: string | null }
   | { type: "restoreConditionalBlock"; blockId: string; prevBranches: Array<{type: "if" | "elif" | "else"; condition: string; children: string[]}>; prevChildren: string[]; newBranches: Array<{type: "if" | "elif" | "else"; condition: string; children: string[]}>; newChildren: string[] }
-  | { type: "updateForBlock"; blockId: string; prev: { itemName?: string; collection?: string; keyExpr?: string }; next: { itemName?: string; collection?: string; keyExpr?: string } };
+  | { type: "updateForBlock"; blockId: string; prev: { itemName?: string; collection?: string; keyExpr?: string }; next: { itemName?: string; collection?: string; keyExpr?: string } }
+  | { type: "componentSignals"; compName: string; prevSignals: DefEntry[]; newSignals: DefEntry[] };
 
 export interface UndoStack {
   undo: UndoAction[];

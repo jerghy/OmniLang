@@ -119,6 +119,9 @@ describe("auto-link: 回收", () => {
     // 源端 bind 解除
     const input = usePoiesisStore.getState().elements.find((e) => e.id === "input_1");
     expect(input && "bindings" in input && input.bindings?.["value"]).toBeUndefined();
+    // 目标端绑定值复位（clearTargetBinding 对文本槽写 ""）
+    const title = usePoiesisStore.getState().elements.find((e) => e.id === "title_1");
+    expect(title && "props" in title && title.props?.["label"]).toBe("");
   });
 
   it("disconnect 后仍有其他引用 → 保留 signal", () => {
