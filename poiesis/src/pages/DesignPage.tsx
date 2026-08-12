@@ -2,7 +2,7 @@
 // Top-level design page with tabbed editor, left panels, and Z-axis canvas.
 // Drag-and-drop from palette to canvas uses @dnd-kit/core (pointer events, not native HTML5 DnD).
 
-import { Component, useState, useEffect, useRef, useCallback, useMemo, type ReactNode } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Logger } from "../lib/utils/logger";
 import {
   DndContext,
@@ -30,6 +30,7 @@ import { CodeDrawer } from "../components/design/CodeDrawer";
 import { StoreDrawer } from "../components/design/StoreDrawer";
 import { BottomBar } from "../components/design/BottomBar";
 import { PaletteDrawer } from "../components/design/PaletteDrawer";
+import { PanelErrorBoundary } from "../components/design/PanelErrorBoundary";
 import { generateOmniFiles, generateOmniFragment } from "../services/codegen/pipeline";
 import { emitDesignSource } from "../services/codegen/design-emitter";
 import { emitStoreDefinition } from "../services/codegen/source-emitter";
@@ -43,27 +44,7 @@ import { useSaveProject } from "../hooks/useSaveProject";
 import { useDragHandlers } from "../hooks/useDragHandlers";
 import styles from "./DesignPage.module.css";
 
-// Lightweight error boundary to prevent one panel crash from blanking the entire page
-class PanelErrorBoundary extends Component<{ children: ReactNode; name: string }, { error: Error | null }> {
-  constructor(props: { children: ReactNode; name: string }) {
-    super(props);
-    this.state = { error: null };
-  }
-  static getDerivedStateFromError(error: Error) {
-    return { error };
-  }
-  render() {
-    if (this.state.error) {
-      return (
-        <div style={{ padding: 16, color: "var(--ol-color-danger-hover)", fontSize: 12, background: "var(--ol-color-danger-subtle)", border: "1px solid var(--ol-color-danger-muted)", borderRadius: 4, margin: 4 }}>
-          <strong>⚠ {this.props.name}</strong>
-          <div style={{ marginTop: 4, opacity: 0.7 }}>{this.state.error.message}</div>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
+// 面板错误边界已提取至 components/design/PanelErrorBoundary.tsx（共享，M2 T6 复审）
 
 function buildCodeSource(showCode: boolean): string {
   if (!showCode) return "";

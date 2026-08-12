@@ -20,4 +20,19 @@ describe("PaletteDrawer", () => {
     fireEvent.click(screen.getByTestId("palette-drawer-close"));
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  it("按 Escape → onClose 回调", () => {
+    const onClose = vi.fn();
+    render(<PaletteDrawer onClose={onClose} />);
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("卸载后按 Escape → 不再触发 onClose", () => {
+    const onClose = vi.fn();
+    const { unmount } = render(<PaletteDrawer onClose={onClose} />);
+    unmount();
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(onClose).not.toHaveBeenCalled();
+  });
 });
