@@ -4,9 +4,9 @@ import { describe, it, expect } from "vitest";
 import { ACTION_VERBS, ACTIONS } from "../action-verbs";
 
 describe("action-verbs", () => {
-  it("动词表 ≥10 项且含核心动词 点击/加/减", () => {
+  it("动词表 ≥10 项且含核心动词 提交/加/减（T2：元素动作移除，信号/页面语义收敛）", () => {
     expect(ACTION_VERBS.length).toBeGreaterThanOrEqual(10);
-    expect(ACTION_VERBS).toContain("点击");
+    expect(ACTION_VERBS).toContain("提交");
     expect(ACTION_VERBS).toContain("加");
     expect(ACTION_VERBS).toContain("减");
   });

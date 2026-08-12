@@ -20,6 +20,7 @@ import { createTabSlice, createInitialDesignPageState } from "./operations/tab-l
 import { createUndoSlice } from "./undo-slice";
 import { createThemeSlice } from "./slices/theme";
 import { createLibDefsSlice } from "./slices/lib-defs";
+import { createBehaviorSlice } from "./slices/behavior";
 
 export const usePoiesisStore = create<PoiesisState>((set, get) => ({
   // ── Initial state values ──
@@ -72,6 +73,7 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
   ...createSerializationSlice(set, get),
   ...createStoreCrudSlice(set, get),
   ...createLibDefsSlice(set, get),
+  ...createBehaviorSlice(set, get),
 }));
 
 // ── HMR State Preservation ──

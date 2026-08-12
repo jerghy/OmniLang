@@ -16,6 +16,7 @@ import type {
   ElementVariantBinding,
 } from "../core/types/design";
 import type { UndoStack } from "./undo-slice";
+import type { BehaviorCommit } from "./slices/behavior";
 
 /** 调试值条目：text=输入框回显原文，valid=类型校验结果（false 不参与编译） */
 export interface DebugValueEntry {
@@ -166,6 +167,7 @@ export interface PoiesisState {
   removeElement: (id: string) => void;
   setProp: (id: string, prop: string, value: unknown) => void;
   getProp: (id: string, prop: string) => unknown;
+  applyBehaviorCard: (elementId: string, behavior: BehaviorCommit) => void;
   /** Set or remove a two-way data binding on a view element (e.g. bind:value={signalName}).
    *  Pass signalName = null to remove the binding. */
   setElementBinding: (id: string, propName: string, signalName: string | null) => void;

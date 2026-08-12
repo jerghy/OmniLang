@@ -1,7 +1,8 @@
 // poiesis/src/components/design/BehaviorTab.tsx
-// [行为] 标签：M3 行为卡（当[事件]→[动作][参数]，T1 提交为 no-op stub）+
-// 现有事件编辑（EventsSection）保功能（T2 换 applyBehaviorCard 接线）。
+// [行为] 标签：M3 行为卡（当[事件]→[动作][参数]，T2 提交 → applyBehaviorCard 落盘）
+// + 现有事件编辑（EventsSection）保功能。
 import { useElements } from "../../store/hooks";
+import { usePoiesisStore } from "../../store";
 import { useHandlerItems } from "../panels/inspector/shared";
 import { EventsSection } from "../panels/inspector/EventsSection";
 import { BehaviorCard } from "./BehaviorCard";
@@ -15,10 +16,9 @@ export function BehaviorTab({ elementId }: { elementId: string }) {
   return (
     <div style={{ padding: 12, overflow: "auto", boxSizing: "border-box" }}>
       <BehaviorCard
+        key={el.id}
         elementId={el.id}
-        onCommit={() => {
-          /* T2 wires applyBehaviorCard */
-        }}
+        onCommit={(c) => usePoiesisStore.getState().applyBehaviorCard(el.id, c)}
       />
       <EventsSection element={el} handlerItems={handlerItems} />
     </div>
