@@ -1,6 +1,7 @@
 // poiesis/src/components/design/__tests__/ContentTab.test.tsx
-// [内容] 面板槽位 badge 回归（M3 T3 复审）：文本槽键对齐落盘键 label——
-// props.label 含插值 {count} → 已绑定徽标亮起；纯文本 → 不亮。
+// [内容] 面板槽位 badge 回归（M3 T3 复审 + T6 来源印记）：文本槽键对齐落盘键 label——
+// props.label 含插值 {count} → 已绑定徽标亮起且显示来源名（来自 count）；纯文本 → 不亮；
+// 输入类槽位 bindings 键命中 → 徽标显示信号名。
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect, beforeEach } from "vitest";
 import { ContentTab } from "../ContentTab";
@@ -23,20 +24,34 @@ const elPlain: ViewElementData = {
   children: [],
   parentId: null,
 };
+const elInputBound: ViewElementData = {
+  id: "el-3",
+  nodeType: "view",
+  tag: "input",
+  props: {},
+  bindings: { value: "input" },
+  children: [],
+  parentId: null,
+};
 
 describe("ContentTab 槽位 badge", () => {
   beforeEach(() => {
     usePoiesisStore.setState({
       designPage: { ...usePoiesisStore.getState().designPage, awake: false, mainPanelTab: "structure" },
       selectedElementIds: [],
-      elements: [elBound, elPlain],
+      elements: [elBound, elPlain, elInputBound],
     });
   });
 
-  it("文本槽 props.label 插值 {count} → 已绑定徽标亮起（键对齐 label）", () => {
+  it("文本槽 props.label 插值 {count} → 徽标亮起且显示来源名（来自 count）", () => {
     render(<ContentTab elementId="el-1" />);
-    expect(screen.getByTestId("slot-bound-label")).toBeTruthy();
+    expect(screen.getByTestId("slot-bound-label").textContent).toContain("来自 count");
     expect(screen.getByTestId("slot-bind-label").textContent).toBe("替换");
+  });
+
+  it("输入槽 bindings.value 绑定 input 信号 → 徽标显示来源名（来自 input）", () => {
+    render(<ContentTab elementId="el-3" />);
+    expect(screen.getByTestId("slot-bound-value").textContent).toContain("来自 input");
   });
 
   it("文本槽纯文本 label → 徽标不亮", () => {

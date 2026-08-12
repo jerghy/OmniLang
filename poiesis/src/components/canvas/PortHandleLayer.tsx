@@ -44,6 +44,7 @@ export function resolveSlots(
 function PortHandleLayerInner({ visible }: { visible: boolean }) {
   const awake = usePoiesisStore((s) => s.designPage.awake);
   const wires = usePoiesisStore((s) => s.wires);
+  const selectedIds = usePoiesisStore((s) => s.selectedElementIds);
   const { zoom: canvasZoom, panX, panY } = useCanvasStore();
   const { setViewport } = useReactFlow();
   const [ports, setPorts] = useState<Array<{ elId: string; x: number; y: number; slotKey: string }>>([]);
@@ -104,19 +105,27 @@ function PortHandleLayerInner({ visible }: { visible: boolean }) {
   );
 
   // 自动 wire → 边（端口 handle id 编码：`${slot}-src`/`${slot}-tgt`）
+  // M3 T6 亮线：端点元素被选中（任一端）→ 边加 port-edge-active 类 + 主色加深加粗
   const edges: Edge[] = useMemo(
     () =>
       wires
         .filter((w) => w.fromPort && w.toPort)
-        .map((w) => ({
-          id: w.id,
-          source: w.fromId,
-          sourceHandle: `${w.fromPort}-src`,
-          target: w.toId,
-          targetHandle: `${w.toPort}-tgt`,
-          style: { stroke: "var(--ol-color-primary)", strokeWidth: 1.5 },
-        })),
-    [wires],
+        .map((w) => {
+          const isRelated = selectedIds.includes(w.fromId) || selectedIds.includes(w.toId);
+          return {
+            id: w.id,
+            source: w.fromId,
+            sourceHandle: `${w.fromPort}-src`,
+            target: w.toId,
+            targetHandle: `${w.toPort}-tgt`,
+            className: isRelated ? "port-edge-active" : undefined,
+            style: {
+              stroke: isRelated ? "var(--ol-color-primary-active)" : "var(--ol-color-primary)",
+              strokeWidth: isRelated ? 2.5 : 1.5,
+            },
+          };
+        }),
+    [wires, selectedIds],
   );
 
   if (!(visible && awake)) return null;

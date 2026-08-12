@@ -38,17 +38,32 @@ function ifBranchIndex(el: ElementData): number {
 
 /** 槽位是否已绑：bindings 键精确匹配（M1）∪ 插值/列表/条件写法（M3 落盘路径） */
 function slotBound(el: ElementData, slot: SlotDef): boolean {
-  if ("bindings" in el && el.bindings != null && Object.keys(el.bindings).some((k) => k === slot.key)) return true;
-  if (el.nodeType === "for" && slot.key === "list") return (el.collection ?? "").trim().length > 0;
+  return slotSource(el, slot) != null;
+}
+
+/** 槽位绑定来源名（M3 T6 来源印记）：bindings 值 → 插值表达式 → 集合/条件表达式 */
+function slotSource(el: ElementData, slot: SlotDef): string | null {
+  if ("bindings" in el && el.bindings != null && el.bindings[slot.key] != null) {
+    const v = el.bindings[slot.key];
+    return v.trim().length > 0 ? v : null;
+  }
+  if (el.nodeType === "for" && slot.key === "list") {
+    const c = (el.collection ?? "").trim();
+    return c.length > 0 ? c : null;
+  }
   if (el.nodeType === "conditional" && slot.key === "if") {
     const idx = ifBranchIndex(el);
-    return idx >= 0 && (el.branches[idx].condition ?? "").trim().length > 0;
+    const cond = idx >= 0 ? (el.branches[idx].condition ?? "").trim() : "";
+    return cond.length > 0 ? cond : null;
   }
   if ("props" in el) {
     const v = el.props?.[slot.key];
-    if (typeof v === "string" && /\{[^}]*\}/.test(v)) return true;
+    if (typeof v === "string") {
+      const m = v.match(/\{([^}]*)\}/);
+      if (m) return m[1].trim();
+    }
   }
-  return false;
+  return null;
 }
 
 export function ContentTab({ elementId }: { elementId: string }) {
@@ -113,6 +128,7 @@ export function ContentTab({ elementId }: { elementId: string }) {
       <h3 style={{ fontSize: 13, fontWeight: 600, margin: "0 0 8px", color: "var(--ol-gray-700)" }}>接口</h3>
       {slots.map((s) => {
         const bound = slotBound(el, s);
+        const source = bound ? slotSource(el, s) : null;
         return (
           <div
             key={s.key}
@@ -122,7 +138,7 @@ export function ContentTab({ elementId }: { elementId: string }) {
             <span style={{ fontSize: 11, display: "flex", gap: 6, alignItems: "center" }}>
               {bound && (
                 <em data-testid={`slot-bound-${s.key}`} style={{ fontStyle: "normal", color: "var(--ol-color-primary)", background: "var(--ol-color-primary-subtle)", borderRadius: 999, padding: "1px 8px" }}>
-                  已绑定
+                  来自 {source}
                 </em>
               )}
               {s.kind}

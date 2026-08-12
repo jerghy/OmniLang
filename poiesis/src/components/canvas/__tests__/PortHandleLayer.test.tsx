@@ -1,14 +1,94 @@
 // poiesis/src/components/canvas/__tests__/PortHandleLayer.test.tsx
 import { render, screen } from "@testing-library/react";
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { PortHandleLayer, resolveSlots } from "../PortHandleLayer";
 import { usePoiesisStore } from "../../../store";
+import type { WireData } from "../../../core/types/wire";
+
+// 端口测量 mock：jsdom 无真实渲染布局，直接喂两端口（el-a/el-b）
+vi.mock("../ElementPortLayer", () => ({
+  collectPortPositions: vi.fn(() => [
+    { elId: "el-a", x: 10, y: 10 },
+    { elId: "el-b", x: 200, y: 10 },
+  ]),
+}));
 
 const setAwake = (awake: boolean) =>
   usePoiesisStore.setState((s) => ({ designPage: { ...s.designPage, awake } }));
 
+const setState = (wires: WireData[], selectedElementIds: string[]) =>
+  usePoiesisStore.setState({ wires, selectedElementIds });
+
+// ── ReactFlow v12 jsdom 渲染环境补齐（仅测试侧，非产品代码）──────────────
+// 边渲染链：useResizeObserver（useState 初始化器内 new ResizeObserver）→ RO 回调 →
+// updateNodeInternals（读 data-id / offsetWidth / DOMMatrixReadOnly.m22）→ handleBounds+measured →
+// isNodeInitialized 通过 → EdgeWrapper 渲染 rf__edge-<id>。jsdom 三缺：
+//   1. RO 永不开火 → 换「observe 即触发」桩（useNodeObserver 仅 !isInitialized 时 observe，循环安全）；
+//   2. offsetWidth/offsetHeight 恒 0 → 桩 100/40（getDimensions：节点/容器/手柄共用）；
+//   3. 无 DOMMatrixReadOnly（system 仅解构 m22）→ DummyMatrix。
+class FiringResizeObserver {
+  private cb: ResizeObserverCallback;
+  constructor(cb: ResizeObserverCallback) {
+    this.cb = cb;
+  }
+  observe(target: Element) {
+    this.cb([{ target } as ResizeObserverEntry], this as unknown as ResizeObserver);
+  }
+  unobserve() {}
+  disconnect() {}
+}
+
+class DummyMatrix {
+  m22 = 1;
+  constructor(_transform?: string) {}
+}
+
+const originalResizeObserver = window.ResizeObserver; // test-setup 的 no-op mock
+const originalDOMMatrixReadOnly = window.DOMMatrixReadOnly;
+const originalOffsetWidth = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "offsetWidth");
+const originalOffsetHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "offsetHeight");
+
+function stubLayoutEnv() {
+  window.ResizeObserver = FiringResizeObserver as unknown as typeof ResizeObserver;
+  window.DOMMatrixReadOnly = DummyMatrix as unknown as typeof DOMMatrixReadOnly;
+  Object.defineProperty(HTMLElement.prototype, "offsetWidth", { configurable: true, get: () => 100 });
+  Object.defineProperty(HTMLElement.prototype, "offsetHeight", { configurable: true, get: () => 40 });
+}
+
+function restoreLayoutEnv() {
+  window.ResizeObserver = originalResizeObserver;
+  if (originalDOMMatrixReadOnly) {
+    window.DOMMatrixReadOnly = originalDOMMatrixReadOnly;
+  } else {
+    delete (window as unknown as Record<string, unknown>).DOMMatrixReadOnly;
+  }
+  if (originalOffsetWidth) Object.defineProperty(HTMLElement.prototype, "offsetWidth", originalOffsetWidth);
+  else delete (HTMLElement.prototype as unknown as Record<string, unknown>).offsetWidth;
+  if (originalOffsetHeight) Object.defineProperty(HTMLElement.prototype, "offsetHeight", originalOffsetHeight);
+  else delete (HTMLElement.prototype as unknown as Record<string, unknown>).offsetHeight;
+}
+
+// 假渲染器根：PortHandleLayer 测量入口 `[data-renderer='omniview']` + 元素标签取槽语义
+function mountRendererRoot() {
+  const root = document.createElement("div");
+  root.setAttribute("data-renderer", "omniview");
+  root.innerHTML = `
+    <button data-omni-el-id="el-a">A</button>
+    <div data-omni-el-id="el-b">B</div>
+  `;
+  document.body.appendChild(root);
+  return root;
+}
+
+const WIRE: WireData = { id: "w1", fromId: "el-a", fromPort: "label", toId: "el-b", toPort: "label" };
+
 describe("PortHandleLayer", () => {
-  afterEach(() => setAwake(false));
+  afterEach(() => {
+    setAwake(false);
+    setState([], []);
+    restoreLayoutEnv();
+    document.querySelectorAll("[data-renderer='omniview']").forEach((n) => n.remove());
+  });
 
   it("醒态可见：渲染手柄层（ReactFlow 可拖手柄挂载）", () => {
     setAwake(true);
@@ -26,6 +106,30 @@ describe("PortHandleLayer", () => {
     setAwake(true);
     const { container } = render(<PortHandleLayer visible={false} />);
     expect(container.querySelector('[data-testid="port-handle-layer"]')).toBeNull();
+  });
+
+  it("选中元素端点 → 相关自动连线边亮起（port-edge-active 类 + 加粗描边）", async () => {
+    setAwake(true);
+    setState([WIRE], ["el-a"]);
+    mountRendererRoot();
+    stubLayoutEnv(); // RO 开火 + 尺寸桩 + DOMMatrixReadOnly 桩 → 边真渲染
+    render(<PortHandleLayer visible />);
+    const edge = await screen.findByTestId("rf__edge-w1");
+    expect(edge.classList.contains("port-edge-active")).toBe(true);
+    const path = edge.querySelector<HTMLElement>(".react-flow__edge-path");
+    expect(path?.style.strokeWidth).toBe("2.5");
+  });
+
+  it("未选中 → 边保持常规样式（无 port-edge-active 类）", async () => {
+    setAwake(true);
+    setState([WIRE], []);
+    mountRendererRoot();
+    stubLayoutEnv();
+    render(<PortHandleLayer visible />);
+    const edge = await screen.findByTestId("rf__edge-w1");
+    expect(edge.classList.contains("port-edge-active")).toBe(false);
+    const path = edge.querySelector<HTMLElement>(".react-flow__edge-path");
+    expect(path?.style.strokeWidth).toBe("1.5");
   });
 });
 
