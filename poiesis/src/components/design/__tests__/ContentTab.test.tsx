@@ -157,7 +157,9 @@ describe("ContentTab 点名选值型控件 → connectElementLink 统一路径",
     expect(signals.map((s) => s.name)).toEqual(["input_1_value"]);
     const title = usePoiesisStore.getState().elements.find((e) => e.id === "title-1");
     expect(title && "props" in title && title.props?.["label"]).toBe("{input_1_value}");
-    expect(usePoiesisStore.getState().wires).toHaveLength(1);
+    const wires = usePoiesisStore.getState().wires;
+    expect(wires).toHaveLength(1);
+    expect(wires[0]).toMatchObject({ fromId: "input-1", fromPort: "value", toId: "title-1", toPort: "label" });
     // 源端 bind 落盘
     const input = usePoiesisStore.getState().elements.find((e) => e.id === "input-1");
     expect(input && "bindings" in input && input.bindings?.["value"]).toBe("input_1_value");

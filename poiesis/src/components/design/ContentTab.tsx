@@ -107,7 +107,9 @@ export function ContentTab({ elementId }: { elementId: string }) {
   // 点名绑定落盘：按槽位种类写现有语法（文本/属性槽键即落盘 prop 键）
   const pick = (slot: SlotDef, source: BindingSource) => {
     // B1 点名统一路径：值型控件当源 = 与拖线同一条落盘路径（auto signal + 目标绑定 + wire）
-    if (source.kind === "element" && source.elementId) {
+    if (source.kind === "element") {
+      // elementId 缺失（退化态）拒绝而非静默落旧 switch——防 label 文本当表达式落盘（B1 消灭的缺陷）
+      if (!source.elementId) return;
       usePoiesisStore.getState().connectElementLink(source.elementId, "value", el.id, slot.key);
       setPickingFor(null);
       return;
