@@ -14,7 +14,7 @@ export const KIND_ICONS: Record<SourceNode["kind"], string> = {
 };
 
 export function SourceNodeCard({ node, onEdit }: { node: SourceNode; onEdit: (node: SourceNode) => void }) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: node.id });
+  const { attributes, listeners, setNodeRef, isDragging, transform } = useDraggable({ id: node.id });
 
   return (
     <div
@@ -22,6 +22,8 @@ export function SourceNodeCard({ node, onEdit }: { node: SourceNode; onEdit: (no
       data-testid="source-node-card"
       data-node-id={node.id}
       className={`${styles.card} ${isDragging ? styles.dragging : ""}`}
+      // 拖拽中实时跟随（dnd-kit transform 瞬时生效；松手后 drop delta 累积进层级 positions——两层各自独立，不重复应用）
+      style={transform ? { transform: `translate(${transform.x}px, ${transform.y}px)` } : undefined}
       {...attributes}
       {...listeners}
       // 点击/拖拽分离依赖宿主 DndContext 的 activationConstraint（distance:5）——真实拖拽会抑制点击（dnd-kit capture 阶段 stopPropagation）

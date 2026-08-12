@@ -56,4 +56,17 @@ describe("SourceNodeLayer", () => {
     fireEvent.click(screen.getByTestId("source-node-card"));
     expect(screen.getByTestId("editing-indicator")).toBeTruthy();
   });
+
+  it("非组件 tab 不渲染（componentName 门控）", () => {
+    usePoiesisStore.setState({
+      designPage: {
+        ...usePoiesisStore.getState().designPage,
+        awake: true,
+        dataNodesVisible: true,
+        openTabs: [{ id: "t1", filePath: "src/stores/T.omni", componentName: "T", isDirty: false, pidMap: { status: "ok", entries: {}, lineToPid: {} }, tabType: "store" }],
+      },
+    });
+    render(<SourceNodeLayer />);
+    expect(screen.queryByTestId("source-node-layer")).toBeNull();
+  });
 });
