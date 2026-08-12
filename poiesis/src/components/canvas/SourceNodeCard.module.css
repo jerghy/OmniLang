@@ -25,9 +25,34 @@
   opacity: 0.6;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
 }
-.icon {
+.iconWrap {
+  display: inline-flex;
+  align-items: center;
   flex: 0 0 auto;
-  font-size: 13px;
+}
+.kind-signal {
+  color: #f59e0b; /* 小灯 · 琥珀 */
+}
+.kind-computed {
+  color: #8b5cf6; /* 算盘 · 紫 */
+}
+.kind-store-signal {
+  color: #10b981; /* 账本 · 绿 */
+}
+.kind-store-getter {
+  color: #10b981; /* 账本 · 绿 */
+}
+.kind-inline-signal {
+  color: #f59e0b; /* 小灯 · 琥珀 */
+}
+.badge {
+  flex: 0 0 auto;
+  font-size: 9px;
+  line-height: 1;
+  padding: 1px 4px;
+  border-radius: 999px;
+  background: var(--ol-color-primary-subtle);
+  color: var(--ol-color-primary);
 }
 .name {
   flex: 1 1 auto;

@@ -26,21 +26,26 @@ describe("SourceNodeCard", () => {
     expect(screen.getByTestId("source-node-card")).toBeTruthy();
   });
 
-  it("kind 图标映射：signal→⚡ store-signal→📦 computed→🧮 inline→🔌", () => {
-    const kinds: Array<[SourceNode["kind"], string]> = [
-      ["signal", "⚡"],
-      ["store-signal", "📦"],
-      ["computed", "🧮"],
-      ["inline-signal", "🔌"],
-      ["store-getter", "📦"],
-    ];
-    for (const [kind, icon] of kinds) {
-      const { unmount } = render(
+  it("五类形象：小灯/算盘/账本 + store-getter 算页签 + inline 本地角标（data-kind 断言）", () => {
+    const kinds: SourceNode["kind"][] = ["signal", "computed", "store-signal", "store-getter", "inline-signal"];
+    for (const kind of kinds) {
+      const { unmount, getByTestId, queryByText } = render(
         <DndContext>
           <SourceNodeCard node={{ ...node, id: `k:${kind}`, kind }} onEdit={() => {}} />
         </DndContext>
       );
-      expect(screen.getByText(icon)).toBeTruthy();
+      // 图标断言用 data-kind 属性而非 SVG 细节——视觉断言不可脆
+      expect(document.querySelector(`[data-kind="${kind}"]`)).toBeTruthy();
+      if (kind === "store-getter") {
+        expect(getByTestId("kind-badge").textContent).toBe("算");
+      } else {
+        expect(document.querySelector('[data-testid="kind-badge"]')).toBeNull();
+      }
+      if (kind === "inline-signal") {
+        expect(queryByText("本地")).toBeTruthy();
+      } else {
+        expect(queryByText("本地")).toBeNull();
+      }
       unmount();
     }
   });
