@@ -296,7 +296,18 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
             <DesignTabContent />
           ) : activeTabType === "component" ? (
             /* Z-axis 双层叠加：设计层（DOM 画布）常显，逻辑层（醒态 fn 图）浮于其上 */
-            <div ref={zAxisRef} style={{ flex: 1, position: "relative", overflow: "hidden" }}>
+            /* M2 T8 实机发现：zAxisRef 容器须为 flex 容器（InfiniteCanvas 根节点 flex:1
+                只在 flex 容器内生效），否则高度塌陷 → Artboard 被推出视口（y≈-426） */
+            <div
+              ref={zAxisRef}
+              style={{
+                flex: 1,
+                position: "relative",
+                overflow: "hidden",
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
               <InfiniteCanvas>
                 <OmniViewRenderer />
               </InfiniteCanvas>
