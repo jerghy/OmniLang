@@ -114,7 +114,7 @@ export function emitStoreDefinition(store: StoreDefinition): string {
 
   // Signals
   for (const sig of store.signals) {
-    const defStr = sig.defaultValue !== undefined && sig.defaultValue !== ""
+    const defStr = sig.defaultValue !== undefined
       ? ` = ${formatDefaultValue(sig.defaultValue, sig.type)}`
       : "";
     w.emit(emitPidAnnotation(sig.pid));
@@ -300,7 +300,7 @@ export class SourceEmitter {
     }
 
     for (const [name, sig] of Object.entries(comp.signals)) {
-      const def = sig.defaultValue !== undefined && sig.defaultValue !== ""
+      const def = sig.defaultValue !== undefined
         ? ` = ${formatDefaultValue(sig.defaultValue, sig.type)}`
         : "";
       w.emit(`signal ${name}: ${sig.type}${def};`);
