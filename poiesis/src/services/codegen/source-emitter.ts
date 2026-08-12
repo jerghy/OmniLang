@@ -114,9 +114,8 @@ export function emitStoreDefinition(store: StoreDefinition): string {
 
   // Signals
   for (const sig of store.signals) {
-    const defStr = sig.defaultValue !== undefined
-      ? ` = ${formatDefaultValue(sig.defaultValue, sig.type)}`
-      : "";
+    const formatted = sig.defaultValue !== undefined ? formatDefaultValue(sig.defaultValue, sig.type) : "";
+    const defStr = formatted === "" ? "" : ` = ${formatted}`;
     w.emit(emitPidAnnotation(sig.pid));
     w.emit(`signal ${sig.name}: ${sig.type}${defStr};`);
   }
@@ -223,9 +222,8 @@ export class SourceEmitter {
 
     // Signals
     for (const sig of store.signals) {
-      const defStr = sig.defaultValue !== undefined
-        ? ` = ${formatDefaultValue(sig.defaultValue, sig.type)}`
-        : "";
+      const formatted = sig.defaultValue !== undefined ? formatDefaultValue(sig.defaultValue, sig.type) : "";
+      const defStr = formatted === "" ? "" : ` = ${formatted}`;
       w.emit(emitPidAnnotation(sig.pid));
       w.emit(`signal ${sig.name}: ${sig.type}${defStr};`);
     }
@@ -291,7 +289,8 @@ export class SourceEmitter {
 
     // Props (e.g. `prop title: String = ""`)
     for (const prop of comp.props || []) {
-      const def = prop.defaultValue !== undefined ? ` = ${formatDefaultValue(prop.defaultValue, prop.type)}` : "";
+      const formatted = prop.defaultValue !== undefined ? formatDefaultValue(prop.defaultValue, prop.type) : "";
+      const def = formatted === "" ? "" : ` = ${formatted}`;
       w.emit(`prop ${prop.name}: ${prop.type}${def};`);
     }
     // Events (e.g. `event onAction`)
@@ -300,9 +299,8 @@ export class SourceEmitter {
     }
 
     for (const [name, sig] of Object.entries(comp.signals)) {
-      const def = sig.defaultValue !== undefined
-        ? ` = ${formatDefaultValue(sig.defaultValue, sig.type)}`
-        : "";
+      const formatted = sig.defaultValue !== undefined ? formatDefaultValue(sig.defaultValue, sig.type) : "";
+      const def = formatted === "" ? "" : ` = ${formatted}`;
       w.emit(`signal ${name}: ${sig.type}${def};`);
     }
     for (const [name, c] of Object.entries(comp.computeds || {})) {
@@ -405,9 +403,8 @@ export class SourceEmitter {
 
     // Signals
     for (const sig of store.signals) {
-      const defStr = sig.defaultValue !== undefined
-        ? ` = ${formatDefaultValue(sig.defaultValue, sig.type)}`
-        : "";
+      const formatted = sig.defaultValue !== undefined ? formatDefaultValue(sig.defaultValue, sig.type) : "";
+      const defStr = formatted === "" ? "" : ` = ${formatted}`;
       w.emit(emitPidAnnotation(sig.pid));
       w.emit(`signal ${sig.name}: ${sig.type}${defStr};`);
     }

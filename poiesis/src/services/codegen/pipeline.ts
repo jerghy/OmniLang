@@ -540,10 +540,8 @@ function emitStoreBlock(store: StoreDef): string {
   w.emit(`store ${store.name} {`);
   w.indent();
   for (const [name, sig] of Object.entries(store.signals)) {
-    const def =
-      sig.defaultValue !== undefined
-        ? ` = ${formatDefaultValue(sig.defaultValue, sig.type)}`
-        : "";
+    const formatted = sig.defaultValue !== undefined ? formatDefaultValue(sig.defaultValue, sig.type) : "";
+    const def = formatted === "" ? "" : ` = ${formatted}`;
     w.emit(`signal ${name}: ${sig.type}${def};`);
   }
   for (const [name, g] of Object.entries(store.getters)) {

@@ -1,9 +1,10 @@
 // poiesis/src/services/codegen/__tests__/source-emitter-attrs.test.ts
 // 发射端属性三态输出（spec D6）：{expr} 动态 / boolean 裸 / 静态字符串。
-import { describe, test, expect } from "vitest";
+import { describe, test, expect, beforeEach } from "vitest";
 import { parseOmniSource } from "../omni-parser";
 import { generateOmniSource } from "../pipeline";
 import { formatDefaultValue } from "../source-emitter";
+import { usePoiesisStore } from "../../../store";
 import type { ElementData, CodeTab } from "../../../core/types";
 
 const basicCodeTabs: CodeTab[] = [
@@ -114,5 +115,49 @@ component Foo {
     const sig = parsed.signals?.find((s) => s.name === "note");
     expect(sig?.defaultValue).toBe("");
     expect(formatDefaultValue(sig?.defaultValue, sig?.type ?? "String")).toBe('""');
+  });
+
+  beforeEach(() => {
+    usePoiesisStore.setState({ componentDefs: {} });
+  });
+
+  test("发射端到端：组件信号空串默认值往返保持（`signal note: String = \"\";` 不丢）", () => {
+    // 组件信号来自全局注册表（parser → componentDefs）——直接构造 store 形状
+    usePoiesisStore.setState({
+      componentDefs: {
+        TestComponent: {
+          name: "TestComponent",
+          filePath: "TestComponent.omni",
+          signals: [{ pid: "p1", name: "note", type: "String", defaultValue: "" }],
+          props: [],
+          computeds: [],
+          events: [],
+          fns: [],
+          lifecycles: [],
+        },
+      },
+    });
+    const out = emit([], "TestComponent");
+    expect(out).toContain("signal note: String = \"\";");
+  });
+
+  test("发射端到端：非 String 空串默认值不产生 `= ;`（跳过默认值发射）", () => {
+    usePoiesisStore.setState({
+      componentDefs: {
+        TestComponent: {
+          name: "TestComponent",
+          filePath: "TestComponent.omni",
+          signals: [{ pid: "p1", name: "count", type: "i32", defaultValue: "" }],
+          props: [],
+          computeds: [],
+          events: [],
+          fns: [],
+          lifecycles: [],
+        },
+      },
+    });
+    const out = emit([], "TestComponent");
+    expect(out).toContain("signal count: i32;");
+    expect(out).not.toContain("= ;");
   });
 });
