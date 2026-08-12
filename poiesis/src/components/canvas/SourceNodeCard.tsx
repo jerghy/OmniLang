@@ -24,13 +24,14 @@ export function SourceNodeCard({ node, onEdit }: { node: SourceNode; onEdit: (no
       className={`${styles.card} ${isDragging ? styles.dragging : ""}`}
       {...attributes}
       {...listeners}
+      // 点击/拖拽分离依赖宿主 DndContext 的 activationConstraint（distance:5）——真实拖拽会抑制点击（dnd-kit capture 阶段 stopPropagation）
       onClick={() => onEdit(node)}
     >
       <span className={styles.icon}>{KIND_ICONS[node.kind]}</span>
       <span className={styles.name} title={node.name}>
         {node.name}
       </span>
-      <span className={styles.value} data-testid="source-node-value" title={String(node.value)}>
+      <span className={styles.value} data-testid="source-node-value" title={String(node.value ?? "—")}>
         {String(node.value ?? "—")}
       </span>
     </div>
