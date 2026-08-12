@@ -12,6 +12,10 @@ import { SourceNodeCard } from "./SourceNodeCard";
 import { ValueEditor } from "./ValueEditor";
 import styles from "./SourceNodeLayer.module.css";
 
+// T5 复审 Fix 2：可覆盖 kind 门控——applyDebugOverrides 只认 (signal|prop) 声明，
+// computed/store-getter 的调试条目是静默无操作（写了也不生效）→ 编辑器只对可覆盖 kind 开放
+const EDITABLE_KINDS: ReadonlySet<SourceNode["kind"]> = new Set(["signal", "store-signal", "inline-signal"]);
+
 export function SourceNodeLayer() {
   const awake = usePoiesisStore((s) => s.designPage.awake);
   const dataNodesVisible = usePoiesisStore((s) => s.designPage.dataNodesVisible);
@@ -64,7 +68,7 @@ export function SourceNodeLayer() {
               className={styles.slot}
               style={pos ? { transform: `translate(${pos.x}px, ${pos.y}px)` } : undefined}
             >
-              <SourceNodeCard node={n} onEdit={setEditing} />
+              <SourceNodeCard node={n} onEdit={(nd) => { if (EDITABLE_KINDS.has(nd.kind)) setEditing(nd); }} />
               {/* 编辑浮层锚定点击卡片所在 slot（slot 为 position:relative） */}
               {editing?.id === n.id && <ValueEditor node={n} onClose={() => setEditing(null)} />}
             </div>

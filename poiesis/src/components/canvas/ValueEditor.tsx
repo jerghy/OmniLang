@@ -7,15 +7,26 @@ import { parseDebugValue } from "../../services/debug/parse-debug-value";
 import type { SourceNode } from "./source-nodes";
 import styles from "./ValueEditor.module.css";
 
+/** 回显剥引号（T5 复审 Minor 3/4）：成对 '"' / "'" 剥除（长度≥2 守卫），与 ComponentDefPanel displayDebugText 同约定；其余原文透传 */
+function displayValue(text: string): string {
+  if (
+    text.length >= 2 &&
+    ((text.startsWith('"') && text.endsWith('"')) || (text.startsWith("'") && text.endsWith("'")))
+  ) {
+    return text.slice(1, -1);
+  }
+  return text;
+}
+
 export function ValueEditor({ node, onClose }: { node: SourceNode; onClose: () => void }) {
   const setDebugValue = usePoiesisStore((s) => s.setDebugValue);
   const debugValues = usePoiesisStore((s) => s.debugValues);
 
-  // 回显：调试覆盖值优先（剥 String 引号），defaultValue 兜底
-  const current = debugValues[node.ownerKey]?.[node.name]?.text
-    ?? (typeof node.value === "string" && node.value.startsWith('"') && node.value.endsWith('"')
-      ? node.value.slice(1, -1)
-      : String(node.value));
+  // 回显：调试覆盖值优先（valid 剥引号；invalid 存的是原文 → 不剥），defaultValue 兜底（undefined → "—"）
+  const entry = debugValues[node.ownerKey]?.[node.name];
+  const current = entry
+    ? (entry.valid ? displayValue(entry.text) : entry.text)
+    : (node.value == null ? "—" : displayValue(String(node.value)));
   const [raw, setRaw] = useState(current);
 
   const handleSave = () => {
@@ -35,7 +46,11 @@ export function ValueEditor({ node, onClose }: { node: SourceNode; onClose: () =
         className={styles.input}
         value={raw}
         onChange={(e) => setRaw(e.target.value)}
-        onKeyDown={(e) => { if (e.key === "Enter") handleSave(); if (e.key === "Escape") onClose(); }}
+        onKeyDown={(e) => {
+          // IME 组合期 Enter 不得保存（拼音选字回车）；逐事件判定，免疫粘滞态（NodeFormulaField 同款）
+          if (e.key === "Enter" && !e.nativeEvent.isComposing) handleSave();
+          if (e.key === "Escape") onClose();
+        }}
         autoFocus
       />
       <div className={styles.actions}>

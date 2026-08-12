@@ -45,4 +45,38 @@ describe("ValueEditor", () => {
     fireEvent.click(screen.getByTestId("value-editor-close"));
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  it("IME 组合期 Enter 不保存（isComposing 守卫，拼音选字回车）", () => {
+    const onClose = vi.fn();
+    render(<ValueEditor node={node} onClose={onClose} />);
+    const input = screen.getByTestId("value-editor-input") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "42" } });
+    // jsdom 的 KeyboardEvent 构造器不实现 isComposing（RTL 的 nativeEvent init 键会被丢弃）→ 手工定义到原生事件
+    const evt = new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true });
+    Object.defineProperty(evt, "isComposing", { value: true });
+    fireEvent(input, evt);
+    expect(usePoiesisStore.getState().debugValues).toEqual({});
+    expect(onClose).not.toHaveBeenCalled();
+    expect(input.value).toBe("42"); // 编辑态保留，未保存未关闭
+  });
+
+  it("回显 valid 条目剥引号（'\"hi\"' → hi）", () => {
+    usePoiesisStore.setState({ debugValues: { Card: { count: { text: '"hi"', valid: true } } } });
+    render(<ValueEditor node={node} onClose={() => {}} />);
+    const input = screen.getByTestId("value-editor-input") as HTMLInputElement;
+    expect(input.value).toBe("hi");
+  });
+
+  it("回显 invalid 条目不剥引号（存的是原文）", () => {
+    usePoiesisStore.setState({ debugValues: { Card: { count: { text: "abc", valid: false } } } });
+    render(<ValueEditor node={node} onClose={() => {}} />);
+    const input = screen.getByTestId("value-editor-input") as HTMLInputElement;
+    expect(input.value).toBe("abc");
+  });
+
+  it("defaultValue undefined 时回显 '—' 占位（不显示 undefined）", () => {
+    render(<ValueEditor node={{ ...node, value: undefined }} onClose={() => {}} />);
+    const input = screen.getByTestId("value-editor-input") as HTMLInputElement;
+    expect(input.value).toBe("—");
+  });
 });

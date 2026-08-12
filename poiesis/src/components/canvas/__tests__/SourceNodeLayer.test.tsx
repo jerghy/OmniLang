@@ -74,6 +74,25 @@ describe("SourceNodeLayer", () => {
     expect(screen.queryByTestId("value-editor")).toBeNull();
   });
 
+  it("computed 卡点击不打开编辑器（可覆盖 kind 门控）", () => {
+    usePoiesisStore.setState({
+      designPage: { ...usePoiesisStore.getState().designPage, awake: true, dataNodesVisible: true },
+      componentDefs: {
+        Card: {
+          name: "Card",
+          filePath: "src/components/Card.omni",
+          signals: [],
+          computeds: [{ pid: "comp-1", name: "fullName", returnType: "string" }],
+          events: [], fns: [], lifecycles: [], props: [],
+        },
+      } as any,
+    });
+    render(<SourceNodeLayer />);
+    expect(screen.getByText("fullName")).toBeTruthy();
+    fireEvent.click(screen.getByTestId("source-node-card"));
+    expect(screen.queryByTestId("value-editor")).toBeNull();
+  });
+
   it("非组件 tab 不渲染（componentName 门控）", () => {
     usePoiesisStore.setState({
       designPage: {
