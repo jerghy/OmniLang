@@ -27,7 +27,7 @@ import { CodeFlowCanvas } from "../components/design/CodeFlowCanvas";
 import { StorePage } from "./StorePage";
 import { CodeDrawer } from "../components/design/CodeDrawer";
 import { StoreDrawer } from "../components/design/StoreDrawer";
-import { BreadcrumbBar } from "../components/design/BreadcrumbBar";
+import { BottomBar } from "../components/design/BottomBar";
 import { generateOmniFiles, generateOmniFragment } from "../services/codegen/pipeline";
 import { emitDesignSource } from "../services/codegen/design-emitter";
 import { emitStoreDefinition } from "../services/codegen/source-emitter";
@@ -198,6 +198,7 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
   //   activeTabId / openTabs        → tab switching
   //   componentDefs                 → custom component creation
   const [showCode, setShowCode] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const codeElements = usePoiesisStore((s) => s.elements);
   const codeWires = usePoiesisStore((s) => s.wires);
   const codeRootOrder = usePoiesisStore((s) => s.rootOrder);
@@ -235,7 +236,7 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
         style={{
           display: "grid",
           gridTemplateColumns: showDesignPanels || activeTabType === "code" ? "280px 1fr" : "1fr",
-          gridTemplateRows: "36px 32px 1fr 24px",
+          gridTemplateRows: "36px 32px 1fr 28px",
           height: "100vh",
           background: "var(--ol-gray-50)",
         }}
@@ -359,9 +360,9 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
           </div>
         )}
 
-        {/* Breadcrumb bar spans full width */}
+        {/* 底栏（M2）：左 = 面包屑；右 = [组件库] 弹出面板开关 + [数据节点] 显隐开关 */}
         <div style={{ gridRow: 4, gridColumn: "1 / -1" }}>
-          <BreadcrumbBar />
+          <BottomBar onPaletteToggle={() => setPaletteOpen(!paletteOpen)} />
         </div>
       </div>
 

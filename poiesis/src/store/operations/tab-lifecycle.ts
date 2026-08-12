@@ -20,6 +20,7 @@ export function createInitialDesignPageState(): DesignPageState {
     designView: "tokens",
     storePanelVisible: false,
     storePanelActiveStore: null,
+    dataNodesVisible: false,
   };
 }
 
@@ -252,6 +253,9 @@ export function createTabSlice(set: SetFn, _get?: GetFn) {
     })),
     setStorePanelActiveStore: (name: string | null) => set((s) => ({
       designPage: { ...s.designPage, storePanelActiveStore: name },
+    })),
+    setDataNodesVisible: (visible: boolean) => set((s) => ({
+      designPage: { ...s.designPage, dataNodesVisible: visible },
     })),
   };
 }

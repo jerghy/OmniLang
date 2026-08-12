@@ -159,6 +159,7 @@ export interface PoiesisState {
   setMainPanelTab: (tab: PanelTab) => void;
   setStorePanelVisible: (visible: boolean) => void;
   setStorePanelActiveStore: (name: string | null) => void;
+  setDataNodesVisible: (visible: boolean) => void;
 
   // Element/wire CRUD
   addElement: (el: ElementData) => void;

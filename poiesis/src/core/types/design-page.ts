@@ -50,4 +50,6 @@ export interface DesignPageState {
   /** Store drawer panel state */
   storePanelVisible: boolean;
   storePanelActiveStore: string | null;
+  /** [数据节点] 开关：源节点显隐（醒态下有效）。瞬态视图状态，不持久化。 */
+  dataNodesVisible: boolean;
 }

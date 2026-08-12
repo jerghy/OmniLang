@@ -1,0 +1,35 @@
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 100%;
+  padding: 0 8px;
+  background: var(--ol-surface);
+  border-top: 1px solid var(--ol-border);
+  box-sizing: border-box;
+}
+.left { display: flex; align-items: center; min-width: 0; overflow: hidden; flex: 1; }
+/* 面包屑嵌套适配：底栏自带 28px 高 + 顶边框 + 底色，覆盖 BreadcrumbBar 自身 .bar 样式避免双边框/色缝 */
+.left > div {
+  height: 100%;
+  border-top: none;
+  background: transparent;
+  padding: 0;
+}
+.right { display: flex; gap: 6px; align-items: center; flex: 0 0 auto; }
+.btn {
+  font-size: 12px;
+  padding: 2px 10px;
+  border: 1px solid var(--ol-border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ol-text-secondary);
+  cursor: pointer;
+}
+.btn:hover { border-color: var(--ol-color-primary); color: var(--ol-color-primary); }
+.btnActive {
+  border-color: var(--ol-color-primary);
+  background: var(--ol-color-primary-subtle);
+  color: var(--ol-color-primary);
+  font-weight: 600;
+}
