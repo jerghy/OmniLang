@@ -92,6 +92,11 @@ export function ContextPanel() {
   // 重渲染且面板永久位移）；capture 使释放发生在面板上，事件仍冒泡到 window 监听。
   const onHeaderPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
+    // A2 实机发现：setPointerCapture 会把后续 pointerup/click 全部重定向到 header——
+    // 点击 tabs（标签切换）在真实指针下被吞（合成 click 无 pointerdown 故不受影响）。
+    // 排除 tablist 区域：点标签走正常 click，拖面板走 capture。
+    const target = e.target as HTMLElement;
+    if (target.closest?.('[role="tablist"]')) return;
     const headerEl = e.currentTarget;
     try {
       headerEl.setPointerCapture(e.pointerId);
