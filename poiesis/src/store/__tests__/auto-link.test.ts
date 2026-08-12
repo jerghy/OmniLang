@@ -44,7 +44,7 @@ function setupStore(): void {
 
 function getAppSignals() {
   const def = usePoiesisStore.getState().componentDefs["App"];
-  return (def?.signals ?? []) as Array<{ pid: string; name: string; type: string }>;
+  return (def?.signals ?? []) as Array<{ pid: string; name: string; type: string; defaultValue?: unknown }>;
 }
 
 describe("auto-link: 创建", () => {
@@ -57,7 +57,9 @@ describe("auto-link: 创建", () => {
     const signals = getAppSignals();
     expect(signals).toHaveLength(1);
     expect(signals[0].name).toBe("input_1_value");
-    expect(signals[0].type).toBe("string");
+    // String 大写 + 引号字面量默认值（emitter 空串跳过 + 仅大写 String 加引号，M3 T8 实机二次发现）
+    expect(signals[0].type).toBe("String");
+    expect(signals[0].defaultValue).toBe('""');
 
     // 源端：bind:value={input_1_value}
     const input = usePoiesisStore.getState().elements.find((e) => e.id === "input_1");

@@ -167,7 +167,7 @@ export function createAutoLinkSlice(set: SetFn, get: GetFn) {
       // 同槽复用：已有同名 signal 直接复用；否则创建（普通组件 signal，零语法变更）
       const existing = (def.signals ?? []).find((sig) => sig.name === name);
       if (!existing) {
-        s.addComponentSignal(compName, { pid: generatePid(), name, type: "string", defaultValue: "" });
+        s.addComponentSignal(compName, { pid: generatePid(), name, type: "String", defaultValue: '""' });
       }
 
       // 源端绑定 + 目标端绑定（5 类槽位）
