@@ -9,6 +9,8 @@ export interface BindingSource {
   kind: "signal" | "fn" | "element";
   name: string; // 显示名（信号原名 / fn 名 / 元素名）
   type: string; // 类型标注（fn 出口为签名）
+  /** kind === "element" 时携带源元素 id（B1：点名统一路径 → connectElementLink） */
+  elementId?: string;
 }
 
 interface BindingPickerProps {

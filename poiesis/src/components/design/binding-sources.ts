@@ -7,6 +7,7 @@ import type { StoreDefinition } from "../../core/types/store";
 import type { DebugValueEntry } from "../../store/types";
 import { collectSourceNodes } from "../canvas/source-nodes";
 import { fnsFromElements } from "../../services/codegen/flow-scope";
+import { VALUE_CONTROL_TAGS } from "../../constants";
 import type { BindingSource } from "./BindingPicker";
 
 export interface BindingSourceState {
@@ -43,13 +44,12 @@ export function buildBindingSources(state: BindingSourceState): BindingSource[] 
   }
 
   // 3) 画布元素（值型控件，有"值出口"语义；显示元素只作目标——B1 收窄）
-  const VALUE_TAGS = new Set(["input", "textarea", "select", "slider"]);
   for (const e of elements) {
     if (e.nodeType !== "view") continue;
-    if (!e.tag || !VALUE_TAGS.has(e.tag)) continue;
+    if (!e.tag || !VALUE_CONTROL_TAGS.has(e.tag)) continue;
     const label = typeof e.props?.label === "string" ? e.props.label : "";
     const name = label.trim().split("\n")[0] || e.id;
-    out.push({ id: `el:${e.id}`, kind: "element", name, type: e.tag ?? "元素" });
+    out.push({ id: `el:${e.id}`, kind: "element", name, type: e.tag ?? "元素", elementId: e.id });
   }
 
   return out;
