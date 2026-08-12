@@ -29,10 +29,10 @@ import { StorePage } from "./StorePage";
 import { CodeDrawer } from "../components/design/CodeDrawer";
 import { StoreDrawer } from "../components/design/StoreDrawer";
 import { BottomBar } from "../components/design/BottomBar";
+import { PaletteDrawer } from "../components/design/PaletteDrawer";
 import { generateOmniFiles, generateOmniFragment } from "../services/codegen/pipeline";
 import { emitDesignSource } from "../services/codegen/design-emitter";
 import { emitStoreDefinition } from "../services/codegen/source-emitter";
-import { ComponentPalette } from "../components/panels/ComponentPalette";
 import { ComponentTree } from "../components/panels/ComponentTree";
 import { ContextPanel } from "../components/design/ContextPanel";
 import { LibMembersPanel } from "../components/code/LibMembersPanel";
@@ -264,7 +264,7 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
           <StorePanelToggleButton />
         </DesignToolbar>
 
-        {/* Left panel: ComponentPalette + ComponentTree (component tabs, hidden in code-flow mode) */}
+        {/* Left panel: ComponentTree only（组件 tab，code 模式隐藏；[组件库] 已移至底栏弹出面板 PaletteDrawer） */}
         {showDesignPanels && (
         <div
           style={{
@@ -277,12 +277,7 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
             borderRight: "1px solid var(--ol-border)",
           }}
         >
-          <div style={{ flex: "0 0 auto", maxHeight: "50%", overflow: "auto" }}>
-            <PanelErrorBoundary name="组件面板">
-              <ComponentPalette />
-            </PanelErrorBoundary>
-          </div>
-          <div style={{ flex: 1, borderTop: "1px solid var(--ol-border)", overflow: "auto" }}>
+          <div style={{ flex: 1, overflow: "auto" }}>
             <PanelErrorBoundary name="组件树">
               <ComponentTree treeDropState={treeDropState} />
             </PanelErrorBoundary>
@@ -362,6 +357,9 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
             <CodeDrawer source={codeSource} fileName={codeFileName} onClose={() => setShowCode(false)} />
           </div>
         )}
+
+        {/* [组件库] 弹出面板（M2 T6）：底栏开关，DesignPage 受控 paletteOpen */}
+        {paletteOpen && <PaletteDrawer onClose={() => setPaletteOpen(false)} />}
 
         {/* 底栏（M2）：左 = 面包屑；右 = [组件库] 弹出面板开关 + [数据节点] 显隐开关 */}
         <div style={{ gridRow: 4, gridColumn: "1 / -1" }}>

@@ -1,0 +1,45 @@
+.drawer {
+  position: fixed;
+  left: 16px;
+  bottom: 48px;   /* 底栏上方 */
+  width: 280px;
+  max-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--ol-surface);
+  border: 1px solid var(--ol-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+  z-index: 40;
+  overflow: hidden;
+}
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--ol-border);
+  background: var(--ol-gray-50);
+}
+.title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ol-text-secondary);
+}
+.closeBtn {
+  border: none;
+  background: transparent;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--ol-text-muted);
+  cursor: pointer;
+  padding: 0 4px;
+}
+.closeBtn:hover {
+  color: var(--ol-text-secondary);
+}
+.body {
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+}
