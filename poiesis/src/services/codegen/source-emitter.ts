@@ -24,10 +24,15 @@ import { semanticEventName } from "./event-name-map";
 export function formatDefaultValue(value: unknown, type: string): string {
   if (value === undefined || value === null) return "";
   const str = String(value);
-  if (str === "") return "";
 
   // Only add quotes for String-typed defaults
   const isStringType = type === "String" || type === "String?";
+  // A1 实机发现（重开路径）：空字符串默认值是合法默认值（`signal x: String = ""`），
+  // 与"无默认值"（undefined，调用方守卫已拦截）不同——String 空串补引号，不跳过。
+  if (str === "") {
+    return isStringType ? '""' : "";
+  }
+
   if (isStringType) {
     // Don't double-quote values that already have quotes (from parser)
     if ((str.startsWith('"') && str.endsWith('"')) ||
@@ -218,7 +223,7 @@ export class SourceEmitter {
 
     // Signals
     for (const sig of store.signals) {
-      const defStr = sig.defaultValue !== undefined && sig.defaultValue !== ""
+      const defStr = sig.defaultValue !== undefined
         ? ` = ${formatDefaultValue(sig.defaultValue, sig.type)}`
         : "";
       w.emit(emitPidAnnotation(sig.pid));
@@ -400,7 +405,7 @@ export class SourceEmitter {
 
     // Signals
     for (const sig of store.signals) {
-      const defStr = sig.defaultValue !== undefined && sig.defaultValue !== ""
+      const defStr = sig.defaultValue !== undefined
         ? ` = ${formatDefaultValue(sig.defaultValue, sig.type)}`
         : "";
       w.emit(emitPidAnnotation(sig.pid));

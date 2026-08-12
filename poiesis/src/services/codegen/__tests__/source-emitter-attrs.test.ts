@@ -3,6 +3,7 @@
 import { describe, test, expect } from "vitest";
 import { parseOmniSource } from "../omni-parser";
 import { generateOmniSource } from "../pipeline";
+import { formatDefaultValue } from "../source-emitter";
 import type { ElementData, CodeTab } from "../../../core/types";
 
 const basicCodeTabs: CodeTab[] = [
@@ -74,5 +75,44 @@ component Foo {
 }`);
     const out = emit((parsed.designElements ?? []) as ElementData[], "Foo");
     expect(out).toContain("value={count}");
+  });
+});
+
+// A1 实机发现（重开路径）：`signal x: String = ""` 解析 → defaultValue = ""（内容值），
+// 发射守卫 `!== ""` 把空串当"无默认值"丢弃 → `signal x: String;` → WASM 编译错误。
+// 修复：formatDefaultValue 对 String 空串补引号；守卫只判 undefined。
+describe("formatDefaultValue 空串默认值（A1）", () => {
+  test("空字符串默认值 → 补引号字面量（区别于无默认值）", () => {
+    expect(formatDefaultValue("", "String")).toBe('""');
+  });
+
+  test("非空字符串 → 补引号（既有行为）", () => {
+    expect(formatDefaultValue("signalcs/", "String")).toBe('"signalcs/"');
+  });
+
+  test("已引号字面量原样（parser 内容值 / UI 字面量混源）", () => {
+    expect(formatDefaultValue('""', "String")).toBe('""');
+    expect(formatDefaultValue('"all"', "String")).toBe('"all"');
+  });
+
+  test("undefined/null = 无默认值 → 空串（发射方守卫已拦截）", () => {
+    expect(formatDefaultValue(undefined, "String")).toBe("");
+    expect(formatDefaultValue(null, "String")).toBe("");
+  });
+
+  test("数字/布尔原样（非 String 不补引号）", () => {
+    expect(formatDefaultValue(0, "i32")).toBe("0");
+    expect(formatDefaultValue(false, "bool")).toBe("false");
+  });
+
+  test("parse 端到端：`signal note: String = \"\";` → defaultValue 空串 → 可补引号发射", () => {
+    const parsed = parseOmniSource(`import omniview;
+component Foo {
+    signal note: String = "";
+    view { <div/> }
+}`);
+    const sig = parsed.signals?.find((s) => s.name === "note");
+    expect(sig?.defaultValue).toBe("");
+    expect(formatDefaultValue(sig?.defaultValue, sig?.type ?? "String")).toBe('""');
   });
 });
