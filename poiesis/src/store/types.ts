@@ -212,6 +212,11 @@ export interface PoiesisState {
   addComponentSignal: (compName: string, signal: { pid: string; name: string; type: string; defaultValue?: unknown }) => void;
   updateComponentSignal: (compName: string, pid: string, updates: Partial<{ name: string; type: string; defaultValue: unknown }>) => void;
   removeComponentSignal: (compName: string, pid: string) => void;
+
+  // ── 自动中转（自动连线）signal 生命周期 ──
+  connectElementLink: (sourceId: string, sourceSlot: string, targetId: string, targetSlot: string) => void;
+  disconnectElementLink: (wireId: string) => void;
+
   setDebugValue: (ownerKey: string, name: string, text: string, valid: boolean) => void;
   clearDebugValues: () => void;
   clearDebugValue: (ownerKey: string, name: string) => void;

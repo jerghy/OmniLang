@@ -11,6 +11,7 @@ const node: SourceNode = {
   type: "i32",
   value: 0,
   ownerKey: "Card",
+  auto: false,
 };
 
 describe("SourceNodeCard", () => {

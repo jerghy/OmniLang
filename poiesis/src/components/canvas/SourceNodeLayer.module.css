@@ -12,3 +12,15 @@
 .slot {
   position: relative;
 }
+/* 自动中转分组（M3 T4）：分隔标签 + 卡片弱化处理（来源印记：低强调） */
+.autoGroupLabel {
+  margin-top: 6px;
+  padding: 2px 8px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--omni-fg-muted, #8a8f98);
+  border-bottom: 1px dashed var(--omni-border, rgba(128, 128, 128, 0.25));
+}
+.autoCard {
+  opacity: 0.72;
+}

@@ -5,7 +5,7 @@ import { usePoiesisStore } from "../../../store";
 import type { SourceNode } from "../source-nodes";
 
 const node: SourceNode = {
-  id: "sig:abc", kind: "signal", name: "count", type: "i32", value: 0, ownerKey: "Card",
+  id: "sig:abc", kind: "signal", name: "count", type: "i32", value: 0, ownerKey: "Card", auto: false,
 };
 
 describe("ValueEditor", () => {

@@ -7,6 +7,8 @@
 import type { ComponentDef } from "../../core/types/project-json";
 import type { StoreDefinition } from "../../core/types/store";
 import type { DebugValueEntry } from "../../store/types";
+import type { ElementData } from "../../core/types/element";
+import { isAutoSignal } from "../../store/slices/auto-link";
 
 export interface SourceNode {
   id: string;          // `sig:${pid}` | `computed:${pid}` | `store:${storeName}.${pid}` | `inline:${key}.${pid}`
@@ -15,6 +17,7 @@ export interface SourceNode {
   type: string;
   value: unknown;      // 当前值（debugValues 覆盖优先；defaultValue 兜底）
   ownerKey: string;    // setDebugValue 的 ownerKey（组件名 | store 名 | "Comp.Store"）
+  auto: boolean;       // 自动中转 signal（M3 T4：命名匹配 <源元素id>_<槽语义> 且源元素存在）
 }
 
 export interface SourceNodeState {
@@ -24,6 +27,8 @@ export interface SourceNodeState {
   inlineStoreDefs: Record<string, StoreDefinition>;
   storeReferences: Record<string, string[]>;
   debugValues: Record<string, Record<string, DebugValueEntry>>;
+  /** 当前组件元素列表（用于识别自动中转 signal；缺失时 auto 恒 false） */
+  elements?: ElementData[];
 }
 
 /** debugValues 覆盖值：valid 时取回显原文 text；否则（非法/缺失）undefined → defaultValue 兜底 */
@@ -38,7 +43,7 @@ function defaultOf(entry: unknown): unknown {
 }
 
 export function collectSourceNodes(state: SourceNodeState): SourceNode[] {
-  const { componentName, componentDefs, storeDefs, inlineStoreDefs, storeReferences, debugValues } = state;
+  const { componentName, componentDefs, storeDefs, inlineStoreDefs, storeReferences, debugValues, elements } = state;
   if (!componentName) return [];
   const out: SourceNode[] = [];
 
@@ -53,6 +58,8 @@ export function collectSourceNodes(state: SourceNodeState): SourceNode[] {
         type: s.type,
         value: debugValueOf(debugValues, componentName, s.name) ?? s.defaultValue,
         ownerKey: componentName,
+        // 自动中转识别：仅组件级 signals 参与（store/inline 信号不归源元素命名）
+        auto: elements ? isAutoSignal(s.name, elements) : false,
       });
     }
     // 组件 computeds
@@ -64,6 +71,7 @@ export function collectSourceNodes(state: SourceNodeState): SourceNode[] {
         type: c.returnType,
         value: debugValueOf(debugValues, componentName, c.name) ?? defaultOf(c),
         ownerKey: componentName,
+        auto: false,
       });
     }
   }
@@ -85,6 +93,7 @@ export function collectSourceNodes(state: SourceNodeState): SourceNode[] {
         type: sig.type,
         value: debugValueOf(debugValues, storeName, sig.name) ?? sig.defaultValue,
         ownerKey: storeName,
+        auto: false,
       });
     }
     for (const g of storeDef.getters ?? []) {
@@ -95,6 +104,7 @@ export function collectSourceNodes(state: SourceNodeState): SourceNode[] {
         type: g.returnType,
         value: debugValueOf(debugValues, storeName, g.name) ?? defaultOf(g),
         ownerKey: storeName,
+        auto: false,
       });
     }
   }
@@ -110,6 +120,7 @@ export function collectSourceNodes(state: SourceNodeState): SourceNode[] {
         type: sig.type,
         value: debugValueOf(debugValues, key, sig.name) ?? sig.defaultValue,
         ownerKey: key,
+        auto: false,
       });
     }
   }

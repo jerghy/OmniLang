@@ -21,6 +21,7 @@ import { createUndoSlice } from "./undo-slice";
 import { createThemeSlice } from "./slices/theme";
 import { createLibDefsSlice } from "./slices/lib-defs";
 import { createBehaviorSlice } from "./slices/behavior";
+import { createAutoLinkSlice } from "./slices/auto-link";
 
 export const usePoiesisStore = create<PoiesisState>((set, get) => ({
   // ── Initial state values ──
@@ -74,6 +75,7 @@ export const usePoiesisStore = create<PoiesisState>((set, get) => ({
   ...createStoreCrudSlice(set, get),
   ...createLibDefsSlice(set, get),
   ...createBehaviorSlice(set, get),
+  ...createAutoLinkSlice(set, get),
 }));
 
 // ── HMR State Preservation ──

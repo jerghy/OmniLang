@@ -3,7 +3,7 @@
 // 对自身 draggables 有优先权；activationConstraint distance:5 与宿主一致，点击/拖拽分离）。
 // 点卡片 → 编辑态（ValueEditor 浮层改值 → setDebugValue → 画布预览当场演）。
 // 防御性门控：仅组件 tab（activeTabType === "component"）显示（挂载点已在组件中心区，双保险）。
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { DndContext, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import type { DragEndEvent } from "@dnd-kit/core";
 import { usePoiesisStore } from "../../store";
@@ -26,6 +26,7 @@ export function SourceNodeLayer() {
   const inlineStoreDefs = usePoiesisStore((s) => s.inlineStoreDefs);
   const storeReferences = usePoiesisStore((s) => s.storeReferences);
   const debugValues = usePoiesisStore((s) => s.debugValues);
+  const elements = usePoiesisStore((s) => s.elements);
 
   // 拖动位置：相对堆叠槽位的偏移（slot 包裹卡片，translate 不压垮 flex 布局）
   const [positions, setPositions] = useState<Record<string, { x: number; y: number }>>({});
@@ -36,8 +37,8 @@ export function SourceNodeLayer() {
   const componentName = activeTab?.tabType === "component" ? (activeTab.componentName ?? null) : null;
 
   const nodes = useMemo(
-    () => collectSourceNodes({ componentName, componentDefs, storeDefs, inlineStoreDefs, storeReferences, debugValues }),
-    [componentName, componentDefs, storeDefs, inlineStoreDefs, storeReferences, debugValues],
+    () => collectSourceNodes({ componentName, componentDefs, storeDefs, inlineStoreDefs, storeReferences, debugValues, elements }),
+    [componentName, componentDefs, storeDefs, inlineStoreDefs, storeReferences, debugValues, elements],
   );
 
   // T4 复审 Minor 2：门控关闭（睡/开关/非组件 tab）时清理编辑态，避免下次开门残留浮层
@@ -60,18 +61,22 @@ export function SourceNodeLayer() {
   return (
     <div className={styles.layer} data-testid="source-node-layer" aria-label="数据区">
       <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-        {nodes.map((n) => {
+        {nodes.map((n, i) => {
           const pos = positions[n.id];
+          // 自动中转分组：首个 auto 卡片前插分隔标签（M3 T4）
+          const firstAuto = n.auto && (i === 0 || !nodes[i - 1].auto);
           return (
-            <div
-              key={n.id}
-              className={styles.slot}
-              style={pos ? { transform: `translate(${pos.x}px, ${pos.y}px)` } : undefined}
-            >
-              <SourceNodeCard node={n} onEdit={(nd) => { if (EDITABLE_KINDS.has(nd.kind)) setEditing(nd); }} />
-              {/* 编辑浮层锚定点击卡片所在 slot（slot 为 position:relative） */}
-              {editing?.id === n.id && <ValueEditor node={n} onClose={() => setEditing(null)} />}
-            </div>
+            <Fragment key={n.id}>
+              {firstAuto && <div className={styles.autoGroupLabel} data-testid="auto-group-label">自动连线</div>}
+              <div
+                className={n.auto ? `${styles.slot} ${styles.autoCard}` : styles.slot}
+                style={pos ? { transform: `translate(${pos.x}px, ${pos.y}px)` } : undefined}
+              >
+                <SourceNodeCard node={n} onEdit={(nd) => { if (EDITABLE_KINDS.has(nd.kind)) setEditing(nd); }} />
+                {/* 编辑浮层锚定点击卡片所在 slot（slot 为 position:relative） */}
+                {editing?.id === n.id && <ValueEditor node={n} onClose={() => setEditing(null)} />}
+              </div>
+            </Fragment>
           );
         })}
       </DndContext>
