@@ -21,6 +21,7 @@ import type { StoreDefinition } from "../core/types/store";
 import { DesignTabContent } from "../components/design/DesignTabContent";
 import { InfiniteCanvas } from "../components/canvas/InfiniteCanvas";
 import { LogicLayer } from "../components/canvas/LogicLayer";
+import { SourceNodeLayer } from "../components/canvas/SourceNodeLayer";
 import { BreathingPoint } from "../components/canvas/BreathingPoint";
 import { OmniViewRenderer } from "../components/design/OmniViewRenderer";
 import { CodeFlowCanvas } from "../components/design/CodeFlowCanvas";
@@ -326,6 +327,8 @@ export function DesignPage({ onProjectOpened }: { onProjectOpened?: (path: strin
               <LogicLayer visible={logicLayerVisible}>
                 <CodeFlowCanvas />
               </LogicLayer>
+              {/* 数据区（M2 T4）：源节点卡片层——醒态 + [数据节点] 开关门控，右上角自动排布可拖动 */}
+              <SourceNodeLayer />
               {/* 呼吸点（T3）：角落小脉搏整页睡/醒开关，绝对定位叠加 */}
               <BreathingPoint />
               {/* 语境面板（T6）：浮动主/副面板 + 浮标，叠加在画布层之上 */}
