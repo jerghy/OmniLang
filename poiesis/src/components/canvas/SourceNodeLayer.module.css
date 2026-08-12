@@ -12,12 +12,3 @@
 .slot {
   position: relative;
 }
-.editing {
-  margin-top: 6px;
-  padding: 6px 10px;
-  font-size: 12px;
-  color: var(--ol-text-muted);
-  background: var(--ol-surface);
-  border: 1px dashed var(--ol-color-primary);
-  border-radius: 6px;
-}
