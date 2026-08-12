@@ -132,6 +132,12 @@ impl OmniViewGenerator {
         // keeps resolving items from that snapshot forever (wrong item id on
         // delete, wrong text on rebind).
         self.js.push_str("  ctr._forData = data;\n");
+        // Task 11: paginated scroll — teardown the sentinel observer at every
+        // render start (runs BEFORE items are cleared, so the last rendered
+        // item of the previous render is still a valid intersection target
+        // when the fresh observer registers below).
+        self.js
+            .push_str("  if (ctr._obs) { ctr._obs.disconnect(); ctr._obs = null; }\n");
 
         // Re-render loop
         // If key_expr is present, use key-based identity tracking for enter/leave animations.
@@ -717,6 +723,70 @@ impl OmniViewGenerator {
                 }
                 self.js.push_str("  }\n");
             }
+        }
+
+        // Task 11: paginated scroll — sentinel IntersectionObserver on the
+        // last rendered item. Only when the @for iterable IS the paginated
+        // scroll @load's data slot (V7/V8 guarantee scroll implies named +
+        // paginated), the container doubles as the load-more trigger point.
+        let sentinel = match &list.iterable {
+            ExprIR::IdentifierExpr { name, .. } => self.scope.load_intent.iter().find(|li| {
+                if !li.mode.scroll {
+                    return false;
+                }
+                match li.name.as_deref() {
+                    Some(p) => format!("{p}Data") == *name,
+                    None => *name == "data",
+                }
+            }),
+            _ => None,
+        };
+        if let Some(intent) = sentinel {
+            let comp = self.scope.current_component.clone();
+            let js_base = match intent.name.as_deref() {
+                Some(p) => format!("{comp}_{p}"),
+                None => comp.clone(),
+            };
+            let view_load_more = match intent.name.as_deref() {
+                Some(p) => format!("{p}LoadMore"),
+                None => "loadMore".to_string(),
+            };
+            let (loading_more_guard, has_more_guard, load_more_call) = if self.editor_mode {
+                (
+                    format!("!__omni_subs.get(\"{js_base}_loading_more\").value"),
+                    format!("__omni_subs.get(\"{js_base}_has_more\").value"),
+                    format!("window.__omni_components[\"{comp}\"].fns.{view_load_more}()"),
+                )
+            } else {
+                (
+                    format!("!{js_base}_loading_more.value"),
+                    format!("{js_base}_has_more.value"),
+                    format!("{js_base}_load_more()"),
+                )
+            };
+            self.js.push_str(
+                "  // Task 11: load-more sentinel (IntersectionObserver on the last item)\n",
+            );
+            self.js.push_str(
+                "  if (ctr._forData && ctr._forData.length > 0 && ctr.previousElementSibling) {\n",
+            );
+            self.js.push_str("    if (!ctr._obsRegistered) {\n");
+            self.js.push_str("      ctr._obsRegistered = true;\n");
+            self.js
+                .push_str(&format!("      var _p = window.__omni_unmount_{comp};\n"));
+            self.js.push_str(&format!(
+                "      window.__omni_unmount_{comp} = _p ? function() {{ _p(); if (ctr._obs) ctr._obs.disconnect(); }} : function() {{ if (ctr._obs) ctr._obs.disconnect(); }};\n"
+            ));
+            self.js.push_str("    }\n");
+            self.js
+                .push_str("    ctr._obs = new IntersectionObserver((entries) => {\n");
+            self.js.push_str(&format!(
+                "      if (entries[0].isIntersecting && {loading_more_guard} && {has_more_guard}) {{ {load_more_call}(); }}\n"
+            ));
+            self.js.push_str("    }, { threshold: 0.1 });\n");
+            self.js
+                .push_str("    ctr._obs.observe(ctr.previousElementSibling);\n");
+            self.js.push_str("  }\n");
         }
 
         self.js.push_str("});\n");

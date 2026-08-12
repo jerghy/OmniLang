@@ -3352,6 +3352,233 @@ component Root {
     );
 }
 
+// ---- Task 11：分页/滚动/轮询 + debounce/throttle JS 映射 ----
+
+/// 分页槽位（spec §2.2 + §4.3）：`@load history={fetchHistory} paginated` →
+/// 三态派生信号 `App_history_page`（初值 1）/`App_history_has_more`（初值
+/// true）/`App_history_loading_more`（初值 false）进视图重命名 + `App_history_load_more`
+/// 回调（双守卫 → 页码+1 → concat append；V12 hasMore 缺失诚实降级）。
+#[test]
+fn omniview_pagination_slots() {
+    let source = r#"
+component App {
+  fn fetchHistory(page: i32) -> Page<String> { }
+  view {
+    @load history={fetchHistory} paginated
+    <p>{historyPage}</p>
+    <p>{historyHasMore}</p>
+    <p>{historyLoadingMore}</p>
+    <button @onPress={historyLoadMore}>More</button>
+  }
+}
+"#;
+    let result = crate::compile_omniview(source, false, false);
+    assert!(result.success, "compilation failed: {:?}", result.errors);
+    let js = result.files.expect("Expected JS output").js;
+
+    // 三态派生信号：page 初值 1 / hasMore 初值 true / loadingMore 初值 false
+    for (slot, init) in [
+        ("page", "1"),
+        ("has_more", "true"),
+        ("loading_more", "false"),
+    ] {
+        assert!(
+            js.contains(&format!(
+                "const App_history_{slot} = __omni_signal(\"App_history_{slot}\", {init});"
+            )),
+            "App_history_{slot} signal (init {init}) must exist. JS:\n{}",
+            js
+        );
+    }
+    // 视图重命名进 signal_names：视图表达式解析为带前缀槽位解引用
+    for view_renamed in [
+        "App_history_page.value",
+        "App_history_has_more.value",
+        "App_history_loading_more.value",
+    ] {
+        assert!(
+            js.contains(view_renamed),
+            "{view_renamed} view rename must deref the slot signal. JS:\n{}",
+            js
+        );
+    }
+    // load_more 回调：双守卫（loadingMore || !hasMore 短路）+ 页码+1 + concat append
+    assert!(
+        js.contains("function App_history_load_more()"),
+        "App_history_load_more function missing. JS:\n{}",
+        js
+    );
+    assert!(
+        js.contains("if (App_history_loading_more.value || !App_history_has_more.value) return;"),
+        "load_more must double-guard on loadingMore || !hasMore. JS:\n{}",
+        js
+    );
+    assert!(
+        js.contains("App_history_page.set(App_history_page.value + 1);"),
+        "load_more must advance the page in the success branch. JS:\n{}",
+        js
+    );
+    assert!(
+        js.contains("(App_history_data.value ?? []).concat(r.items"),
+        "load_more must append via concat. JS:\n{}",
+        js
+    );
+    // V12 诚实降级：hasMore 缺失 → console.warn + hasMore=false + error
+    assert!(
+        js.contains("分页数据缺少 hasMore 字段——按 hasMore=false 处理（停止加载更多）"),
+        "V12 honest-degradation message missing. JS:\n{}",
+        js
+    );
+    // 视图 fn 重命名（@onPress={historyLoadMore} 解析到带前缀函数）
+    assert!(
+        js.contains("App_history_load_more"),
+        "historyLoadMore fn rename must resolve to App_history_load_more. JS:\n{}",
+        js
+    );
+}
+
+/// 滚动哨兵（spec §2.3）：`paginated scroll` + `@for item in feedData` →
+/// 列表末项哨兵 + IntersectionObserver（threshold 0.1）+ isIntersecting 双守卫
+/// + 卸载 disconnect；观察器仅在非空数据时建立（无「观察器先于首屏项」竞态）。
+#[test]
+fn omniview_scroll_sentinel_js() {
+    let source = r#"
+component App {
+  fn fetchFeed(page: i32) -> Page<String> { }
+  view {
+    <div style: { height: '400px' }>
+      @load feed={fetchFeed} paginated scroll
+      @for item in feedData { <div>{item}</div> }
+    </div>
+  }
+}
+"#;
+    let result = crate::compile_omniview(source, false, false);
+    assert!(result.success, "compilation failed: {:?}", result.errors);
+    let js = result.files.expect("Expected JS output").js;
+
+    assert!(
+        js.contains("new IntersectionObserver("),
+        "IntersectionObserver must be created for scroll sentinel. JS:\n{}",
+        js
+    );
+    assert!(
+        js.contains("threshold: 0.1"),
+        "observer must use threshold 0.1. JS:\n{}",
+        js
+    );
+    // isIntersecting 守卫 + loadingMore/hasMore 双守卫（槽位解引用）
+    assert!(
+        js.contains("entries[0].isIntersecting")
+            && js.contains("!App_feed_loading_more.value")
+            && js.contains("App_feed_has_more.value"),
+        "observer callback must guard isIntersecting && !loadingMore && hasMore. JS:\n{}",
+        js
+    );
+    // 哨兵 = 列表末项（ctr.previousElementSibling），仅非空数据时建立——
+    // 结构上规避 React 侧的「空数据先挂观察器」竞态
+    assert!(
+        js.contains("ctr.previousElementSibling"),
+        "sentinel must be the last rendered item. JS:\n{}",
+        js
+    );
+    assert!(
+        js.contains("ctr._forData && ctr._forData.length > 0"),
+        "observer setup must be gated on non-empty data (no-observer-before-items). JS:\n{}",
+        js
+    );
+    // 卸载 disconnect + 效果重跑时拆除旧观察器
+    assert!(
+        js.contains(".disconnect()"),
+        "sentinel observer must disconnect on teardown/unmount. JS:\n{}",
+        js
+    );
+    // load_more 直调经带前缀函数名（生产模式）
+    assert!(
+        js.contains("App_feed_load_more()"),
+        "observer callback must call App_feed_load_more(). JS:\n{}",
+        js
+    );
+}
+
+/// 轮询（spec §2.4）：`@load={fetchPrices} interval: 5000` → setInterval 5000、
+/// 每轮回调 `App_retry()`、卸载链 clearInterval 清理（window.__omni_unmount_App
+/// 链式包裹保留既有 @unmount/effect 清理）。
+#[test]
+fn omniview_interval_js() {
+    let source = r#"
+component App {
+  fn fetchPrices() -> Array<String> { return []; }
+  view {
+    @load={fetchPrices} interval: 5000
+    <div/>
+  }
+}
+"#;
+    let result = crate::compile_omniview(source, false, false);
+    assert!(result.success, "compilation failed: {:?}", result.errors);
+    let js = result.files.expect("Expected JS output").js;
+
+    assert!(
+        js.contains("setInterval(function() { App_retry(); }, 5000)"),
+        "interval polling must reload via App_retry every 5000ms. JS:\n{}",
+        js
+    );
+    assert!(
+        js.contains("clearInterval(App_timer)"),
+        "unmount chain must clearInterval(App_timer). JS:\n{}",
+        js
+    );
+    assert!(
+        js.contains("window.__omni_unmount_App"),
+        "interval cleanup must chain into window.__omni_unmount_App. JS:\n{}",
+        js
+    );
+}
+
+/// debounce/throttle（spec §2.5 + §4.3）：`@onInput={debounce(doSearch, 300)}`
+/// → stdlib setTimeout 闭包经稳定命名 const 承载（渲染稳定性——绑定只执行
+/// 一次，无逐渲染重建问题）。
+#[test]
+fn omniview_debounce_js() {
+    let source = r#"
+import { debounce } from "std/timing";
+component App {
+  fn doSearch(q: String) -> Array<String> { }
+  view {
+    <input @onInput={debounce(doSearch, 300)} />
+  }
+}
+"#;
+    let result = crate::compile_omniview(source, false, false);
+    assert!(result.success, "compilation failed: {:?}", result.errors);
+    let js = result.files.expect("Expected JS output").js;
+
+    // stdlib debounce 闭包：setTimeout + clearTimeout（trailing-only）
+    assert!(
+        js.contains("setTimeout"),
+        "debounce must compile to stdlib setTimeout closure. JS:\n{}",
+        js
+    );
+    assert!(
+        js.contains("clearTimeout(_t)"),
+        "debounce closure must clearTimeout on trailing call. JS:\n{}",
+        js
+    );
+    // 稳定引用 const（deferred 缓冲，绑定行之前发射）——命名 = 事件名
+    // camelCase + nid：`__timing{event_name}_{nid_dashes_underscored}`
+    assert!(
+        js.contains("const __timingonInput_el_input_001"),
+        "debounce handler must be captured in a stable named const. JS:\n{}",
+        js
+    );
+    assert!(
+        js.contains("__timingonInput_el_input_001({})"),
+        "event binding must call the stable timing const. JS:\n{}",
+        js
+    );
+}
+
 /// fix round 1（Important 2 门禁锚点）：editor_mode=true 挂载路由为工厂
 /// IIFE 内直调——Fn loader `App_items_retry();`、Call loader
 /// `__omni_effect(() => { App_stats_retry(); });`；不存在

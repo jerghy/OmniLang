@@ -429,22 +429,25 @@ impl OmniViewGenerator {
             let lloading = format!("{js_base}_loading");
             let lerror = format!("{js_base}_error");
             let ldata = format!("{js_base}_data");
-            let (view_loading, view_error, view_data, view_retry, view_reset) = match &view_prefix {
-                Some(p) => (
-                    format!("{p}Loading"),
-                    format!("{p}Error"),
-                    format!("{p}Data"),
-                    format!("{p}Retry"),
-                    format!("{p}Reset"),
-                ),
-                None => (
-                    "loading".to_string(),
-                    "error".to_string(),
-                    "data".to_string(),
-                    "retry".to_string(),
-                    "reset".to_string(),
-                ),
-            };
+            let (view_loading, view_error, view_data, view_retry, view_reset, view_load_more) =
+                match &view_prefix {
+                    Some(p) => (
+                        format!("{p}Loading"),
+                        format!("{p}Error"),
+                        format!("{p}Data"),
+                        format!("{p}Retry"),
+                        format!("{p}Reset"),
+                        format!("{p}LoadMore"),
+                    ),
+                    None => (
+                        "loading".to_string(),
+                        "error".to_string(),
+                        "data".to_string(),
+                        "retry".to_string(),
+                        "reset".to_string(),
+                        "loadMore".to_string(),
+                    ),
+                };
             self.name_resolver
                 .name_renames
                 .insert(view_loading, lloading.clone());
@@ -472,6 +475,56 @@ impl OmniViewGenerator {
                 "const {lerror} = __omni_signal(\"{lerror}\", \"\");"
             );
             let _ = writeln!(self.js, "const {ldata} = __omni_signal(\"{ldata}\", []);");
+            // Task 11（spec §2.2 + §4.3 槽位表）：分页三态派生信号——
+            // {js_base}_page 初值 1 / _has_more 初值 true / _loading_more
+            // 初值 false；视图侧 camelCase {p}Page/{p}HasMore/{p}LoadingMore
+            // 进 signal_names（.value 解引用）；{p}LoadMore 为生成回调
+            // （函数重命名，不进 signal_names）。
+            if intent.mode.paginated {
+                let (lpage, lhas_more, lloading_more) = (
+                    format!("{js_base}_page"),
+                    format!("{js_base}_has_more"),
+                    format!("{js_base}_loading_more"),
+                );
+                let (view_page, view_has_more, view_loading_more) = match &view_prefix {
+                    Some(p) => (
+                        format!("{p}Page"),
+                        format!("{p}HasMore"),
+                        format!("{p}LoadingMore"),
+                    ),
+                    None => (
+                        "page".to_string(),
+                        "hasMore".to_string(),
+                        "loadingMore".to_string(),
+                    ),
+                };
+                self.name_resolver
+                    .name_renames
+                    .insert(view_page, lpage.clone());
+                self.name_resolver.signal_names.insert(lpage.clone());
+                self.name_resolver
+                    .name_renames
+                    .insert(view_has_more, lhas_more.clone());
+                self.name_resolver.signal_names.insert(lhas_more.clone());
+                self.name_resolver
+                    .name_renames
+                    .insert(view_loading_more, lloading_more.clone());
+                self.name_resolver
+                    .signal_names
+                    .insert(lloading_more.clone());
+                self.name_resolver
+                    .name_renames
+                    .insert(view_load_more, format!("{js_base}_load_more"));
+                let _ = writeln!(self.js, "const {lpage} = __omni_signal(\"{lpage}\", 1);");
+                let _ = writeln!(
+                    self.js,
+                    "const {lhas_more} = __omni_signal(\"{lhas_more}\", true);"
+                );
+                let _ = writeln!(
+                    self.js,
+                    "const {lloading_more} = __omni_signal(\"{lloading_more}\", false);"
+                );
+            }
         }
 
         // Computed declarations — MUST come AFTER prop defaults so that
@@ -672,20 +725,73 @@ impl OmniViewGenerator {
                 None => name.to_string(),
             };
             let loader_call = match &intent.loader {
-                LoaderIR::Fn(f) => format!("{}()", self.resolve_fn_name(f)),
+                LoaderIR::Fn(f) => {
+                    let fname = self.resolve_fn_name(f);
+                    if intent.mode.paginated {
+                        // Task 11: 分页重载当前页（page 信号在 load_more 成功
+                        // 分支推进）——与 React 侧 retry 固定 page=1 的差异为
+                        // 有意偏离：OmniView 的 page 是信号而非独立 state，
+                        // 重载当前页保证 load_more 失败重试取同页、且轮询组合
+                        // 场景刷新的是正在展示的数据。
+                        format!("{fname}({js_base}_page.value)")
+                    } else {
+                        format!("{fname}()")
+                    }
+                }
                 LoaderIR::Call(c) => {
                     let args: Vec<String> = c.args.iter().map(|a| self.expr_to_js(a)).collect();
                     format!("{}({})", self.resolve_fn_name(&c.func), args.join(", "))
                 }
             };
-            let _ = writeln!(
-                self.js,
-                "function {js_base}_retry() {{ {js_base}_loading.set(true); {js_base}_error.set(\"\"); Promise.resolve().then(() => {loader_call}).then((r) => {{ {js_base}_data.set(r); {js_base}_loading.set(false); }}).catch((e) => {{ {js_base}_error.set(String(e)); {js_base}_loading.set(false); }}); }}"
-            );
-            let _ = writeln!(
-                self.js,
-                "function {js_base}_reset() {{ {js_base}_loading.set(false); {js_base}_error.set(\"\"); {js_base}_data.set(null); }}"
-            );
+            // Task 11（spec §2.2）：V12 信封校验——响应缺 hasMore 字段时
+            // console.warn + {js_base}_error 双通道暴露（诚实降级，绝不
+            // 静默），数据经 r.items 解包入 {js_base}_data（V12 分支同样
+            // 保留取回数据）。消息与 React 端逐字一致（react/component/
+            // mod.rs v12_msg），便于跨目标断言。
+            let v12_msg = "分页数据缺少 hasMore 字段——按 hasMore=false 处理（停止加载更多）";
+            if intent.mode.paginated {
+                let _ = writeln!(
+                    self.js,
+                    "function {js_base}_retry() {{ {js_base}_loading.set(true); {js_base}_error.set(\"\"); Promise.resolve().then(() => {loader_call}).then((r) => {{ if (typeof r.hasMore !== 'boolean') {{ console.warn(\"{v12_msg}\"); {js_base}_has_more.set(false); {js_base}_error.set(\"{v12_msg}\"); }} else {{ {js_base}_has_more.set(r.hasMore); {js_base}_error.set(\"\"); }} {js_base}_data.set(r.items ?? []); {js_base}_loading.set(false); }}).catch((e) => {{ {js_base}_error.set(String(e)); {js_base}_loading.set(false); }}); }}"
+                );
+                let _ = writeln!(
+                    self.js,
+                    "function {js_base}_reset() {{ {js_base}_page.set(1); {js_base}_has_more.set(true); {js_base}_loading_more.set(false); {js_base}_loading.set(false); {js_base}_error.set(\"\"); {js_base}_data.set(null); }}"
+                );
+                // Task 11（spec §2.2 追加语义）：load_more 回调——双守卫
+                // loading_more || !has_more 防重入（哨兵/按钮复用）；页码
+                // 推进在成功分支（失败重试取同页不跳页）；V12 信封校验同上；
+                // 数据 concat append（保留已加载页）。
+                let load_more_call = match &intent.loader {
+                    LoaderIR::Fn(f) => {
+                        format!(
+                            "Promise.resolve().then(() => {}({js_base}_page.value + 1))",
+                            self.resolve_fn_name(f),
+                        )
+                    }
+                    LoaderIR::Call(c) => {
+                        let args: Vec<String> = c.args.iter().map(|a| self.expr_to_js(a)).collect();
+                        format!(
+                            "Promise.resolve().then(() => {}({}))",
+                            self.resolve_fn_name(&c.func),
+                            args.join(", ")
+                        )
+                    }
+                };
+                let _ = writeln!(
+                    self.js,
+                    "function {js_base}_load_more() {{ if ({js_base}_loading_more.value || !{js_base}_has_more.value) return; {js_base}_loading_more.set(true); {js_base}_error.set(\"\"); {load_more_call}.then((r) => {{ if (typeof r.hasMore !== 'boolean') {{ console.warn(\"{v12_msg}\"); {js_base}_has_more.set(false); {js_base}_data.set(({js_base}_data.value ?? []).concat(r.items ?? [])); {js_base}_error.set(\"{v12_msg}\"); {js_base}_loading_more.set(false); return; }} {js_base}_page.set({js_base}_page.value + 1); {js_base}_data.set(({js_base}_data.value ?? []).concat(r.items)); {js_base}_has_more.set(!!r.hasMore); {js_base}_loading_more.set(false); }}).catch((e) => {{ {js_base}_error.set(String(e)); {js_base}_loading_more.set(false); }}); }}"
+                );
+            } else {
+                let _ = writeln!(
+                    self.js,
+                    "function {js_base}_retry() {{ {js_base}_loading.set(true); {js_base}_error.set(\"\"); Promise.resolve().then(() => {loader_call}).then((r) => {{ {js_base}_data.set(r); {js_base}_loading.set(false); }}).catch((e) => {{ {js_base}_error.set(String(e)); {js_base}_loading.set(false); }}); }}"
+                );
+                let _ = writeln!(
+                    self.js,
+                    "function {js_base}_reset() {{ {js_base}_loading.set(false); {js_base}_error.set(\"\"); {js_base}_data.set(null); }}"
+                );
+            }
         }
 
         // View → HTML + reactive bindings (only root component emits its view;
@@ -855,6 +961,26 @@ impl OmniViewGenerator {
                     };
                 }
             }
+            // Task 11（spec §2.4 轮询）：interval: N → setInterval 每 N 毫秒
+            // 重跑 retry（重载当前数据）；卸载链 clearInterval 清理——
+            // window.__omni_unmount_{name} 链式包裹保留既有 @unmount/
+            // @effect 清理（__omni_effect 忽略回调返回值，清理必须链此变量）。
+            if let Some(ms) = intent.mode.interval {
+                let timer = format!("{js_base}_timer");
+                let buf: &mut String = if self.editor_mode {
+                    &mut self.comp_mount_js
+                } else {
+                    &mut self.mount_js
+                };
+                let _ = writeln!(
+                    buf,
+                    "var {timer} = setInterval(function() {{ {js_base}_retry(); }}, {ms});"
+                );
+                let _ = writeln!(
+                    buf,
+                    "var _p = window.__omni_unmount_{name}; window.__omni_unmount_{name} = _p ? function() {{ _p(); clearInterval({timer}); }} : function() {{ clearInterval({timer}); }};"
+                );
+            }
         }
 
         // @effect hooks — stored separately in comp.effects (not in comp.lifecycles)
@@ -1019,6 +1145,14 @@ impl OmniViewGenerator {
                     let prefixed = format!("{js_base}_{sig}");
                     signal_entries.push(format!("{}: {}", prefixed, prefixed));
                 }
+                // Task 11（spec §4.3 槽位表）：分页派生信号 page/has_more/
+                // loading_more 一并暴露（调试面板拨数据/读状态）。
+                if intent.mode.paginated {
+                    for sig in ["page", "has_more", "loading_more"] {
+                        let prefixed = format!("{js_base}_{sig}");
+                        signal_entries.push(format!("{}: {}", prefixed, prefixed));
+                    }
+                }
             }
 
             let signal_entries_str = signal_entries.join(", ");
@@ -1052,6 +1186,15 @@ impl OmniViewGenerator {
                 };
                 fn_entries.push(format!("{view_retry}: {js_base}_retry"));
                 fn_entries.push(format!("{view_reset}: {js_base}_reset"));
+                // Task 11：分页 load_more 回调暴露（哨兵/按钮经编辑器桥路由
+                // 调用；键 = 视图可见 camelCase 名）。
+                if intent.mode.paginated {
+                    let view_load_more = match &intent.name {
+                        Some(n) => format!("{n}LoadMore"),
+                        None => "loadMore".to_string(),
+                    };
+                    fn_entries.push(format!("{view_load_more}: {js_base}_load_more"));
+                }
             }
             // Build the factory return fields as a comma-joined list so the
             // emitted object literal stays syntactically valid whether or not

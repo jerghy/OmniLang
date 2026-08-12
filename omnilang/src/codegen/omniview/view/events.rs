@@ -10,7 +10,7 @@ use std::fmt::Write;
 
 use super::super::utils::{escape_html, event_missing_js_mapping, map_event, map_tag};
 use super::super::OmniViewGenerator;
-use crate::codegen::emit_event_object;
+use crate::codegen::{emit_event_object, try_format_stdlib_call, Target};
 use crate::ir::*;
 
 impl OmniViewGenerator {
@@ -77,6 +77,15 @@ impl OmniViewGenerator {
                         None => *entry = None,
                     }
                 }
+                // Task 11: debounce/throttle 值形态预检——val 属性值与
+                // __omni_forHandlers 注册共用同一 const 名（emit_timing_value
+                // 命中时发射命名 const，否则返回 None 走既有 wrapper 形态）。
+                let timing_name = match handler {
+                    EventHandlerIR::InlineFn { body, .. } => {
+                        self.emit_timing_value(event_name, nid, body)
+                    }
+                    _ => None,
+                };
                 let val = match handler {
                     EventHandlerIR::FnRef {
                         r#ref,
@@ -101,22 +110,26 @@ impl OmniViewGenerator {
                         ..
                     } => {
                         let wrapper_name = format!("__on{}_{}", event_name, nid.replace('-', "_"));
-                        let params_str = params.join(", ");
-                        let _ = writeln!(self.js, "function {}({}) {{", wrapper_name, params_str);
-                        // Inside @for templates this function is declared at top
-                        // level where the loop variable is out of scope; rewrite
-                        // references to it (__omni_forItemVar) so the delegated
-                        // listener can inject the clicked item at event time.
-                        let saved_rewrite = self.scope.rewrite_for_item;
-                        self.scope.rewrite_for_item = self.scope.in_for_template;
-                        for stmt in &body.statements {
-                            self.emit_statement(stmt);
+                        if timing_name.is_none() {
+                            let params_str = params.join(", ");
+                            let _ =
+                                writeln!(self.js, "function {}({}) {{", wrapper_name, params_str);
+                            // Inside @for templates this function is declared at top
+                            // level where the loop variable is out of scope; rewrite
+                            // references to it (__omni_forItemVar) so the delegated
+                            // listener can inject the clicked item at event time.
+                            let saved_rewrite = self.scope.rewrite_for_item;
+                            self.scope.rewrite_for_item = self.scope.in_for_template;
+                            for stmt in &body.statements {
+                                self.emit_statement(stmt);
+                            }
+                            self.scope.rewrite_for_item = saved_rewrite;
+                            self.js.push_str("}\n");
                         }
-                        self.scope.rewrite_for_item = saved_rewrite;
-                        self.js.push_str("}\n");
                         let flags =
                             Self::flag_suffix(*needs_prevent_default, *needs_stop_propagation);
-                        format!("fn:{}{}", escape_html(&wrapper_name), flags)
+                        let handler_value = timing_name.as_deref().unwrap_or(&wrapper_name);
+                        format!("fn:{}{}", escape_html(handler_value), flags)
                     }
                 };
                 let _ = write!(attrs, " data-event-{}=\"{}\"", js_event, val);
@@ -128,9 +141,8 @@ impl OmniViewGenerator {
                         Some(format!("{}_{}", self.scope.current_component, r#ref))
                     }
                     EventHandlerIR::StoreAction { r#ref, .. } => Some(r#ref.replace('.', "_")),
-                    EventHandlerIR::InlineFn { .. } => {
-                        Some(format!("__on{}_{}", event_name, nid.replace('-', "_")))
-                    }
+                    EventHandlerIR::InlineFn { .. } => timing_name
+                        .or_else(|| Some(format!("__on{}_{}", event_name, nid.replace('-', "_")))),
                 };
                 if let Some(ref hname) = handler_name {
                     // Editor mode: fn definitions live in the factory IIFE —
@@ -173,20 +185,27 @@ impl OmniViewGenerator {
                             format!("{}()", var_name)
                         }
                         EventHandlerIR::InlineFn { body, params, .. } => {
+                            let timing_name = self.emit_timing_value(event_name, nid, body);
                             let wrapper_name =
                                 format!("__on{}_{}", event_name, nid.replace('-', "_"));
-                            let params_str = params.join(", ");
-                            let _ =
-                                writeln!(self.js, "function {}({}) {{", wrapper_name, params_str);
-                            // Same @for loop-variable rewrite as the template branch.
-                            let saved_rewrite = self.scope.rewrite_for_item;
-                            self.scope.rewrite_for_item = self.scope.in_for_template;
-                            for stmt in &body.statements {
-                                self.emit_statement(stmt);
+                            if timing_name.is_none() {
+                                let params_str = params.join(", ");
+                                let _ = writeln!(
+                                    self.js,
+                                    "function {}({}) {{",
+                                    wrapper_name, params_str
+                                );
+                                // Same @for loop-variable rewrite as the template branch.
+                                let saved_rewrite = self.scope.rewrite_for_item;
+                                self.scope.rewrite_for_item = self.scope.in_for_template;
+                                for stmt in &body.statements {
+                                    self.emit_statement(stmt);
+                                }
+                                self.scope.rewrite_for_item = saved_rewrite;
+                                self.js.push_str("}\n");
                             }
-                            self.scope.rewrite_for_item = saved_rewrite;
-                            self.js.push_str("}\n");
-                            format!("{}({})", wrapper_name, event_obj)
+                            let handler_call = timing_name.unwrap_or(wrapper_name);
+                            format!("{}({})", handler_call, event_obj)
                         }
                     };
                     let _ = writeln!(
@@ -298,20 +317,84 @@ impl OmniViewGenerator {
                 );
             }
             EventHandlerIR::InlineFn { body, params, .. } => {
+                // Task 11: debounce/throttle 值形态——timing 闭包命名 const
+                // 取代 wrapper 函数（稳定引用，`_t` 状态跨事件保留）。
+                let timing_name = self.emit_timing_value(event_name, nid, body);
                 let wrapper_name = format!("__on{}_{}", event_name, nid.replace('-', "_"));
-                let params_str = params.join(", ");
-                let _ = writeln!(self.js, "function {}({}) {{", wrapper_name, params_str);
-                for stmt in &body.statements {
-                    self.emit_statement(stmt);
+                if timing_name.is_none() {
+                    let params_str = params.join(", ");
+                    let _ = writeln!(self.js, "function {}({}) {{", wrapper_name, params_str);
+                    for stmt in &body.statements {
+                        self.emit_statement(stmt);
+                    }
+                    self.js.push_str("}\n");
                 }
-                self.js.push_str("}\n");
                 let event_obj = emit_event_object(handler.event_data(), handler.used_fields(), "e");
+                let call_name = timing_name.unwrap_or(wrapper_name);
                 let _ = writeln!(self.js,
-                    "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ try {{ {sp} {pd} {wrapper_name}({event_obj}); }} catch(err) {{ __omni_reportError(\"error:event:{js_event}\", err); }} }}); }}",
-                    nid = nid, js_event = js_event, sp = sp, pd = pd, wrapper_name = wrapper_name, event_obj = event_obj
+                    "{{ const el = __omni_el(\"{nid}\"); if (el) el.addEventListener(\"{js_event}\", (e) => {{ try {{ {sp} {pd} {call_name}({event_obj}); }} catch(err) {{ __omni_reportError(\"error:event:{js_event}\", err); }} }}); }}",
+                    nid = nid, js_event = js_event, sp = sp, pd = pd, call_name = call_name, event_obj = event_obj
                 );
             }
         }
+    }
+
+    /// Task 11: debounce/throttle 值形态（spec §2.5 + §4.3）——单 ExprStmt 体
+    /// 且调用名 ∈ TIMING_FUNCS 的 InlineFn，其处理器值即 stdlib timing 闭包：
+    /// `@onInput={debounce(doSearch, 300)}` → 先发射
+    ///
+    /// ```js
+    /// const __timingonInput_el_input_001 = ((_fn, _ms) => { ... })(App_doSearch, 300);
+    /// ```
+    ///
+    /// 再让绑定以 `__timingonInput_el_input_001(eventObj)` 调用——闭包在
+    /// 注册时创建一次，节流/防抖内部 `_t` 状态跨事件保留（稳定引用）。
+    /// 返回 timing const 名；非 timing InlineFn 返回 None（调用方保持既有
+    /// wrapper 形态）。编辑器模式首参经工厂 fns 映射解析——deferred 缓冲在
+    /// 工厂 IIFE 之后 flush，`window.__omni_components` 已赋值。
+    fn emit_timing_value(&mut self, event_name: &str, nid: &str, body: &BlockIR) -> Option<String> {
+        use crate::semantic::load_contract::TIMING_FUNCS;
+        if let [StatementIR::ExprStmtIR {
+            expr: ExprIR::CallExpr { name, args },
+        }] = body.statements.as_slice()
+        {
+            if TIMING_FUNCS.contains(&name.as_str()) {
+                let mut formatted: Vec<String> = Vec::with_capacity(args.len());
+                for (i, arg) in args.iter().enumerate() {
+                    if i == 0 {
+                        // 首参 = 被包裹的 fn：FnRef 标识符 → name_renames
+                        // 解析（prod）/ 工厂 fns 映射（editor，IIFE 作用域
+                        // 不可见——expr_to_js 对裸 fn 标识符无回退）。
+                        if let ExprIR::IdentifierExpr { name: fname, .. } = arg {
+                            if self.editor_mode {
+                                formatted.push(format!(
+                                    "window.__omni_components[\"{}\"].fns.{}",
+                                    self.scope.current_component, fname
+                                ));
+                            } else {
+                                formatted.push(
+                                    self.name_resolver
+                                        .name_renames
+                                        .get(fname)
+                                        .cloned()
+                                        .unwrap_or_else(|| fname.clone()),
+                                );
+                            }
+                            continue;
+                        }
+                    }
+                    formatted.push(self.expr_to_js(arg));
+                }
+                if let Some(native) =
+                    try_format_stdlib_call(name.as_str(), &formatted, Target::OmniView)
+                {
+                    let timing_name = format!("__timing{}_{}", event_name, nid.replace('-', "_"));
+                    let _ = writeln!(self.js, "const {} = {};", timing_name, native);
+                    return Some(timing_name);
+                }
+            }
+        }
+        None
     }
 
     // ══════════════════════════════════════════════════════
