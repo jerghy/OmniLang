@@ -28,6 +28,7 @@ export function BottomBar({ onPaletteToggle }: { onPaletteToggle: () => void }) 
           type="button"
           data-testid="data-nodes-toggle"
           className={`${styles.btn} ${active ? styles.btnActive : ""}`}
+          aria-pressed={active}
           onClick={() => setDataNodesVisible(!dataNodesVisible)}
           title={dataNodesVisible ? "隐藏源节点" : "显示源节点（醒态下可见）"}
         >

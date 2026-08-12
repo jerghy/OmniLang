@@ -32,4 +32,17 @@ describe("BottomBar 底栏两件套", () => {
     fireEvent.click(screen.getByTestId("palette-toggle"));
     expect(onPaletteToggle).toHaveBeenCalledTimes(1);
   });
+
+  it("active 类 = dataNodesVisible && awake（醒态门控）", () => {
+    usePoiesisStore.setState({
+      designPage: { ...usePoiesisStore.getState().designPage, awake: true, dataNodesVisible: true },
+    });
+    render(<BottomBar onPaletteToggle={() => {}} />);
+    expect(screen.getByTestId("data-nodes-toggle").className).toContain("btnActive");
+    usePoiesisStore.setState({
+      designPage: { ...usePoiesisStore.getState().designPage, awake: false },
+    });
+    fireEvent.click(screen.getByTestId("data-nodes-toggle")); // 醒态关闭 → 即使开关开也不激活
+    expect(screen.getByTestId("data-nodes-toggle").className).not.toContain("btnActive");
+  });
 });
