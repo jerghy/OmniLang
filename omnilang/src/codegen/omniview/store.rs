@@ -413,15 +413,17 @@ impl OmniViewGenerator {
         // ── @load builtin signals (Task 6/10) ──
         // loading starts true (the mount call below flips it), error starts "",
         // data starts []. V-F8 guarantees no user-declared collisions.
-        // Task 10（spec §4.3）多实例：命名实例按 {name}_loading/{name}_error/
-        // {name}_data 发射（实例名即槽位命名空间，snake_case 无组件前缀），
-        // 视图侧经 camelCase 重命名 {name}Loading/{name}Error/{name}Data
-        // 引用；匿名实例保持 v0 组件前缀 {Comp}_*。retry/reset 为生成的
-        // 重跑/复位回调（函数而非信号）：映射裸名供视图调用，但不进
-        // signal_names（无 .value 解引用）。
+        // Task 10（spec §4.3）多实例：命名实例按 {Comp}_{name}_loading/
+        // {Comp}_{name}_error/{Comp}_{name}_data 发射——JS 槽位带组件前缀，
+        // 与 v0 匿名 {Comp}_* 同构（fix round 1：无前缀 {name}_* 会让两个
+        // 组件同名实例在共享模块级作用域重复 const → 整包 SyntaxError）。
+        // 视图侧用户可见名不变：camelCase {name}Loading/{name}Error/
+        // {name}Data 经 name_renames 映射到带前缀槽位。retry/reset 为
+        // 生成的 重跑/复位回调（函数而非信号）：映射裸名供视图调用，
+        // 但不进 signal_names（无 .value 解引用）。
         for intent in &self.scope.load_intent {
             let (js_base, view_prefix) = match &intent.name {
-                Some(n) => (n.clone(), Some(n.clone())),
+                Some(n) => (format!("{name}_{n}"), Some(n.clone())),
                 None => (name.to_string(), None),
             };
             let lloading = format!("{js_base}_loading");
@@ -662,8 +664,11 @@ impl OmniViewGenerator {
         // would keep &self.scope.load_intent borrowed (E0500).
         let load_intents = self.scope.load_intent.clone();
         for intent in &load_intents {
+            // js_base carries the component prefix (fix round 1): named
+            // instance slots are {Comp}_{name}_* so multi-component bundles
+            // sharing an instance name cannot redeclare the same const.
             let js_base = match &intent.name {
-                Some(n) => n.clone(),
+                Some(n) => format!("{name}_{n}"),
                 None => name.to_string(),
             };
             let loader_call = match &intent.loader {
@@ -808,9 +813,20 @@ impl OmniViewGenerator {
         // preact-signals auto-tracks them — fires at mount (initial load)
         // and re-fires on every param signal change (reload).
         for intent in &self.scope.load_intent {
-            let (js_base, view_retry) = match &intent.name {
-                Some(n) => (n.clone(), format!("{n}Retry")),
-                None => (name.to_string(), "retry".to_string()),
+            // Editor mode flushes comp_mount_js INSIDE the factory IIFE
+            // (see the flush below, before `}})();`), so the loader fns are
+            // in scope — direct calls work and re-run the loader on every
+            // editor hot-replace (data reload on replace = design intent).
+            // Routing through window.__omni_components["{name}"].fns.* would
+            // crash here: at flush time the factory's return value has not
+            // been assigned yet, so ["{name}"] is undefined — Fn loaders
+            // throw an uncaught TypeError (component never registers) and
+            // Call loaders get their TypeError swallowed by __omni_effect's
+            // catch (runtime.rs:123) → silent no-load + no param tracking.
+            // (fix round 1, Important 2 — previous comment here was stale.)
+            let js_base = match &intent.name {
+                Some(n) => format!("{name}_{n}"),
+                None => name.to_string(),
             };
             let _ = if self.editor_mode {
                 writeln!(self.comp_mount_js, "// @load {}", intent.loader.fn_name())
@@ -819,16 +835,8 @@ impl OmniViewGenerator {
             };
             match &intent.loader {
                 LoaderIR::Fn(_) => {
-                    // Editor mode: comp_mount_js is top-level JS OUTSIDE the
-                    // factory IIFE — a direct `{js_base}_retry()` throws
-                    // ReferenceError (same regression as user fn event
-                    // bindings, store.rs:840-844). Route through the
-                    // factory-exposed fns map.
                     let _ = if self.editor_mode {
-                        writeln!(
-                            self.comp_mount_js,
-                            "window.__omni_components[\"{name}\"].fns.{view_retry}();"
-                        )
+                        writeln!(self.comp_mount_js, "{js_base}_retry();")
                     } else {
                         writeln!(self.mount_js, "{js_base}_retry();")
                     };
@@ -837,7 +845,7 @@ impl OmniViewGenerator {
                     let _ = if self.editor_mode {
                         writeln!(
                             self.comp_mount_js,
-                            "__omni_effect(() => {{ window.__omni_components[\"{name}\"].fns.{view_retry}(); }});"
+                            "__omni_effect(() => {{ {js_base}_retry(); }});"
                         )
                     } else {
                         writeln!(
@@ -999,10 +1007,12 @@ impl OmniViewGenerator {
                 }
             }
             // @load builtin signals (Task 6/10) — per-instance loading/error/data
-            // (named → {name}_*; anonymous → {Comp}_*).
+            // (named → {Comp}_{name}_*; anonymous → {Comp}_*) — component
+            // prefix on ALL slots (fix round 1: named slots were unprefixed,
+            // colliding across components sharing an instance name).
             for intent in &self.scope.load_intent {
                 let js_base = match &intent.name {
-                    Some(n) => n.clone(),
+                    Some(n) => format!("{name}_{n}"),
                     None => name.to_string(),
                 };
                 for sig in ["loading", "error", "data"] {
@@ -1033,7 +1043,11 @@ impl OmniViewGenerator {
             }
             for intent in &self.scope.load_intent {
                 let (js_base, view_retry, view_reset) = match &intent.name {
-                    Some(n) => (n.clone(), format!("{n}Retry"), format!("{n}Reset")),
+                    Some(n) => (
+                        format!("{name}_{n}"),
+                        format!("{n}Retry"),
+                        format!("{n}Reset"),
+                    ),
                     None => (name.to_string(), "retry".to_string(), "reset".to_string()),
                 };
                 fn_entries.push(format!("{view_retry}: {js_base}_retry"));

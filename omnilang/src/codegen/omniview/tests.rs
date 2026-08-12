@@ -3008,6 +3008,10 @@ component App {
 }
 
 /// @load 编辑器模式：retry 必须经工厂 fns 映射暴露（54341d13 类回归门禁）。
+/// fix round 1（Important 2）：挂载路由不再走 fns map（comp_mount_js 在工厂
+/// IIFE 内部 flush，早于 `}})();` 赋值，此时 window.__omni_components["App"]
+/// 尚为 undefined）——改为工厂内直调 {js_base}_retry()；fns map 仍暴露
+/// retry/reset 供编辑器桥与调试面板在工厂赋值完成后调用。
 #[test]
 fn omniview_load_editor_mode_exposes_retry() {
     let source = r#"
@@ -3023,8 +3027,19 @@ component App {
     assert!(result.success, "compilation failed: {:?}", result.errors);
     let js = result.files.expect("Expected JS output").js;
     assert!(
-        js.contains("window.__omni_components[\"App\"].fns.retry"),
+        js.contains("retry: App_retry"),
         "editor mode must expose retry through the factory fns map. JS:\n{}",
+        js
+    );
+    // 挂载为工厂内直调（无 fns map 路由——赋值前 ["App"] 未定义会崩溃）
+    assert!(
+        js.contains("App_retry();"),
+        "editor mount must call App_retry directly inside the factory. JS:\n{}",
+        js
+    );
+    assert!(
+        !js.contains("window.__omni_components[\"App\"].fns.retry"),
+        "mount must not route through the fns map (assigned only after the IIFE). JS:\n{}",
         js
     );
 }
@@ -3083,9 +3098,10 @@ component App {
 }
 
 /// Task 10（spec §4.3）：2 个命名 @load → 每实例 5 槽位
-/// （items_loading/items_error/items_data/items_retry/items_reset +
-/// stats_* 同形）——实例名即槽位命名空间（snake_case，无组件前缀），
-/// 匿名形态保持 v0 组件前缀 {Comp}_*。
+/// （App_items_loading/App_items_error/App_items_data/App_items_retry/
+/// App_items_reset + App_stats_* 同形）——fix round 1：JS 槽位带组件前缀
+/// {Comp}_{name}_*（与 v0 匿名 {Comp}_* 同构），视图侧用户可见名
+/// itemsLoading 等经 name_renames 不变；匿名形态保持 v0 组件前缀 {Comp}_*。
 #[test]
 fn omniview_multi_load_store_slots() {
     let source = r#"
@@ -3103,20 +3119,21 @@ component App {
     assert!(result.success, "compilation failed: {:?}", result.errors);
     let js = result.files.expect("Expected JS output").js;
 
-    // 每实例 5 槽位：三态信号 + retry/reset 函数
+    // 每实例 5 槽位（组件前缀）：三态信号 + retry/reset 函数
     for slot in ["loading", "error", "data", "retry", "reset"] {
         assert!(
-            js.contains(&format!("items_{slot}")),
-            "items_{slot} slot must be emitted. JS:\n{}",
+            js.contains(&format!("App_items_{slot}")),
+            "App_items_{slot} slot must be emitted. JS:\n{}",
             js
         );
         assert!(
-            js.contains(&format!("stats_{slot}")),
-            "stats_{slot} slot must be emitted. JS:\n{}",
+            js.contains(&format!("App_stats_{slot}")),
+            "App_stats_{slot} slot must be emitted. JS:\n{}",
             js
         );
     }
-    // 命名实例不额外发射匿名 v0 组件前缀槽位（无 App_loading 等）
+    // 命名实例不额外发射匿名 v0 组件前缀槽位（无 App_loading 等——
+    // App_items_loading 不含子串 App_loading，此守卫依旧成立）
     assert!(
         !js.contains("App_loading"),
         "named instances must not also emit anonymous v0 slots. JS:\n{}",
@@ -3146,24 +3163,25 @@ component App {
     let js = result.files.expect("Expected JS output").js;
 
     // reset 函数体：loading=false / error="" / data=null（无重载调用）
+    // （fix round 1：槽位带组件前缀 App_items_*）
     assert!(
         js.contains(
-            "function items_reset() { items_loading.set(false); items_error.set(\"\"); items_data.set(null); }"
+            "function App_items_reset() { App_items_loading.set(false); App_items_error.set(\"\"); App_items_data.set(null); }"
         ),
-        "items_reset must null the data and clear loading/error without reloading. JS:\n{}",
+        "App_items_reset must null the data and clear loading/error without reloading. JS:\n{}",
         js
     );
-    // 视图级空闲态：`itemsData == null` 解析为 `items_data.value === null`
+    // 视图级空闲态：`itemsData == null` 解析为 `App_items_data.value === null`
     // （二元等式降低对 null 用严格相等，与 @for 兜底 `!data ||` 同语义）
     assert!(
-        js.contains("items_data.value === null"),
+        js.contains("App_items_data.value === null"),
         "idle condition must deref the data slot signal. JS:\n{}",
         js
     );
-    // 按钮经 itemsReset 重命名调用 reset fn
+    // 按钮经 itemsReset 重命名调用 reset fn（用户可见名不变）
     assert!(
-        js.contains("items_reset("),
-        "itemsReset must resolve to items_reset. JS:\n{}",
+        js.contains("App_items_reset("),
+        "itemsReset must resolve to App_items_reset. JS:\n{}",
         js
     );
 }
@@ -3199,9 +3217,10 @@ component App {
         "@for must still iterate when data is non-null. JS:\n{}",
         js
     );
-    // reset 置 data=null —— 与 @for 兜底合成「reset → 空闲态」完整链路
+    // reset 置 data=null（fix round 1：槽位带组件前缀）——与 @for 兜底
+    // 合成「reset → 空闲态」完整链路
     assert!(
-        js.contains("items_data.set(null)"),
+        js.contains("App_items_data.set(null)"),
         "reset must null the data slot (feeding the @for guard). JS:\n{}",
         js
     );
@@ -3228,8 +3247,9 @@ component App {
     let js = result.files.expect("Expected JS output").js;
 
     // 参数信号监听：effect 包装 retry（自动追踪回调内读取的信号）
+    // （fix round 1：槽位带组件前缀 App_stats_retry）
     assert!(
-        js.contains("__omni_effect(() => { stats_retry(); })"),
+        js.contains("__omni_effect(() => { App_stats_retry(); })"),
         "param loaders must be wrapped in a reactive effect for reload-on-change. JS:\n{}",
         js
     );
@@ -3239,10 +3259,10 @@ component App {
         "loader call args must deref param signals. JS:\n{}",
         js
     );
-    // 视图引用 statsData → stats_data 信号
+    // 视图引用 statsData → App_stats_data 信号（用户可见名不变）
     assert!(
-        js.contains("String(stats_data.value)"),
-        "statsData must resolve to the stats_data signal. JS:\n{}",
+        js.contains("String(App_stats_data.value)"),
+        "statsData must resolve to the App_stats_data signal. JS:\n{}",
         js
     );
 
@@ -3268,6 +3288,128 @@ component App {
         !js2.contains("__omni_effect(() => { App_retry"),
         "param-less loaders must keep the direct mount call (no watch effect). JS:\n{}",
         js2
+    );
+}
+
+/// fix round 1（Critical 1 门禁锚点）：两个组件同名命名实例（App + Other
+/// 都 `@load items`）→ 槽位各带组件前缀 App_items_* / Other_items_*，
+/// 共享模块级作用域不产生重复 const——无前缀 items_* 声明会整包
+/// SyntaxError（生产模式无 IIFE 包裹）。
+#[test]
+fn omniview_multi_component_same_named_instance_isolated() {
+    let source = r#"
+component App {
+  fn fetchItems() -> Array<String> { return []; }
+  view {
+    @load items={fetchItems}
+    <div/>
+  }
+}
+
+component Other {
+  fn fetchItems() -> Array<String> { return []; }
+  view {
+    @load items={fetchItems}
+    <div/>
+  }
+}
+
+component Root {
+  view {
+    <App />
+    <Other />
+  }
+}
+"#;
+    let result = crate::compile_omniview(source, false, false);
+    assert!(result.success, "compilation failed: {:?}", result.errors);
+    let js = result.files.expect("Expected JS output").js;
+
+    // 每组件独立带前缀槽位集（5 槽位：三态信号 + retry/reset）
+    for slot in ["loading", "error", "data", "retry", "reset"] {
+        assert!(
+            js.contains(&format!("App_items_{slot}")),
+            "App_items_{slot} must exist. JS:\n{}",
+            js
+        );
+        assert!(
+            js.contains(&format!("Other_items_{slot}")),
+            "Other_items_{slot} must exist. JS:\n{}",
+            js
+        );
+    }
+    // 无裸无前缀声明 —— 共享作用域重复 const 会整包 SyntaxError
+    assert!(
+        !js.contains("const items_loading"),
+        "no bare unprefixed decl may exist (SyntaxError gate). JS:\n{}",
+        js
+    );
+    // 两组件各自挂载直调自己的 retry（视图经 name_renames 各自解析）
+    assert!(
+        js.contains("App_items_retry();") && js.contains("Other_items_retry();"),
+        "both components' mounts must call their own retry. JS:\n{}",
+        js
+    );
+}
+
+/// fix round 1（Important 2 门禁锚点）：editor_mode=true 挂载路由为工厂
+/// IIFE 内直调——Fn loader `App_items_retry();`、Call loader
+/// `__omni_effect(() => { App_stats_retry(); });`；不存在
+/// `window.__omni_components["App"].fns.*` 挂载路由（comp_mount_js 在
+/// `}})();` 赋值前 flush，此时 ["App"] 未定义：Fn 直路由 TypeError 穿透
+/// IIFE → 组件永久未注册；Call 路由 TypeError 被 __omni_effect catch 吞掉
+/// → 初载静默不触发 + 参数重载永不生效）。工厂 fns/signals 仍暴露
+/// camelCase 视图名与带前缀槽位（编辑器桥在赋值完成后调用）。
+#[test]
+fn omniview_load_editor_mode_mount_direct_in_factory() {
+    let source = r#"
+component App {
+  signal token: String = "abc";
+  fn fetchItems() -> Array<String> { return []; }
+  fn fetchStats(t: String) -> Array<String> { return []; }
+  view {
+    @load items={fetchItems}
+    @load stats={fetchStats(token)}
+    <p>{itemsData}{statsData}</p>
+  }
+}
+"#;
+    let result = crate::compile_omniview(source, true, false);
+    assert!(result.success, "compilation failed: {:?}", result.errors);
+    let js = result.files.expect("Expected JS output").js;
+
+    // Fn loader：工厂内直调（无 fns map 路由）
+    assert!(
+        js.contains("App_items_retry();"),
+        "Fn loader mount must call App_items_retry directly. JS:\n{}",
+        js
+    );
+    // Call loader：effect 包裹（参数信号追踪）+ 直调
+    assert!(
+        js.contains("__omni_effect(() => { App_stats_retry(); });"),
+        "Call loader mount must be a watch-effect direct call. JS:\n{}",
+        js
+    );
+    // 无 fns map 挂载路由（赋值前 ["App"] 未定义 → TypeError）
+    assert!(
+        !js.contains("window.__omni_components[\"App\"].fns.itemsRetry"),
+        "mount must not route through the fns map. JS:\n{}",
+        js
+    );
+    // 工厂 fns 仍暴露 camelCase 视图名（编辑器桥赋值后经 .fns. 调用）
+    assert!(
+        js.contains("itemsRetry: App_items_retry")
+            && js.contains("itemsReset: App_items_reset")
+            && js.contains("statsRetry: App_stats_retry"),
+        "factory fns must expose camelCase view names. JS:\n{}",
+        js
+    );
+    // 工厂 signals 暴露带前缀槽位（编辑器桥信号面板/调试面板读取）
+    assert!(
+        js.contains("App_items_loading: App_items_loading")
+            && js.contains("App_stats_data: App_stats_data"),
+        "factory signals must expose prefixed slots. JS:\n{}",
+        js
     );
 }
 
