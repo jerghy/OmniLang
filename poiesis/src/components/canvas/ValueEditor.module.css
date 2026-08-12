@@ -1,0 +1,36 @@
+.editor {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 220px;
+  padding: 8px;
+  background: var(--ol-surface);
+  border: 1px solid var(--ol-border);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  z-index: 20;
+}
+.header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.name { font-size: 12px; font-weight: 600; color: var(--ol-text-secondary); }
+.type { font-size: 11px; color: var(--ol-text-muted); }
+.input {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 12px;
+  font-family: ui-monospace, monospace;
+  padding: 3px 6px;
+  border: 1px solid var(--ol-border);
+  border-radius: 4px;
+  background: var(--ol-surface);
+  color: var(--ol-text);
+}
+.input:focus { outline: none; border-color: var(--ol-color-primary); }
+.actions { display: flex; gap: 6px; margin-top: 6px; justify-content: flex-end; }
+.saveBtn, .closeBtn {
+  font-size: 12px;
+  padding: 2px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.saveBtn { background: var(--ol-color-primary); color: var(--ol-surface); border: 1px solid var(--ol-color-primary); }
+.closeBtn { background: transparent; color: var(--ol-text-secondary); border: 1px solid var(--ol-border); }

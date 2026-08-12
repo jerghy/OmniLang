@@ -1,14 +1,15 @@
 // 数据区（M2）：醒态 + [数据节点] 开关门控的源节点卡片层。
 // 画布右上角自动排布（纵向堆叠）；卡片可拖（@dnd-kit，嵌套 DndContext——子 context 优先，
 // 对自身 draggables 有优先权；activationConstraint distance:5 与宿主一致，点击/拖拽分离）。
-// 点卡片 → 编辑态（T5 渲染 ValueEditor；本任务为指示占位）。
+// 点卡片 → 编辑态（ValueEditor 浮层改值 → setDebugValue → 画布预览当场演）。
 // 防御性门控：仅组件 tab（activeTabType === "component"）显示（挂载点已在组件中心区，双保险）。
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { DndContext, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import type { DragEndEvent } from "@dnd-kit/core";
 import { usePoiesisStore } from "../../store";
 import { collectSourceNodes, type SourceNode } from "./source-nodes";
 import { SourceNodeCard } from "./SourceNodeCard";
+import { ValueEditor } from "./ValueEditor";
 import styles from "./SourceNodeLayer.module.css";
 
 export function SourceNodeLayer() {
@@ -35,6 +36,11 @@ export function SourceNodeLayer() {
     [componentName, componentDefs, storeDefs, inlineStoreDefs, storeReferences, debugValues],
   );
 
+  // T4 复审 Minor 2：门控关闭（睡/开关/非组件 tab）时清理编辑态，避免下次开门残留浮层
+  useEffect(() => {
+    if (!(awake && dataNodesVisible && componentName)) setEditing(null);
+  }, [awake, dataNodesVisible, componentName]);
+
   if (!awake || !dataNodesVisible || !componentName) return null;
 
   const handleDragEnd = (e: DragEndEvent) => {
@@ -59,15 +65,12 @@ export function SourceNodeLayer() {
               style={pos ? { transform: `translate(${pos.x}px, ${pos.y}px)` } : undefined}
             >
               <SourceNodeCard node={n} onEdit={setEditing} />
+              {/* 编辑浮层锚定点击卡片所在 slot（slot 为 position:relative） */}
+              {editing?.id === n.id && <ValueEditor node={n} onClose={() => setEditing(null)} />}
             </div>
           );
         })}
       </DndContext>
-      {editing && (
-        <div className={styles.editing} data-testid="editing-indicator">
-          编辑中：{editing.name}（T5 换 ValueEditor）
-        </div>
-      )}
     </div>
   );
 }

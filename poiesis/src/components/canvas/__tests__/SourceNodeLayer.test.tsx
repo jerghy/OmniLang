@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import { describe, it, expect, beforeEach } from "vitest";
 import { SourceNodeLayer } from "../SourceNodeLayer";
 import { usePoiesisStore } from "../../../store";
@@ -50,11 +50,28 @@ describe("SourceNodeLayer", () => {
     expect(screen.getByText("0")).toBeTruthy(); // defaultValue
   });
 
-  it("点卡片 → 编辑指示出现（T5 换 ValueEditor）", () => {
+  it("点卡片 → 改值浮层出现（ValueEditor）", () => {
     usePoiesisStore.setState({ designPage: { ...usePoiesisStore.getState().designPage, awake: true, dataNodesVisible: true } });
     render(<SourceNodeLayer />);
     fireEvent.click(screen.getByTestId("source-node-card"));
-    expect(screen.getByTestId("editing-indicator")).toBeTruthy();
+    expect(screen.getByTestId("value-editor")).toBeTruthy();
+    expect(screen.getByTestId("value-editor-input")).toBeTruthy();
+  });
+
+  it("门控关闭 → 编辑态清理（浮层不残留）", () => {
+    usePoiesisStore.setState({ designPage: { ...usePoiesisStore.getState().designPage, awake: true, dataNodesVisible: true } });
+    render(<SourceNodeLayer />);
+    fireEvent.click(screen.getByTestId("source-node-card"));
+    expect(screen.getByTestId("value-editor")).toBeTruthy();
+    // 睡 → 门控关闭（effect 清理编辑态）→ 再醒 → 浮层不残留（act 冲刷中间态，避免批量合并）
+    act(() => {
+      usePoiesisStore.setState({ designPage: { ...usePoiesisStore.getState().designPage, awake: false } });
+    });
+    expect(screen.queryByTestId("source-node-layer")).toBeNull();
+    act(() => {
+      usePoiesisStore.setState({ designPage: { ...usePoiesisStore.getState().designPage, awake: true } });
+    });
+    expect(screen.queryByTestId("value-editor")).toBeNull();
   });
 
   it("非组件 tab 不渲染（componentName 门控）", () => {
