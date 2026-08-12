@@ -31,6 +31,20 @@ function slotKeyForTag(tag: string): string {
  * 恒命中 source handle → targetHandle 字符串携带对侧（-src）后缀，剥除后成垃圾槽；
  * 节点查询不受 handle-id 影响，是唯一可靠来源。handle-id 后缀剥除仅作节点未命中兜底。
  */
+/** M3 T6 亮线判定（纯函数）：端点元素被选中（任一端）或悬停（任一端）→ 相关边亮起 */
+export function edgeIsActive(
+  wire: { fromId: string; toId: string },
+  selectedIds: string[],
+  hoveredId: string | null,
+): boolean {
+  return (
+    selectedIds.includes(wire.fromId) ||
+    selectedIds.includes(wire.toId) ||
+    hoveredId === wire.fromId ||
+    hoveredId === wire.toId
+  );
+}
+
 export function resolveSlots(
   conn: { source: string | null; target: string | null; sourceHandle?: string | null; targetHandle?: string | null },
   nodes: Array<{ id: string; data: { slotKey: string } }>,
@@ -90,6 +104,24 @@ function PortHandleLayerInner({ visible }: { visible: boolean }) {
     setViewport({ x: panX, y: panY, zoom: canvasZoom });
   }, [panX, panY, canvasZoom, setViewport]);
 
+  // M3 T6 亮线·元素悬停（复审替换）：文档级事件委托——层 pointer-events:none 穿透，
+  // mouseover 落在渲染元素上。原生 .react-flow__edge:hover 永不触发（边 inactive，
+  // elementsSelectable=false → pointer-events:none），故悬停语义挂在「元素」而非「边」。
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!(visible && awake)) return;
+    const readId = (node: EventTarget | null): string | null =>
+      node instanceof Element ? node.closest("[data-omni-el-id]")?.getAttribute("data-omni-el-id") ?? null : null;
+    const onMouseOver = (e: MouseEvent) => setHoveredId(readId(e.target));
+    const onMouseOut = (e: MouseEvent) => setHoveredId(readId(e.relatedTarget)); // 移入新元素即接管；离开窗口置空
+    document.addEventListener("mouseover", onMouseOver);
+    document.addEventListener("mouseout", onMouseOut);
+    return () => {
+      document.removeEventListener("mouseover", onMouseOver);
+      document.removeEventListener("mouseout", onMouseOut);
+    };
+  }, [visible, awake]);
+
   const nodes: RFNode<PortNodeData>[] = useMemo(
     () =>
       ports.map((p) => ({
@@ -105,13 +137,13 @@ function PortHandleLayerInner({ visible }: { visible: boolean }) {
   );
 
   // 自动 wire → 边（端口 handle id 编码：`${slot}-src`/`${slot}-tgt`）
-  // M3 T6 亮线：端点元素被选中（任一端）→ 边加 port-edge-active 类 + 主色加深加粗
+  // M3 T6 亮线：端点元素被选中（任一端）或悬停（任一端）→ 边加 port-edge-active 类 + 主色加深加粗
   const edges: Edge[] = useMemo(
     () =>
       wires
         .filter((w) => w.fromPort && w.toPort)
         .map((w) => {
-          const isRelated = selectedIds.includes(w.fromId) || selectedIds.includes(w.toId);
+          const isRelated = edgeIsActive(w, selectedIds, hoveredId);
           return {
             id: w.id,
             source: w.fromId,
@@ -125,7 +157,7 @@ function PortHandleLayerInner({ visible }: { visible: boolean }) {
             },
           };
         }),
-    [wires, selectedIds],
+    [wires, selectedIds, hoveredId],
   );
 
   if (!(visible && awake)) return null;

@@ -18,11 +18,9 @@
   border-radius: 50%;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15);
 }
-/* M3 T6 亮线：选中端点 → 相关边加粗（edge.style 内联于 path，须 !important 压过）；
-   hover 亮线走原生 CSS（hover 静默注册于 .react-flow__edge 的 visibleStroke 指针区） */
+/* M3 T6 亮线：选中/悬停端点元素 → 相关边加粗（edge.style 内联于 path，须 !important 压过）。
+   悬停走元素级事件委托（PortHandleLayer 内 hoveredId 驱动，非原生边 hover——
+   边 inactive → pointer-events:none，.react-flow__edge:hover 永不触发，复审已删） */
 .layer :global(.port-edge-active .react-flow__edge-path) {
-  stroke-width: 2.5 !important;
-}
-.layer :global(.react-flow__edge:hover .react-flow__edge-path) {
   stroke-width: 2.5 !important;
 }

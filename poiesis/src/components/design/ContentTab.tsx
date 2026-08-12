@@ -44,8 +44,8 @@ function slotBound(el: ElementData, slot: SlotDef): boolean {
 /** 槽位绑定来源名（M3 T6 来源印记）：bindings 值 → 插值表达式 → 集合/条件表达式 */
 function slotSource(el: ElementData, slot: SlotDef): string | null {
   if ("bindings" in el && el.bindings != null && el.bindings[slot.key] != null) {
-    const v = el.bindings[slot.key];
-    return v.trim().length > 0 ? v : null;
+    const t = el.bindings[slot.key].trim();
+    return t.length > 0 ? t : null;
   }
   if (el.nodeType === "for" && slot.key === "list") {
     const c = (el.collection ?? "").trim();
@@ -60,7 +60,10 @@ function slotSource(el: ElementData, slot: SlotDef): string | null {
     const v = el.props?.[slot.key];
     if (typeof v === "string") {
       const m = v.match(/\{([^}]*)\}/);
-      if (m) return m[1].trim();
+      if (m) {
+        const t = m[1].trim();
+        if (t) return t; // 空插值 { } → 假亮回归：取到空来源名视为未绑
+      }
     }
   }
   return null;
@@ -137,7 +140,11 @@ export function ContentTab({ elementId }: { elementId: string }) {
             <span style={{ fontSize: 12 }}>{s.label}</span>
             <span style={{ fontSize: 11, display: "flex", gap: 6, alignItems: "center" }}>
               {bound && (
-                <em data-testid={`slot-bound-${s.key}`} style={{ fontStyle: "normal", color: "var(--ol-color-primary)", background: "var(--ol-color-primary-subtle)", borderRadius: 999, padding: "1px 8px" }}>
+                <em
+                  data-testid={`slot-bound-${s.key}`}
+                  title={source ?? undefined}
+                  style={{ fontStyle: "normal", color: "var(--ol-color-primary)", background: "var(--ol-color-primary-subtle)", borderRadius: 999, padding: "1px 8px", maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                >
                   来自 {source}
                 </em>
               )}

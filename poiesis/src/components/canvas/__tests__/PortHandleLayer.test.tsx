@@ -1,7 +1,7 @@
 // poiesis/src/components/canvas/__tests__/PortHandleLayer.test.tsx
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { PortHandleLayer, resolveSlots } from "../PortHandleLayer";
+import { PortHandleLayer, resolveSlots, edgeIsActive } from "../PortHandleLayer";
 import { usePoiesisStore } from "../../../store";
 import type { WireData } from "../../../core/types/wire";
 
@@ -130,6 +130,46 @@ describe("PortHandleLayer", () => {
     expect(edge.classList.contains("port-edge-active")).toBe(false);
     const path = edge.querySelector<HTMLElement>(".react-flow__edge-path");
     expect(path?.style.strokeWidth).toBe("1.5");
+  });
+
+  it("悬停元素 → 相关边亮起（元素级事件委托驱动；离开 → 复原）", async () => {
+    setAwake(true);
+    setState([WIRE], []);
+    mountRendererRoot();
+    stubLayoutEnv();
+    render(<PortHandleLayer visible />);
+    const edge = await screen.findByTestId("rf__edge-w1");
+    expect(edge.classList.contains("port-edge-active")).toBe(false);
+    // 悬停 el-a（渲染元素，非边自身——原生 .react-flow__edge:hover 永不触发）
+    fireEvent.mouseOver(document.querySelector<HTMLElement>('[data-omni-el-id="el-a"]')!);
+    await waitFor(() => {
+      expect(screen.getByTestId("rf__edge-w1").classList.contains("port-edge-active")).toBe(true);
+    });
+    // 离开（relatedTarget 落空）→ 复原常规样式
+    fireEvent.mouseOut(document.querySelector<HTMLElement>('[data-omni-el-id="el-a"]')!);
+    await waitFor(() => {
+      expect(screen.getByTestId("rf__edge-w1").classList.contains("port-edge-active")).toBe(false);
+    });
+  });
+});
+
+describe("edgeIsActive（亮线判定纯函数：选中 ∪ 悬停）", () => {
+  it("任一端被选中 → true（源端 / 目标端 / 双端）", () => {
+    expect(edgeIsActive(WIRE, ["el-a"], null)).toBe(true);
+    expect(edgeIsActive(WIRE, ["el-b"], null)).toBe(true);
+    expect(edgeIsActive(WIRE, ["el-a", "el-b"], null)).toBe(true);
+  });
+
+  it("悬停端命中 → true；悬停无关元素或未悬停 → false", () => {
+    expect(edgeIsActive(WIRE, [], "el-a")).toBe(true);
+    expect(edgeIsActive(WIRE, [], "el-b")).toBe(true);
+    expect(edgeIsActive(WIRE, [], "el-other")).toBe(false);
+    expect(edgeIsActive(WIRE, [], null)).toBe(false);
+    expect(edgeIsActive(WIRE, [], "")).toBe(false);
+  });
+
+  it("选中与悬停取并集：悬停无关元素但选中任一端 → 仍 true", () => {
+    expect(edgeIsActive(WIRE, ["el-a"], "el-other")).toBe(true);
   });
 });
 
