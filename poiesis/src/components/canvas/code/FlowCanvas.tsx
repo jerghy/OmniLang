@@ -731,7 +731,10 @@ function FlowCanvasInner() {
     const fnParams = getFnParams(editingElement, elements);
 
     // Resolve store names referenced by this component
-    const stores = storeReferences[activeTab.componentName] ?? [];
+    // storeReferences 方向 = store → [components]，读方向 = entries 过滤（与 flow-scope-hook 同源）
+    const stores = Object.entries(storeReferences)
+      .filter(([, comps]) => comps.includes(activeTab.componentName))
+      .map(([storeName]) => storeName);
 
     // Build code tabs from current code-flow elements + wires
     const codeTabs = buildCodeTabs(codeElements, wires);

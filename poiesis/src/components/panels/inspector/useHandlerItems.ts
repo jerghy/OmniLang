@@ -49,8 +49,11 @@ export function useHandlerItems(): HandlerItem[] {
     }
 
     // Store actions from referenced stores
-    const refs = storeReferences[compName] ?? [];
-    for (const storeName of refs) {
+    // storeReferences 方向 = store → [components]，读方向 = entries 过滤（与 flow-scope-hook 同源）
+    const referencedStores = Object.entries(storeReferences)
+      .filter(([, comps]) => comps.includes(compName))
+      .map(([storeName]) => storeName);
+    for (const storeName of referencedStores) {
       const storeDef = storeDefs[storeName];
       if (storeDef?.actions) {
         for (const action of storeDef.actions) {

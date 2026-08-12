@@ -31,7 +31,7 @@ describe("collectSourceNodes", () => {
         getters: [], actions: [], setters: [],
       },
     },
-    storeReferences: { Card: ["TodoStore"] },
+    storeReferences: { TodoStore: ["Card"] }, // writer 方向：store → [components]
     debugValues: {},
   };
 

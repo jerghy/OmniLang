@@ -80,8 +80,11 @@ export function useSignalItems(): SignalPickerItem[] {
     }
 
     // Store signals and getters referenced by this component
-    const refs = storeReferences[compName] ?? [];
-    for (const storeName of refs) {
+    // storeReferences 方向 = store → [components]，读方向 = entries 过滤（与 flow-scope-hook 同源）
+    const referencedStores = Object.entries(storeReferences)
+      .filter(([, comps]) => comps.includes(compName))
+      .map(([storeName]) => storeName);
+    for (const storeName of referencedStores) {
       const storeDef = storeDefs[storeName];
       if (storeDef) {
         for (const sig of storeDef.signals) {

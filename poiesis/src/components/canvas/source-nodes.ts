@@ -69,7 +69,12 @@ export function collectSourceNodes(state: SourceNodeState): SourceNode[] {
   }
 
   // 引用 store 的 signals/getters（带 store 名前缀）
-  for (const storeName of storeReferences[componentName] ?? []) {
+  // storeReferences 方向 = store → [components]（writer: registerStoreRef），
+  // 读方向 = entries 过滤出包含当前组件的 store 列表（与 flow-scope-hook 同源）。
+  const referencedStores = Object.entries(storeReferences)
+    .filter(([, comps]) => comps.includes(componentName))
+    .map(([storeName]) => storeName);
+  for (const storeName of referencedStores) {
     const storeDef = storeDefs[storeName];
     if (!storeDef) continue;
     for (const sig of storeDef.signals ?? []) {
