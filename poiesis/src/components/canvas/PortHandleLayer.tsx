@@ -25,6 +25,22 @@ function slotKeyForTag(tag: string): string {
   return "label";
 }
 
+/**
+ * 从连接解析源/目标槽（纯函数）：优先测量节点（确定性）。
+ * C1 修复：源/目标 Handle 同坐标叠加、source 后渲染压上层，端口中心 elementFromPoint
+ * 恒命中 source handle → targetHandle 字符串携带对侧（-src）后缀，剥除后成垃圾槽；
+ * 节点查询不受 handle-id 影响，是唯一可靠来源。handle-id 后缀剥除仅作节点未命中兜底。
+ */
+export function resolveSlots(
+  conn: { source: string | null; target: string | null; sourceHandle?: string | null; targetHandle?: string | null },
+  nodes: Array<{ id: string; data: { slotKey: string } }>,
+): { sourceSlot: string | null; targetSlot: string | null } {
+  const strip = (h?: string | null) => (h ?? "").replace(/-src$/, "").replace(/-tgt$/, "");
+  const sourceSlot = nodes.find((n) => n.id === conn.source)?.data.slotKey ?? (strip(conn.sourceHandle) || null);
+  const targetSlot = nodes.find((n) => n.id === conn.target)?.data.slotKey ?? (strip(conn.targetHandle) || null);
+  return { sourceSlot, targetSlot };
+}
+
 function PortHandleLayerInner({ visible }: { visible: boolean }) {
   const awake = usePoiesisStore((s) => s.designPage.awake);
   const wires = usePoiesisStore((s) => s.wires);
@@ -124,11 +140,12 @@ function PortHandleLayerInner({ visible }: { visible: boolean }) {
         minZoom={0.1}
         maxZoom={5}
         onConnect={(conn: Connection) => {
-          const sourceSlot = (conn.sourceHandle ?? "").replace(/-src$/, "");
-          const targetSlot = (conn.targetHandle ?? "").replace(/-tgt$/, "");
-          if (conn.source && conn.target && sourceSlot && targetSlot) {
-            usePoiesisStore.getState().connectElementLink(conn.source, sourceSlot, conn.target, targetSlot);
-          }
+          // 槽解析以测量节点为准（C1 修复：handle-id 后缀不可靠——端口中心恒命中
+          // source handle，targetHandle 携带 -src 后缀；节点查询不受 handle 叠加影响）。
+          const { sourceSlot, targetSlot } = resolveSlots(conn, nodes);
+          if (!conn.source || !conn.target || !sourceSlot || !targetSlot) return;
+          if (conn.source === conn.target) return; // 自环拒绝（Loose 模式可回环自身端口）
+          usePoiesisStore.getState().connectElementLink(conn.source, sourceSlot, conn.target, targetSlot);
         }}
       />
     </div>

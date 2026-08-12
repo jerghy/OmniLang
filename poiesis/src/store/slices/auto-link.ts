@@ -42,8 +42,18 @@ export function isAutoSignal(signalName: string, elements: ElementData[]): boole
   return elements.some((el) => sanitizeElementId(el.id) === prefix);
 }
 
-/** 槽位种类（与 ContentTab slotsFor 对齐）：列表/条件/输入/属性/文本 */
-function slotKindFor(el: ElementData, slotKey: string): "文本" | "输入" | "列表" | "条件" | "属性" {
+/**
+ * 已知槽位集合（与 isAutoSignal 正则 / ContentTab slotsFor 对齐）。
+ * 未知槽拒绝写入（M6 防御：C1 类槽解析错误若漏到此处，将凭文本兜底落垃圾 prop）。
+ */
+const KNOWN_SLOT_KEYS = new Set(["label", "value", "src", "href", "list", "if"]);
+
+/** 槽位种类（与 ContentTab slotsFor 对齐）：列表/条件/输入/属性/文本；未知槽 → null（拒绝绑定） */
+function slotKindFor(el: ElementData, slotKey: string): "文本" | "输入" | "列表" | "条件" | "属性" | null {
+  if (!KNOWN_SLOT_KEYS.has(slotKey)) {
+    console.warn(`[auto-link] 未知槽位 "${slotKey}"：跳过绑定（疑似端口解析错误，拒绝垃圾写入）`);
+    return null;
+  }
   if (el.nodeType === "for" && slotKey === "list") return "列表";
   if (el.nodeType === "conditional" && slotKey === "if") return "条件";
   const tag = "tag" in el ? el.tag : "";
@@ -55,6 +65,7 @@ function slotKindFor(el: ElementData, slotKey: string): "文本" | "输入" | "�
 /** 目标端绑定落盘（与 ContentTab pick switch 同源）：文本/属性 → props 插值；输入 → bindings；列表 → collection；条件 → if condition */
 function setTargetBinding(get: GetFn, target: ElementData, slotKey: string, name: string): void {
   const kind = slotKindFor(target, slotKey);
+  if (!kind) return; // 未知槽防御：早退，不落垃圾 prop
   switch (kind) {
     case "文本":
     case "属性":
@@ -77,6 +88,7 @@ function setTargetBinding(get: GetFn, target: ElementData, slotKey: string, name
 /** 目标端重置（回收时清除悬空引用；原始文本不可恢复——WireData 不存，M3 T4 接受） */
 function clearTargetBinding(get: GetFn, target: ElementData, slotKey: string): void {
   const kind = slotKindFor(target, slotKey);
+  if (!kind) return; // 未知槽防御：早退，不碰垃圾槽
   switch (kind) {
     case "文本":
     case "属性":
