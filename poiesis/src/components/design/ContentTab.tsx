@@ -26,7 +26,14 @@ function slotsFor(el: { tag?: string; nodeType?: string }): SlotDef[] {
   if (["input", "textarea", "select"].includes(tag)) return [{ key: "value", label: "值", kind: "输入" }];
   if (tag === "img") return [{ key: "src", label: "图片地址", kind: "属性" }];
   if (tag === "a") return [{ key: "href", label: "跳转地址", kind: "属性" }];
-  return [{ key: "text", label: "文本内容", kind: "文本" }];
+  // 文本槽键对齐落盘键 label（props.label 存文本内容）
+  return [{ key: "label", label: "文本内容", kind: "文本" }];
+}
+
+/** @if 分支下标统一来源（badge 检查与 pick 落盘共用；非条件块返回 -1） */
+function ifBranchIndex(el: ElementData): number {
+  if (el.nodeType !== "conditional") return -1;
+  return el.branches.findIndex((b) => b.type === "if");
 }
 
 /** 槽位是否已绑：bindings 键精确匹配（M1）∪ 插值/列表/条件写法（M3 落盘路径） */
@@ -34,8 +41,8 @@ function slotBound(el: ElementData, slot: SlotDef): boolean {
   if ("bindings" in el && el.bindings != null && Object.keys(el.bindings).some((k) => k === slot.key)) return true;
   if (el.nodeType === "for" && slot.key === "list") return (el.collection ?? "").trim().length > 0;
   if (el.nodeType === "conditional" && slot.key === "if") {
-    const ifBranch = el.branches.find((b) => b.type === "if");
-    return (ifBranch?.condition ?? "").trim().length > 0;
+    const idx = ifBranchIndex(el);
+    return idx >= 0 && (el.branches[idx].condition ?? "").trim().length > 0;
   }
   if ("props" in el) {
     const v = el.props?.[slot.key];
@@ -79,11 +86,12 @@ export function ContentTab({ elementId }: { elementId: string }) {
     elements,
   });
 
-  // 点名绑定落盘：按槽位种类写现有语法
+  // 点名绑定落盘：按槽位种类写现有语法（文本/属性槽键即落盘 prop 键）
   const pick = (slot: SlotDef, source: BindingSource) => {
     switch (slot.kind) {
       case "文本":
-        setProp(el.id, "label", `{${source.name}}`);
+      case "属性":
+        setProp(el.id, slot.key, `{${source.name}}`);
         break;
       case "输入":
         setElementBinding(el.id, slot.key, source.name);
@@ -91,12 +99,11 @@ export function ContentTab({ elementId }: { elementId: string }) {
       case "列表":
         updateForBlock(el.id, { collection: source.name });
         break;
-      case "条件":
-        updateBranchCondition(el.id, 0, source.name);
+      case "条件": {
+        const idx = ifBranchIndex(el);
+        updateBranchCondition(el.id, idx >= 0 ? idx : 0, source.name);
         break;
-      case "属性":
-        setProp(el.id, slot.key, `{${source.name}}`);
-        break;
+      }
     }
     setPickingFor(null);
   };

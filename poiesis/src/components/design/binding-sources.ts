@@ -31,9 +31,10 @@ export function buildBindingSources(state: BindingSourceState): BindingSource[] 
   const out: BindingSource[] = [];
   const { componentName, componentDefs, storeDefs, inlineStoreDefs, storeReferences, debugValues, elements } = state;
 
-  // 1) 信号来源（组件 signals/computeds、引用 store、inline store）——kind 归一为 signal
+  // 1) 信号来源（组件 signals/computeds、引用 store、inline store）——kind 归一为 signal；
+  //    id 复用 SourceNode.id（sig:/computed:/store:./inline:. 均按 pid 唯一，避免跨作用域同名碰撞）
   for (const n of collectSourceNodes({ componentName, componentDefs, storeDefs, inlineStoreDefs, storeReferences, debugValues })) {
-    out.push({ id: `sig:${n.name}`, kind: "signal", name: n.name, type: n.type });
+    out.push({ id: n.id, kind: "signal", name: n.name, type: n.type });
   }
 
   // 2) fn 出口（画布 CodeFlow fn 节点；未命名节点 fnsFromElements 已跳过）

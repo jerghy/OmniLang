@@ -39,10 +39,13 @@ const state: BindingSourceState = {
 };
 
 describe("buildBindingSources", () => {
-  test("信号来源归一为 signal kind：组件 / store 前缀 / inline", () => {
+  test("信号来源归一为 signal kind：组件 / store 前缀 / inline；id 复用 SourceNode pid 编码", () => {
     const sigs = buildBindingSources(state).filter((s) => s.kind === "signal");
     expect(sigs).toHaveLength(4);
     expect(sigs.map((s) => s.name)).toEqual(["count", "double", "Cart.items", "note"]);
+    // id 必须按 pid 唯一（跨作用域同名不碰撞）：sig:pid / computed:pid / store:名.pid / inline:键.pid
+    expect(sigs.map((s) => s.id)).toEqual(["sig:p1", "computed:p2", "store:Cart.p3", "inline:Counter.Store.p4"]);
+    expect(new Set(sigs.map((s) => s.id)).size).toBe(4);
   });
 
   test("fn 出口带签名类型（params/returnType 拼串，缺省 void）", () => {
