@@ -8,7 +8,7 @@
   gap: 6px;
   padding: 8px 10px;
   margin-bottom: 12px;
-  background: var(--ol-surface-2, #fafafa);
+  background: var(--ol-surface);
   border: 1px solid var(--ol-border, #e5e5e5);
   border-radius: 6px;
   font-size: 12px;
@@ -39,16 +39,16 @@
 .select:focus,
 .input:focus {
   outline: none;
-  border-color: var(--ol-accent, #c2603a);
+  border-color: var(--ol-color-primary);
 }
 
 .commitBtn {
   height: 24px;
   padding: 0 10px;
   font-size: 12px;
-  border: 1px solid var(--ol-accent, #c2603a);
+  border: 1px solid var(--ol-color-primary);
   border-radius: 4px;
-  background: var(--ol-accent, #c2603a);
+  background: var(--ol-color-primary);
   color: #fff;
   cursor: pointer;
 }

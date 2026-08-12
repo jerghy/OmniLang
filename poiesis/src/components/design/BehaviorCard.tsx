@@ -145,7 +145,13 @@ export function BehaviorCard({ elementId, onCommit }: BehaviorCardProps) {
           );
         })}
 
-      <button type="button" data-testid="behavior-commit" className={styles.commitBtn} onClick={handleCommit}>
+      <button
+        type="button"
+        data-testid="behavior-commit"
+        className={styles.commitBtn}
+        onClick={handleCommit}
+        disabled={!event || !action}
+      >
         添加行为
       </button>
     </div>
