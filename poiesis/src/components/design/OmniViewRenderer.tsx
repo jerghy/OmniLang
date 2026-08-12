@@ -10,6 +10,7 @@ import { useDebugCompile } from "../../features/debug/useDebugCompile";
 import { useCssScopePool } from "./useCssScopePool";
 import { OmniViewElementTree } from "./OmniViewElementTree";
 import { ElementPortLayer } from "../canvas/ElementPortLayer";
+import { PortHandleLayer } from "../canvas/PortHandleLayer";
 import styles from "./OmniViewRenderer.module.css";
 
 export function OmniViewRenderer() {
@@ -137,6 +138,8 @@ export function OmniViewRenderer() {
       {/* 元素端口层（视觉）：醒态元素右缘接口圆点，纯展示不拦截事件。
           挂载契约：本容器（overflow:auto + padding:8 + position:relative）的 absolute 子节点 */}
       <ElementPortLayer visible={!!output && errors.length === 0} />
+      {/* 端口手柄层（交互）：醒态元素右缘端口 = ReactFlow 可拖手柄（源/目标双向），拖线即绑定 */}
+      <PortHandleLayer visible={!!output && errors.length === 0} />
     </div>
   );
 }

@@ -1,0 +1,20 @@
+.layer {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+}
+.layer :global(.react-flow__pane) {
+  pointer-events: none;
+}
+.layer :global(.react-flow__handle) {
+  pointer-events: auto;
+}
+.handle {
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--ol-surface);
+  background: var(--ol-color-primary);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15);
+}
