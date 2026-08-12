@@ -32,6 +32,12 @@ impl ReactCodegen {
         possibly_undefined: &FxHashSet<String>,
         direct_write_signals: &FxHashSet<String>,
         direct_write_applies: &FxHashMap<String, Vec<String>>,
+        // Task 12 (批次 4 数据能力): 作为 debounce/throttle 首参按值传入的
+        // 本地 fn——view.rs 时序臂把它们编译成 `{fn}_ref`（useRef 稳定
+        // 引用）。这些 fn 的 const 声明后必须跟随 ref 声明 + 每渲染回写
+        // （`{fn}_ref.current = {fn};`），否则 `{fn}_ref` 未声明（TS2304）
+        // 且 ref 永驻首渲染闭包（stale）。见 collect_timing_arg_fns。
+        timing_ref_fns: &FxHashSet<String>,
     ) {
         for fun in &comp.fns {
             // Task 6 (批次 2 导航路由): @route guard 函数由 gen_guard_fns 在
@@ -59,6 +65,15 @@ impl ReactCodegen {
                 direct_write_applies,
                 Some(&self.warnings),
             );
+            // Task 12: 时序首参 fn 紧跟 ref 声明（const fn 的 TDZ 结束后
+            // 才可引用）——`const {fn}_ref = useRef(fn);` 创建一次稳定
+            // 引用，`{fn}_ref.current = {fn};` 每渲染回写最新闭包。view.rs
+            // 的 useMemo 包装以 [ref] 为 deps（ref 身份稳定 → 包装只建
+            // 一次 → 单 _t 计时器 → trailing 触发读 `.current` 拿最新 fn）。
+            if timing_ref_fns.contains(&fun.name) {
+                w.emit_fmt(format_args!("const {}_ref = useRef({});", fun.name, fun.name));
+                w.emit_fmt(format_args!("{}_ref.current = {};", fun.name, fun.name));
+            }
         }
         if !comp.fns.is_empty() {
             w.emit("");
@@ -689,6 +704,14 @@ fn collect_called_fns_from_expr(expr: &ExprIR, acc: &mut FxHashSet<String>) {
     match expr {
         ExprIR::CallExpr { name, args, .. } => {
             acc.insert(name.clone());
+            // 批次 4 fix: debounce/throttle（TIMING_FUNCS）按值传入的本地 fn
+            // 只是标识符实参而非调用——callee-only 收集会漏掉它，导致
+            // view.rs 的 useMemo 时序常量引用未声明的 fn（ReferenceError）。
+            if crate::semantic::load_contract::TIMING_FUNCS.contains(&name.as_str()) {
+                if let Some(ExprIR::IdentifierExpr { name: fn_name, .. }) = args.first() {
+                    acc.insert(fn_name.clone());
+                }
+            }
             for arg in args {
                 collect_called_fns_from_expr(arg, acc);
             }
@@ -780,5 +803,84 @@ fn collect_called_fns_from_expr(expr: &ExprIR, acc: &mut FxHashSet<String>) {
         ExprIR::BuiltinToastCall { msg, .. } => collect_called_fns_from_expr(msg, acc),
         #[allow(unreachable_patterns)]
         _ => unreachable!("Unknown ExprIR variant — update codegen for new variant"),
+    }
+}
+
+/// Task 12 (批次 4 数据能力): 收集作为 debounce/throttle 首参按值传入的
+/// 本地 fn 名集合——view.rs 时序臂（TIMING_FUNCS 单 ExprStmt 形态）会把
+/// 它们编译成 `{fn}_ref`（useRef 稳定引用，spec §2.5/§4.1「稳定引用形态」）。
+/// 必须在 gen_functions 之前计算：命中的 fn 在 const 声明后补发 ref 声明 +
+/// 每渲染回写（见 gen_functions），且 useRef import 按此门控（mod.rs
+/// has_refs）。形状与 view.rs 时序臂逐字对齐（单 ExprStmt + 首参标识符）：
+/// 只有真正走稳定引用路径的处理器才需要 ref，形态不匹配的（多语句体 /
+/// 非标识符首参）照旧直传 fn 值。
+pub(super) fn collect_timing_arg_fns(comp: &ComponentIR) -> FxHashSet<String> {
+    let mut acc = FxHashSet::default();
+    if let Some(view) = &comp.view {
+        collect_timing_arg_fns_view(view, &mut acc);
+    }
+    acc
+}
+
+fn collect_timing_arg_fns_view(tree: &ViewTree, acc: &mut FxHashSet<String>) {
+    match tree {
+        ViewTree::Element(el) => {
+            for handler in el.events.values() {
+                if let EventHandlerIR::InlineFn { body, .. } = handler {
+                    collect_timing_arg_fns_stmt_body(&body.statements, acc);
+                }
+            }
+            for child in &el.children {
+                collect_timing_arg_fns_view(child, acc);
+            }
+        }
+        ViewTree::Conditional(cond) => {
+            for branch in &cond.branches {
+                if let Some(ref body) = branch.body {
+                    collect_timing_arg_fns_view(body, acc);
+                }
+            }
+            if let Some(ref fallback) = cond.fallback {
+                collect_timing_arg_fns_view(fallback, acc);
+            }
+        }
+        ViewTree::ListRendering(list) => {
+            if let Some(ref body) = list.body {
+                collect_timing_arg_fns_view(body, acc);
+            }
+            if let Some(ref empty) = list.empty_body {
+                collect_timing_arg_fns_view(empty, acc);
+            }
+        }
+        ViewTree::Fragment(children) => {
+            for child in children {
+                collect_timing_arg_fns_view(child, acc);
+            }
+        }
+        ViewTree::Slot { fallback, .. } => {
+            for child in fallback {
+                collect_timing_arg_fns_view(child, acc);
+            }
+        }
+        ViewTree::Interpolation(_) | ViewTree::Text(_) => {}
+        // ViewTree 为 #[non_exhaustive]（跨 crate 匹配须通配）——新变体
+        // 若包含事件处理器需在此补充下行（同 view.rs 惯例）。
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("Unknown ViewTree variant — update codegen for new variant"),
+    }
+}
+
+fn collect_timing_arg_fns_stmt_body(statements: &[StatementIR], acc: &mut FxHashSet<String>) {
+    // 与 view.rs TIMING_FUNCS 臂逐字对齐：单 ExprStmt + CallExpr 名 ∈
+    // TIMING_FUNCS + 首参为标识符。
+    if let [StatementIR::ExprStmtIR {
+        expr: ExprIR::CallExpr { name, args },
+    }] = statements
+    {
+        if crate::semantic::load_contract::TIMING_FUNCS.contains(&name.as_str()) {
+            if let Some(ExprIR::IdentifierExpr { name: fn_name, .. }) = args.first() {
+                acc.insert(fn_name.clone());
+            }
+        }
     }
 }

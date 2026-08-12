@@ -34,6 +34,11 @@ pub(super) fn register() -> Vec<StdlibFn> {
 /// debounce(fn, ms) → 防抖后的可调用函数。JS 族为自包含 setTimeout 包装
 /// （无运行时依赖，表达式形态可直接作 @onClick/@onInput 处理器）；其余
 /// 族为占位形态（真实映射见 Task 7/9/11）。
+///
+/// 调用形态 `(_fn.current ?? _fn)(...)`（Task 12）：React 端时序包装的
+/// 首参可能被编译成 `{fn}_ref`（useRef 稳定引用——见 React view.rs
+/// TIMING_FUNCS 臂）。普通 fn 直传时 `.current` 为 undefined，`??` 落回
+/// 原 fn，两种形态统一可调。
 pub(super) fn codegen_debounce(args: &[String], target: Target) -> String {
     let fn_expr = &args[0];
     let ms = &args[1];
@@ -44,7 +49,7 @@ pub(super) fn codegen_debounce(args: &[String], target: Target) -> String {
         | Target::Vue
         | Target::OmniView => {
             format!(
-                "((_fn, _ms) => {{ let _t; return (..._a) => {{ clearTimeout(_t); _t = setTimeout(() => _fn(..._a), _ms); }}; }})({fn_expr}, {ms})"
+                "((_fn, _ms) => {{ let _t; return (..._a) => {{ clearTimeout(_t); _t = setTimeout(() => (_fn.current ?? _fn)(..._a), _ms); }}; }})({fn_expr}, {ms})"
             )
         }
         // 占位：保持可调用形态（透传调用，ms 暂未参与语义——Task 7/9/11 映射）
@@ -60,6 +65,9 @@ pub(super) fn codegen_debounce(args: &[String], target: Target) -> String {
 /// 至多触发一次，且取窗口内最后一次调用——批次 4 Task 5 minor-1 拍板
 /// P6「trailing-only 默认」）。JS 族为自包含 setTimeout 包装（窗口首调
 /// 起计时，窗口尾以最新参数触发一次）；其余族占位同上。
+///
+/// 调用形态 `(_fn.current ?? _fn)(...)` 同上（React 端 `{fn}_ref` 稳定
+/// 引用兼容）。
 pub(super) fn codegen_throttle(args: &[String], target: Target) -> String {
     let fn_expr = &args[0];
     let ms = &args[1];
@@ -70,7 +78,7 @@ pub(super) fn codegen_throttle(args: &[String], target: Target) -> String {
         | Target::Vue
         | Target::OmniView => {
             format!(
-                "((_fn, _ms) => {{ let _t; let _args; return (..._a) => {{ _args = _a; if (_t === undefined) {{ _t = setTimeout(() => {{ _t = undefined; _fn(..._args); }}, _ms); }} }}; }})({fn_expr}, {ms})"
+                "((_fn, _ms) => {{ let _t; let _args; return (..._a) => {{ _args = _a; if (_t === undefined) {{ _t = setTimeout(() => {{ _t = undefined; (_fn.current ?? _fn)(..._args); }}, _ms); }} }}; }})({fn_expr}, {ms})"
             )
         }
         // 占位：保持可调用形态（透传调用，ms 暂未参与语义——Task 7/9/11 映射）

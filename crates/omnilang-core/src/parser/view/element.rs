@@ -22,14 +22,32 @@ impl<'a> Parser<'a> {
 
     /// Check if the token at `pos` looks like the start of an attribute
     /// (identifier followed by '=' or ':'), rather than another class name.
+    /// Also handles hyphenated attribute names such as `data-testid="..."`:
+    /// the caller has established that `pos` is an identifier; if it is
+    /// followed by one or more `-ident` segments and then '=' or ':',
+    /// it is an attribute, not a space-separated class name.
     pub(super) fn peek_is_attr_start(&self) -> bool {
-        if self.pos + 1 >= self.tokens.len() {
+        let tokens = &self.tokens;
+        let mut i = self.pos + 1;
+        if i >= tokens.len() {
             return false;
         }
-        matches!(
-            self.tokens[self.pos + 1].kind,
-            TokenKind::Eq | TokenKind::Colon
-        )
+        // Plain attribute: name="x" / name={expr} / name: value
+        if matches!(tokens[i].kind, TokenKind::Eq | TokenKind::Colon) {
+            return true;
+        }
+        // Hyphenated attribute names (data-testid, aria-label, ...):
+        // scan `(- ident)+` starting at the '-', then test for '=' / ':'.
+        if !matches!(tokens[i].kind, TokenKind::Minus) {
+            return false;
+        }
+        while i + 1 < tokens.len()
+            && matches!(tokens[i].kind, TokenKind::Minus)
+            && matches!(tokens[i + 1].kind, TokenKind::Ident(_))
+        {
+            i += 2;
+        }
+        i < tokens.len() && matches!(tokens[i].kind, TokenKind::Eq | TokenKind::Colon)
     }
 
     /// Check if the next token is a known boolean HTML attribute keyword.
@@ -594,10 +612,7 @@ impl<'a> Parser<'a> {
     /// consumed the opening `{`; `<` at the call site discriminates slot
     /// content from a regular `{expr}` prop value.
     pub(super) fn parse_slot_content_braces(&mut self) -> Result<Vec<ViewNode>, ParseError> {
-        let mut content = Vec::new();
-        while !self.at(&TokenKind::RBrace) && !self.at(&TokenKind::Eof) {
-            content.push(self.parse_view_node()?);
-        }
+        let content = self.parse_view_nodes_until(TokenKind::RBrace)?;
         if content.is_empty() {
             let t = self.peek();
             return Err(ParseError {

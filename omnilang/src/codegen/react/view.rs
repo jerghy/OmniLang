@@ -1006,19 +1006,27 @@ pub(super) fn gen_view_node_tsx(
                         used_fields,
                         ..
                     } => {
-                        // Task 7 (批次 4 数据能力): debounce/throttle 值形态
-                        // （spec §2.5 + §4.1）——单 ExprStmt 体且调用名 ∈
+                        // Task 7 + Task 12 (批次 4 数据能力): debounce/throttle
+                        // 值形态（spec §2.5 + §4.1）——单 ExprStmt 体且调用名 ∈
                         // TIMING_FUNCS 时，处理器即期望值：`@onInput={debounce(
                         // doSearch, 300)}` → `onInput={useMemo(() => debounce(
-                        // doSearch, 300), [doSearch])}` 稳定引用（trailing-only
-                        // 默认，P6）。deps = [fn]（首参标识符）或 []。
+                        // doSearch_ref, 300), [doSearch_ref])}` 稳定引用
+                        // （trailing-only 默认，P6）。Task 12: 首参为标识符时
+                        // 换 `{fn}_ref`（useRef 稳定引用——fn const 每渲染重建，
+                        // 直接作 deps 会使包装器每击键重建 → 上一渲染闭包里的
+                        // 旧 fn 最后触发，stale（test 46 实证 'abc'→'searched:ab'））；
+                        // ref 身份稳定 → 包装只建一次 → 单 _t 计时器 → trailing
+                        // 触发读 `_fn.current` 拿最新 fn。ref 声明由
+                        // collect_timing_arg_fns + gen_functions 在 fn const 后
+                        // 发射。非标识符首参（如表达式）deps = []（无稳定依赖可
+                        // 声明）。
                         match body.statements.as_slice() {
                             [StatementIR::ExprStmtIR {
                                 expr: ExprIR::CallExpr { name, args },
                             }] if crate::semantic::load_contract::TIMING_FUNCS
                                 .contains(&name.as_str()) =>
                             {
-                                let formatted: Vec<String> = args
+                                let mut formatted: Vec<String> = args
                                     .iter()
                                     .map(|a| {
                                         format_expr_ir_tsx_renamed(
@@ -1028,18 +1036,23 @@ pub(super) fn gen_view_node_tsx(
                                         )
                                     })
                                     .collect();
+                                let dep = match args.first() {
+                                    Some(ExprIR::IdentifierExpr { .. }) => {
+                                        // 首参按值传入的本地 fn → 稳定引用形态
+                                        // `{fn}_ref`（useRef）作包装器首参与 deps
+                                        let dep_ref =
+                                            format!("{}_ref", formatted[0]);
+                                        formatted[0] = dep_ref.clone();
+                                        dep_ref
+                                    }
+                                    _ => String::new(),
+                                };
                                 let native = try_format_stdlib_call(
                                     name.as_str(),
                                     &formatted,
                                     Target::React,
                                 )
                                 .unwrap_or_default();
-                                let dep = match args.first() {
-                                    Some(ExprIR::IdentifierExpr { .. }) => {
-                                        formatted.first().cloned().unwrap_or_default()
-                                    }
-                                    _ => String::new(),
-                                };
                                 let deps = if dep.is_empty() {
                                     "[]".to_string()
                                 } else {
@@ -1927,11 +1940,28 @@ pub(super) fn gen_view_node_tsx(
             // (OmniView escape_html), which React's runtime text escaping
             // makes redundant in expression containers anyway.
             let escaped = escape_literal_str(text, '\'');
-            w.emit_fmt(format_args!("{{'{}'}}", escaped));
+            // In JSX-children position a text node renders as a string
+            // literal inside an expression container (`{'text'}`); in
+            // expression position (ternary branch bodies, `slotName={...}`
+            // / `fallback={...}` attribute projections) the container
+            // would parse as an OBJECT LITERAL (`{'text'}` → key `'text'`
+            // expecting `:`), so the bare string literal is emitted
+            // instead (vite Babel "Unexpected token" on PaginationDemo
+            // text-only `@if` branches, task 12).
+            if in_jsx_children {
+                w.emit_fmt(format_args!("{{'{}'}}", escaped));
+            } else {
+                w.emit_fmt(format_args!("'{}'", escaped));
+            }
         }
         ViewTree::Interpolation(expr) => {
             let js_expr = format_expr_ir_tsx_renamed(expr, ref_names, store_field_renames);
-            w.emit_fmt(format_args!("{{{}}}", js_expr));
+            if in_jsx_children {
+                w.emit_fmt(format_args!("{{{}}}", js_expr));
+            } else {
+                // Expression position — bare value (see Text arm above).
+                w.emit(&js_expr);
+            }
         }
         ViewTree::Fragment(children) => {
             // Transparent node — the children take the fragment's own

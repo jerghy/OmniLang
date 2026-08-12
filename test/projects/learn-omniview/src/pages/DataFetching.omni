@@ -1,97 +1,111 @@
-// DataFetching.omni —— HTTP GET 远程数据加载
-// 演示：http_get + await + json_parse + @if 状态切换
+// DataFetching.omni —— HTTP GET 远程数据加载（§8.1 语义化迁移）
+// 演示：call-form 双例 @load（direct/api 各自独立四态）+ 参数信号重载 + 独立 Reset
+// 旧形态（status/resultText/errorMsg 手写状态机 + action）已删除——ADR-075
+// 原则 8：旧形态硬化由新语义形态直接表达，不写手写状态机。
 
 import omniview;
-import { console_log, console_error } from "std/console";
+import { console_log } from "std/console";
 import { http_get } from "std/http";
 import { json_parse, json_stringify } from "std/json";
 import { fetch_demo, error_message } from "../lib/api";
 
 component DataFetching {
-    signal status: String = "idle";
-    signal resultText: String = "";
-    signal errorMsg: String = "";
     signal url: String = "https://jsonplaceholder.typicode.com/todos/1";
 
-    // async action: 使用 await http_get + json_parse 加载数据
-    // try/catch 兜底：网络失败或响应不是合法 JSON 时进入诚实错误态，而不是卡在 loading
-    action loadData() async {
-        status = "loading";
-        try {
-            let raw = await http_get(url);
-            if raw == "" {
-                status = "error";
-                errorMsg = "Empty response from server";
-                console_error(errorMsg);
-                return;
-            }
-            let parsed = json_parse(raw);
-            resultText = json_stringify(parsed);
-            status = "success";
-            console_log("Fetch completed");
-        } catch err {
-            status = "error";
-            errorMsg = "加载失败: " + err;
-            console_error(errorMsg);
+    // §8.1 迁移：action loadData() → async fn loadDirect(url) —— 错误用
+    // throw 委托给 @load 信封（loading/error/data 槽位由 codegen 管理）；
+    // raw == "" 即诚实错误态（与旧形态同语义）。返回 Array<String>
+    // 单元素信封（v0 边界：@load loader 仅支持 Array 返回，见 LoadDemo）。
+    async fn loadDirect(url: String) -> Array<String> {
+        let raw = await http_get(url);
+        if raw == "" {
+            throw "Empty response from server";
         }
+        let parsed = json_parse(raw);
+        console_log("Fetch completed");
+        return [json_stringify(parsed)];
     }
 
-    // async action: 调用 api.omni 的 fetch_demo（演示跨文件 pub async fn 导入）
-    action loadViaApi() async {
-        status = "loading";
+    // §8.1 迁移：action loadViaApi() → async fn loadViaApi(url) —— 跨文件
+    // pub async fn 导入（api.omni fetch_demo）；失败时 throw msg 委托信封。
+    async fn loadViaApi(url: String) -> Array<String> {
         let result = await fetch_demo(url);
         let msg = error_message(result);
         if msg == "" {
-            status = "success";
-            resultText = "api.omni fetch_demo OK";
             console_log("Fetch completed");
-        } else {
-            status = "error";
-            errorMsg = msg;
-            console_error(msg);
+            return ["api.omni fetch_demo OK"];
         }
-    }
-
-    fn reset() {
-        status = "idle";
-        resultText = "";
-        errorMsg = "";
+        throw msg;
     }
 
     view {
         <div class: LearnDesign.Container>
+            @load direct={loadDirect(url)}
+            @load api={loadViaApi(url)}
             <h3 class: LearnDesign.CardTitle>HTTP GET Demo</h3>
-            <p class: LearnDesign.Subtitle>async action + await http_get + json_parse</p>
+            <p class: LearnDesign.Subtitle>call-form 双例 @load + 参数信号重载 + 独立 Reset</p>
 
             <div class: Controls>
                 <input bind:value={url} class: UrlInput></input>
-                <button variant: LearnDesign.Button(color=primary, size=md) @onPress={loadData}>Load</button>
-                <button variant: LearnDesign.Button(color=accent, size=md) @onPress={loadViaApi}>API</button>
-                <button variant: LearnDesign.Button(color=ghost, size=md) @onPress={reset}>Reset</button>
+                <button variant: LearnDesign.Button(color=primary, size=md) @onPress={directRetry}>Load</button>
+                <button variant: LearnDesign.Button(color=accent, size=md) @onPress={apiRetry}>API</button>
+                <button variant: LearnDesign.Button(color=ghost, size=md) @onPress={directReset}>Reset Direct</button>
+                <button variant: LearnDesign.Button(color=ghost, size=md) @onPress={apiReset}>Reset API</button>
             </div>
 
-            @if status == "loading" {
-                <div class: StatusBox LoadingBox>
-                    <p class: LoadingText>Loading data...</p>
-                </div>
-            }
-            @else if status == "success" {
-                <div class: StatusBox SuccessBox>
-                    <p class: LearnDesign.Label>Response:</p>
-                    <pre class: Result>{resultText}</pre>
-                </div>
-            }
-            @else if status == "error" {
-                <div class: StatusBox ErrorBox>
-                    <p class: LearnDesign.Label>Error:</p>
-                    <p class: ErrorText>{errorMsg}</p>
-                </div>
-            }
-            @else {
-                <div class: StatusBox IdleBox>
-                    <p class: IdleText>Click Load for direct fetch, API to use api.omni</p>
-                </div>
-            }
+            <div data-testid="direct-state">
+                @if directLoading {
+                    <div class: StatusBox LoadingBox>
+                        <p class: LoadingText>Loading data...</p>
+                    </div>
+                }
+                @else if directError != "" {
+                    <div class: StatusBox ErrorBox>
+                        <p class: LearnDesign.Label>Error:</p>
+                        <p class: ErrorText>{directError}</p>
+                    </div>
+                }
+                @else if directData == null {
+                    <div class: StatusBox IdleBox>
+                        <p class: IdleText>Click Load for direct fetch, API to use api.omni</p>
+                    </div>
+                }
+                @else {
+                    <div class: StatusBox SuccessBox>
+                        <p class: LearnDesign.Label>Response:</p>
+                        @for item in directData {
+                            <pre class: Result>{item}</pre>
+                        }
+                    </div>
+                }
+            </div>
+
+            <div data-testid="api-state">
+                @if apiLoading {
+                    <div class: StatusBox LoadingBox>
+                        <p class: LoadingText>Loading data...</p>
+                    </div>
+                }
+                @else if apiError != "" {
+                    <div class: StatusBox ErrorBox>
+                        <p class: LearnDesign.Label>Error:</p>
+                        <p class: ErrorText>{apiError}</p>
+                    </div>
+                }
+                @else if apiData == null {
+                    <div class: StatusBox IdleBox>
+                        <p class: IdleText>Click Load for direct fetch, API to use api.omni</p>
+                    </div>
+                }
+                @else {
+                    <div class: StatusBox SuccessBox>
+                        <p class: LearnDesign.Label>Response:</p>
+                        @for item in apiData {
+                            <pre class: Result>{item}</pre>
+                        }
+                    </div>
+                }
+            </div>
         </div>
     }
     style {

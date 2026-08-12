@@ -1,0 +1,115 @@
+// PollingDemo.omni —— 轮询 + 搜索防抖（§8.2 语义化迁移）
+// 演示：@load interval 轮询（每 5 秒自动重取）+ debounce 输入防抖（std/timing 首用点）
+// 轮询 loader 走 @load 信封（loading/error/data 槽位由 codegen 管理），错误用 throw 委托
+
+import omniview;
+import { console_log } from "std/console";
+import { http_get } from "std/http";
+import { json_parse, json_stringify } from "std/json";
+import { debounce } from "std/timing";
+import { LearnDesign } from "../design";
+
+component PollingDemo {
+    signal searchQuery: String = "";
+    signal searchResult: String = "";
+
+    // interval 轮询 loader：@load interval: 5000 每 5 秒自动重取
+    // 返回 Array<String> 单元素信封（v0 边界：@load loader 仅支持 Array 返回）
+    async fn fetchPrices() -> Array<String> {
+        let raw = await http_get("/api/prices");
+        if raw == "" {
+            throw "Empty response from server";
+        }
+        console_log("Polling tick");
+        let parsed = json_parse(raw);
+        return [json_stringify(parsed)];
+    }
+
+    // debounce 防抖搜索：输入停顿 300ms 后触发一次（std/timing 首用点）
+    async fn doSearch() -> String {
+        let raw = await http_get("/api/search?q=" + searchQuery);
+        if raw == "" {
+            searchResult = "Search error: empty response";
+            return "";
+        }
+        searchResult = raw;
+        return raw;
+    }
+
+    view {
+        <div class: LearnDesign.Card>
+            <h3 class: LearnDesign.CardTitle>Polling Demo</h3>
+            <p class: LearnDesign.Hint>interval 轮询（每 5s）+ debounce 搜索（std/timing 首用点）</p>
+
+            <div class: SectionBox data-testid="prices-box">
+                <p class: SectionTitle>Prices（@load interval: 5000）</p>
+                @load prices={fetchPrices} interval: 5000
+                @if pricesLoading {
+                    <p class: StatusText>Loading prices...</p>
+                }
+                @else if pricesError != "" {
+                    <p class: StatusText ErrorText>Error: {pricesError}</p>
+                }
+                @else if pricesData == null {
+                    <p class: StatusText>Waiting for first poll...</p>
+                }
+                @else {
+                    @for item in pricesData {
+                        <pre class: ResultText data-testid="prices-result">{item}</pre>
+                    }
+                }
+            </div>
+
+            <div class: SectionBox data-testid="search-box">
+                <p class: SectionTitle>Debounced search（debounce(doSearch, 300)）</p>
+                <input bind:value={searchQuery} @onInput={debounce(doSearch, 300)} class: SearchInput placeholder="Type to search..."></input>
+                @if searchResult == "" {
+                    <p class: StatusText>No results yet — type to search</p>
+                }
+                @else {
+                    <pre class: ResultText data-testid="search-result">{searchResult}</pre>
+                }
+            </div>
+        </div>
+    }
+    style {
+        .SectionBox {
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 16px;
+            background: #f8fafc;
+        }
+        .SectionTitle {
+            font-weight: 600;
+            font-size: 14px;
+            margin: 0 0 8px 0;
+            color: #334155;
+        }
+        .SearchInput {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+        .ResultText {
+            background: #0f172a;
+            color: #a5f3fc;
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 12px;
+            margin: 4px 0;
+            overflow-x: auto;
+        }
+        .StatusText {
+            font-size: 12px;
+            color: #64748b;
+            margin: 4px 0;
+        }
+        .ErrorText {
+            color: #b91c1c;
+        }
+    }
+}

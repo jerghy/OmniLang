@@ -1,0 +1,149 @@
+// PaginationDemo.omni —— 分页加载（§8.2 语义化迁移）
+// 演示：按钮分页（@load paginated + LoadMore 按钮）+ 无限滚动（paginated scroll + 底部哨兵自动加载）
+// loader 返回 Page<String> 信封（items + hasMore）；V11 静态签名校验（param 名须为 page）+ V12 运行时信封校验
+
+import omniview;
+import { LearnDesign } from "../design";
+import { array_length } from "std/array";
+
+component PaginationDemo {
+    // 按钮分页 loader：2 页 mock（第 1 页 hasMore=true，第 2 页 hasMore=false 停止加载）
+    fn fetchHistory(page: i32) -> Page<String> {
+        if page <= 1 {
+            return Page { items: ["History 1", "History 2", "History 3", "History 4", "History 5", "History 6", "History 7", "History 8", "History 9", "History 10"], hasMore: true };
+        }
+        return Page { items: ["History 11", "History 12", "History 13", "History 14", "History 15"], hasMore: false };
+    }
+
+    // 无限滚动 loader：30 条 / 每页 10 条（3 页，末页 hasMore=false）
+    fn fetchFeed(page: i32) -> Page<String> {
+        if page <= 1 {
+            return Page { items: ["Feed 1", "Feed 2", "Feed 3", "Feed 4", "Feed 5", "Feed 6", "Feed 7", "Feed 8", "Feed 9", "Feed 10"], hasMore: true };
+        }
+        if page <= 2 {
+            return Page { items: ["Feed 11", "Feed 12", "Feed 13", "Feed 14", "Feed 15", "Feed 16", "Feed 17", "Feed 18", "Feed 19", "Feed 20"], hasMore: true };
+        }
+        return Page { items: ["Feed 21", "Feed 22", "Feed 23", "Feed 24", "Feed 25", "Feed 26", "Feed 27", "Feed 28", "Feed 29", "Feed 30"], hasMore: false };
+    }
+
+    view {
+        <div class: LearnDesign.Card>
+            <h3 class: LearnDesign.CardTitle>Pagination Demo</h3>
+            <p class: LearnDesign.Hint>按钮分页 + 无限滚动（@load paginated / paginated scroll）</p>
+
+            <!-- 按钮分页形态：page/hasMore/loadingMore/loadMore 槽位由 codegen 管理 -->
+            <div class: SectionBox data-testid="pagination-box">
+                <p class: SectionTitle>Button pagination（@load paginated）</p>
+                @load history={fetchHistory} paginated
+                <div class: HistoryList>
+                    @if historyLoading {
+                        <p class: StatusText>Loading...</p>
+                    }
+                    @else if historyError != "" {
+                        <p class: StatusText ErrorText>Error: {historyError}</p>
+                    }
+                    @else {
+                        @for item in historyData {
+                            <div class: HistoryItem>{item}</div>
+                        }
+                        <p class: StatusText>Loaded {array_length(historyData)} items</p>
+                    }
+                </div>
+                <div class: ButtonRow>
+                    <button variant: LearnDesign.Button(color=primary, size=md) @onPress={historyLoadMore} disabled={!historyHasMore}>Load More</button>
+                    <button variant: LearnDesign.Button(color=ghost, size=md) @onPress={historyReset}>Reset</button>
+                </div>
+            </div>
+
+            <!-- 无限滚动形态：容器滚动接近底部时哨兵触发自动加载下一页 -->
+            <div class: SectionBox>
+                <p class: SectionTitle>Infinite scroll（@load paginated scroll）</p>
+                <div class: FeedBox style: { height: '300px', overflow: 'auto' } data-testid="feed-scroll">
+                    @load feed={fetchFeed} paginated scroll
+                    @if feedLoading {
+                        <p class: StatusText>Loading...</p>
+                    }
+                    @else if feedError != "" {
+                        <p class: StatusText ErrorText>Error: {feedError}</p>
+                    }
+                    @else if feedData == null {
+                        <p class: StatusText>Scroll this box to load the feed</p>
+                    }
+                    @else {
+                        @for item in feedData {
+                            <div class: FeedItem>{item}</div>
+                        }
+                        <p class: StatusText>
+                            @if feedLoadingMore {
+                                Loading more...
+                            }
+                            @else if !feedHasMore {
+                                End of feed — {array_length(feedData)} items loaded
+                            }
+                            @else {
+                                Loaded {array_length(feedData)} items — scroll down for more
+                            }
+                        </p>
+                    }
+                </div>
+                <div class: ButtonRow>
+                    <button variant: LearnDesign.Button(color=ghost, size=md) @onPress={feedReset}>Reset Feed</button>
+                </div>
+            </div>
+        </div>
+    }
+    style {
+        .SectionBox {
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 16px;
+            background: #f8fafc;
+        }
+        .SectionTitle {
+            font-weight: 600;
+            font-size: 14px;
+            margin: 0 0 8px 0;
+            color: #334155;
+        }
+        .HistoryList {
+            min-height: 36px;
+            margin-bottom: 8px;
+        }
+        .HistoryItem {
+            padding: 4px 8px;
+            margin: 2px 0;
+            background: #eef2ff;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #3730a3;
+        }
+        .FeedBox {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 8px;
+            margin-bottom: 8px;
+        }
+        .FeedItem {
+            padding: 6px 8px;
+            margin: 2px 0;
+            background: #f0fdf4;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #166534;
+        }
+        .StatusText {
+            font-size: 12px;
+            color: #64748b;
+            margin: 4px 0;
+        }
+        .ErrorText {
+            color: #b91c1c;
+        }
+        .ButtonRow {
+            display: flex;
+            gap: 8px;
+        }
+    }
+}

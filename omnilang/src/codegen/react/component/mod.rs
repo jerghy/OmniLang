@@ -344,6 +344,10 @@ impl ReactCodegen {
             }
             found
         };
+        // Task 12 (批次 4 数据能力): 时序首参 fn 集合——view.rs 时序臂把
+        // 它们编译成 `{fn}_ref`（useRef 稳定引用），必须早于 gen_functions
+        // 计算（ref 声明紧贴 fn const 发射）与 useRef import 门控。
+        let timing_ref_fns = function::collect_timing_arg_fns(comp);
         let mut hooks: Vec<String> = Vec::new();
         // Task 4 (Phase 2 域 A): @form/@load 脚手架 emit useState/useCallback/
         // useEffect——formErrors/formSubmitting state、load useCallback +
@@ -401,10 +405,13 @@ impl ReactCodegen {
 
         // Ref declarations → useRef (user @refs + synthesized motion refs
         // + Task 7 无限滚动哨兵 ref——scroll 模式 @load 发射
-        // {name}ScrollSentinelRef，见 load 块)
+        // {name}ScrollSentinelRef，见 load 块
+        // + Task 12 时序首参稳定引用 {fn}_ref——gen_functions 在 fn const
+        // 后发射 ref 声明 + 每渲染回写，必须导入 useRef)
         let has_refs = !comp.refs.is_empty()
             || !motion_internal_refs.is_empty()
-            || comp.load_intent.iter().any(|li| li.mode.scroll);
+            || comp.load_intent.iter().any(|li| li.mode.scroll)
+            || !timing_ref_fns.is_empty();
         if has_refs {
             hooks.push("useRef".to_string());
         }
@@ -1782,7 +1789,11 @@ impl ReactCodegen {
                 w.dedent();
                 w.emit("}");
                 w.dedent();
-                w.emit("}, { threshold: 0.1 });");
+                // threshold 0（批次 4 fix）：哨兵是零面积空 div——ratio 恒
+                // 为 0，threshold 0.1 永不越阈 → 无限滚动死锁。threshold 0
+                // 下零面积元素进入根边界即报 isIntersecting（见上「零面积
+                // 元素初始即报」注释的语义前提——该前提仅 threshold 0 成立）。
+                w.emit("}, { threshold: 0 });");
                 w.emit_fmt(format_args!("if ({sentinel_ref}.current) {{"));
                 w.indent();
                 w.emit_fmt(format_args!("observer.observe({sentinel_ref}.current);"));
@@ -1967,6 +1978,7 @@ impl ReactCodegen {
             &possibly_undefined_handlers,
             &direct_write_names,
             &direct_write_applies,
+            &timing_ref_fns,
         );
 
         // ── Task 2.8 (perf M4): useCallback wrappers for prop fns ──

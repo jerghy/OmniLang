@@ -3,7 +3,12 @@
 只统计「支持/部分」成员的展示缺口（未支持 = 白名单外硬诊断，无需展示）。
 """
 import re
+import sys
 from pathlib import Path
+
+# Windows GBK 控制台兜底：✅/❌ 等非 ASCII 输出不再触发 UnicodeEncodeError
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 REPO = Path(r"D:\space\OmniLang")
 UNIVERSE = REPO / "docs" / "superpowers" / "specs" / "semantic-universe.md"
@@ -69,6 +74,17 @@ def usage(domain: str, name: str) -> int:
             return len(re.findall(r"data\b(?!-)", demo_text))  # (?!-) 排除 data-testid/data-type 等
         if name in ("loading", "error", "retry"):
             return len(re.findall(rf"\b{re.escape(name)}\b", demo_text))
+        # 批次 4（2026-08-11）域 9 深化成员（semantic-universe.md 域 9 登记先行）
+        if name == "@load 命名实例（多例）":  # DataFetching direct/api 双例
+            return len(re.findall(r"@load\s+\w+\s*=", demo_text))
+        if name == "{name}Loading/{name}Error/{name}Data/{name}Retry/{name}Reset":
+            # 命名槽位（如 directLoading/historyError/pricesData/directRetry）——
+            # LoadingBox/ErrorText 等 CSS 类名与 feedLoadingMore 不构成尾缀匹配
+            return len(re.findall(r"\b\w+(?:Loading|Error|Data|Retry)\b", demo_text))
+        if name == "reset（匿名）":
+            # LOAD_RESERVED_NAMES 的 reset 槽位：命名实例形态 @onPress={directReset}
+            # 等（匿名 reset 无新 demo——LoadDemo 维持不变，见 spec §8.2）
+            return len(re.findall(r"@onPress=\{\w+Reset\}", demo_text))
     if domain == "10":  # 反馈模态：语义集条目名带 @ 前缀（指令），showToast 为函数调用形态
         if name == "showToast":
             return len(re.findall(r"showToast\s*\(", demo_text))
@@ -126,3 +142,37 @@ print("\n" + "=" * 78)
 print(f"合计缺口（支持/部分未展示）: {len(all_gaps)}（豁免 {len(EXEMPT)} 项无合法元素形态）")
 for num, n, s in all_gaps:
     print(f"  域{num}: {n} [{s}]")
+
+# ── 批次 4 §5.4 断言：DataFetching 迁移后页面仍在 + 新 demo 页接线 ──
+failures = []
+
+def strip_comments(s: str) -> str:
+    return re.sub(r"//[^\n]*", "", s)
+
+df = strip_comments((DEMO / "pages" / "DataFetching.omni").read_text(encoding="utf-8"))
+if len(re.findall(r"@load\s+\w+\s*=", df)) < 2:
+    failures.append("DataFetching.omni 缺少 §8.1 双例 @load（direct/api 命名实例）")
+for fn in ("loadDirect", "loadViaApi"):
+    if fn not in df:
+        failures.append(f"DataFetching.omni 缺少 loader {fn}")
+for btn in ("directRetry", "apiRetry", "directReset", "apiReset"):
+    if f"@onPress={{{btn}}}" not in df:
+        failures.append(f"DataFetching.omni 缺少按钮 {btn}")
+if re.search(r"\bsignal\s+(status|resultText|errorMsg)\b", df):
+    failures.append("DataFetching.omni 残留旧形态手写状态机 signal（ADR-075 迁移纪律）")
+
+ui = (DEMO / "pages" / "UiComponents.omni").read_text(encoding="utf-8")
+for comp in ("PaginationDemo", "PollingDemo"):
+    if f"<{comp} " not in ui:
+        failures.append(f"UiComponents.omni 未接线 <{comp} />")
+for rel in ("components/PaginationDemo.omni", "components/PollingDemo.omni"):
+    if not (DEMO / rel).exists():
+        failures.append(f"缺失新 demo 文件 {rel}")
+
+if failures:
+    print("\n" + "=" * 78)
+    print(f"批次 4 §5.4 断言失败（{len(failures)}）:")
+    for f in failures:
+        print(f"  ❌ {f}")
+    sys.exit(1)
+print("\n批次 4 §5.4 断言通过：DataFetching 迁移形态 + Pagination/Polling 接线确认")

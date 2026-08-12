@@ -5703,6 +5703,67 @@ component PageSwitcher {
     );
 }
 
+/// Task 12 (批次 4 数据能力): text-only `@if`/`@else` branch bodies
+/// (PaginationDemo's `<p>` status line — `@if feedLoadingMore { Loading
+/// more... }`) must NOT be wrapped in `{'...'}` JSX expression containers:
+/// branch bodies sit in EXPRESSION position inside the ternary parens,
+/// where Babel parses `{'Loading more...'}` as an OBJECT LITERAL
+/// ("Unexpected token"). Text/interpolation in JSX-children position
+/// keeps the container.
+#[test]
+fn react_text_only_branches_emit_bare_literals() {
+    let source = r#"
+component StatusText {
+    signal loading: bool = true
+    signal hasMore: bool = true
+    signal status: String = "ok"
+    view {
+        <p>
+            Status: {status}
+            @if loading {
+                Loading...
+            }
+            @else if !hasMore {
+                End
+            }
+            @else {
+                Loaded
+            }
+        </p>
+    }
+}
+"#;
+    let result = compile_react_full(source);
+    assert!(result.success, "errors: {:?}", result.errors);
+    let content: String = result
+        .files
+        .values()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
+    // Children position: text/interpolation still containerized.
+    assert!(
+        content.contains("{'Status: '}") && content.contains("{status}"),
+        "JSX-children text/interpolation must keep containers, got:\n{}",
+        content
+    );
+    // Expression position: branch bodies are bare string literals.
+    for (prose, cond) in [("'Loading...'", "loading ? ("), ("'End'", "!hasMore ? ("), ("'Loaded'", "")] {
+        if !cond.is_empty() {
+            assert!(
+                content.contains(cond),
+                "expected ternary branch `{cond}`, got:\n{}",
+                content
+            );
+        }
+        assert!(
+            content.contains(prose) && !content.contains(format!("{{{prose}}}").as_str()),
+            "branch text must be a bare literal `{prose}` (no container), got:\n{}",
+            content
+        );
+    }
+}
+
 /// I2: the same for a root-level `@for ... @empty` (the ScrollStoreDemo
 /// shape) — the IIFE must sit directly in the return parens, and the
 /// closing `); })()` must NOT carry the JSX-container `}`.
@@ -9037,6 +9098,13 @@ component App {
         "IntersectionObserver 缺失. Got:\n{}",
         out
     );
+    // 批次 4 fix: 哨兵是零面积空 div，threshold 0.1 永不越阈 → 死锁；
+    // 必须 threshold 0（零面积元素进入根边界即报 isIntersecting）。
+    assert!(
+        out.contains("threshold: 0"),
+        "哨兵观察必须 threshold 0（零面积元素 0.1 永不越阈）. Got:\n{}",
+        out
+    );
     assert!(
         out.contains("entries[0].isIntersecting && !historyLoadingMore && historyHasMore"),
         "双守卫（LoadingMore || !HasMore 时不触发）缺失. Got:\n{}",
@@ -9121,9 +9189,13 @@ component App {
     );
 }
 
-/// debounce(doSearch, 300) → useMemo(() => debounce(doSearch, 300), [doSearch])
-/// 稳定引用（spec §2.5 trailing-only 默认 + §4.1）——stdlib debounce 闭包
-/// 经 useMemo 包装后作为事件处理器值。
+/// debounce(doSearch, 300) → useMemo(() => debounce(doSearch_ref, 300),
+/// [doSearch_ref]) 稳定引用（spec §2.5 trailing-only 默认 + §4.1）——
+/// stdlib debounce 闭包经 useMemo 包装后作为事件处理器值。
+/// Task 12: 首参换 `{fn}_ref`（useRef 稳定引用）——fn const 每渲染重建，
+/// 直接作 deps 会使包装器每击键重建 → 上一渲染闭包里的旧 fn 最后触发
+/// （stale，test 46 实证 'abc'→'searched:ab'）；ref 身份稳定 → 包装只建
+/// 一次 → 单 _t 计时器 → trailing 触发读 `_fn.current` 拿最新 fn。
 #[test]
 fn react_debounce_stable_reference() {
     let source = r#"
@@ -9147,13 +9219,86 @@ component App {
         out
     );
     assert!(
-        out.contains("[doSearch]"),
-        "useMemo 依赖必须为 [fn]（稳定引用）. Got:\n{}",
+        out.contains("(_fn.current ?? _fn)(..._a)"),
+        "stdlib debounce 调用形态必须兼容 {{fn}}_ref（Task 12）. Got:\n{}",
         out
     );
     assert!(
-        out.contains("useMemo } from 'react'"),
-        "useMemo 必须进入 react 导入. Got:\n{}",
+        out.contains("const doSearch_ref = useRef(doSearch);"),
+        "fn const 后必须发射 useRef 稳定引用声明（Task 12）. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("doSearch_ref.current = doSearch;"),
+        "ref 必须每渲染回写最新 fn（Task 12）. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("[doSearch_ref]"),
+        "useMemo 依赖必须为 [fn_ref]（稳定引用，Task 12）. Got:\n{}",
+        out
+    );
+    assert!(
+        !out.contains("[doSearch]"),
+        "禁止直接以 fn 作 deps（每渲染重建 → stale 闭包，Task 12）. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("useMemo, useRef } from 'react'"),
+        "useMemo + useRef 必须进入 react 导入（稳定引用形态双依赖）. Got:\n{}",
+        out
+    );
+}
+
+/// 批次 4 fix（Task 12）：debounce/throttle 按值传入的本地 fn 必须被
+/// 收集为 called_fns 并发射进组件体——否则 useMemo 时序常量引用
+/// 未声明的 fn（运行时 ReferenceError: doSearch is not defined）。
+#[test]
+fn react_debounce_timing_arg_local_fn_emitted() {
+    let source = r#"
+import { debounce } from "std/timing";
+component App {
+  fn doSearch(q: String) -> Array<String> { }
+  view {
+    <input @onInput={debounce(doSearch, 300)} />
+  }
+}
+"#;
+    let out = compile_react_src(source);
+    assert!(
+        out.contains("const doSearch"),
+        "debounce 的 fn 实参必须作为本地 fn 发射进组件体（called_fns 收集缺陷）. Got:\n{}",
+        out
+    );
+}
+
+/// 批次 4 Task 12 回归：同一 fn 的多处时序调用共享同一 `{fn}_ref`
+/// 声明（collect_timing_arg_fns 集合语义去重——ref 只发射一次，
+/// 两处 useMemo 包装都引用同一 ref，单 _t 计时器互不干扰）。
+#[test]
+fn react_debounce_multiple_sites_share_single_ref() {
+    let source = r#"
+import omniview;
+import { debounce } from "std/timing";
+component App {
+  fn doSearch(q: String) -> Array<String> { }
+  view {
+    <input @onInput={debounce(doSearch, 300)} />
+    <button @onPress={debounce(doSearch, 100)}>x</button>
+  }
+}
+"#;
+    let out = compile_react_src(source);
+    // 标识符首参仍走稳定引用路径（ref 声明 + _ref 首参）
+    assert!(
+        out.contains("const doSearch_ref = useRef(doSearch);"),
+        "标识符首参必须发射 ref 声明. Got:\n{}",
+        out
+    );
+    assert_eq!(
+        out.matches("[doSearch_ref]").count(),
+        2,
+        "两处时序调用都必须以 [fn_ref] 为 deps. Got:\n{}",
         out
     );
 }

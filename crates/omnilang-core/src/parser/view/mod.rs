@@ -18,13 +18,61 @@ impl<'a> Parser<'a> {
         self.advance(); // 'view'
         self.expect_token(TokenKind::LBrace, "expected '{'")?;
 
-        let mut children = Vec::new();
-        while !self.at(&TokenKind::RBrace) && !self.at(&TokenKind::Eof) {
-            children.push(self.parse_view_node()?);
-        }
+        let children = self.parse_view_nodes_until(TokenKind::RBrace)?;
 
         self.expect_token(TokenKind::RBrace, "expected '}'")?;
         Ok(ViewBlock { children })
+    }
+
+    /// Parse view nodes until the given closing token (usually `}`) or EOF.
+    ///
+    /// Directive bodies, view blocks, component-call children and slot
+    /// bodies share one hazard: consecutive text tokens (`Loaded {n} items`)
+    /// must be collected into a single text run — dispatching them
+    /// token-by-token through `parse_view_node` misparses a PascalCase word
+    /// followed by `{` as a component call (e.g. `Loaded {...}` became a
+    /// `loaded` element in React output). String literals and `{...}`
+    /// interpolations keep their dedicated arms in `parse_view_node`; the
+    /// directive at-tokens route there too, preserving directive parsing
+    /// and the `@route`/`@layout`/`@query` hard error.
+    fn parse_view_nodes_until(&mut self, end: TokenKind) -> Result<Vec<ViewNode>, ParseError> {
+        let mut out = Vec::new();
+        while !self.at(&end) && !self.at(&TokenKind::Eof) {
+            match self.peek_kind().clone() {
+                TokenKind::StringLiteral(_) | TokenKind::LBrace => {
+                    out.push(self.parse_view_node()?);
+                }
+                TokenKind::AtIf
+                | TokenKind::AtFor
+                | TokenKind::AtSlot
+                | TokenKind::AtLoad
+                | TokenKind::AtRoute
+                | TokenKind::AtLayout
+                | TokenKind::AtQuery => {
+                    out.push(self.parse_view_node()?);
+                }
+                // Prose wins over component calls only for the
+                // func-call-interpolation shape (`Loaded {array_length(x)}`);
+                // every other `Name { ... }` is a component call.
+                _ if self.is_prose_brace_start() => {
+                    if let Some(node) = self.parse_text_run() {
+                        out.push(node);
+                    }
+                }
+                _ if self.is_component_call_start() => {
+                    out.push(self.parse_view_node()?);
+                }
+                _ if is_text_token(self.peek_kind()) => {
+                    if let Some(node) = self.parse_text_run() {
+                        out.push(node);
+                    }
+                }
+                _ => {
+                    out.push(self.parse_view_node()?);
+                }
+            }
+        }
+        Ok(out)
     }
 
     /// Parse a single view node: element, directive, or text.
@@ -317,6 +365,87 @@ impl<'a> Parser<'a> {
         Ok(ViewNode::Text(text))
     }
 
+    /// Collect consecutive text tokens (Idents, colons, etc.) into one Text
+    /// node, reconstructing whitespace between tokens by checking span byte
+    /// gaps: if token N+1 starts after token N ends, the lexer skipped
+    /// whitespace — insert a space. Interpolations and child elements break
+    /// the run; DOM whitespace collapsing (CSS) applies to the recovered
+    /// gaps:
+    ///   - gaps inside the run (inline) fold to a single space;
+    ///   - gaps at node start/end that contain a newline (formatted
+    ///     indentation) are removed, mirroring line-start/line-end
+    ///     stripping.
+    /// The first gap is measured against the previously-consumed token
+    /// (`}` of an interpolation, `>` of a child element, `{` of a body), so
+    /// `{a} b` / `</span> tail` keep their inline space while
+    /// `<div>\n    text` loses the indentation.
+    ///
+    /// Returns None when the run collected no text (empty nodes are
+    /// dropped, mirroring the pre-collector skip).
+    fn parse_text_run(&mut self) -> Option<ViewNode> {
+        let gap_has_newline = |start: usize, prev: usize| -> bool {
+            self.source
+                .get(prev..start)
+                .is_some_and(|s| s.contains('\n'))
+        };
+        let mut text = String::new();
+        let mut prev_end: Option<usize> = None;
+        let mut first_gap = true;
+        while is_text_token(self.peek_kind()) {
+            // First iteration: the gap baseline is the token before
+            // the run (captured before `advance` moves pos past it).
+            let run_prev_end = if prev_end.is_none() {
+                self.tokens
+                    .get(self.pos.wrapping_sub(1))
+                    .map(|pt| pt.span.end)
+            } else {
+                None
+            };
+            let t = self.advance();
+            let gap_prev: Option<usize> = match prev_end {
+                Some(prev) if t.span.start > prev => Some(prev),
+                None => run_prev_end.filter(|&pe| t.span.start > pe),
+                _ => None,
+            };
+            if let Some(prev) = gap_prev {
+                let is_line_start = first_gap && gap_has_newline(t.span.start, prev);
+                if !is_line_start {
+                    text.push(' ');
+                }
+            }
+            // Numeric tokens keep their SOURCE spelling: `#000000`
+            // lexes as Hash + IntLiteral(0), and `0.to_string()`
+            // truncates the hex zeros (ThemeSourceDemo rendered
+            // `--surface: #0;`). Span slicing preserves `000000`.
+            match &t.kind {
+                TokenKind::IntLiteral(_) | TokenKind::FloatLiteral(_) => {
+                    if let Some(spelling) = self.source.get(t.span.start..t.span.end) {
+                        text.push_str(spelling);
+                    } else {
+                        text.push_str(&token_text(&t.kind));
+                    }
+                }
+                _ => text.push_str(&token_text(&t.kind)),
+            }
+            prev_end = Some(t.span.end);
+            first_gap = false;
+        }
+        // Run may end before an interpolation/child (`| {b}`, `text <b>`):
+        // fold an inline gap into the text node, strip a newline gap
+        // (line-end collapsing).
+        if !text.is_empty() {
+            if let Some(next) = self.tokens.get(self.pos) {
+                if let Some(prev) = prev_end {
+                    if next.span.start > prev && !gap_has_newline(next.span.start, prev) {
+                        text.push(' ');
+                    }
+                }
+            }
+            return Some(ViewNode::Text(text));
+        }
+        None
+    }
+
     /// Parse the shared body of a `@slot` directive: the optional name
     /// (`@slot name`, or `@slot default` / bare for the default slot) and
     /// optional `{ fallback }` view content. Used by both view-level
@@ -376,10 +505,7 @@ impl<'a> Parser<'a> {
         // Parse optional default content body: @slot name { ... }
         let default_content = if self.at(&TokenKind::LBrace) {
             self.advance(); // consume '{'
-            let mut children = Vec::new();
-            while !self.at(&TokenKind::RBrace) && !self.at(&TokenKind::Eof) {
-                children.push(self.parse_view_node()?);
-            }
+            let children = self.parse_view_nodes_until(TokenKind::RBrace)?;
             self.expect_token(TokenKind::RBrace, "expected '}'")?;
             Some(children)
         } else {
@@ -419,6 +545,30 @@ impl<'a> Parser<'a> {
             .is_some_and(|t| matches!(t.kind, TokenKind::LParen | TokenKind::LBrace))
     }
 
+    /// Prose-with-interpolation detection: `Loaded {array_length(x)} items` —
+    /// a PascalCase word followed by `{`, an Ident, and `(`. Component
+    /// children can't begin with a bare call-expression token sequence in
+    /// source order (children are elements, string literals, or
+    /// `{...}`-wrapped interpolations), so this shape is prose, not a
+    /// component call. Without this, `Loaded {array_length(x)}` in a
+    /// directive body parsed as Element{tag:"Loaded"} and codegen
+    /// lowercased it to a garbage `<loaded>` element (regression 2026-08-11).
+    fn is_prose_brace_start(&self) -> bool {
+        let kind = self.peek_kind();
+        let name: Option<String> = match kind {
+            TokenKind::Ident(s) => Some(s.clone()),
+            _ => keyword_as_ident_name(kind).map(|s| s.to_string()),
+        };
+        let Some(name) = name else { return false };
+        if !name.starts_with(|c: char| c.is_uppercase()) {
+            return false;
+        }
+        // `Name` `{` Ident `(` — e.g. `Loaded {array_length(x)}`
+        self.tokens.get(self.pos + 1).is_some_and(|t| t.kind == TokenKind::LBrace)
+            && self.tokens.get(self.pos + 2).is_some_and(|t| matches!(t.kind, TokenKind::Ident(_)))
+            && self.tokens.get(self.pos + 3).is_some_and(|t| t.kind == TokenKind::LParen)
+    }
+
     /// Parse component call syntax: Name(prop: value, ...) { children }
     fn parse_component_call(&mut self) -> Result<ViewNode, ParseError> {
         let t = self.advance();
@@ -453,9 +603,7 @@ impl<'a> Parser<'a> {
         let mut children = Vec::new();
         let self_closing = if self.at(&TokenKind::LBrace) {
             self.advance();
-            while !self.at(&TokenKind::RBrace) && !self.at(&TokenKind::Eof) {
-                children.push(self.parse_view_node()?);
-            }
+            children = self.parse_view_nodes_until(TokenKind::RBrace)?;
             self.expect_token(TokenKind::RBrace, "expected '}'")?;
             false
         } else {
@@ -766,70 +914,8 @@ impl<'a> Parser<'a> {
                     // interpolation, `>` of a child element), so `{a} b` / `</span> tail` keep
                     // their inline space while `<div>\n    text` loses the indentation.
                     _ if is_text_token(self.peek_kind()) => {
-                        let gap_has_newline = |start: usize, prev: usize| -> bool {
-                            self.source
-                                .get(prev..start)
-                                .is_some_and(|s| s.contains('\n'))
-                        };
-                        let mut text = String::new();
-                        let mut prev_end: Option<usize> = None;
-                        let mut first_gap = true;
-                        while is_text_token(self.peek_kind()) {
-                            // First iteration: the gap baseline is the token before
-                            // the run (captured before `advance` moves pos past it).
-                            let run_prev_end = if prev_end.is_none() {
-                                self.tokens
-                                    .get(self.pos.wrapping_sub(1))
-                                    .map(|pt| pt.span.end)
-                            } else {
-                                None
-                            };
-                            let t = self.advance();
-                            let gap_prev: Option<usize> = match prev_end {
-                                Some(prev) if t.span.start > prev => Some(prev),
-                                None => run_prev_end.filter(|&pe| t.span.start > pe),
-                                _ => None,
-                            };
-                            if let Some(prev) = gap_prev {
-                                let is_line_start =
-                                    first_gap && gap_has_newline(t.span.start, prev);
-                                if !is_line_start {
-                                    text.push(' ');
-                                }
-                            }
-                            // Numeric tokens keep their SOURCE spelling: `#000000`
-                            // lexes as Hash + IntLiteral(0), and `0.to_string()`
-                            // truncates the hex zeros (ThemeSourceDemo rendered
-                            // `--surface: #0;`). Span slicing preserves `000000`.
-                            match &t.kind {
-                                TokenKind::IntLiteral(_) | TokenKind::FloatLiteral(_) => {
-                                    if let Some(spelling) =
-                                        self.source.get(t.span.start..t.span.end)
-                                    {
-                                        text.push_str(spelling);
-                                    } else {
-                                        text.push_str(&token_text(&t.kind));
-                                    }
-                                }
-                                _ => text.push_str(&token_text(&t.kind)),
-                            }
-                            prev_end = Some(t.span.end);
-                            first_gap = false;
-                        }
-                        // Run may end before an interpolation/child (`| {b}`, `text <b>`):
-                        // fold an inline gap into the text node, strip a newline gap
-                        // (line-end collapsing).
-                        if !text.is_empty() {
-                            if let Some(next) = self.tokens.get(self.pos) {
-                                if let Some(prev) = prev_end {
-                                    if next.span.start > prev
-                                        && !gap_has_newline(next.span.start, prev)
-                                    {
-                                        text.push(' ');
-                                    }
-                                }
-                            }
-                            children.push(ViewNode::Text(text));
+                        if let Some(node) = self.parse_text_run() {
+                            children.push(node);
                         }
                     }
                     _ => {

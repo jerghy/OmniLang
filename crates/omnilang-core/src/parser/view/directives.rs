@@ -36,10 +36,7 @@ impl<'a> Parser<'a> {
         };
         self.expect_token(TokenKind::LBrace, "expected '{'")?;
 
-        let mut body = Vec::new();
-        while *self.peek_kind() != TokenKind::RBrace && *self.peek_kind() != TokenKind::Eof {
-            body.push(self.parse_view_node()?);
-        }
+        let body = self.parse_view_nodes_until(TokenKind::RBrace)?;
         self.expect_token(TokenKind::RBrace, "expected '}'")?;
 
         let mut else_ifs = Vec::new();
@@ -52,31 +49,19 @@ impl<'a> Parser<'a> {
                 self.advance(); // '@if' after '@else'
                 let cond = self.parse_expr()?;
                 self.expect_token(TokenKind::LBrace, "expected '{'")?;
-                let mut b = Vec::new();
-                while *self.peek_kind() != TokenKind::RBrace && *self.peek_kind() != TokenKind::Eof
-                {
-                    b.push(self.parse_view_node()?);
-                }
+                let b = self.parse_view_nodes_until(TokenKind::RBrace)?;
                 self.expect_token(TokenKind::RBrace, "expected '}'")?;
                 else_ifs.push((cond, b));
             } else if *self.peek_kind() == TokenKind::If {
                 self.advance(); // 'if' after '@else' (without @ prefix)
                 let cond = self.parse_expr()?;
                 self.expect_token(TokenKind::LBrace, "expected '{'")?;
-                let mut b = Vec::new();
-                while *self.peek_kind() != TokenKind::RBrace && *self.peek_kind() != TokenKind::Eof
-                {
-                    b.push(self.parse_view_node()?);
-                }
+                let b = self.parse_view_nodes_until(TokenKind::RBrace)?;
                 self.expect_token(TokenKind::RBrace, "expected '}'")?;
                 else_ifs.push((cond, b));
             } else {
                 self.expect_token(TokenKind::LBrace, "expected '{'")?;
-                let mut b = Vec::new();
-                while *self.peek_kind() != TokenKind::RBrace && *self.peek_kind() != TokenKind::Eof
-                {
-                    b.push(self.parse_view_node()?);
-                }
+                let b = self.parse_view_nodes_until(TokenKind::RBrace)?;
                 self.expect_token(TokenKind::RBrace, "expected '}'")?;
                 else_body = Some(b);
                 break;
@@ -371,20 +356,14 @@ impl<'a> Parser<'a> {
 
         self.expect_token(TokenKind::LBrace, "expected '{'")?;
 
-        let mut body = Vec::new();
-        while *self.peek_kind() != TokenKind::RBrace && *self.peek_kind() != TokenKind::Eof {
-            body.push(self.parse_view_node()?);
-        }
+        let body = self.parse_view_nodes_until(TokenKind::RBrace)?;
         self.expect_token(TokenKind::RBrace, "expected '}'")?;
 
         let mut empty_body = None;
         if *self.peek_kind() == TokenKind::AtEmpty {
             self.advance();
             self.expect_token(TokenKind::LBrace, "expected '{'")?;
-            let mut b = Vec::new();
-            while *self.peek_kind() != TokenKind::RBrace && *self.peek_kind() != TokenKind::Eof {
-                b.push(self.parse_view_node()?);
-            }
+            let b = self.parse_view_nodes_until(TokenKind::RBrace)?;
             self.expect_token(TokenKind::RBrace, "expected '}'")?;
             empty_body = Some(b);
         }
@@ -610,6 +589,51 @@ mod trigger_params_tests {
         }
         assert!(!out.is_empty(), "no motion triggers found in: {}", source);
         out
+    }
+
+    #[test]
+    fn directive_body_text_run_around_interpolation() {
+        // Regression (批次 4 Task 12): directive-body loops dispatched each
+        // token through `parse_view_node`, so `Loaded {n} items` inside an
+        // `@else { ... }` body misparsed — "Loaded" is PascalCase and the
+        // next token is `{`, which matched `is_component_call_start`, and
+        // the react codegen lowercased the unknown tag to `<loaded>`.
+        // The text-run collector must reconstruct `Loaded` / `items` around
+        // the interpolation instead of spawning a component call.
+        let source = "component C {\n  view {\n    @if ok { <p>A</p> } @else {Loaded {array_length(x)} items}\n  }\n}";
+        let tokens = tokenize(source);
+        let (program, errors) = parse(tokens, source);
+        assert!(
+            errors.is_empty(),
+            "unexpected parse errors: {:?}",
+            errors.iter().map(|e| e.message.clone()).collect::<Vec<_>>()
+        );
+        let module = program.modules.get("input.omni").unwrap();
+        let comp = &module.components[0];
+        let view = comp.view.as_ref().expect("component has view");
+        let ViewNode::IfDirective(ifd) = &view.children[0] else {
+            panic!("expected IfDirective, got {:?}", view.children[0]);
+        };
+        let else_body = ifd.else_body.as_ref().expect("else body");
+        // The inline gaps around the interpolation fold into the text runs
+        // (`Loaded ` / ` items`), mirroring element-children behavior and
+        // DOM whitespace collapsing.
+        assert_eq!(else_body.len(), 3, "got {:?}", else_body);
+        assert!(
+            matches!(&else_body[0], ViewNode::Text(t) if t == "Loaded "),
+            "got {:?}",
+            else_body[0]
+        );
+        assert!(
+            matches!(&else_body[1], ViewNode::Interpolation(Expr::FuncCall { .. })),
+            "got {:?}",
+            else_body[1]
+        );
+        assert!(
+            matches!(&else_body[2], ViewNode::Text(t) if t == " items"),
+            "got {:?}",
+            else_body[2]
+        );
     }
 
     #[test]

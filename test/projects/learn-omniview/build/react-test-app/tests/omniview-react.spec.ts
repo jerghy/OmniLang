@@ -563,4 +563,179 @@ test.describe('OmniView React — 9 标签页验证', () => {
       await expectNoErrors(page, 'tab8', () => switchToTab(page, 8));
     });
   });
+
+  // ═══ 批次 4（Task 12）：数据能力 —— §8.1 DataFetching 双例迁移 + §8.2 分页/轮询/debounce ═══
+  // 编号 40-47：多例独立 / 参数重载 / Reset / 按钮分页 / 无限滚动 / interval 轮询 / debounce / 空闲态
+  test.describe('批次 4: 数据能力', () => {
+    const TODO_1 = 'https://jsonplaceholder.typicode.com/todos/1';
+    const TODO_2 = 'https://jsonplaceholder.typicode.com/todos/2';
+    const IDLE_TEXT = 'Click Load for direct fetch, API to use api.omni';
+
+    test('40 - DataFetching 双例 @load 独立（direct/api 互不干扰）', async ({ page }) => {
+      await page.route(TODO_1, async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          headers: { 'access-control-allow-origin': '*' },
+          body: '[{"id":1,"title":"delectus aut autem"}]',
+        });
+      });
+      await switchToTab(page, 7);
+      // @load 挂载即自动加载（canonical 语义，同 LoadDemo）：双盒均出数据
+      await expect(page.getByTestId('direct-state').getByText('delectus aut autem')).toBeVisible();
+      await expect(page.getByTestId('api-state').getByText('api.omni fetch_demo OK')).toBeVisible();
+      // Reset Direct 只清 direct 盒 → 空闲（api 盒保留——多例互不干扰）
+      await clickBtn(page, 'Reset Direct');
+      await expect(page.getByTestId('direct-state').getByText(IDLE_TEXT)).toBeVisible();
+      await expect(page.getByTestId('api-state').getByText('api.omni fetch_demo OK')).toBeVisible();
+      // Load 只刷新 direct 盒（api 盒结果保留）
+      await clickBtn(page, 'Load');
+      await expect(page.getByTestId('direct-state').getByText('delectus aut autem')).toBeVisible();
+      await expect(page.getByTestId('api-state').getByText('api.omni fetch_demo OK')).toBeVisible();
+    });
+
+    test('41 - DataFetching 参数重载：改 url 信号 → 数据刷新', async ({ page }) => {
+      await page.route(TODO_1, async (route) => {
+        await route.fulfill({
+          status: 200, contentType: 'application/json',
+          headers: { 'access-control-allow-origin': '*' },
+          body: '[{"id":1,"title":"delectus aut autem"}]',
+        });
+      });
+      await page.route(TODO_2, async (route) => {
+        await route.fulfill({
+          status: 200, contentType: 'application/json',
+          headers: { 'access-control-allow-origin': '*' },
+          body: '[{"id":2,"title":"quis ut nam facilis et officia qui"}]',
+        });
+      });
+      await switchToTab(page, 7);
+      await clickBtn(page, 'Load');
+      await expect(page.getByTestId('direct-state').getByText('delectus aut autem')).toBeVisible();
+      // 改 url 信号后重新 Load → 请求新地址、渲染新数据
+      await page.locator('input.UrlInput').fill(TODO_2);
+      await clickBtn(page, 'Load');
+      await expect(page.getByTestId('direct-state').getByText('quis ut nam facilis et officia qui')).toBeVisible();
+      // 旧数据已被替换（@for 重渲染）
+      await expect(page.getByTestId('direct-state').getByText('delectus aut autem')).toHaveCount(0);
+    });
+
+    test('42 - DataFetching Reset：data → null → 空闲态渲染且 @for 不崩溃', async ({ page }) => {
+      await page.route(TODO_1, async (route) => {
+        await route.fulfill({
+          status: 200, contentType: 'application/json',
+          headers: { 'access-control-allow-origin': '*' },
+          body: '[{"id":1,"title":"delectus aut autem"}]',
+        });
+      });
+      await switchToTab(page, 7);
+      await clickBtn(page, 'Load');
+      await expect(page.getByTestId('direct-state').getByText('delectus aut autem')).toBeVisible();
+      await clickBtn(page, 'Reset Direct');
+      // data → null → 空闲分支（@else if directData == null）
+      await expect(page.getByTestId('direct-state').getByText(IDLE_TEXT)).toBeVisible();
+      await expect(page.getByTestId('direct-state').getByText('delectus aut autem')).toHaveCount(0);
+      // @for 不崩溃：API 例在 Reset 后仍可正常加载
+      await expectNoErrors(page, 'datafetching-reset', async () => {
+        await clickBtn(page, 'API');
+        await expect(page.getByTestId('api-state').getByText('api.omni fetch_demo OK')).toBeVisible();
+      });
+    });
+
+    test('43 - PaginationDemo 按钮分页：LoadMore 追加第 2 页 + hasMore=false 禁用', async ({ page }) => {
+      await switchToTab(page, 1);
+      const box = page.getByTestId('pagination-box');
+      // 首屏自动加载第 1 页
+      await expect(box.getByText('History 10')).toBeVisible();
+      await expect(box.getByText('History 11')).toHaveCount(0);
+      await expect(box.getByText('Loaded 10 items')).toBeVisible();
+      await clickBtn(page, 'Load More');
+      // 追加第 2 页（11-15）
+      await expect(box.getByText('History 15')).toBeVisible();
+      await expect(box.getByText('Loaded 15 items')).toBeVisible();
+      // hasMore=false → Load More 按钮禁用
+      await expect(page.getByRole('button', { name: 'Load More' })).toBeDisabled();
+    });
+
+    test('44 - PaginationDemo 无限滚动：接近底部自动加载下一页至结束', async ({ page }) => {
+      await switchToTab(page, 1);
+      const scroll = page.getByTestId('feed-scroll');
+      // 首屏（滚动哨兵首轮触发或自动）出现 Feed 1-10
+      await expect(scroll.getByText(/^(Feed 1|Scroll this box to load the feed)$/)).toBeVisible();
+      await expect(scroll.getByText('Feed 10')).toBeVisible();
+      await expect(scroll.getByText('Feed 11')).toHaveCount(0);
+      // 滚动容器滚入视口（视口根 IntersectionObserver 需要容器在屏内才能触发）
+      await scroll.scrollIntoViewIfNeeded();
+      // 滚动接近底部 → 自动加载第 2 页
+      await scroll.evaluate((el) => {
+        el.style.height = '80px';
+        el.scrollTop = el.scrollHeight;
+        el.dispatchEvent(new Event('scroll'));
+      });
+      await expect(scroll.getByText('Feed 11')).toBeVisible();
+      await expect(scroll.getByText('Feed 20')).toBeVisible();
+      // 再次滚到底 → 第 3 页（21-30）→ hasMore=false → 结束语
+      await scroll.evaluate((el) => {
+        el.scrollTop = el.scrollHeight;
+        el.dispatchEvent(new Event('scroll'));
+      });
+      await expect(scroll.getByText('Feed 21')).toBeVisible();
+      await expect(scroll.getByText('Feed 30')).toBeVisible();
+      await expect(scroll.getByText(/30 items loaded/)).toBeVisible();
+    });
+
+    test('45 - PollingDemo interval 轮询：每 5s 自动重取', async ({ page }) => {
+      const ticks: string[] = [];
+      page.on('console', (m) => {
+        if (m.text().includes('Polling tick')) ticks.push(m.text());
+      });
+      await page.route('**/api/prices*', async (route) => {
+        await route.fulfill({ status: 200, contentType: 'application/json', body: '{"price": 42}' });
+      });
+      await switchToTab(page, 1);
+      // 首轮立即出数据
+      await expect(page.getByTestId('prices-result').getByText(/"price"\s*:/)).toBeVisible();
+      // interval 5000：t=0 首轮 + t≈5s 再触发 → ≥2 次
+      await expect.poll(() => ticks.length, { timeout: 12000 }).toBeGreaterThanOrEqual(2);
+    });
+
+    test('46 - PollingDemo debounce 搜索：输入停顿后仅触发一次', async ({ page }) => {
+      let hits = 0;
+      let lastQuery = '';
+      await page.route('**/api/search*', async (route) => {
+        hits += 1;
+        lastQuery = new URL(route.request().url()).searchParams.get('q') ?? '';
+        await route.fulfill({ status: 200, body: 'searched:' + lastQuery });
+      });
+      await switchToTab(page, 1);
+      const input = page.locator('input[placeholder="Type to search..."]');
+      // 逐字符输入（50ms 间隔 < 300ms 防抖窗）——只应触发一次尾部调用
+      await input.pressSequentially('abc', { delay: 50 });
+      await expect(page.getByTestId('search-result').getByText('searched:abc')).toBeVisible();
+      // 停顿远超 300ms 后确认无重复触发
+      await page.waitForTimeout(1500);
+      expect(hits).toBe(1);
+      expect(lastQuery).toBe('abc');
+    });
+
+    test('47 - DataFetching 空闲态：初始 data==null 分支 + Reset 后回归', async ({ page }) => {
+      await page.route(TODO_1, async (route) => {
+        await route.fulfill({
+          status: 200, contentType: 'application/json',
+          headers: { 'access-control-allow-origin': '*' },
+          body: '[{"id":1,"title":"delectus aut autem"}]',
+        });
+      });
+      await switchToTab(page, 7);
+      // @load 挂载即自动加载——初始不经 idle 分支（canonical 语义）
+      await expect(page.getByTestId('direct-state').getByText('delectus aut autem')).toBeVisible();
+      await expect(page.getByTestId('api-state').getByText('api.omni fetch_demo OK')).toBeVisible();
+      // 加载后空闲文本不存在
+      await expect(page.getByTestId('direct-state').getByText(IDLE_TEXT)).toHaveCount(0);
+      // Reset Direct 后 direct 盒回归空闲分支（api 盒结果保留——互不干扰）
+      await clickBtn(page, 'Reset Direct');
+      await expect(page.getByTestId('direct-state').getByText(IDLE_TEXT)).toBeVisible();
+      await expect(page.getByTestId('api-state').getByText('api.omni fetch_demo OK')).toBeVisible();
+    });
+  });
 });
