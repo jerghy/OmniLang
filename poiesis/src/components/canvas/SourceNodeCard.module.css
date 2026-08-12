@@ -1,0 +1,52 @@
+.card {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  min-width: 160px;
+  max-width: 220px;
+  height: 28px;
+  border: 1px solid var(--ol-border);
+  border-radius: 6px;
+  background: var(--ol-surface);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  cursor: grab;
+  user-select: none;
+  font-size: 12px;
+  box-sizing: border-box;
+}
+.card:hover {
+  border-color: var(--ol-color-primary);
+}
+.card:active {
+  cursor: grabbing;
+}
+.dragging {
+  opacity: 0.6;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+}
+.icon {
+  flex: 0 0 auto;
+  font-size: 13px;
+}
+.name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ol-text-secondary);
+  font-weight: 600;
+}
+.value {
+  flex: 0 0 auto;
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ol-text-muted);
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  border-left: 1px solid var(--ol-border);
+  padding-left: 6px;
+}
