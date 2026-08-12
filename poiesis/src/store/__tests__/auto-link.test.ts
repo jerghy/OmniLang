@@ -170,3 +170,21 @@ describe("auto-link: 识别与命名", () => {
     expect(autoSignalName("input-m0abc-xyz-1", "value")).toBe("input_m0abc_xyz_1_value");
   });
 });
+
+describe("auto-link: 源端校验（B1 显示元素只作目标）", () => {
+  beforeEach(setupStore);
+
+  it("显示元素（h1）当源 → 拒绝：不建 signal、不落 wire", () => {
+    const store = usePoiesisStore.getState();
+    store.connectElementLink("title_1", "label", "input_1", "value");
+    expect(getAppSignals()).toHaveLength(0);
+    expect(usePoiesisStore.getState().wires).toHaveLength(0);
+  });
+
+  it("值型控件（input）当源 → 正常创建（既有语义不回归）", () => {
+    const store = usePoiesisStore.getState();
+    store.connectElementLink("input_1", "value", "title_1", "label");
+    expect(getAppSignals()).toHaveLength(1);
+    expect(getAppSignals()[0].name).toBe("input_1_value");
+  });
+});

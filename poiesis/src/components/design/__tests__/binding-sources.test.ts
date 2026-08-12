@@ -33,7 +33,7 @@ const state: BindingSourceState = {
     { id: "el2", nodeType: "codeblock", tag: "fn", props: { name: "fmt", params: "n: i32", returnType: "string" } },
     { id: "el3", nodeType: "codeblock", tag: "fn" }, // 未命名 → 跳过
     { id: "el4", nodeType: "view", tag: "input", props: { label: "搜索框\n（第二行忽略）" } },
-    { id: "el5", nodeType: "view", tag: "button" }, // 无 label → 兜底 id
+    { id: "el5", nodeType: "view", tag: "button" }, // 显示元素（非值型控件）→ B1 收窄排除
     { id: "el6", nodeType: "conditional" }, // 非 view → 跳过
   ],
 };
@@ -55,10 +55,9 @@ describe("buildBindingSources", () => {
     expect(fns[1].type).toBe("(n: i32) => string");
   });
 
-  test("画布元素取 label 首行、兜底 id；非 view 跳过", () => {
+  test("画布元素分组只列值型控件（input/textarea/select/slider）；button 等显示元素排除", () => {
     const els = buildBindingSources(state).filter((s) => s.kind === "element");
-    expect(els.map((s) => s.name)).toEqual(["搜索框", "el5"]);
-    expect(els[1].type).toBe("button");
-    expect(els.map((s) => s.id)).toEqual(["el:el4", "el:el5"]);
+    expect(els.map((s) => s.name)).toEqual(["搜索框"]);
+    expect(els.map((s) => s.id)).toEqual(["el:el4"]);
   });
 });

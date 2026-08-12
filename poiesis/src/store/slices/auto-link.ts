@@ -48,6 +48,9 @@ export function isAutoSignal(signalName: string, elements: ElementData[]): boole
  */
 const KNOWN_SLOT_KEYS = new Set(["label", "value", "src", "href", "list", "if"]);
 
+/** 值型控件标签集合（B1：源 = 值型控件/源节点/fn 出口三类；显示元素只作目标） */
+const SOURCE_VALUE_TAGS = new Set(["input", "textarea", "select", "slider"]);
+
 /** 槽位种类（与 ContentTab slotsFor 对齐）：列表/条件/输入/属性/文本；未知槽 → null（拒绝绑定） */
 function slotKindFor(el: ElementData, slotKey: string): "文本" | "输入" | "列表" | "条件" | "属性" | null {
   if (!KNOWN_SLOT_KEYS.has(slotKey)) {
@@ -152,6 +155,12 @@ export function createAutoLinkSlice(set: SetFn, get: GetFn) {
       const source = s.elements.find((e) => e.id === sourceId);
       const target = s.elements.find((e) => e.id === targetId);
       if (!source || !target) return;
+
+      // B1 源端校验：显示元素无"值出口"语义（设计稿 §15.3 输入框值出口/标题文本入口），拒绝当源
+      if (!("tag" in source) || !SOURCE_VALUE_TAGS.has(source.tag)) {
+        console.warn(`[auto-link] 源元素 ${sourceId} 非值型控件（显示元素只作目标），拒绝连线`);
+        return;
+      }
 
       // 重复 wire guard（同 (源,槽,目标,槽) 已存在 → 幂等返回）
       const dup = s.wires.some(
