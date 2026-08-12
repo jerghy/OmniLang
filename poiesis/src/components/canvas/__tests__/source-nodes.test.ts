@@ -64,6 +64,18 @@ describe("collectSourceNodes", () => {
     expect(count?.value).toBe("42");
   });
 
+  it("valid:false 的调试条目不参与（回落 defaultValue）", () => {
+    const nodes = collectSourceNodes({ ...defs, debugValues: { Card: { count: { text: "999", valid: false } } } } as any);
+    const count = nodes.find((n) => n.name === "count");
+    expect(count?.value).toBe(0); // defaultValue 兜底，非 "999"
+  });
+
+  it("computed 无 defaultValue 且无调试覆盖 → value undefined", () => {
+    const nodes = collectSourceNodes(defs as any);
+    const double = nodes.find((n) => n.name === "double");
+    expect(double?.value).toBeUndefined();
+  });
+
   it("无组件 tab → 空数组", () => {
     expect(collectSourceNodes({ ...defs, componentName: null } as any)).toEqual([]);
   });

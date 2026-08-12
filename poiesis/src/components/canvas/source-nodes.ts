@@ -2,7 +2,8 @@
 // 源节点收集（M2）：当前组件 tab 的数据来源一览——组件 signals/computeds、引用 store
 // signals/getters、inline store signals。值 = debugValues 覆盖优先（valid 时取 text），
 // defaultValue 兜底（computeds/getters 无 defaultValue 时缺省 undefined）。
-// 收集逻辑与 panels/inspector/shared.ts useSignalItems 同源（对齐避免漂移）。
+// 收集逻辑与 panels/inspector/shared.ts useSignalItems 同源（对齐避免漂移）；
+// 故意分歧：inline store getter 不收（kind 联合无 inline-getter 变体）。
 import type { ComponentDef } from "../../core/types/project-json";
 import type { StoreDefinition } from "../../core/types/store";
 import type { DebugValueEntry } from "../../store/types";
