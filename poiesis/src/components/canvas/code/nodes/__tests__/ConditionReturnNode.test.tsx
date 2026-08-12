@@ -109,7 +109,7 @@ describe("ConditionNode 公式框", () => {
     fireEvent.input(input, { target: { value: "/" } });
     expect(screen.getByRole("listbox")).toBeTruthy();
     // 信号候选 label 为 "count: i32"，限定菜单作用域断言包含 count
-    expect(container.querySelector('[role="listbox"]')?.textContent).toContain("count");
+    expect(document.querySelector('[role="listbox"]')?.textContent).toContain("count");
   });
 
   it("提交走 onEditCondition（条件文本更新到 branches）", () => {

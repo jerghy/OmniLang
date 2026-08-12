@@ -58,7 +58,7 @@ component C {
     const r = parseOmniSource(src, "src/components/C.omni");
     const graph = r?.codeFlowGraphs?.["bump"];
     expect(graph).toBeDefined();
-    const assignEl = graph.elements.find((e) => e.tag === "assign");
+    const assignEl = graph!.elements.find((e) => e.tag === "assign");
     expect(assignEl).toBeDefined();
     const props = (assignEl as CodeblockElementData).props as { target?: string; operator?: string; value?: string };
     expect(props.target).toBe("total");

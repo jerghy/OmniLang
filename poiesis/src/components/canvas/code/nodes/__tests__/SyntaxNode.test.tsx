@@ -157,7 +157,7 @@ describe("SyntaxNode 公式框集成", () => {
     input.setSelectionRange(1, 1); // 必须在 fireEvent 前设（onInput 同步读 selectionStart）
     fireEvent.input(input, { target: { value: "/" } });
     // 候选菜单（role=listbox）内应出现 total；target 下拉也有同名 option（letVars 目标），故限定菜单作用域
-    expect(container.querySelector('[role="listbox"]')?.textContent).toContain("total");
+    expect(document.querySelector('[role="listbox"]')?.textContent).toContain("total");
   });
 
   it("assign target 渲染下拉（NodeSelect + store 信号候选）", () => {
