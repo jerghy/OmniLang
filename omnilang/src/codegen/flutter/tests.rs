@@ -12688,6 +12688,80 @@ component App {
     );
 }
 
+/// Task 9 fix round 1/5：门控/拦截镜像不变式——多语句 inline handler 含
+/// timing 调用时（V9 只校验参数形态、不限制宿主语句数），拦截必须关闭
+/// （与 `view_has_timing_handlers` 的单语句切片谓词精确一致），否则生成
+/// 代码会引用未声明的 `_omniTimers`/`Timer` 编译失败。多语句形态保持
+/// Task 9 前行为（裸调用渲染，未支持形态）。
+#[test]
+fn flutter_multi_stmt_timing_handler_gate_off() {
+    let out = compile_flutter(
+        r#"
+import { debounce } from "std/timing";
+component App {
+  fn doSearch() -> Array<String> { }
+  fn log() { }
+  view {
+    <button @onPress={() => { log(); debounce(doSearch, 300); }}>Search</button>
+  }
+}
+"#,
+    )
+    .expect("multi-statement handler fixture must compile");
+    let dart: String = out.files.values().cloned().collect::<Vec<_>>().join("\n");
+    assert!(
+        !dart.contains("_omniTimers"),
+        "多语句形态拦截必须关闭（不发射 _omniTimers 引用——镜像不变式）, got:\n{}",
+        dart
+    );
+    assert!(
+        !dart.contains("import 'dart:async';"),
+        "多语句形态门控必须 false（不发射 dart:async import）, got:\n{}",
+        dart
+    );
+    assert!(
+        !dart.contains("Timer("),
+        "多语句形态不得发射 Timer 包装（拦截关闭）, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("log();"),
+        "多语句 handler 主体必须整体渲染, got:\n{}",
+        dart
+    );
+}
+
+/// Task 9 fix round 1/5：单语句形态的拦截只 emit 语句体——闭包包裹由
+/// build_inline_handler 的 opener/closer 提供。若拦截误发射完整
+/// `() { ... }` 闭包会双重包裹，内层闭包字面量作为表达式语句永不执行，
+/// debounce 目标函数实际永不触发（子串断言无法捕获此语义失效）。
+#[test]
+fn flutter_timing_handler_single_wrap() {
+    let out = compile_flutter(
+        r#"
+import { debounce } from "std/timing";
+component App {
+  fn doSearch() -> Array<String> { }
+  view {
+    <button @onPress={debounce(doSearch, 300)}>Search</button>
+  }
+}
+"#,
+    )
+    .expect("debounce fixture must compile");
+    let dart: String = out.files.values().cloned().collect::<Vec<_>>().join("\n");
+    assert!(
+        dart.contains("onPressed: () {\n    _omniTimers['debounce_0']"),
+        "拦截必须 emit 语句体（单层闭包包裹）, got:\n{}",
+        dart
+    );
+    assert!(
+        !dart.contains("onPressed: () {\n    () {"),
+        "handler 不得双重包裹（内层闭包永不执行）, got:\n{}",
+        dart
+    );
+}
+
 // ==== 批次 2 Task 7：GoRouter 路由表 + redirect/ShellRoute + pathParameters 注入 + navigate/back 翻译 ====
 
 #[test]

@@ -4371,72 +4371,90 @@ fn format_inline_handler_flutter(body: &BlockIR, ctx: &mut ViewContext) -> Strin
             })
             .collect(),
     };
+    // Task 9 fix round 1/5: the interception is gated behind the EXACT
+    // single-statement predicate shared with `view_has_timing_handlers`
+    // (`is_timing_call_body` — see its "Must mirror" comment above). The
+    // `_omniTimers` references emitted here must mirror the dart:async
+    // import / State field / dispose gating in mod.rs precisely: V9 only
+    // validates the call's arg SHAPE, so a multi-statement handler may
+    // legally contain a timing call — without this gate the interception
+    // would fire while the gating stays false, leaving generated Dart
+    // referencing an undeclared `_omniTimers`. Multi-statement / nested
+    // timing calls fall through to the Phase 3 renderer (pre-Task 9
+    // behavior for the unsupported shape).
+    let timing_single = is_timing_call_body(&rewritten);
     build_inline_handler(&rewritten, &config, |w, s| {
-        // Task 9 (§2.5): `debounce(fn, ms)` / `throttle(fn, ms)` stdlib calls
-        // map to Timer-based closures — per-kind ordinal map keys
-        // (`_omniTimers['debounce_{n}']`) keep stable entries across
-        // re-renders; mod.rs emits the `_omniTimers` State field + dispose
-        // cancellation when the component has timing handlers. The target is
-        // formatted through the free functions (NOT `ctx.format_expr` — a
-        // `&mut self` receiver would conflict with the closure's disjoint
-        // field captures); an event-time call never carries a page/fn-arg
-        // hoist, so `use_watch_reads=true` is irrelevant for the fn name.
-        if let StatementIR::ExprStmtIR {
-            expr: ExprIR::CallExpr { name, args },
-            ..
-        } = s
-        {
-            if crate::semantic::load_contract::TIMING_FUNCS.contains(&name.as_str()) {
-                let is_debounce = name.as_str() == "debounce";
-                let n = if is_debounce {
-                    let n = ctx.debounce_next.get();
-                    ctx.debounce_next.set(n + 1);
-                    n
-                } else {
-                    let n = ctx.throttle_next.get();
-                    ctx.throttle_next.set(n + 1);
-                    n
-                };
-                let target = args
-                    .first()
-                    .map(|a| {
-                        format_expr_ir_flutter_ctx(
-                            a,
-                            ctx.direct_write_signals,
-                            ctx.load_builtins,
-                            ctx.form_present,
-                            ctx.param_providers,
-                            true,
-                        )
-                    })
-                    .unwrap_or_default();
-                let ms = args
-                    .get(1)
-                    .map(|a| {
-                        format_expr_ir_flutter_ctx(
-                            a,
-                            ctx.direct_write_signals,
-                            ctx.load_builtins,
-                            ctx.form_present,
-                            ctx.param_providers,
-                            true,
-                        )
-                    })
-                    .unwrap_or_default();
-                if is_debounce {
-                    // trailing-only debounce: cancel any pending timer, then
-                    // arm a fresh one that fires the wrapped call.
-                    w.emit_fmt(format_args!(
-                        "() {{ _omniTimers['debounce_{n}']?.cancel(); _omniTimers['debounce_{n}'] = Timer(const Duration(milliseconds: {ms}), () => {target}()); }}"
-                    ));
-                } else {
-                    // leading-edge throttle: ignore while a timer is active,
-                    // then arm the next window.
-                    w.emit_fmt(format_args!(
-                        "() {{ if (_omniTimers['throttle_{n}']?.isActive ?? false) return; _omniTimers['throttle_{n}'] = Timer(const Duration(milliseconds: {ms}), () => {target}()); }}"
-                    ));
+        if timing_single {
+            // Task 9 (§2.5): `debounce(fn, ms)` / `throttle(fn, ms)` stdlib
+            // calls map to Timer-based statements — per-kind ordinal map
+            // keys (`_omniTimers['debounce_{n}']`) keep stable entries
+            // across re-renders; mod.rs emits the `_omniTimers` State field
+            // + dispose cancellation when the component has timing
+            // handlers. Only the STATEMENT BODY is emitted here — the
+            // build_inline_handler opener/closer supply the `() { ... }`
+            // closure wrapper (emitting a full closure would double-wrap
+            // and the inner closure would never fire). The target is
+            // formatted through the free functions (NOT `ctx.format_expr` —
+            // a `&mut self` receiver would conflict with the closure's
+            // disjoint field captures); an event-time call never carries a
+            // page/fn-arg hoist, so `use_watch_reads=true` is irrelevant.
+            if let StatementIR::ExprStmtIR {
+                expr: ExprIR::CallExpr { name, args },
+                ..
+            } = s
+            {
+                if crate::semantic::load_contract::TIMING_FUNCS.contains(&name.as_str()) {
+                    let is_debounce = name.as_str() == "debounce";
+                    let n = if is_debounce {
+                        let n = ctx.debounce_next.get();
+                        ctx.debounce_next.set(n + 1);
+                        n
+                    } else {
+                        let n = ctx.throttle_next.get();
+                        ctx.throttle_next.set(n + 1);
+                        n
+                    };
+                    let target = args
+                        .first()
+                        .map(|a| {
+                            format_expr_ir_flutter_ctx(
+                                a,
+                                ctx.direct_write_signals,
+                                ctx.load_builtins,
+                                ctx.form_present,
+                                ctx.param_providers,
+                                true,
+                            )
+                        })
+                        .unwrap_or_default();
+                    let ms = args
+                        .get(1)
+                        .map(|a| {
+                            format_expr_ir_flutter_ctx(
+                                a,
+                                ctx.direct_write_signals,
+                                ctx.load_builtins,
+                                ctx.form_present,
+                                ctx.param_providers,
+                                true,
+                            )
+                        })
+                        .unwrap_or_default();
+                    if is_debounce {
+                        // trailing-only debounce: cancel any pending timer,
+                        // then arm a fresh one that fires the wrapped call.
+                        w.emit_fmt(format_args!(
+                            "_omniTimers['debounce_{n}']?.cancel(); _omniTimers['debounce_{n}'] = Timer(const Duration(milliseconds: {ms}), () => {target}());"
+                        ));
+                    } else {
+                        // leading-edge throttle: ignore while a timer is
+                        // active, then arm the next window.
+                        w.emit_fmt(format_args!(
+                            "if (_omniTimers['throttle_{n}']?.isActive ?? false) return; _omniTimers['throttle_{n}'] = Timer(const Duration(milliseconds: {ms}), () => {target}());"
+                        ));
+                    }
+                    return;
                 }
-                return;
             }
         }
         // Phase 3: inline handler statements carry the D1/D2 set — handler
