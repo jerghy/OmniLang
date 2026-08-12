@@ -3082,6 +3082,195 @@ component App {
     );
 }
 
+/// Task 10（spec §4.3）：2 个命名 @load → 每实例 5 槽位
+/// （items_loading/items_error/items_data/items_retry/items_reset +
+/// stats_* 同形）——实例名即槽位命名空间（snake_case，无组件前缀），
+/// 匿名形态保持 v0 组件前缀 {Comp}_*。
+#[test]
+fn omniview_multi_load_store_slots() {
+    let source = r#"
+component App {
+  fn fetchItems() -> Array<String> { return []; }
+  fn fetchStats() -> Array<String> { return []; }
+  view {
+    @load items={fetchItems}
+    @load stats={fetchStats}
+    <div/>
+  }
+}
+"#;
+    let result = crate::compile_omniview(source, false, false);
+    assert!(result.success, "compilation failed: {:?}", result.errors);
+    let js = result.files.expect("Expected JS output").js;
+
+    // 每实例 5 槽位：三态信号 + retry/reset 函数
+    for slot in ["loading", "error", "data", "retry", "reset"] {
+        assert!(
+            js.contains(&format!("items_{slot}")),
+            "items_{slot} slot must be emitted. JS:\n{}",
+            js
+        );
+        assert!(
+            js.contains(&format!("stats_{slot}")),
+            "stats_{slot} slot must be emitted. JS:\n{}",
+            js
+        );
+    }
+    // 命名实例不额外发射匿名 v0 组件前缀槽位（无 App_loading 等）
+    assert!(
+        !js.contains("App_loading"),
+        "named instances must not also emit anonymous v0 slots. JS:\n{}",
+        js
+    );
+}
+
+/// Task 10（spec §2.1 Reset，P5）：reset 回调 → data=null / error=""
+/// （React 端 parity——react/component/mod.rs set{Name}Error("");
+/// v0 视图守卫 `error != ""`，null 会误渲染错误态）/ loading=false，
+/// 且不触发重载（用户需自行再调 retry）。
+#[test]
+fn omniview_reset_slot_sets_data_null() {
+    let source = r#"
+component App {
+  fn fetchItems() -> Array<String> { return []; }
+  view {
+    @load items={fetchItems}
+    @if itemsLoading { <p>loading</p> }
+    @if itemsData == null && !itemsLoading { <p>idle</p> }
+    <button @onPress={itemsReset}>Reset</button>
+  }
+}
+"#;
+    let result = crate::compile_omniview(source, false, false);
+    assert!(result.success, "compilation failed: {:?}", result.errors);
+    let js = result.files.expect("Expected JS output").js;
+
+    // reset 函数体：loading=false / error="" / data=null（无重载调用）
+    assert!(
+        js.contains(
+            "function items_reset() { items_loading.set(false); items_error.set(\"\"); items_data.set(null); }"
+        ),
+        "items_reset must null the data and clear loading/error without reloading. JS:\n{}",
+        js
+    );
+    // 视图级空闲态：`itemsData == null` 解析为 `items_data.value === null`
+    // （二元等式降低对 null 用严格相等，与 @for 兜底 `!data ||` 同语义）
+    assert!(
+        js.contains("items_data.value === null"),
+        "idle condition must deref the data slot signal. JS:\n{}",
+        js
+    );
+    // 按钮经 itemsReset 重命名调用 reset fn
+    assert!(
+        js.contains("items_reset("),
+        "itemsReset must resolve to items_reset. JS:\n{}",
+        js
+    );
+}
+
+/// Task 10（★ 兼容性检查点）：`@for item in itemsData` 且 data 槽位为 null
+/// （reset 后的合法状态）→ 迭代前 null 检查（`!data || data.length === 0`
+/// 短路），无崩溃、渲染空闲态——reset 置 null 与 @for 兜底构成完整链路。
+#[test]
+fn omniview_for_over_null_data_guarded() {
+    let source = r#"
+component App {
+  fn fetchItems() -> Array<String> { return []; }
+  view {
+    @load items={fetchItems}
+    @for item in itemsData { <li>{item}</li> }
+    <button @onPress={itemsReset}>Reset</button>
+  }
+}
+"#;
+    let result = crate::compile_omniview(source, false, false);
+    assert!(result.success, "compilation failed: {:?}", result.errors);
+    let js = result.files.expect("Expected JS output").js;
+
+    // 迭代前 null 检查：data 槽位为 null 时走短路分支，绝不进入 forEach
+    assert!(
+        js.contains("if (!data || data.length === 0)"),
+        "@for must null-guard before iterating. JS:\n{}",
+        js
+    );
+    // 数据非空时仍正常迭代
+    assert!(
+        js.contains("data.forEach"),
+        "@for must still iterate when data is non-null. JS:\n{}",
+        js
+    );
+    // reset 置 data=null —— 与 @for 兜底合成「reset → 空闲态」完整链路
+    assert!(
+        js.contains("items_data.set(null)"),
+        "reset must null the data slot (feeding the @for guard). JS:\n{}",
+        js
+    );
+}
+
+/// Task 10（spec §4.3 参数信号监听重载）：`@load stats={fetchStats(token)}`
+/// → token 信号变更触发重载——__omni_effect 包裹 retry，回调内读取
+/// fetchStats 实参（App_token.value）被自动追踪，挂载时执行一次覆盖
+/// 初次加载，信号变更时自动重载；无参数形态保持 v0 挂载直调。
+#[test]
+fn omniview_param_signal_change_reloads() {
+    let source = r#"
+component App {
+  signal token: String = "abc";
+  fn fetchStats(t: String) -> Array<String> { return []; }
+  view {
+    @load stats={fetchStats(token)}
+    <p>{statsData}</p>
+  }
+}
+"#;
+    let result = crate::compile_omniview(source, false, false);
+    assert!(result.success, "compilation failed: {:?}", result.errors);
+    let js = result.files.expect("Expected JS output").js;
+
+    // 参数信号监听：effect 包装 retry（自动追踪回调内读取的信号）
+    assert!(
+        js.contains("__omni_effect(() => { stats_retry(); })"),
+        "param loaders must be wrapped in a reactive effect for reload-on-change. JS:\n{}",
+        js
+    );
+    // loader 实参解析为信号解引用（token → App_token.value）
+    assert!(
+        js.contains("fetchStats(App_token.value)"),
+        "loader call args must deref param signals. JS:\n{}",
+        js
+    );
+    // 视图引用 statsData → stats_data 信号
+    assert!(
+        js.contains("String(stats_data.value)"),
+        "statsData must resolve to the stats_data signal. JS:\n{}",
+        js
+    );
+
+    // 无参数形态保持 v0 挂载直调（mount_js `{slot}_retry();`，无 effect 包装）
+    let source2 = r#"
+component App {
+  fn fetchTodos() -> Array<String> { return []; }
+  view {
+    @load={fetchTodos}
+    <div/>
+  }
+}
+"#;
+    let result2 = crate::compile_omniview(source2, false, false);
+    assert!(result2.success, "compilation failed: {:?}", result2.errors);
+    let js2 = result2.files.expect("Expected JS output").js;
+    assert!(
+        js2.contains("// @load fetchTodos"),
+        "v0 mount call comment must be preserved. JS:\n{}",
+        js2
+    );
+    assert!(
+        !js2.contains("__omni_effect(() => { App_retry"),
+        "param-less loaders must keep the direct mount call (no watch effect). JS:\n{}",
+        js2
+    );
+}
+
 /// `bind:value` 在 `<select>` 上必须监听 `change` 事件——select 元素
 /// 不触发 `input` 事件，绑定到 input 会让选择永远无法写回信号
 /// （FormControlsDemo 实测回归：改选 option3 后 Value 仍显示 option2）。

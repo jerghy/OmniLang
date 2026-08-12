@@ -410,33 +410,57 @@ impl OmniViewGenerator {
             );
         }
 
-        // ── @load builtin signals (Task 6) ──
+        // ── @load builtin signals (Task 6/10) ──
         // loading starts true (the mount call below flips it), error starts "",
         // data starts []. V-F8 guarantees no user-declared collisions.
-        // TODO(batch4 Task 6-11): 多 @load 实例需 per-instance 信号/重试命名
-        // ——当前按单例发射一组 loading/error/data/retry（行为保持）。
-        if !self.scope.load_intent.is_empty() {
-            let lloading = format!("{name}_loading");
-            let lerror = format!("{name}_error");
-            let ldata = format!("{name}_data");
+        // Task 10（spec §4.3）多实例：命名实例按 {name}_loading/{name}_error/
+        // {name}_data 发射（实例名即槽位命名空间，snake_case 无组件前缀），
+        // 视图侧经 camelCase 重命名 {name}Loading/{name}Error/{name}Data
+        // 引用；匿名实例保持 v0 组件前缀 {Comp}_*。retry/reset 为生成的
+        // 重跑/复位回调（函数而非信号）：映射裸名供视图调用，但不进
+        // signal_names（无 .value 解引用）。
+        for intent in &self.scope.load_intent {
+            let (js_base, view_prefix) = match &intent.name {
+                Some(n) => (n.clone(), Some(n.clone())),
+                None => (name.to_string(), None),
+            };
+            let lloading = format!("{js_base}_loading");
+            let lerror = format!("{js_base}_error");
+            let ldata = format!("{js_base}_data");
+            let (view_loading, view_error, view_data, view_retry, view_reset) = match &view_prefix {
+                Some(p) => (
+                    format!("{p}Loading"),
+                    format!("{p}Error"),
+                    format!("{p}Data"),
+                    format!("{p}Retry"),
+                    format!("{p}Reset"),
+                ),
+                None => (
+                    "loading".to_string(),
+                    "error".to_string(),
+                    "data".to_string(),
+                    "retry".to_string(),
+                    "reset".to_string(),
+                ),
+            };
             self.name_resolver
                 .name_renames
-                .insert("loading".to_string(), lloading.clone());
+                .insert(view_loading, lloading.clone());
             self.name_resolver.signal_names.insert(lloading.clone());
             self.name_resolver
                 .name_renames
-                .insert("error".to_string(), lerror.clone());
+                .insert(view_error, lerror.clone());
             self.name_resolver.signal_names.insert(lerror.clone());
             self.name_resolver
                 .name_renames
-                .insert("data".to_string(), ldata.clone());
+                .insert(view_data, ldata.clone());
             self.name_resolver.signal_names.insert(ldata.clone());
-            // `retry` is the generated re-run callback (a function, not a
-            // signal): map the bare name so fn bodies / inline handlers can
-            // call it, but do NOT add to signal_names (no .value deref).
             self.name_resolver
                 .name_renames
-                .insert("retry".to_string(), format!("{name}_retry"));
+                .insert(view_retry, format!("{js_base}_retry"));
+            self.name_resolver
+                .name_renames
+                .insert(view_reset, format!("{js_base}_reset"));
             let _ = writeln!(
                 self.js,
                 "const {lloading} = __omni_signal(\"{lloading}\", true);"
@@ -626,15 +650,36 @@ impl OmniViewGenerator {
             let _ = writeln!(self.js, "  return Object.keys(errs).length === 0;");
             let _ = writeln!(self.js, "}}");
         }
-        // @load retry: re-run the loader and reset the three-state signals.
-        // Always wraps in Promise.resolve().then() so BOTH sync and async
-        // loaders take the same path (React distinguishes via an is_async walk;
-        // the unified shape is correct for both — see task-6-report 自审发现).
-        if let Some(intent) = self.scope.load_intent.first() {
-            let loader = self.resolve_fn_name(intent.loader.fn_name());
+        // @load retry + reset (Task 10, spec §4.3): per-instance callbacks.
+        // retry re-runs the loader — wrapped in Promise.resolve().then() so
+        // BOTH sync and async loaders take the same path (React distinguishes
+        // via an is_async walk; the unified shape is correct for both — see
+        // task-6-report 自审发现). Call loaders pass their argument
+        // expressions through so param signals are read inside the retry body
+        // (and therefore auto-tracked by the mount-time reload effect).
+        // reset zeroes the three-state signals WITHOUT reloading (P5).
+        // Cloned before the loop: expr_to_js needs &mut self while iterating
+        // would keep &self.scope.load_intent borrowed (E0500).
+        let load_intents = self.scope.load_intent.clone();
+        for intent in &load_intents {
+            let js_base = match &intent.name {
+                Some(n) => n.clone(),
+                None => name.to_string(),
+            };
+            let loader_call = match &intent.loader {
+                LoaderIR::Fn(f) => format!("{}()", self.resolve_fn_name(f)),
+                LoaderIR::Call(c) => {
+                    let args: Vec<String> = c.args.iter().map(|a| self.expr_to_js(a)).collect();
+                    format!("{}({})", self.resolve_fn_name(&c.func), args.join(", "))
+                }
+            };
             let _ = writeln!(
                 self.js,
-                "function {name}_retry() {{ {name}_loading.set(true); {name}_error.set(\"\"); Promise.resolve().then(() => {loader}()).then((r) => {{ {name}_data.set(r); {name}_loading.set(false); }}).catch((e) => {{ {name}_error.set(String(e)); {name}_loading.set(false); }}); }}"
+                "function {js_base}_retry() {{ {js_base}_loading.set(true); {js_base}_error.set(\"\"); Promise.resolve().then(() => {loader_call}).then((r) => {{ {js_base}_data.set(r); {js_base}_loading.set(false); }}).catch((e) => {{ {js_base}_error.set(String(e)); {js_base}_loading.set(false); }}); }}"
+            );
+            let _ = writeln!(
+                self.js,
+                "function {js_base}_reset() {{ {js_base}_loading.set(false); {js_base}_error.set(\"\"); {js_base}_data.set(null); }}"
             );
         }
 
@@ -751,28 +796,57 @@ impl OmniViewGenerator {
             self.scope.current_component = saved_component;
         }
 
-        // @load mount call (Task 6): fire the loader right after the component
-        // mounts — placed in mount_js/comp_mount_js (runs after DOM attach).
-        // Three-state signals (loading=true/error=""/data=[]) were declared in
-        // the builtin-signal block above; retry resets them on user action.
-        if let Some(intent) = self.scope.load_intent.first() {
+        // @load mount call (Task 6/10): fire the loader(s) right after the
+        // component mounts — placed in mount_js/comp_mount_js (runs after DOM
+        // attach). Three-state signals (loading=true/error=""/data=[]) were
+        // declared in the builtin-signal block above; retry re-runs on user
+        // action; reset zeroes state without reloading (P5).
+        // Fn loaders keep the v0 direct-call shape (snapshot stability).
+        // Call loaders (参数信号监听重载, Task 10) wrap the retry in an
+        // __omni_effect: the effect callback reads the loader's argument
+        // signals synchronously through the nested retry call, so
+        // preact-signals auto-tracks them — fires at mount (initial load)
+        // and re-fires on every param signal change (reload).
+        for intent in &self.scope.load_intent {
+            let (js_base, view_retry) = match &intent.name {
+                Some(n) => (n.clone(), format!("{n}Retry")),
+                None => (name.to_string(), "retry".to_string()),
+            };
             let _ = if self.editor_mode {
                 writeln!(self.comp_mount_js, "// @load {}", intent.loader.fn_name())
             } else {
                 writeln!(self.mount_js, "// @load {}", intent.loader.fn_name())
             };
-            // Editor mode: comp_mount_js is top-level JS OUTSIDE the factory
-            // IIFE — a direct `{name}_retry()` throws ReferenceError (same
-            // regression as user fn event bindings, store.rs:840-844). Route
-            // through the factory-exposed fns map.
-            let _ = if self.editor_mode {
-                writeln!(
-                    self.comp_mount_js,
-                    "window.__omni_components[\"{name}\"].fns.retry();"
-                )
-            } else {
-                writeln!(self.mount_js, "{name}_retry();")
-            };
+            match &intent.loader {
+                LoaderIR::Fn(_) => {
+                    // Editor mode: comp_mount_js is top-level JS OUTSIDE the
+                    // factory IIFE — a direct `{js_base}_retry()` throws
+                    // ReferenceError (same regression as user fn event
+                    // bindings, store.rs:840-844). Route through the
+                    // factory-exposed fns map.
+                    let _ = if self.editor_mode {
+                        writeln!(
+                            self.comp_mount_js,
+                            "window.__omni_components[\"{name}\"].fns.{view_retry}();"
+                        )
+                    } else {
+                        writeln!(self.mount_js, "{js_base}_retry();")
+                    };
+                }
+                LoaderIR::Call(_) => {
+                    let _ = if self.editor_mode {
+                        writeln!(
+                            self.comp_mount_js,
+                            "__omni_effect(() => {{ window.__omni_components[\"{name}\"].fns.{view_retry}(); }});"
+                        )
+                    } else {
+                        writeln!(
+                            self.mount_js,
+                            "__omni_effect(() => {{ {js_base}_retry(); }});"
+                        )
+                    };
+                }
+            }
         }
 
         // @effect hooks — stored separately in comp.effects (not in comp.lifecycles)
@@ -924,10 +998,15 @@ impl OmniViewGenerator {
                     signal_entries.push(format!("{}: {}", prefixed, prefixed));
                 }
             }
-            // @load builtin signals (Task 6) — loading/error/data
-            if !self.scope.load_intent.is_empty() {
+            // @load builtin signals (Task 6/10) — per-instance loading/error/data
+            // (named → {name}_*; anonymous → {Comp}_*).
+            for intent in &self.scope.load_intent {
+                let js_base = match &intent.name {
+                    Some(n) => n.clone(),
+                    None => name.to_string(),
+                };
                 for sig in ["loading", "error", "data"] {
-                    let prefixed = format!("{}_{}", name, sig);
+                    let prefixed = format!("{js_base}_{sig}");
                     signal_entries.push(format!("{}: {}", prefixed, prefixed));
                 }
             }
@@ -945,13 +1024,20 @@ impl OmniViewGenerator {
                 let prefixed = format!("{}_{}", name, f.name);
                 fn_entries.push(format!("{}: {}", f.name, prefixed));
             }
-            // @form validateForm / @load retry (Task 6) — exposed for the editor
-            // bridge (submit gate + retry button) alongside user fns.
+            // @form validateForm / @load retry+reset (Task 6/10) — exposed for
+            // the editor bridge (submit gate + retry button + reset) alongside
+            // user fns. Keys are the view-visible names (camelCase for named
+            // instances) so comp_mount_js and the debug panel can route through.
             if self.scope.form_intent.is_some() {
                 fn_entries.push(format!("validateForm: {name}_validateForm"));
             }
-            if !self.scope.load_intent.is_empty() {
-                fn_entries.push(format!("retry: {name}_retry"));
+            for intent in &self.scope.load_intent {
+                let (js_base, view_retry, view_reset) = match &intent.name {
+                    Some(n) => (n.clone(), format!("{n}Retry"), format!("{n}Reset")),
+                    None => (name.to_string(), "retry".to_string(), "reset".to_string()),
+                };
+                fn_entries.push(format!("{view_retry}: {js_base}_retry"));
+                fn_entries.push(format!("{view_reset}: {js_base}_reset"));
             }
             // Build the factory return fields as a comma-joined list so the
             // emitted object literal stays syntactically valid whether or not
