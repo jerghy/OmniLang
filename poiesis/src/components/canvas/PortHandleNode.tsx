@@ -21,7 +21,8 @@ export const PortHandleNode = memo(function PortHandleNode({ data }: NodeProps<N
   const srcId = `${data.slotKey}-src`;
   const tgtId = `${data.slotKey}-tgt`;
   return (
-    <div data-testid="port-handle-node">
+    // 1×1 最小尺寸：ReactFlow 0×0 节点不初始化 edges 渲染层（实机验证，2026-08-12）
+    <div data-testid="port-handle-node" style={{ width: 1, height: 1 }}>
       <Handle type="target" id={tgtId} position={Position.Right} className={styles.handle} />
       <Handle type="source" id={srcId} position={Position.Right} className={styles.handle} />
     </div>

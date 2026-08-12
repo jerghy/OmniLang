@@ -25,6 +25,9 @@ const setState = (wires: WireData[], selectedElementIds: string[]) =>
 // isNodeInitialized 通过 → EdgeWrapper 渲染 rf__edge-<id>。jsdom 三缺：
 //   1. RO 永不开火 → 换「observe 即触发」桩（useNodeObserver 仅 !isInitialized 时 observe，循环安全）；
 //   2. offsetWidth/offsetHeight 恒 0 → 桩 100/40（getDimensions：节点/容器/手柄共用）；
+//      ⚠️ 该尺寸桩同时掩盖了 PortHandleNode 的 0×0 缺陷：实机中 0×0 节点导致 ReactFlow
+//      不初始化 edges 渲染层（`.react-flow__edges` 无 svg，亮线永不渲染；M3 T8 实机发现，
+//      2026-08-12）。修复 = 节点根 div 1×1 最小尺寸，此处桩值 100/40 仍 > 0 故测试照常通过。
 //   3. 无 DOMMatrixReadOnly（system 仅解构 m22）→ DummyMatrix。
 class FiringResizeObserver {
   private cb: ResizeObserverCallback;
@@ -94,6 +97,19 @@ describe("PortHandleLayer", () => {
     setAwake(true);
     render(<PortHandleLayer visible />);
     expect(screen.getByTestId("port-handle-layer")).toBeTruthy();
+  });
+
+  it("端口节点根 div 携带 1×1 最小尺寸（0×0 节点 → edges 层不初始化的实机回归防线）", async () => {
+    setAwake(true);
+    mountRendererRoot(); // 测量入口存在 → ports 落位 → ReactFlow 节点渲染
+    stubLayoutEnv();
+    render(<PortHandleLayer visible />);
+    const nodes = await screen.findAllByTestId("port-handle-node");
+    expect(nodes.length).toBeGreaterThan(0);
+    for (const node of nodes) {
+      expect(node.style.width).toBe("1px");
+      expect(node.style.height).toBe("1px");
+    }
   });
 
   it("睡态隐藏：返回 null（睡态干净画布，无手柄）", () => {
