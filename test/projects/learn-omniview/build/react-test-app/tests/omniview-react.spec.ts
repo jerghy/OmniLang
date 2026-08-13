@@ -104,7 +104,9 @@ test.describe('OmniView React — 9 标签页验证', () => {
     test('01 - banner + capability grid render', async ({ page }) => {
       await switchToTab(page, 0);
       await visible(page, 'OmniLang Capability Showcase');
-      await visible(page, '102 源文件 · 4 主题 · 10 语义域 · 9 标签页');
+      // 修复轮: 断言对齐 Header.omni:16 规范文案（10 语义域 · 9 标签页 · 4 主题 ·
+      // 102 源文件，76f82318 源文件计数 102 + 顺序调整后旧断言永不匹配——测试侧陈旧期望）
+      await visible(page, '10 语义域 · 9 标签页 · 4 主题 · 102 源文件');
       for (const t of ['UI Components', 'Motion & Animation', 'Design & Theme', 'State & Signals', 'Language Features', 'Element Ref', 'Compiler Features', 'Design Tokens']) {
         await visible(page, t);
       }
