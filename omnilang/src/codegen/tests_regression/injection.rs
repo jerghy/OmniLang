@@ -1153,6 +1153,375 @@ fn form_load_semantic_messages_across_backends() {
     }
 }
 
+// ════════════════════════════════════════════════════════════════════
+// Task 13（批次 4 数据能力，spec 2026-08-09 §2.2/§3）——@load 扩展语义
+// 注入语料 28 元组：S1-S24 成功形态 × React/OmniView/Flutter 三端逐字钉住
+// 关键发射（命名实例派生信号 / call-form 参数绑定 / 派生 retry·reset /
+// paginated 五信号 / paginated scroll 哨兵 / interval 轮询 / std/timing
+// debounce·throttle）；E1-E4 语义硬错误 × 全部 5 BACKENDS 逐字断言
+// （validate_form_load.rs V2/V7/V8 + ir/lower/component.rs V6）。
+// ════════════════════════════════════════════════════════════════════
+
+/// Task 13 成功元组三后端：React/OmniView/Flutter（Task 8/9/11 实机发射
+/// 逐字核实；Dioxus/Vue 对 @load 为占位形态，见 stdlib/timing.rs 的
+/// ALL_TARGETS 注册注释——故成功形态仅钉实测三端，错误形态仍跨 5 后端）。
+const LOAD_BACKENDS: &[(Target, &str)] = &[
+    (Target::React, "react"),
+    (Target::OmniView, "omniview"),
+    (Target::Flutter, "flutter"),
+];
+
+// ── Task 13 语料源（S1-S24）──
+
+/// S1-S10 基础形态：call-form 参数绑定（fetchTodos(url)）+ 四态渲染 +
+/// 派生 retry/reset（reset 由视图按钮引用——Flutter 非分页 notifier 发射
+/// 受 reset_used 门控，flutter/mod.rs:1000-1002）。
+const LOAD_BASIC_SRC: &str = "component App {\n    signal url: String = \"abc\"\n    async fn fetchTodos(url: String) -> Array<String> {\n        return [url];\n    }\n    view {\n        <div>\n            @load todos={fetchTodos(url)}\n            @if todosLoading {\n                <p>Loading</p>\n            }\n            @else if todosError != \"\" {\n                <p>Error: {todosError}</p>\n            }\n            @else if todosData == null {\n                <p>Waiting</p>\n            }\n            @else {\n                @for item in todosData {\n                    <div>{item}</div>\n                }\n            }\n            <button @onPress={todosRetry}>Retry</button>\n            <button @onPress={todosReset}>Reset</button>\n        </div>\n    }\n}\n";
+
+/// S11-S18 分页形态：paginated 双实例（history 按钮分页 + feed 无限滚动，
+/// scroll 容器为 <div style:{height/overflow}> 演示形态）。
+const LOAD_PAGINATED_SRC: &str = "component App {\n    fn fetchHistory(page: i32) -> Page<String> {\n        return Page { items: [\"a\", \"b\"], hasMore: true };\n    }\n    fn fetchFeed(page: i32) -> Page<String> {\n        return Page { items: [\"a\"], hasMore: false };\n    }\n    view {\n        <div>\n            @load history={fetchHistory} paginated\n            @if historyLoading {\n                <p>Loading</p>\n            }\n            @else if historyError != \"\" {\n                <p>Error: {historyError}</p>\n            }\n            @else {\n                @for item in historyData {\n                    <div>{item}</div>\n                }\n                <button @onPress={historyLoadMore} disabled={!historyHasMore}>Load More</button>\n                <button @onPress={historyReset}>Reset</button>\n            }\n            <div style: { height: '300px', overflow: 'auto' }>\n                @load feed={fetchFeed} paginated scroll\n                @if feedLoading {\n                    <p>Loading</p>\n                }\n                @else if feedError != \"\" {\n                    <p>Error: {feedError}</p>\n                }\n                @else if feedData == null {\n                    <p>Scroll to load</p>\n                }\n                @else {\n                    @for item in feedData {\n                        <div>{item}</div>\n                    }\n                }\n            </div>\n        </div>\n    }\n}\n";
+
+/// S19-S20 轮询形态：interval: 5000（冒号形式）定时重取。
+const LOAD_INTERVAL_SRC: &str = "component App {\n    fn fetchPrices() -> Array<String> {\n        return [\"1\"];\n    }\n    view {\n        <div>\n            @load prices={fetchPrices} interval: 5000\n            @if pricesLoading {\n                <p>Loading</p>\n            }\n            @else if pricesError != \"\" {\n                <p>Error: {pricesError}</p>\n            }\n            @else if pricesData == null {\n                <p>Waiting</p>\n            }\n            @else {\n                @for item in pricesData {\n                    <div>{item}</div>\n                }\n            }\n        </div>\n    }\n}\n";
+
+/// S21-S22 防抖形态：std/timing debounce 事件处理器（@onPress，button）。
+/// 注意：Flutter 端 Timer 拦截（flutter/view.rs `format_inline_handler_flutter`）
+/// 只命中 void 回调（onPressed 族，`callback_is_void`）——`@onInput` 映射的
+/// `onChanged` 携带 event_data（非 void），走 `(e) {` 事件对象路径落入
+/// 占位透传形态（timing.rs Dart/Flutter 臂 = fn 直传，无计时语义）。本形态
+/// 与 Task 9 自身测试（flutter/tests.rs `flutter_debounce_timer_wrapper`）一致。
+const LOAD_DEBOUNCE_SRC: &str = "import omniview;\nimport { debounce } from \"std/timing\";\n\ncomponent App {\n    async fn doSearch() -> String {\n        return \"\";\n    }\n    view {\n        <div>\n            <button @onPress={debounce(doSearch, 300)}>Search</button>\n        </div>\n    }\n}\n";
+
+/// S23-S24 节流形态：std/timing throttle 事件处理器（@onPress）。
+const LOAD_THROTTLE_SRC: &str = "import omniview;\nimport { throttle } from \"std/timing\";\n\ncomponent App {\n    fn doRefresh() {}\n    view {\n        <div>\n            <button @onPress={throttle(doRefresh, 2000)}>Refresh</button>\n        </div>\n    }\n}\n";
+
+// ── Task 13 错误语料（E1-E4，消息逐字断言）──
+
+/// E1: V2——实例名撞保留名 loading/error/data/retry/reset
+/// （validate_form_load.rs:279-289）。
+const LOAD_ERR_RESERVED_NAME_SRC: &str = "component App {\n    fn fetchTodos() -> Array<String> {\n        return [\"x\"];\n    }\n    view {\n        <div>\n            @load loading={fetchTodos}\n        </div>\n    }\n}\n";
+
+/// E2: V6——匿名 @load 上限 1（ir/lower/component.rs:549 计数）。
+const LOAD_ERR_ANON_TWICE_SRC: &str = "component App {\n    fn fetchTodos() -> Array<String> {\n        return [\"x\"];\n    }\n    fn fetchUsers() -> Array<String> {\n        return [\"y\"];\n    }\n    view {\n        <div>\n            @load={fetchTodos}\n            @load={fetchUsers}\n        </div>\n    }\n}\n";
+
+/// E3: V7——分页 @load 必须命名（validate_form_load.rs:294-300）。
+const LOAD_ERR_ANON_PAGINATED_SRC: &str = "component App {\n    fn fetchHistory(page: i32) -> Page<String> {\n        return Page { items: [\"x\"], hasMore: true };\n    }\n    view {\n        <div>\n            @load={fetchHistory} paginated\n        </div>\n    }\n}\n";
+
+/// E4: V8——scroll 触发必须与 paginated 组合（validate_form_load.rs:303-309）。
+const LOAD_ERR_SCROLL_ALONE_SRC: &str = "component App {\n    fn fetchTodos() -> Array<String> {\n        return [\"x\"];\n    }\n    view {\n        <div>\n            @load s={fetchTodos} scroll\n        </div>\n    }\n}\n";
+
+/// S1-S24 × LOAD_BACKENDS：逐字钉住三端发射形态（substring 包含断言，
+/// 输出 = 全部生成文件拼接）。每元组 (名称, 语料, [react, omniview, flutter])。
+#[test]
+fn load_extended_semantic_products_across_backends() {
+    // (元组名, 语料源, 三端断言)——顺序对齐 LOAD_BACKENDS。
+    let tuples: &[(&str, &str, [&str; 3])] = &[
+        // S1 命名实例派生 loading 信号
+        (
+            "S1-loading",
+            LOAD_BASIC_SRC,
+            [
+                "const [todosLoading, setTodosLoading] = useState(true);",
+                "App_todos_loading.set(true);",
+                "todosAsync.isLoading",
+            ],
+        ),
+        // S2 派生 error 信号（catch 通道）
+        (
+            "S2-error",
+            LOAD_BASIC_SRC,
+            [
+                "const [todosError, setTodosError] = useState(\"\");",
+                "App_todos_error.set(String(e));",
+                "todosAsync.error",
+            ],
+        ),
+        // S3 派生 data 信号（成功通道 + @for 消费）
+        (
+            "S3-data",
+            LOAD_BASIC_SRC,
+            [
+                "const [todosData, setTodosData] = useState<string[] | null>(null);",
+                "App_todos_data.set(r);",
+                "todosAsync.asData?.value ?? const []",
+            ],
+        ),
+        // S4 派生 retry（React useCallback / OmniView 函数 / Flutter 重载）
+        (
+            "S4-retry",
+            LOAD_BASIC_SRC,
+            [
+                "const todosRetry = useCallback(() => {",
+                "function App_todos_retry() {",
+                "ref.invalidate(todosProvider)",
+            ],
+        ),
+        // S5 派生 reset
+        (
+            "S5-reset",
+            LOAD_BASIC_SRC,
+            [
+                "const todosReset = useCallback(() => {",
+                "function App_todos_reset() {",
+                "ref.read(todosProvider.notifier).reset()",
+            ],
+        ),
+        // S6 参数绑定：call-form loader 调用点
+        (
+            "S6-call-args",
+            LOAD_BASIC_SRC,
+            [
+                "fetchTodos(url).then((r) => {",
+                "Promise.resolve().then(() => App_fetchTodos(App_url.value)).then((r) => {",
+                "build() async => fetchTodos(ref.watch(urlProvider));",
+            ],
+        ),
+        // S7 参数绑定：依赖通道（React deps / Flutter watch）
+        (
+            "S7-deps",
+            LOAD_BASIC_SRC,
+            [
+                "}, [todosRetry, url]);",
+                "App_todos_retry();",
+                "ref.watch(urlProvider)",
+            ],
+        ),
+        // S8 参数绑定：loader 函数声明
+        (
+            "S8-fn-decl",
+            LOAD_BASIC_SRC,
+            [
+                "const fetchTodos = async (url: string) => {",
+                "async function App_fetchTodos(url) {",
+                "Future<List<String>> fetchTodos(String url) async {",
+            ],
+        ),
+        // S9 参数绑定：挂载即取
+        (
+            "S9-mount",
+            LOAD_BASIC_SRC,
+            [
+                "useEffect(() => { todosRetry(); }, [todosRetry, url]);",
+                "__omni_effect(() => { App_todos_retry(); });",
+                "ref.watch(todosProvider);",
+            ],
+        ),
+        // S10 Reset 非分页：data 归 null（Flutter 非分页 notifier 门控于
+        // reset_used——视图按钮引用使 notifier 必发射）
+        (
+            "S10-reset-nonpag",
+            LOAD_BASIC_SRC,
+            [
+                "setTodosData(null);",
+                "App_todos_data.set(null);",
+                "state = AsyncData(null);",
+            ],
+        ),
+        // S11 Reset 分页：page/hasMore/loadingMore 全归位
+        (
+            "S11-reset-pag",
+            LOAD_PAGINATED_SRC,
+            [
+                "setHistoryPage(1);",
+                "App_history_has_more.set(true);",
+                "state = AsyncData<List<String>>(const []);",
+            ],
+        ),
+        // S12 paginated page 信号
+        (
+            "S12-page",
+            LOAD_PAGINATED_SRC,
+            [
+                "setHistoryPage((p) => p + 1);",
+                "App_history_page.set(App_history_page.value + 1);",
+                "int page = 1;",
+            ],
+        ),
+        // S13 paginated hasMore 信封校验（V12 运行时守卫）
+        (
+            "S13-hasmore-guard",
+            LOAD_PAGINATED_SRC,
+            [
+                "typeof r.hasMore !== 'boolean'",
+                "App_history_has_more.set(r.hasMore);",
+                "if (r.hasMore == null) {",
+            ],
+        ),
+        // S14 paginated loadingMore 信号
+        (
+            "S14-loadingmore",
+            LOAD_PAGINATED_SRC,
+            [
+                "setHistoryLoadingMore(true);",
+                "App_history_loading_more.set(true);",
+                "bool loadingMore = false;",
+            ],
+        ),
+        // S15 paginated loadMore 派生函数
+        (
+            "S15-loadmore",
+            LOAD_PAGINATED_SRC,
+            [
+                "historyLoadMore({",
+                "function App_history_load_more() {",
+                "ref.read(historyProvider.notifier).loadMore()",
+            ],
+        ),
+        // S16 paginated 数据追加（concat 而非覆盖）
+        (
+            "S16-append",
+            LOAD_PAGINATED_SRC,
+            [
+                "setHistoryData((prev) => [...(prev ?? []), ...r.items]);",
+                "App_history_data.set((App_history_data.value ?? []).concat(r.items));",
+                "state = AsyncData<List<String>>([...(state.value ?? const []), ...(r.items ?? const [])]);",
+            ],
+        ),
+        // S17 scroll 哨兵（IntersectionObserver / 滚动监听）
+        (
+            "S17-sentinel",
+            LOAD_PAGINATED_SRC,
+            [
+                "const feedScrollSentinelRef = useRef<HTMLDivElement>(null);",
+                "ctr.previousElementSibling",
+                "final ScrollController _scrollControllerFeed = ScrollController();",
+            ],
+        ),
+        // S18 scroll 触发阈值
+        (
+            "S18-threshold",
+            LOAD_PAGINATED_SRC,
+            [
+                "}, { threshold: 0 });",
+                "}, { threshold: 0.1 });",
+                "maxScrollExtent - 200",
+            ],
+        ),
+        // S19 interval 定时器（interval: 5000）
+        (
+            "S19-interval",
+            LOAD_INTERVAL_SRC,
+            [
+                "const timer = setInterval(() => { pricesRetry(); }, 5000);",
+                "setInterval(function() { App_prices_retry(); }, 5000)",
+                "Timer.periodic(const Duration(milliseconds: 5000)",
+            ],
+        ),
+        // S20 interval 卸载清理
+        (
+            "S20-interval-cleanup",
+            LOAD_INTERVAL_SRC,
+            [
+                "return () => clearInterval(timer);",
+                "clearInterval(App_prices_timer)",
+                "_pollTimerPrices?.cancel();",
+            ],
+        ),
+        // S21 debounce 事件包装（std/timing 首用点）
+        (
+            "S21-debounce",
+            LOAD_DEBOUNCE_SRC,
+            [
+                "useMemo(() => ((_fn, _ms) => { let _t; return (..._a) => { clearTimeout(_t);",
+                "const __timingonPress_el_button_00",
+                "onPressed: () {\n    _omniTimers['debounce_0']?.cancel();",
+            ],
+        ),
+        // S22 debounce 延迟窗口（300ms）
+        (
+            "S22-debounce-ms",
+            LOAD_DEBOUNCE_SRC,
+            [
+                "})(doSearch_ref, 300)",
+                "})(App_doSearch, 300);",
+                "Timer(const Duration(milliseconds: 300), () => doSearch());",
+            ],
+        ),
+        // S23 throttle 事件包装
+        (
+            "S23-throttle",
+            LOAD_THROTTLE_SRC,
+            [
+                "useMemo(() => ((_fn, _ms) => { let _t; let _args;",
+                "const __timingonPress_el_button_00",
+                "if (_omniTimers['throttle_0']?.isActive ?? false) return;",
+            ],
+        ),
+        // S24 throttle 窗口（2000ms）
+        (
+            "S24-throttle-ms",
+            LOAD_THROTTLE_SRC,
+            [
+                "})(doRefresh_ref, 2000)",
+                "})(App_doRefresh, 2000);",
+                "Timer(const Duration(milliseconds: 2000), () => doRefresh());",
+            ],
+        ),
+    ];
+    for (name, source, pins) in tuples {
+        for (i, (target, backend)) in LOAD_BACKENDS.iter().enumerate() {
+            let result = compile_target(source, *target);
+            assert!(
+                result.success,
+                "[{backend}/{name}] 语料必须编译成功，got: {:?}",
+                result.errors
+            );
+            let output = result.files.values().cloned().collect::<Vec<_>>().join("\n");
+            assert!(
+                output.contains(pins[i]),
+                "[{backend}/{name}] 缺失发射形态 {pins:?}，实际输出:\n{output}"
+            );
+        }
+    }
+}
+
+/// E1-E4 × 全部 5 BACKENDS：@load 扩展语义硬错误为后端无关共享层产物
+/// （语义/IR 先于 codegen），逐字断言不因目标差异丢失/改写。消息来源：
+/// V2 保留名（validate_form_load.rs:279-289）、V6 匿名上限
+/// （ir/lower/component.rs:549）、V7 分页必命名（validate_form_load.rs:294-300）、
+/// V8 scroll 组合（validate_form_load.rs:303-309）。
+#[test]
+fn load_extended_error_messages_across_backends() {
+    // (源, 期望逐字错误消息)——V7/V8 在 validate_form_load 内先于
+    // V-F7/V11 触发（294-317 行序），匿名分页/裸 scroll 不会被信封检查抢占。
+    let cases: &[(&str, &str)] = &[
+        (
+            LOAD_ERR_RESERVED_NAME_SRC,
+            "@load 实例名称 `loading` 与保留名/信号 `loading` 冲突——保留名 loading/error/data/retry/reset 专供匿名实例，请更换实例名",
+        ),
+        (
+            LOAD_ERR_ANON_TWICE_SRC,
+            "组件内至多一个匿名 @load——多个数据源请使用命名实例（@load name={fn}），当前匿名 2 个",
+        ),
+        (
+            LOAD_ERR_ANON_PAGINATED_SRC,
+            "分页 @load 必须命名（@load name={fn} paginated）——分页信号 page/hasMore/loadingMore 需要实例归属",
+        ),
+        (
+            LOAD_ERR_SCROLL_ALONE_SRC,
+            "scroll 触发须与 paginated 组合使用（@load name={fn} paginated scroll）",
+        ),
+    ];
+    for (target, backend) in BACKENDS {
+        for (source, expected) in cases {
+            let result = compile_target(source, *target);
+            assert!(
+                !result.success,
+                "[{backend}] 语义硬错误必须使编译失败，got: {:?}",
+                result.errors
+            );
+            assert!(
+                result.errors.iter().any(|d| {
+                    d.severity == crate::error::Severity::Error && d.message == *expected
+                }),
+                "[{backend}] 必须逐字产生 {expected:?}，got: {:?}",
+                result.errors
+            );
+        }
+    }
+}
+
 /// Task 7 (semantic-feedback-modal, 批次 1) regression — the 反馈模态语义域
 /// 诊断（spec 2026-08-09-semantic-batch1 §3 的 V1-V14）是后端无关的共享语义
 /// 层产物：逐字断言其跨全部 5 后端全链路可见（parse → semantic →
