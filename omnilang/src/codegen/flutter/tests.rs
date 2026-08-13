@@ -12239,8 +12239,8 @@ component App {
         dart
     );
     assert!(
-        dart.contains("state = AsyncData(null);"),
-        "Reset must clear to AsyncData(null) — never auto-reload, got:\n{}",
+        dart.contains("state = AsyncData<List<String>>(const []);"),
+        "Reset must clear to an empty AsyncData — never auto-reload (AsyncData(null) 无法赋给 List<String>), got:\n{}",
         dart
     );
     assert!(
@@ -12414,8 +12414,8 @@ component App {
         dart
     );
     assert!(
-        dart.contains("state = AsyncLoading<List<String>>().copyWithPrevious(state);"),
-        "loadMore 必须写 state 触发 rebuild（字段写入不触发）, got:\n{}",
+        dart.contains("state = AsyncData<List<String>>(state.value ?? const []);"),
+        "loadMore 必须写 state 触发 rebuild（riverpod 3.4 无 copyWithPrevious，AsyncData 保留 value）, got:\n{}",
         dart
     );
     assert!(
@@ -12439,8 +12439,8 @@ component App {
         dart
     );
     assert!(
-        dart.contains("state = AsyncError<List<String>>(e, st, value: state.value);"),
-        "追加页异常 → error 态且 value 带回旧数据, got:\n{}",
+        dart.contains("state = AsyncError<List<String>>(e, st);"),
+        "追加页异常 → error 态（riverpod 3.4 AsyncError 无 value 参数，已加载数据由 value 字段保留）, got:\n{}",
         dart
     );
     // reset：三态置初值不重载
@@ -12461,6 +12461,11 @@ component App {
         dart
     );
     assert!(
+        dart.contains("final AsyncValue<List<String>> itemsAsync = ref.watch(itemsProvider);"),
+        "分页 AsyncValue 泛型必须是 List<T>（元素类型会与 provider watch 失配）, got:\n{}",
+        dart
+    );
+    assert!(
         dart.contains("final ItemsNotifier itemsNotifier = ref.watch(itemsProvider.notifier);"),
         "build 必须 hoist notifier watch, got:\n{}",
         dart
@@ -12473,6 +12478,117 @@ component App {
     assert!(
         dart.contains("ref.read(itemsProvider.notifier).loadMore()"),
         "{{name}}LoadMore 必须调用 notifier.loadMore, got:\n{}",
+        dart
+    );
+    // Task 12 fix round (批次 4 终验): 分页 loader 信封引用 types.dart 的
+    // Page<T>（Future<Page<T>> _load），与 material 的 Page 撞名 → 必须
+    // hide material 的 Page（ambiguous_import 根因）。
+    assert!(
+        dart.contains("import 'package:flutter/material.dart' hide Page;"),
+        "paginated 组件必须 hide material 的 Page（信封类撞名）, got:\n{}",
+        dart
+    );
+}
+
+/// Task 12 fix round (批次 4 终验): `@load` 参数信号（param_signal_names）
+/// 的存储被提升到生成的 Notifier（`{p}Provider`）——state 类没有该字段，
+/// `setState(() { url = v; })` 会 undefined_identifier。bind:value 写回须走
+/// `ref.read({p}.notifier).set(v)`，读位须 `ref.watch({p})`（build 内 watch
+/// 保证双向同步与参数变化自动重载）。
+#[test]
+fn flutter_load_param_bind_write_back_via_notifier() {
+    let out = compile_flutter(
+        r#"
+component App {
+  signal active: bool = false;
+  fn fetchFilter(active: bool) -> Array<String> { }
+  view {
+    @load items={fetchFilter(active)}
+    <checkbox bind:value={active} />
+    @for item in itemsData { <div>{item}</div> }
+  }
+}
+"#,
+    )
+    .expect("load-param bind fixture must compile");
+    let dart: String = out.files.values().cloned().collect::<Vec<_>>().join("\n");
+    assert!(
+        dart.contains("final activeProvider = NotifierProvider<ActiveNotifier, bool>(ActiveNotifier.new);"),
+        "参数信号必须提升为 NotifierProvider, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("class ActiveNotifier extends Notifier<bool> {"),
+        "必须生成参数 Notifier 类, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("void set(bool v) => state = v;"),
+        "Notifier 必须暴露显式 set（riverpod 3 state setter 受保护）, got:\n{}",
+        dart
+    );
+    assert!(
+        !dart.contains("active = v"),
+        "写回不得再引用 state 字段（提升后不存在）, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("onChanged: (v) { ref.read(activeProvider.notifier).set(v ?? ref.read(activeProvider)); }"),
+        "Checkbox 写回必须走 Notifier.set（null 兜底回读当前值）, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("value: ref.watch(activeProvider)"),
+        "读位必须 ref.watch(provider)（state 字段已不存在）, got:\n{}",
+        dart
+    );
+}
+
+/// ★ 兼容性检查点（Task 12 复审）：非分页 Call loader + Reset 的 `_load`
+/// 字段类型必须由 loader 函数签名推导（`Future<{ret}> Function({params})`），
+/// 不得退化为 `dynamic Function(dynamic)` —— Dart 参数逆变使真实 tear-off
+/// （`Future<List<String>> Function(bool)`）无法赋给 dynamic 参数
+/// （dart analyze argument_type_not_assignable）。
+#[test]
+fn flutter_call_reset_load_ty_signature_derived() {
+    let out = compile_flutter(
+        r#"
+import { http_get } from "std/http";
+
+component App {
+  signal active: bool = false;
+  async fn fetchFilter(active: bool) -> Array<String> {
+    let raw = await http_get("/api/filter");
+    return [];
+  }
+  view {
+    @load items={fetchFilter(active)}
+    <button @onPress={itemsReset}>Reset</button>
+    @for item in itemsData { <div>{item}</div> }
+  }
+}
+"#,
+    )
+    .expect("call-reset fixture must compile");
+    let dart: String = out.files.values().cloned().collect::<Vec<_>>().join("\n");
+    assert!(
+        dart.contains("final Future<List<String>> Function(bool) _load;"),
+        "_load 字段类型必须由 loader 签名推导（async body → Future 前缀 + 实参类型）, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("late final itemsProvider = AsyncNotifierProvider<ItemsNotifier, List<String>>(() => ItemsNotifier(fetchFilter));"),
+        "非分页 Call 构造参数必须为 state method tear-off（签名与 _load 一致）, got:\n{}",
+        dart
+    );
+    assert!(
+        dart.contains("Future<List<String>> fetchFilter(bool active) async"),
+        "state method 必须为 async 签名（body 含 await，与 _load 类型一致）, got:\n{}",
+        dart
+    );
+    assert!(
+        !dart.contains("dynamic Function(dynamic)"),
+        "不得再出现 dynamic 参数退化类型, got:\n{}",
         dart
     );
 }

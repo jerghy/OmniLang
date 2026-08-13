@@ -9129,9 +9129,12 @@ component App {
     // mount 时序（初载前 Data=null → @for 空分支）下哨兵先挂空分支，
     // Data 变化后 effect 重跑并以新守卫值重建观察者（光靠 LoadMore
     // 引用切换在「空态哨兵卸载后 LoadMore 身份不变」时漏 attach）。
+    // fix round 2/5（批次 4 终验）: deps 再补 LoadingMore/HasMore 双
+    // 守卫——回调体读取 `!historyLoadingMore && historyHasMore`，缺了
+    // 则 eslint react-hooks/exhaustive-deps 报错（门禁 -D warnings）。
     assert!(
-        out.contains("}, [historyLoadMore, historyData]);"),
-        "observer effect deps 必须含 Data 派生项（mount 时序锁定）. Got:\n{}",
+        out.contains("}, [historyLoadMore, historyData, historyLoadingMore, historyHasMore]);"),
+        "observer effect deps 必须含 Data 派生项 + 双守卫（mount 时序锁定 + exhaustive-deps）. Got:\n{}",
         out
     );
     // fix round 2（批次 4 审查）: Data===null 早退锁 mount 竞态——初载前
@@ -10490,5 +10493,127 @@ fn media_block_passthrough_in_css() {
     assert!(
         out.contains("@media (prefers-color-scheme: dark) {"),
         "got: {out}"
+    );
+}
+
+// ── Task 12 fix round 2/5（批次 4 终验）回归 ──────────────────
+
+/// fix 1 回归：@load 合成回调（retry/loadMore/reset 别名——不在 comp.fns
+/// 中 → used_fields=None → event_data 整 schema 展开）恒 0 参 → 事件绑定
+/// 必须发射裸引用（onClick={historyLoadMore}），禁止
+/// `(e) => { historyLoadMore({x: …, clientX: …}) }` 载体——否则 TS2554
+/// (Expected 0 arguments) + TS2339（合成 MouseEvent 无 pressure/tiltX 等
+/// PointerEvent 成员）。
+#[test]
+fn react_synthesized_load_callback_bare_binding() {
+    let source = r#"
+component App {
+  fn fetchHistory(page: i32) -> Page<String> { }
+  view {
+    @load history={fetchHistory} paginated
+    <button @onPress={historyLoadMore}>More</button>
+    <button @onPress={historyRetry}>Retry</button>
+  }
+}
+"#;
+    let out = compile_react_src(source);
+    assert!(
+        out.contains("onClick={historyLoadMore}"),
+        "@load 合成 loadMore 必须裸绑定（0 参 fn 不得带载体实参）. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("onClick={historyRetry}"),
+        "@load 合成 retry 必须裸绑定. Got:\n{}",
+        out
+    );
+    assert!(
+        !out.contains("historyLoadMore({") && !out.contains("historyRetry({"),
+        "合成回调不得携带事件对象实参（TS2554）. Got:\n{}",
+        out
+    );
+    assert!(
+        !out.contains("undefined /* clientX */"),
+        "PointerEvent 全 schema 展开不得产出 undefined 兜底（TS2871 + no-constant-binary-expression）. Got:\n{}",
+        out
+    );
+}
+
+/// fix 2 回归：field_extract_react 缺 PointerEvent clientX/clientY 臂 →
+/// 落到 catch-all 产出 `undefined /* clientX */ ?? undefined` → TS2871 +
+/// eslint no-constant-binary-expression。补齐后与 Web 抽取器
+/// crates/omnilang-core/src/codegen/event.rs 对齐（合成 MouseEvent 直代）。
+#[test]
+fn react_pointer_client_coords_mapped() {
+    let source = r#"
+component App {
+  signal lastX: Float = 0
+  fn move(e) { lastX = e.clientX }
+  view {
+    <div @onPointerMove={move} />
+  }
+}
+"#;
+    let out = compile_react_src(source);
+    assert!(
+        out.contains("clientX: e.clientX ?? 0"),
+        "PointerEvent clientX 必须映射到合成事件 e.clientX（?? 0 兜底）. Got:\n{}",
+        out
+    );
+    assert!(
+        !out.contains("undefined /* clientX */"),
+        "不得再产出 catch-all undefined 兜底（TS2871）. Got:\n{}",
+        out
+    );
+}
+
+/// fix 5c 回归：分页 loader fn 必须标注返回类型 `: Page<X>`（interface
+/// Page<T> 由 mod.rs 按 load_intent 发射）——无注解时 eslint no-unused-vars
+/// 报 interface 未使用（TS 仅类型引用不算使用）。元素类型与
+/// useState<X[] | null> 状态发射同源（loader_elem_ts 单一来源防漂移）。
+#[test]
+fn react_paginated_loader_return_annotation() {
+    let source = r#"
+component App {
+  fn fetchHistory(page: i32) -> Page<String> { }
+  view {
+    @load history={fetchHistory} paginated
+    <button @onPress={historyLoadMore}>More</button>
+  }
+}
+"#;
+    let out = compile_react_src(source);
+    // 空函数体 → 未用参数 `_` 前缀（既有 lint 规避）；断言锚在返回注解
+    assert!(
+        out.contains("const fetchHistory = (_page: number): Page<string> => {"),
+        "分页 loader 必须标注 : Page<string> 返回类型（无注解 → interface 未使用 eslint 报错）. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("useState<string[] | null>"),
+        "状态发射元素类型必须与返回注解同源（loader_elem_ts 防漂移）. Got:\n{}",
+        out
+    );
+}
+
+/// fix 6 回归：哨兵 effect deps 必须含 LoadingMore/HasMore 双守卫——
+/// 回调体读取 `!historyLoadingMore && historyHasMore`，缺了则 eslint
+/// react-hooks/exhaustive-deps 报错（门禁 -D warnings）。
+#[test]
+fn react_scroll_observer_deps_include_guards() {
+    let source = r#"
+component App {
+  fn fetchHistory(page: i32) -> Page<String> { }
+  view {
+    @load history={fetchHistory} paginated scroll
+    @for item in historyData { <div>{item}</div> }
+  }
+}
+"#;
+    let out = compile_react_src(source);
+    assert!(
+        out.contains("}, [historyLoadMore, historyData, historyLoadingMore, historyHasMore]);"),
+        "observer effect deps 必须含双守卫 LoadingMore/HasMore（exhaustive-deps）. Got:\n{}",
+        out
     );
 }

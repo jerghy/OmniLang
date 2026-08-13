@@ -241,7 +241,7 @@ test.describe('OmniView React — 9 标签页验证', () => {
       await visible(page, 'Alpha');
       await clickBtn(page, /Toggle Sort/);
       await page.waitForTimeout(300);
-      await visible(page, 'Sort:DESC');
+      await visible(page, 'Sort: DESC');
       await visible(page, 'Alpha');
     });
 

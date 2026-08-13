@@ -53,6 +53,8 @@ test/projects/learn-omniview/build/react-test-app/pages/
 test/projects/learn-omniview/build/react-test-app/stores/
 test/projects/learn-omniview/build/react-test-app/App.tsx
 test/projects/learn-omniview/build/react-test-app/App.module.css
+test/projects/learn-omniview/build/react-test-app/Main.tsx
+test/projects/learn-omniview/build/react-test-app/Main.module.css
 test/projects/learn-omniview/build/react-test-app/SimpleApp.tsx
 test/projects/learn-omniview/build/react-test-app/SimpleApp.module.css
 test/projects/learn-omniview/build/react-test-app/design.css

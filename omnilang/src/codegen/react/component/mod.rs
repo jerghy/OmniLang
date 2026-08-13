@@ -1521,25 +1521,10 @@ impl ReactCodegen {
                 sig("Error"),
                 setter("Error")
             ));
-            // 元素类型来自 fn 返回 Array<X> 的 X（V-F7 保证 Array 形态）；
-            // Task 7: 分页信封 Page<X> 的元素类型同样取唯一类型实参
-            // （V11 保证签名形态 `fn {name}(page: i32) -> Page<X>`）。
-            let elem_ts = comp
-                .fns
-                .iter()
-                .find(|f| f.name == load.loader.fn_name())
-                .and_then(|f| f.return_type.as_ref())
-                .and_then(|t| match &t.kind {
-                    TypeKind::Named { name } if name == "Array" && t.type_args.len() == 1 => {
-                        let arg = &t.type_args[0];
-                        Some(JsTypeFormatter.format_type(arg.kind.as_str(), &arg.type_args))
-                    }
-                    TypeKind::Named { name } if name == "Page" && t.type_args.len() == 1 => {
-                        let arg = &t.type_args[0];
-                        Some(JsTypeFormatter.format_type(arg.kind.as_str(), &arg.type_args))
-                    }
-                    _ => None,
-                })
+            // 元素类型来自 fn 返回 Array<X>/Page<X> 的 X（V-F7/V11 保证
+            // 信封形态）——Task 12 fix round: 提取为共享 loader_elem_ts
+            // （function.rs 分页 loader 返回注解同源）。
+            let elem_ts = loader_elem_ts(comp, load.loader.fn_name())
                 .unwrap_or_else(|| "unknown".to_string());
             w.emit_fmt(format_args!(
                 "const [{}, {}] = useState<{elem_ts}[] | null>(null);",
@@ -1769,6 +1754,12 @@ impl ReactCodegen {
             // 不用 !Loading 守卫（Loading 不在 deps，闭包捕获渲染 1 的
             // Loading=false 无效）；空列表 [] 非 null，空态哨兵照常观察
             // （Minor 4 语义不损）。
+            //
+            // fix round 2/5（批次 4 终验）：deps 补 LoadingMore/HasMore——
+            // 回调体读取双守卫（!LoadingMore && HasMore），缺了则 eslint
+            // react-hooks/exhaustive-deps 报错（门禁 -D warnings）。二者
+            // 变化时重建观察者无害（守卫新值立即生效；observer 重挂载
+            // 同元素无可见差异）。
             if load.mode.scroll {
                 let sentinel_ref = format!("{}ScrollSentinelRef", p);
                 w.emit_fmt(format_args!(
@@ -1801,7 +1792,13 @@ impl ReactCodegen {
                 w.emit("}");
                 w.emit("return () => observer.disconnect();");
                 w.dedent();
-                w.emit_fmt(format_args!("}}, [{}, {}]);", sig("LoadMore"), sig("Data")));
+                w.emit_fmt(format_args!(
+                    "}}, [{}, {}, {}, {}]);",
+                    sig("LoadMore"),
+                    sig("Data"),
+                    sig("LoadingMore"),
+                    sig("HasMore")
+                ));
             }
             // Reset（spec §4.1/P5）: 三态置初值不重载——引用门控发射
             let reset_cb = sig("Reset");
@@ -2265,6 +2262,31 @@ fn component_has_fade_conditional(comp: &ComponentIR) -> bool {
             s.fallback
                 .iter()
                 .any(super::motion::view_has_fade_conditional)
+        })
+}
+
+/// Task 12 fix round (批次 4 终验): @load loader 返回 Array<X>/Page<X> 的
+/// 元素类型 X 的 TS 形态（V-F7 保证 Array 形态、V11 保证分页签名形态
+/// `fn {name}(page: i32) -> Page<X>`——唯一类型实参即元素类型）。
+/// None ⟺ 无返回类型或非 Array/Page 信封（调用方自行兜底）。
+///
+/// 单一来源：状态发射（useState<X[] | null>）与分页 loader 返回注解
+/// (`: Page<X>`，function.rs emit_fn_const) 共用此函数，两侧永不漂移。
+pub(super) fn loader_elem_ts(comp: &ComponentIR, fn_name: &str) -> Option<String> {
+    comp.fns
+        .iter()
+        .find(|f| f.name == fn_name)
+        .and_then(|f| f.return_type.as_ref())
+        .and_then(|t| match &t.kind {
+            TypeKind::Named { name } if name == "Array" && t.type_args.len() == 1 => {
+                let arg = &t.type_args[0];
+                Some(JsTypeFormatter.format_type(arg.kind.as_str(), &arg.type_args))
+            }
+            TypeKind::Named { name } if name == "Page" && t.type_args.len() == 1 => {
+                let arg = &t.type_args[0];
+                Some(JsTypeFormatter.format_type(arg.kind.as_str(), &arg.type_args))
+            }
+            _ => None,
         })
 }
 

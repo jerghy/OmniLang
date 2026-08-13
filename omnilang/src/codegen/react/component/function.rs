@@ -161,9 +161,25 @@ fn emit_fn_const(
     let params_str = format_fn_params(fun, &unused_params);
     let is_async = fun.is_async || fun.body.statements.iter().any(effect::stmt_contains_await);
     let async_prefix = if is_async { "async " } else { "" };
+    // Task 12 fix round (批次 4 终验): 分页 loader 标注返回类型 `: Page<X>`
+    // ——`interface Page<T>` 由 mod.rs 按 load_intent 发射；loader 无注解时
+    // eslint no-unused-vars 报 interface 未使用（TS 仅类型引用不算使用）。
+    // 仅当 fn 恰为 paginated 模式 fetch 目标且元素类型可提取时标注
+    // （loader_elem_ts 与 useState<X[] | null> 状态发射同源防漂移；
+    // None 时不标——guard fn/普通 fn 不受影响）。
+    let ret_ann = if comp
+        .load_intent
+        .iter()
+        .any(|li| li.mode.paginated && li.loader.fn_name() == fun.name)
+    {
+        super::loader_elem_ts(comp, &fun.name).map(|elem| format!(": Page<{elem}>"))
+    } else {
+        None
+    };
+    let ret_ann = ret_ann.as_deref().unwrap_or("");
     w.emit_fmt(format_args!(
-        "{export_prefix}const {} = {}({}) => {{",
-        fun.name, async_prefix, params_str
+        "{export_prefix}const {} = {}({}){} => {{",
+        fun.name, async_prefix, params_str, ret_ann
     ));
     w.indent();
     // Emit body into temp writer for post-processing

@@ -167,12 +167,28 @@ pub(crate) fn binding_to_flutter_param(bind_name: &str) -> &str {
 /// `ValueChanged<bool?>`: the nullable `v` cannot be assigned to the bool
 /// signal directly, so the unreachable null case falls back to the current
 /// value (`v ?? signal`).
+///
+/// Task 12 fix round (批次 4 终验): `@load` 参数信号被提升为 provider（其存储
+/// 移入生成的 Notifier，state 类上不再有同名字段）——直写 `setState(() { url = v; })`
+/// 报 undefined_identifier。提升信号改走 provider 的 `set` 方法（Notifier.build
+/// 内 ref.watch 该 provider，重建即生效，无需 setState）。未提升信号保持原路径。
 pub(crate) fn bind_value_write_back(
     widget: &str,
     signal: &str,
     signal_type: Option<&TypeKind>,
+    provider: Option<&str>,
 ) -> String {
-    if matches!(widget, "Checkbox" | "Switch" | "DropdownButton") {
+    if let Some(p) = provider {
+        if matches!(widget, "Checkbox" | "Switch" | "DropdownButton") {
+            format!(
+                "(v) {{ ref.read({p}.notifier).set(v ?? ref.read({p})); }}",
+            )
+        } else if widget == "Slider" && signal_type == Some(&TypeKind::Int) {
+            format!("(v) {{ ref.read({p}.notifier).set(v.toInt()); }}")
+        } else {
+            format!("(v) {{ ref.read({p}.notifier).set(v); }}")
+        }
+    } else if matches!(widget, "Checkbox" | "Switch" | "DropdownButton") {
         format!(
             "(v) {{ setState(() {{ {} = v ?? {}; }}); }}",
             signal, signal

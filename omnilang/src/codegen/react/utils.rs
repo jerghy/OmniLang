@@ -353,6 +353,13 @@ fn field_extract_react(kind: &EventDataKind, field: &str, raw: &str) -> (String,
         (EventDataKind::PointerEvent, "y") => {
             (format!("{}.nativeEvent.offsetY", raw), "0".into())
         }
+        // Task 12 fix round (批次 4 终验): 缺 clientX/clientY 臂 → 落到 catch-all
+        // 产出 `undefined /* clientX */ ?? undefined` → TS2871 + eslint
+        // no-constant-binary-expression。React 合成 MouseEvent 直代 clientX/
+        // clientY（WheelEvent 臂同款模式，见下）——补齐后与 Web 抽取器
+        // crates/omnilang-core/src/codegen/event.rs 对齐。
+        (EventDataKind::PointerEvent, "clientX") => (format!("{}.clientX", raw), "0".into()),
+        (EventDataKind::PointerEvent, "clientY") => (format!("{}.clientY", raw), "0".into()),
         (EventDataKind::PointerEvent, "button") => (format!("{}.button", raw), "0".into()),
         (EventDataKind::PointerEvent, "pressure") => (format!("{}.pressure", raw), "0".into()),
         (EventDataKind::PointerEvent, "tiltX") => (format!("{}.tiltX", raw), "0".into()),

@@ -2849,8 +2849,17 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
             || (bind_name == "checked" && matches!(widget, "Checkbox" | "Switch")))
             && write_back_type_ok
             && widget_allows_param(widget, "onChanged");
-        let write_back = write_back_eligible
-            .then(|| bind_value_write_back(widget, &signal_ref.name, signal_kind.as_ref()));
+        // Task 12 fix round (批次 4 终验): `@load` 参数信号被提升为 provider
+        // （param_providers 表）——写回目标不存在于 state 类，须走 Notifier.set。
+        let write_back_provider = ctx.param_providers.get(&signal_ref.name).map(String::as_str);
+        let write_back = write_back_eligible.then(|| {
+            bind_value_write_back(
+                widget,
+                &signal_ref.name,
+                signal_kind.as_ref(),
+                write_back_provider,
+            )
+        });
         if !widget_allows_param(widget, param) {
             if let Some(cb) = write_back {
                 if already_has_on_changed {
@@ -2885,12 +2894,23 @@ fn format_element(el: &ElementIR, motions: &[MotionIntent], ctx: &mut ViewContex
         // Slider's value is double — an `i32` signal converts at the read
         // site (`value: (rangeVal).toDouble()`), mirroring the write-back's
         // `.toInt()` (FormControlsDemo rangeVal: i32).
-        let value_arg = if widget == "Slider"
-            && signal.is_some_and(|s| matches!(s.r#type.kind, TypeKind::Int))
-        {
-            format!("({}).toDouble()", signal_ref.name)
-        } else {
-            signal_ref.name.clone()
+        //
+        // Task 12 fix round (批次 4 终验): 提升为 provider 的参数信号读位同样
+        // 没有 state 字段——`value: ref.watch({provider})` 才可解析（与
+        // 写回位 Notifier.set 配对；build 内 watch 保证双向同步）。
+        let value_arg = match ctx.param_providers.get(&signal_ref.name) {
+            Some(p) if widget == "Slider"
+                && signal.is_some_and(|s| matches!(s.r#type.kind, TypeKind::Int)) =>
+            {
+                format!("ref.watch({p}).toDouble()")
+            }
+            Some(p) => format!("ref.watch({p})"),
+            None if widget == "Slider"
+                && signal.is_some_and(|s| matches!(s.r#type.kind, TypeKind::Int)) =>
+            {
+                format!("({}).toDouble()", signal_ref.name)
+            }
+            None => signal_ref.name.clone(),
         };
         args.push(format!("{}: {}", param, value_arg));
     }

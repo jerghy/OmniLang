@@ -350,7 +350,46 @@ fn test_string_available_on_all_targets() {
 fn test_codegen_array_length_js() {
     assert_eq!(
         codegen_array_length(&["arr".into()], Target::JavaScript),
+        "(arr ?? []).length"
+    );
+}
+
+/// Task 12 fix round 2/5：数组常为可空信号（@load 数据三态 data 是
+/// `T[] | null`）——JS 族 `(arr).length` 报 TS2531，故 JS 族保留 `?? []`
+/// 兜底（与 @for 既有 `(data ?? [])` 口径一致）。
+/// 复审（fix round 2/5）：Dart 侧裸 `((arr) ?? []).length` 触发
+/// dead_null_aware_expression（可空数据内置物在 load_builtins 已烘焙
+/// `?? const []` 兜底、解析为非空形式；普通信号/计算量本就非空）——
+/// Dart/Flutter 改裸 `(arr).length`（非空操作数无警告，且与 JS 族语义等价）。
+#[test]
+fn test_codegen_array_length_nullable_guard() {
+    for target in [
+        Target::JavaScript,
+        Target::React,
+        Target::Vue,
+        Target::OmniView,
+    ] {
+        assert_eq!(
+            codegen_array_length(&["arr".into()], target),
+            "(arr ?? []).length"
+        );
+    }
+    assert_eq!(
+        codegen_array_length(&["arr".into()], Target::Dart),
         "(arr).length"
+    );
+    assert_eq!(
+        codegen_array_length(&["arr".into()], Target::Flutter),
+        "(arr).length"
+    );
+    // 非 JS 族保持各自惯用形态（Python len()/Rust .len() 天然可空安全）
+    assert_eq!(
+        codegen_array_length(&["arr".into()], Target::Python),
+        "len(arr)"
+    );
+    assert_eq!(
+        codegen_array_length(&["arr".into()], Target::Rust),
+        "(arr).len()"
     );
 }
 
@@ -1048,6 +1087,49 @@ fn debounce_type_checked_as_callable_return() {
     }
 }
 
+/// Task 12 fix round 2/5（批次 4 终验）：React 目标产物为 TS 源码，时序
+/// 包装必须显式注解——无注解 `let _t;` 报 TS7034/TS7005（implicit any +
+/// 用前未赋值），`(..._a)` 无类型则 TS2554 拒绝展开调用。注解为 React
+/// 独有：非 React 的 JS 族（纯 JS 目标）不得含 TS 注解。
+/// fix round 复审：参数类型弃 `any`——verify-react 门禁 eslint
+/// recommended 含 @typescript-eslint/no-explicit-any（error）；首参以
+/// `unknown` 接收（可调形态经 `as (...args: unknown[]) => unknown`
+/// 断言），调用点 `(_fn as { current?: unknown }).current ?? _fn` 兼容
+/// `{fn}_ref` 稳定引用与裸 fn 两种形态。
+#[test]
+fn debounce_react_target_typed_annotation() {
+    let out = try_format_stdlib_call("debounce", &["doSearch".into(), "300".into()], Target::React)
+        .expect("React debounce 必须命中注册表");
+    assert!(
+        !out.contains("any"),
+        "React debounce 不得含 any（门禁 no-explicit-any）: {out}"
+    );
+    assert!(
+        out.contains("_fn: unknown") && out.contains("_ms: number"),
+        "React debounce 须显式注解参数（TS7005 implicit any）: {out}"
+    );
+    assert!(
+        out.contains("let _t: ReturnType<typeof setTimeout> | undefined;"),
+        "React debounce 须注解定时器句柄类型（TS7034/TS2454）: {out}"
+    );
+    assert!(
+        out.contains("(_fn as { current?: unknown }).current ?? _fn")
+            && out.contains("as (...args: unknown[]) => unknown)(..._a)"),
+        "React debounce 须支持 useRef 稳定引用调用形态（unknown + 可调断言）: {out}"
+    );
+    // 纯 JS 目标保持无注解形态（TS 注解落入 JS 产物即语法错误）
+    for target in [Target::JavaScript, Target::Vue, Target::OmniView] {
+        let out =
+            try_format_stdlib_call("debounce", &["doSearch".into(), "300".into()], target)
+                .expect("JS 族 debounce 必须命中注册表");
+        assert!(
+            !out.contains("_fn:"),
+            "非 React JS 族不得含 TS 注解（target {:?}）: {out}",
+            target
+        );
+    }
+}
+
 /// Task 7 fix round 1（批次 4 Task 5 minor-1 拍板 P6「trailing-only 默认」）：
 /// throttle 必须尾沿节流——窗口内至多一次、取窗口内最后一次调用（与
 /// debounce 同款延迟触发，绝非首沿 Date.now 形态）。首沿形态会被固定
@@ -1076,6 +1158,43 @@ fn throttle_trailing_only_codegen() {
         assert!(
             out.contains("_args"),
             "尾沿节流必须以窗口内最后一次调用的参数触发（target {:?}）: {out}",
+            target
+        );
+    }
+}
+
+/// Task 12 fix round 2/5（批次 4 终验）：throttle 的 React 目标须显式注解
+/// （同 debounce：`let _args;` 报 TS7005 implicit any）；`_args` 以 `= []`
+/// 初始化规避 TS2454。类型同 debounce：`unknown` + 可调断言，无 `any`
+/// （门禁 no-explicit-any）。纯 JS 目标保持无注解形态。
+#[test]
+fn throttle_react_target_typed_annotation() {
+    let out = try_format_stdlib_call("throttle", &["doSearch".into(), "300".into()], Target::React)
+        .expect("React throttle 必须命中注册表");
+    assert!(
+        !out.contains("any"),
+        "React throttle 不得含 any（门禁 no-explicit-any）: {out}"
+    );
+    assert!(
+        out.contains("_fn: unknown") && out.contains("_args: unknown[] = []"),
+        "React throttle 须注解参数并初始化参数缓存（TS7005/TS2454）: {out}"
+    );
+    assert!(
+        out.contains("let _t: ReturnType<typeof setTimeout> | undefined;"),
+        "React throttle 须注解定时器句柄类型: {out}"
+    );
+    assert!(
+        out.contains("(_fn as { current?: unknown }).current ?? _fn")
+            && out.contains("as (...args: unknown[]) => unknown)(..._args)"),
+        "React throttle 须支持 useRef 稳定引用调用形态: {out}"
+    );
+    for target in [Target::JavaScript, Target::Vue, Target::OmniView] {
+        let out =
+            try_format_stdlib_call("throttle", &["doSearch".into(), "300".into()], target)
+                .expect("JS 族 throttle 必须命中注册表");
+        assert!(
+            !out.contains("_fn:"),
+            "非 React JS 族不得含 TS 注解（target {:?}）: {out}",
             target
         );
     }

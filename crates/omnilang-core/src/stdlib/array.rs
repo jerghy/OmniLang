@@ -118,10 +118,18 @@ pub(super) fn codegen_array_length(args: &[String], target: Target) -> String {
         | Target::React
         | Target::Vue
         | Target::OmniView => {
-            format!("({arr}).length")
+            // Task 12 fix round (批次 4 终验): 数组常为可空信号（@load 数据三态
+            // data 是 `T[] | null`）——`({arr}).length` 报 TS2531。`?? []` 与
+            // @for 既有 `(data ?? [])` 空值兜底口径一致；Dart 侧同根因。
+            format!("({arr} ?? []).length")
         }
         Target::Python => format!("len({arr})"),
         Target::Rust | Target::Dioxus => format!("({arr}).len()"),
+        // Task 12 fix round (批次 4 终验): Dart 侧裸 `({arr}).length` — `?? []`
+        // 触发 dead_null_aware_expression（非空操作数）。可空数据内置物
+        // （@load 三态 data）在 load_builtins 已烘焙 `?? const []` 兜底、解析为
+        // 非空形式；普通信号/计算量本就非空。JS 家族保留 `?? []`（TS 侧
+        // `T[] | null` 需要兜底，且无 dead-warning 规则）。
         Target::Dart | Target::Flutter => format!("({arr}).length"),
     }
 }

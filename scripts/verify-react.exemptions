@@ -186,9 +186,8 @@ components/StdLibShowcase.tsx	no-control-regex	[T1.6] generated regex with contr
 # — codegen 对含 @motion 组件统一发射 useEffect（@hover 触发无需 effect）——deferral #88
 components/TokenTypeDemo.tsx	@typescript-eslint/no-unused-vars	[#88] codegen import 发射过宽（@hover motion 无 effect）	1	#88
 # 批次 2 Task 10 收口轮（2026-08-11）：ElementRefDemo @ref style 属性 number 直写（TS2322）
-# + SlotBox PointerEvent clientX/clientY 无映射 `?? undefined` 兜底（TS2871 +
-# no-constant-binary-expression）——HEAD 基线实证预存在（git stash + HEAD codegen
-# 重建 diff 逐字节一致；并行会话遗留孤儿生成物，展示项目不消费该路径）——deferral #91
+# ——HEAD 基线实证预存在（git stash + HEAD codegen 重建 diff 逐字节一致；并行会话
+# 遗留孤儿生成物，展示项目不消费该路径）——deferral #91。SlotBox clientX/clientY
+# 两行已于 Task 12 fix round（批次 4 终验）随 PointerEvent clientX/clientY 映射
+# 臂落地删除（根因已修，无残留错误类）。
 pages/ElementRefDemo.tsx	TS2322	[#91] @ref style 属性 number 直写（无 number→string 转换臂，预存在）	4	#91
-pages/SlotBox.tsx	TS2871	[#91] PointerEvent clientX/clientY 无映射 `?? undefined` 兜底（预存在）	2	#91
-pages/SlotBox.tsx	no-constant-binary-expression	[#91] 同上 nullish 兜底恒 false（预存在）	2	#91

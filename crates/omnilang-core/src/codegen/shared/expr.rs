@@ -1023,6 +1023,28 @@ impl FormatExpr for DartFormatExpr {
                 return format!("({left_str}).toString() + {right_str}");
             }
         }
+        // Task 12 fix round (批次 4 终验): Dart 的 `??` 绑定比 `==`/`!=` 更松——
+        // @load 数据内置物（load_builtins，形如 `keyAsync.asData?.value ?? const []`）
+        // 直接与 null 字面量比较时，裸拼接产出 `x ?? const [] == null`，解析为
+        // `x ?? (const [] == null)` → non_bool_condition（左操作数非 bool）。
+        // `?? const []` 兜底只为「值用」（数组转非空）而生；在空值比较位应剥离
+        // 为裸可空形（`x == null` 才是语义正确的「数据未就绪」判断）。
+        // 非 null 字面量的比较、非 equality 运算一概不动。
+        if matches!(op, "==" | "!=") {
+            let is_null_literal = |e: &ExprIR| matches!(e, ExprIR::LiteralExpr { value } if value.is_null());
+            if is_null_literal(right) {
+                let left_raw = left_str
+                    .strip_suffix(" ?? const []")
+                    .unwrap_or(left_str);
+                return format!("{left_raw} {op} {right_str}");
+            }
+            if is_null_literal(left) {
+                let right_raw = right_str
+                    .strip_suffix(" ?? const []")
+                    .unwrap_or(right_str);
+                return format!("{left_str} {op} {right_raw}");
+            }
+        }
         format!("{left_str} {op} {right_str}")
     }
 

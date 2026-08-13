@@ -990,10 +990,50 @@ pub(super) fn gen_view_node_tsx(
                             if event_obj == "{}" {
                                 attrs.push(format!("{}={{{}}}", react_event, ref_name));
                             } else {
-                                attrs.push(format!(
-                                    "{}={{(e) => {{ {}({}) }}}}",
-                                    react_event, call, event_obj
-                                ));
+                                // Task 12 fix round (批次 4 终验): @load 合成回调
+                                // 别名（{name}Retry/{name}LoadMore/{name}Reset，
+                                // 匿名形态 loadmore/reset——不在 comp.fns 中 →
+                                // used_fields=None → event_data 整 schema 展开）
+                                // 恒 0 参。整 schema 非空对象时按 fn 声明参数数
+                                // 保真：0 参 fn 直接裸绑定，跳过 (e) 包装——
+                                // 否则 `fn({x: ..., clientX: ...})` 报 TS2554
+                                // (Expected 0 arguments) + TS2339（合成 MouseEvent
+                                // 无 pressure/tiltX 等 PointerEvent 成员）。
+                                // fix 1 复核：不得用 unwrap_or(0) 兜底——fn 类型
+                                // signal（如 `signal f: fn(String) -> Void =
+                                // null`）同样不在 comp.fns，但参数数在 lowering
+                                // 丢失（Named "function"，不可恢复），必须保持
+                                // 载体形态 `f?.({...})`（Task 5.6 锁定语义）。
+                                // 裸绑定仅限可证 0 参：comp.fns 声明 0 参，或
+                                // 合成回调名精确命中（load_intent 派生）。
+                                let n_params = comp
+                                    .fns
+                                    .iter()
+                                    .find(|f| f.name == ref_name)
+                                    .map(|f| f.params.len());
+                                let is_synth_load_cb = comp.load_intent.iter().any(|load| {
+                                    match load.name.as_deref() {
+                                        Some(p) => {
+                                            ref_name == format!("{p}Retry")
+                                                || ref_name == format!("{p}LoadMore")
+                                                || ref_name == format!("{p}Reset")
+                                        }
+                                        // 匿名形态（retry 已由 is_retry_mapped
+                                        // 短路至 load——load 恒 0 参，此处不再
+                                        // 命中）；loadmore/reset 同 sig() 命名。
+                                        None => {
+                                            ref_name == "loadmore" || ref_name == "reset"
+                                        }
+                                    }
+                                });
+                                if n_params == Some(0) || is_synth_load_cb {
+                                    attrs.push(format!("{}={{{}}}", react_event, ref_name));
+                                } else {
+                                    attrs.push(format!(
+                                        "{}={{(e) => {{ {}({}) }}}}",
+                                        react_event, call, event_obj
+                                    ));
+                                }
                             }
                         } else {
                             attrs.push(format!("{}={{{}}}", react_event, ref_name));

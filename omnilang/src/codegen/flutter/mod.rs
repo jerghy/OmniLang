@@ -457,6 +457,14 @@ impl FlutterCodegen {
                     names.push(tag.to_string());
                 }
             }
+            // Task 12 fix round (批次 4 终验): 分页 @load 的内置 loader 签名
+            // 引用 types.dart 的 `Page<T>` 信封（`Future<Page<T>> _load`）——
+            // 与 material 的 `Page`（可滚动页）撞名 → ambiguous_import。
+            // 组件名/子组件名未必叫 Page，但信封引用必然存在（has_paginated
+            // 与 types.dart 导入门控同因），一律 hide 掉 material 的 Page。
+            if has_paginated {
+                names.push("Page".to_string());
+            }
             names.sort();
             names.dedup();
             names
@@ -799,12 +807,17 @@ impl FlutterCodegen {
         // AsyncNotifier subclass (spec §2.2 — page/hasMore/loadingMore
         // fields need the notifier's state space).
         // Tuple: (key, ret, loader_body, reset_used, named, paginated,
-        //         scroll, interval_ms, element_ret, provider_loader_arg).
+        //         scroll, interval_ms, element_ret, provider_loader_arg,
+        //         call_args, load_ty).
         // For paginated instances `ret` is the Page<T> ELEMENT type (the
         // notifier state holds the accumulated items list); `element_ret` is
         // the raw element type before the ret swap (kept for diagnostics).
-        // Clippy: 10-element local tuple exceeds type_complexity's default
-        // tuple threshold — kept as a tuple (11 consumption sites) rather
+        // `call_args` is the formatted arg list for Call loaders (empty for
+        // Fn); `load_ty` is the loader-signature-derived tear-off type for
+        // non-paginated Call loaders (`Future<{ret}> Function(params)` —
+        // empty otherwise).
+        // Clippy: 12-element local tuple exceeds type_complexity's default
+        // tuple threshold — kept as a tuple (consumption sites) rather
         // than a struct to keep the Task 9 diff minimal.
         #[allow(clippy::type_complexity)]
         let load_instances: Vec<(
@@ -817,6 +830,8 @@ impl FlutterCodegen {
             bool,
             Option<u64>,
             Option<String>,
+            String,
+            String,
             String,
         )> = comp
             .load_intent
@@ -857,60 +872,100 @@ impl FlutterCodegen {
                 } else {
                     ret
                 };
+                // `call_args`: the formatted loader argument list for Call
+                // loaders (empty for Fn). Shared by the inline FutureProvider
+                // body, the AsyncNotifier build body and the paginated
+                // `(_) => fn(args)` constructor arg — formatted ONCE here.
+                let call_args = match &li.loader {
+                    LoaderIR::Fn(_) => String::new(),
+                    LoaderIR::Call(c) => c
+                        .args
+                        .iter()
+                        .map(|a| {
+                            format_expr_ir_flutter_ctx(
+                                a,
+                                &FxHashSet::default(),
+                                &FxHashMap::default(),
+                                false,
+                                &param_providers,
+                                true,
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                };
                 let loader_body = match &li.loader {
                     LoaderIR::Fn(fname) => format!("{fname}()"),
-                    LoaderIR::Call(c) => {
-                        let args = c
-                            .args
-                            .iter()
-                            .map(|a| {
-                                format_expr_ir_flutter_ctx(
-                                    a,
-                                    &FxHashSet::default(),
-                                    &FxHashMap::default(),
-                                    false,
-                                    &param_providers,
-                                    true,
-                                )
-                            })
-                            .collect::<Vec<_>>()
-                            .join(", ");
-                        format!("{}({args})", c.func)
-                    }
+                    LoaderIR::Call(c) => format!("{}({call_args})", c.func),
                 };
                 // provider_loader_arg: the AsyncNotifier CONSTRUCTOR argument
                 // (Task 9 tear-off injection). Fn loaders tear off directly
                 // (`fetchItems`); Call loaders wrap in a page-ignoring lambda
-                // (`(_) => {func}({args})`). Non-paginated reset-using Fn
-                // loaders tear off the zero-arg form; non-paginated Call
-                // loaders stay inline (empty arg → `Notifier()`).
+                // (`(_) => {func}({args})`) when paginated, or tear off the
+                // state method directly (`loadDirect` — resolves inside the
+                // state class scope where the provider field is declared)
+                // when non-paginated with reset.
                 let provider_loader_arg = if paginated {
                     match &li.loader {
                         LoaderIR::Fn(fname) => fname.clone(),
-                        LoaderIR::Call(c) => {
-                            let args = c
-                                .args
-                                .iter()
-                                .map(|a| {
-                                    format_expr_ir_flutter_ctx(
-                                        a,
-                                        &FxHashSet::default(),
-                                        &FxHashMap::default(),
-                                        false,
-                                        &param_providers,
-                                        true,
-                                    )
-                                })
-                                .collect::<Vec<_>>()
-                                .join(", ");
-                            format!("(_) => {}({args})", c.func)
-                        }
+                        LoaderIR::Call(c) => format!("(_) => {}({call_args})", c.func),
                     }
                 } else {
                     match &li.loader {
                         LoaderIR::Fn(fname) => fname.clone(),
-                        LoaderIR::Call(_) => String::new(),
+                        LoaderIR::Call(c) => c.func.clone(),
                     }
+                };
+                // load_ty: tear-off type for the non-paginated Call loader's
+                // `_load` field (empty for Fn / paginated — those use their
+                // own zero-arg / page-int forms). Derived from the loader
+                // fn's declared signature (`Future<{ret}> Function(params)`
+                // for async bodies, plain `{ret} Function(params)` for sync),
+                // matching the state-method / lib-fn emission shape in
+                // stmt.rs. NB: `dynamic Function(dynamic)` is NOT a valid
+                // supertype here — Dart parameter types are contravariant, so
+                // `Future<List<String>> Function(String)` is unassignable to
+                // `dynamic Function(dynamic)` (dart analyze
+                // argument_type_not_assignable).
+                let load_ty = match &li.loader {
+                    LoaderIR::Call(c) if !paginated => {
+                        let fn_sig = comp
+                            .fns
+                            .iter()
+                            .find(|f| f.name == c.func)
+                            .or_else(|| {
+                                lib_fns.iter().find(|f| f.name == c.func).map(|f| **f)
+                            });
+                        match fn_sig {
+                            Some(f) => {
+                                let is_async =
+                                    f.is_async || stmt_block_emits_await(&f.body.statements);
+                                let ret_prefix = if is_async {
+                                    format!("Future<{ret}>")
+                                } else {
+                                    ret.clone()
+                                };
+                                let params = f
+                                    .params
+                                    .iter()
+                                    .map(|p| match &p.r#type {
+                                        Some(t) => super::dart::dart_type_ir(t),
+                                        None => "dynamic".to_string(),
+                                    })
+                                    .collect::<Vec<_>>()
+                                    .join(", ");
+                                format!("{ret_prefix} Function({params})")
+                            }
+                            None => format!(
+                                "dynamic Function({})",
+                                (0..c.args.len())
+                                    .map(|_| "dynamic")
+                                    .collect::<Vec<_>>()
+                                    .join(", ")
+                            ),
+                        }
+                    }
+                    _ => String::new(),
                 };
                 // Reset detection: `{name}Reset` (named) / `reset` (anonymous)
                 // referenced anywhere in computeds/effects/lifecycles/fns/view.
@@ -930,6 +985,8 @@ impl FlutterCodegen {
                     li.mode.interval,
                     element_ret,
                     provider_loader_arg,
+                    call_args,
+                    load_ty,
                 )
             })
             .collect();
@@ -967,7 +1024,7 @@ impl FlutterCodegen {
             w.emit("");
         }
         // Task 8/9: reset-using OR paginated @load instances upgrade to
-        // AsyncNotifier — the provider owns `reset` (`state = AsyncData(null)`,
+        // AsyncNotifier — the provider owns `reset` (`state = AsyncData(const [])`,
         // Riverpod 3 native reset) and/or pagination state (page/hasMore/
         // loadingMore, spec §2.2). Loader injection:
         //   - paginated (any loader form): constructor tear-off — `Fn` tears
@@ -977,17 +1034,25 @@ impl FlutterCodegen {
         //     (`FetchTodosNotifier(fetchTodos)`) — the AsyncNotifier's own
         //     `ref` stays inside build(), where `ref.watch(paramProvider)`
         //     is legal and registers the dep (Task 8 auto-reload semantics).
-        //   - non-paginated reset `Call`: inline build body
-        //     (`Future<T> build() async => {loader_body};`) — the notifier's
-        //     build body may `ref.watch` param providers directly; no
-        //     constructor arg is injected.
+        //   - non-paginated reset `Call`: arity-matched tear-off
+        //     (`DirectNotifier(loadDirect)`) — the state method tear-off
+        //     resolves inside the state class where the provider field is
+        //     declared; `load_ty` mirrors the state-method tear-off signature
+        //     (`Future<{ret}> Function({param types})` — derived from the
+        //     loader fn's declared params/return, since `dynamic Function(dynamic)`
+        //     rejects real signatures via Dart param contravariance). The
+        //     formatted args (with `ref.watch(paramProvider)`)
+        //     stay in the notifier's build body — its OWN ref is the legal
+        //     watch site and keeps Task 8 auto-reload semantics.
         // V12 envelope check (spec §4.2): a `Page<T>` response missing
-        // `hasMore` throws StateError (first load) / enters AsyncError with
-        // the accumulated value preserved (loadMore) — never silently stops.
+        // `hasMore` throws StateError (first load) / enters AsyncError
+        // (loadMore) — never silently stops. loadMore shows the accumulated
+        // list during the request (`AsyncData(state.value ?? const [])`) —
+        // the footer's `loadingMore` flag drives the "Loading more..." text.
         for (
             key,
             ret,
-            loader_body,
+            _loader_body,
             reset_used,
             _named,
             paginated,
@@ -995,6 +1060,8 @@ impl FlutterCodegen {
             _interval_ms,
             _element_ret,
             provider_loader_arg,
+            call_args,
+            load_ty,
         ) in &load_instances
         {
             if !*paginated && !*reset_used {
@@ -1044,7 +1111,7 @@ impl FlutterCodegen {
                 w.emit("if (loadingMore || !hasMore) return;");
                 w.emit("loadingMore = true;");
                 w.emit_fmt(format_args!(
-                    "state = AsyncLoading<{}>().copyWithPrevious(state);",
+                    "state = AsyncData<{}>(state.value ?? const []);",
                     state_ret
                 ));
                 w.emit("try {");
@@ -1053,7 +1120,7 @@ impl FlutterCodegen {
                 w.emit("if (r.hasMore == null) {");
                 w.indent();
                 w.emit_fmt(format_args!(
-                    "state = AsyncError<{}>(StateError(\"{}\"), StackTrace.current, value: state.value);",
+                    "state = AsyncError<{}>(StateError(\"{}\"), StackTrace.current);",
                     state_ret,
                     V12_MISSING_HAS_MORE_MSG
                 ));
@@ -1072,7 +1139,7 @@ impl FlutterCodegen {
                 w.emit("} catch (e, st) {");
                 w.indent();
                 w.emit_fmt(format_args!(
-                    "state = AsyncError<{}>(e, st, value: state.value);",
+                    "state = AsyncError<{}>(e, st);",
                     state_ret
                 ));
                 w.dedent();
@@ -1092,17 +1159,12 @@ impl FlutterCodegen {
                 w.dedent();
                 w.emit("}");
             } else {
-                // Non-paginated reset-using instance (Task 8 shape, Task 9
-                // tear-off for Fn loaders).
-                if provider_loader_arg.is_empty() {
-                    // Call loader: inline body keeps `ref.watch` legal inside
-                    // the notifier's build (its own ref registers deps).
-                    w.emit("@override");
-                    w.emit_fmt(format_args!(
-                        "Future<{}> build() async => {};",
-                        state_ret, loader_body
-                    ));
-                } else {
+                // Non-paginated reset-using instance — constructor tear-off
+                // for BOTH loader forms (Task 9 shape, V12 fix): `Fn` tears
+                // off the zero-arg state method (`FetchTodosNotifier(fetchTodos)`),
+                // `Call` tears off the state method with matching arity
+                // (`DirectNotifier(loadDirect)`, `load_ty` carries the type).
+                if load_ty.is_empty() {
                     w.emit("final dynamic Function() _load;");
                     w.emit_fmt(format_args!("{}(this._load);", notifier));
                     w.emit("");
@@ -1111,10 +1173,19 @@ impl FlutterCodegen {
                         "Future<{}> build() async => _load();",
                         state_ret
                     ));
+                } else {
+                    w.emit_fmt(format_args!("final {} _load;", load_ty));
+                    w.emit_fmt(format_args!("{}(this._load);", notifier));
+                    w.emit("");
+                    w.emit("@override");
+                    w.emit_fmt(format_args!(
+                        "Future<{}> build() async => _load({});",
+                        state_ret, call_args
+                    ));
                 }
                 w.emit("void reset() {");
                 w.indent();
-                w.emit("state = AsyncData(null);");
+                w.emit_fmt(format_args!("state = AsyncData<{}>(const []);", state_ret));
                 w.dedent();
                 w.emit("}");
             }
@@ -1452,12 +1523,15 @@ impl FlutterCodegen {
             _interval_ms,
             _element_ret,
             provider_loader_arg,
+            _call_args,
+            _load_ty,
         ) in &load_instances
         {
             if *paginated || *reset_used {
-                // Task 9 tear-off injection: `() => ItemsNotifier(fetchItems)`
-                // (Fn) / `() => ItemsNotifier((_) => api.fetch(args))` (Call)
-                // / `() => FetchTodosNotifier()` (non-paginated Call reset).
+                // Task 9 tear-off injection (V12 fix): `() => ItemsNotifier(fetchItems)`
+                // (Fn) / `() => ItemsNotifier((_) => api.fetch(args))` (paginated
+                // Call) / `() => DirectNotifier(loadDirect)` (non-paginated Call
+                // reset — the state method tear-off resolves in this scope).
                 // Paginated state type is the payload `List<T>` (spec §2.2).
                 let state_ret = if *paginated {
                     format!("List<{}>", ret)
@@ -1544,7 +1618,7 @@ impl FlutterCodegen {
         // are assigned at interception time. Gated on the exact features
         // present so unused fields never leak into plain components.
         if has_scroll_loads {
-            for (key, _ret, _body, _reset, _named, paginated, scroll, _iv, _er, _arg) in
+            for (key, _ret, _body, _reset, _named, paginated, scroll, _iv, _er, _arg, ..) in
                 &load_instances
             {
                 if *paginated && *scroll {
@@ -1556,7 +1630,7 @@ impl FlutterCodegen {
             }
         }
         if has_interval_loads {
-            for (key, _ret, _body, _reset, _named, paginated, _sc, interval_ms, _er, _arg) in
+            for (key, _ret, _body, _reset, _named, paginated, _sc, interval_ms, _er, _arg, ..) in
                 &load_instances
             {
                 if let Some(ms) = interval_ms {
@@ -1865,7 +1939,7 @@ impl FlutterCodegen {
             // loadMore(). LoadingMore & hasMore double-guard in the notifier
             // (see loadMore()); hasClients guards detached controllers.
             if has_scroll_loads {
-                for (key, _ret, _body, _reset, _named, paginated, scroll, _iv, _er, _arg) in
+                for (key, _ret, _body, _reset, _named, paginated, scroll, _iv, _er, _arg, ..) in
                     &load_instances
                 {
                     if *paginated && *scroll {
@@ -1880,8 +1954,19 @@ impl FlutterCodegen {
             // Task 9: polling (spec §2.4) — Timer.periodic re-runs the
             // provider build (equivalent to a retry); cancelled in dispose().
             if has_interval_loads {
-                for (key, _ret, _body, _reset, _named, _paginated, _sc, interval_ms, _er, _arg) in
-                    &load_instances
+                for (
+                    key,
+                    _ret,
+                    _body,
+                    _reset,
+                    _named,
+                    _paginated,
+                    _sc,
+                    interval_ms,
+                    _er,
+                    _arg,
+                    ..
+                ) in &load_instances
                 {
                     if let Some(ms) = interval_ms {
                         let ctrl = format!("_pollTimer{}", pascal_case(key));
@@ -2087,7 +2172,7 @@ impl FlutterCodegen {
             // debounce-throttle timer map (spec §2.3/§2.4/§2.5) — all
             // listeners & periodic callbacks must die with the State.
             if has_scroll_loads {
-                for (key, _ret, _body, _reset, _named, paginated, scroll, _iv, _er, _arg) in
+                for (key, _ret, _body, _reset, _named, paginated, scroll, _iv, _er, _arg, ..) in
                     &load_instances
                 {
                     if *paginated && *scroll {
@@ -2099,8 +2184,19 @@ impl FlutterCodegen {
                 }
             }
             if has_interval_loads {
-                for (key, _ret, _body, _reset, _named, _paginated, _sc, interval_ms, _er, _arg) in
-                    &load_instances
+                for (
+                    key,
+                    _ret,
+                    _body,
+                    _reset,
+                    _named,
+                    _paginated,
+                    _sc,
+                    interval_ms,
+                    _er,
+                    _arg,
+                    ..
+                ) in &load_instances
                 {
                     if interval_ms.is_some() {
                         w.emit_fmt(format_args!("_pollTimer{}?.cancel();", pascal_case(key)));
@@ -2253,32 +2349,6 @@ impl FlutterCodegen {
             w.emit("});");
         }
 
-        // @load (Task 5): hoisted AsyncValue reads — `loading` maps to
-        // `.isLoading`, `error` to `.error`, `data` to `.asData?.value` in the
-        // view tree (format_identifier override in ref.rs). Task 8: one
-        // hoist per instance (named or anonymous), keyed by instance key.
-        // Task 9: paginated instances additionally hoist the AsyncNotifier
-        // (`ref.watch({key}Provider.notifier)`) — build-phase watch is legal,
-        // and the derived signals `{key}Page`/`{key}HasMore`/`{key}LoadingMore`
-        // read fields off the hoisted local (spec §2.2).
-        for (key, ret, _loader_body, _reset_used, _named, paginated, _scroll, _iv, _er, _arg) in
-            &load_instances
-        {
-            w.emit_fmt(format_args!(
-                "final AsyncValue<{}> {}Async = ref.watch({}Provider);",
-                ret, key, key
-            ));
-            if *paginated {
-                w.emit_fmt(format_args!(
-                    "final {}Notifier {}Notifier = ref.watch({}Provider.notifier);",
-                    pascal_case(key),
-                    key,
-                    key
-                ));
-            }
-            w.emit("");
-        }
-
         if let Some(view) = view {
             let motions = ir
                 .modules
@@ -2298,7 +2368,7 @@ impl FlutterCodegen {
             // build() (view tree + inline handlers). `reset` appears only
             // when the instance actually upgrades to AsyncNotifier.
             let mut load_builtins: FxHashMap<String, String> = FxHashMap::default();
-            for (key, _ret, _loader_body, reset_used, named, paginated, _scroll, _iv, _er, _arg) in
+            for (key, _ret, _loader_body, reset_used, named, paginated, _scroll, _iv, _er, _arg, _call_args, _load_ty) in
                 &load_instances
             {
                 let insert = |m: &mut FxHashMap<String, String>, n: String, v: String| {
@@ -2476,6 +2546,43 @@ impl FlutterCodegen {
             // (bare TextField renders ~100k px tall without one — 3.2
             // review finding; page shells are the 3.9 Scaffold task's).
             let tree_expr = view::wrap_root_material_if_inputs(view, tree_expr);
+            // @load (Task 5): hoisted AsyncValue reads — `loading` maps to
+            // `.isLoading`, `error` to `.error`, `data` to `.asData?.value`
+            // in the view tree (format_identifier override in ref.rs). One
+            // hoist per instance (named or anonymous), keyed by instance key.
+            // V12 fix: paginated state is `List<T>` — the AsyncValue generic
+            // must be `AsyncValue<List<T>>` (element type would mismatch the
+            // `AsyncNotifierProvider<X, List<T>>` watch → analyze error).
+            // Task 9: paginated instances additionally hoist the AsyncNotifier
+            // (`ref.watch({key}Provider.notifier)`) — but ONLY when the view
+            // tree actually references a derived signal (`{key}Page`/`{key}HasMore`/
+            // `{key}LoadingMore` → `{key}Notifier.<field>` in tree_expr), else
+            // the local is unused (dart analyze unused_local). `{key}Reset`/
+            // `{key}LoadMore`/`{key}Retry` use `ref.read(...)` inline and need
+            // no local. Emitted AFTER tree_expr so the contains-gate sees the
+            // final substituted text, and BEFORE the store hoists/return.
+            for (key, ret, _loader_body, _reset_used, _named, paginated, _scroll, _iv, _er, _arg, _call_args, _load_ty) in
+                &load_instances
+            {
+                let async_ann = if *paginated {
+                    format!("List<{}>", ret)
+                } else {
+                    ret.clone()
+                };
+                w.emit_fmt(format_args!(
+                    "final AsyncValue<{}> {}Async = ref.watch({}Provider);",
+                    async_ann, key, key
+                ));
+                if *paginated && tree_expr.contains(&format!("{}Notifier", key)) {
+                    w.emit_fmt(format_args!(
+                        "final {}Notifier {}Notifier = ref.watch({}Provider.notifier);",
+                        pascal_case(key),
+                        key,
+                        key
+                    ));
+                }
+                w.emit("");
+            }
             for (name, expr) in &hoisted {
                 w.emit_fmt(format_args!("final {} = {};", name, expr));
             }

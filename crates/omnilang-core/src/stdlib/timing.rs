@@ -43,13 +43,25 @@ pub(super) fn codegen_debounce(args: &[String], target: Target) -> String {
     let fn_expr = &args[0];
     let ms = &args[1];
     match target {
-        Target::JavaScript
-        | Target::TypeScript
-        | Target::React
-        | Target::Vue
-        | Target::OmniView => {
+        // 非 React 的 JS 族保持无注解形态（纯 JS 目标不能含 TS 注解——
+        // 共享 format! 字符串的既有断言与 TypeScript 目标产物一致）。
+        Target::JavaScript | Target::TypeScript | Target::Vue | Target::OmniView => {
             format!(
                 "((_fn, _ms) => {{ let _t; return (..._a) => {{ clearTimeout(_t); _t = setTimeout(() => (_fn.current ?? _fn)(..._a), _ms); }}; }})({fn_expr}, {ms})"
+            )
+        }
+        // Task 12 fix round (批次 4 终验): React 目标需显式注解——
+        // 无注解 `let _t;` 报 TS7034/TS7005（implicit any + 用前未赋值），
+        // `(..._a)` 无类型则 TS2554 拒绝展开调用。`_t` 类型含 undefined
+        // 免除 TS2454；`_ms: number` 免除 TS7006。首参类型弃 `any`：本项目
+        // verify-react 门禁（eslint recommended + typescript-eslint
+        // recommended）含 no-explicit-any 且按 error 拦截——改以 `unknown`
+        // 接收（首参可为 `{fn}_ref` 稳定引用或裸 fn 表达式），调用点经
+        // `as { current?: unknown }` 取 `.current`（普通 fn 无 current，
+        // `??` 落回原 fn），再 `as (...args: unknown[]) => unknown` 断言可调。
+        Target::React => {
+            format!(
+                "((_fn: unknown, _ms: number) => {{ let _t: ReturnType<typeof setTimeout> | undefined; return (..._a: unknown[]) => {{ clearTimeout(_t); _t = setTimeout(() => (((_fn as {{ current?: unknown }}).current ?? _fn) as (...args: unknown[]) => unknown)(..._a), _ms); }}; }})({fn_expr}, {ms})"
             )
         }
         // 占位：保持可调用形态（透传调用，ms 暂未参与语义——Task 7/9/11 映射）
@@ -72,13 +84,19 @@ pub(super) fn codegen_throttle(args: &[String], target: Target) -> String {
     let fn_expr = &args[0];
     let ms = &args[1];
     match target {
-        Target::JavaScript
-        | Target::TypeScript
-        | Target::React
-        | Target::Vue
-        | Target::OmniView => {
+        // 非 React 的 JS 族保持无注解形态（同 debounce）。
+        Target::JavaScript | Target::TypeScript | Target::Vue | Target::OmniView => {
             format!(
                 "((_fn, _ms) => {{ let _t; let _args; return (..._a) => {{ _args = _a; if (_t === undefined) {{ _t = setTimeout(() => {{ _t = undefined; (_fn.current ?? _fn)(..._args); }}, _ms); }} }}; }})({fn_expr}, {ms})"
+            )
+        }
+        // Task 12 fix round: React 显式注解（同 debounce 理由）；`_args`
+        // 以 `= []` 初始化——闭包内读取虽不触发 TS2454（闭包体读取不受
+        // 定值分析约束），初始化形态更稳。类型同 debounce：`unknown` +
+        // 调用点断言，无 `any`（门禁 no-explicit-any）。
+        Target::React => {
+            format!(
+                "((_fn: unknown, _ms: number) => {{ let _t: ReturnType<typeof setTimeout> | undefined; let _args: unknown[] = []; return (..._a: unknown[]) => {{ _args = _a; if (_t === undefined) {{ _t = setTimeout(() => {{ _t = undefined; (((_fn as {{ current?: unknown }}).current ?? _fn) as (...args: unknown[]) => unknown)(..._args); }}, _ms); }} }}; }})({fn_expr}, {ms})"
             )
         }
         // 占位：保持可调用形态（透传调用，ms 暂未参与语义——Task 7/9/11 映射）
