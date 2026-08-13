@@ -9222,8 +9222,13 @@ component App {
         out
     );
     assert!(
-        out.contains("(_fn.current ?? _fn)(..._a)"),
+        out.contains("(_fn as { current?: unknown }).current ?? _fn"),
         "stdlib debounce 调用形态必须兼容 {{fn}}_ref（Task 12）. Got:\n{}",
+        out
+    );
+    assert!(
+        out.contains("as (...args: unknown[]) => unknown)(..._a)"),
+        "React 目标必须显式注解可调断言（批次 4 终验修复轮：TS2554 无类型展开调用被拒）. Got:\n{}",
         out
     );
     assert!(
