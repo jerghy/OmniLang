@@ -136,6 +136,37 @@ store TimerStore {
 }
 ```
 
+## std/timing — 防抖与节流
+
+batch-4 新增（spec §2.5）：`debounce` / `throttle` 为**纯语义时间函数**——时间语义跨端一致，非视图意图。`import` 形态 `from "std/timing"`，返回**可调用函数**（表达式形态可直接作事件处理器，见 07-events-and-bindings.md「防抖 / 节流处理器」与 16-forms-and-async-data.md「防抖 / 节流」）。
+
+| 函数 | 签名 | 语义 |
+|------|------|------|
+| `debounce` | `debounce(fn, ms: i32) -> fn` | 停顿 ms 后执行一次（连续调用只触发最后一次） |
+| `throttle` | `throttle(fn, ms: i32) -> fn` | 窗口内至多执行一次（trailing-only：窗口内以最新参数触发一次） |
+
+```omni
+import { debounce, throttle } from "std/timing";
+
+component App {
+    signal searchQuery: String = ""
+    fn doSearch() -> String {}
+    view {
+        <input bind:value={searchQuery} @onInput={debounce(doSearch, 300)}></input>
+        <button @onPress={throttle(doSearch, 2000)}>Refresh</button>
+    }
+}
+```
+
+约束（违规 = 编译期硬错误 V9）：
+
+- ms 必须为**正整数毫秒**、fn 必须为**可调用函数**（`std/timing "fn" 的 ms 参数须为正整数毫秒；fn 须为可调用函数`——消息内 fn 为实际函数名）。
+
+跨目标注记：
+
+- **JS 族（React / OmniView）**：自包含 `setTimeout` 包装，任意事件形态完整生效（`@onInput` / `@onPress` / `@onClick` …）。
+- **Flutter**：完整拦截仅限 void 回调族（`@onPress` / `@onTap` / `@onLongPress` / `@onDoubleTap` 按钮系）；`@onInput` 为透传占位（诚实降级——非 void 回调不拦截，ms 暂不参与语义，留生态登记）。
+
 ## 内置方法
 
 无需 import，直接在类型上调用：

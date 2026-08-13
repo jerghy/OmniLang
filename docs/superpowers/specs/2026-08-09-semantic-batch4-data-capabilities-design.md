@@ -81,7 +81,7 @@ fn_ref        := identifier                     (* 引用形式：无参装载 *
 | 匿名 `@load={fn}` | `loading` / `error` / `data` / `retry` / `reset`（v0 四名 + 新增 `reset`） |
 | 命名 `@load name={fn}` | `{name}Loading` / `{name}Error` / `{name}Data` / `{name}Retry` / `{name}Reset`（camelCase 拼接） |
 
-- `data` 信号可空化：`null` = 未装载（mount 前）/已 Reset。React 生成初始值 `[]` → `null`（渲染处已有 `?? []` 兜底先例）；Flutter `asData?.value ?? const []` 天然 null 安全。空闲态渲染 = `@if data == null && !loading`——与 DataFetching 迁移的 idle 态对齐（§8 对照表）。
+- `data` 信号可空化：`null` = 未装载（mount 前）/已 Reset。React 生成初始值 `[]` → `null`（渲染处已有 `?? []` 兜底先例）；Flutter `asData?.value ?? const []` 天然 null 安全；OmniView JS 槽位初值 `[]`（view 侧 `{name}Data` 初值 null 兜底渲染）。空闲态渲染 = `@if data == null && !loading`——与 DataFetching 迁移的 idle 态对齐（§8 对照表）。
 - `Reset` 语义 = 清空回未装载态（data→null、error→null、loading→false），**不自动重载**——与 DataFetching `fn reset()` 行为对齐；`retry` 保持 v0 语义（不清数据重新装载）。
 - 参数绑定语义：参数值变化 → 自动重新装载（React 依赖数组 / Riverpod `ref.watch` 的真人写法先例）；参数为字面量时仅装载一次。暂停自动重载不在 v0（见 §9 P7 未决）。
 - 装载函数可为普通 `fn` 或 `async fn`（`pub async fn` 已存在，api.omni 实证）——真实 HTTP 装载路径（DataFetching 迁移依赖此点）。
@@ -136,6 +136,7 @@ load_spec := '{' fn_ref '}' | ident '=' '{' fn_ref '}'
 - 装载函数签名约定：`fn {name}(page: i32) -> Page<T>`；`Page<T>` 为语言内建信封类型 `{ items: Array<T>, hasMore: Bool }`（见 §5 登记）。
 - 编译器生成：`{name}Data`（items 解包后，`Array<T>`）、`{name}Page`（当前页码，首载后 = 1）、`{name}HasMore`、`{name}LoadingMore`、`{name}LoadMore()` 回调（page+1 装载追加）、`{name}Reset()`、`{name}Retry()`。
 - 装载失败：追加页失败进入 `{name}Error`（保留已装载数据），`{name}LoadMore` 可重试。
+- **翻页语义跨目标一致**：`{name}Retry` / `{name}Reset` 均回到第 1 页（页码重置后装载）；OmniView 端 retry 装载结果 `data = r.items`（首页覆盖，非追加——追加仅 `{name}LoadMore` 路径）。
 
 **库绑定 vs 编译器自生成——定案：v0 编译器自生成**。依据：
 1. 与 @load v0 先例一致——React 端三态自生成（`useState` + `useCallback`，零依赖），Flutter 端 Riverpod 基座内自生成；分页状态机同属「编译器选路职责」（ADR-071 模式）。
@@ -251,10 +252,10 @@ component Search {
 
 | 语言项 | React | Flutter | OmniView |
 |---|---|---|---|
-| @load 多例/匿名保留名 | 每实例独立 `useState` 三态 + `useCallback` load + `useEffect` mount（v0 形态 × N 实例）；命名实例信号名 `{name}Loading` 等。地道性：受控组件 + hooks 官方惯用法 | 每实例独立 `FutureProvider` + `ref.watch`（v0 形态 × N）；命名信号 `{name}Async` 映射为 `{name}Async` + `.isLoading/.error/.asData`。地道性：Riverpod 3.x 官方三态 | 每实例独立 store 槽位（`{name}_loading`/`{name}_error`/`{name}_data`/`{name}_retry`/`{name}_reset`——v0 `store.rs` 槽位命名扩展） |
+| @load 多例/匿名保留名 | 每实例独立 `useState` 三态 + `useCallback` load + `useEffect` mount（v0 形态 × N 实例）；命名实例信号名 `{name}Loading` 等。地道性：受控组件 + hooks 官方惯用法 | 每实例独立 `FutureProvider` + `ref.watch`（v0 形态 × N）；命名信号 `{name}Async` 映射为 `{name}Async` + `.isLoading/.error/.asData`。地道性：Riverpod 3.x 官方三态 | 每实例独立 store 槽位（`{Comp}_{name}_loading`/`{Comp}_{name}_error`/`{Comp}_{name}_data`/`{Comp}_{name}_retry`/`{Comp}_{name}_reset`——v0 `store.rs` 槽位命名扩展；view 侧派生信号 camelCase `{name}Loading` 等） |
 | @load 参数绑定 | loader 调用表达式入 useCallback deps（`[token, id]`）+ `useEffect` 依赖重载。地道性：依赖数组官方惯用法 | 参数信号 `ref.watch` 进 provider body——参数变化自动重跑。地道性：Riverpod 官方响应式数据流 | 参数信号 watch 进装载函数调用，变化触发重载 |
 | @load Reset | `reset()` = setLoading(false) + setError("") + setData(null)（data 初始值 v0 `[]` → `null`——可空化，渲染处 `?? []` 兜底保持）；不自动重载。地道性：受控状态重置 | `ref.invalidate` 不等价 Reset——生成 `AsyncNotifier`（官方可写三态原语）`setState(AsyncData(null))`；仅使用 Reset/分页的组件升级 AsyncNotifier，其余维持 FutureProvider（渐进式，不扰动既有生成）。降级注记：无（AsyncNotifier 是官方原语，非降级） | store 槽位置空（`{name}_data` → null），视图 `data == null && !loading` 渲染空闲 |
-| 分页（自生成） | 自生成页码状态机：`page/hasMore/loadingMore` 三个 useState + `loadMore` useCallback（page+1、追加、hasMore 更新）+ 按钮/滚动接线。地道性：手写分页 state 是 React 无库场景的真人写法 | AsyncNotifier 内 `state = AsyncData([...old, ...page.items])` + `hasMore/loadingMore` 字段；`loadMore` 方法。地道性：AsyncNotifier 承载分页状态是 Riverpod 社区标准模式（研究 01：社区以 AsyncNotifier 手写页码状态） | store 槽位 + 页码槽位（`{name}_page`/`{name}_has_more`/`{name}_loading_more`）+ `{name}_load_more` 回调 |
+| 分页（自生成） | 自生成页码状态机：`page/hasMore/loadingMore` 三个 useState + `loadMore` useCallback（page+1、追加、hasMore 更新）+ 按钮/滚动接线。地道性：手写分页 state 是 React 无库场景的真人写法 | AsyncNotifier 内 `state = AsyncData([...old, ...page.items])` + `hasMore/loadingMore` 字段；`loadMore` 方法。地道性：AsyncNotifier 承载分页状态是 Riverpod 社区标准模式（研究 01：社区以 AsyncNotifier 手写页码状态） | store 槽位 + 页码槽位（`{Comp}_{name}_page`/`{Comp}_{name}_has_more`/`{Comp}_{name}_loading_more`）+ `{Comp}_{name}_load_more` 回调（view 侧 camelCase 派生信号 `{name}Page`/`{name}HasMore`/`{name}LoadingMore`/`{name}LoadMore`） |
 | 无限滚动 | 容器尾部哨兵元素 + `IntersectionObserver`（threshold 阈值，hasMore/loadingMore 双重防护）；卸载 disconnect。地道性：IntersectionObserver 是 web 平台标准（TanStack 官方 docs 亦指「无限滚动适用于观察器」） | `ScrollController` `position.pixels >= maxScrollExtent - threshold` 监听 + dispose 释放。地道性：Flutter 官方滚动模式（研究 01 ①） | IntersectionObserver 同 React |
 | 轮询 | `setInterval` + `useEffect` cleanup `clearInterval`，每 tick 调 load。地道性：React 官方无轮询原语，setInterval+hook 是官方 docs 级标准模式 | `Timer.periodic` + `dispose` cancel + `ref.invalidate`。地道性：Flutter 无官方轮询原语，Timer 是 SDK 标准（研究 01 ①） | JS setInterval 同 React |
 | debounce/throttle | 生成稳定引用包装：`useMemo(() => debounce(doSearch, 300), [doSearch])`（或 useRef 持 timer）。地道性：lodash 风格是 React 生态事实标准工具层 | 生成 `State` 字段 timer 包装闭包（`Timer` + cancel on 新触发），卸载 dispose。地道性：Dart Timer 是 SDK 唯一时间原语 | JS 同 React（setTimeout/clearTimeout 闭包） |
@@ -393,8 +394,8 @@ verify-docs.py + verify-semantic-universe.py（域 9 扩展 + 域 13 新登记 +
 | `signal resultText: String = ""` | 删除——`{name}Data`（json_stringify 结果）替代 |
 | `signal errorMsg: String = ""` | 删除——`{name}Error` 替代 |
 | `signal url: String = "https://…/1"` | 保留 url 信号（输入框 bind 不变）——作 @load 参数绑定源 |
-| `action loadData() async`（http_get + json_parse + try/catch） | 迁移为 `async fn loadDirect() -> String`（逻辑保留：http_get + json_parse + json_stringify；错误路径交给 @load error 信号——`@load direct={loadDirect(url)}`） |
-| `action loadViaApi() async`（fetch_demo 跨文件导入） | 迁移为 `async fn loadViaApi() -> String`（fetch_demo + error_message 逻辑保留）——第二实例 `@load api={loadViaApi(url)}` |
+| `action loadData() async`（http_get + json_parse + try/catch） | 迁移为 `async fn loadDirect(url: String) -> Array<String>`（逻辑保留：http_get + json_parse + json_stringify；错误路径交给 @load error 信号——`@load direct={loadDirect(url)}`） |
+| `action loadViaApi() async`（fetch_demo 跨文件导入） | 迁移为 `async fn loadViaApi(url: String) -> Array<String>`（fetch_demo + error_message 逻辑保留）——第二实例 `@load api={loadViaApi(url)}` |
 | `fn reset()` | 删除——`directReset()` / `apiReset()` |
 | @if 四态渲染（idle/loading/success/error） | loading → `@if directLoading`；error → `@if directError != ""`；success → data 渲染；idle（@else 提示语）→ `@if directData == null && !directLoading && directError == ""` |
 | 三个按钮（Load/API/Reset） | 保留 Load/API/Reset 三个按钮：`@onPress={directRetry}` / `@onPress={apiRetry}` / `@onPress={directReset}`（或 reset 同时重置双实例——见 §9 P8 未决） |

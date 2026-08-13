@@ -23,6 +23,26 @@
 
 **语义化即切换**：首批 14 个语义事件名是唯一合法拼写——旧 DOM 拼写（`@onClick`/`@onTap`/`@onMouseEnter`/`@onMouseLeave` 等）产生**编译期硬错误 + 迁移提示**（`事件名 "@onClick" 已弃用——使用 "@onPress"`，E0006）。其余 40 个 DOM 事件名维持透传（见「事件类型参考」；semantic-universe 域 3 逐事件标注「语义化/透传」）。
 
+### 防抖 / 节流处理器（std/timing）
+
+batch-4 新增：`debounce` / `throttle`（模块登记见 12-standard-library.md「std/timing」）返回**可调用函数**，表达式形态直接作事件处理器——防抖输入搜索、节流刷新按钮：
+
+```omni
+<!-- 防抖：输入停顿 300ms 后触发一次 -->
+<input bind:value={searchQuery} @onInput={debounce(doSearch, 300)}></input>
+
+<!-- 节流：窗口内至多触发一次（trailing-only） -->
+<button @onPress={throttle(doRefresh, 2000)}>Refresh</button>
+```
+
+语义：
+
+- `debounce(fn, ms)`：停顿 ms 后执行一次——连续输入只触发最后一次（典型：搜索建议）。
+- `throttle(fn, ms)`：窗口内至多执行一次，且取窗口内**最后一次**调用（trailing-only 默认，P6 拍板）——典型：轮询刷新按钮防连点。
+- 需 import：`import { debounce, throttle } from "std/timing";`（完整示例见 16-forms-and-async-data.md「防抖 / 节流」）。
+- 约束：ms 正整数毫秒、fn 可调用（违规 = 编译期硬错误 V9：`std/timing "fn" 的 ms 参数须为正整数毫秒；fn 须为可调用函数`——消息内 fn 为实际函数名）。
+- 跨目标：JS 族（React / OmniView）任意事件形态完整生效；Flutter 完整拦截仅限 void 回调族（`@onPress` 按钮系），`@onInput` 为透传占位（诚实降级）。
+
 ## 语义事件（首批 14 个）
 
 | 语义事件 | 语义 | 事件数据（schema） | 旧名 → 硬错误迁移 |

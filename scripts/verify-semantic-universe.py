@@ -757,9 +757,11 @@ def audit():
             elif name not in dict(en8):
                 fail(f"form: 缺失语义集条目 '{name}'")
 
-    # data three-states (域 9, 2026-08-09 Task 7): 无词法级白名单常量——
-    # @load/loading/error/data/retry 以编译器代码锚点存在性断言（域 6 值绑定先例）；
-    # v0 边界（仅 Array 返回）记录于诊断行为列
+    # data three-states (域 9, 2026-08-09 Task 7 → 2026-08-13 Task 13 收口): 无词法级
+    # 白名单常量——@load/loading/error/data/retry 以编译器代码锚点存在性断言（域 6
+    # 值绑定先例）；收口新增 3 支持条目（reset 匿名/命名实例/命名实例派生信号组）——
+    # reset 基词入 LOAD_RESERVED_NAMES 双向断言，其余两行基词不在保留名集（指令行/
+    # 信号组行）故锚点断言 + 白名单存在性；v0 边界（仅 Array 返回）记录于诊断行为列
     wl9, en9 = whitelist(9), entries(9)
     if en9 is None:
         fail("数据三态: cannot cross-assert 语义集条目 (extraction failed)")
@@ -771,12 +773,27 @@ def audit():
         omniview_src = read_file(OMNIVIEW_STORE_FILE)
         for name, needles in (
             ("@load", [("load_intent", lower_src)]),
-            ("loading", [("setLoading", react_src), ("_loading", omniview_src)]),
-            ("error", [("setError", react_src), ("_error", omniview_src)]),
-            ("data", [("setData", react_src), ("_data", omniview_src)]),
+            # 2026-08-13 收口（Task 13）：react 锚点随批次 4 派生信号重构漂移——
+            # setLoading/setError/setData 字面量 → setter("Loading")/("Error")/("Data")
+            ("loading", [('setter("Loading")', react_src), ("_loading", omniview_src)]),
+            ("error", [('setter("Error")', react_src), ("_error", omniview_src)]),
+            ("data", [('setter("Data")', react_src), ("_data", omniview_src)]),
             ("retry", [("ref.invalidate", flutter_src), ("_retry", omniview_src)]),
+            # 2026-08-13 收口（Task 13）新增 3 支持条目：
+            ("reset（匿名）", [('sig("Reset")', react_src), ('format!("{js_base}_reset")', omniview_src)]),
+            (
+                "@load 命名实例（多例）",
+                [("组件内至多一个匿名 @load", lower_src), ("load_intent", lower_src)],
+            ),
+            (
+                "{name}Loading/{name}Error/{name}Data/{name}Retry/{name}Reset",
+                [
+                    ('setter("Loading")', react_src),
+                    ('format!("{js_base}_loading")', omniview_src),
+                ],
+            ),
         ):
-            if dict(en9).get(name) in ("支持", "部分"):
+            if dict(en9).get(name, "").split("（", 1)[0].strip() in ("支持", "部分"):
                 for needle, haystack in needles:
                     if needle not in haystack:
                         fail(f"数据三态: '{name}' 声明 支持/部分 但编译器锚点 '{needle}' 缺失")
@@ -789,7 +806,16 @@ def audit():
         # 等指令名/括注行——按「（」前基词归一；@load 指令名本身非保留名（
         # LOAD_RESERVED_NAMES 仅含匿名实例派生信号 loading/error/data/retry/reset），
         # 排除后与 load_contract.rs 常量双向一致（ADR-074 rust_str_array 提取模式）。
-        wl9_lex = [w.split("（", 1)[0].strip() for w in wl9 if w != "@load"]
+        # 收口 2026-08-13：白名单新增两行基词不在保留名集（「@load 命名实例」指令行/
+        # 派生信号组行）——整体排除，其余行（含 reset 基词）维持双向断言。
+        wl9_skip = {
+            "@load",
+            "@load 命名实例",
+            "{name}Loading/{name}Error/{name}Data/{name}Retry/{name}Reset",
+        }
+        wl9_lex = [
+            w.split("（", 1)[0].strip() for w in wl9 if w.split("（", 1)[0].strip() not in wl9_skip
+        ]
         assert_set(
             "数据三态",
             wl9_lex,
@@ -972,14 +998,14 @@ def audit():
             if name not in wl12:
                 fail(f"响应式: 缺失已实现白名单行 '{name}'")
 
-    # data deepening (域 13, 2026-08-11 批次 4 Task 1 登记先行): 机制级条目——
-    # @load 参数词/派生信号后缀/内建信封类型（无词法级白名单常量，登记先行 ADR-074：
-    # 本批未实现，状态全部 未支持——不进已实现白名单，占位行满足通用循环 ≥1 行约束）。
-    # 断言两层：① 条目 6 行存在 + 状态基词 = 未支持（实现后更新）；② 契约常量双向
-    # 断言（rust_str_array：LOAD_PAGINATED_SUFFIXES ∈ 派生信号条目文本 / LOAD_PARAM_WORDS
-    # ∈ 各自参数条目 / TIMING_FUNCS ∈ 节流条目；PAGE_TYPE_NAME 为 &str 形态——
-    # rust_str_array 仅匹配 &[...]，故改 needle 检查）。⚠️ 不入 assert_matrix：
-    # 未支持 ∩ 白名单 = ∅ 恒成立（白名单仅占位行），无需状态矩阵。
+    # data deepening (域 13, 2026-08-11 批次 4 Task 1 登记先行, 2026-08-13 Task 13 收口):
+    # 机制级条目——@load 参数词/派生信号后缀/内建信封类型（登记先行 ADR-074；Task 2-11
+    # 全量落地，状态全部转 支持（批次 4），白名单占位行回填为 6 行代码锚点账本）。
+    # 断言两层：① 条目 6 行存在 + 状态基词 = 支持；② 契约常量双向断言（rust_str_array：
+    # LOAD_PAGINATED_SUFFIXES ∈ 派生信号条目文本 / LOAD_PARAM_WORDS ∈ 各自参数条目 /
+    # TIMING_FUNCS ∈ 节流条目；PAGE_TYPE_NAME 为 &str 形态——rust_str_array 仅匹配 &[...]，
+    # 故改 needle 检查）+ 白名单 6 行存在性断言（收口终态，占位行已删除）。⚠️ 不入
+    # assert_matrix：白名单为锚点账本行（非枚举型语义词），无需状态矩阵。
     wl13, en13 = whitelist(13), entries(13)
     if en13 is None:
         fail("数据深化: cannot cross-assert 语义集条目 (extraction failed)")
@@ -1004,8 +1030,8 @@ def audit():
         ):
             if name not in en13_map:
                 fail(f"数据深化: 缺失语义集条目 '{name}'")
-            elif en13_map[name].split("（", 1)[0].strip() != "未支持":
-                fail(f"数据深化: '{name}' 登记先行阶段实现状态应 = 未支持，got '{en13_map[name]}'")
+            elif en13_map[name].split("（", 1)[0].strip() != "支持":
+                fail(f"数据深化: '{name}' 收口终态实现状态应 = 支持，got '{en13_map[name]}'")
         load_contract_src = read_file(LOAD_CONTRACT_FILE)
         suffixes = rust_str_array(load_contract_src, "LOAD_PAGINATED_SUFFIXES")
         param_words = rust_str_array(load_contract_src, "LOAD_PARAM_WORDS")
@@ -1054,8 +1080,17 @@ def audit():
     if wl13 is None:
         fail("数据深化: cannot cross-assert 已实现白名单 (extraction failed)")
     else:
-        if "（登记先行——本批未实现，白名单空）" not in wl13:
-            fail("数据深化: 白名单占位行缺失（登记先行——本批未实现，白名单空）")
+        # 收口终态（Task 13）：占位行删除，6 条目各回填一行代码锚点账本。
+        for name in (
+            "@load paginated（分页页码状态机）",
+            page_entry_text,
+            derived_text,
+            "@load scroll（无限滚动触发）",
+            "@load interval: ms（轮询）",
+            timing_text,
+        ):
+            if name not in wl13:
+                fail(f"数据深化: 缺失已实现白名单行 '{name}'（收口终态，占位行已删除）")
 
     # styling (域 14, 2026-08-11 批次 3 Task 1): 单表留生态登记行（无三子节结构——
     # 不走通用 REQUIRED_SUBSECTIONS 循环，专项校验）。状态值域 ∈ STATUSES（含
